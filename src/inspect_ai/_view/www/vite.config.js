@@ -98,6 +98,14 @@ export default defineConfig(({ mode }) => {
             entryFileNames: `assets/index.js`,
             chunkFileNames: `assets/[name].js`,
             assetFileNames: `assets/[name].[ext]`,
+            manualChunks(id) {
+              if (!id.includes("node_modules")) return;
+              if (/ag-grid/.test(id)) return "vendor-grid";
+              if (/asciinema/.test(id)) return "vendor-asciinema";
+              if (/prismjs/.test(id)) return "vendor-prism";
+              if (/codemirror|@codemirror|@lezer/.test(id))
+                return "vendor-codemirror";
+            },
           },
         },
         sourcemap: true,

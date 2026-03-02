@@ -1,0 +1,6372 @@
+function parseNpt(time) {
+  if (typeof time === "number") {
+    return time;
+  } else if (typeof time === "string") {
+    return time.split(":").reverse().map(parseFloat).reduce((sum, n, i) => sum + n * Math.pow(60, i));
+  } else {
+    return void 0;
+  }
+}
+function debounce(f, delay) {
+  let timeout;
+  return function() {
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+    clearTimeout(timeout);
+    timeout = setTimeout(() => f.apply(this, args), delay);
+  };
+}
+function throttle(f, interval) {
+  let enableCall = true;
+  return function() {
+    if (!enableCall) return;
+    enableCall = false;
+    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      args[_key2] = arguments[_key2];
+    }
+    f.apply(this, args);
+    setTimeout(() => enableCall = true, interval);
+  };
+}
+class DummyLogger {
+  log() {
+  }
+  debug() {
+  }
+  info() {
+  }
+  warn() {
+  }
+  error() {
+  }
+}
+class PrefixedLogger {
+  constructor(logger, prefix) {
+    this.logger = logger;
+    this.prefix = prefix;
+  }
+  log(message) {
+    for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      args[_key - 1] = arguments[_key];
+    }
+    this.logger.log(`${this.prefix}${message}`, ...args);
+  }
+  debug(message) {
+    for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+      args[_key2 - 1] = arguments[_key2];
+    }
+    this.logger.debug(`${this.prefix}${message}`, ...args);
+  }
+  info(message) {
+    for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+      args[_key3 - 1] = arguments[_key3];
+    }
+    this.logger.info(`${this.prefix}${message}`, ...args);
+  }
+  warn(message) {
+    for (var _len4 = arguments.length, args = new Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
+      args[_key4 - 1] = arguments[_key4];
+    }
+    this.logger.warn(`${this.prefix}${message}`, ...args);
+  }
+  error(message) {
+    for (var _len5 = arguments.length, args = new Array(_len5 > 1 ? _len5 - 1 : 0), _key5 = 1; _key5 < _len5; _key5++) {
+      args[_key5 - 1] = arguments[_key5];
+    }
+    this.logger.error(`${this.prefix}${message}`, ...args);
+  }
+}
+let wasm;
+function addHeapObject(obj) {
+  if (heap_next === heap.length) heap.push(heap.length + 1);
+  const idx = heap_next;
+  heap_next = heap[idx];
+  heap[idx] = obj;
+  return idx;
+}
+function debugString(val) {
+  const type = typeof val;
+  if (type == "number" || type == "boolean" || val == null) {
+    return `${val}`;
+  }
+  if (type == "string") {
+    return `"${val}"`;
+  }
+  if (type == "symbol") {
+    const description = val.description;
+    if (description == null) {
+      return "Symbol";
+    } else {
+      return `Symbol(${description})`;
+    }
+  }
+  if (type == "function") {
+    const name = val.name;
+    if (typeof name == "string" && name.length > 0) {
+      return `Function(${name})`;
+    } else {
+      return "Function";
+    }
+  }
+  if (Array.isArray(val)) {
+    const length = val.length;
+    let debug = "[";
+    if (length > 0) {
+      debug += debugString(val[0]);
+    }
+    for (let i = 1; i < length; i++) {
+      debug += ", " + debugString(val[i]);
+    }
+    debug += "]";
+    return debug;
+  }
+  const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
+  let className2;
+  if (builtInMatches && builtInMatches.length > 1) {
+    className2 = builtInMatches[1];
+  } else {
+    return toString.call(val);
+  }
+  if (className2 == "Object") {
+    try {
+      return "Object(" + JSON.stringify(val) + ")";
+    } catch (_) {
+      return "Object";
+    }
+  }
+  if (val instanceof Error) {
+    return `${val.name}: ${val.message}
+${val.stack}`;
+  }
+  return className2;
+}
+function dropObject(idx) {
+  if (idx < 132) return;
+  heap[idx] = heap_next;
+  heap_next = idx;
+}
+function getArrayU32FromWasm0(ptr, len) {
+  ptr = ptr >>> 0;
+  return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+let cachedDataViewMemory0 = null;
+function getDataViewMemory0() {
+  if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || cachedDataViewMemory0.buffer.detached === void 0 && cachedDataViewMemory0.buffer !== wasm.memory.buffer) {
+    cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+  }
+  return cachedDataViewMemory0;
+}
+function getStringFromWasm0(ptr, len) {
+  ptr = ptr >>> 0;
+  return decodeText(ptr, len);
+}
+let cachedUint32ArrayMemory0 = null;
+function getUint32ArrayMemory0() {
+  if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+    cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+  }
+  return cachedUint32ArrayMemory0;
+}
+let cachedUint8ArrayMemory0 = null;
+function getUint8ArrayMemory0() {
+  if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
+    cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
+  }
+  return cachedUint8ArrayMemory0;
+}
+function getObject(idx) {
+  return heap[idx];
+}
+let heap = new Array(128).fill(void 0);
+heap.push(void 0, null, true, false);
+let heap_next = heap.length;
+function passStringToWasm0(arg, malloc, realloc) {
+  if (realloc === void 0) {
+    const buf = cachedTextEncoder.encode(arg);
+    const ptr2 = malloc(buf.length, 1) >>> 0;
+    getUint8ArrayMemory0().subarray(ptr2, ptr2 + buf.length).set(buf);
+    WASM_VECTOR_LEN = buf.length;
+    return ptr2;
+  }
+  let len = arg.length;
+  let ptr = malloc(len, 1) >>> 0;
+  const mem = getUint8ArrayMemory0();
+  let offset = 0;
+  for (; offset < len; offset++) {
+    const code = arg.charCodeAt(offset);
+    if (code > 127) break;
+    mem[ptr + offset] = code;
+  }
+  if (offset !== len) {
+    if (offset !== 0) {
+      arg = arg.slice(offset);
+    }
+    ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
+    const view = getUint8ArrayMemory0().subarray(ptr + offset, ptr + len);
+    const ret = cachedTextEncoder.encodeInto(arg, view);
+    offset += ret.written;
+    ptr = realloc(ptr, len, offset, 1) >>> 0;
+  }
+  WASM_VECTOR_LEN = offset;
+  return ptr;
+}
+function takeObject(idx) {
+  const ret = getObject(idx);
+  dropObject(idx);
+  return ret;
+}
+let cachedTextDecoder = new TextDecoder("utf-8", {
+  ignoreBOM: true,
+  fatal: true
+});
+cachedTextDecoder.decode();
+const MAX_SAFARI_DECODE_BYTES = 2146435072;
+let numBytesDecoded = 0;
+function decodeText(ptr, len) {
+  numBytesDecoded += len;
+  if (numBytesDecoded >= MAX_SAFARI_DECODE_BYTES) {
+    cachedTextDecoder = new TextDecoder("utf-8", {
+      ignoreBOM: true,
+      fatal: true
+    });
+    cachedTextDecoder.decode();
+    numBytesDecoded = len;
+  }
+  return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
+}
+const cachedTextEncoder = new TextEncoder();
+if (!("encodeInto" in cachedTextEncoder)) {
+  cachedTextEncoder.encodeInto = function(arg, view) {
+    const buf = cachedTextEncoder.encode(arg);
+    view.set(buf);
+    return {
+      read: arg.length,
+      written: buf.length
+    };
+  };
+}
+let WASM_VECTOR_LEN = 0;
+const VtFinalization = typeof FinalizationRegistry === "undefined" ? {
+  register: () => {
+  },
+  unregister: () => {
+  }
+} : new FinalizationRegistry((ptr) => wasm.__wbg_vt_free(ptr >>> 0, 1));
+class Vt {
+  static __wrap(ptr) {
+    ptr = ptr >>> 0;
+    const obj = Object.create(Vt.prototype);
+    obj.__wbg_ptr = ptr;
+    VtFinalization.register(obj, obj.__wbg_ptr, obj);
+    return obj;
+  }
+  __destroy_into_raw() {
+    const ptr = this.__wbg_ptr;
+    this.__wbg_ptr = 0;
+    VtFinalization.unregister(this);
+    return ptr;
+  }
+  free() {
+    const ptr = this.__destroy_into_raw();
+    wasm.__wbg_vt_free(ptr, 0);
+  }
+  /**
+   * @param {string} s
+   * @returns {any}
+   */
+  feed(s) {
+    const ptr0 = passStringToWasm0(s, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.vt_feed(this.__wbg_ptr, ptr0, len0);
+    return takeObject(ret);
+  }
+  /**
+   * @param {number} cols
+   * @param {number} rows
+   * @returns {any}
+   */
+  resize(cols, rows) {
+    const ret = wasm.vt_resize(this.__wbg_ptr, cols, rows);
+    return takeObject(ret);
+  }
+  /**
+   * @returns {Uint32Array}
+   */
+  getSize() {
+    try {
+      const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+      wasm.vt_getSize(retptr, this.__wbg_ptr);
+      var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+      var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+      var v1 = getArrayU32FromWasm0(r0, r1).slice();
+      wasm.__wbindgen_export3(r0, r1 * 4, 4);
+      return v1;
+    } finally {
+      wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+  }
+  /**
+   * @param {number} row
+   * @param {boolean} cursor_on
+   * @returns {any}
+   */
+  getLine(row, cursor_on) {
+    const ret = wasm.vt_getLine(this.__wbg_ptr, row, cursor_on);
+    return takeObject(ret);
+  }
+  /**
+   * @returns {any}
+   */
+  getCursor() {
+    const ret = wasm.vt_getCursor(this.__wbg_ptr);
+    return takeObject(ret);
+  }
+}
+if (Symbol.dispose) Vt.prototype[Symbol.dispose] = Vt.prototype.free;
+function create$1(cols, rows, scrollback_limit, bold_is_bright) {
+  const ret = wasm.create(cols, rows, scrollback_limit, bold_is_bright);
+  return Vt.__wrap(ret);
+}
+const EXPECTED_RESPONSE_TYPES = /* @__PURE__ */ new Set(["basic", "cors", "default"]);
+async function __wbg_load(module, imports) {
+  if (typeof Response === "function" && module instanceof Response) {
+    if (typeof WebAssembly.instantiateStreaming === "function") {
+      try {
+        return await WebAssembly.instantiateStreaming(module, imports);
+      } catch (e) {
+        const validResponse = module.ok && EXPECTED_RESPONSE_TYPES.has(module.type);
+        if (validResponse && module.headers.get("Content-Type") !== "application/wasm") {
+          console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+        } else {
+          throw e;
+        }
+      }
+    }
+    const bytes = await module.arrayBuffer();
+    return await WebAssembly.instantiate(bytes, imports);
+  } else {
+    const instance = await WebAssembly.instantiate(module, imports);
+    if (instance instanceof WebAssembly.Instance) {
+      return {
+        instance,
+        module
+      };
+    } else {
+      return instance;
+    }
+  }
+}
+function __wbg_get_imports() {
+  const imports = {};
+  imports.wbg = {};
+  imports.wbg.__wbg___wbindgen_debug_string_adfb662ae34724b6 = function(arg0, arg1) {
+    const ret = debugString(getObject(arg1));
+    const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+    const len1 = WASM_VECTOR_LEN;
+    getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+    getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+  };
+  imports.wbg.__wbg___wbindgen_throw_dd24417ed36fc46e = function(arg0, arg1) {
+    throw new Error(getStringFromWasm0(arg0, arg1));
+  };
+  imports.wbg.__wbg_new_13317ed16189158e = function() {
+    const ret = new Array();
+    return addHeapObject(ret);
+  };
+  imports.wbg.__wbg_new_4ceb6a766bf78b04 = function() {
+    const ret = new Object();
+    return addHeapObject(ret);
+  };
+  imports.wbg.__wbg_set_3f1d0b984ed272ed = function(arg0, arg1, arg2) {
+    getObject(arg0)[takeObject(arg1)] = takeObject(arg2);
+  };
+  imports.wbg.__wbg_set_8b6a9a61e98a8881 = function(arg0, arg1, arg2) {
+    getObject(arg0)[arg1 >>> 0] = takeObject(arg2);
+  };
+  imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
+    const ret = getStringFromWasm0(arg0, arg1);
+    return addHeapObject(ret);
+  };
+  imports.wbg.__wbindgen_cast_4625c577ab2ec9ee = function(arg0) {
+    const ret = BigInt.asUintN(64, arg0);
+    return addHeapObject(ret);
+  };
+  imports.wbg.__wbindgen_cast_d6cd19b81560fd6e = function(arg0) {
+    const ret = arg0;
+    return addHeapObject(ret);
+  };
+  imports.wbg.__wbindgen_object_clone_ref = function(arg0) {
+    const ret = getObject(arg0);
+    return addHeapObject(ret);
+  };
+  imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
+    takeObject(arg0);
+  };
+  return imports;
+}
+function __wbg_finalize_init(instance, module) {
+  wasm = instance.exports;
+  __wbg_init.__wbindgen_wasm_module = module;
+  cachedDataViewMemory0 = null;
+  cachedUint32ArrayMemory0 = null;
+  cachedUint8ArrayMemory0 = null;
+  return wasm;
+}
+function initSync(module) {
+  if (wasm !== void 0) return wasm;
+  if (typeof module !== "undefined") {
+    if (Object.getPrototypeOf(module) === Object.prototype) {
+      ({
+        module
+      } = module);
+    } else {
+      console.warn("using deprecated parameters for `initSync()`; pass a single object instead");
+    }
+  }
+  const imports = __wbg_get_imports();
+  if (!(module instanceof WebAssembly.Module)) {
+    module = new WebAssembly.Module(module);
+  }
+  const instance = new WebAssembly.Instance(module, imports);
+  return __wbg_finalize_init(instance, module);
+}
+async function __wbg_init(module_or_path) {
+  if (wasm !== void 0) return wasm;
+  if (typeof module_or_path !== "undefined") {
+    if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
+      ({
+        module_or_path
+      } = module_or_path);
+    } else {
+      console.warn("using deprecated parameters for the initialization function; pass a single object instead");
+    }
+  }
+  const imports = __wbg_get_imports();
+  if (typeof module_or_path === "string" || typeof Request === "function" && module_or_path instanceof Request || typeof URL === "function" && module_or_path instanceof URL) {
+    module_or_path = fetch(module_or_path);
+  }
+  const {
+    instance,
+    module
+  } = await __wbg_load(await module_or_path, imports);
+  return __wbg_finalize_init(instance, module);
+}
+var exports$1 = /* @__PURE__ */ Object.freeze({
+  __proto__: null,
+  Vt,
+  create: create$1,
+  default: __wbg_init,
+  initSync
+});
+const base64codes = [62, 0, 0, 0, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0, 0, 0, 0, 0, 0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51];
+function getBase64Code(charCode) {
+  return base64codes[charCode - 43];
+}
+function base64Decode(str) {
+  let missingOctets = str.endsWith("==") ? 2 : str.endsWith("=") ? 1 : 0;
+  let n = str.length;
+  let result = new Uint8Array(3 * (n / 4));
+  let buffer2;
+  for (let i = 0, j = 0; i < n; i += 4, j += 3) {
+    buffer2 = getBase64Code(str.charCodeAt(i)) << 18 | getBase64Code(str.charCodeAt(i + 1)) << 12 | getBase64Code(str.charCodeAt(i + 2)) << 6 | getBase64Code(str.charCodeAt(i + 3));
+    result[j] = buffer2 >> 16;
+    result[j + 1] = buffer2 >> 8 & 255;
+    result[j + 2] = buffer2 & 255;
+  }
+  return result.subarray(0, result.length - missingOctets);
+}
+var vtWasmModule = base64Decode("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CAgJCgsODA4NDgsgAkGoAWpBASABKAIAIAEoAgRB1JzEABCBASABIAIpA6gBNwIAIABBADoAAAwYCyACQbABakEBIAEoAgAgASgCBEHknMQAEIEBIAEgAikDsAE3AgAgAEEBOgAADBcLIAJBuAFqQQEgASgCACABKAIEQfScxAAQgQEgASACKQO4ATcCACAAQQI6AAAMFgsgAkHAAWpBASABKAIAIAEoAgRBhJ3EABCBASABIAIpA8ABNwIAIABBAzoAAAwVCyACQcgBakEBIAEoAgAgASgCBEGUncQAEIEBIAEgAikDyAE3AgAgAEEEOgAADBQLIAJB0AFqQQEgASgCACABKAIEQaSdxAAQgQEgASACKQPQATcCACAAQQU6AAAMEwsgAkHYAWpBASABKAIAIAEoAgRBtJ3EABCBASABIAIpA9gBNwIAIABBBjoAAAwSCyACQeABakEBIAEoAgAgASgCBEHEncQAEIEBIAEgAikD4AE3AgAgAEEHOgAADBELIAJB6AFqQQEgASgCACABKAIEQdSdxAAQgQEgASACKQPoATcCACAAQQg6AAAMEAsgAkHwAWpBASABKAIAIAEoAgRB5J3EABCBASABIAIpA/ABNwIAIABBCToAAAwPCyACQfgBakEBIAEoAgAgASgCBEH0ncQAEIEBIAEgAikD+AE3AgAgAEEKOgAADA4LIAJBgAJqQQEgASgCACABKAIEQYSexAAQgQEgASACKQOAAjcCACAAQQs6AAAMDQsgAkGIAmpBASABKAIAIAEoAgRBlJ7EABCBASABIAIpA4gCNwIAIABBDDoAAAwMCyACQZACakEBIAEoAgAgASgCBEGknsQAEIEBIAEgAikDkAI3AgAgAEENOgAADAsLAkACQCADQR5rQf//A3FBCE8EQCADQSZrDgIBCAILIAJBCGpBASABKAIAIAEoAgRBxKDEABCBASABIAIpAwg3AgAgACADQR5rOgACIABBDjsAAAwMCwJAIAEoAgQiA0ECTwRAIAJBmAFqIAEoAgBBEGoQaSACKAKYASIDDQEgASgCBCEDCyACQegAakEBIAEoAgAgA0G0nsQAEIEBIAIoAmwhAyACKAJoIQQMDQsCQAJAAkAgAigCnAFBAUcNACADLwEAQQJrDgQBAAACAAsgAkHwAGpBASABKAIAIAEoAgRBhJ/EABCB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ayENIAJBJWohDiACQRxqIQ8gASgCJCEFIAEoAhQhECABKAIQIQMCQAJAAn8CQANAIAEoAgAhBiABQYCAgIB4NgIAIAEoAgQhCwJAAkACQAJAAkAgBkGAgICAeEcEQCABKQIIIREgCyEHDAELAkAgAyAQRgRAQYCAgIB4IQYMAQsgASADQRBqIgg2AhAgAykCCCERIAMoAgQhByADKAIAIQYgCCEDC0GAgICAeCALEKMBIAZBgICAgHhGDQELIAIgBzYCDCACIAY2AgggAiARNwIQIBFCIIghEkF/IAUgEaciBEcgBCAFSxtB/wFxDgICAwELQYCAgIB4IAcQowEgAEGAgICAeDYCACABQYCAgIB4NgIADAcLAkAgEqdBAXENACAFIAQgByAEEDRrIgMgAyAFSRsiAyAESw0AIAIgAzYCECADIQQLAn9BgICAgHggBCAFTQ0AGgJAAkAgByAEIAVBuJrEABCQASgCBEUEQCACQThqIgMgAkEIaiIIIAVBAWsQPyACQTBqIANBCGooAgA2AgAgAiACKQI4NwMoIAItABQhBCADQRBqIAIoAgwgAigCECIHIAdBAWtB2JrEABCQASIHQRBqLwEAOwEAIAJCoICAgBA3AjggAiAHKQIINwJAIAggA0HomsQAEFcgAiAEOgA0IAItABRBAXFFDQEMAgsgAkE4aiIDIAJBCGogBRA/IAJBMGogA0EIaigCADYCACACIAIpAjg3AyggAiACLQAUIgM6ADQgAw0BCyACQShqEIsBCyACKAIwBEAgAkFAayACQTRqKAIANgIAIAJBAToAFCACIAIpAiw3AzggAigCKAwBCyACKAIoIAIoAixBBEEUEJ8BQYCAgIB4CyEDQYCAgIB4IAsQowEgASADNgIAIAwgAikDODcCACAMQQhqIAJBQGsoAgA2AgAgAEEIaiACQRBqKQIANwIAIAAgAikCCDcCAAwGCyAAIBE3AgggACAHNgIEIAAgBjYCAAwFCwJAIAMgEEcEQCABIANBEGoiCDYCECADKAIAIgZBgICAgHhHDQELIAJBADsAQCACQQI6ADwgAkECOgA4IAJBCGoiASAFIAJBOGoQQSAAIAIpAgg3AgAgAkEAOgAUIABBCGogAUEIaikCADcCAAwFCyADQQxqKAIAIQkgDyADKQIENwIAIA9BCGogCTYCACACIAY2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IQMDQCADIAVqIgEgAyACEGogASEDIAIgACACayIATQ0ACwwBCwtBACAAQQR0IgNrIQUDQCABIAVqIAEgABBqIAEgA2ohASACIABrIgIgAE8NAAsMAQsLIAEgAEEEdCIFayIDIAJBBHQiBmohByAAIAJLDQEgBEEQaiIAIAMgBRAWGiADIAEgBhASIAcgACAFEBYaDAILIARBCGoiByABIABBBHRrIgZBCGopAgA3AwAgBCAGKQIANwMAIAJBBHQhCCACIgUhAQNAIAYgAUEEdGohAwNAIARBGGoiCSADQQhqIgopAgA3AwAgBCADKQIANwMQIAcpAwAhDSADIAQpAwA3AgAgCiANNwIAIAcgCSkDADcDACAEIAQpAxA3AwAgACABSwRAIAMgCGohAyABIAJqIQEMAQsLIAEgAGsiAQRAIAEgBSABIAVJGyEFDAEFIAQpAwAhDSAGQQhqIARBCGoiBykDADcCACAGIA03AgBBASAFIAVBAU0bIQlBASEBA0AgASAJRg0EIAYgAUEEdGoiBSkCACENIAcgBUEIaiIKKQIANwMAIAQgDTcDACABIAJqIQMDQCAEQRhqIgsgBiADQQR0aiIIQQhqIgwpAgA3AwAgBCAIKQIANwMQIAcpAwAhDSAIIAQpAwA3AgAgDCANNwIAIAcgCykDADcDACAEIAQpAxA3AwAgACADSwRAIAIgA2ohAwwBCyADIABrIgMgAUcNAAsgBCkDACENIAogBykDADcCACAFIA03AgAgAUEBaiEBDAALAAsACwALIARBEGoiACABIAYQFhogByADIAUQEiADIAAgBhAWGgsgBEGQAWokAAuQBQEIfwJAIAJBEEkEQCAAIQMMAQsCQEEAIABrQQNxIgYgAGoiBSAATQ0AIAZBAWsgACEDIAEhBCAGBEAgBiEHA0AgAyAELQAAOgAAIARBAWohBCADQQFqIQMgB0EBayIHDQALC0EHSQ0AA0AgAyAELQAAOgAAIANBAWogBEEBai0AADoAACADQQJqIARBAmotAAA6AAAgA0EDaiAEQQNqLQAAOgAAIANBBGogBEEEai0AADoAACADQQVqIARBBWotAAA6AAAgA0EGaiAEQQZqLQAAOgAAIANBB2ogBEEHai0AADoAACAEQQhqIQQgBSADQQhqIgNHDQALCyACIAZrIgdBfHEiCCAFaiED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IANBKGogAEHgAGooAgAgAEHkAGooAgAQIyADQRBqIAAQJCADIAMpAxA3AjQgA0EIaiADKAIsIAMoAjAQWyADKAIMIQAgAygCCEEBcQRAIAMgADYCPCADQTxqQeyCxAAQQgALIANBKGoQbiADKAIgIAMoAiQQsgEgA0FAayQAIAALmQEBA38gAUFsbCECIAFB/////wNxIQMgACABQRRsaiEBQQAhAAJAA0AgAkUNAQJAIAFBFGsiBCgCAEEgRw0AIAFBEGsoAgBBAUcNACABQQxrLQAAQQJHDQAgAUEIay0AAEECRw0AIAFBBGstAAANACABQQNrLQAAQR9xDQAgAkEUaiECIABBAWohACAEIQEMAQsLIAAhAwsgAwuxAQECfyMAQRBrIgIkAAJAIAFFDQAgAUEDakECdiEBAkAgAEEETQRAIAFBAWsiA0GAAkkNAQsgAkGs8sQAKAIANgIIIAEgACACQQhqQajqxABBBEEFEE8hAEGs8sQAIAIoAgg2AgAMAQsgAkGs8sQANgIEIAIgA0ECdEGs6sQAaiIDKAIANgIMIAEgACACQQxqIAJBBGpBBkEHEE8hACADIAIoAgw2AgALIAJBEGokACAAC6ABAQN/IwBBEGsiBSQAIAVBCGogACABIAJB4I7EABBnIAUoAgwiBiADIAIgAWsiByADIAdJGyIDTwRAIAYgA2siBiAFKAIIIAZBBHRqIAMQFSAAIAEgASADaiAEECogAQRAIAAgAUEBa0HwjsQAEGJBADoADAsgACACQQFrQYCPxAAQYkEAOgAMIAVBEGokAA8LQcyJxABBIUHwicQAEHEAC6gBAQF/IwBBQGoiAyQAIANBCGogACgCABACIAMoAgghACADIAMoAgw2AgQgAyAANgIAIANBATYCMCADQQI2AhggA0GY6sQANgIUIANCATcCICADIAMoAgQiADYCPCADIAMoAgA2AjggAyAANgI0IAMgA0E0ajYCLCADIANBLGo2AhwgASACIANBFGoQFyADKAI0IgEEQCADKAI4QQEgARA4CyADQUBrJAALpAEBAX8jAEEQayIDJAACQCAARQ0AIAJFDQACQCABQQRNBEAgAkEDakECdkEBayIBQYACSQ0BCyADQazyxAAoAgA2AgggACADQQhqQajqxABBAhAxQazyxAAgAygCCDYCAAwBCyADQazyxAA2AgQgAyABQQJ0QazqxABqIgEoAgA2AgwgACADQQxqIANBBGpBAxAxIAEgAygCDDYCAAsgA0EQaiQAC4sBAQJ/IwBBEGsiAiQAIAJCgICAgMAANwIEIAJBADYCDCABQQhrIgNBACABIANPGyIBQQN2IAFBB3FBAEdqIQFBCCEDA0AgAQRAIAJBBGogA0GsosQAEHsgAUEBayEBIANBCGohAwwBBSAAIAIpAgQ3AgAgAEEIaiACQQxqKAIANgIAIAJBEGokAAsLC40BAQR/IAEgACgCACAAKAIIIgRrSwRAIAAgBCABQQFBARBtIAAoAgghBAsgACgCBCAEaiEFQQEgASABQQFNGyIGQQFrIQMCQANAIAMEQCAFIAI6AAAgA0EBayEDIAVBAWohBQwBBQJAIAQgBmohAyABDQAgA0EBayEDDAMLCwsgBSACOgAACyAAIAM2AggLAwAAC3oBAn8CfyACRQRAQQEMAQsDQCACQQFNBEACQCABIARBAnRqKAIAIgEgA0cNAEEADAMLBSAEIAJBAXYiBSAEaiIEIAEgBEECdGooAgAgA0sbIQQgAiAFayECDAELCyAEIAEgA0lqIQRBAQshAiAAIAQ2AgQgACACNgIAC4gBAQJ/IwBBEGsiAyQAIAMgASgCACIFKAIANgIMQQEhBEGAECACQQJqIgEgAWwiASABQYAQTRsiAkEEIANBDGpBAUEEQQUQTyEBIAUgAygCDDYCACABBEAgAUIANwIEIAEgASACQQJ0akECcjYCAEEAIQQLIAAgATYCBCAAIAQ2AgAgA0EQaiQAC40BAQN/IwBBkAZrIgMkACAAEKgBIABBCGshAgJAAkAgAUUEQCACKAIAQQFHDQIgAyAAQQRqQZAGEBYgAkEANgIAAkAgAkF/Rg0AIABBBGsiBCgCAEEBayEAIAQgADYCACAADQAgAkEEQZwGEDgLEEcMAQsgAhCcAQsgA0GQBmokAA8LQaCBxABBPxC5AQAL3wEBBH8jAEEQayIEJAAgASgCCCIDIAJPBEAgBEEIaiADIAJrIgNBBEEUQciaxAAQYCAEKAIIIQUgBCgCDCABIAI2AgggASgCBCACQRRsaiADQRRsEBYhASAAIAM2AgggACABNgIEIAAgBTYCACAEQRBqJAAPCyMAQTBrIgAkACAAIAM2AgQgACACNgIAIABBAzYCDCAAQfiFxAA2AgggAEICNwIUIAAgAEEEaq1CgICAgOABhDcDKCAAIACtQoCAgIDgAYQ3AyAgACAAQSBqNgIQIABBCGpByJrEABCKAQALfgEDfwJAIAAoAgAiAUECcQ0AIAFBfHEiAkUNACACIAIoAgRBA3EgACgCBEF8cXI2AgQgACgCACEBCyAAKAIEIgJBfHEiAwRAIAMgAygCAEEDcSABQXxxcjYCACAAKAIEIQIgACgCACEBCyAAIAJBA3E2AgQgACABQQNxNgIAC38BAn8gACABIAAoAggiA2siBBCOASAEBEAgAyABayEEIAEgACgCCCIBaiADayEDIAAoAgQgAUEUbGohAQNAIAFCoICAgBA3AgAgAUEIaiACKQAANwAAIAFBEGogAkEIai8AADsAACABQRRqIQEgBEEBaiIEDQALIAAgAzYCCAsLggEBAX8jAEFAaiICJAAgAkErNgIMIAJBkIDAADYCCCACQYCAwAA2AhQgAiAANgIQIAJBAjYCHCACQeSmxAA2AhggAkICNwIkIAIgAkEQaq1CgICAgMABhDcDOCACIAJBCGqtQoCAgIDQAYQ3AzAgAiACQTBqNgIgIAJBGGogARCKAQALdgIBfwF+AkACQCABrUIMfiIDQiCIpw0AIAOnIgJBeEsNACACQQdqQXhxIgIgAUEIamohASABIAJJDQEgAUH4////B00EQCAAIAI2AgggACABNgIEIABBCDYCAA8LIABBADYCAA8LIABBADYCAA8LIABBADYCAAt2AQJ/IAKnIQNBCCEEA0AgASADcSIDIABqKQAAQoCBgoSIkKDAgH+DIgJCAFJFBEAgAyAEaiEDIARBCGohBAwBCwsgAnqnQQN2IANqIAFxIgEgAGosAABBAE4EfyAAKQMAQoCBgoSIkKDAgH+DeqdBA3YFIAELC3QBBn8gACgCBCEGIAAoAgAhAgJAA0AgASADRg0BAkAgAiAGRg0AIAAgAkEQaiIHNgIAIAIoAgQhBSACKAIAIgJBgICAgHhGDQAgAiAFEKMBIANBAWohAyAHIQIMAQsLQYCAgIB4IAUQowEgASADayEECyAEC2oAAn8gAkECdCIBIANBA3RBgIABaiICIAEgAksbQYeABGoiAUEQdkAAIgJBf0YEQEEAIQJBAQwBCyACQRB0IgJCADcCBCACIAIgAUGAgHxxakECcjYCAEEACyEDIAAgAjYCBCAAIAM2AgALkAEAIAAQngEgAEEkahCeASAAKAJQIAAoAlRBBEEEEJ8BIAAoAlwgACgCYEEBQQEQnwEgACgC0AUgACgC1AVBAkEIEJ8BIAAoAtwFIAAoAuAFQQJBDBCfASAAKALoBSAAKALsBUEEQQwQnwEgACgC9AUgACgC+AVBBEEQEJ8BIAAoAoAGIAAoAoQGQQRBBBCfAQuDAQEBfwJAAkACQAJAAkACQAJAAkACQAJAAkAgAUEIaw4IAQIGBgYDBAUAC0EyIQIgAUGEAWsOCgUGCQkHCQkJCQgJCwwIC0EbIQIMBwtBBiECDAYLQSwhAgwFC0EqIQIMBAtBHyECDAMLQSAhAgwCC0EcIQIMAQtBIyECCyAAIAI6AAALawEHfyAAKAIIIQMgACgCBCEEIAAtAAxBAXEhBSAAKAIAIgIhAQJAA0AgASAERgRAQQAPCyAAIAFBBGoiBjYCACAFDQEgASgCACEHIAYhASADKAIAIAdPDQALIAFBBGshAgsgAEEBOgAMIAILewECfyMAQRBrIgMkAEHM8sQAQczyxAAoAgAiBEEBajYCAAJAIARBAEgNAAJAQdTyxAAtAABFBEBB0PLEAEHQ8sQAKAIAQQFqNgIAQcjyxAAoAgBBAE4NAQwCCyADQQhqIAAgAREAAAALQdTyxABBADoAACACRQ0AAAsAC2sBAX8jAEEwayIDJAAgAyABNgIEIAMgADYCACADQQI2AgwgA0HQpsQANgIIIANCAjcCFCADIAOtQoCAgIDgAYQ3AyggAyADQQRqrUKAgICA4AGENwMgIAMgA0EgajYCECADQQhqIAIQigEAC2sBAX8jAEEwayIDJAAgAyABNgIEIAMgADYCACADQQM2AgwgA0GchcQANgIIIANCAjcCFCADIANBBGqtQoCAgIDgAYQ3AyggAyADrUKAgICA4AGENwMgIAMgA0EgajYCECADQQhqIAIQigEAC2cBB38gASgCCCEDIAEoAgAhAiABKAIEIQYDQAJAIAMhBCACIAZGBEBBACEFDAELQQEhBSABIAJBAWoiBzYCACABIARBAWoiAzYCCCACLQAAIAchAkUNAQsLIAAgBDYCBCAAIAU2AgALZQEEfyAAKAIAIQEgACgCBCEDAkADQCABIANGBEBBAA8LIAAgAUEQaiIENgIAIAEvAQQiAkEZTUEAQQEgAnRBwoGAEHEbDQEgAkGXCGtBA0kNASAEIQEgAkEvRw0AC0GXCA8LIAILaAECfyMAQRBrIgYkAAJAIAAgASACIAMgBRAcIgcNACAGQQhqIAMgACABIAQRBgBBACEHIAYoAggNACAGKAIMIgQgAigCADYCCCACIAQ2AgAgACABIAIgAyAFEBwhBwsgBkEQaiQAIAcLYwEFfyAAKAIEQQRrIQIgACgCCCEDIAAoAgAhBCAALQAMQQFxIQUDQCAEIAIiAUEEakYEQEEADwsgACABNgIEIAVFBEAgAUEEayECIAMoAgAgASgCAE0NAQsLIABBAToADCABC2kBAn8CQAJAIAAtAAAiAyABLQAARw0AQQEhAgJAAkAgA0EDaw4CAQADCyAALQABIAEtAAFHDQFBACECIAAtAAIgAS0AAkcNAiAALQADIAEtAANGDwsgAC0AASABLQABRg8LQQAhAgsgAgtiAQJ/IAAgACgCaCICIAAoApwBQQFrIgMgAiADSRs2AmggACABIAAoAqgBQQAgAC0AvgEiAhsiAWoiAyABIAEgA0kbIgEgACgCrAEgACgCoAFBAWsgAhsiACAAIAFLGzYCbAtcAAJAIAIgA00EQCABIANJDQEgAyACayEDIAAgAmohAgNAIAMEQCACQQE6AAAgA0EBayEDIAJBAWohAgwBCwsPCyACIANB9KPEABC1AQALIAMgAUH0o8QAELMBAAtoAQR/IwBBEGsiAiQAIAEoAgQhAyACQQhqIAEoAggiBEEEQRRB8IrEABBgIAIoAgghBSACKAIMIAMgBEEUbBAWIQMgACAENgIIIAAgAzYCBCAAIAU2AgAgACABLQAMOgAMIAJBEGokAAtgAQN/IwBBIGsiAiQAIAJBCGogAUEBQQFB1KPEABBgIAJBFGoiA0EIaiIEQQA2AgAgAiACKQMINwIUIAMgAUEBEDogAEEIaiAEKAIANgIAIAAgAikCFDcCACACQSBqJAALWwECfyABEKgBIAFBCGsiAygCAEEBaiECIAMgAjYCAAJAIAIEQCABKAIAIgJBf0YNASAAIAM2AgggACABNgIEIAAgAUEEajYCACABIAJBAWo2AgAPCwALELgBAAuVAQEDfyAAKAIAIgQgACgCCCIFRgRAIwBBEGsiAyQAIANBCGogACAEQQFBBEEUECYgAygCCCIEQYGAgIB4RwRAIAMoAgwaIAQgAhCuAQALIANBEGokAAsgACAFQQFqNgIIIAAoAgQgBUEUbGoiACABKQIANwIAIABBCGogAUEIaikCADcCACAAQRBqIAFBEGooAgA2AgALrQEBBX8gACgCBCECIAAoAgAhASAAQoSAgIDAADcCAAJAIAEgAkYNACACIAFrQQR2IQIDQCACRQ0BIAEoAgAgAUEEaigCAEEEQRQQnwEgAkEBayECIAFBEGohAQwACwALIAAoAhAiAQRAIAAoAggiAigCCCIDIAAoAgwiBEcEQCACKAIEIgUgA0EEdGogBSAEQQR0aiABQQR0EBIgACgCECEBCyACIAEgA2o2AggLC04BBH8CQAJAAkAgAC0AACIEQQNrDgIAAQILIAAtAAEhAwwBCyAALQACQRB0IQEgAC0AA0EYdCECIAAtAAEhAwsgASACciADQQh0ciAEcgtSAQR/IAAoAgAhASAAKAIEIQQDQCABIARGBEBBAw8LIAAgAUEQaiICNgIAIAEvAQQhAyACIQFBBEEUQQMgA0EURhsgA0EERhsiAkEDRg0ACyACC0wBAn8gAkECdCECEAAhBANAIAIEQCAEIAMgASgCAEEAEJsBEAEgAkEEayECIANBAWohAyABQQRqIQEMAQsLIAAgBDYCBCAAQQA2AgALUwEBfyAAKAJsIgEgACgCrAFHBEAgACgCoAFBAWsgAUsEQCAAIAFBAWo2AmwgACAAKAJoIgEgACgCnAFBAWsiACAAIAFLGzYCaAsPCyAAQQEQhwELVwAgASACEEUEQCAAQYCAgIB4NgIADwsgASgCACICIAEoAgRGBEAgAEGAgICAeDYCAA8LIAEgAkEQajYCACAAIAIpAgA3AgAgAEEIaiACQQhqKQIANwIAC1MBAn8gARCoASABQQhrIgIoAgBBAWohAyACIAM2AgACQCADBEAgASgCAA0BIAAgAjYCCCAAIAE2AgQgAUF/NgIAIAAgAUEEajYCAA8LAAsQuAEAC1EBAn8gACAAKAJoIgIgACgCnAFBAWsiAyACIANJGzYCaCAAIAAoAqABQQFrIAAoAqwBIgIgACgCbCIAIAJLGyICIAAgAWoiACAAIAJLGzYCbAvtAQIEfwF+IwBBEGsiBiQAIwBBEGsiByQAIAZBBGoiBQJ/AkAgAiADakEBa0EAIAJrca0gAa1+IglCIIinDQAgCaciA0GAgICAeCACa0sNACADRQRAIAUgAjYCCCAFQQA2AgRBAAwCCyAHQQhqIAIgAxCMASAHKAIIIggEQCAFIAg2AgggBSABNgIEQQAMAgsgBSADNgIIIAUgAjYCBEEBDAELIAVBADYCBEEBCzYCACAHQRBqJAAgBigCCCEBIAYoAgRFBEAgACAGKAIMNgIEIAAgATYCACAGQRBqJAAPCyAGKAIMGiABIAQQrgEAC0oBAn8gACAAKAJoIgIgACgCnAFBAWsiAyACIANJGzYCaCAAIAAoAqgBIgJBACAAKAJsIgAgAk8bIgIgACABayIAIAAgAkgbNgJsCz8BAX8jAEEQayIDJAAgA0EIaiAAEHIgASADKAIMIgBJBEAgAygCCCADQRBqJAAgAUEEdGoPCyABIAAgAhBLAAuFAQEDfyAAKAIAIgQgACgCCCIFRgRAIwBBEGsiAyQAIANBCGogACAEQQFBAkEMECYgAygCCCIEQYGAgIB4RwRAIAMoAgwaIAQgAhCuAQALIANBEGokAAsgACAFQQFqNgIIIAAoAgQgBUEMbGoiACABKQEANwEAIABBCGogAUEIaigBADYBAAtGAQN/IAEgAiADEEQiBSABaiIELQAAIQYgBCADp0EZdiIEOgAAIAEgBUEIayACcWpBCGogBDoAACAAIAY6AAQgACAFNgIAC1QBAX8gACAAKAJsNgJ4IAAgACkBsgE3AXwgACAALwG+ATsBhgEgAEGEAWogAEG6AWovAQA7AQAgACAAKAJoIgEgACgCnAFBAWsiACAAIAFLGzYCdAtRAgF/AX4jAEEQayICJAAgAkEEaiABEFYgAigCBCkCnAEhA0EIEJkBIgEgAzcCACACKAIIIAIoAgwQogEgAEECNgIEIAAgATYCACACQRBqJAALSQEBfyMAQRBrIgUkACAFQQhqIAEQciAFIAIgAyAFKAIIIAUoAgwgBBBsIAUoAgQhASAAIAUoAgA2AgAgACABNgIEIAVBEGokAAtPAQJ/IAAoAgQhAiAAKAIAIQMCQCAAKAIIIgAtAABFDQAgA0GMp8QAQQQgAigCDBEDAEUNAEEBDwsgACABQQpGOgAAIAMgASACKAIQEQIAC0gBAn8CQCABKAIAIgJBf0cEQCACQQFqIQMgAkEGSQ0BIANBBkHEocQAELMBAAtBxKHEABB9AAsgACADNgIEIAAgAUEEajYCAAtCAQF/IAJBAnQhAgNAIAIEQCAAKAIAIQMgACABKAIANgIAIAEgAzYCACACQQFrIQIgAUEEaiEBIABBBGohAAwBCwsLSAECfyMAQRBrIgIkACACQQhqIAAgACgCAEEBQQRBBBAmIAIoAggiAEGBgICAeEcEQCACKAIMIQMgACABEK4BAAsgAkEQaiQACz8AAkAgASACTQRAIAIgBE0NASACIAQgBRCzAQALIAEgAiAFELUBAAsgACACIAFrNgIEIAAgAyABQQR0ajYCAAtIAQJ/IwBBEGsiBSQAIAVBCGogACABIAIgAyAEECYgBSgCCCIAQYGAgIB4RwRAIAUoAgwhBiAAQYSMxAAQrgEACyAFQRBqJAALRwECfyAAKAIAIAAoAgRBBEEEEJ8BIAAoAgwhAiAAKAIQIgAoAgAiAQRAIAIgAREEAAsgACgCBCIBBEAgAiAAKAIIIAEQOAsLQQAgAC0AvAFBAUYEQCAAQQA6ALwBIABB9ABqIABBiAFqEHQgACAAQSRqEHUgACgCYCAAKAJkQQAgACgCoAEQUwsLQQEDfyABKAIUIgIgASgCHCIDayEEIAIgA0kEQCAEIAJBwI/EABC0AQALIAAgAzYCBCAAIAEoAhAgBEEEdGo2AgALQgEBfyMAQSBrIgMkACADQQA2AhAgA0EBNgIEIANCBDcCCCADIAE2AhwgAyAANgIYIAMgA0EYajYCACADIAIQigEAC0EBA38gASgCFCICIAEoAhwiA2shBCACIANJBEAgBCACQdCPxAAQtAEACyAAIAM2AgQgACABKAIQIARBBHRqNgIAC0QBAX8gASgCACICIAEoAgRGBEAgAEGAgICAeDYCAA8LIAEgAkEQajYCACAAIAIpAgA3AgAgAEEIaiACQQhqKQIANwIACzsBA38DQCACQRRGRQRAIAAgAmoiAygCACEEIAMgASACaiIDKAIANgIAIAMgBDYCACACQQRqIQIMAQsLCzsBA38DQCACQSRGRQRAIAAgAmoiAygCACEEIAMgASACaiIDKAIANgIAIAMgBDYCACACQQRqIQIMAQsLCzoBAX8CQCACQX9HBEAgAkEBaiEEIAJBIEkNASAEQSAgAxCzAQALIAMQfQALIAAgBDYCBCAAIAE2AgALOAACQCABaUEBRw0AQYCAgIB4IAFrIABJDQAgAARAQezyxAAtAAAaIAEgABA1IgFFDQELIAEPCwALOAACQCACQYCAxABGDQAgACACIAEoAhARAgBFDQBBAQ8LIANFBEBBAA8LIAAgA0EAIAEoAgwRAwALLQEBfyABIAAoAgBPBH8gACgCBCECIAAtAAhFBEAgASACTQ8LIAEgAkkFQQALC3ABA38gACgCACIEIAAoAggiBUYEQCMAQRBrIgMkACADQQhqIAAgBEEBQQJBCBAmIAMoAggiBEGBgICAeEcEQCADKAIMGiAEIAIQrgEACyADQRBqJAALIAAgBUEBajYCCCAAKAIEIAVBA3RqIAE3AQALNAEBfyAAKAIIIgMgACgCAEYEQCAAIAIQawsgACADQQFqNgIIIAAoAgQgA0ECdGogATYCAAsuAQF/IwBBEGsiAiQAIAJBCGogASAAEIwBIAIoAggiAARAIAJBEGokACAADwsACzcBAX8jAEEgayIBJAAgAUEANgIYIAFBATYCDCABQYypxAA2AgggAUIENwIQIAFBCGogABCKAQALKgEBfyACIAMQNSIEBEAgBCAAIAEgAyABIANJGxAWGiAAIAIgARA4CyAECysAIAIgA0kEQCADIAIgBBC0AQALIAAgAiADazYCBCAAIAEgA0EUbGo2AgALLwEBfyAAIAIQjgEgACgCBCAAKAIIIgNBFGxqIAEgAkEUbBAWGiAAIAIgA2o2AggLKwAgASADSwRAIAEgAyAEELQBAAsgACADIAFrNgIEIAAgAiABQQR0ajYCAAsvAAJAAkAgA2lBAUcNAEGAgICAeCADayABSQ0AIAAgASADIAIQfiIADQELAAsgAAsuAANAIAEEQCAAKAIAIABBBGooAgBBBEEUEJ8BIAFBAWshASAAQRBqIQAMAQsLCzIBAX8gACgCCCECIAEgACgCAEECai0AABCbASEBIAAoAgQgAiABEAEgACACQQFqNgIICyoAIAAgACgCaCABaiIBIAAoApwBIgBBAWsgACABSxtBACABQQBOGzYCaAszAQJ/IAAgACgCqAEiAiAAKAKsAUEBaiIDIAEgAEGyAWoQNiAAKAJgIAAoAmQgAiADEFMLMwECfyAAIAAoAqgBIgIgACgCrAFBAWoiAyABIABBsgFqEB0gACgCYCAAKAJkIAIgAxBTCyoAIAEgAkkEQEGkiMQAQSNBvInEABBxAAsgAiAAIAJBFGxqIAEgAmsQGQs1ACAAIAApAnQ3AmggACAAKQF8NwGyASAAIAAvAYYBOwG+ASAAQboBaiAAQYQBai8BADsBAAvsAQICfwF+IwBBEGsiAiQAIAJBATsBDCACIAE2AgggAiAANgIEIwBBEGsiASQAIAJBBGoiACkCACEEIAEgADYCDCABIAQ3AgQjAEEQayIAJAAgAUEEaiIBKAIAIgIoAgwhAwJAAkACQAJAIAIoAgQOAgABAgsgAw0BQQEhAkEAIQMMAgsgAw0AIAIoAgAiAigCBCEDIAIoAgAhAgwBCyAAQYCAgIB4NgIAIAAgATYCDCABKAIIIgEtAAkaIABBGyABLQAIEEoACyAAIAM2AgQgACACNgIAIAEoAggiAS0ACRogAEEcIAEtAAgQSgALKwECfwJAIAAoAgQgACgCCCIBEDQiAkUNACABIAJJDQAgACABIAJrNgIICwsmACACBEBB7PLEAC0AABogASACEDUhAQsgACACNgIEIAAgATYCAAsjAQF/IAEgACgCACAAKAIIIgJrSwRAIAAgAiABQQRBEBBtCwsjAQF/IAEgACgCACAAKAIIIgJrSwRAIAAgAiABQQRBFBBtCwslACAAQQE2AgQgACABKAIEIAEoAgBrQQR2IgE2AgggACABNgIACxsAIAEgAk0EQCACIAEgAxBLAAsgACACQRRsagsgACABIAJNBEAgAiABQeSjxAAQSwALIAAgAmpBAToAAAsbACABIAJNBEAgAiABIAMQSwALIAAgAkEEdGoLAwAACwMAAAsDAAALAwAACwMAAAsDAAALGgBB7PLEAC0AABpBBCAAEDUiAARAIAAPCwALIQAgAEUEQEGcq8QAQTIQuQEACyAAIAIgAyABKAIQEQEACxYAIAFBAXFFBEAgALgQCg8LIACtEAkLRgEBfyAAIAAoAgBBAWsiATYCACABRQRAIABBDGoQRwJAIABBf0YNACAAIAAoAgRBAWsiATYCBCABDQAgAEEEQZwGEDgLCwsfACAARQRAQZyrxABBMhC5AQALIAAgAiABKAIQEQIACyEBAX8gACgCECIBIAAoAhQQgwEgACgCDCABQQRBEBCfAQsSACAABEAgASACIAAgA2wQOAsLIQEBfyAAKAIEIgEgACgCCBCDASAAKAIAIAFBBEEQEJ8BCxYAIABBEGoQWCAAKAIAIAAoAgQQowELFAAgACAAKAIAQQFrNgIAIAEQnAELGQAgAEGAgICAeEcEQCAAIAFBBEEUEJ8BCwsUACABBEBBgICAgHggARCjAQsgAQsZACABKAIcQcilxABBDiABKAIgKAIMEQMACw8AIAIEQCAAIAEgAhA4CwsPACABBEAgACACIAEQOAsLEwAgAARADwtBpOnEAEEbELkBAAsPACAAQYQBTwRAIAAQAwsLEwAgACgCCCAAKAIAQQJBAhCfAQsVACACIAIQpAEaIABBgICAgHg2AgALFAAgACgCACABIAAoAgQoAgwRAgALEAAgASAAKAIEIAAoAggQDws8ACAARQRAIwBBIGsiACQAIABBADYCGCAAQQE2AgwgAEHQhMQANgIIIABCBDcCECAAQQhqIAEQigEACwALFAAgAEEANgIIIABCgICAgBA3AgALEgAgACABQZCNxAAQYkEBOgAMCxAAIAEgACgCACAAKAIEEA8LDgAgAEEANgIAIAEQnAELawEBfyMAQTBrIgMkACADIAE2AgQgAyAANgIAIANBAjYCDCADQeipxAA2AgggA0ICNwIUIAMgA0EEaq1CgICAgOABhDcDKCADIAOtQoCAgIDgAYQ3AyAgAyADQSBqNgIQIANBCGogAhCKAQALawEBfyMAQTBrIgMkACADIAE2AgQgAyAANgIAIANBAjYCDCADQcipxAA2AgggA0ICNwIUIAMgA0EEaq1CgICAgOABhDcDKCADIAOtQoCAgIDgAYQ3AyAgAyADQSBqNgIQIANBCGogAhCKAQALawEBfyMAQTBrIgMkACADIAE2AgQgAyAANgIAIANBAjYCDCADQZyqxAA2AgggA0ICNwIUIAMgA0EEaq1CgICAgOABhDcDKCADIAOtQoCAgIDgAYQ3AyAgAyADQSBqNgIQIANBCGogAhCKAQALDgBB8KXEAEErIAAQcQALCwAgACMAaiQAIwALDgBBv+nEAEHPABC5AQALCQAgACABEAcACw0AIABB9KbEACABEBcLDAAgACABKQIANwMACwoAIAAoAgAQqQELDQAgAEGAgICAeDYCAAsJACAAQQA2AgALBgAgABBYCwUAQYAECwQAQQELBAAgAQsEAEEACwvYiAEjAEGAgMAAC0AdAAAABAAAAAQAAAAeAAAAY2FsbGVkIGBSZXN1bHQ6OnVud3JhcCgpYCBvbiBhbiBgRXJyYCB2YWx1ZUVycm9yAEG7yMAACwQBAQEBAEHAysAAC4ABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQfDMwAALAQEAQaXNwAALAQEAQeHNwAALAQEAQcDQwAALgAIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAEGY18AACwEBAEHAwMMACwsBAQEBAQEBAQEBAQBB4MHDAAsEAQEBAQBB8MHDAAsoAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAAEBAQEBAQEBAQEBAQBBwMTDAAuqAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAEHAxsMAC+QBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAEG6zMMAC74BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQBBwM7DAAvwAwEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQaDVwwALvwMBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQcDawwALgg0BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAEHA6MMAC7QCAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAQcCAxAALwSNzcmMvbGliLnJzAAABAA8A8BoPAAAAAADiJQAA5SUAAAAAAACw4AAAs+AAAAAAAAA8+wEAafsBAAAAAABq+wEAbPsBAAAAAACAJQAAnyUAAAAAAAAA+wEAO/sBAAAAAABhdHRlbXB0ZWQgdG8gdGFrZSBvd25lcnNoaXAgb2YgUnVzdCB2YWx1ZSB3aGlsZSBpdCB3YXMgYm9ycm93ZWRiZ3RleHRjb2RlcG9pbnRzcmFzdGVyX3N5bWJvbHN2ZWN0b3Jfc3ltYm9scwBAABEACgAAAGQAAAATAAAAQAARAAoAAABlAAAAFQAAAEAAEQAKAAAAZgAAABkAAABAABEACgAAAGcAAAAZAAAAQAARAAoAAABoAAAAFQAAAEAAEQAKAAAAcAAAADYAAABAABEACgAAAHUAAAA2AAAAQAARAAoAAAD8AAAAGwAAAEAAEQAKAAAAAAEAAB0AAABAABEACgAAABcBAAAtAAAAQAARAAoAAACtAAAAIwAAAEAAEQAKAAAAtwAAACMAAABAABEACgAAAMwAAAAlAAAAQAARAAoAAADEAAAAJQAAAEAAEQAKAAAA8QAAACkAAABAABEACgAAANgAAAAlAAAAQAARAAoAAADcAAAAFgAAAEAAEQAKAAAA9wAAAB0AAABAABEACgAAAB4BAAAvAAAAY2FwYWNpdHkgb3ZlcmZsb3cAAAA8AhEAEQAAACkgc2hvdWxkIGJlIDwgbGVuIChpcyBpbnNlcnRpb24gaW5kZXggKGlzICkgc2hvdWxkIGJlIDw9IGxlbiAoaXMgAAAAbgIRABQAAACCAhEAFwAAABY1EQABAAAAcmVtb3ZhbCBpbmRleCAoaXMgAAC0AhEAEgAAAFgCEQAWAAAAFjURAAEAAABgYXRgIHNwbGl0IGluZGV4IChpcyAAAADgAhEAFQAAAIICEQAXAAAAFjURAAEAAAAvaG9tZS9ydW5uZXIvLmNhcmdvL3JlZ2lzdHJ5L3NyYy9pbmRleC5jcmF0ZXMuaW8tMTk0OWNmOGM2YjViNTU3Zi91bmljb2RlLXdpZHRoLTAuMS4xNC9zcmMvdGFibGVzLnJzEAMRAGQAAACRAAAAFQAAABADEQBkAAAAlwAAABkAAAAvbml4L3N0b3JlLzI4aHl6ZmwzMzhrczRhbWhhN3ZwcG5sYnExczFucWF2LXJ1c3QtZGVmYXVsdC0xLjg1LjAvbGliL3J1c3RsaWIvc3JjL3J1c3QvbGlicmFyeS9jb3JlL3NyYy9pdGVyL3RyYWl0cy9pdGVyYXRvci5ycwAAAJQDEQB9AAAAswcAAAkAAABhc3NlcnRpb24gZmFpbGVkOiBtaWQgPD0gc2VsZi5sZW4oKS9uaXgvc3RvcmUvMjhoeXpmbDMzOGtzNGFtaGE3dnBwbmxicTFzMW5xYXYtcnVzdC1kZWZhdWx0LTEuODUuMC9saWIvcnVzdGxpYi9zcmMvcnVzdC9saWJyYXJ5L2NvcmUvc3JjL3NsaWNlL21vZC5ycwAAAEcEEQByAAAAoA0AAAkAAABhc3NlcnRpb24gZmFpbGVkOiBrIDw9IHNlbGYubGVuKCkAAABHBBEAcgAAAM0NAAAJAAAAL25peC9zdG9yZS8yOGh5emZsMzM4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CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCRAJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQBBga/EAAufCwECAgICAwICBAIFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdAgIeAgICAgICAh8gISIjAiQlJicoKQIqAgICAissAgICAi0uAgICLzAxMjMCAgICAgI0AgI1NjcCODk6Ozw9Pj85OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTlAOTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OUECAkJDAgJERUZHSEkCSjk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OUsCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI5OTk5TAICAgICTU5PUAICAlECUlMCAgICAgICAgICAgICVFUCAlYCVwICWFlaW1xdXl9gYQJiYwJkZWZnAmgCaWprbAICbW5vcAJxcgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICcwICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAnR1AgICAgICAnZ3OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTl4OTk5OTk5OTk5eXoCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAns5OXw5OX0CAgICAgICAgICAgICAgICAgICfgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAn8CAgKAgYICAgICAgICAgICAgICAgKDhAICAgICAgICAgKFhnUCAocCAgKIAgICAgICAomKAgICAgICAgICAgICAouMAo2OAo+QkZKTlJWWApcCApiZmpsCAgICAgICAgICOTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5nB0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dHR0dAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIAnQICAgKenwIEAgUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0CAh4CAgICAgICHyAhIiMCJCUmJygpAioCAgICoKGio6Slpi6nqKmqq6ytMwICAgICAq4CAjU2NwI4OTo7PD0+rzk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OUwCAgICArBOT7GFhnUCAocCAgKIAgICAgICAomKAgICAgICAgICAgICAouMsrOOAo+QkZKTlJWWApcCApiZmpsCAgICAgICAgICVVV1VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAEG8usQACylVVVVVFQBQVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAQBB77rEAAvEARBBEFVVVVVVV1VVVVVVVVVVVVFVVQAAQFT13VVVVVVVVVVVFQAAAAAAVVVVVfxdVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUFABQAFARQVVVVVVVVVRVRVVVVVVVVVQAAAAAAAEBVVVVVVVVVVVXVV1VVVVVVVVVVVVVVBQAAVFVVVVVVVVVVVVVVVVUVAABVVVFVVVVVVQUQAAABAVBVVVVVVVVVVVVVAVVVVVVV/////39VVVVQVQAAVVVVVVVVVVVVVQUAQcC8xAALmARAVVVVVVVVVVVVVVVVVUVUAQBUUQEAVVUFVVVVVVVVVVFVVVVVVVVVVVVVVVVVVUQBVFVRVRVVVQVVVVVVVVVFQVVVVVVVVVVVVVVVVVVVVEEVFFBRVVVVVVVVVVBRVVVBVVVVVVVVVVVVVVVVVVVUARBUUVVVVVUFVVVVVVUFAFFVVVVVVVVVVVVVVVVVVQQBVFVRVQFVVQVVVVVVVVVVRVVVVVVVVVVVVVVVVVVVRVRVVVFVFVVVVVVVVVVVVVVUVFVVVVVVVVVVVVVVVVUEVAUEUFVBVVUFVVVVVVVVVVFVVVVVVVVVVVVVVVVVVRREBQRQVUFVVQVVVVVVVVVVUFVVVVVVVVVVVVVVVVUVRAFUVUFVFVVVBVVVVVVVVVVRVVVVVVVVVVVVVVVVVVVVVVVFFQVEVRVVVVVVVVVVVVVVVVVVVVVVVVVVVVEAQFVVFQBAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUQAAVFVVAEBVVVVVVVVVVVVVVVVVVVVVVVVQVVVVVVVVEVFVVVVVVVVVVVVVVVVVAQAAQAAEVQEAAAEAAAAAAAAAAFRVRVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUBBABBQVVVVVVVVVAFVFVVVQFUVVVFQVVRVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqgBBgMHEAAuQA1VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAVVVVVVVVVVVVVVVVQVUVVVVVVVVBVVVVVVVVVUFVVVVVVVVVQVVVVV///33//3XX3fW1ddVEABQVUUBAABVV1FVVVVVVVVVVVVVFQBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUFVVVVVVVVVVVFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAVVFVFVQFVVVVVVVVVVVVVVVVVVVVVVVVVVVVXFRRVVVVVVVVVVVVVVVVVVUUAQEQBAFQVAAAUVVVVVVVVVVVVVVVVAAAAAAAAAEBVVVVVVVVVVVVVVVUAVVVVVVVVVVVVVVVVAABQBVVVVVVVVVVVVRUAAFVVVVBVVVVVVVVVBVAQUFVVVVVVVVVVVVVVVVVFUBFQVVVVVVVVVVVVVVVVVVUAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAEAFRRVVRQVVVVVVVVVVVVVVVVVVVVVVUAQaDExAALkwhVVRUAVVVVVVVVBUBVVVVVVVVVVVVVVVUAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAAAAAAAAAABUVVVVVVVVVVVV9VVVVWlVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf1X11VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV9VVVVVVVfVVVVVVVVVVVVVVVV////VVVVVVVVVVVVVdVVVVVV1VVVVV1V9VVVVVV9VV9VdVVXVVVVVXVV9V11XVVd9VVVVVVVVVVXVVVVVVVVVVV31d9VVVVVVVVVVVVVVVVVVVX9VVVVVVVVV1VV1VVVVVVVVVVVVVVVVVVVVVVVVVVVVVXVV1VVVVVVVVVVVVVVVVddVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRVQVVVVVVVVVVVVVVVVVVVV/f///////////////19V1VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAAAAAAAAAAKqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqVVVVqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpaVVVVVVVVqqqqqqqqqqqqqqqqqqoKAKqqqmqpqqqqqqqqqqqqqqqqqqqqqqqqqqpqgaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpVqaqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqKqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqpVVZWqqqqqqqqqqqqqqmqqqqqqqqqqqqqqVVWqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqVVVVVVVVVVVVVVVVVVVVVaqqqlaqqqqqqqqqqqqqqqqqalVVVVVVVVVVVVVVVVVfVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFUAAAFBVVVVVVVVVBVVVVVVVVVVVVVVVVVVVVVVVVVVVUFVVVUVFFVVVVVVVVUFVVFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQVVVVVVVVAAAAAFBVRRVVVVVVVVVVVVUFAFBVVVVVVRUAAFBVVVWqqqqqqqqqVkBVVVVVVVVVVVVVVRUFUFBVVVVVVVVVVVVRVVVVVVVVVVVVVVVVVVVVVQFAQUFVVRVVVVRVVVVVVVVVVVVVVVRVVVVVVVVVVVVVVVUEFFQFUVVVVVVVVVVVVVVQVUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRVFFVVVVVqqqqqqqqqqqqVVVVAAAAAABAFQBBv8zEAAvhDFVVVVVVVVVVRVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQAAAPCqqlpVAAAAAKqqqqqqqqqqaqqqqqpqqlVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRWpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpWVVVVVVVVVVVVVVVVVVUFVFVVVVVVVVVVVVVVVVVVVapqVVUAAFRVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVBUBVAUFVAFVVVVVVVVVVVVVAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQVVVVVVVVdVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFVRVVVVVVVVVVVVVVVVVVVVVVVVVAVVVVVVVVVVVVVVVVVVVVVVVBQAAVFVVVVVVVVVVVVVVBVBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRVVVVVVVVVVVVVVVVVQAAAEBVVVVVVVVVVVVVFFRVFVBVVVVVVVVVVVVVVRVAQVVFVVVVVVVVVVVVVVVVVVVVQFVVVVVVVVVVFQABAFRVVVVVVVVVVVVVVVVVVRVVVVVQVVVVVVVVVVVVVVVVBQBABVUBFFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFVAEVUVRVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUVFQBAVVVVVVVQVVVVVVVVVVVVVVVVVRVEVFVVVVUVVVVVBQBUAFRVVVVVVVVVVVVVVVVVVVVVAAAFRFVVVVVVRVVVVVVVVVVVVVVVVVVVVVVVVVVVFABEEQRVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRUFUFUQVFVVVVVVVVBVVVVVVVVVVVVVVVVVVVVVVVVVVRUAQBFUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRVRABBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAQUQAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFQAAQVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFUVBBFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUABVVUVVVVVVVVVQEAQFVVVVVVVVVVVRUABEBVFVVVAUABVVVVVVVVVVVVVQAAAABAUFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAQAAQVVVVVVVVVVVVVVVVVVVVVVVVVVUFAAAAAAAFAARBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAUBFEAAAVVVVVVVVVVVVVVVVVVVVVVVVUBFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUVVFVVQFVVVVVVVVVVVVVVVQVAVURVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVBUAAABQVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAVFVVVVVVVVVVVVVVVVVVAEBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVFVVVVVVVVVVVVVVVVVVVVRVAVVVVVVVVVVVVVVVVVVVVVVVVVapUVVVaVVVVqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqVVWqqqqqqqqqqqqqqqqqqqqqqqqqqqpaVVVVVVVVVVVVVaqqVlVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVaqpqmmqqqqqqqqqqmpVVVVlVVVVVVVVVWpZVVVVqlVVqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpVVVVVVVVVVUEAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUAQavZxAALdVAAAAAAAEBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVURUAUAAAAAQAEAVVVVVVVVVQVQVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVBVRVVVVVVVVVVVVVVVVVVQBBrdrEAAsCQBUAQbvaxAALxQZUVVFVVVVUVVVVVRUAAQAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVAEAAAAAAFAAQBEBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRVVVVVVVVVVVVVVVVVVVVQBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQBAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVAEBVVVVVVVVVVVVVVVVVVVdVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV1VVVVVVVVVVVVVVVVVVVVXX9/39VVVVVVVVVVVVVVVVVVVVVVVX1////////blVVVaqquqqqqqrq+r+/VaqqVlVfVVVVqlpVVVVVVVX//////////1dVVf3/3///////////////////////9///////VVVV/////////////3/V/1VVVf////9XV///////////////////////f/f/////////////////////////////////////////////////////////////1////////////////////19VVdV/////////VVVVVXVVVVVVVVV9VVVVV1VVVVVVVVVVVVVVVVVVVVVVVVVV1f///////////////////////////1VVVVVVVVVVVVVVVf//////////////////////X1VXf/1V/1VV1VdV//9XVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV////VVdVVVVVVVX//////////////3///9//////////////////////////////////////////////////////////////VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf///1f//1dV///////////////f/19V9f///1X//1dV//9XVaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpaVVVVVVVVVVVZllVhqqVZqlVVVVVVlVVVVVVVVVWVVVUAQY7hxAALAQMAQZzhxAALiQlVVVVVVZVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVRUAlmpaWmqqBUCmWZVlVVVVVVVVVVUAAAAAVVZVValWVVVVVVVVVVVVVlVVVVVVVVVVAAAAAAAAAABUVVVVlVlZVVVlVVVpVVVVVVVVVVVVVVWVVpVqqqqqVaqqWlVVVVlVqqqqVVVVVWVVVVpVVVVVpWVWVVVVlVVVVVVVVaaWmpZZWWWplqqqZlWqVVpZVVpWZVVVVWqqpaVaVVVVpapaVVVZWVVVWVVVVVVVlVVVVVVVVVVVVVVVVVVVVVVVVVVVZVX1VVVVaVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqVaqqqqqqqqqqqlVVVaqqqqqlWlVVmqpaVaWlVVpapZalWlVVVaVaVZVVVVV9VWlZpVVfVWZVVVVVVVVVVWZV////VVVVmppqmlVVVdVVVVVV1VVVpV1V9VVVVVW9Va+quqqrqqqaVbqq+q66rlVd9VVVVVVVVVVXVVVVVVlVVVV31d9VVVVVVVVVpaqqVVVVVVVV1VdVVVVVVVVVVVVVVVVXrVpVVVVVVVVVVVWqqqqqqqqqaqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqgAAAMCqqlpVAAAAAKqqqqqqqqqqaqqqqqpqqlVVVVVVVVVVVVVVVQVUVVVVVVVVVVVVVVVVVVVVqmpVVQAAVFmqqmpVqqqqqqqqqlqqqqqqqqqqqqqqqqqqqlpVqqqqqqqqqrr+/7+qqqqqVlVVVVVVVVVVVVVVVVX1////////L25peC9zdG9yZS8yOGh5emZsMzM4a3M0YW1oYTd2cHBubGJxMXMxbnFhdi1ydXN0LWRlZmF1bHQtMS44NS4wL2xpYi9ydXN0bGliL3NyYy9ydXN0L2xpYnJhcnkvYWxsb2Mvc3JjL3Jhd192ZWMucnMvaG9tZS9ydW5uZXIvLmNhcmdvL3JlZ2lzdHJ5L3NyYy9pbmRleC5jcmF0ZXMuaW8tMTk0OWNmOGM2YjViNTU3Zi93YXNtLWJpbmRnZW4tMC4yLjEwNi9zcmMvY29udmVydC9zbGljZXMucnMvaG9tZS9ydW5uZXIvLmNhcmdvL3JlZ2lzdHJ5L3NyYy9pbmRleC5jcmF0ZXMuaW8tMTk0OWNmOGM2YjViNTU3Zi93YXNtLWJpbmRnZW4tMC4yLjEwNi9zcmMvZXh0ZXJucmVmLnJzHTQRAGcAAAB/AAAAEQAAAB00EQBnAAAAjAAAABEAAABudWxsIHBvaW50ZXIgcGFzc2VkIHRvIHJ1c3RyZWN1cnNpdmUgdXNlIG9mIGFuIG9iamVjdCBkZXRlY3RlZCB3aGljaCB3b3VsZCBsZWFkIHRvIHVuc2FmZSBhbGlhc2luZyBpbiBydXN0SnNWYWx1ZSgpAA41EQAIAAAAFjURAAEAQajqxAALAQQASAlwcm9kdWNlcnMBDHByb2Nlc3NlZC1ieQIGd2FscnVzBjAuMjQuNAx3YXNtLWJpbmRnZW4TMC4yLjEwNiAoMTE4MzFmYjg5KQ==");
+async function init(options) {
+  await __wbg_init({
+    module_or_path: await options.module,
+    memory: options.memory
+  });
+  return exports$1;
+}
+class Clock {
+  constructor() {
+    let speed = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : 1;
+    this.speed = speed;
+    this.startTime = performance.now();
+  }
+  getTime() {
+    return this.speed * (performance.now() - this.startTime) / 1e3;
+  }
+  setTime(time) {
+    this.startTime = performance.now() - time / this.speed * 1e3;
+  }
+}
+class NullClock {
+  constructor() {
+  }
+  getTime(_speed) {
+  }
+  setTime(_time) {
+  }
+}
+class Stream {
+  constructor(input, xfs) {
+    this.input = typeof input.next === "function" ? input : input[Symbol.iterator]();
+    this.xfs = xfs ?? [];
+  }
+  map(f) {
+    return this.transform(Map$1(f));
+  }
+  flatMap(f) {
+    return this.transform(FlatMap(f));
+  }
+  filter(f) {
+    return this.transform(Filter(f));
+  }
+  take(n) {
+    return this.transform(Take(n));
+  }
+  drop(n) {
+    return this.transform(Drop(n));
+  }
+  transform(f) {
+    return new Stream(this.input, this.xfs.concat([f]));
+  }
+  multiplex(other, comparator) {
+    return new Stream(new Multiplexer(this[Symbol.iterator](), other[Symbol.iterator](), comparator));
+  }
+  toArray() {
+    return Array.from(this);
+  }
+  [Symbol.iterator]() {
+    let v = 0;
+    let values = [];
+    let flushed = false;
+    const xf = compose(this.xfs, (val) => values.push(val));
+    return {
+      next: () => {
+        if (v === values.length) {
+          values = [];
+          v = 0;
+        }
+        while (values.length === 0) {
+          const next = this.input.next();
+          if (next.done) {
+            break;
+          } else {
+            xf.step(next.value);
+          }
+        }
+        if (values.length === 0 && !flushed) {
+          xf.flush();
+          flushed = true;
+        }
+        if (values.length > 0) {
+          return {
+            done: false,
+            value: values[v++]
+          };
+        } else {
+          return {
+            done: true
+          };
+        }
+      }
+    };
+  }
+}
+function Map$1(f) {
+  return (emit) => {
+    return (input) => {
+      emit(f(input));
+    };
+  };
+}
+function FlatMap(f) {
+  return (emit) => {
+    return (input) => {
+      f(input).forEach(emit);
+    };
+  };
+}
+function Filter(f) {
+  return (emit) => {
+    return (input) => {
+      if (f(input)) {
+        emit(input);
+      }
+    };
+  };
+}
+function Take(n) {
+  let c = 0;
+  return (emit) => {
+    return (input) => {
+      if (c < n) {
+        emit(input);
+      }
+      c += 1;
+    };
+  };
+}
+function Drop(n) {
+  let c = 0;
+  return (emit) => {
+    return (input) => {
+      c += 1;
+      if (c > n) {
+        emit(input);
+      }
+    };
+  };
+}
+function compose(xfs, push) {
+  return xfs.reverse().reduce((next, curr) => {
+    const xf = toXf(curr(next.step));
+    return {
+      step: xf.step,
+      flush: () => {
+        xf.flush();
+        next.flush();
+      }
+    };
+  }, toXf(push));
+}
+function toXf(xf) {
+  if (typeof xf === "function") {
+    return {
+      step: xf,
+      flush: () => {
+      }
+    };
+  } else {
+    return xf;
+  }
+}
+class Multiplexer {
+  constructor(left, right, comparator) {
+    this.left = left;
+    this.right = right;
+    this.comparator = comparator;
+  }
+  [Symbol.iterator]() {
+    let leftItem;
+    let rightItem;
+    return {
+      next: () => {
+        if (leftItem === void 0 && this.left !== void 0) {
+          const result = this.left.next();
+          if (result.done) {
+            this.left = void 0;
+          } else {
+            leftItem = result.value;
+          }
+        }
+        if (rightItem === void 0 && this.right !== void 0) {
+          const result = this.right.next();
+          if (result.done) {
+            this.right = void 0;
+          } else {
+            rightItem = result.value;
+          }
+        }
+        if (leftItem === void 0 && rightItem === void 0) {
+          return {
+            done: true
+          };
+        } else if (leftItem === void 0) {
+          const value = rightItem;
+          rightItem = void 0;
+          return {
+            done: false,
+            value
+          };
+        } else if (rightItem === void 0) {
+          const value = leftItem;
+          leftItem = void 0;
+          return {
+            done: false,
+            value
+          };
+        } else if (this.comparator(leftItem, rightItem)) {
+          const value = leftItem;
+          leftItem = void 0;
+          return {
+            done: false,
+            value
+          };
+        } else {
+          const value = rightItem;
+          rightItem = void 0;
+          return {
+            done: false,
+            value
+          };
+        }
+      }
+    };
+  }
+}
+async function parse$2(data) {
+  if (data instanceof Response) {
+    const text = await data.text();
+    const result = parseJsonl(text);
+    if (result !== void 0) {
+      const {
+        header,
+        events
+      } = result;
+      if (header.version === 2) {
+        return parseAsciicastV2(header, events);
+      } else if (header.version === 3) {
+        return parseAsciicastV3(header, events);
+      } else {
+        throw new Error(`asciicast v${header.version} format not supported`);
+      }
+    } else {
+      const header = JSON.parse(text);
+      if (header.version === 1) {
+        return parseAsciicastV1(header);
+      }
+    }
+  } else if (typeof data === "object" && data.version === 1) {
+    return parseAsciicastV1(data);
+  } else if (Array.isArray(data)) {
+    const header = data[0];
+    if (header.version === 2) {
+      const events = data.slice(1, data.length);
+      return parseAsciicastV2(header, events);
+    } else if (header.version === 3) {
+      const events = data.slice(1, data.length);
+      return parseAsciicastV3(header, events);
+    } else {
+      throw new Error(`asciicast v${header.version} format not supported`);
+    }
+  }
+  throw new Error("invalid data");
+}
+function parseJsonl(jsonl) {
+  const lines = jsonl.split("\n");
+  let header;
+  try {
+    header = JSON.parse(lines[0]);
+  } catch (_error) {
+    return;
+  }
+  const events = new Stream(lines).drop(1).filter((l) => l[0] === "[").map(JSON.parse);
+  return {
+    header,
+    events
+  };
+}
+function parseAsciicastV1(data) {
+  let time = 0;
+  const events = new Stream(data.stdout).map((e) => {
+    time += e[0];
+    return [time, "o", e[1]];
+  });
+  return {
+    cols: data.width,
+    rows: data.height,
+    events
+  };
+}
+function parseAsciicastV2(header, events) {
+  return {
+    cols: header.width,
+    rows: header.height,
+    theme: parseTheme$1(header.theme),
+    events,
+    idleTimeLimit: header.idle_time_limit
+  };
+}
+function parseAsciicastV3(header, events) {
+  if (!(events instanceof Stream)) {
+    events = new Stream(events);
+  }
+  let time = 0;
+  events = events.map((e) => {
+    time += e[0];
+    return [time, e[1], e[2]];
+  });
+  return {
+    cols: header.term.cols,
+    rows: header.term.rows,
+    theme: parseTheme$1(header.term?.theme),
+    events,
+    idleTimeLimit: header.idle_time_limit
+  };
+}
+function parseTheme$1(theme) {
+  if (theme === void 0) return;
+  const colorRegex = /^#[0-9A-Fa-f]{6}$/;
+  const paletteRegex = /^(#[0-9A-Fa-f]{6}:){7,}#[0-9A-Fa-f]{6}$/;
+  const fg = theme?.fg;
+  const bg = theme?.bg;
+  const palette = theme?.palette;
+  if (colorRegex.test(fg) && colorRegex.test(bg) && paletteRegex.test(palette)) {
+    return {
+      foreground: fg,
+      background: bg,
+      palette: palette.split(":")
+    };
+  }
+}
+function unparseAsciicastV2(recording2) {
+  const header = JSON.stringify({
+    version: 2,
+    width: recording2.cols,
+    height: recording2.rows
+  });
+  const events = recording2.events.map(JSON.stringify).join("\n");
+  return `${header}
+${events}
+`;
+}
+function recording(src, _ref, _ref2) {
+  let {
+    feed,
+    resize,
+    onInput,
+    onMarker,
+    setState,
+    logger
+  } = _ref;
+  let {
+    speed,
+    idleTimeLimit,
+    startAt,
+    loop,
+    posterTime,
+    markers: markers_,
+    pauseOnMarkers,
+    cols: initialCols,
+    rows: initialRows,
+    audioUrl
+  } = _ref2;
+  let cols;
+  let rows;
+  let events;
+  let markers;
+  let duration;
+  let effectiveStartAt;
+  let eventTimeoutId;
+  let nextEventIndex = 0;
+  let lastEventTime = 0;
+  let startTime;
+  let pauseElapsedTime;
+  let playCount = 0;
+  let waitingForAudio = false;
+  let waitingTimeout;
+  let shouldResumeOnAudioPlaying = false;
+  let now = () => performance.now() * speed;
+  let audioCtx;
+  let audioElement;
+  let audioSeekable = false;
+  async function init2() {
+    const timeout = setTimeout(() => {
+      setState("loading");
+    }, 3e3);
+    try {
+      let metadata = loadRecording(src, logger, {
+        idleTimeLimit,
+        startAt,
+        markers_
+      });
+      const hasAudio = await loadAudio(audioUrl);
+      metadata = await metadata;
+      return {
+        ...metadata,
+        hasAudio
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  async function loadRecording(src2, logger2, opts) {
+    const {
+      parser,
+      minFrameTime,
+      inputOffset,
+      dumpFilename,
+      encoding = "utf-8"
+    } = src2;
+    const data = await doFetch(src2);
+    const recording2 = prepare(await parser(data, {
+      encoding
+    }), logger2, {
+      ...opts,
+      minFrameTime,
+      inputOffset
+    });
+    ({
+      cols,
+      rows,
+      events,
+      duration,
+      effectiveStartAt
+    } = recording2);
+    initialCols = initialCols ?? cols;
+    initialRows = initialRows ?? rows;
+    if (events.length === 0) {
+      throw new Error("recording is missing events");
+    }
+    if (dumpFilename !== void 0) {
+      dump(recording2, dumpFilename);
+    }
+    const poster = posterTime !== void 0 ? getPoster(posterTime) : void 0;
+    markers = events.filter((e) => e[1] === "m").map((e) => [e[0], e[2].label]);
+    return {
+      cols,
+      rows,
+      duration,
+      theme: recording2.theme,
+      poster,
+      markers
+    };
+  }
+  async function loadAudio(audioUrl2) {
+    if (!audioUrl2) return false;
+    audioElement = await createAudioElement(audioUrl2);
+    audioSeekable = !Number.isNaN(audioElement.duration) && audioElement.duration !== Infinity && audioElement.seekable.length > 0 && audioElement.seekable.end(audioElement.seekable.length - 1) === audioElement.duration;
+    if (audioSeekable) {
+      audioElement.addEventListener("playing", onAudioPlaying);
+      audioElement.addEventListener("waiting", onAudioWaiting);
+    } else {
+      logger.warn(`audio is not seekable - you must enable range request support on the server providing ${audioElement.src} for audio seeking to work`);
+    }
+    return true;
+  }
+  async function doFetch(_ref3) {
+    let {
+      url,
+      data,
+      fetchOpts = {}
+    } = _ref3;
+    if (typeof url === "string") {
+      return await doFetchOne(url, fetchOpts);
+    } else if (Array.isArray(url)) {
+      return await Promise.all(url.map((url2) => doFetchOne(url2, fetchOpts)));
+    } else if (data !== void 0) {
+      if (typeof data === "function") {
+        data = data();
+      }
+      if (!(data instanceof Promise)) {
+        data = Promise.resolve(data);
+      }
+      const value = await data;
+      if (typeof value === "string" || value instanceof ArrayBuffer) {
+        return new Response(value);
+      } else {
+        return value;
+      }
+    } else {
+      throw new Error("failed fetching recording file: url/data missing in src");
+    }
+  }
+  async function doFetchOne(url, fetchOpts) {
+    const response = await fetch(url, fetchOpts);
+    if (!response.ok) {
+      throw new Error(`failed fetching recording from ${url}: ${response.status} ${response.statusText}`);
+    }
+    return response;
+  }
+  function scheduleNextEvent() {
+    const nextEvent = events[nextEventIndex];
+    if (nextEvent) {
+      eventTimeoutId = scheduleAt(runNextEvent, nextEvent[0]);
+    } else {
+      onEnd();
+    }
+  }
+  function scheduleAt(f, targetTime) {
+    let timeout = (targetTime * 1e3 - (now() - startTime)) / speed;
+    if (timeout < 0) {
+      timeout = 0;
+    }
+    return setTimeout(f, timeout);
+  }
+  function runNextEvent() {
+    let event = events[nextEventIndex];
+    let elapsedWallTime;
+    do {
+      lastEventTime = event[0];
+      nextEventIndex++;
+      const stop = executeEvent2(event);
+      if (stop) {
+        return;
+      }
+      event = events[nextEventIndex];
+      elapsedWallTime = now() - startTime;
+    } while (event && elapsedWallTime > event[0] * 1e3);
+    scheduleNextEvent();
+  }
+  function cancelNextEvent() {
+    clearTimeout(eventTimeoutId);
+    eventTimeoutId = null;
+  }
+  function executeEvent2(event) {
+    const [time, type, data] = event;
+    if (type === "o") {
+      feed(data);
+    } else if (type === "i") {
+      onInput(data);
+    } else if (type === "r") {
+      const [cols2, rows2] = data.split("x");
+      resize(cols2, rows2);
+    } else if (type === "m") {
+      onMarker(data);
+      if (pauseOnMarkers) {
+        pause();
+        pauseElapsedTime = time * 1e3;
+        setState("idle", {
+          reason: "paused"
+        });
+        return true;
+      }
+    }
+    return false;
+  }
+  function onEnd() {
+    cancelNextEvent();
+    playCount++;
+    if (loop === true || typeof loop === "number" && playCount < loop) {
+      nextEventIndex = 0;
+      startTime = now();
+      feed("\x1Bc");
+      resizeTerminalToInitialSize();
+      scheduleNextEvent();
+      if (audioElement) {
+        audioElement.currentTime = 0;
+      }
+    } else {
+      pauseElapsedTime = duration * 1e3;
+      setState("ended");
+      if (audioElement) {
+        audioElement.pause();
+      }
+    }
+  }
+  async function play() {
+    if (eventTimeoutId) throw new Error("already playing");
+    if (events[nextEventIndex] === void 0) throw new Error("already ended");
+    if (effectiveStartAt !== null) {
+      seek(effectiveStartAt);
+    }
+    await resume();
+    return true;
+  }
+  function pause() {
+    shouldResumeOnAudioPlaying = false;
+    if (audioElement) {
+      audioElement.pause();
+    }
+    if (!eventTimeoutId) return true;
+    cancelNextEvent();
+    pauseElapsedTime = now() - startTime;
+    return true;
+  }
+  async function resume() {
+    if (audioElement && !audioCtx) setupAudioCtx();
+    startTime = now() - pauseElapsedTime;
+    pauseElapsedTime = null;
+    scheduleNextEvent();
+    if (audioElement) {
+      await audioElement.play();
+    }
+  }
+  async function seek(where) {
+    if (waitingForAudio) {
+      return false;
+    }
+    const isPlaying = !!eventTimeoutId;
+    pause();
+    if (audioElement) {
+      audioElement.pause();
+    }
+    const currentTime = (pauseElapsedTime ?? 0) / 1e3;
+    if (typeof where === "string") {
+      if (where === "<<") {
+        where = currentTime - 5;
+      } else if (where === ">>") {
+        where = currentTime + 5;
+      } else if (where === "<<<") {
+        where = currentTime - 0.1 * duration;
+      } else if (where === ">>>") {
+        where = currentTime + 0.1 * duration;
+      } else if (where[where.length - 1] === "%") {
+        where = parseFloat(where.substring(0, where.length - 1)) / 100 * duration;
+      }
+    } else if (typeof where === "object") {
+      if (where.marker === "prev") {
+        where = findMarkerTimeBefore(currentTime) ?? 0;
+        if (isPlaying && currentTime - where < 1) {
+          where = findMarkerTimeBefore(where) ?? 0;
+        }
+      } else if (where.marker === "next") {
+        where = findMarkerTimeAfter(currentTime) ?? duration;
+      } else if (typeof where.marker === "number") {
+        const marker = markers[where.marker];
+        if (marker === void 0) {
+          throw new Error(`invalid marker index: ${where.marker}`);
+        } else {
+          where = marker[0];
+        }
+      }
+    }
+    const targetTime = Math.min(Math.max(where, 0), duration);
+    if (targetTime * 1e3 === pauseElapsedTime) return false;
+    if (targetTime < lastEventTime) {
+      feed("\x1Bc");
+      resizeTerminalToInitialSize();
+      nextEventIndex = 0;
+      lastEventTime = 0;
+    }
+    let event = events[nextEventIndex];
+    while (event && event[0] <= targetTime) {
+      if (event[1] === "o" || event[1] === "r") {
+        executeEvent2(event);
+      }
+      lastEventTime = event[0];
+      event = events[++nextEventIndex];
+    }
+    pauseElapsedTime = targetTime * 1e3;
+    effectiveStartAt = null;
+    if (audioElement && audioSeekable) {
+      audioElement.currentTime = targetTime / speed;
+    }
+    if (isPlaying) {
+      await resume();
+    } else if (events[nextEventIndex] === void 0) {
+      onEnd();
+    }
+    return true;
+  }
+  function findMarkerTimeBefore(time) {
+    if (markers.length == 0) return;
+    let i = 0;
+    let marker = markers[i];
+    let lastMarkerTimeBefore;
+    while (marker && marker[0] < time) {
+      lastMarkerTimeBefore = marker[0];
+      marker = markers[++i];
+    }
+    return lastMarkerTimeBefore;
+  }
+  function findMarkerTimeAfter(time) {
+    if (markers.length == 0) return;
+    let i = markers.length - 1;
+    let marker = markers[i];
+    let firstMarkerTimeAfter;
+    while (marker && marker[0] > time) {
+      firstMarkerTimeAfter = marker[0];
+      marker = markers[--i];
+    }
+    return firstMarkerTimeAfter;
+  }
+  function step(n) {
+    if (n === void 0) {
+      n = 1;
+    }
+    let nextEvent;
+    let targetIndex;
+    if (n > 0) {
+      let index = nextEventIndex;
+      nextEvent = events[index];
+      for (let i = 0; i < n; i++) {
+        while (nextEvent !== void 0 && nextEvent[1] !== "o") {
+          nextEvent = events[++index];
+        }
+        if (nextEvent !== void 0 && nextEvent[1] === "o") {
+          targetIndex = index;
+        }
+      }
+    } else {
+      let index = Math.max(nextEventIndex - 2, 0);
+      nextEvent = events[index];
+      for (let i = n; i < 0; i++) {
+        while (nextEvent !== void 0 && nextEvent[1] !== "o") {
+          nextEvent = events[--index];
+        }
+        if (nextEvent !== void 0 && nextEvent[1] === "o") {
+          targetIndex = index;
+        }
+      }
+      if (targetIndex !== void 0) {
+        feed("\x1Bc");
+        resizeTerminalToInitialSize();
+        nextEventIndex = 0;
+      }
+    }
+    if (targetIndex === void 0) return;
+    while (nextEventIndex <= targetIndex) {
+      nextEvent = events[nextEventIndex++];
+      if (nextEvent[1] === "o" || nextEvent[1] === "r") {
+        executeEvent2(nextEvent);
+      }
+    }
+    lastEventTime = nextEvent[0];
+    pauseElapsedTime = lastEventTime * 1e3;
+    effectiveStartAt = null;
+    if (audioElement && audioSeekable) {
+      audioElement.currentTime = lastEventTime / speed;
+    }
+    if (events[targetIndex + 1] === void 0) {
+      onEnd();
+    }
+  }
+  async function restart() {
+    if (eventTimeoutId) throw new Error("still playing");
+    if (events[nextEventIndex] !== void 0) throw new Error("not ended");
+    seek(0);
+    await resume();
+    return true;
+  }
+  function getPoster(time) {
+    return events.filter((e) => e[0] < time && e[1] === "o").map((e) => e[2]);
+  }
+  function getCurrentTime() {
+    if (eventTimeoutId) {
+      return (now() - startTime) / 1e3;
+    } else {
+      return (pauseElapsedTime ?? 0) / 1e3;
+    }
+  }
+  function resizeTerminalToInitialSize() {
+    resize(initialCols, initialRows);
+  }
+  function setupAudioCtx() {
+    audioCtx = new AudioContext({
+      latencyHint: "interactive"
+    });
+    const src2 = audioCtx.createMediaElementSource(audioElement);
+    src2.connect(audioCtx.destination);
+    now = audioNow;
+  }
+  function audioNow() {
+    if (!audioCtx) throw new Error("audio context not started - can't tell time!");
+    const {
+      contextTime,
+      performanceTime
+    } = audioCtx.getOutputTimestamp();
+    return performanceTime === 0 ? contextTime * 1e3 : contextTime * 1e3 + (performance.now() - performanceTime);
+  }
+  function onAudioWaiting() {
+    logger.debug("audio buffering");
+    waitingForAudio = true;
+    shouldResumeOnAudioPlaying = !!eventTimeoutId;
+    waitingTimeout = setTimeout(() => setState("loading"), 1e3);
+    if (!eventTimeoutId) return true;
+    logger.debug("pausing session playback");
+    cancelNextEvent();
+    pauseElapsedTime = now() - startTime;
+  }
+  function onAudioPlaying() {
+    logger.debug("audio resumed");
+    clearTimeout(waitingTimeout);
+    setState("playing");
+    if (!waitingForAudio) return;
+    waitingForAudio = false;
+    if (shouldResumeOnAudioPlaying) {
+      logger.debug("resuming session playback");
+      startTime = now() - pauseElapsedTime;
+      pauseElapsedTime = null;
+      scheduleNextEvent();
+    }
+  }
+  function mute() {
+    if (audioElement) {
+      audioElement.muted = true;
+      return true;
+    }
+  }
+  function unmute() {
+    if (audioElement) {
+      audioElement.muted = false;
+      return true;
+    }
+  }
+  return {
+    init: init2,
+    play,
+    pause,
+    seek,
+    step,
+    restart,
+    stop: pause,
+    mute,
+    unmute,
+    getCurrentTime
+  };
+}
+function batcher(logger) {
+  let minFrameTime = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : 1 / 60;
+  let prevEvent;
+  return (emit) => {
+    let ic = 0;
+    let oc = 0;
+    return {
+      step: (event) => {
+        ic++;
+        if (prevEvent === void 0) {
+          prevEvent = event;
+          return;
+        }
+        if (event[1] === "o" && prevEvent[1] === "o" && event[0] - prevEvent[0] < minFrameTime) {
+          prevEvent[2] += event[2];
+        } else {
+          emit(prevEvent);
+          prevEvent = event;
+          oc++;
+        }
+      },
+      flush: () => {
+        if (prevEvent !== void 0) {
+          emit(prevEvent);
+          oc++;
+        }
+        logger.debug(`batched ${ic} frames to ${oc} frames`);
+      }
+    };
+  };
+}
+function prepare(recording2, logger, _ref4) {
+  let {
+    startAt = 0,
+    idleTimeLimit,
+    minFrameTime,
+    inputOffset,
+    markers_
+  } = _ref4;
+  let {
+    events
+  } = recording2;
+  if (!(events instanceof Stream)) {
+    events = new Stream(events);
+  }
+  idleTimeLimit = idleTimeLimit ?? recording2.idleTimeLimit ?? Infinity;
+  const limiterOutput = {
+    offset: 0
+  };
+  events = events.transform(batcher(logger, minFrameTime)).map(timeLimiter(idleTimeLimit, startAt, limiterOutput)).map(markerWrapper());
+  if (markers_ !== void 0) {
+    markers_ = new Stream(markers_).map(normalizeMarker);
+    events = events.filter((e) => e[1] !== "m").multiplex(markers_, (a, b) => a[0] < b[0]).map(markerWrapper());
+  }
+  events = events.toArray();
+  if (inputOffset !== void 0) {
+    events = events.map((e) => e[1] === "i" ? [e[0] + inputOffset, e[1], e[2]] : e);
+    events.sort((a, b) => a[0] - b[0]);
+  }
+  const duration = events[events.length - 1][0];
+  const effectiveStartAt = startAt - limiterOutput.offset;
+  return {
+    ...recording2,
+    events,
+    duration,
+    effectiveStartAt
+  };
+}
+function normalizeMarker(m) {
+  return typeof m === "number" ? [m, "m", ""] : [m[0], "m", m[1]];
+}
+function timeLimiter(idleTimeLimit, startAt, output) {
+  let prevT = 0;
+  let shift = 0;
+  return function(e) {
+    const delay = e[0] - prevT;
+    const delta = delay - idleTimeLimit;
+    prevT = e[0];
+    if (delta > 0) {
+      shift += delta;
+      if (e[0] < startAt) {
+        output.offset += delta;
+      }
+    }
+    return [e[0] - shift, e[1], e[2]];
+  };
+}
+function markerWrapper() {
+  let i = 0;
+  return function(e) {
+    if (e[1] === "m") {
+      return [e[0], e[1], {
+        index: i++,
+        time: e[0],
+        label: e[2]
+      }];
+    } else {
+      return e;
+    }
+  };
+}
+function dump(recording2, filename) {
+  const link = document.createElement("a");
+  const events = recording2.events.map((e) => e[1] === "m" ? [e[0], e[1], e[2].label] : e);
+  const asciicast = unparseAsciicastV2({
+    ...recording2,
+    events
+  });
+  link.href = URL.createObjectURL(new Blob([asciicast], {
+    type: "text/plain"
+  }));
+  link.download = filename;
+  link.click();
+}
+async function createAudioElement(src) {
+  const audio = new Audio();
+  audio.preload = "metadata";
+  audio.loop = false;
+  audio.crossOrigin = "anonymous";
+  let resolve;
+  const canPlay = new Promise((resolve_) => {
+    resolve = resolve_;
+  });
+  function onCanPlay() {
+    resolve();
+    audio.removeEventListener("canplay", onCanPlay);
+  }
+  audio.addEventListener("canplay", onCanPlay);
+  audio.src = src;
+  audio.load();
+  await canPlay;
+  return audio;
+}
+function clock(_ref, _ref2, _ref3) {
+  let {
+    hourColor = 3,
+    minuteColor = 4,
+    separatorColor = 9
+  } = _ref;
+  let {
+    feed
+  } = _ref2;
+  let {
+    cols = 5,
+    rows = 1
+  } = _ref3;
+  const middleRow = Math.floor(rows / 2);
+  const leftPad = Math.floor(cols / 2) - 2;
+  const setupCursor = `\x1B[?25l\x1B[1m\x1B[${middleRow}B`;
+  let intervalId;
+  const getCurrentTime = () => {
+    const d = /* @__PURE__ */ new Date();
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const seqs = [];
+    seqs.push("\r");
+    for (let i = 0; i < leftPad; i++) {
+      seqs.push(" ");
+    }
+    seqs.push(`\x1B[3${hourColor}m`);
+    if (h < 10) {
+      seqs.push("0");
+    }
+    seqs.push(`${h}`);
+    seqs.push(`\x1B[3${separatorColor};5m:\x1B[25m`);
+    seqs.push(`\x1B[3${minuteColor}m`);
+    if (m < 10) {
+      seqs.push("0");
+    }
+    seqs.push(`${m}`);
+    return seqs;
+  };
+  const updateTime = () => {
+    getCurrentTime().forEach(feed);
+  };
+  return {
+    init: () => {
+      const duration = 24 * 60;
+      const poster = [setupCursor].concat(getCurrentTime());
+      return {
+        cols,
+        rows,
+        duration,
+        poster
+      };
+    },
+    play: () => {
+      feed(setupCursor);
+      updateTime();
+      intervalId = setInterval(updateTime, 1e3);
+      return true;
+    },
+    stop: () => {
+      clearInterval(intervalId);
+    },
+    getCurrentTime: () => {
+      const d = /* @__PURE__ */ new Date();
+      return d.getHours() * 60 + d.getMinutes();
+    }
+  };
+}
+function random(src, _ref, _ref2) {
+  let {
+    feed
+  } = _ref;
+  let {
+    speed
+  } = _ref2;
+  const base = " ".charCodeAt(0);
+  const range = "~".charCodeAt(0) - base;
+  let timeoutId;
+  const schedule = () => {
+    const t = Math.pow(5, Math.random() * 4);
+    timeoutId = setTimeout(print, t / speed);
+  };
+  const print = () => {
+    schedule();
+    const char = String.fromCharCode(base + Math.floor(Math.random() * range));
+    feed(char);
+  };
+  return () => {
+    schedule();
+    return () => clearInterval(timeoutId);
+  };
+}
+function benchmark(_ref, _ref2) {
+  let {
+    url,
+    iterations = 10
+  } = _ref;
+  let {
+    feed,
+    setState
+  } = _ref2;
+  let data;
+  let byteCount = 0;
+  return {
+    async init() {
+      const recording2 = await parse$2(await fetch(url));
+      const {
+        cols,
+        rows,
+        events
+      } = recording2;
+      data = Array.from(events).filter((_ref3) => {
+        let [_time, type, _text] = _ref3;
+        return type === "o";
+      }).map((_ref4) => {
+        let [time, _type, text] = _ref4;
+        return [time, text];
+      });
+      const duration = data[data.length - 1][0];
+      for (const [_, text] of data) {
+        byteCount += new Blob([text]).size;
+      }
+      return {
+        cols,
+        rows,
+        duration
+      };
+    },
+    play() {
+      const startTime = performance.now();
+      for (let i = 0; i < iterations; i++) {
+        for (const [_, text] of data) {
+          feed(text);
+        }
+        feed("\x1Bc");
+      }
+      const endTime = performance.now();
+      const duration = (endTime - startTime) / 1e3;
+      const throughput = byteCount * iterations / duration;
+      const throughputMbs = byteCount / (1024 * 1024) * iterations / duration;
+      console.info("benchmark: result", {
+        byteCount,
+        iterations,
+        duration,
+        throughput,
+        throughputMbs
+      });
+      setTimeout(() => {
+        setState("stopped", {
+          reason: "ended"
+        });
+      }, 0);
+      return true;
+    }
+  };
+}
+class Queue {
+  constructor() {
+    this.items = [];
+    this.onPush = void 0;
+  }
+  push(item) {
+    this.items.push(item);
+    if (this.onPush !== void 0) {
+      this.onPush(this.popAll());
+      this.onPush = void 0;
+    }
+  }
+  popAll() {
+    if (this.items.length > 0) {
+      const items = this.items;
+      this.items = [];
+      return items;
+    } else {
+      const thiz = this;
+      return new Promise((resolve) => {
+        thiz.onPush = resolve;
+      });
+    }
+  }
+}
+function getBuffer(bufferTime, feed, resize, onInput, onMarker, setTime, baseStreamTime, minFrameTime, logger) {
+  const execute = executeEvent(feed, resize, onInput, onMarker);
+  if (bufferTime === 0) {
+    logger.debug("using no buffer");
+    return nullBuffer(execute);
+  } else {
+    bufferTime = bufferTime ?? {};
+    let getBufferTime;
+    if (typeof bufferTime === "number") {
+      logger.debug(`using fixed time buffer (${bufferTime} ms)`);
+      getBufferTime = (_latency) => bufferTime;
+    } else if (typeof bufferTime === "function") {
+      logger.debug("using custom dynamic buffer");
+      getBufferTime = bufferTime({
+        logger
+      });
+    } else {
+      logger.debug("using adaptive buffer", bufferTime);
+      getBufferTime = adaptiveBufferTimeProvider({
+        logger
+      }, bufferTime);
+    }
+    return buffer(getBufferTime, execute, setTime, logger, baseStreamTime ?? 0, minFrameTime);
+  }
+}
+function nullBuffer(execute) {
+  return {
+    pushEvent(event) {
+      execute(event[1], event[2]);
+    },
+    pushText(text) {
+      execute("o", text);
+    },
+    stop() {
+    }
+  };
+}
+function executeEvent(feed, resize, onInput, onMarker) {
+  return function(code, data) {
+    if (code === "o") {
+      feed(data);
+    } else if (code === "i") {
+      onInput(data);
+    } else if (code === "r") {
+      resize(data.cols, data.rows);
+    } else if (code === "m") {
+      onMarker(data);
+    }
+  };
+}
+function buffer(getBufferTime, execute, setTime, logger, baseStreamTime) {
+  let minFrameTime = arguments.length > 5 && arguments[5] !== void 0 ? arguments[5] : 1 / 60;
+  let epoch = performance.now() - baseStreamTime * 1e3;
+  let bufferTime = getBufferTime(0);
+  const queue = new Queue();
+  minFrameTime *= 1e3;
+  let prevElapsedStreamTime = -minFrameTime;
+  let stop = false;
+  function elapsedWallTime() {
+    return performance.now() - epoch;
+  }
+  setTimeout(async () => {
+    while (!stop) {
+      const events = await queue.popAll();
+      if (stop) return;
+      for (const event of events) {
+        const elapsedStreamTime = event[0] * 1e3 + bufferTime;
+        if (elapsedStreamTime - prevElapsedStreamTime < minFrameTime) {
+          execute(event[1], event[2]);
+          continue;
+        }
+        const delay = elapsedStreamTime - elapsedWallTime();
+        if (delay > 0) {
+          await sleep(delay);
+          if (stop) return;
+        }
+        setTime(event[0]);
+        execute(event[1], event[2]);
+        prevElapsedStreamTime = elapsedStreamTime;
+      }
+    }
+  }, 0);
+  return {
+    pushEvent(event) {
+      let latency = elapsedWallTime() - event[0] * 1e3;
+      if (latency < 0) {
+        logger.debug(`correcting epoch by ${latency} ms`);
+        epoch += latency;
+        latency = 0;
+      }
+      bufferTime = getBufferTime(latency);
+      queue.push(event);
+    },
+    pushText(text) {
+      queue.push([elapsedWallTime() / 1e3, "o", text]);
+    },
+    stop() {
+      stop = true;
+      queue.push(void 0);
+    }
+  };
+}
+function sleep(t) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, t);
+  });
+}
+function adaptiveBufferTimeProvider() {
+  let {
+    logger
+  } = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
+  let {
+    minBufferTime = 50,
+    bufferLevelStep = 100,
+    maxBufferLevel = 50,
+    transitionDuration = 500,
+    peakHalfLifeUp = 100,
+    peakHalfLifeDown = 1e4,
+    floorHalfLifeUp = 5e3,
+    floorHalfLifeDown = 100,
+    idealHalfLifeUp = 1e3,
+    idealHalfLifeDown = 5e3,
+    safetyMultiplier = 1.2,
+    minImprovementDuration = 3e3
+  } = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+  function levelToMs(level) {
+    return level === 0 ? minBufferTime : bufferLevelStep * level;
+  }
+  let bufferLevel = 1;
+  let bufferTime = levelToMs(bufferLevel);
+  let lastUpdateTime = performance.now();
+  let smoothedPeakLatency = null;
+  let smoothedFloorLatency = null;
+  let smoothedIdealBufferTime = null;
+  let stableSince = null;
+  let targetBufferTime = null;
+  let transitionRate = null;
+  return function(latency) {
+    const now = performance.now();
+    const dt = Math.max(0, now - lastUpdateTime);
+    lastUpdateTime = now;
+    if (smoothedPeakLatency === null) {
+      smoothedPeakLatency = latency;
+    } else if (latency > smoothedPeakLatency) {
+      const alphaUp = 1 - Math.pow(2, -dt / peakHalfLifeUp);
+      smoothedPeakLatency += alphaUp * (latency - smoothedPeakLatency);
+    } else {
+      const alphaDown = 1 - Math.pow(2, -dt / peakHalfLifeDown);
+      smoothedPeakLatency += alphaDown * (latency - smoothedPeakLatency);
+    }
+    smoothedPeakLatency = Math.max(smoothedPeakLatency, 0);
+    if (smoothedFloorLatency === null) {
+      smoothedFloorLatency = latency;
+    } else if (latency > smoothedFloorLatency) {
+      const alphaUp = 1 - Math.pow(2, -dt / floorHalfLifeUp);
+      smoothedFloorLatency += alphaUp * (latency - smoothedFloorLatency);
+    } else {
+      const alphaDown = 1 - Math.pow(2, -dt / floorHalfLifeDown);
+      smoothedFloorLatency += alphaDown * (latency - smoothedFloorLatency);
+    }
+    smoothedFloorLatency = Math.max(smoothedFloorLatency, 0);
+    const jitter = smoothedPeakLatency - smoothedFloorLatency;
+    const idealBufferTime = safetyMultiplier * (smoothedPeakLatency + jitter);
+    if (smoothedIdealBufferTime === null) {
+      smoothedIdealBufferTime = idealBufferTime;
+    } else if (idealBufferTime > smoothedIdealBufferTime) {
+      const alphaUp = 1 - Math.pow(2, -dt / idealHalfLifeUp);
+      smoothedIdealBufferTime += +alphaUp * (idealBufferTime - smoothedIdealBufferTime);
+    } else {
+      const alphaDown = 1 - Math.pow(2, -dt / idealHalfLifeDown);
+      smoothedIdealBufferTime += +alphaDown * (idealBufferTime - smoothedIdealBufferTime);
+    }
+    let newBufferLevel;
+    if (smoothedIdealBufferTime <= minBufferTime) {
+      newBufferLevel = 0;
+    } else {
+      newBufferLevel = clamp(Math.ceil(smoothedIdealBufferTime / bufferLevelStep), 1, maxBufferLevel);
+    }
+    if (latency > bufferTime) {
+      logger.debug("buffer underrun", {
+        latency,
+        bufferTime
+      });
+    }
+    if (newBufferLevel > bufferLevel) {
+      if (latency > bufferTime) {
+        bufferLevel = Math.min(newBufferLevel, bufferLevel + 3);
+      } else {
+        bufferLevel += 1;
+      }
+      targetBufferTime = levelToMs(bufferLevel);
+      transitionRate = (targetBufferTime - bufferTime) / transitionDuration;
+      stableSince = null;
+      logger.debug("raising buffer", {
+        latency,
+        bufferTime,
+        targetBufferTime
+      });
+    } else if (newBufferLevel < bufferLevel) {
+      if (stableSince == null) stableSince = now;
+      if (now - stableSince >= minImprovementDuration) {
+        bufferLevel -= 1;
+        targetBufferTime = levelToMs(bufferLevel);
+        transitionRate = (targetBufferTime - bufferTime) / transitionDuration;
+        stableSince = now;
+        logger.debug("lowering buffer", {
+          latency,
+          bufferTime,
+          targetBufferTime
+        });
+      }
+    } else {
+      stableSince = null;
+    }
+    if (targetBufferTime !== null) {
+      bufferTime += transitionRate * dt;
+      if (transitionRate >= 0 && bufferTime > targetBufferTime || transitionRate < 0 && bufferTime < targetBufferTime) {
+        bufferTime = targetBufferTime;
+        targetBufferTime = null;
+      }
+    }
+    return bufferTime;
+  };
+}
+function clamp(x, lo, hi) {
+  return Math.min(hi, Math.max(lo, x));
+}
+const ONE_SEC_IN_USEC = 1e6;
+function alisHandler(logger) {
+  const outputDecoder = new TextDecoder();
+  const inputDecoder = new TextDecoder();
+  let handler = parseMagicString;
+  let lastEventTime;
+  let markerIndex = 0;
+  function parseMagicString(buffer2) {
+    const text = new TextDecoder().decode(buffer2);
+    if (text === "ALiS") {
+      handler = parseFirstFrame;
+    } else {
+      throw new Error("not an ALiS v1 live stream");
+    }
+  }
+  function parseFirstFrame(buffer2) {
+    const view = new BinaryReader(new DataView(buffer2));
+    const type = view.getUint8();
+    if (type !== 1) throw new Error(`expected reset (0x01) frame, got ${type}`);
+    return parseResetFrame(view, buffer2);
+  }
+  function parseResetFrame(view, buffer2) {
+    view.decodeVarUint();
+    let time = view.decodeVarUint();
+    lastEventTime = time;
+    time = time / ONE_SEC_IN_USEC;
+    markerIndex = 0;
+    const cols = view.decodeVarUint();
+    const rows = view.decodeVarUint();
+    const themeFormat = view.getUint8();
+    let theme;
+    if (themeFormat === 8) {
+      const len = (2 + 8) * 3;
+      theme = parseTheme(new Uint8Array(buffer2, view.offset, len));
+      view.forward(len);
+    } else if (themeFormat === 16) {
+      const len = (2 + 16) * 3;
+      theme = parseTheme(new Uint8Array(buffer2, view.offset, len));
+      view.forward(len);
+    } else if (themeFormat !== 0) {
+      throw new Error(`alis: invalid theme format (${themeFormat})`);
+    }
+    const initLen = view.decodeVarUint();
+    let init2;
+    if (initLen > 0) {
+      init2 = outputDecoder.decode(new Uint8Array(buffer2, view.offset, initLen));
+    }
+    handler = parseFrame2;
+    return {
+      time,
+      term: {
+        size: {
+          cols,
+          rows
+        },
+        theme,
+        init: init2
+      }
+    };
+  }
+  function parseFrame2(buffer2) {
+    const view = new BinaryReader(new DataView(buffer2));
+    const type = view.getUint8();
+    if (type === 1) {
+      return parseResetFrame(view, buffer2);
+    } else if (type === 111) {
+      return parseOutputFrame(view, buffer2);
+    } else if (type === 105) {
+      return parseInputFrame(view, buffer2);
+    } else if (type === 114) {
+      return parseResizeFrame(view);
+    } else if (type === 109) {
+      return parseMarkerFrame(view, buffer2);
+    } else if (type === 4) {
+      handler = parseFirstFrame;
+      return false;
+    } else {
+      logger.debug(`alis: unknown frame type: ${type}`);
+    }
+  }
+  function parseOutputFrame(view, buffer2) {
+    view.decodeVarUint();
+    const relTime = view.decodeVarUint();
+    lastEventTime += relTime;
+    const len = view.decodeVarUint();
+    const text = outputDecoder.decode(new Uint8Array(buffer2, view.offset, len));
+    return [lastEventTime / ONE_SEC_IN_USEC, "o", text];
+  }
+  function parseInputFrame(view, buffer2) {
+    view.decodeVarUint();
+    const relTime = view.decodeVarUint();
+    lastEventTime += relTime;
+    const len = view.decodeVarUint();
+    const text = inputDecoder.decode(new Uint8Array(buffer2, view.offset, len));
+    return [lastEventTime / ONE_SEC_IN_USEC, "i", text];
+  }
+  function parseResizeFrame(view) {
+    view.decodeVarUint();
+    const relTime = view.decodeVarUint();
+    lastEventTime += relTime;
+    const cols = view.decodeVarUint();
+    const rows = view.decodeVarUint();
+    return [lastEventTime / ONE_SEC_IN_USEC, "r", {
+      cols,
+      rows
+    }];
+  }
+  function parseMarkerFrame(view, buffer2) {
+    view.decodeVarUint();
+    const relTime = view.decodeVarUint();
+    lastEventTime += relTime;
+    const len = view.decodeVarUint();
+    const decoder = new TextDecoder();
+    const index = markerIndex++;
+    const time = lastEventTime / ONE_SEC_IN_USEC;
+    const label = decoder.decode(new Uint8Array(buffer2, view.offset, len));
+    return [time, "m", {
+      index,
+      time,
+      label
+    }];
+  }
+  return function(buffer2) {
+    return handler(buffer2);
+  };
+}
+function parseTheme(arr) {
+  const colorCount = arr.length / 3;
+  const foreground = hexColor(arr[0], arr[1], arr[2]);
+  const background = hexColor(arr[3], arr[4], arr[5]);
+  const palette = [];
+  for (let i = 2; i < colorCount; i++) {
+    palette.push(hexColor(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]));
+  }
+  return {
+    foreground,
+    background,
+    palette
+  };
+}
+function hexColor(r, g, b) {
+  return `#${byteToHex(r)}${byteToHex(g)}${byteToHex(b)}`;
+}
+function byteToHex(value) {
+  return value.toString(16).padStart(2, "0");
+}
+class BinaryReader {
+  constructor(inner) {
+    let offset = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : 0;
+    this.inner = inner;
+    this.offset = offset;
+  }
+  forward(delta) {
+    this.offset += delta;
+  }
+  getUint8() {
+    const value = this.inner.getUint8(this.offset);
+    this.offset += 1;
+    return value;
+  }
+  decodeVarUint() {
+    let number = BigInt(0);
+    let shift = BigInt(0);
+    let byte = this.getUint8();
+    while (byte > 127) {
+      byte &= 127;
+      number += BigInt(byte) << shift;
+      shift += BigInt(7);
+      byte = this.getUint8();
+    }
+    number = number + (BigInt(byte) << shift);
+    return Number(number);
+  }
+}
+function ascicastV2Handler() {
+  let parse2 = parseHeader;
+  function parseHeader(buffer2) {
+    const header = JSON.parse(buffer2);
+    if (header.version !== 2) {
+      throw new Error("not an asciicast v2 stream");
+    }
+    parse2 = parseEvent;
+    return {
+      time: 0,
+      term: {
+        size: {
+          cols: header.width,
+          rows: header.height
+        }
+      }
+    };
+  }
+  function parseEvent(buffer2) {
+    const event = JSON.parse(buffer2);
+    if (event[1] === "r") {
+      const [cols, rows] = event[2].split("x");
+      return [event[0], "r", {
+        cols: parseInt(cols, 10),
+        rows: parseInt(rows, 10)
+      }];
+    } else {
+      return event;
+    }
+  }
+  return function(buffer2) {
+    return parse2(buffer2);
+  };
+}
+function ascicastV3Handler() {
+  let parse2 = parseHeader;
+  let currentTime = 0;
+  function parseHeader(buffer2) {
+    const header = JSON.parse(buffer2);
+    if (header.version !== 3) {
+      throw new Error("not an asciicast v3 stream");
+    }
+    parse2 = parseEvent;
+    const term = {
+      size: {
+        cols: header.term.cols,
+        rows: header.term.rows
+      }
+    };
+    if (header.term.theme) {
+      term.theme = {
+        foreground: header.term.theme.fg,
+        background: header.term.theme.bg,
+        palette: header.term.theme.palette.split(":")
+      };
+    }
+    return {
+      time: 0,
+      term
+    };
+  }
+  function parseEvent(buffer2) {
+    const event = JSON.parse(buffer2);
+    const [interval, eventType, data] = event;
+    currentTime += interval;
+    if (eventType === "r") {
+      const [cols, rows] = data.split("x");
+      return [currentTime, "r", {
+        cols: parseInt(cols, 10),
+        rows: parseInt(rows, 10)
+      }];
+    } else {
+      return [currentTime, eventType, data];
+    }
+  }
+  return function(buffer2) {
+    return parse2(buffer2);
+  };
+}
+function rawHandler() {
+  const outputDecoder = new TextDecoder();
+  let parse2 = parseSize;
+  function parseSize(buffer2) {
+    const text = outputDecoder.decode(buffer2, {
+      stream: true
+    });
+    const [cols, rows] = sizeFromResizeSeq(text) ?? sizeFromScriptStartMessage(text) ?? [80, 24];
+    parse2 = parseOutput;
+    return {
+      time: 0,
+      term: {
+        size: {
+          cols,
+          rows
+        },
+        init: text
+      }
+    };
+  }
+  function parseOutput(buffer2) {
+    return outputDecoder.decode(buffer2, {
+      stream: true
+    });
+  }
+  return function(buffer2) {
+    return parse2(buffer2);
+  };
+}
+function sizeFromResizeSeq(text) {
+  const match = text.match(/\x1b\[8;(\d+);(\d+)t/);
+  if (match !== null) {
+    return [parseInt(match[2], 10), parseInt(match[1], 10)];
+  }
+}
+function sizeFromScriptStartMessage(text) {
+  const match = text.match(/\[.*COLUMNS="(\d{1,3})" LINES="(\d{1,3})".*\]/);
+  if (match !== null) {
+    return [parseInt(match[1], 10), parseInt(match[2], 10)];
+  }
+}
+const RECONNECT_DELAY_BASE = 500;
+const RECONNECT_DELAY_CAP = 1e4;
+function exponentialDelay(attempt) {
+  const base = Math.min(RECONNECT_DELAY_BASE * Math.pow(2, attempt), RECONNECT_DELAY_CAP);
+  return Math.random() * base;
+}
+function websocket(_ref, _ref2, _ref3) {
+  let {
+    url,
+    bufferTime,
+    reconnectDelay = exponentialDelay,
+    minFrameTime
+  } = _ref;
+  let {
+    feed,
+    reset,
+    resize,
+    onInput,
+    onMarker,
+    setState,
+    logger
+  } = _ref2;
+  let {
+    audioUrl
+  } = _ref3;
+  logger = new PrefixedLogger(logger, "websocket: ");
+  let socket;
+  let buf;
+  let clock2 = new NullClock();
+  let reconnectAttempt = 0;
+  let successfulConnectionTimeout;
+  let stop = false;
+  let wasOnline = false;
+  let initTimeout;
+  let audioElement;
+  function connect() {
+    socket = new WebSocket(url, ["v1.alis", "v2.asciicast", "v3.asciicast", "raw"]);
+    socket.binaryType = "arraybuffer";
+    socket.onopen = () => {
+      const proto = socket.protocol || "raw";
+      logger.info("opened");
+      logger.info(`activating ${proto} protocol handler`);
+      if (proto === "v1.alis") {
+        socket.onmessage = onMessage(alisHandler(logger));
+      } else if (proto === "v2.asciicast") {
+        socket.onmessage = onMessage(ascicastV2Handler());
+      } else if (proto === "v3.asciicast") {
+        socket.onmessage = onMessage(ascicastV3Handler());
+      } else if (proto === "raw") {
+        socket.onmessage = onMessage(rawHandler());
+      }
+      successfulConnectionTimeout = setTimeout(() => {
+        reconnectAttempt = 0;
+      }, 1e3);
+    };
+    socket.onclose = (event) => {
+      clearTimeout(initTimeout);
+      stopBuffer();
+      if (stop || event.code === 1e3 || event.code === 1005) {
+        logger.info("closed");
+        setState("ended", {
+          message: "Stream ended"
+        });
+      } else if (event.code === 1002) {
+        logger.debug(`close reason: ${event.reason}`);
+        setState("ended", {
+          message: "Err: Player not compatible with the server"
+        });
+      } else {
+        clearTimeout(successfulConnectionTimeout);
+        const delay = reconnectDelay(reconnectAttempt++);
+        logger.info(`unclean close, reconnecting in ${delay}...`);
+        setState("loading");
+        setTimeout(connect, delay);
+      }
+    };
+    wasOnline = false;
+  }
+  function onMessage(handler) {
+    initTimeout = setTimeout(onStreamEnd, 5e3);
+    return function(event) {
+      try {
+        const result = handler(event.data);
+        if (buf) {
+          if (Array.isArray(result)) {
+            buf.pushEvent(result);
+          } else if (typeof result === "string") {
+            buf.pushText(result);
+          } else if (typeof result === "object" && !Array.isArray(result)) {
+            onStreamReset(result);
+          } else if (result === false) {
+            onStreamEnd();
+          } else if (result !== void 0) {
+            throw new Error(`unexpected value from protocol handler: ${result}`);
+          }
+        } else {
+          if (typeof result === "object" && !Array.isArray(result)) {
+            onStreamReset(result);
+            clearTimeout(initTimeout);
+          } else if (result === void 0) {
+            clearTimeout(initTimeout);
+            initTimeout = setTimeout(onStreamEnd, 1e3);
+          } else {
+            clearTimeout(initTimeout);
+            throw new Error(`unexpected value from protocol handler: ${result}`);
+          }
+        }
+      } catch (e) {
+        socket.close();
+        throw e;
+      }
+    };
+  }
+  function onStreamReset(_ref4) {
+    let {
+      time,
+      term
+    } = _ref4;
+    const {
+      size,
+      init: init2,
+      theme
+    } = term;
+    const {
+      cols,
+      rows
+    } = size;
+    logger.info(`stream reset (${cols}x${rows} @${time})`);
+    setState("playing");
+    stopBuffer();
+    buf = getBuffer(bufferTime, feed, resize, onInput, onMarker, (t) => clock2.setTime(t), time, minFrameTime, logger);
+    reset(cols, rows, init2, theme);
+    clock2 = new Clock();
+    wasOnline = true;
+    if (typeof time === "number") {
+      clock2.setTime(time);
+    }
+  }
+  function onStreamEnd() {
+    stopBuffer();
+    if (wasOnline) {
+      logger.info("stream ended");
+      setState("offline", {
+        message: "Stream ended"
+      });
+    } else {
+      logger.info("stream offline");
+      setState("offline", {
+        message: "Stream offline"
+      });
+    }
+    clock2 = new NullClock();
+  }
+  function stopBuffer() {
+    if (buf) buf.stop();
+    buf = null;
+  }
+  function startAudio() {
+    if (!audioUrl) return;
+    audioElement = new Audio();
+    audioElement.preload = "auto";
+    audioElement.crossOrigin = "anonymous";
+    audioElement.src = audioUrl;
+    audioElement.play();
+  }
+  function stopAudio() {
+    if (!audioElement) return;
+    audioElement.pause();
+  }
+  function mute() {
+    if (audioElement) {
+      audioElement.muted = true;
+      return true;
+    }
+  }
+  function unmute() {
+    if (audioElement) {
+      audioElement.muted = false;
+      return true;
+    }
+  }
+  return {
+    init: () => {
+      return {
+        hasAudio: !!audioUrl
+      };
+    },
+    play: () => {
+      connect();
+      startAudio();
+    },
+    stop: () => {
+      stop = true;
+      stopBuffer();
+      if (socket !== void 0) socket.close();
+      stopAudio();
+    },
+    mute,
+    unmute,
+    getCurrentTime: () => clock2.getTime()
+  };
+}
+function eventsource(_ref, _ref2) {
+  let {
+    url,
+    bufferTime,
+    minFrameTime
+  } = _ref;
+  let {
+    feed,
+    reset,
+    resize,
+    onInput,
+    onMarker,
+    setState,
+    logger
+  } = _ref2;
+  logger = new PrefixedLogger(logger, "eventsource: ");
+  let es;
+  let buf;
+  let clock2 = new NullClock();
+  function initBuffer(baseStreamTime) {
+    if (buf !== void 0) buf.stop();
+    buf = getBuffer(bufferTime, feed, resize, onInput, onMarker, (t) => clock2.setTime(t), baseStreamTime, minFrameTime, logger);
+  }
+  return {
+    play: () => {
+      es = new EventSource(url);
+      es.addEventListener("open", () => {
+        logger.info("opened");
+        initBuffer();
+      });
+      es.addEventListener("error", (e) => {
+        logger.info("errored");
+        logger.debug({
+          e
+        });
+        setState("loading");
+      });
+      es.addEventListener("message", (event) => {
+        const e = JSON.parse(event.data);
+        if (Array.isArray(e)) {
+          buf.pushEvent(e);
+        } else if (e.cols !== void 0 || e.width !== void 0) {
+          const cols = e.cols ?? e.width;
+          const rows = e.rows ?? e.height;
+          logger.debug(`vt reset (${cols}x${rows})`);
+          setState("playing");
+          initBuffer(e.time);
+          reset(cols, rows, e.init ?? void 0);
+          clock2 = new Clock();
+          if (typeof e.time === "number") {
+            clock2.setTime(e.time);
+          }
+        } else if (e.state === "offline") {
+          logger.info("stream offline");
+          setState("offline", {
+            message: "Stream offline"
+          });
+          clock2 = new NullClock();
+        }
+      });
+      es.addEventListener("done", () => {
+        logger.info("closed");
+        es.close();
+        setState("ended", {
+          message: "Stream ended"
+        });
+      });
+    },
+    stop: () => {
+      if (buf !== void 0) buf.stop();
+      if (es !== void 0) es.close();
+    },
+    getCurrentTime: () => clock2.getTime()
+  };
+}
+async function parse$1(responses, _ref) {
+  let {
+    encoding
+  } = _ref;
+  const textDecoder = new TextDecoder(encoding);
+  let cols;
+  let rows;
+  let timing = (await responses[0].text()).split("\n").filter((line) => line.length > 0).map((line) => line.split(" "));
+  if (timing[0].length < 3) {
+    timing = timing.map((entry) => ["O", entry[0], entry[1]]);
+  }
+  const buffer2 = await responses[1].arrayBuffer();
+  const array = new Uint8Array(buffer2);
+  const dataOffset = array.findIndex((byte) => byte == 10) + 1;
+  const header = textDecoder.decode(array.subarray(0, dataOffset));
+  const sizeMatch = header.match(/COLUMNS="(\d+)" LINES="(\d+)"/);
+  if (sizeMatch !== null) {
+    cols = parseInt(sizeMatch[1], 10);
+    rows = parseInt(sizeMatch[2], 10);
+  }
+  const stdout = {
+    array,
+    cursor: dataOffset
+  };
+  let stdin = stdout;
+  if (responses[2] !== void 0) {
+    const buffer3 = await responses[2].arrayBuffer();
+    const array2 = new Uint8Array(buffer3);
+    stdin = {
+      array: array2,
+      cursor: dataOffset
+    };
+  }
+  const events = [];
+  let time = 0;
+  for (const entry of timing) {
+    time += parseFloat(entry[1]);
+    if (entry[0] === "O") {
+      const count = parseInt(entry[2], 10);
+      const bytes = stdout.array.subarray(stdout.cursor, stdout.cursor + count);
+      const text = textDecoder.decode(bytes);
+      events.push([time, "o", text]);
+      stdout.cursor += count;
+    } else if (entry[0] === "I") {
+      const count = parseInt(entry[2], 10);
+      const bytes = stdin.array.subarray(stdin.cursor, stdin.cursor + count);
+      const text = textDecoder.decode(bytes);
+      events.push([time, "i", text]);
+      stdin.cursor += count;
+    } else if (entry[0] === "S" && entry[2] === "SIGWINCH") {
+      const cols2 = parseInt(entry[4].slice(5), 10);
+      const rows2 = parseInt(entry[3].slice(5), 10);
+      events.push([time, "r", `${cols2}x${rows2}`]);
+    } else if (entry[0] === "H" && entry[2] === "COLUMNS") {
+      cols = parseInt(entry[3], 10);
+    } else if (entry[0] === "H" && entry[2] === "LINES") {
+      rows = parseInt(entry[3], 10);
+    }
+  }
+  cols = cols ?? 80;
+  rows = rows ?? 24;
+  return {
+    cols,
+    rows,
+    events
+  };
+}
+async function parse(response, _ref) {
+  let {
+    encoding
+  } = _ref;
+  const textDecoder = new TextDecoder(encoding);
+  const buffer2 = await response.arrayBuffer();
+  const array = new Uint8Array(buffer2);
+  const firstFrame = parseFrame(array);
+  const baseTime = firstFrame.time;
+  const firstFrameText = textDecoder.decode(firstFrame.data);
+  const sizeMatch = firstFrameText.match(/\x1b\[8;(\d+);(\d+)t/);
+  const events = [];
+  let cols = 80;
+  let rows = 24;
+  if (sizeMatch !== null) {
+    cols = parseInt(sizeMatch[2], 10);
+    rows = parseInt(sizeMatch[1], 10);
+  }
+  let cursor = 0;
+  let frame = parseFrame(array);
+  while (frame !== void 0) {
+    const time = frame.time - baseTime;
+    const text = textDecoder.decode(frame.data);
+    events.push([time, "o", text]);
+    cursor += frame.len;
+    frame = parseFrame(array.subarray(cursor));
+  }
+  return {
+    cols,
+    rows,
+    events
+  };
+}
+function parseFrame(array) {
+  if (array.length < 13) return;
+  const time = parseTimestamp(array.subarray(0, 8));
+  const len = parseNumber(array.subarray(8, 12));
+  const data = array.subarray(12, 12 + len);
+  return {
+    time,
+    data,
+    len: len + 12
+  };
+}
+function parseNumber(array) {
+  return array[0] + array[1] * 256 + array[2] * 256 * 256 + array[3] * 256 * 256 * 256;
+}
+function parseTimestamp(array) {
+  const sec = parseNumber(array.subarray(0, 4));
+  const usec = parseNumber(array.subarray(4, 8));
+  return sec + usec / 1e6;
+}
+const DEFAULT_COLS = 80;
+const DEFAULT_ROWS = 24;
+const vt = init({
+  module: vtWasmModule
+});
+class State {
+  constructor(core) {
+    this.core = core;
+    this.driver = core.driver;
+  }
+  onEnter(data) {
+  }
+  init() {
+  }
+  play() {
+  }
+  pause() {
+  }
+  togglePlay() {
+  }
+  mute() {
+    if (this.driver && this.driver.mute()) {
+      this.core._dispatchEvent("muted", true);
+    }
+  }
+  unmute() {
+    if (this.driver && this.driver.unmute()) {
+      this.core._dispatchEvent("muted", false);
+    }
+  }
+  seek(where) {
+    return false;
+  }
+  step(n) {
+  }
+  stop() {
+    this.driver.stop();
+  }
+}
+class UninitializedState extends State {
+  async init() {
+    try {
+      await this.core._initializeDriver();
+      return this.core._setState("idle");
+    } catch (e) {
+      this.core._setState("errored");
+      throw e;
+    }
+  }
+  async play() {
+    this.core._dispatchEvent("play");
+    const idleState = await this.init();
+    await idleState.doPlay();
+  }
+  async togglePlay() {
+    await this.play();
+  }
+  async seek(where) {
+    const idleState = await this.init();
+    return await idleState.seek(where);
+  }
+  async step(n) {
+    const idleState = await this.init();
+    await idleState.step(n);
+  }
+  stop() {
+  }
+}
+class Idle extends State {
+  onEnter(_ref) {
+    let {
+      reason,
+      message
+    } = _ref;
+    this.core._dispatchEvent("idle", {
+      message
+    });
+    if (reason === "paused") {
+      this.core._dispatchEvent("pause");
+    }
+  }
+  async play() {
+    this.core._dispatchEvent("play");
+    await this.doPlay();
+  }
+  async doPlay() {
+    const stop = await this.driver.play();
+    if (stop === true) {
+      this.core._setState("playing");
+    } else if (typeof stop === "function") {
+      this.core._setState("playing");
+      this.driver.stop = stop;
+    }
+  }
+  async togglePlay() {
+    await this.play();
+  }
+  seek(where) {
+    return this.driver.seek(where);
+  }
+  step(n) {
+    this.driver.step(n);
+  }
+}
+class PlayingState extends State {
+  onEnter() {
+    this.core._dispatchEvent("playing");
+  }
+  pause() {
+    if (this.driver.pause() === true) {
+      this.core._setState("idle", {
+        reason: "paused"
+      });
+    }
+  }
+  togglePlay() {
+    this.pause();
+  }
+  seek(where) {
+    return this.driver.seek(where);
+  }
+}
+class LoadingState extends State {
+  onEnter() {
+    this.core._dispatchEvent("loading");
+  }
+}
+class OfflineState extends State {
+  onEnter(_ref2) {
+    let {
+      message
+    } = _ref2;
+    this.core._dispatchEvent("offline", {
+      message
+    });
+  }
+}
+class EndedState extends State {
+  onEnter(_ref3) {
+    let {
+      message
+    } = _ref3;
+    this.core._dispatchEvent("ended", {
+      message
+    });
+  }
+  async play() {
+    this.core._dispatchEvent("play");
+    if (await this.driver.restart()) {
+      this.core._setState("playing");
+    }
+  }
+  async togglePlay() {
+    await this.play();
+  }
+  async seek(where) {
+    if (await this.driver.seek(where) === true) {
+      this.core._setState("idle");
+      return true;
+    }
+    return false;
+  }
+}
+class ErroredState extends State {
+  onEnter() {
+    this.core._dispatchEvent("errored");
+  }
+}
+class Core {
+  constructor(src, opts) {
+    this.logger = opts.logger;
+    this.state = new UninitializedState(this);
+    this.stateName = "uninitialized";
+    this.driver = getDriver(src);
+    this.changedLines = /* @__PURE__ */ new Set();
+    this.duration = void 0;
+    this.cols = opts.cols;
+    this.rows = opts.rows;
+    this.speed = opts.speed;
+    this.loop = opts.loop;
+    this.autoPlay = opts.autoPlay;
+    this.idleTimeLimit = opts.idleTimeLimit;
+    this.preload = opts.preload;
+    this.startAt = parseNpt(opts.startAt);
+    this.poster = this._parsePoster(opts.poster);
+    this.markers = this._normalizeMarkers(opts.markers);
+    this.pauseOnMarkers = opts.pauseOnMarkers;
+    this.audioUrl = opts.audioUrl;
+    this.boldIsBright = opts.boldIsBright ?? false;
+    this.commandQueue = Promise.resolve();
+    this.needsClear = false;
+    this.eventHandlers = /* @__PURE__ */ new Map([["ended", []], ["errored", []], ["idle", []], ["input", []], ["loading", []], ["marker", []], ["metadata", []], ["muted", []], ["offline", []], ["pause", []], ["play", []], ["playing", []], ["ready", []], ["seeked", []], ["vtUpdate", []]]);
+  }
+  async init() {
+    this.wasm = await vt;
+    const {
+      memory
+    } = await this.wasm.default();
+    this.memory = memory;
+    this._initializeVt(this.cols ?? DEFAULT_COLS, this.rows ?? DEFAULT_ROWS);
+    const feed = this._feed.bind(this);
+    const onInput = (data) => {
+      this._dispatchEvent("input", {
+        data
+      });
+    };
+    const onMarker = (_ref4) => {
+      let {
+        index,
+        time,
+        label
+      } = _ref4;
+      this._dispatchEvent("marker", {
+        index,
+        time,
+        label
+      });
+    };
+    const reset = this._resetVt.bind(this);
+    const resize = this._resizeVt.bind(this);
+    const setState = this._setState.bind(this);
+    const posterTime = this.poster.type === "npt" && !this.autoPlay ? this.poster.value : void 0;
+    this.driver = this.driver({
+      feed,
+      onInput,
+      onMarker,
+      reset,
+      resize,
+      setState,
+      logger: this.logger
+    }, {
+      cols: this.cols,
+      rows: this.rows,
+      speed: this.speed,
+      idleTimeLimit: this.idleTimeLimit,
+      startAt: this.startAt,
+      loop: this.loop,
+      posterTime,
+      markers: this.markers,
+      pauseOnMarkers: this.pauseOnMarkers,
+      audioUrl: this.audioUrl
+    });
+    if (typeof this.driver === "function") {
+      this.driver = {
+        play: this.driver
+      };
+    }
+    if (this.preload || posterTime !== void 0) {
+      this._withState((state) => state.init());
+    }
+    const config = {
+      isPausable: !!this.driver.pause,
+      isSeekable: !!this.driver.seek
+    };
+    if (this.driver.init === void 0) {
+      this.driver.init = () => {
+        return {};
+      };
+    }
+    if (this.driver.pause === void 0) {
+      this.driver.pause = () => {
+      };
+    }
+    if (this.driver.seek === void 0) {
+      this.driver.seek = (where) => false;
+    }
+    if (this.driver.step === void 0) {
+      this.driver.step = (n) => {
+      };
+    }
+    if (this.driver.stop === void 0) {
+      this.driver.stop = () => {
+      };
+    }
+    if (this.driver.restart === void 0) {
+      this.driver.restart = () => {
+      };
+    }
+    if (this.driver.mute === void 0) {
+      this.driver.mute = () => {
+      };
+    }
+    if (this.driver.unmute === void 0) {
+      this.driver.unmute = () => {
+      };
+    }
+    if (this.driver.getCurrentTime === void 0) {
+      const play = this.driver.play;
+      let clock2 = new NullClock();
+      this.driver.play = () => {
+        clock2 = new Clock(this.speed);
+        return play();
+      };
+      this.driver.getCurrentTime = () => clock2.getTime();
+    }
+    this._dispatchEvent("ready", config);
+    if (this.autoPlay) {
+      this.play();
+    } else if (this.poster.type === "text") {
+      this._feed(this.poster.value);
+      this.needsClear = true;
+    }
+  }
+  play() {
+    this._clearIfNeeded();
+    return this._withState((state) => state.play());
+  }
+  pause() {
+    return this._withState((state) => state.pause());
+  }
+  togglePlay() {
+    this._clearIfNeeded();
+    return this._withState((state) => state.togglePlay());
+  }
+  seek(where) {
+    this._clearIfNeeded();
+    return this._withState(async (state) => {
+      if (await state.seek(where)) {
+        this._dispatchEvent("seeked");
+      }
+    });
+  }
+  step(n) {
+    this._clearIfNeeded();
+    return this._withState((state) => state.step(n));
+  }
+  stop() {
+    return this._withState((state) => state.stop());
+  }
+  mute() {
+    return this._withState((state) => state.mute());
+  }
+  unmute() {
+    return this._withState((state) => state.unmute());
+  }
+  getLine(n, cursorOn) {
+    return this.vt.getLine(n, cursorOn);
+  }
+  getDataView(_ref5, size) {
+    let [ptr, len] = _ref5;
+    return new DataView(this.memory.buffer, ptr, len * size);
+  }
+  getUint32Array(_ref6) {
+    let [ptr, len] = _ref6;
+    return new Uint32Array(this.memory.buffer, ptr, len);
+  }
+  getCursor() {
+    const cursor = this.vt.getCursor();
+    if (cursor) {
+      return {
+        col: cursor[0],
+        row: cursor[1],
+        visible: true
+      };
+    }
+    return {
+      col: 0,
+      row: 0,
+      visible: false
+    };
+  }
+  getCurrentTime() {
+    return this.driver.getCurrentTime();
+  }
+  getRemainingTime() {
+    if (typeof this.duration === "number") {
+      return this.duration - Math.min(this.getCurrentTime(), this.duration);
+    }
+  }
+  getProgress() {
+    if (typeof this.duration === "number") {
+      return Math.min(this.getCurrentTime(), this.duration) / this.duration;
+    }
+  }
+  getDuration() {
+    return this.duration;
+  }
+  addEventListener(eventName, handler) {
+    this.eventHandlers.get(eventName).push(handler);
+  }
+  removeEventListener(eventName, handler) {
+    const handlers = this.eventHandlers.get(eventName);
+    if (!handlers) return;
+    const idx = handlers.indexOf(handler);
+    if (idx !== -1) handlers.splice(idx, 1);
+  }
+  _dispatchEvent(eventName) {
+    let data = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+    for (const h of this.eventHandlers.get(eventName)) {
+      h(data);
+    }
+  }
+  _withState(f) {
+    return this._enqueueCommand(() => f(this.state));
+  }
+  _enqueueCommand(f) {
+    this.commandQueue = this.commandQueue.then(f);
+    return this.commandQueue;
+  }
+  _setState(newState) {
+    let data = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+    if (this.stateName === newState) return this.state;
+    this.stateName = newState;
+    if (newState === "playing") {
+      this.state = new PlayingState(this);
+    } else if (newState === "idle") {
+      this.state = new Idle(this);
+    } else if (newState === "loading") {
+      this.state = new LoadingState(this);
+    } else if (newState === "ended") {
+      this.state = new EndedState(this);
+    } else if (newState === "offline") {
+      this.state = new OfflineState(this);
+    } else if (newState === "errored") {
+      this.state = new ErroredState(this);
+    } else {
+      throw new Error(`invalid state: ${newState}`);
+    }
+    this.state.onEnter(data);
+    return this.state;
+  }
+  _feed(data) {
+    const changedRows = this.vt.feed(data);
+    this._dispatchEvent("vtUpdate", {
+      changedRows
+    });
+  }
+  async _initializeDriver() {
+    const meta = await this.driver.init();
+    this.cols = this.cols ?? meta.cols ?? DEFAULT_COLS;
+    this.rows = this.rows ?? meta.rows ?? DEFAULT_ROWS;
+    this.duration = this.duration ?? meta.duration;
+    this.markers = this._normalizeMarkers(meta.markers) ?? this.markers ?? [];
+    if (this.cols === 0) {
+      this.cols = DEFAULT_COLS;
+    }
+    if (this.rows === 0) {
+      this.rows = DEFAULT_ROWS;
+    }
+    this._initializeVt(this.cols, this.rows);
+    if (meta.poster !== void 0) {
+      meta.poster.forEach((text) => this.vt.feed(text));
+      this.needsClear = true;
+    } else if (this.poster.type === "text") {
+      this.vt.feed(this.poster.value);
+      this.needsClear = true;
+    }
+    this._dispatchEvent("metadata", {
+      size: {
+        cols: this.cols,
+        rows: this.rows
+      },
+      theme: meta.theme ?? null,
+      duration: this.duration,
+      markers: this.markers,
+      hasAudio: meta.hasAudio
+    });
+    this._dispatchEvent("vtUpdate", {
+      size: {
+        cols: this.cols,
+        rows: this.rows
+      },
+      theme: meta.theme ?? null,
+      changedRows: Array.from({
+        length: this.rows
+      }, (_, i) => i)
+    });
+  }
+  _clearIfNeeded() {
+    if (this.needsClear) {
+      this._feed("\x1Bc");
+      this.needsClear = false;
+    }
+  }
+  _resetVt(cols, rows) {
+    let init2 = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : void 0;
+    let theme = arguments.length > 3 && arguments[3] !== void 0 ? arguments[3] : void 0;
+    this.logger.debug(`core: vt reset (${cols}x${rows})`);
+    this.cols = cols;
+    this.rows = rows;
+    this._initializeVt(cols, rows);
+    if (init2 !== void 0 && init2 !== "") {
+      this.vt.feed(init2);
+    }
+    this._dispatchEvent("metadata", {
+      size: {
+        cols,
+        rows
+      },
+      theme: theme ?? null
+    });
+    this._dispatchEvent("vtUpdate", {
+      size: {
+        cols,
+        rows
+      },
+      theme: theme ?? null,
+      changedRows: Array.from({
+        length: rows
+      }, (_, i) => i)
+    });
+  }
+  _resizeVt(cols, rows) {
+    if (cols === this.vt.cols && rows === this.vt.rows) return;
+    const changedRows = this.vt.resize(cols, rows);
+    this.vt.cols = cols;
+    this.vt.rows = rows;
+    this.logger.debug(`core: vt resize (${cols}x${rows})`);
+    this._dispatchEvent("metadata", {
+      size: {
+        cols,
+        rows
+      }
+    });
+    this._dispatchEvent("vtUpdate", {
+      size: {
+        cols,
+        rows
+      },
+      changedRows
+    });
+  }
+  _initializeVt(cols, rows) {
+    this.logger.debug("vt init", {
+      cols,
+      rows
+    });
+    this.vt = this.wasm.create(cols, rows, 100, this.boldIsBright);
+    this.vt.cols = cols;
+    this.vt.rows = rows;
+  }
+  _parsePoster(poster) {
+    if (typeof poster !== "string") return {};
+    if (poster.substring(0, 16) == "data:text/plain,") {
+      return {
+        type: "text",
+        value: poster.substring(16)
+      };
+    } else if (poster.substring(0, 4) == "npt:") {
+      return {
+        type: "npt",
+        value: parseNpt(poster.substring(4))
+      };
+    }
+    return {};
+  }
+  _normalizeMarkers(markers) {
+    if (Array.isArray(markers)) {
+      return markers.map((m) => typeof m === "number" ? [m, ""] : m);
+    }
+  }
+}
+const DRIVERS = /* @__PURE__ */ new Map([["benchmark", benchmark], ["clock", clock], ["eventsource", eventsource], ["random", random], ["recording", recording], ["websocket", websocket]]);
+const PARSERS = /* @__PURE__ */ new Map([["asciicast", parse$2], ["typescript", parse$1], ["ttyrec", parse]]);
+function getDriver(src) {
+  if (typeof src === "function") return src;
+  if (typeof src === "string") {
+    if (src.substring(0, 5) == "ws://" || src.substring(0, 6) == "wss://") {
+      src = {
+        driver: "websocket",
+        url: src
+      };
+    } else if (src.substring(0, 6) == "clock:") {
+      src = {
+        driver: "clock"
+      };
+    } else if (src.substring(0, 7) == "random:") {
+      src = {
+        driver: "random"
+      };
+    } else if (src.substring(0, 10) == "benchmark:") {
+      src = {
+        driver: "benchmark",
+        url: src.substring(10)
+      };
+    } else {
+      src = {
+        driver: "recording",
+        url: src
+      };
+    }
+  }
+  if (src.driver === void 0) {
+    src.driver = "recording";
+  }
+  if (src.driver == "recording") {
+    if (src.parser === void 0) {
+      src.parser = "asciicast";
+    }
+    if (typeof src.parser === "string") {
+      if (PARSERS.has(src.parser)) {
+        src.parser = PARSERS.get(src.parser);
+      } else {
+        throw new Error(`unknown parser: ${src.parser}`);
+      }
+    }
+  }
+  if (DRIVERS.has(src.driver)) {
+    const driver = DRIVERS.get(src.driver);
+    return (callbacks, opts) => driver(src, callbacks, opts);
+  } else {
+    throw new Error(`unsupported driver: ${JSON.stringify(src)}`);
+  }
+}
+const IS_DEV = false;
+const equalFn = (a, b) => a === b;
+const $PROXY = /* @__PURE__ */ Symbol("solid-proxy");
+const $TRACK = /* @__PURE__ */ Symbol("solid-track");
+const signalOptions = {
+  equals: equalFn
+};
+let runEffects = runQueue;
+const STALE = 1;
+const PENDING = 2;
+const UNOWNED = {
+  owned: null,
+  cleanups: null,
+  context: null,
+  owner: null
+};
+var Owner = null;
+let Transition$1 = null;
+let ExternalSourceConfig = null;
+let Listener = null;
+let Updates = null;
+let Effects = null;
+let ExecCount = 0;
+function createRoot(fn, detachedOwner) {
+  const listener = Listener, owner = Owner, unowned = fn.length === 0, current = detachedOwner === void 0 ? owner : detachedOwner, root = unowned ? UNOWNED : {
+    owned: null,
+    cleanups: null,
+    context: current ? current.context : null,
+    owner: current
+  }, updateFn = unowned ? fn : () => fn(() => untrack(() => cleanNode(root)));
+  Owner = root;
+  Listener = null;
+  try {
+    return runUpdates(updateFn, true);
+  } finally {
+    Listener = listener;
+    Owner = owner;
+  }
+}
+function createSignal(value, options) {
+  options = options ? Object.assign({}, signalOptions, options) : signalOptions;
+  const s = {
+    value,
+    observers: null,
+    observerSlots: null,
+    comparator: options.equals || void 0
+  };
+  const setter = (value2) => {
+    if (typeof value2 === "function") {
+      value2 = value2(s.value);
+    }
+    return writeSignal(s, value2);
+  };
+  return [readSignal.bind(s), setter];
+}
+function createComputed(fn, value, options) {
+  const c = createComputation(fn, value, true, STALE);
+  updateComputation(c);
+}
+function createRenderEffect(fn, value, options) {
+  const c = createComputation(fn, value, false, STALE);
+  updateComputation(c);
+}
+function createEffect(fn, value, options) {
+  runEffects = runUserEffects;
+  const c = createComputation(fn, value, false, STALE);
+  c.user = true;
+  Effects ? Effects.push(c) : updateComputation(c);
+}
+function createMemo(fn, value, options) {
+  options = options ? Object.assign({}, signalOptions, options) : signalOptions;
+  const c = createComputation(fn, value, true, 0);
+  c.observers = null;
+  c.observerSlots = null;
+  c.comparator = options.equals || void 0;
+  updateComputation(c);
+  return readSignal.bind(c);
+}
+function batch(fn) {
+  return runUpdates(fn, false);
+}
+function untrack(fn) {
+  if (Listener === null) return fn();
+  const listener = Listener;
+  Listener = null;
+  try {
+    if (ExternalSourceConfig) ;
+    return fn();
+  } finally {
+    Listener = listener;
+  }
+}
+function onMount(fn) {
+  createEffect(() => untrack(fn));
+}
+function onCleanup(fn) {
+  if (Owner === null) ;
+  else if (Owner.cleanups === null) Owner.cleanups = [fn];
+  else Owner.cleanups.push(fn);
+  return fn;
+}
+function getListener() {
+  return Listener;
+}
+function startTransition(fn) {
+  const l = Listener;
+  const o = Owner;
+  return Promise.resolve().then(() => {
+    Listener = l;
+    Owner = o;
+    let t;
+    runUpdates(fn, false);
+    Listener = Owner = null;
+    return t ? t.done : void 0;
+  });
+}
+const [transPending] = /* @__PURE__ */ createSignal(false);
+function useTransition() {
+  return [transPending, startTransition];
+}
+function children(fn) {
+  const children2 = createMemo(fn);
+  const memo = createMemo(() => resolveChildren(children2()));
+  memo.toArray = () => {
+    const c = memo();
+    return Array.isArray(c) ? c : c != null ? [c] : [];
+  };
+  return memo;
+}
+function readSignal() {
+  if (this.sources && this.state) {
+    if (this.state === STALE) updateComputation(this);
+    else {
+      const updates = Updates;
+      Updates = null;
+      runUpdates(() => lookUpstream(this), false);
+      Updates = updates;
+    }
+  }
+  if (Listener) {
+    const sSlot = this.observers ? this.observers.length : 0;
+    if (!Listener.sources) {
+      Listener.sources = [this];
+      Listener.sourceSlots = [sSlot];
+    } else {
+      Listener.sources.push(this);
+      Listener.sourceSlots.push(sSlot);
+    }
+    if (!this.observers) {
+      this.observers = [Listener];
+      this.observerSlots = [Listener.sources.length - 1];
+    } else {
+      this.observers.push(Listener);
+      this.observerSlots.push(Listener.sources.length - 1);
+    }
+  }
+  return this.value;
+}
+function writeSignal(node, value, isComp) {
+  let current = node.value;
+  if (!node.comparator || !node.comparator(current, value)) {
+    node.value = value;
+    if (node.observers && node.observers.length) {
+      runUpdates(() => {
+        for (let i = 0; i < node.observers.length; i += 1) {
+          const o = node.observers[i];
+          const TransitionRunning = Transition$1 && Transition$1.running;
+          if (TransitionRunning && Transition$1.disposed.has(o)) ;
+          if (TransitionRunning ? !o.tState : !o.state) {
+            if (o.pure) Updates.push(o);
+            else Effects.push(o);
+            if (o.observers) markDownstream(o);
+          }
+          if (!TransitionRunning) o.state = STALE;
+        }
+        if (Updates.length > 1e6) {
+          Updates = [];
+          if (IS_DEV) ;
+          throw new Error();
+        }
+      }, false);
+    }
+  }
+  return value;
+}
+function updateComputation(node) {
+  if (!node.fn) return;
+  cleanNode(node);
+  const time = ExecCount;
+  runComputation(
+    node,
+    node.value,
+    time
+  );
+}
+function runComputation(node, value, time) {
+  let nextValue;
+  const owner = Owner, listener = Listener;
+  Listener = Owner = node;
+  try {
+    nextValue = node.fn(value);
+  } catch (err) {
+    if (node.pure) {
+      {
+        node.state = STALE;
+        node.owned && node.owned.forEach(cleanNode);
+        node.owned = null;
+      }
+    }
+    node.updatedAt = time + 1;
+    return handleError(err);
+  } finally {
+    Listener = listener;
+    Owner = owner;
+  }
+  if (!node.updatedAt || node.updatedAt <= time) {
+    if (node.updatedAt != null && "observers" in node) {
+      writeSignal(node, nextValue);
+    } else node.value = nextValue;
+    node.updatedAt = time;
+  }
+}
+function createComputation(fn, init2, pure, state = STALE, options) {
+  const c = {
+    fn,
+    state,
+    updatedAt: null,
+    owned: null,
+    sources: null,
+    sourceSlots: null,
+    cleanups: null,
+    value: init2,
+    owner: Owner,
+    context: Owner ? Owner.context : null,
+    pure
+  };
+  if (Owner === null) ;
+  else if (Owner !== UNOWNED) {
+    {
+      if (!Owner.owned) Owner.owned = [c];
+      else Owner.owned.push(c);
+    }
+  }
+  return c;
+}
+function runTop(node) {
+  if (node.state === 0) return;
+  if (node.state === PENDING) return lookUpstream(node);
+  if (node.suspense && untrack(node.suspense.inFallback)) return node.suspense.effects.push(node);
+  const ancestors = [node];
+  while ((node = node.owner) && (!node.updatedAt || node.updatedAt < ExecCount)) {
+    if (node.state) ancestors.push(node);
+  }
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    node = ancestors[i];
+    if (node.state === STALE) {
+      updateComputation(node);
+    } else if (node.state === PENDING) {
+      const updates = Updates;
+      Updates = null;
+      runUpdates(() => lookUpstream(node, ancestors[0]), false);
+      Updates = updates;
+    }
+  }
+}
+function runUpdates(fn, init2) {
+  if (Updates) return fn();
+  let wait = false;
+  if (!init2) Updates = [];
+  if (Effects) wait = true;
+  else Effects = [];
+  ExecCount++;
+  try {
+    const res = fn();
+    completeUpdates(wait);
+    return res;
+  } catch (err) {
+    if (!wait) Effects = null;
+    Updates = null;
+    handleError(err);
+  }
+}
+function completeUpdates(wait) {
+  if (Updates) {
+    runQueue(Updates);
+    Updates = null;
+  }
+  if (wait) return;
+  const e = Effects;
+  Effects = null;
+  if (e.length) runUpdates(() => runEffects(e), false);
+}
+function runQueue(queue) {
+  for (let i = 0; i < queue.length; i++) runTop(queue[i]);
+}
+function runUserEffects(queue) {
+  let i, userLength = 0;
+  for (i = 0; i < queue.length; i++) {
+    const e = queue[i];
+    if (!e.user) runTop(e);
+    else queue[userLength++] = e;
+  }
+  for (i = 0; i < userLength; i++) runTop(queue[i]);
+}
+function lookUpstream(node, ignore) {
+  node.state = 0;
+  for (let i = 0; i < node.sources.length; i += 1) {
+    const source = node.sources[i];
+    if (source.sources) {
+      const state = source.state;
+      if (state === STALE) {
+        if (source !== ignore && (!source.updatedAt || source.updatedAt < ExecCount))
+          runTop(source);
+      } else if (state === PENDING) lookUpstream(source, ignore);
+    }
+  }
+}
+function markDownstream(node) {
+  for (let i = 0; i < node.observers.length; i += 1) {
+    const o = node.observers[i];
+    if (!o.state) {
+      o.state = PENDING;
+      if (o.pure) Updates.push(o);
+      else Effects.push(o);
+      o.observers && markDownstream(o);
+    }
+  }
+}
+function cleanNode(node) {
+  let i;
+  if (node.sources) {
+    while (node.sources.length) {
+      const source = node.sources.pop(), index = node.sourceSlots.pop(), obs = source.observers;
+      if (obs && obs.length) {
+        const n = obs.pop(), s = source.observerSlots.pop();
+        if (index < obs.length) {
+          n.sourceSlots[s] = index;
+          obs[index] = n;
+          source.observerSlots[index] = s;
+        }
+      }
+    }
+  }
+  if (node.tOwned) {
+    for (i = node.tOwned.length - 1; i >= 0; i--) cleanNode(node.tOwned[i]);
+    delete node.tOwned;
+  }
+  if (node.owned) {
+    for (i = node.owned.length - 1; i >= 0; i--) cleanNode(node.owned[i]);
+    node.owned = null;
+  }
+  if (node.cleanups) {
+    for (i = node.cleanups.length - 1; i >= 0; i--) node.cleanups[i]();
+    node.cleanups = null;
+  }
+  node.state = 0;
+}
+function castError(err) {
+  if (err instanceof Error) return err;
+  return new Error(typeof err === "string" ? err : "Unknown error", {
+    cause: err
+  });
+}
+function handleError(err, owner = Owner) {
+  const error = castError(err);
+  throw error;
+}
+function resolveChildren(children2) {
+  if (typeof children2 === "function" && !children2.length) return resolveChildren(children2());
+  if (Array.isArray(children2)) {
+    const results = [];
+    for (let i = 0; i < children2.length; i++) {
+      const result = resolveChildren(children2[i]);
+      Array.isArray(result) ? results.push.apply(results, result) : results.push(result);
+    }
+    return results;
+  }
+  return children2;
+}
+const FALLBACK = /* @__PURE__ */ Symbol("fallback");
+function dispose(d) {
+  for (let i = 0; i < d.length; i++) d[i]();
+}
+function mapArray(list, mapFn, options = {}) {
+  let items = [], mapped = [], disposers = [], len = 0, indexes = mapFn.length > 1 ? [] : null;
+  onCleanup(() => dispose(disposers));
+  return () => {
+    let newItems = list() || [], newLen = newItems.length, i, j;
+    newItems[$TRACK];
+    return untrack(() => {
+      let newIndices, newIndicesNext, temp, tempdisposers, tempIndexes, start, end, newEnd, item;
+      if (newLen === 0) {
+        if (len !== 0) {
+          dispose(disposers);
+          disposers = [];
+          items = [];
+          mapped = [];
+          len = 0;
+          indexes && (indexes = []);
+        }
+        if (options.fallback) {
+          items = [FALLBACK];
+          mapped[0] = createRoot((disposer) => {
+            disposers[0] = disposer;
+            return options.fallback();
+          });
+          len = 1;
+        }
+      } else if (len === 0) {
+        mapped = new Array(newLen);
+        for (j = 0; j < newLen; j++) {
+          items[j] = newItems[j];
+          mapped[j] = createRoot(mapper);
+        }
+        len = newLen;
+      } else {
+        temp = new Array(newLen);
+        tempdisposers = new Array(newLen);
+        indexes && (tempIndexes = new Array(newLen));
+        for (start = 0, end = Math.min(len, newLen); start < end && items[start] === newItems[start]; start++) ;
+        for (end = len - 1, newEnd = newLen - 1; end >= start && newEnd >= start && items[end] === newItems[newEnd]; end--, newEnd--) {
+          temp[newEnd] = mapped[end];
+          tempdisposers[newEnd] = disposers[end];
+          indexes && (tempIndexes[newEnd] = indexes[end]);
+        }
+        newIndices = /* @__PURE__ */ new Map();
+        newIndicesNext = new Array(newEnd + 1);
+        for (j = newEnd; j >= start; j--) {
+          item = newItems[j];
+          i = newIndices.get(item);
+          newIndicesNext[j] = i === void 0 ? -1 : i;
+          newIndices.set(item, j);
+        }
+        for (i = start; i <= end; i++) {
+          item = items[i];
+          j = newIndices.get(item);
+          if (j !== void 0 && j !== -1) {
+            temp[j] = mapped[i];
+            tempdisposers[j] = disposers[i];
+            indexes && (tempIndexes[j] = indexes[i]);
+            j = newIndicesNext[j];
+            newIndices.set(item, j);
+          } else disposers[i]();
+        }
+        for (j = start; j < newLen; j++) {
+          if (j in temp) {
+            mapped[j] = temp[j];
+            disposers[j] = tempdisposers[j];
+            if (indexes) {
+              indexes[j] = tempIndexes[j];
+              indexes[j](j);
+            }
+          } else mapped[j] = createRoot(mapper);
+        }
+        mapped = mapped.slice(0, len = newLen);
+        items = newItems.slice(0);
+      }
+      return mapped;
+    });
+    function mapper(disposer) {
+      disposers[j] = disposer;
+      if (indexes) {
+        const [s, set] = createSignal(j);
+        indexes[j] = set;
+        return mapFn(newItems[j], s);
+      }
+      return mapFn(newItems[j]);
+    }
+  };
+}
+function createComponent(Comp, props) {
+  return untrack(() => Comp(props || {}));
+}
+const narrowedError = (name) => `Stale read from <${name}>.`;
+function For(props) {
+  const fallback = "fallback" in props && {
+    fallback: () => props.fallback
+  };
+  return createMemo(mapArray(() => props.each, props.children, fallback || void 0));
+}
+function Show(props) {
+  const keyed = props.keyed;
+  const conditionValue = createMemo(() => props.when, void 0, void 0);
+  const condition = keyed ? conditionValue : createMemo(conditionValue, void 0, {
+    equals: (a, b) => !a === !b
+  });
+  return createMemo(
+    () => {
+      const c = condition();
+      if (c) {
+        const child = props.children;
+        const fn = typeof child === "function" && child.length > 0;
+        return fn ? untrack(
+          () => child(
+            keyed ? c : () => {
+              if (!untrack(condition)) throw narrowedError("Show");
+              return conditionValue();
+            }
+          )
+        ) : child;
+      }
+      return props.fallback;
+    },
+    void 0,
+    void 0
+  );
+}
+function Switch(props) {
+  const chs = children(() => props.children);
+  const switchFunc = createMemo(() => {
+    const ch = chs();
+    const mps = Array.isArray(ch) ? ch : [ch];
+    let func = () => void 0;
+    for (let i = 0; i < mps.length; i++) {
+      const index = i;
+      const mp = mps[i];
+      const prevFunc = func;
+      const conditionValue = createMemo(
+        () => prevFunc() ? void 0 : mp.when,
+        void 0,
+        void 0
+      );
+      const condition = mp.keyed ? conditionValue : createMemo(conditionValue, void 0, {
+        equals: (a, b) => !a === !b
+      });
+      func = () => prevFunc() || (condition() ? [index, conditionValue, mp] : void 0);
+    }
+    return func;
+  });
+  return createMemo(
+    () => {
+      const sel = switchFunc()();
+      if (!sel) return props.fallback;
+      const [index, conditionValue, mp] = sel;
+      const child = mp.children;
+      const fn = typeof child === "function" && child.length > 0;
+      return fn ? untrack(
+        () => child(
+          mp.keyed ? conditionValue() : () => {
+            if (untrack(switchFunc)()?.[0] !== index) throw narrowedError("Match");
+            return conditionValue();
+          }
+        )
+      ) : child;
+    },
+    void 0,
+    void 0
+  );
+}
+function Match(props) {
+  return props;
+}
+function reconcileArrays(parentNode, a, b) {
+  let bLength = b.length, aEnd = a.length, bEnd = bLength, aStart = 0, bStart = 0, after = a[aEnd - 1].nextSibling, map = null;
+  while (aStart < aEnd || bStart < bEnd) {
+    if (a[aStart] === b[bStart]) {
+      aStart++;
+      bStart++;
+      continue;
+    }
+    while (a[aEnd - 1] === b[bEnd - 1]) {
+      aEnd--;
+      bEnd--;
+    }
+    if (aEnd === aStart) {
+      const node = bEnd < bLength ? bStart ? b[bStart - 1].nextSibling : b[bEnd - bStart] : after;
+      while (bStart < bEnd) parentNode.insertBefore(b[bStart++], node);
+    } else if (bEnd === bStart) {
+      while (aStart < aEnd) {
+        if (!map || !map.has(a[aStart])) a[aStart].remove();
+        aStart++;
+      }
+    } else if (a[aStart] === b[bEnd - 1] && b[bStart] === a[aEnd - 1]) {
+      const node = a[--aEnd].nextSibling;
+      parentNode.insertBefore(b[bStart++], a[aStart++].nextSibling);
+      parentNode.insertBefore(b[--bEnd], node);
+      a[aEnd] = b[bEnd];
+    } else {
+      if (!map) {
+        map = /* @__PURE__ */ new Map();
+        let i = bStart;
+        while (i < bEnd) map.set(b[i], i++);
+      }
+      const index = map.get(a[aStart]);
+      if (index != null) {
+        if (bStart < index && index < bEnd) {
+          let i = aStart, sequence = 1, t;
+          while (++i < aEnd && i < bEnd) {
+            if ((t = map.get(a[i])) == null || t !== index + sequence) break;
+            sequence++;
+          }
+          if (sequence > index - bStart) {
+            const node = a[aStart];
+            while (bStart < index) parentNode.insertBefore(b[bStart++], node);
+          } else parentNode.replaceChild(b[bStart++], a[aStart++]);
+        } else aStart++;
+      } else a[aStart++].remove();
+    }
+  }
+}
+const $$EVENTS = "_$DX_DELEGATE";
+function render(code, element, init2, options = {}) {
+  let disposer;
+  createRoot((dispose2) => {
+    disposer = dispose2;
+    element === document ? code() : insert(element, code(), element.firstChild ? null : void 0, init2);
+  }, options.owner);
+  return () => {
+    disposer();
+    element.textContent = "";
+  };
+}
+function template(html, isImportNode, isSVG, isMathML) {
+  let node;
+  const create2 = () => {
+    const t = document.createElement("template");
+    t.innerHTML = html;
+    return t.content.firstChild;
+  };
+  const fn = isImportNode ? () => untrack(() => document.importNode(node || (node = create2()), true)) : () => (node || (node = create2())).cloneNode(true);
+  fn.cloneNode = fn;
+  return fn;
+}
+function delegateEvents(eventNames, document2 = window.document) {
+  const e = document2[$$EVENTS] || (document2[$$EVENTS] = /* @__PURE__ */ new Set());
+  for (let i = 0, l = eventNames.length; i < l; i++) {
+    const name = eventNames[i];
+    if (!e.has(name)) {
+      e.add(name);
+      document2.addEventListener(name, eventHandler);
+    }
+  }
+}
+function setAttribute(node, name, value) {
+  if (value == null) node.removeAttribute(name);
+  else node.setAttribute(name, value);
+}
+function className(node, value) {
+  if (value == null) node.removeAttribute("class");
+  else node.className = value;
+}
+function addEventListener(node, name, handler, delegate) {
+  {
+    if (Array.isArray(handler)) {
+      node[`$$${name}`] = handler[0];
+      node[`$$${name}Data`] = handler[1];
+    } else node[`$$${name}`] = handler;
+  }
+}
+function style(node, value, prev) {
+  if (!value) return prev ? setAttribute(node, "style") : value;
+  const nodeStyle = node.style;
+  if (typeof value === "string") return nodeStyle.cssText = value;
+  typeof prev === "string" && (nodeStyle.cssText = prev = void 0);
+  prev || (prev = {});
+  value || (value = {});
+  let v, s;
+  for (s in prev) {
+    value[s] == null && nodeStyle.removeProperty(s);
+    delete prev[s];
+  }
+  for (s in value) {
+    v = value[s];
+    if (v !== prev[s]) {
+      nodeStyle.setProperty(s, v);
+      prev[s] = v;
+    }
+  }
+  return prev;
+}
+function use(fn, element, arg) {
+  return untrack(() => fn(element, arg));
+}
+function insert(parent, accessor, marker, initial) {
+  if (marker !== void 0 && !initial) initial = [];
+  if (typeof accessor !== "function") return insertExpression(parent, accessor, initial, marker);
+  createRenderEffect((current) => insertExpression(parent, accessor(), current, marker), initial);
+}
+function eventHandler(e) {
+  let node = e.target;
+  const key = `$$${e.type}`;
+  const oriTarget = e.target;
+  const oriCurrentTarget = e.currentTarget;
+  const retarget = (value) => Object.defineProperty(e, "target", {
+    configurable: true,
+    value
+  });
+  const handleNode = () => {
+    const handler = node[key];
+    if (handler && !node.disabled) {
+      const data = node[`${key}Data`];
+      data !== void 0 ? handler.call(node, data, e) : handler.call(node, e);
+      if (e.cancelBubble) return;
+    }
+    node.host && typeof node.host !== "string" && !node.host._$host && node.contains(e.target) && retarget(node.host);
+    return true;
+  };
+  const walkUpTree = () => {
+    while (handleNode() && (node = node._$host || node.parentNode || node.host)) ;
+  };
+  Object.defineProperty(e, "currentTarget", {
+    configurable: true,
+    get() {
+      return node || document;
+    }
+  });
+  if (e.composedPath) {
+    const path = e.composedPath();
+    retarget(path[0]);
+    for (let i = 0; i < path.length - 2; i++) {
+      node = path[i];
+      if (!handleNode()) break;
+      if (node._$host) {
+        node = node._$host;
+        walkUpTree();
+        break;
+      }
+      if (node.parentNode === oriCurrentTarget) {
+        break;
+      }
+    }
+  } else walkUpTree();
+  retarget(oriTarget);
+}
+function insertExpression(parent, value, current, marker, unwrapArray) {
+  while (typeof current === "function") current = current();
+  if (value === current) return current;
+  const t = typeof value, multi = marker !== void 0;
+  parent = multi && current[0] && current[0].parentNode || parent;
+  if (t === "string" || t === "number") {
+    if (t === "number") {
+      value = value.toString();
+      if (value === current) return current;
+    }
+    if (multi) {
+      let node = current[0];
+      if (node && node.nodeType === 3) {
+        node.data !== value && (node.data = value);
+      } else node = document.createTextNode(value);
+      current = cleanChildren(parent, current, marker, node);
+    } else {
+      if (current !== "" && typeof current === "string") {
+        current = parent.firstChild.data = value;
+      } else current = parent.textContent = value;
+    }
+  } else if (value == null || t === "boolean") {
+    current = cleanChildren(parent, current, marker);
+  } else if (t === "function") {
+    createRenderEffect(() => {
+      let v = value();
+      while (typeof v === "function") v = v();
+      current = insertExpression(parent, v, current, marker);
+    });
+    return () => current;
+  } else if (Array.isArray(value)) {
+    const array = [];
+    const currentArray = current && Array.isArray(current);
+    if (normalizeIncomingArray(array, value, current, unwrapArray)) {
+      createRenderEffect(() => current = insertExpression(parent, array, current, marker, true));
+      return () => current;
+    }
+    if (array.length === 0) {
+      current = cleanChildren(parent, current, marker);
+      if (multi) return current;
+    } else if (currentArray) {
+      if (current.length === 0) {
+        appendNodes(parent, array, marker);
+      } else reconcileArrays(parent, current, array);
+    } else {
+      current && cleanChildren(parent);
+      appendNodes(parent, array);
+    }
+    current = array;
+  } else if (value.nodeType) {
+    if (Array.isArray(current)) {
+      if (multi) return current = cleanChildren(parent, current, marker, value);
+      cleanChildren(parent, current, null, value);
+    } else if (current == null || current === "" || !parent.firstChild) {
+      parent.appendChild(value);
+    } else parent.replaceChild(value, parent.firstChild);
+    current = value;
+  } else ;
+  return current;
+}
+function normalizeIncomingArray(normalized, array, current, unwrap2) {
+  let dynamic = false;
+  for (let i = 0, len = array.length; i < len; i++) {
+    let item = array[i], prev = current && current[normalized.length], t;
+    if (item == null || item === true || item === false) ;
+    else if ((t = typeof item) === "object" && item.nodeType) {
+      normalized.push(item);
+    } else if (Array.isArray(item)) {
+      dynamic = normalizeIncomingArray(normalized, item, prev) || dynamic;
+    } else if (t === "function") {
+      if (unwrap2) {
+        while (typeof item === "function") item = item();
+        dynamic = normalizeIncomingArray(
+          normalized,
+          Array.isArray(item) ? item : [item],
+          Array.isArray(prev) ? prev : [prev]
+        ) || dynamic;
+      } else {
+        normalized.push(item);
+        dynamic = true;
+      }
+    } else {
+      const value = String(item);
+      if (prev && prev.nodeType === 3 && prev.data === value) normalized.push(prev);
+      else normalized.push(document.createTextNode(value));
+    }
+  }
+  return dynamic;
+}
+function appendNodes(parent, array, marker = null) {
+  for (let i = 0, len = array.length; i < len; i++) parent.insertBefore(array[i], marker);
+}
+function cleanChildren(parent, current, marker, replacement) {
+  if (marker === void 0) return parent.textContent = "";
+  const node = replacement || document.createTextNode("");
+  if (current.length) {
+    let inserted = false;
+    for (let i = current.length - 1; i >= 0; i--) {
+      const el = current[i];
+      if (node !== el) {
+        const isParent = el.parentNode === parent;
+        if (!inserted && !i)
+          isParent ? parent.replaceChild(node, el) : parent.insertBefore(node, marker);
+        else isParent && el.remove();
+      } else inserted = true;
+    }
+  } else parent.insertBefore(node, marker);
+  return [node];
+}
+const $RAW = /* @__PURE__ */ Symbol("store-raw"), $NODE = /* @__PURE__ */ Symbol("store-node"), $HAS = /* @__PURE__ */ Symbol("store-has"), $SELF = /* @__PURE__ */ Symbol("store-self");
+function wrap$1(value) {
+  let p = value[$PROXY];
+  if (!p) {
+    Object.defineProperty(value, $PROXY, {
+      value: p = new Proxy(value, proxyTraps$1)
+    });
+    if (!Array.isArray(value)) {
+      const keys = Object.keys(value), desc = Object.getOwnPropertyDescriptors(value);
+      for (let i = 0, l = keys.length; i < l; i++) {
+        const prop = keys[i];
+        if (desc[prop].get) {
+          Object.defineProperty(value, prop, {
+            enumerable: desc[prop].enumerable,
+            get: desc[prop].get.bind(p)
+          });
+        }
+      }
+    }
+  }
+  return p;
+}
+function isWrappable(obj) {
+  let proto;
+  return obj != null && typeof obj === "object" && (obj[$PROXY] || !(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype || Array.isArray(obj));
+}
+function unwrap(item, set = /* @__PURE__ */ new Set()) {
+  let result, unwrapped, v, prop;
+  if (result = item != null && item[$RAW]) return result;
+  if (!isWrappable(item) || set.has(item)) return item;
+  if (Array.isArray(item)) {
+    if (Object.isFrozen(item)) item = item.slice(0);
+    else set.add(item);
+    for (let i = 0, l = item.length; i < l; i++) {
+      v = item[i];
+      if ((unwrapped = unwrap(v, set)) !== v) item[i] = unwrapped;
+    }
+  } else {
+    if (Object.isFrozen(item)) item = Object.assign({}, item);
+    else set.add(item);
+    const keys = Object.keys(item), desc = Object.getOwnPropertyDescriptors(item);
+    for (let i = 0, l = keys.length; i < l; i++) {
+      prop = keys[i];
+      if (desc[prop].get) continue;
+      v = item[prop];
+      if ((unwrapped = unwrap(v, set)) !== v) item[prop] = unwrapped;
+    }
+  }
+  return item;
+}
+function getNodes(target, symbol) {
+  let nodes = target[symbol];
+  if (!nodes)
+    Object.defineProperty(target, symbol, {
+      value: nodes = /* @__PURE__ */ Object.create(null)
+    });
+  return nodes;
+}
+function getNode(nodes, property, value) {
+  if (nodes[property]) return nodes[property];
+  const [s, set] = createSignal(value, {
+    equals: false,
+    internal: true
+  });
+  s.$ = set;
+  return nodes[property] = s;
+}
+function proxyDescriptor$1(target, property) {
+  const desc = Reflect.getOwnPropertyDescriptor(target, property);
+  if (!desc || desc.get || !desc.configurable || property === $PROXY || property === $NODE)
+    return desc;
+  delete desc.value;
+  delete desc.writable;
+  desc.get = () => target[$PROXY][property];
+  return desc;
+}
+function trackSelf(target) {
+  getListener() && getNode(getNodes(target, $NODE), $SELF)();
+}
+function ownKeys(target) {
+  trackSelf(target);
+  return Reflect.ownKeys(target);
+}
+const proxyTraps$1 = {
+  get(target, property, receiver) {
+    if (property === $RAW) return target;
+    if (property === $PROXY) return receiver;
+    if (property === $TRACK) {
+      trackSelf(target);
+      return receiver;
+    }
+    const nodes = getNodes(target, $NODE);
+    const tracked = nodes[property];
+    let value = tracked ? tracked() : target[property];
+    if (property === $NODE || property === $HAS || property === "__proto__") return value;
+    if (!tracked) {
+      const desc = Object.getOwnPropertyDescriptor(target, property);
+      if (getListener() && (typeof value !== "function" || target.hasOwnProperty(property)) && !(desc && desc.get))
+        value = getNode(nodes, property, value)();
+    }
+    return isWrappable(value) ? wrap$1(value) : value;
+  },
+  has(target, property) {
+    if (property === $RAW || property === $PROXY || property === $TRACK || property === $NODE || property === $HAS || property === "__proto__")
+      return true;
+    getListener() && getNode(getNodes(target, $HAS), property)();
+    return property in target;
+  },
+  set() {
+    return true;
+  },
+  deleteProperty() {
+    return true;
+  },
+  ownKeys,
+  getOwnPropertyDescriptor: proxyDescriptor$1
+};
+function setProperty(state, property, value, deleting = false) {
+  if (!deleting && state[property] === value) return;
+  const prev = state[property], len = state.length;
+  if (value === void 0) {
+    delete state[property];
+    if (state[$HAS] && state[$HAS][property] && prev !== void 0) state[$HAS][property].$();
+  } else {
+    state[property] = value;
+    if (state[$HAS] && state[$HAS][property] && prev === void 0) state[$HAS][property].$();
+  }
+  let nodes = getNodes(state, $NODE), node;
+  if (node = getNode(nodes, property, prev)) node.$(() => value);
+  if (Array.isArray(state) && state.length !== len) {
+    for (let i = state.length; i < len; i++) (node = nodes[i]) && node.$();
+    (node = getNode(nodes, "length", len)) && node.$(state.length);
+  }
+  (node = nodes[$SELF]) && node.$();
+}
+function mergeStoreNode(state, value) {
+  const keys = Object.keys(value);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    setProperty(state, key, value[key]);
+  }
+}
+function updateArray(current, next) {
+  if (typeof next === "function") next = next(current);
+  next = unwrap(next);
+  if (Array.isArray(next)) {
+    if (current === next) return;
+    let i = 0, len = next.length;
+    for (; i < len; i++) {
+      const value = next[i];
+      if (current[i] !== value) setProperty(current, i, value);
+    }
+    setProperty(current, "length", len);
+  } else mergeStoreNode(current, next);
+}
+function updatePath(current, path, traversed = []) {
+  let part, prev = current;
+  if (path.length > 1) {
+    part = path.shift();
+    const partType = typeof part, isArray = Array.isArray(current);
+    if (Array.isArray(part)) {
+      for (let i = 0; i < part.length; i++) {
+        updatePath(current, [part[i]].concat(path), traversed);
+      }
+      return;
+    } else if (isArray && partType === "function") {
+      for (let i = 0; i < current.length; i++) {
+        if (part(current[i], i)) updatePath(current, [i].concat(path), traversed);
+      }
+      return;
+    } else if (isArray && partType === "object") {
+      const { from = 0, to = current.length - 1, by = 1 } = part;
+      for (let i = from; i <= to; i += by) {
+        updatePath(current, [i].concat(path), traversed);
+      }
+      return;
+    } else if (path.length > 1) {
+      updatePath(current[part], path, [part].concat(traversed));
+      return;
+    }
+    prev = current[part];
+    traversed = [part].concat(traversed);
+  }
+  let value = path[0];
+  if (typeof value === "function") {
+    value = value(prev, traversed);
+    if (value === prev) return;
+  }
+  if (part === void 0 && value == void 0) return;
+  value = unwrap(value);
+  if (part === void 0 || isWrappable(prev) && isWrappable(value) && !Array.isArray(value)) {
+    mergeStoreNode(prev, value);
+  } else setProperty(current, part, value);
+}
+function createStore(...[store, options]) {
+  const unwrappedStore = unwrap(store || {});
+  const isArray = Array.isArray(unwrappedStore);
+  const wrappedStore = wrap$1(unwrappedStore);
+  function setStore(...args) {
+    batch(() => {
+      isArray && args.length === 1 ? updateArray(unwrappedStore, args[0]) : updatePath(unwrappedStore, args);
+    });
+  }
+  return [wrappedStore, setStore];
+}
+const noop = () => {
+};
+const noopTransition = (el, done) => done();
+function createSwitchTransition(source, options) {
+  const initSource = untrack(source);
+  const initReturned = initSource ? [initSource] : [];
+  const { onEnter = noopTransition, onExit = noopTransition } = options;
+  const [returned, setReturned] = createSignal(options.appear ? [] : initReturned);
+  const [isTransitionPending] = useTransition();
+  let next;
+  let isExiting = false;
+  function exitTransition2(el, after) {
+    if (!el)
+      return after && after();
+    isExiting = true;
+    onExit(el, () => {
+      batch(() => {
+        isExiting = false;
+        setReturned((p) => p.filter((e) => e !== el));
+        after && after();
+      });
+    });
+  }
+  function enterTransition2(after) {
+    const el = next;
+    if (!el)
+      return after && after();
+    next = void 0;
+    setReturned((p) => [el, ...p]);
+    onEnter(el, after ?? noop);
+  }
+  const triggerTransitions = options.mode === "out-in" ? (
+    // exit -> enter
+    // exit -> enter
+    (prev) => isExiting || exitTransition2(prev, enterTransition2)
+  ) : options.mode === "in-out" ? (
+    // enter -> exit
+    // enter -> exit
+    (prev) => enterTransition2(() => exitTransition2(prev))
+  ) : (
+    // exit & enter
+    // exit & enter
+    (prev) => {
+      exitTransition2(prev);
+      enterTransition2();
+    }
+  );
+  createComputed((prev) => {
+    const el = source();
+    if (untrack(isTransitionPending)) {
+      isTransitionPending();
+      return prev;
+    }
+    if (el !== prev) {
+      next = el;
+      batch(() => untrack(() => triggerTransitions(prev)));
+    }
+    return el;
+  }, options.appear ? void 0 : initSource);
+  return returned;
+}
+const defaultElementPredicate = (item) => item instanceof Element;
+function getFirstChild(value, predicate) {
+  if (predicate(value))
+    return value;
+  if (typeof value === "function" && !value.length)
+    return getFirstChild(value(), predicate);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const result = getFirstChild(item, predicate);
+      if (result)
+        return result;
+    }
+  }
+  return null;
+}
+function resolveFirst(fn, predicate = defaultElementPredicate, serverPredicate = defaultElementPredicate) {
+  const children2 = createMemo(fn);
+  return createMemo(() => getFirstChild(children2(), predicate));
+}
+function createClassnames(props) {
+  return createMemo(() => {
+    const name = props.name || "s";
+    return {
+      enterActive: (props.enterActiveClass || name + "-enter-active").split(" "),
+      enter: (props.enterClass || name + "-enter").split(" "),
+      enterTo: (props.enterToClass || name + "-enter-to").split(" "),
+      exitActive: (props.exitActiveClass || name + "-exit-active").split(" "),
+      exit: (props.exitClass || name + "-exit").split(" "),
+      exitTo: (props.exitToClass || name + "-exit-to").split(" "),
+      move: (props.moveClass || name + "-move").split(" ")
+    };
+  });
+}
+function nextFrame(fn) {
+  requestAnimationFrame(() => requestAnimationFrame(fn));
+}
+function enterTransition(classes, events, el, done) {
+  const { onBeforeEnter, onEnter, onAfterEnter } = events;
+  onBeforeEnter?.(el);
+  el.classList.add(...classes.enter);
+  el.classList.add(...classes.enterActive);
+  queueMicrotask(() => {
+    if (!el.parentNode)
+      return done?.();
+    onEnter?.(el, () => endTransition());
+  });
+  nextFrame(() => {
+    el.classList.remove(...classes.enter);
+    el.classList.add(...classes.enterTo);
+    if (!onEnter || onEnter.length < 2) {
+      el.addEventListener("transitionend", endTransition);
+      el.addEventListener("animationend", endTransition);
+    }
+  });
+  function endTransition(e) {
+    if (!e || e.target === el) {
+      done?.();
+      el.removeEventListener("transitionend", endTransition);
+      el.removeEventListener("animationend", endTransition);
+      el.classList.remove(...classes.enterActive);
+      el.classList.remove(...classes.enterTo);
+      onAfterEnter?.(el);
+    }
+  }
+}
+function exitTransition(classes, events, el, done) {
+  const { onBeforeExit, onExit, onAfterExit } = events;
+  if (!el.parentNode)
+    return done?.();
+  onBeforeExit?.(el);
+  el.classList.add(...classes.exit);
+  el.classList.add(...classes.exitActive);
+  onExit?.(el, () => endTransition());
+  nextFrame(() => {
+    el.classList.remove(...classes.exit);
+    el.classList.add(...classes.exitTo);
+    if (!onExit || onExit.length < 2) {
+      el.addEventListener("transitionend", endTransition);
+      el.addEventListener("animationend", endTransition);
+    }
+  });
+  function endTransition(e) {
+    if (!e || e.target === el) {
+      done?.();
+      el.removeEventListener("transitionend", endTransition);
+      el.removeEventListener("animationend", endTransition);
+      el.classList.remove(...classes.exitActive);
+      el.classList.remove(...classes.exitTo);
+      onAfterExit?.(el);
+    }
+  }
+}
+var TRANSITION_MODE_MAP = {
+  inout: "in-out",
+  outin: "out-in"
+};
+var Transition = (props) => {
+  const classnames = createClassnames(props);
+  return createSwitchTransition(
+    resolveFirst(() => props.children),
+    {
+      mode: TRANSITION_MODE_MAP[props.mode],
+      appear: props.appear,
+      onEnter(el, done) {
+        enterTransition(classnames(), props, el, done);
+      },
+      onExit(el, done) {
+        exitTransition(classnames(), props, el, done);
+      }
+    }
+  );
+};
+const _tmpl$$e = /* @__PURE__ */ template(`<div class="ap-term"><canvas></canvas><svg class="ap-term-symbols" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" width="100%" height="100%" aria-hidden="true"><defs></defs><g></g></svg><pre class="ap-term-text" aria-live="off" tabindex="0"></pre></div>`, 12);
+const SVG_NS = "http://www.w3.org/2000/svg";
+const BLOCK_H_RES = 8;
+const BLOCK_V_RES = 24;
+const BOLD_MASK = 1;
+const FAINT_MASK = 1 << 1;
+const ITALIC_MASK = 1 << 2;
+const UNDERLINE_MASK = 1 << 3;
+const STRIKETHROUGH_MASK = 1 << 4;
+const BLINK_MASK = 1 << 5;
+var Terminal = ((props) => {
+  const core = props.core;
+  const textRowPool = [];
+  const vectorSymbolRowPool = [];
+  const vectorSymbolUsePool = [];
+  const vectorSymbolDefCache = /* @__PURE__ */ new Set();
+  const colorsCache = /* @__PURE__ */ new Map();
+  const attrClassCache = /* @__PURE__ */ new Map();
+  const [size, setSize] = createSignal({
+    cols: props.cols,
+    rows: props.rows
+  }, {
+    equals: (newVal, oldVal) => newVal.cols === oldVal.cols && newVal.rows === oldVal.rows
+  });
+  const [theme, setTheme] = createSignal(buildTheme(FALLBACK_THEME));
+  const lineHeight = () => props.lineHeight ?? 1.3333333333;
+  const [blinkOn, setBlinkOn] = createSignal(true);
+  const cursorOn = createMemo(() => blinkOn() || cursorHold);
+  const style$1 = createMemo(() => {
+    return {
+      width: `${size().cols}ch`,
+      height: `${lineHeight() * size().rows}em`,
+      "font-size": `${(props.scale || 1) * 100}%`,
+      "--term-line-height": `${lineHeight()}em`,
+      "--term-cols": size().cols,
+      "--term-rows": size().rows
+    };
+  });
+  let cursor = {
+    col: 0,
+    row: 0,
+    visible: false
+  };
+  let pendingChanges = {
+    size: void 0,
+    theme: void 0,
+    rows: /* @__PURE__ */ new Set()
+  };
+  let el;
+  let canvasEl;
+  let canvasCtx;
+  let textEl;
+  let vectorSymbolsEl;
+  let vectorSymbolDefsEl;
+  let vectorSymbolRowsEl;
+  let frameRequestId;
+  let blinkIntervalId;
+  let cssTheme;
+  let cursorHold = false;
+  onMount(() => {
+    setupCanvas();
+    setInitialTheme();
+    adjustTextRowNodeCount(size().rows);
+    adjustSymbolRowNodeCount(size().rows);
+    core.addEventListener("vtUpdate", onVtUpdate);
+  });
+  onCleanup(() => {
+    core.removeEventListener("vtUpdate", onVtUpdate);
+    clearInterval(blinkIntervalId);
+    cancelAnimationFrame(frameRequestId);
+  });
+  createEffect(() => {
+    if (props.blinking && blinkIntervalId === void 0) {
+      blinkIntervalId = setInterval(toggleBlink, 600);
+    } else {
+      clearInterval(blinkIntervalId);
+      blinkIntervalId = void 0;
+      setBlinkOn(true);
+    }
+  });
+  createEffect(() => {
+    cursorOn();
+    if (cursor.visible) {
+      pendingChanges.rows.add(cursor.row);
+      scheduleRender();
+    }
+  });
+  function setupCanvas() {
+    canvasCtx = canvasEl.getContext("2d");
+    if (!canvasCtx) throw new Error("2D ctx not available");
+    const {
+      cols,
+      rows
+    } = size();
+    canvasEl.width = cols * BLOCK_H_RES;
+    canvasEl.height = rows * BLOCK_V_RES;
+    canvasEl.style.imageRendering = "pixelated";
+    canvasCtx.imageSmoothingEnabled = false;
+  }
+  function resizeCanvas(_ref) {
+    let {
+      cols,
+      rows
+    } = _ref;
+    canvasEl.width = cols * BLOCK_H_RES;
+    canvasEl.height = rows * BLOCK_V_RES;
+    canvasCtx.imageSmoothingEnabled = false;
+  }
+  function setInitialTheme() {
+    cssTheme = getCssTheme(el);
+    pendingChanges.theme = cssTheme;
+  }
+  function onVtUpdate(_ref2) {
+    let {
+      size: newSize,
+      theme: theme2,
+      changedRows
+    } = _ref2;
+    let activity = false;
+    if (changedRows !== void 0) {
+      for (const row of changedRows) {
+        pendingChanges.rows.add(row);
+        cursorHold = true;
+        activity = true;
+      }
+    }
+    if (theme2 !== void 0 && props.preferEmbeddedTheme) {
+      pendingChanges.theme = theme2;
+      for (let row = 0; row < size().rows; row++) {
+        pendingChanges.rows.add(row);
+      }
+    }
+    const newCursor = core.getCursor();
+    if (newCursor.visible != cursor.visible || newCursor.col != cursor.col || newCursor.row != cursor.row) {
+      if (cursor.visible) {
+        pendingChanges.rows.add(cursor.row);
+      }
+      if (newCursor.visible) {
+        pendingChanges.rows.add(newCursor.row);
+      }
+      cursor = newCursor;
+      cursorHold = true;
+      activity = true;
+    }
+    if (newSize !== void 0) {
+      pendingChanges.size = newSize;
+      for (const row of pendingChanges.rows) {
+        if (row >= newSize.rows) {
+          pendingChanges.rows.delete(row);
+        }
+      }
+    }
+    if (activity && cursor.visible) {
+      pendingChanges.rows.add(cursor.row);
+    }
+    scheduleRender();
+  }
+  function toggleBlink() {
+    setBlinkOn((blink) => {
+      if (!blink) cursorHold = false;
+      return !blink;
+    });
+  }
+  function scheduleRender() {
+    if (frameRequestId === void 0) {
+      frameRequestId = requestAnimationFrame(render2);
+    }
+  }
+  function render2() {
+    frameRequestId = void 0;
+    const {
+      size: newSize,
+      theme: newTheme,
+      rows
+    } = pendingChanges;
+    batch(function() {
+      if (newSize !== void 0) {
+        resizeCanvas(newSize);
+        adjustTextRowNodeCount(newSize.rows);
+        adjustSymbolRowNodeCount(newSize.rows);
+        setSize(newSize);
+      }
+      if (newTheme !== void 0) {
+        if (newTheme === null) {
+          setTheme(buildTheme(cssTheme));
+        } else {
+          setTheme(buildTheme(newTheme));
+        }
+        colorsCache.clear();
+      }
+      const theme_ = theme();
+      const cursorOn_ = blinkOn() || cursorHold;
+      for (const r of rows) {
+        renderRow(r, theme_, cursorOn_);
+      }
+    });
+    pendingChanges.size = void 0;
+    pendingChanges.theme = void 0;
+    pendingChanges.rows.clear();
+    props.stats.renders += 1;
+  }
+  function renderRow(rowIndex, theme2, cursorOn2) {
+    const line = core.getLine(rowIndex, cursorOn2);
+    clearCanvasRow(rowIndex);
+    renderRowBg(rowIndex, line.bg, theme2);
+    renderRowRasterSymbols(rowIndex, line.raster_symbols, theme2);
+    renderRowVectorSymbols(rowIndex, line.vector_symbols, theme2);
+    renderRowText(rowIndex, line.text, line.codepoints, theme2);
+  }
+  function clearCanvasRow(rowIndex) {
+    canvasCtx.clearRect(0, rowIndex * BLOCK_V_RES, size().cols * BLOCK_H_RES, BLOCK_V_RES);
+  }
+  function renderRowBg(rowIndex, spans, theme2) {
+    const view = core.getDataView(spans, 8);
+    const y = rowIndex * BLOCK_V_RES;
+    let i = 0;
+    while (i < view.byteLength) {
+      const column = view.getUint16(i + 0, true);
+      const width = view.getUint16(i + 2, true);
+      const color = getColor(view, i + 4, theme2);
+      i += 8;
+      canvasCtx.fillStyle = color;
+      canvasCtx.fillRect(column * BLOCK_H_RES, y, width * BLOCK_H_RES, BLOCK_V_RES);
+    }
+  }
+  function renderRowRasterSymbols(rowIndex, symbols, theme2) {
+    const view = core.getDataView(symbols, 12);
+    const y = rowIndex * BLOCK_V_RES;
+    let i = 0;
+    while (i < view.byteLength) {
+      const column = view.getUint16(i + 0, true);
+      const codepoint = view.getUint32(i + 4, true);
+      const color = getColor(view, i + 8, theme2) || theme2.fg;
+      i += 12;
+      canvasCtx.fillStyle = color;
+      drawBlockGlyph(canvasCtx, codepoint, column * BLOCK_H_RES, y);
+    }
+  }
+  function renderRowVectorSymbols(rowIndex, symbols, theme2) {
+    const view = core.getDataView(symbols, 16);
+    const frag = document.createDocumentFragment();
+    const symbolRow = vectorSymbolRowsEl.children[rowIndex];
+    let i = 0;
+    while (i < view.byteLength) {
+      const column = view.getUint16(i + 0, true);
+      const codepoint = view.getUint32(i + 4, true);
+      const color = getColor(view, i + 8, theme2);
+      const attrs = view.getUint8(i + 12);
+      i += 16;
+      const blink = (attrs & BLINK_MASK) !== 0;
+      const el2 = createVectorSymbolNode(codepoint, column, color, blink);
+      if (el2) {
+        frag.appendChild(el2);
+      }
+    }
+    recycleVectorSymbolUses(symbolRow);
+    symbolRow.replaceChildren(frag);
+  }
+  function renderRowText(rowIndex, spans, codepoints, theme2) {
+    const spansView = core.getDataView(spans, 12);
+    const codepointsView = core.getUint32Array(codepoints);
+    const frag = document.createDocumentFragment();
+    let i = 0;
+    while (i < spansView.byteLength) {
+      const column = spansView.getUint16(i + 0, true);
+      const codepointsStart = spansView.getUint16(i + 2, true);
+      const len = spansView.getUint16(i + 4, true);
+      const color = getColor(spansView, i + 6, theme2);
+      const attrs = spansView.getUint8(i + 10);
+      const text = String.fromCodePoint(...codepointsView.subarray(codepointsStart, codepointsStart + len));
+      i += 12;
+      const el2 = document.createElement("span");
+      const style2 = el2.style;
+      style2.setProperty("--offset", column);
+      el2.textContent = text;
+      if (color) {
+        style2.color = color;
+      }
+      const cls = getAttrClass(attrs);
+      if (cls !== null) {
+        el2.className = cls;
+      }
+      frag.appendChild(el2);
+    }
+    textEl.children[rowIndex].replaceChildren(frag);
+  }
+  function getAttrClass(attrs) {
+    let c = attrClassCache.get(attrs);
+    if (c === void 0) {
+      c = buildAttrClass(attrs);
+      attrClassCache.set(attrs, c);
+    }
+    return c;
+  }
+  function buildAttrClass(attrs) {
+    let cls = "";
+    if ((attrs & BOLD_MASK) !== 0) {
+      cls += "ap-bold ";
+    } else if ((attrs & FAINT_MASK) !== 0) {
+      cls += "ap-faint ";
+    }
+    if ((attrs & ITALIC_MASK) !== 0) {
+      cls += "ap-italic ";
+    }
+    if ((attrs & UNDERLINE_MASK) !== 0) {
+      cls += "ap-underline ";
+    }
+    if ((attrs & STRIKETHROUGH_MASK) !== 0) {
+      cls += "ap-strike ";
+    }
+    if ((attrs & BLINK_MASK) !== 0) {
+      cls += "ap-blink ";
+    }
+    return cls === "" ? null : cls;
+  }
+  function getColor(view, offset, theme2) {
+    const tag = view.getUint8(offset);
+    if (tag === 0) {
+      return null;
+    } else if (tag === 1) {
+      return theme2.fg;
+    } else if (tag === 2) {
+      return theme2.bg;
+    } else if (tag === 3) {
+      return theme2.palette[view.getUint8(offset + 1)];
+    } else if (tag === 4) {
+      const key = view.getUint32(offset, true);
+      let c = colorsCache.get(key);
+      if (c === void 0) {
+        const r = view.getUint8(offset + 1);
+        const g = view.getUint8(offset + 2);
+        const b = view.getUint8(offset + 3);
+        c = "rgb(" + r + "," + g + "," + b + ")";
+        colorsCache.set(key, c);
+      }
+      return c;
+    } else {
+      throw new Error(`invalid color tag: ${tag}`);
+    }
+  }
+  function adjustTextRowNodeCount(rows) {
+    let r = textEl.children.length;
+    if (r < rows) {
+      const frag = document.createDocumentFragment();
+      while (r < rows) {
+        const row = getNewRow();
+        row.style.setProperty("--row", r);
+        frag.appendChild(row);
+        r += 1;
+      }
+      textEl.appendChild(frag);
+    }
+    while (textEl.children.length > rows) {
+      const row = textEl.lastElementChild;
+      textEl.removeChild(row);
+      textRowPool.push(row);
+    }
+  }
+  function adjustSymbolRowNodeCount(rows) {
+    let r = vectorSymbolRowsEl.children.length;
+    if (r < rows) {
+      const frag = document.createDocumentFragment();
+      while (r < rows) {
+        const row = getNewSymbolRow();
+        row.setAttribute("transform", `translate(0 ${r})`);
+        frag.appendChild(row);
+        r += 1;
+      }
+      vectorSymbolRowsEl.appendChild(frag);
+    }
+    while (vectorSymbolRowsEl.children.length > rows) {
+      const row = vectorSymbolRowsEl.lastElementChild;
+      vectorSymbolRowsEl.removeChild(row);
+      vectorSymbolRowPool.push(row);
+    }
+  }
+  function getNewRow() {
+    let row = textRowPool.pop();
+    if (row === void 0) {
+      row = document.createElement("span");
+      row.className = "ap-line";
+    }
+    return row;
+  }
+  function getNewSymbolRow() {
+    let row = vectorSymbolRowPool.pop();
+    if (row === void 0) {
+      row = document.createElementNS(SVG_NS, "g");
+      row.setAttribute("class", "ap-symbol-line");
+    }
+    return row;
+  }
+  function createVectorSymbolNode(codepoint, column, fg, blink) {
+    if (!ensureVectorSymbolDef(codepoint)) {
+      return null;
+    }
+    const isPowerline = POWERLINE_SYMBOLS.has(codepoint);
+    const symbolX = isPowerline ? column - POWERLINE_SYMBOL_NUDGE : column;
+    const symbolWidth = isPowerline ? 1 + POWERLINE_SYMBOL_NUDGE * 2 : 1;
+    const node = getVectorSymbolUse();
+    node.setAttribute("href", `#sym-${codepoint}`);
+    node.setAttribute("x", symbolX);
+    node.setAttribute("y", 0);
+    node.setAttribute("width", symbolWidth);
+    node.setAttribute("height", "1");
+    if (fg) {
+      node.style.setProperty("color", fg);
+    } else {
+      node.style.removeProperty("color");
+    }
+    if (blink) {
+      node.classList.add("ap-blink");
+    } else {
+      node.classList.remove("ap-blink");
+    }
+    return node;
+  }
+  function recycleVectorSymbolUses(row) {
+    while (row.firstChild) {
+      const child = row.firstChild;
+      row.removeChild(child);
+      vectorSymbolUsePool.push(child);
+    }
+  }
+  function getVectorSymbolUse() {
+    let node = vectorSymbolUsePool.pop();
+    if (node === void 0) {
+      node = document.createElementNS(SVG_NS, "use");
+    }
+    return node;
+  }
+  function ensureVectorSymbolDef(codepoint) {
+    const content = getVectorSymbolDef(codepoint);
+    if (!content) {
+      return false;
+    }
+    if (vectorSymbolDefCache.has(codepoint)) {
+      return true;
+    }
+    const id = `sym-${codepoint}`;
+    const symbol = document.createElementNS(SVG_NS, "symbol");
+    symbol.setAttribute("id", id);
+    symbol.setAttribute("viewBox", "0 0 1 1");
+    symbol.setAttribute("preserveAspectRatio", "none");
+    symbol.setAttribute("overflow", "visible");
+    symbol.innerHTML = content;
+    vectorSymbolDefsEl.appendChild(symbol);
+    vectorSymbolDefCache.add(codepoint);
+    return true;
+  }
+  return (() => {
+    const _el$ = _tmpl$$e.cloneNode(true), _el$2 = _el$.firstChild, _el$3 = _el$2.nextSibling, _el$4 = _el$3.firstChild, _el$5 = _el$4.nextSibling, _el$6 = _el$3.nextSibling;
+    const _ref$ = el;
+    typeof _ref$ === "function" ? use(_ref$, _el$) : el = _el$;
+    const _ref$2 = canvasEl;
+    typeof _ref$2 === "function" ? use(_ref$2, _el$2) : canvasEl = _el$2;
+    const _ref$3 = vectorSymbolsEl;
+    typeof _ref$3 === "function" ? use(_ref$3, _el$3) : vectorSymbolsEl = _el$3;
+    const _ref$4 = vectorSymbolDefsEl;
+    typeof _ref$4 === "function" ? use(_ref$4, _el$4) : vectorSymbolDefsEl = _el$4;
+    const _ref$5 = vectorSymbolRowsEl;
+    typeof _ref$5 === "function" ? use(_ref$5, _el$5) : vectorSymbolRowsEl = _el$5;
+    const _ref$6 = textEl;
+    typeof _ref$6 === "function" ? use(_ref$6, _el$6) : textEl = _el$6;
+    createRenderEffect((_p$) => {
+      const _v$ = style$1(), _v$2 = `0 0 ${size().cols} ${size().rows}`, _v$3 = !!blinkOn(), _v$4 = !!blinkOn();
+      _p$._v$ = style(_el$, _v$, _p$._v$);
+      _v$2 !== _p$._v$2 && setAttribute(_el$3, "viewBox", _p$._v$2 = _v$2);
+      _v$3 !== _p$._v$3 && _el$3.classList.toggle("ap-blink", _p$._v$3 = _v$3);
+      _v$4 !== _p$._v$4 && _el$6.classList.toggle("ap-blink", _p$._v$4 = _v$4);
+      return _p$;
+    }, {
+      _v$: void 0,
+      _v$2: void 0,
+      _v$3: void 0,
+      _v$4: void 0
+    });
+    return _el$;
+  })();
+});
+function buildTheme(theme) {
+  return {
+    fg: theme.foreground,
+    bg: theme.background,
+    palette: [...theme.palette, ...FULL_PALETTE]
+  };
+}
+function getCssTheme(el) {
+  const style2 = getComputedStyle(el);
+  const foreground = style2.getPropertyValue("--term-color-foreground");
+  const background = style2.getPropertyValue("--term-color-background");
+  const palette = [];
+  for (let i = 0; i < 16; i++) {
+    const c = style2.getPropertyValue(`--term-color-${i}`);
+    if (c === void 0) throw new Error(`--term-color-${i} has not been defined`);
+    palette[i] = c;
+  }
+  return {
+    foreground,
+    background,
+    palette
+  };
+}
+function drawBlockGlyph(ctx, codepoint, x, y) {
+  const unitX = BLOCK_H_RES / 8;
+  const unitY = BLOCK_V_RES / 8;
+  const halfX = BLOCK_H_RES / 2;
+  const halfY = BLOCK_V_RES / 2;
+  const sextantX = BLOCK_H_RES / 2;
+  const sextantY = BLOCK_V_RES / 3;
+  switch (codepoint) {
+    case 9600:
+      ctx.fillRect(x, y, BLOCK_H_RES, halfY);
+      break;
+    case 9601:
+      ctx.fillRect(x, y + unitY * 7, BLOCK_H_RES, unitY);
+      break;
+    case 9602:
+      ctx.fillRect(x, y + unitY * 6, BLOCK_H_RES, unitY * 2);
+      break;
+    case 9603:
+      ctx.fillRect(x, y + unitY * 5, BLOCK_H_RES, unitY * 3);
+      break;
+    case 9604:
+      ctx.fillRect(x, y + halfY, BLOCK_H_RES, halfY);
+      break;
+    case 9605:
+      ctx.fillRect(x, y + unitY * 3, BLOCK_H_RES, unitY * 5);
+      break;
+    case 9606:
+      ctx.fillRect(x, y + unitY * 2, BLOCK_H_RES, unitY * 6);
+      break;
+    case 9607:
+      ctx.fillRect(x, y + unitY, BLOCK_H_RES, unitY * 7);
+      break;
+    case 9608:
+      ctx.fillRect(x, y, BLOCK_H_RES, BLOCK_V_RES);
+      break;
+    case 9632:
+      ctx.fillRect(x, y + unitY * 2, BLOCK_H_RES, unitY * 4);
+      break;
+    case 9609:
+      ctx.fillRect(x, y, unitX * 7, BLOCK_V_RES);
+      break;
+    case 9610:
+      ctx.fillRect(x, y, unitX * 6, BLOCK_V_RES);
+      break;
+    case 9611:
+      ctx.fillRect(x, y, unitX * 5, BLOCK_V_RES);
+      break;
+    case 9612:
+      ctx.fillRect(x, y, halfX, BLOCK_V_RES);
+      break;
+    case 9613:
+      ctx.fillRect(x, y, unitX * 3, BLOCK_V_RES);
+      break;
+    case 9614:
+      ctx.fillRect(x, y, unitX * 2, BLOCK_V_RES);
+      break;
+    case 9615:
+      ctx.fillRect(x, y, unitX, BLOCK_V_RES);
+      break;
+    case 9616:
+      ctx.fillRect(x + halfX, y, halfX, BLOCK_V_RES);
+      break;
+    case 9617:
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillRect(x, y, BLOCK_H_RES, BLOCK_V_RES);
+      ctx.restore();
+      break;
+    case 9618:
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(x, y, BLOCK_H_RES, BLOCK_V_RES);
+      ctx.restore();
+      break;
+    case 9619:
+      ctx.save();
+      ctx.globalAlpha = 0.75;
+      ctx.fillRect(x, y, BLOCK_H_RES, BLOCK_V_RES);
+      ctx.restore();
+      break;
+    case 9620:
+      ctx.fillRect(x, y, BLOCK_H_RES, unitY);
+      break;
+    case 9621:
+      ctx.fillRect(x + unitX * 7, y, unitX, BLOCK_V_RES);
+      break;
+    case 9622:
+      ctx.fillRect(x, y + halfY, halfX, halfY);
+      break;
+    case 9623:
+      ctx.fillRect(x + halfX, y + halfY, halfX, halfY);
+      break;
+    case 9624:
+      ctx.fillRect(x, y, halfX, halfY);
+      break;
+    case 9625:
+      ctx.fillRect(x, y, halfX, BLOCK_V_RES);
+      ctx.fillRect(x + halfX, y + halfY, halfX, halfY);
+      break;
+    case 9626:
+      ctx.fillRect(x, y, halfX, halfY);
+      ctx.fillRect(x + halfX, y + halfY, halfX, halfY);
+      break;
+    case 9627:
+      ctx.fillRect(x, y, BLOCK_H_RES, halfY);
+      ctx.fillRect(x, y + halfY, halfX, halfY);
+      break;
+    case 9628:
+      ctx.fillRect(x, y, BLOCK_H_RES, halfY);
+      ctx.fillRect(x + halfX, y + halfY, halfX, halfY);
+      break;
+    case 9629:
+      ctx.fillRect(x + halfX, y, halfX, halfY);
+      break;
+    case 9630:
+      ctx.fillRect(x + halfX, y, halfX, halfY);
+      ctx.fillRect(x, y + halfY, halfX, halfY);
+      break;
+    case 9631:
+      ctx.fillRect(x + halfX, y, halfX, BLOCK_V_RES);
+      ctx.fillRect(x, y + halfY, halfX, halfY);
+      break;
+    case 129792:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      break;
+    case 129793:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      break;
+    case 129794:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      break;
+    case 129795:
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      break;
+    case 129796:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      break;
+    case 129797:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      break;
+    case 129798:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      break;
+    case 129799:
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      break;
+    case 129800:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      break;
+    case 129801:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      break;
+    case 129802:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      break;
+    case 129803:
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      break;
+    case 129804:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      break;
+    case 129805:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      break;
+    case 129806:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      break;
+    case 129807:
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129808:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129809:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129810:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129811:
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129812:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129813:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129814:
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129815:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129816:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY * 2);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129817:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129818:
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129819:
+      ctx.fillRect(x, y, sextantX, sextantY * 3);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      break;
+    case 129820:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129821:
+      ctx.fillRect(x, y, sextantX * 2, sextantY * 2);
+      ctx.fillRect(x, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129822:
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129823:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129824:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129825:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129826:
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129827:
+      ctx.fillRect(x, y, sextantX, sextantY * 2);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129828:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129829:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129830:
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129831:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129832:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129833:
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129834:
+      ctx.fillRect(x, y, sextantX, sextantY * 2);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY * 2);
+      break;
+    case 129835:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129836:
+      ctx.fillRect(x, y, sextantX * 2, sextantY * 2);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129837:
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129838:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129839:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129840:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129841:
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129842:
+      ctx.fillRect(x, y, sextantX, sextantY * 2);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129843:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129844:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129845:
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129846:
+      ctx.fillRect(x, y, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129847:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY * 2);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129848:
+      ctx.fillRect(x, y, sextantX * 2, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY * 2, sextantX * 2, sextantY);
+      break;
+    case 129849:
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY * 2);
+      break;
+    case 129850:
+      ctx.fillRect(x, y, sextantX, sextantY * 3);
+      ctx.fillRect(x + sextantX, y + sextantY, sextantX, sextantY);
+      ctx.fillRect(x + sextantX, y + sextantY * 2, sextantX, sextantY);
+      break;
+    case 129851:
+      ctx.fillRect(x + sextantX, y, sextantX, sextantY);
+      ctx.fillRect(x, y + sextantY, sextantX * 2, sextantY * 2);
+      break;
+  }
+}
+const SYMBOL_STROKE = 0.05;
+const CELL_RATIO = 9.0375 / 20;
+function getVectorSymbolDef(codepoint) {
+  const stroke = `stroke="currentColor" stroke-width="${SYMBOL_STROKE}" stroke-linejoin="miter" stroke-linecap="square"`;
+  const strokeButt = `stroke="currentColor" stroke-width="${SYMBOL_STROKE}" stroke-linejoin="miter" stroke-linecap="butt"`;
+  const stroked = (d) => `<path d="${d}" fill="none" ${stroke}/>`;
+  const third = 1 / 3;
+  const twoThirds = 2 / 3;
+  switch (codepoint) {
+    // ◢ - black lower right triangle (https://symbl.cc/en/25E2/)
+    case 9698:
+      return '<path d="M1,1 L1,0 L0,1 Z" fill="currentColor"/>' + stroked("M1,1 L1,0 L0,1 Z");
+    // ◣ - black lower left triangle (https://symbl.cc/en/25E3/)
+    case 9699:
+      return '<path d="M0,1 L0,0 L1,1 Z" fill="currentColor"/>' + stroked("M0,1 L0,0 L1,1 Z");
+    // ◤ - black upper left triangle (https://symbl.cc/en/25E4/)
+    case 9700:
+      return '<path d="M0,0 L1,0 L0,1 Z" fill="currentColor"/>' + stroked("M0,0 L1,0 L0,1 Z");
+    // ◥ - black upper right triangle (https://symbl.cc/en/25E5/)
+    case 9701:
+      return '<path d="M1,0 L1,1 L0,0 Z" fill="currentColor"/>' + stroked("M1,0 L1,1 L0,0 Z");
+    case 9871: {
+      const horizontalGap = 0.15;
+      const verticalGap = 0.2;
+      const lineHeight = 0.17;
+      const halfHorizontalGap = horizontalGap / 2;
+      const halfVerticalGap = verticalGap / 2;
+      const toViewBoxY = (offset) => 0.5 + offset * CELL_RATIO;
+      const leftX1 = 0.5 - halfHorizontalGap;
+      const rightX0 = 0.5 + halfHorizontalGap;
+      const rightX1 = 1 + 0.02;
+      const topY0 = toViewBoxY(-halfVerticalGap - lineHeight);
+      const topY1 = toViewBoxY(-halfVerticalGap);
+      const bottomY0 = toViewBoxY(halfVerticalGap);
+      const bottomY1 = toViewBoxY(halfVerticalGap + lineHeight);
+      const rect = (x0, x1, y0, y1) => `M${x0},${y0} L${x1},${y0} L${x1},${y1} L${x0},${y1} Z`;
+      return `<path d="${rect(0, leftX1, topY0, topY1)} ${rect(rightX0, rightX1, topY0, topY1)} ${rect(0, leftX1, bottomY0, bottomY1)} ${rect(rightX0, rightX1, bottomY0, bottomY1)}" fill="currentColor"/>`;
+    }
+    // 🬼 - lower left block diagonal lower middle left to lower centre (https://symbl.cc/en/1FB3C/)
+    case 129852:
+      return `<path d="M0,${twoThirds} L0,1 L0.5,1 Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,1 L0.5,1 Z`);
+    // 🬽 - lower left block diagonal lower middle left to lower right (https://symbl.cc/en/1FB3D/)
+    case 129853:
+      return `<path d="M0,${twoThirds} L0,1 L1,1 Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,1 L1,1 Z`);
+    // 🬾 - lower left block diagonal upper middle left to lower centre (https://symbl.cc/en/1FB3E/)
+    case 129854:
+      return `<path d="M0,${third} L0.5,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,${third} L0.5,1 L0,1 Z`);
+    // 🬿 - lower left block diagonal upper middle left to lower right (https://symbl.cc/en/1FB3F/)
+    case 129855:
+      return `<path d="M0,${third} L1,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,${third} L1,1 L0,1 Z`);
+    // 🭀 - lower left block diagonal upper left to lower centre (https://symbl.cc/en/1FB40/)
+    case 129856:
+      return '<path d="M0,0 L0.5,1 L0,1 Z" fill="currentColor"/>' + stroked("M0,0 L0.5,1 L0,1 Z");
+    // 🭁 - lower right block diagonal upper middle left to upper centre (https://symbl.cc/en/1FB41/)
+    case 129857:
+      return `<path d="M0,${third} L0,1 L1,1 L1,0 L0.5,0 Z" fill="currentColor"/>` + stroked(`M0,${third} L0,1 L1,1 L1,0 L0.5,0 Z`);
+    // 🭂 - lower right block diagonal upper middle left to upper right (https://symbl.cc/en/1FB42/)
+    case 129858:
+      return `<path d="M0,${third} L0,1 L1,1 L1,0 Z" fill="currentColor"/>` + stroked(`M0,${third} L0,1 L1,1 L1,0 Z`);
+    // 🭃 - lower right block diagonal lower middle left to upper centre (https://symbl.cc/en/1FB43/)
+    case 129859:
+      return `<path d="M0,${twoThirds} L0,1 L1,1 L1,0 L0.5,0 Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,1 L1,1 L1,0 L0.5,0 Z`);
+    // 🭄 - lower right block diagonal lower middle left to upper right (https://symbl.cc/en/1FB44/)
+    case 129860:
+      return `<path d="M0,${twoThirds} L0,1 L1,1 L1,0 Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,1 L1,1 L1,0 Z`);
+    // 🭅 - lower right block diagonal lower left to upper centre (https://symbl.cc/en/1FB45/)
+    case 129861:
+      return '<path d="M0.5,0 L1,0 L1,1 L0,1 Z" fill="currentColor"/>' + stroked("M0.5,0 L1,0 L1,1 L0,1 Z");
+    // 🭆 - lower right block diagonal lower middle left to upper middle right (https://symbl.cc/en/1FB46/)
+    case 129862:
+      return `<path d="M0,${twoThirds} L0,1 L1,1 L1,${third} Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,1 L1,1 L1,${third} Z`);
+    // 🭇 - lower right block diagonal lower centre to lower middle right (https://symbl.cc/en/1FB47/)
+    case 129863:
+      return `<path d="M0.5,1 L1,1 L1,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0.5,1 L1,1 L1,${twoThirds} Z`);
+    // 🭈 - lower right block diagonal lower left to lower middle right (https://symbl.cc/en/1FB48/)
+    case 129864:
+      return `<path d="M0,1 L1,1 L1,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0,1 L1,1 L1,${twoThirds} Z`);
+    // 🭉 - lower right block diagonal lower centre to upper middle right (https://symbl.cc/en/1FB49/)
+    case 129865:
+      return `<path d="M0.5,1 L1,1 L1,${third} Z" fill="currentColor"/>` + stroked(`M0.5,1 L1,1 L1,${third} Z`);
+    // 🭊 - lower right block diagonal lower left to upper middle right (https://symbl.cc/en/1FB4A/)
+    case 129866:
+      return `<path d="M0,1 L1,1 L1,${third} Z" fill="currentColor"/>` + stroked(`M0,1 L1,1 L1,${third} Z`);
+    // 🭋 - lower right block diagonal lower centre to upper right (https://symbl.cc/en/1FB4B/)
+    case 129867:
+      return '<path d="M0.5,1 L1,0 L1,1 Z" fill="currentColor"/>' + stroked("M0.5,1 L1,0 L1,1 Z");
+    // 🭌 - lower left block diagonal upper centre to upper middle right (https://symbl.cc/en/1FB4C/)
+    case 129868:
+      return `<path d="M0,0 L0.5,0 L1,${third} L1,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L0.5,0 L1,${third} L1,1 L0,1 Z`);
+    // 🭍 - lower left block diagonal upper left to upper middle right (https://symbl.cc/en/1FB4D/)
+    case 129869:
+      return `<path d="M0,0 L0,1 L1,1 L1,${third} Z" fill="currentColor"/>` + stroked(`M0,0 L0,1 L1,1 L1,${third} Z`);
+    // 🭎 - lower left block diagonal upper centre to lower middle right (https://symbl.cc/en/1FB4E/)
+    case 129870:
+      return `<path d="M0,0 L0.5,0 L1,${twoThirds} L1,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L0.5,0 L1,${twoThirds} L1,1 L0,1 Z`);
+    // 🭏 - lower left block diagonal upper left to lower middle right (https://symbl.cc/en/1FB4F/)
+    case 129871:
+      return `<path d="M0,0 L1,${twoThirds} L1,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L1,${twoThirds} L1,1 L0,1 Z`);
+    // 🭐 - lower left block diagonal upper centre to lower right (https://symbl.cc/en/1FB50/)
+    case 129872:
+      return '<path d="M0,0 L0.5,0 L1,1 L0,1 Z" fill="currentColor"/>' + stroked("M0,0 L0.5,0 L1,1 L0,1 Z");
+    // 🭑 - lower left block diagonal upper middle left to lower middle right (https://symbl.cc/en/1FB51/)
+    case 129873:
+      return `<path d="M0,${third} L1,${twoThirds} L1,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,${third} L1,${twoThirds} L1,1 L0,1 Z`);
+    // 🭒 - upper right block diagonal lower middle left to lower centre (https://symbl.cc/en/1FB52/)
+    case 129874:
+      return `<path d="M0,${twoThirds} L0,0 L1,0 L1,1 L0.5,1 Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,0 L1,0 L1,1 L0.5,1 Z`);
+    // 🭓 - upper right block diagonal lower middle left to lower right (https://symbl.cc/en/1FB53/)
+    case 129875:
+      return `<path d="M0,${twoThirds} L0,0 L1,0 L1,1 Z" fill="currentColor"/>` + stroked(`M0,${twoThirds} L0,0 L1,0 L1,1 Z`);
+    // 🭔 - upper right block diagonal upper middle left to lower centre (https://symbl.cc/en/1FB54/)
+    case 129876:
+      return `<path d="M0,${third} L0,0 L1,0 L1,1 L0.5,1 Z" fill="currentColor"/>` + stroked(`M0,${third} L0,0 L1,0 L1,1 L0.5,1 Z`);
+    // 🭕 - upper right block diagonal upper middle left to lower right (https://symbl.cc/en/1FB55/)
+    case 129877:
+      return `<path d="M0,${third} L0,0 L1,0 L1,1 Z" fill="currentColor"/>` + stroked(`M0,${third} L0,0 L1,0 L1,1 Z`);
+    // 🭖 - upper right block diagonal upper left to lower centre (https://symbl.cc/en/1FB56/)
+    case 129878:
+      return '<path d="M0,0 L1,0 L1,1 L0.5,1 Z" fill="currentColor"/>' + stroked("M0,0 L1,0 L1,1 L0.5,1 Z");
+    // 🭗 - upper left block diagonal upper middle left to upper centre (https://symbl.cc/en/1FB57/)
+    case 129879:
+      return `<path d="M0,${third} L0.5,0 L0,0 Z" fill="currentColor"/>` + stroked(`M0,${third} L0.5,0 L0,0 Z`);
+    // 🭘 - upper left block diagonal upper middle left to upper right (https://symbl.cc/en/1FB58/)
+    case 129880:
+      return `<path d="M0,0 L1,0 L0,${third} Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L0,${third} Z`);
+    // 🭙 - upper left block diagonal lower middle left to upper centre (https://symbl.cc/en/1FB59/)
+    case 129881:
+      return `<path d="M0,0 L0.5,0 L0,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0,0 L0.5,0 L0,${twoThirds} Z`);
+    // 🭚 - upper left block diagonal lower middle left to upper right (https://symbl.cc/en/1FB5A/)
+    case 129882:
+      return `<path d="M0,0 L1,0 L0,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L0,${twoThirds} Z`);
+    // 🭛 - upper left block diagonal lower left to upper centre (https://symbl.cc/en/1FB5B/)
+    case 129883:
+      return '<path d="M0,0 L0.5,0 L0,1 Z" fill="currentColor"/>' + stroked("M0,0 L0.5,0 L0,1 Z");
+    // 🭜 - upper left block diagonal lower middle left to upper middle right (https://symbl.cc/en/1FB5C/)
+    case 129884:
+      return `<path d="M0,0 L1,0 L1,${third} L0,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${third} L0,${twoThirds} Z`);
+    // 🭝 - upper left block diagonal lower centre to lower middle right (https://symbl.cc/en/1FB5D/)
+    case 129885:
+      return `<path d="M0,0 L1,0 L1,${twoThirds} L0.5,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${twoThirds} L0.5,1 L0,1 Z`);
+    // 🭞 - upper left block diagonal lower left to lower middle right (https://symbl.cc/en/1FB5E/)
+    case 129886:
+      return `<path d="M0,0 L1,0 L1,${twoThirds} L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${twoThirds} L0,1 Z`);
+    // 🭟 - upper left block diagonal lower centre to upper middle right (https://symbl.cc/en/1FB5F/)
+    case 129887:
+      return `<path d="M0,0 L1,0 L1,${third} L0.5,1 L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${third} L0.5,1 L0,1 Z`);
+    // 🭠 - upper left block diagonal lower left to upper middle right (https://symbl.cc/en/1FB60/)
+    case 129888:
+      return `<path d="M0,0 L1,0 L1,${third} L0,1 Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${third} L0,1 Z`);
+    // 🭡 - upper left block diagonal lower centre to upper right (https://symbl.cc/en/1FB61/)
+    case 129889:
+      return '<path d="M0,0 L1,0 L0.5,1 L0,1 Z" fill="currentColor"/>' + stroked("M0,0 L1,0 L0.5,1 L0,1 Z");
+    // 🭢 - upper right block diagonal upper centre to upper middle right (https://symbl.cc/en/1FB62/)
+    case 129890:
+      return `<path d="M0.5,0 L1,0 L1,${third} Z" fill="currentColor"/>` + stroked(`M0.5,0 L1,0 L1,${third} Z`);
+    // 🭣 - upper right block diagonal upper left to upper middle right (https://symbl.cc/en/1FB63/)
+    case 129891:
+      return `<path d="M0,0 L1,0 L1,${third} Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${third} Z`);
+    // 🭤 - upper right block diagonal upper centre to lower middle right (https://symbl.cc/en/1FB64/)
+    case 129892:
+      return `<path d="M0.5,0 L1,0 L1,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0.5,0 L1,0 L1,${twoThirds} Z`);
+    // 🭥 - upper right block diagonal upper left to lower middle right (https://symbl.cc/en/1FB65/)
+    case 129893:
+      return `<path d="M0,0 L1,0 L1,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0,0 L1,0 L1,${twoThirds} Z`);
+    // 🭦 - upper right block diagonal upper centre to lower right (https://symbl.cc/en/1FB66/)
+    case 129894:
+      return '<path d="M0.5,0 L1,0 L1,1 Z" fill="currentColor"/>' + stroked("M0.5,0 L1,0 L1,1 Z");
+    // 🭧 - upper right block diagonal upper middle left to lower middle right (https://symbl.cc/en/1FB67/)
+    case 129895:
+      return `<path d="M0,${third} L0,0 L1,0 L1,${twoThirds} Z" fill="currentColor"/>` + stroked(`M0,${third} L0,0 L1,0 L1,${twoThirds} Z`);
+    // 🭨 - upper and right and lower triangular three quarters block (https://symbl.cc/en/1FB68/)
+    case 129896:
+      return `<path fill-rule="evenodd" d="M0,0 L1,0 L1,1 L0,1 Z M0,0 L0,1 L0.5,0.5 Z" fill="currentColor"/><path d="M0,0 L1,0 M0,1 L1,1 M1,0 L1,1" fill="none" ${stroke}/><path d="M0,0 L0.5,0.5 M0,1 L0.5,0.5" fill="none" ${strokeButt}/>`;
+    // 🭩 - left and lower and right triangular three quarters block (https://symbl.cc/en/1FB69/)
+    case 129897:
+      return `<path fill-rule="evenodd" d="M0,0 L1,0 L1,1 L0,1 Z M0,0 L1,0 L0.5,0.5 Z" fill="currentColor"/><path d="M0,0 L0,1 M1,0 L1,1 M0,1 L1,1" fill="none" ${stroke}/><path d="M0,0 L0.5,0.5 M1,0 L0.5,0.5" fill="none" ${strokeButt}/>`;
+    // 🭪 - upper and left and lower triangular three quarters block (https://symbl.cc/en/1FB6A/)
+    case 129898:
+      return `<path fill-rule="evenodd" d="M0,0 L1,0 L1,1 L0,1 Z M1,0 L1,1 L0.5,0.5 Z" fill="currentColor"/><path d="M0,0 L1,0 M0,1 L1,1 M0,0 L0,1" fill="none" ${stroke}/><path d="M1,0 L0.5,0.5 M1,1 L0.5,0.5" fill="none" ${strokeButt}/>`;
+    // 🭫 - left and upper and right triangular three quarters block (https://symbl.cc/en/1FB6B/)
+    case 129899:
+      return `<path fill-rule="evenodd" d="M0,0 L1,0 L1,1 L0,1 Z M0,1 L1,1 L0.5,0.5 Z" fill="currentColor"/><path d="M0,0 L1,0 M0,0 L0,1 M1,0 L1,1" fill="none" ${stroke}/><path d="M0,1 L0.5,0.5 M1,1 L0.5,0.5" fill="none" ${strokeButt}/>`;
+    // 🭬 - left triangular one quarter block (https://symbl.cc/en/1FB6C/)
+    case 129900:
+      return '<path d="M0,0 L0,1 L0.5,0.5 Z" fill="currentColor"/>' + stroked("M0,0 L0,1 L0.5,0.5 Z");
+    // powerline right full triangle (https://www.nerdfonts.com/cheat-sheet)
+    case 57520:
+      return '<path d="M0,0 L1,0.5 L0,1 Z" fill="currentColor"/>';
+    // powerline right bracket (https://www.nerdfonts.com/cheat-sheet)
+    case 57521:
+      return '<path d="M0,0 L1,0.5 L0,1" fill="none" stroke="currentColor" stroke-width="0.07" stroke-linejoin="miter"/>';
+    // powerline left full triangle (https://www.nerdfonts.com/cheat-sheet)
+    case 57522:
+      return '<path d="M1,0 L0,0.5 L1,1 Z" fill="currentColor"/>';
+    // powerline left bracket (https://www.nerdfonts.com/cheat-sheet)
+    case 57523:
+      return '<path d="M1,0 L0,0.5 L1,1" fill="none" stroke="currentColor" stroke-width="0.07" stroke-linejoin="miter"/>';
+    default:
+      return null;
+  }
+}
+const POWERLINE_SYMBOLS = /* @__PURE__ */ new Set([57520, 57521, 57522, 57523]);
+const POWERLINE_SYMBOL_NUDGE = 0.02;
+const FALLBACK_THEME = {
+  foreground: "black",
+  background: "black",
+  palette: ["black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black", "black"]
+};
+const FULL_PALETTE = ["#000000", "#00005f", "#000087", "#0000af", "#0000d7", "#0000ff", "#005f00", "#005f5f", "#005f87", "#005faf", "#005fd7", "#005fff", "#008700", "#00875f", "#008787", "#0087af", "#0087d7", "#0087ff", "#00af00", "#00af5f", "#00af87", "#00afaf", "#00afd7", "#00afff", "#00d700", "#00d75f", "#00d787", "#00d7af", "#00d7d7", "#00d7ff", "#00ff00", "#00ff5f", "#00ff87", "#00ffaf", "#00ffd7", "#00ffff", "#5f0000", "#5f005f", "#5f0087", "#5f00af", "#5f00d7", "#5f00ff", "#5f5f00", "#5f5f5f", "#5f5f87", "#5f5faf", "#5f5fd7", "#5f5fff", "#5f8700", "#5f875f", "#5f8787", "#5f87af", "#5f87d7", "#5f87ff", "#5faf00", "#5faf5f", "#5faf87", "#5fafaf", "#5fafd7", "#5fafff", "#5fd700", "#5fd75f", "#5fd787", "#5fd7af", "#5fd7d7", "#5fd7ff", "#5fff00", "#5fff5f", "#5fff87", "#5fffaf", "#5fffd7", "#5fffff", "#870000", "#87005f", "#870087", "#8700af", "#8700d7", "#8700ff", "#875f00", "#875f5f", "#875f87", "#875faf", "#875fd7", "#875fff", "#878700", "#87875f", "#878787", "#8787af", "#8787d7", "#8787ff", "#87af00", "#87af5f", "#87af87", "#87afaf", "#87afd7", "#87afff", "#87d700", "#87d75f", "#87d787", "#87d7af", "#87d7d7", "#87d7ff", "#87ff00", "#87ff5f", "#87ff87", "#87ffaf", "#87ffd7", "#87ffff", "#af0000", "#af005f", "#af0087", "#af00af", "#af00d7", "#af00ff", "#af5f00", "#af5f5f", "#af5f87", "#af5faf", "#af5fd7", "#af5fff", "#af8700", "#af875f", "#af8787", "#af87af", "#af87d7", "#af87ff", "#afaf00", "#afaf5f", "#afaf87", "#afafaf", "#afafd7", "#afafff", "#afd700", "#afd75f", "#afd787", "#afd7af", "#afd7d7", "#afd7ff", "#afff00", "#afff5f", "#afff87", "#afffaf", "#afffd7", "#afffff", "#d70000", "#d7005f", "#d70087", "#d700af", "#d700d7", "#d700ff", "#d75f00", "#d75f5f", "#d75f87", "#d75faf", "#d75fd7", "#d75fff", "#d78700", "#d7875f", "#d78787", "#d787af", "#d787d7", "#d787ff", "#d7af00", "#d7af5f", "#d7af87", "#d7afaf", "#d7afd7", "#d7afff", "#d7d700", "#d7d75f", "#d7d787", "#d7d7af", "#d7d7d7", "#d7d7ff", "#d7ff00", "#d7ff5f", "#d7ff87", "#d7ffaf", "#d7ffd7", "#d7ffff", "#ff0000", "#ff005f", "#ff0087", "#ff00af", "#ff00d7", "#ff00ff", "#ff5f00", "#ff5f5f", "#ff5f87", "#ff5faf", "#ff5fd7", "#ff5fff", "#ff8700", "#ff875f", "#ff8787", "#ff87af", "#ff87d7", "#ff87ff", "#ffaf00", "#ffaf5f", "#ffaf87", "#ffafaf", "#ffafd7", "#ffafff", "#ffd700", "#ffd75f", "#ffd787", "#ffd7af", "#ffd7d7", "#ffd7ff", "#ffff00", "#ffff5f", "#ffff87", "#ffffaf", "#ffffd7", "#ffffff", "#080808", "#121212", "#1c1c1c", "#262626", "#303030", "#3a3a3a", "#444444", "#4e4e4e", "#585858", "#626262", "#6c6c6c", "#767676", "#808080", "#8a8a8a", "#949494", "#9e9e9e", "#a8a8a8", "#b2b2b2", "#bcbcbc", "#c6c6c6", "#d0d0d0", "#dadada", "#e4e4e4", "#eeeeee"];
+const _tmpl$$d = /* @__PURE__ */ template(`<svg version="1.1" viewBox="0 0 12 12" class="ap-icon ap-icon-fullscreen-off"><path d="M7,5 L7,0 L9,2 L11,0 L12,1 L10,3 L12,5 Z"></path><path d="M5,7 L0,7 L2,9 L0,11 L1,12 L3,10 L5,12 Z"></path></svg>`, 6);
+var ExpandIcon = ((props) => {
+  return _tmpl$$d.cloneNode(true);
+});
+const _tmpl$$c = /* @__PURE__ */ template(`<svg version="1.1" viewBox="6 8 14 16" class="ap-icon"><path d="M0.938 8.313h22.125c0.5 0 0.938 0.438 0.938 0.938v13.5c0 0.5-0.438 0.938-0.938 0.938h-22.125c-0.5 0-0.938-0.438-0.938-0.938v-13.5c0-0.5 0.438-0.938 0.938-0.938zM1.594 22.063h20.813v-12.156h-20.813v12.156zM3.844 11.188h1.906v1.938h-1.906v-1.938zM7.469 11.188h1.906v1.938h-1.906v-1.938zM11.031 11.188h1.938v1.938h-1.938v-1.938zM14.656 11.188h1.875v1.938h-1.875v-1.938zM18.25 11.188h1.906v1.938h-1.906v-1.938zM5.656 15.031h1.938v1.938h-1.938v-1.938zM9.281 16.969v-1.938h1.906v1.938h-1.906zM12.875 16.969v-1.938h1.906v1.938h-1.906zM18.406 16.969h-1.938v-1.938h1.938v1.938zM16.531 20.781h-9.063v-1.906h9.063v1.906z"></path></svg>`, 4);
+var KeyboardIcon = ((props) => {
+  return _tmpl$$c.cloneNode(true);
+});
+const _tmpl$$b = /* @__PURE__ */ template(`<svg version="1.1" viewBox="0 0 12 12" class="ap-icon" aria-label="Pause" role="button"><path d="M1,0 L4,0 L4,12 L1,12 Z"></path><path d="M8,0 L11,0 L11,12 L8,12 Z"></path></svg>`, 6);
+var PauseIcon = ((props) => {
+  return _tmpl$$b.cloneNode(true);
+});
+const _tmpl$$a = /* @__PURE__ */ template(`<svg version="1.1" viewBox="0 0 12 12" class="ap-icon" aria-label="Play" role="button"><path d="M1,0 L11,6 L1,12 Z"></path></svg>`, 4);
+var PlayIcon = ((props) => {
+  return _tmpl$$a.cloneNode(true);
+});
+const _tmpl$$9 = /* @__PURE__ */ template(`<svg version="1.1" viewBox="0 0 12 12" class="ap-icon ap-icon-fullscreen-on"><path d="M12,0 L7,0 L9,2 L7,4 L8,5 L10,3 L12,5 Z"></path><path d="M0,12 L0,7 L2,9 L4,7 L5,8 L3,10 L5,12 Z"></path></svg>`, 6);
+var ShrinkIcon = ((props) => {
+  return _tmpl$$9.cloneNode(true);
+});
+const _tmpl$$8 = /* @__PURE__ */ template(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10.5 3.75a.75.75 0 0 0-1.264-.546L5.203 7H2.667a.75.75 0 0 0-.7.48A6.985 6.985 0 0 0 1.5 10c0 .887.165 1.737.468 2.52.111.29.39.48.7.48h2.535l4.033 3.796a.75.75 0 0 0 1.264-.546V3.75ZM16.45 5.05a.75.75 0 0 0-1.06 1.061 5.5 5.5 0 0 1 0 7.778.75.75 0 0 0 1.06 1.06 7 7 0 0 0 0-9.899Z"></path><path d="M14.329 7.172a.75.75 0 0 0-1.061 1.06 2.5 2.5 0 0 1 0 3.536.75.75 0 0 0 1.06 1.06 4 4 0 0 0 0-5.656Z"></path></svg>`, 6);
+var SpeakerOnIcon = ((props) => {
+  return _tmpl$$8.cloneNode(true);
+});
+const _tmpl$$7 = /* @__PURE__ */ template(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5"><path d="M10.047 3.062a.75.75 0 0 1 .453.688v12.5a.75.75 0 0 1-1.264.546L5.203 13H2.667a.75.75 0 0 1-.7-.48A6.985 6.985 0 0 1 1.5 10c0-.887.165-1.737.468-2.52a.75.75 0 0 1 .7-.48h2.535l4.033-3.796a.75.75 0 0 1 .811-.142ZM13.78 7.22a.75.75 0 1 0-1.06 1.06L14.44 10l-1.72 1.72a.75.75 0 0 0 1.06 1.06l1.72-1.72 1.72 1.72a.75.75 0 1 0 1.06-1.06L16.56 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L15.5 8.94l-1.72-1.72Z"></path></svg>`, 4);
+var SpeakerOffIcon = ((props) => {
+  return _tmpl$$7.cloneNode(true);
+});
+const _tmpl$$6 = /* @__PURE__ */ template(`<span class="ap-button ap-playback-button" tabindex="0"></span>`, 2), _tmpl$2$1 = /* @__PURE__ */ template(`<span class="ap-bar"><span class="ap-gutter ap-gutter-empty"></span><span class="ap-gutter ap-gutter-full"></span></span>`, 6), _tmpl$3$1 = /* @__PURE__ */ template(`<span class="ap-tooltip">Unmute (m)</span>`, 2), _tmpl$4$1 = /* @__PURE__ */ template(`<span class="ap-tooltip">Mute (m)</span>`, 2), _tmpl$5$1 = /* @__PURE__ */ template(`<span class="ap-button ap-speaker-button ap-tooltip-container" aria-label="Mute / unmute" role="button" tabindex="0"></span>`, 2), _tmpl$6$1 = /* @__PURE__ */ template(`<div class="ap-control-bar"><span class="ap-timer" aria-readonly="true" role="textbox" tabindex="0"><span class="ap-time-elapsed"></span><span class="ap-time-remaining"></span></span><span class="ap-progressbar"></span><span class="ap-button ap-kbd-button ap-tooltip-container" aria-label="Show keyboard shortcuts" role="button" tabindex="0"><span class="ap-tooltip">Keyboard shortcuts (?)</span></span><span class="ap-button ap-fullscreen-button ap-tooltip-container" aria-label="Toggle fullscreen mode" role="button" tabindex="0"><span class="ap-tooltip">Fullscreen (f)</span></span></div>`, 18), _tmpl$7$1 = /* @__PURE__ */ template(`<span class="ap-marker-container ap-tooltip-container"><span class="ap-marker"></span><span class="ap-tooltip"></span></span>`, 6);
+function formatTime(seconds) {
+  let s = Math.floor(seconds);
+  const d = Math.floor(s / 86400);
+  s %= 86400;
+  const h = Math.floor(s / 3600);
+  s %= 3600;
+  const m = Math.floor(s / 60);
+  s %= 60;
+  if (d > 0) {
+    return `${zeroPad(d)}:${zeroPad(h)}:${zeroPad(m)}:${zeroPad(s)}`;
+  } else if (h > 0) {
+    return `${zeroPad(h)}:${zeroPad(m)}:${zeroPad(s)}`;
+  } else {
+    return `${zeroPad(m)}:${zeroPad(s)}`;
+  }
+}
+function zeroPad(n) {
+  return n < 10 ? `0${n}` : n.toString();
+}
+var ControlBar = ((props) => {
+  const e = (f) => {
+    return (e2) => {
+      e2.preventDefault();
+      f(e2);
+    };
+  };
+  const currentTime = () => typeof props.currentTime === "number" ? formatTime(props.currentTime) : "--:--";
+  const remainingTime = () => typeof props.remainingTime === "number" ? "-" + formatTime(props.remainingTime) : currentTime();
+  const markers = createMemo(() => typeof props.duration === "number" ? props.markers.filter((m) => m[0] < props.duration) : []);
+  const markerPosition = (m) => `${m[0] / props.duration * 100}%`;
+  const markerText = (m) => {
+    if (m[1] === "") {
+      return formatTime(m[0]);
+    } else {
+      return `${formatTime(m[0])} - ${m[1]}`;
+    }
+  };
+  const isPastMarker = (m) => typeof props.currentTime === "number" ? m[0] <= props.currentTime : false;
+  const gutterBarStyle = () => {
+    return {
+      transform: `scaleX(${props.progress || 0}`
+    };
+  };
+  const calcPosition = (e2) => {
+    const barWidth = e2.currentTarget.offsetWidth;
+    const rect = e2.currentTarget.getBoundingClientRect();
+    const mouseX = e2.clientX - rect.left;
+    const pos = Math.max(0, mouseX / barWidth);
+    return `${pos * 100}%`;
+  };
+  const [mouseDown, setMouseDown] = createSignal(false);
+  const throttledSeek = throttle(props.onSeekClick, 50);
+  const onMouseDown = (e2) => {
+    if (e2._marker) return;
+    if (e2.altKey || e2.shiftKey || e2.metaKey || e2.ctrlKey || e2.button !== 0) return;
+    setMouseDown(true);
+    props.onSeekClick(calcPosition(e2));
+  };
+  const seekToMarker = (index) => {
+    return e(() => {
+      props.onSeekClick({
+        marker: index
+      });
+    });
+  };
+  const onMove = (e2) => {
+    if (e2.altKey || e2.shiftKey || e2.metaKey || e2.ctrlKey) return;
+    if (mouseDown()) {
+      throttledSeek(calcPosition(e2));
+    }
+  };
+  const onDocumentMouseUp = () => {
+    setMouseDown(false);
+  };
+  document.addEventListener("mouseup", onDocumentMouseUp);
+  onCleanup(() => {
+    document.removeEventListener("mouseup", onDocumentMouseUp);
+  });
+  return (() => {
+    const _el$ = _tmpl$6$1.cloneNode(true), _el$3 = _el$.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$4.nextSibling, _el$6 = _el$3.nextSibling, _el$13 = _el$6.nextSibling, _el$14 = _el$13.firstChild, _el$15 = _el$13.nextSibling, _el$16 = _el$15.firstChild;
+    const _ref$ = props.ref;
+    typeof _ref$ === "function" ? use(_ref$, _el$) : props.ref = _el$;
+    insert(_el$, createComponent(Show, {
+      get when() {
+        return props.isPausable;
+      },
+      get children() {
+        const _el$2 = _tmpl$$6.cloneNode(true);
+        addEventListener(_el$2, "click", e(props.onPlayClick));
+        insert(_el$2, createComponent(Switch, {
+          get children() {
+            return [createComponent(Match, {
+              get when() {
+                return props.isPlaying;
+              },
+              get children() {
+                return createComponent(PauseIcon, {});
+              }
+            }), createComponent(Match, {
+              when: true,
+              get children() {
+                return createComponent(PlayIcon, {});
+              }
+            })];
+          }
+        }));
+        return _el$2;
+      }
+    }), _el$3);
+    insert(_el$4, currentTime);
+    insert(_el$5, remainingTime);
+    insert(_el$6, createComponent(Show, {
+      get when() {
+        return typeof props.progress === "number" || props.isSeekable;
+      },
+      get children() {
+        const _el$7 = _tmpl$2$1.cloneNode(true), _el$8 = _el$7.firstChild, _el$9 = _el$8.nextSibling;
+        _el$7.$$mousemove = onMove;
+        _el$7.$$mousedown = onMouseDown;
+        insert(_el$7, createComponent(For, {
+          get each() {
+            return markers();
+          },
+          children: (m, i) => (() => {
+            const _el$17 = _tmpl$7$1.cloneNode(true), _el$18 = _el$17.firstChild, _el$19 = _el$18.nextSibling;
+            _el$17.$$mousedown = (e2) => {
+              e2._marker = true;
+            };
+            addEventListener(_el$17, "click", seekToMarker(i()));
+            insert(_el$19, () => markerText(m));
+            createRenderEffect((_p$) => {
+              const _v$ = markerPosition(m), _v$2 = !!isPastMarker(m);
+              _v$ !== _p$._v$ && _el$17.style.setProperty("left", _p$._v$ = _v$);
+              _v$2 !== _p$._v$2 && _el$18.classList.toggle("ap-marker-past", _p$._v$2 = _v$2);
+              return _p$;
+            }, {
+              _v$: void 0,
+              _v$2: void 0
+            });
+            return _el$17;
+          })()
+        }), null);
+        createRenderEffect((_$p) => style(_el$9, gutterBarStyle(), _$p));
+        return _el$7;
+      }
+    }));
+    insert(_el$, createComponent(Show, {
+      get when() {
+        return props.isMuted !== void 0;
+      },
+      get children() {
+        const _el$10 = _tmpl$5$1.cloneNode(true);
+        addEventListener(_el$10, "click", e(props.onMuteClick));
+        insert(_el$10, createComponent(Switch, {
+          get children() {
+            return [createComponent(Match, {
+              get when() {
+                return props.isMuted === true;
+              },
+              get children() {
+                return [createComponent(SpeakerOffIcon, {}), _tmpl$3$1.cloneNode(true)];
+              }
+            }), createComponent(Match, {
+              get when() {
+                return props.isMuted === false;
+              },
+              get children() {
+                return [createComponent(SpeakerOnIcon, {}), _tmpl$4$1.cloneNode(true)];
+              }
+            })];
+          }
+        }));
+        return _el$10;
+      }
+    }), _el$13);
+    addEventListener(_el$13, "click", e(props.onHelpClick));
+    insert(_el$13, createComponent(KeyboardIcon, {}), _el$14);
+    addEventListener(_el$15, "click", e(props.onFullscreenClick));
+    insert(_el$15, createComponent(ShrinkIcon, {}), _el$16);
+    insert(_el$15, createComponent(ExpandIcon, {}), _el$16);
+    createRenderEffect(() => _el$.classList.toggle("ap-seekable", !!props.isSeekable));
+    return _el$;
+  })();
+});
+delegateEvents(["click", "mousedown", "mousemove"]);
+const _tmpl$$5 = /* @__PURE__ */ template(`<div class="ap-overlay ap-overlay-error"><span>💥</span></div>`, 4);
+var ErrorOverlay = ((props) => {
+  return _tmpl$$5.cloneNode(true);
+});
+const _tmpl$$4 = /* @__PURE__ */ template(`<div class="ap-overlay ap-overlay-loading"><span class="ap-loader"></span></div>`, 4);
+var LoaderOverlay = ((props) => {
+  return _tmpl$$4.cloneNode(true);
+});
+const _tmpl$$3 = /* @__PURE__ */ template(`<div class="ap-overlay ap-overlay-info"><span></span></div>`, 4);
+var InfoOverlay = ((props) => {
+  return (() => {
+    const _el$ = _tmpl$$3.cloneNode(true), _el$2 = _el$.firstChild;
+    insert(_el$2, () => props.message);
+    createRenderEffect(() => _el$.classList.toggle("ap-was-playing", !!props.wasPlaying));
+    return _el$;
+  })();
+});
+const _tmpl$$2 = /* @__PURE__ */ template(`<div class="ap-overlay ap-overlay-start"><div class="ap-play-button"><div><span><svg version="1.1" viewBox="0 0 1000.0 1000.0" class="ap-icon"><defs><mask id="small-triangle-mask"><rect width="100%" height="100%" fill="white"></rect><polygon points="700.0 500.0, 400.00000000000006 326.7949192431122, 399.9999999999999 673.2050807568877" fill="black"></polygon></mask></defs><polygon points="1000.0 500.0, 250.0000000000001 66.98729810778059, 249.99999999999977 933.0127018922192" mask="url(#small-triangle-mask)" fill="white" class="ap-play-btn-fill"></polygon><polyline points="673.2050807568878 400.0, 326.7949192431123 600.0" stroke="white" stroke-width="90" class="ap-play-btn-stroke"></polyline></svg></span></div></div></div>`, 22);
+var StartOverlay = ((props) => {
+  const e = (f) => {
+    return (e2) => {
+      e2.preventDefault();
+      f(e2);
+    };
+  };
+  return (() => {
+    const _el$ = _tmpl$$2.cloneNode(true);
+    addEventListener(_el$, "click", e(props.onClick));
+    return _el$;
+  })();
+});
+delegateEvents(["click"]);
+const _tmpl$$1 = /* @__PURE__ */ template(`<li><kbd>space</kbd> - pause / resume</li>`, 4), _tmpl$2 = /* @__PURE__ */ template(`<li><kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 5 seconds</li>`, 6), _tmpl$3 = /* @__PURE__ */ template(`<li><kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 10%</li>`, 8), _tmpl$4 = /* @__PURE__ */ template(`<li><kbd>[</kbd> / <kbd>]</kbd> - jump to the previous / next marker</li>`, 6), _tmpl$5 = /* @__PURE__ */ template(`<li><kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd> ... <kbd>9</kbd> - jump to 0%, 10%, 20% ... 90%</li>`, 10), _tmpl$6 = /* @__PURE__ */ template(`<li><kbd>,</kbd> / <kbd>.</kbd> - step back / forward, a frame at a time (when paused)</li>`, 6), _tmpl$7 = /* @__PURE__ */ template(`<li><kbd>m</kbd> - mute / unmute audio</li>`, 4), _tmpl$8 = /* @__PURE__ */ template(`<div class="ap-overlay ap-overlay-help"><div><div><p>Keyboard shortcuts</p><ul><li><kbd>f</kbd> - toggle fullscreen mode</li><li><kbd>?</kbd> - show this help popup</li></ul></div></div></div>`, 18);
+var HelpOverlay = ((props) => {
+  const e = (f) => {
+    return (e2) => {
+      e2.preventDefault();
+      f(e2);
+    };
+  };
+  return (() => {
+    const _el$ = _tmpl$8.cloneNode(true), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$4.nextSibling, _el$12 = _el$5.firstChild, _el$14 = _el$12.nextSibling;
+    addEventListener(_el$, "click", e(props.onClose));
+    _el$2.$$click = (e2) => {
+      e2.stopPropagation();
+    };
+    insert(_el$5, createComponent(Show, {
+      get when() {
+        return props.isPausable;
+      },
+      get children() {
+        return _tmpl$$1.cloneNode(true);
+      }
+    }), _el$12);
+    insert(_el$5, createComponent(Show, {
+      get when() {
+        return props.isSeekable;
+      },
+      get children() {
+        return [_tmpl$2.cloneNode(true), _tmpl$3.cloneNode(true), _tmpl$4.cloneNode(true), _tmpl$5.cloneNode(true), _tmpl$6.cloneNode(true)];
+      }
+    }), _el$12);
+    insert(_el$5, createComponent(Show, {
+      get when() {
+        return props.hasAudio;
+      },
+      get children() {
+        return _tmpl$7.cloneNode(true);
+      }
+    }), _el$14);
+    return _el$;
+  })();
+});
+delegateEvents(["click"]);
+const _tmpl$ = /* @__PURE__ */ template(`<div class="ap-wrapper" tabindex="-1"><div></div></div>`, 4);
+const CONTROL_BAR_HEIGHT = 32;
+var Player = ((props) => {
+  const logger = props.logger;
+  const core = props.core;
+  const autoPlay = props.autoPlay;
+  const charW = props.charW;
+  const charH = props.charH;
+  const bordersW = props.bordersW;
+  const bordersH = props.bordersH;
+  const themeOption = props.theme ?? "auto/asciinema";
+  const preferEmbeddedTheme = themeOption.slice(0, 5) === "auto/";
+  const themeName = preferEmbeddedTheme ? themeOption.slice(5) : themeOption;
+  const [state, setState] = createStore({
+    containerW: 0,
+    containerH: 0,
+    isPausable: true,
+    isSeekable: true,
+    isFullscreen: false,
+    currentTime: null,
+    remainingTime: null,
+    progress: null
+  });
+  const [isPlaying, setIsPlaying] = createSignal(false);
+  const [isMuted, setIsMuted] = createSignal(void 0);
+  const [wasPlaying, setWasPlaying] = createSignal(false);
+  const [overlay, setOverlay] = createSignal(!autoPlay ? "start" : null);
+  const [infoMessage, setInfoMessage] = createSignal(null);
+  const [blinking, setBlinking] = createSignal(false);
+  const [terminalSize, setTerminalSize] = createSignal({
+    cols: props.cols,
+    rows: props.rows
+  }, {
+    equals: (newVal, oldVal) => newVal.cols === oldVal.cols && newVal.rows === oldVal.rows
+  });
+  const [duration, setDuration] = createSignal(null);
+  const [markers, setMarkers] = createStore([]);
+  const [userActive, setUserActive] = createSignal(false);
+  const [isHelpVisible, setIsHelpVisible] = createSignal(false);
+  const [originalTheme, setOriginalTheme] = createSignal(null);
+  const terminalCols = createMemo(() => terminalSize().cols || 80);
+  const terminalRows = createMemo(() => terminalSize().rows || 24);
+  const controlBarHeight = () => props.controls === false ? 0 : CONTROL_BAR_HEIGHT;
+  const controlsVisible = () => props.controls === true || props.controls === "auto" && userActive();
+  let userActivityTimeoutId;
+  let timeUpdateIntervalId;
+  let wrapperRef;
+  let playerRef;
+  let controlBarRef;
+  let resizeObserver;
+  function onPlaying() {
+    setBlinking(true);
+    startTimeUpdates();
+  }
+  function onStopped() {
+    setBlinking(false);
+    stopTimeUpdates();
+    updateTime();
+  }
+  let resolveCoreReady;
+  const coreReady = new Promise((resolve) => {
+    resolveCoreReady = resolve;
+  });
+  const onCoreReady = (_ref) => {
+    let {
+      isPausable,
+      isSeekable
+    } = _ref;
+    setState({
+      isPausable,
+      isSeekable
+    });
+    resolveCoreReady();
+  };
+  const onCoreMetadata = (meta) => {
+    batch(() => {
+      if (meta.duration !== void 0) {
+        setDuration(meta.duration);
+      }
+      if (meta.markers !== void 0) {
+        setMarkers(meta.markers);
+      }
+      if (meta.hasAudio !== void 0) {
+        setIsMuted(meta.hasAudio ? false : void 0);
+      }
+      if (meta.size !== void 0) {
+        setTerminalSize(meta.size);
+      }
+      if (meta.theme !== void 0) {
+        setOriginalTheme(meta.theme);
+      }
+    });
+  };
+  const onCorePlay = () => {
+    setOverlay(null);
+  };
+  const onCorePlaying = () => {
+    batch(() => {
+      setIsPlaying(true);
+      setWasPlaying(true);
+      setOverlay(null);
+      onPlaying();
+    });
+  };
+  const onCoreIdle = () => {
+    batch(() => {
+      setIsPlaying(false);
+      onStopped();
+    });
+  };
+  const onCoreLoading = () => {
+    batch(() => {
+      setIsPlaying(false);
+      onStopped();
+      setOverlay("loader");
+    });
+  };
+  const onCoreOffline = (_ref2) => {
+    let {
+      message
+    } = _ref2;
+    batch(() => {
+      setIsPlaying(false);
+      onStopped();
+      if (message !== void 0) {
+        setInfoMessage(message);
+        setOverlay("info");
+      }
+    });
+  };
+  const onCoreMuted = (muted) => {
+    setIsMuted(muted);
+  };
+  const stats = {
+    terminal: {
+      renders: 0
+    }
+  };
+  const onCoreEnded = (_ref3) => {
+    let {
+      message
+    } = _ref3;
+    batch(() => {
+      setIsPlaying(false);
+      onStopped();
+      if (message !== void 0) {
+        setInfoMessage(message);
+        setOverlay("info");
+      }
+    });
+    logger.debug("stats", stats.terminal);
+  };
+  const onCoreErrored = () => {
+    setOverlay("error");
+  };
+  const onCoreSeeked = () => {
+    updateTime();
+  };
+  core.addEventListener("ready", onCoreReady);
+  core.addEventListener("metadata", onCoreMetadata);
+  core.addEventListener("play", onCorePlay);
+  core.addEventListener("playing", onCorePlaying);
+  core.addEventListener("idle", onCoreIdle);
+  core.addEventListener("loading", onCoreLoading);
+  core.addEventListener("offline", onCoreOffline);
+  core.addEventListener("muted", onCoreMuted);
+  core.addEventListener("ended", onCoreEnded);
+  core.addEventListener("errored", onCoreErrored);
+  core.addEventListener("seeked", onCoreSeeked);
+  const setupResizeObserver = () => {
+    resizeObserver = new ResizeObserver(debounce((_entries) => {
+      setState({
+        containerW: wrapperRef.offsetWidth,
+        containerH: wrapperRef.offsetHeight
+      });
+      wrapperRef.dispatchEvent(new CustomEvent("resize", {
+        detail: {
+          el: playerRef
+        }
+      }));
+    }, 10));
+    resizeObserver.observe(wrapperRef);
+  };
+  onMount(async () => {
+    logger.info("view: mounted");
+    logger.debug("view: font measurements", {
+      charW,
+      charH
+    });
+    setupResizeObserver();
+    setState({
+      containerW: wrapperRef.offsetWidth,
+      containerH: wrapperRef.offsetHeight
+    });
+  });
+  onCleanup(() => {
+    core.removeEventListener("ready", onCoreReady);
+    core.removeEventListener("metadata", onCoreMetadata);
+    core.removeEventListener("play", onCorePlay);
+    core.removeEventListener("playing", onCorePlaying);
+    core.removeEventListener("idle", onCoreIdle);
+    core.removeEventListener("loading", onCoreLoading);
+    core.removeEventListener("offline", onCoreOffline);
+    core.removeEventListener("muted", onCoreMuted);
+    core.removeEventListener("ended", onCoreEnded);
+    core.removeEventListener("errored", onCoreErrored);
+    core.removeEventListener("seeked", onCoreSeeked);
+    core.stop();
+    stopTimeUpdates();
+    resizeObserver.disconnect();
+  });
+  const terminalElementSize = createMemo(() => {
+    const terminalW = charW * terminalCols() + bordersW;
+    const terminalH = charH * terminalRows() + bordersH;
+    let fit = props.fit ?? "width";
+    if (fit === "both" || state.isFullscreen) {
+      const containerRatio = state.containerW / (state.containerH - controlBarHeight());
+      const terminalRatio = terminalW / terminalH;
+      if (containerRatio > terminalRatio) {
+        fit = "height";
+      } else {
+        fit = "width";
+      }
+    }
+    if (fit === false || fit === "none") {
+      return {};
+    } else if (fit === "width") {
+      const scale = state.containerW / terminalW;
+      return {
+        scale,
+        width: state.containerW,
+        height: terminalH * scale + controlBarHeight()
+      };
+    } else if (fit === "height") {
+      const scale = (state.containerH - controlBarHeight()) / terminalH;
+      return {
+        scale,
+        width: terminalW * scale,
+        height: state.containerH
+      };
+    } else {
+      throw new Error(`unsupported fit mode: ${fit}`);
+    }
+  });
+  const onFullscreenChange = () => {
+    setState("isFullscreen", document.fullscreenElement ?? document.webkitFullscreenElement);
+  };
+  const toggleFullscreen = () => {
+    if (state.isFullscreen) {
+      (document.exitFullscreen ?? document.webkitExitFullscreen ?? (() => {
+      })).apply(document);
+    } else {
+      (wrapperRef.requestFullscreen ?? wrapperRef.webkitRequestFullscreen ?? (() => {
+      })).apply(wrapperRef);
+    }
+  };
+  const toggleHelp = () => {
+    if (isHelpVisible()) {
+      setIsHelpVisible(false);
+    } else {
+      core.pause();
+      setIsHelpVisible(true);
+    }
+  };
+  const onKeyDown = (e) => {
+    if (e.altKey || e.metaKey || e.ctrlKey) {
+      return;
+    }
+    if (e.key == " ") {
+      core.togglePlay();
+    } else if (e.key == ",") {
+      core.step(-1).then(updateTime);
+    } else if (e.key == ".") {
+      core.step().then(updateTime);
+    } else if (e.key == "f") {
+      toggleFullscreen();
+    } else if (e.key == "m") {
+      toggleMuted();
+    } else if (e.key == "[") {
+      core.seek({
+        marker: "prev"
+      });
+    } else if (e.key == "]") {
+      core.seek({
+        marker: "next"
+      });
+    } else if (e.key.charCodeAt(0) >= 48 && e.key.charCodeAt(0) <= 57) {
+      const pos = (e.key.charCodeAt(0) - 48) / 10;
+      core.seek(`${pos * 100}%`);
+    } else if (e.key == "?") {
+      toggleHelp();
+    } else if (e.key == "ArrowLeft") {
+      if (e.shiftKey) {
+        core.seek("<<<");
+      } else {
+        core.seek("<<");
+      }
+    } else if (e.key == "ArrowRight") {
+      if (e.shiftKey) {
+        core.seek(">>>");
+      } else {
+        core.seek(">>");
+      }
+    } else if (e.key == "Escape") {
+      setIsHelpVisible(false);
+    } else {
+      return;
+    }
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  const wrapperOnMouseMove = () => {
+    if (state.isFullscreen) {
+      onUserActive(true);
+    }
+  };
+  const playerOnMouseLeave = () => {
+    if (!state.isFullscreen) {
+      onUserActive(false);
+    }
+  };
+  const startTimeUpdates = () => {
+    timeUpdateIntervalId = setInterval(updateTime, 100);
+  };
+  const stopTimeUpdates = () => {
+    clearInterval(timeUpdateIntervalId);
+  };
+  const updateTime = async () => {
+    const currentTime = await core.getCurrentTime();
+    const remainingTime = await core.getRemainingTime();
+    const progress = await core.getProgress();
+    setState({
+      currentTime,
+      remainingTime,
+      progress
+    });
+  };
+  const onUserActive = (show) => {
+    clearTimeout(userActivityTimeoutId);
+    if (show) {
+      userActivityTimeoutId = setTimeout(() => onUserActive(false), 2e3);
+    }
+    setUserActive(show);
+  };
+  const embeddedTheme = createMemo(() => preferEmbeddedTheme ? originalTheme() : null);
+  const playerStyle = () => {
+    const style2 = {};
+    if ((props.fit === false || props.fit === "none") && props.terminalFontSize !== void 0) {
+      if (props.terminalFontSize === "small") {
+        style2["font-size"] = "12px";
+      } else if (props.terminalFontSize === "medium") {
+        style2["font-size"] = "18px";
+      } else if (props.terminalFontSize === "big") {
+        style2["font-size"] = "24px";
+      } else {
+        style2["font-size"] = props.terminalFontSize;
+      }
+    }
+    const size = terminalElementSize();
+    if (size.width !== void 0) {
+      style2["width"] = `${size.width}px`;
+      style2["height"] = `${size.height}px`;
+    }
+    if (props.terminalFontFamily !== void 0) {
+      style2["--term-font-family"] = props.terminalFontFamily;
+    }
+    const themeColors = embeddedTheme();
+    if (themeColors) {
+      style2["--term-color-foreground"] = themeColors.foreground;
+      style2["--term-color-background"] = themeColors.background;
+    }
+    return style2;
+  };
+  const play = () => {
+    coreReady.then(() => core.play());
+  };
+  const togglePlay = () => {
+    coreReady.then(() => core.togglePlay());
+  };
+  const toggleMuted = () => {
+    coreReady.then(() => {
+      if (isMuted() === true) {
+        core.unmute();
+      } else {
+        core.mute();
+      }
+    });
+  };
+  const seek = (pos) => {
+    coreReady.then(() => core.seek(pos));
+  };
+  const playerClass = () => `ap-player ap-default-term-ff asciinema-player-theme-${themeName}`;
+  const terminalScale = () => terminalElementSize()?.scale;
+  const el = (() => {
+    const _el$ = _tmpl$.cloneNode(true), _el$2 = _el$.firstChild;
+    const _ref$ = wrapperRef;
+    typeof _ref$ === "function" ? use(_ref$, _el$) : wrapperRef = _el$;
+    _el$.addEventListener("webkitfullscreenchange", onFullscreenChange);
+    _el$.addEventListener("fullscreenchange", onFullscreenChange);
+    _el$.$$mousemove = wrapperOnMouseMove;
+    _el$.$$keydown = onKeyDown;
+    const _ref$2 = playerRef;
+    typeof _ref$2 === "function" ? use(_ref$2, _el$2) : playerRef = _el$2;
+    _el$2.$$mousemove = () => onUserActive(true);
+    _el$2.addEventListener("mouseleave", playerOnMouseLeave);
+    insert(_el$2, createComponent(Terminal, {
+      get cols() {
+        return terminalCols();
+      },
+      get rows() {
+        return terminalRows();
+      },
+      get scale() {
+        return terminalScale();
+      },
+      get blinking() {
+        return blinking();
+      },
+      get lineHeight() {
+        return props.terminalLineHeight;
+      },
+      preferEmbeddedTheme,
+      core,
+      get stats() {
+        return stats.terminal;
+      }
+    }), null);
+    insert(_el$2, createComponent(Show, {
+      get when() {
+        return props.controls !== false;
+      },
+      get children() {
+        return createComponent(ControlBar, {
+          get duration() {
+            return duration();
+          },
+          get currentTime() {
+            return state.currentTime;
+          },
+          get remainingTime() {
+            return state.remainingTime;
+          },
+          get progress() {
+            return state.progress;
+          },
+          markers,
+          get isPlaying() {
+            return isPlaying() || overlay() == "loader";
+          },
+          get isPausable() {
+            return state.isPausable;
+          },
+          get isSeekable() {
+            return state.isSeekable;
+          },
+          get isMuted() {
+            return isMuted();
+          },
+          onPlayClick: togglePlay,
+          onFullscreenClick: toggleFullscreen,
+          onHelpClick: toggleHelp,
+          onSeekClick: seek,
+          onMuteClick: toggleMuted,
+          ref(r$) {
+            const _ref$3 = controlBarRef;
+            typeof _ref$3 === "function" ? _ref$3(r$) : controlBarRef = r$;
+          }
+        });
+      }
+    }), null);
+    insert(_el$2, createComponent(Switch, {
+      get children() {
+        return [createComponent(Match, {
+          get when() {
+            return overlay() == "start";
+          },
+          get children() {
+            return createComponent(StartOverlay, {
+              onClick: play
+            });
+          }
+        }), createComponent(Match, {
+          get when() {
+            return overlay() == "loader";
+          },
+          get children() {
+            return createComponent(LoaderOverlay, {});
+          }
+        }), createComponent(Match, {
+          get when() {
+            return overlay() == "error";
+          },
+          get children() {
+            return createComponent(ErrorOverlay, {});
+          }
+        })];
+      }
+    }), null);
+    insert(_el$2, createComponent(Transition, {
+      name: "slide",
+      get children() {
+        return createComponent(Show, {
+          get when() {
+            return overlay() == "info";
+          },
+          get children() {
+            return createComponent(InfoOverlay, {
+              get message() {
+                return infoMessage();
+              },
+              get wasPlaying() {
+                return wasPlaying();
+              }
+            });
+          }
+        });
+      }
+    }), null);
+    insert(_el$2, createComponent(Show, {
+      get when() {
+        return isHelpVisible();
+      },
+      get children() {
+        return createComponent(HelpOverlay, {
+          onClose: () => setIsHelpVisible(false),
+          get isPausable() {
+            return state.isPausable;
+          },
+          get isSeekable() {
+            return state.isSeekable;
+          },
+          get hasAudio() {
+            return isMuted() !== void 0;
+          }
+        });
+      }
+    }), null);
+    createRenderEffect((_p$) => {
+      const _v$ = !!controlsVisible(), _v$2 = playerClass(), _v$3 = playerStyle();
+      _v$ !== _p$._v$ && _el$.classList.toggle("ap-hud", _p$._v$ = _v$);
+      _v$2 !== _p$._v$2 && className(_el$2, _p$._v$2 = _v$2);
+      _p$._v$3 = style(_el$2, _v$3, _p$._v$3);
+      return _p$;
+    }, {
+      _v$: void 0,
+      _v$2: void 0,
+      _v$3: void 0
+    });
+    return _el$;
+  })();
+  return el;
+});
+delegateEvents(["keydown", "mousemove"]);
+function mount(core, elem) {
+  let opts = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : {};
+  const metrics = measureTerminal(opts.terminalFontFamily, opts.terminalLineHeight);
+  const props = {
+    core,
+    logger: opts.logger,
+    cols: opts.cols,
+    rows: opts.rows,
+    fit: opts.fit,
+    controls: opts.controls,
+    autoPlay: opts.autoPlay,
+    terminalFontSize: opts.terminalFontSize,
+    terminalFontFamily: opts.terminalFontFamily,
+    terminalLineHeight: opts.terminalLineHeight,
+    theme: opts.theme,
+    ...metrics
+  };
+  let el;
+  const dispose2 = render(() => {
+    el = createComponent(Player, props);
+    return el;
+  }, elem);
+  return {
+    el,
+    dispose: dispose2
+  };
+}
+function measureTerminal(fontFamily, lineHeight) {
+  const cols = 80;
+  const rows = 24;
+  const playerDiv = document.createElement("div");
+  playerDiv.className = "ap-default-term-ff";
+  playerDiv.style.height = "0px";
+  playerDiv.style.overflow = "hidden";
+  playerDiv.style.fontSize = "15px";
+  if (fontFamily !== void 0) {
+    playerDiv.style.setProperty("--term-font-family", fontFamily);
+  }
+  const termDiv = document.createElement("div");
+  termDiv.className = "ap-term";
+  termDiv.style.width = `${cols}ch`;
+  termDiv.style.height = `${rows * (lineHeight ?? 1.3333333333)}em`;
+  termDiv.style.fontSize = "100%";
+  playerDiv.appendChild(termDiv);
+  document.body.appendChild(playerDiv);
+  const metrics = {
+    charW: termDiv.clientWidth / cols,
+    charH: termDiv.clientHeight / rows,
+    bordersW: termDiv.offsetWidth - termDiv.clientWidth,
+    bordersH: termDiv.offsetHeight - termDiv.clientHeight
+  };
+  document.body.removeChild(playerDiv);
+  return metrics;
+}
+const CORE_OPTS = ["audioUrl", "autoPlay", "autoplay", "boldIsBright", "cols", "idleTimeLimit", "loop", "markers", "pauseOnMarkers", "poster", "preload", "rows", "speed", "startAt"];
+const UI_OPTS = ["autoPlay", "autoplay", "cols", "controls", "fit", "rows", "terminalFontFamily", "terminalFontSize", "terminalLineHeight", "theme"];
+function coreOpts(inputOpts) {
+  let overrides = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+  const opts = Object.fromEntries(Object.entries(inputOpts).filter((_ref) => {
+    let [key] = _ref;
+    return CORE_OPTS.includes(key);
+  }));
+  opts.autoPlay ??= opts.autoplay;
+  opts.speed ??= 1;
+  return {
+    ...opts,
+    ...overrides
+  };
+}
+function uiOpts(inputOpts) {
+  let overrides = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
+  const opts = Object.fromEntries(Object.entries(inputOpts).filter((_ref2) => {
+    let [key] = _ref2;
+    return UI_OPTS.includes(key);
+  }));
+  opts.autoPlay ??= opts.autoplay;
+  opts.controls ??= "auto";
+  return {
+    ...opts,
+    ...overrides
+  };
+}
+function create(src, elem) {
+  let opts = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : {};
+  const logger = opts.logger ?? new DummyLogger();
+  const core = new Core(src, coreOpts(opts, {
+    logger
+  }));
+  const {
+    el,
+    dispose: dispose2
+  } = mount(core, elem, uiOpts(opts, {
+    logger
+  }));
+  const ready = core.init();
+  const player = {
+    el,
+    dispose: dispose2,
+    getCurrentTime: () => ready.then(core.getCurrentTime.bind(core)),
+    getDuration: () => ready.then(core.getDuration.bind(core)),
+    play: () => ready.then(core.play.bind(core)),
+    pause: () => ready.then(core.pause.bind(core)),
+    seek: (pos) => ready.then(() => core.seek(pos))
+  };
+  player.addEventListener = (name, callback) => {
+    return core.addEventListener(name, callback.bind(player));
+  };
+  return player;
+}
+export {
+  create as c
+};
+//# sourceMappingURL=vendor-asciinema.js.map

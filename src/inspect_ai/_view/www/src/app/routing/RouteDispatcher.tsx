@@ -1,9 +1,22 @@
-import { FC } from "react";
-import { FlowPanel } from "../flow/FlowPanel";
-import { LogsPanel } from "../log-list/LogsPanel";
-import { LogSampleDetailView } from "../log-view/LogSampleDetailView";
-import { LogViewContainer } from "../log-view/LogViewContainer";
+import { FC, lazy } from "react";
 import { useLogRouteParams } from "./url";
+
+const FlowPanel = lazy(() =>
+  import("../flow/FlowPanel").then((m) => ({ default: m.FlowPanel })),
+);
+const LogsPanel = lazy(() =>
+  import("../log-list/LogsPanel").then((m) => ({ default: m.LogsPanel })),
+);
+const LogSampleDetailView = lazy(() =>
+  import("../log-view/LogSampleDetailView").then((m) => ({
+    default: m.LogSampleDetailView,
+  })),
+);
+const LogViewContainer = lazy(() =>
+  import("../log-view/LogViewContainer").then((m) => ({
+    default: m.LogViewContainer,
+  })),
+);
 
 /**
  * RouteDispatcher component that determines which view to show based on the route params.

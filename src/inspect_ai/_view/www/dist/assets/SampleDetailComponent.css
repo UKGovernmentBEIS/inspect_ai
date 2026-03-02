@@ -1,0 +1,32 @@
+._detail_14cqz_1 {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+._panel_14cqz_7 {
+  overflow-y: auto;
+}
+
+._sampleInfo_14cqz_11 {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.25rem;
+}
+
+._sampleNav_14cqz_17 {
+  display: grid;
+  grid-template-columns: max-content auto max-content;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 1em;
+}
+
+._nav_14cqz_25:hover:not(._disabled_14cqz_25) {
+  cursor: pointer;
+}
+
+._disabled_14cqz_25 {
+  opacity: 0.5;
+  pointer-events: none;
+}
