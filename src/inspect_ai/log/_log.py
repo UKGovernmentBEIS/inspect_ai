@@ -6,6 +6,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    JsonValue,
     PrivateAttr,
     field_serializer,
     model_validator,
@@ -417,6 +418,18 @@ class EvalSample(BaseModel):
 
     Resolve attachments for a sample (replacing attachment://* references with
     attachment content) by passing `resolve_attachments=True` to log reading functions.
+    """
+
+    message_pool: list[ChatMessage] = Field(default_factory=list)
+    """Pool of deduplicated messages referenced by model event input_refs.
+
+    Messages are referenced by ordinal index.
+    """
+
+    call_pool: list[JsonValue] = Field(default_factory=list)
+    """Pool of raw API request messages.
+
+    Referenced by ordinal index.
     """
 
     limit: EvalSampleLimit | None = Field(default=None)
@@ -949,7 +962,7 @@ class EvalLog(BaseModel):
     # Do not change the order of these fields without incrementing the version number,
     # updating the log file read/write functionality (such as read_eval_log),
     # and updating the tests.
-    version: int = Field(default=2)
+    version: int = Field(default=3)
     """Eval log file format version."""
 
     status: EvalStatus = Field(default="started")

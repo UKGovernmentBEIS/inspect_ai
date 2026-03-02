@@ -5,6 +5,7 @@ from typing import Literal
 
 import pytest
 
+from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.event import ModelEvent, SampleInitEvent
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
@@ -49,7 +50,10 @@ def test_convert_eval_logs(
 
     output_file = (tmp_path / input_file.name).with_suffix(f".{to}")
     assert output_file.exists()
-    log = read_eval_log(str(output_file))
+
+    # Read with resolve_attachments="full" to verify content is accessible after
+    # round-trip (convert always condenses on write, so raw content has attachment refs)
+    log = read_eval_log(str(output_file), resolve_attachments="full")
     assert isinstance(
         log,
         EvalLog,
@@ -59,10 +63,8 @@ def test_convert_eval_logs(
     sample_init_event = log.samples[0].events[0]
     assert isinstance(sample_init_event, SampleInitEvent)
     assert isinstance(sample_init_event.sample.input, str)
-    if resolve_attachments is not False:
-        assert sample_init_event.sample.input.startswith("Hey there, hipster!")
-    else:
-        assert sample_init_event.sample.input.startswith("attachment:")
+    # We read with resolve_attachments="full" above, so content is always resolved
+    assert sample_init_event.sample.input.startswith("Hey there, hipster!")
 
     model_event = log.samples[0].events[6]
     assert isinstance(model_event, ModelEvent)
@@ -127,3 +129,41 @@ def test_stream_convert_preserves_log_updates(
     assert "qa_reviewed" in raw.get("tags", [])
     assert raw.get("metadata", {}).get("reviewer") == "alice"
     assert len(raw.get("log_updates", [])) == 1
+
+
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
+def test_convert_applies_message_pool_dedup(
+    tmp_path: pathlib.Path,
+    stream: bool,
+):
+    """Converting a v2 .eval file should apply message pool dedup."""
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+
+    convert_eval_logs(
+        str(input_file),
+        "eval",
+        str(tmp_path),
+        overwrite=True,
+        stream=stream,
+    )
+
+    output_file = (tmp_path / input_file.name).with_suffix(".eval")
+    assert output_file.exists()
+
+    log = read_eval_log(str(output_file))
+    assert log.version == LOG_SCHEMA_VERSION
+    assert log.samples
+
+    for sample in log.samples:
+        # read_eval_log resolves pools, so input_refs should be None
+        # and message_pool should be empty after round-trip
+        assert not sample.message_pool  # resolved to empty
+        model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+        assert any(len(me.input) > 0 for me in model_events), (
+            "At least one model event should have populated input"
+        )
+        for me in model_events:
+            assert me.input_refs is None

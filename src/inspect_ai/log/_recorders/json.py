@@ -9,7 +9,7 @@ from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
+from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
@@ -250,7 +250,7 @@ def _validate_version(ver: int) -> None:
 
 def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     """Parse raw JSON data into an EvalLog, validating version and pruning if header_only."""
-    log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
+    log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
 
     # fail for unknown version
     _validate_version(log.version)

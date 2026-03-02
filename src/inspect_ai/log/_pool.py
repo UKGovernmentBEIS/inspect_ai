@@ -1,0 +1,284 @@
+"""Message and call pool deduplication for eval samples.
+
+Design note — identity-based dedup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Pool dedup keys on ``msg.id``, NOT deep content comparison. Deep comparison
+would be correct-by-construction but prohibitively expensive for the hot path
+(O(N²) serialisation per sample). Instead we maintain the invariant that
+``msg.id`` uniquely identifies content:
+
+* All code paths that mutate a message's content MUST assign a new ID
+  (``model_copy(update={"id": uuid(), ...})``). Every known mutation site
+  (reasoning stripping, screenshot replacement, citation removal, etc.)
+  has been audited and fixed.
+* ``repair_duplicate_message_ids()`` catches violations from legacy files
+  by detecting same-id-different-content and reassigning IDs before
+  condensation. This is called during ``convert_eval_log``.
+
+Do NOT replace the id-based lookup with deep equality checks — the
+performance cost is the reason this design exists.
+"""
+
+import json
+from typing import Final, TypeVar
+
+from pydantic import JsonValue
+from shortuuid import uuid
+
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai.model._chat_message import ChatMessage
+
+from ..event._event import Event
+from ..event._model import ModelEvent
+from ._log import EvalSample
+
+
+def _anonymous_msg_key(msg: ChatMessage) -> str:
+    """Compute a stable dedup key for a message without an ID."""
+    return f"_anon_{mm3_hash(json.dumps(json.loads(msg.model_dump_json()), sort_keys=True))}"
+
+
+def repair_duplicate_message_ids(sample: EvalSample) -> EvalSample:
+    """Reassign IDs for messages that share an ID but have different content.
+
+    Legacy eval files may contain messages where mutation sites (e.g. stripping
+    reasoning, replacing screenshots) modified content without assigning a new
+    ID. This violates the invariant that msg.id uniquely identifies content,
+    causing condense_model_event_inputs to silently use the wrong version.
+
+    Call this before condense_sample when converting old files.
+    """
+    seen: dict[str, str] = {}  # msg_id -> model_dump_json
+    repaired = False
+    new_events: list[Event] = []
+
+    for event in sample.events:
+        if isinstance(event, ModelEvent) and event.input:
+            new_input: list[ChatMessage] = []
+            input_changed = False
+            for msg in event.input:
+                msg_id = msg.id
+                if msg_id is not None:
+                    serialized = msg.model_dump_json()
+                    if msg_id in seen:
+                        if seen[msg_id] != serialized:
+                            msg = msg.model_copy(update={"id": uuid()})
+                            input_changed = True
+                    else:
+                        seen[msg_id] = serialized
+                new_input.append(msg)
+            if input_changed:
+                event = event.model_copy(update={"input": new_input})
+                repaired = True
+        new_events.append(event)
+
+    if not repaired:
+        return sample
+    return sample.model_copy(update={"events": new_events})
+
+
+def _build_msg_index(pool: list[ChatMessage]) -> dict[str, int]:
+    """Build msg_id -> pool index mapping, matching condense_model_event_inputs logic."""
+    index: dict[str, int] = {}
+    for i, msg in enumerate(pool):
+        msg_id = msg.id if msg.id is not None else _anonymous_msg_key(msg)
+        index[msg_id] = i
+    return index
+
+
+def _build_call_index(pool: list[JsonValue]) -> dict[str, int]:
+    """Build hash -> pool index mapping, matching condense_model_event_calls logic."""
+    index: dict[str, int] = {}
+    for i, call_msg in enumerate(pool):
+        index[mm3_hash(json.dumps(call_msg, sort_keys=True))] = i
+    return index
+
+
+def condense_model_event_inputs(
+    events: list[Event],
+    message_pool: list[ChatMessage],
+    msg_index: dict[str, int],
+) -> list[Event]:
+    """Replace ModelEvent.input with message_pool references.
+
+    Collects all messages from ModelEvent inputs into the message_pool list
+    and replaces each ModelEvent's input with range-encoded input_refs.
+
+    See module docstring for why dedup keys on msg.id, not deep comparison.
+    """
+    result: list[Event] = []
+    for event in events:
+        if isinstance(event, ModelEvent):
+            if event.input_refs is not None and not event.input:
+                # Already condensed — preserve existing refs
+                result.append(event)
+                continue
+            if event.input:
+                raw_indices: list[int] = []
+                for msg in event.input:
+                    msg_id = msg.id if msg.id is not None else _anonymous_msg_key(msg)
+                    if msg_id not in msg_index:
+                        msg_index[msg_id] = len(message_pool)
+                        message_pool.append(msg)
+                    raw_indices.append(msg_index[msg_id])
+                event = event.model_copy(
+                    update={"input": [], "input_refs": _compress_refs(raw_indices)}
+                )
+        result.append(event)
+    return result
+
+
+# Known keys for messages array in provider wire formats
+_CALL_MESSAGE_KEYS: Final = ("messages", "contents")
+
+
+def _compress_refs(indices: list[int]) -> list[list[int]]:
+    """Compress contiguous int indices into range-encoded refs.
+
+    Every element is a ``[start, end)`` range pair.
+
+    Examples::
+
+        [0,1,2,3]   -> [[0,4]]
+        [0,3,4,5,9] -> [[0,1],[3,6],[9,10]]
+        [2,5,8]     -> [[2,3],[5,6],[8,9]]
+        [3,4]       -> [[3,5]]
+    """
+    if not indices:
+        return []
+    result: list[list[int]] = []
+    start = indices[0]
+    end = start + 1
+    for i in indices[1:]:
+        if i == end:
+            end += 1
+        else:
+            result.append([start, end])
+            start = i
+            end = i + 1
+    result.append([start, end])
+    return result
+
+
+_T = TypeVar("_T")
+
+
+def _expand_refs(
+    refs: list[list[int]],
+    pool: list[_T],
+) -> list[_T]:
+    """Expand range-encoded refs against a pool.
+
+    Each element is ``[start, end)``: a half-open range yielding ``pool[start:end]``.
+    """
+    result: list[_T] = []
+    for item in refs:
+        result.extend(pool[item[0] : item[1]])
+    return result
+
+
+def condense_model_event_calls(
+    events: list[Event],
+    call_pool: list[JsonValue],
+    call_index: dict[str, int],
+) -> list[Event]:
+    """Replace call.request messages with call_pool references."""
+    result: list[Event] = []
+    for event in events:
+        if isinstance(event, ModelEvent) and event.call:
+            if event.call.call_refs is not None:
+                # Already condensed — preserve existing refs
+                result.append(event)
+                continue
+            msg_key = next(
+                (k for k in _CALL_MESSAGE_KEYS if k in event.call.request), None
+            )
+            msgs = event.call.request.get(msg_key) if msg_key else None
+            if msgs and isinstance(msgs, list):
+                raw_indices: list[int] = []
+                for msg in msgs:
+                    h = mm3_hash(json.dumps(msg, sort_keys=True))
+                    if h not in call_index:
+                        call_index[h] = len(call_pool)
+                        call_pool.append(msg)
+                    raw_indices.append(call_index[h])
+                new_request = {
+                    k: v for k, v in event.call.request.items() if k != msg_key
+                }
+                new_call = event.call.model_copy(
+                    update={
+                        "request": new_request,
+                        "call_refs": _compress_refs(raw_indices),
+                        "call_key": msg_key,
+                    }
+                )
+                event = event.model_copy(update={"call": new_call})
+        result.append(event)
+    return result
+
+
+def resolve_model_event_calls(
+    events: list[Event],
+    call_pool: list[JsonValue],
+) -> list[Event]:
+    """Restore call.request messages from call_pool references."""
+    if not call_pool:
+        return events
+    result: list[Event] = []
+    for event in events:
+        if (
+            isinstance(event, ModelEvent)
+            and event.call
+            and event.call.call_refs is not None
+        ):
+            msgs = _expand_refs(event.call.call_refs, call_pool)
+            msg_key = event.call.call_key or "messages"
+            new_request = dict(event.call.request)
+            new_request[msg_key] = msgs
+            new_call = event.call.model_copy(
+                update={
+                    "request": new_request,
+                    "call_refs": None,
+                    "call_key": None,
+                }
+            )
+            event = event.model_copy(update={"call": new_call})
+        result.append(event)
+    return result
+
+
+def resolve_model_event_inputs(
+    events: list[Event],
+    message_pool: list[ChatMessage],
+) -> list[Event]:
+    """Resolve ModelEvent input_refs back to full input lists."""
+    if not message_pool:
+        return events
+    result: list[Event] = []
+    for event in events:
+        if isinstance(event, ModelEvent) and event.input_refs is not None:
+            resolved_input = _expand_refs(event.input_refs, message_pool)
+            event = event.model_copy(
+                update={"input": resolved_input, "input_refs": None}
+            )
+        result.append(event)
+    return result
+
+
+def resolve_sample_message_pool(sample: EvalSample) -> EvalSample:
+    """Resolve message pool references in model events.
+
+    Always called on read to ensure ModelEvent.input is populated,
+    regardless of the resolve_attachments setting.
+    """
+    if not sample.message_pool and not sample.call_pool:
+        return sample
+    resolved_events = resolve_model_event_inputs(sample.events, sample.message_pool)
+    resolved_events = resolve_model_event_calls(resolved_events, sample.call_pool)
+    return sample.model_copy(
+        update={
+            "events": resolved_events,
+            "message_pool": [],
+            "call_pool": [],
+        }
+    )

@@ -334,13 +334,10 @@ def test_message_deduplication(
         log_file, id=0, epoch=1, resolve_attachments=resolve_attachments
     )
 
+    # Messages appearing across multiple model event inputs should share
+    # object identity (from the message pool). sample.messages is not
+    # deduplicated against the pool since it reflects final state.
     messages_by_id = {}
-    if resolve_attachments != "core":
-        for message in sample.messages:
-            if message.id not in messages_by_id:
-                messages_by_id[message.id] = message
-            else:
-                assert message is messages_by_id[message.id]
     for event in sample.events:
         if isinstance(event, ModelEvent):
             for message in event.input:
