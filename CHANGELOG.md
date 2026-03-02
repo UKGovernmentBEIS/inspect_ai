@@ -1,7 +1,12 @@
 ## Unreleased
 
+- Task view: Extract and print `<summary>` from `<details>` tags in tool views.
 - Log Viewer: Read sample buffer segments concurrently for faster loading of in-progress samples.
+
+## 0.3.185 (01 March 2026)
+
 - Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
+- Events: Add `agent_span_id` property to tool events for associating them with their associated agent.
 
 ## 0.3.184 (28 February 2026)
 
