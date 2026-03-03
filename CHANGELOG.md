@@ -5,6 +5,8 @@
 - Grok: Raise clear error when using the grok provider under the trio async backend (gRPC is asyncio-only).
 - Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+- Timelines: Don't attempt to automaticlaly detect branches (require explicit creation by user in custom timelines).
+- Timelines: Improved automatic detection of utility agents.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
 
