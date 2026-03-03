@@ -137,6 +137,9 @@ ul.task-list li input[type="checkbox"] {
 </div>
       </div> <!-- /container-fluid -->
     </nav>
+  <div id="quarto-announcement" data-announcement-id="61fbae8a73d78b5f3f15984419462ed9" class="alert alert-secondary hidden"><i class="bi bi-megaphone quarto-announcement-icon"></i><div class="quarto-announcement-content">
+<p><strong>Announcing Inspect Scout</strong>, a tool for in-depth analysis of AI agent transcripts. <a href="https://meridianlabs-ai.github.io/inspect_scout/">Learn more</a></p>
+</div><i class="bi bi-x-lg quarto-announcement-action"></i></div>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
@@ -147,7 +150,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.184 (28 February 2026)</a></li>
+  <li><a href="#march-2026" id="toc-march-2026" class="nav-link active" data-scroll-target="#march-2026">0.3.186 (03 March 2026)</a></li>
+  <li><a href="#march-2026-1" id="toc-march-2026-1" class="nav-link" data-scroll-target="#march-2026-1">0.3.185 (01 March 2026)</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.184 (28 February 2026)</a></li>
   <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.183 (24 February 2026)</a></li>
   <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.182 (24 February 2026)</a></li>
   <li><a href="#february-2026-3" id="toc-february-2026-3" class="nav-link" data-scroll-target="#february-2026-3">0.3.181 (23 February 2026)</a></li>
@@ -339,6 +344,29 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="march-2026" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026">0.3.186 (03 March 2026)</h2>
+<ul>
+<li>Anthropic: Handle updated Anthropic compaction not supported error message.</li>
+<li>OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g.&nbsp;AzureAI) where they are not supported.</li>
+<li>Google: Use httpx instead of aiohttp when running under trio async backend for compatibility.</li>
+<li>Grok: Raise clear error when using the grok provider under the trio async backend (gRPC is asyncio-only).</li>
+<li>Serialization: Remove dependency on <code>frozendict</code> as fallback; update jsonpath-ng dependency.</li>
+<li>Task view: Extract and print <code>&lt;summary&gt;</code> from <code>&lt;details&gt;</code> tags in tool views.</li>
+<li>Timelines: Don’t attempt to automaticlaly detect branches (require explicit creation by user in custom timelines).</li>
+<li>Timelines: Improved automatic detection of utility agents and automatically unwrap solver/agent pairs.</li>
+<li>AsyncFilesystem: Add <code>anonymous</code> and <code>region_name</code> parameters to support credential-free access to public S3 buckets.</li>
+<li>Inspect View: Add support for find in log list.</li>
+<li>Inspect View: Fix regression displaying running samples when switching samples.</li>
+</ul>
+</section>
+<section id="march-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-1">0.3.185 (01 March 2026)</h2>
+<ul>
+<li>Anthropic: Use <code>text_editor_20250728</code> for all Claude 4.x models per Anthropic docs.</li>
+<li>Events: Add <code>agent_span_id</code> property to tool events for associating them with their associated agent.</li>
+</ul>
+</section>
 <section id="february-2026" class="level2">
 <h2 class="anchored" data-anchor-id="february-2026">0.3.184 (28 February 2026)</h2>
 <ul>

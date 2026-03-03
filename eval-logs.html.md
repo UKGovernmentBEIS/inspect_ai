@@ -48,6 +48,9 @@ variety of tools available for analyzing data in log files:
 4.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data
     visualization framework built to work with Inspect logs.
 
+5.  [CJE](https://github.com/cimo-labs/cje) — Calibrate model-graded
+    scorer accuracy against oracle labels using causal inference.
+
 ## Log Location
 
 By default, logs are written to the `./logs` sub-directory of the

@@ -184,6 +184,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         </a>
     </div>
   </nav>
+  <div id="quarto-announcement" data-announcement-id="61fbae8a73d78b5f3f15984419462ed9" class="alert alert-secondary hidden"><i class="bi bi-megaphone quarto-announcement-icon"></i><div class="quarto-announcement-content">
+<p><strong>Announcing Inspect Scout</strong>, a tool for in-depth analysis of AI agent transcripts. <a href="https://meridianlabs-ai.github.io/inspect_scout/">Learn more</a></p>
+</div><i class="bi bi-x-lg quarto-announcement-action"></i></div>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
@@ -721,38 +724,58 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="environment-binding" class="level2">
 <h2 class="anchored" data-anchor-id="environment-binding">Environment Binding</h2>
-<p>There are two sandbox environments built in to Inspect and four available as external packages:</p>
+<p>There are two sandbox environments built in to Inspect and five available as external packages. Dockerfile-compatible sandboxes accept standard <code>Dockerfile</code> and <code>compose.yaml</code> configuration files.</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
 <th>Environment Type</th>
+<th>Package</th>
+<th>Dockerfile</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>local</code></td>
-<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods in the same file system as the running evaluation (should <em>only be used</em> if you are already running your evaluation in another sandbox).</td>
+<td>Built-in</td>
+<td>No</td>
+<td>Local file system (only inside another sandbox).</td>
 </tr>
 <tr class="even">
 <td><code>docker</code></td>
-<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a Docker container (see the <a href="#sec-docker-configuration">Docker Configuration</a> section below for additional details).</td>
+<td>Built-in</td>
+<td>Yes</td>
+<td>Local <a href="#sec-docker-configuration">Docker</a> container.</td>
+</tr>
+<tr class="odd">
+<td><code>daytona</code></td>
+<td><a href="https://pypi.org/project/inspect-sandboxes/">inspect-sandboxes</a></td>
+<td>Yes</td>
+<td><a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona">Daytona</a> cloud sandbox.</td>
+</tr>
+<tr class="even">
+<td><code>modal</code></td>
+<td><a href="https://pypi.org/project/inspect-sandboxes/">inspect-sandboxes</a></td>
+<td>Yes</td>
+<td><a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal">Modal</a> serverless container.</td>
 </tr>
 <tr class="odd">
 <td><code>k8s</code></td>
-<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a Kubernetes cluster (see the <a href="https://k8s-sandbox.aisi.org.uk/">K8s Sandbox</a> package documentation for additional details).</td>
+<td><a href="https://pypi.org/project/inspect-k8s-sandbox/">inspect-k8s-sandbox</a></td>
+<td>No</td>
+<td>Docker containers within a <a href="https://k8s-sandbox.aisi.org.uk/">Kubernetes</a> cluster.</td>
 </tr>
 <tr class="even">
 <td><code>ec2</code></td>
-<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods on an AWS EC2 virtual machine (see the <a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">EC2 Sandbox</a> package documentation for additional details).</td>
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">inspect_ec2_sandbox</a></td>
+<td>No</td>
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">AWS EC2</a> virtual machine.</td>
 </tr>
 <tr class="odd">
-<td><code>modal</code></td>
-<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a Modal container (see the <a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal">Modal Sandbox</a> package documentation for additional details).</td>
-</tr>
-<tr class="even">
 <td><code>proxmox</code></td>
-<td>Run <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> methods within a virtual machine (see the <a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox Sandbox</a> package documentation for additional details).</td>
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">inspect_proxmox_sandbox</a></td>
+<td>No</td>
+<td>Virtual machine within a <a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox</a> instance.</td>
 </tr>
 </tbody>
 </table>
