@@ -13,6 +13,6 @@ export interface LogListRow {
   completedAt?: string;
   itemCount?: number;
   log?: LogHandle;
-  _searchText?: string; // Pre-computed searchable text for fast Cmd+F search
+  searchText?: string; // Pre-computed searchable text for fast Cmd+F search
   [key: string]: any; // For dynamic score columns
 }

@@ -150,7 +150,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
       }
 
       // Pre-compute searchable text for fast Cmd+F search
-      row._searchText = [row.name, row.task, row.model, row.id]
+      row.searchText = [row.name, row.task, row.model, row.id]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -262,7 +262,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
     resizeGridColumns();
   }, [columns, resizeGridColumns]);
 
-  // Find functionality - uses pre-computed _searchText for O(1) lookup per row
+  // Find functionality - uses pre-computed searchText for O(1) lookup per row
   const performSearch = useCallback(
     (term: string) => {
       const api = gridRef.current?.api;
@@ -275,8 +275,8 @@ export const LogListGrid: FC<LogListGridProps> = ({
       const foundIds: string[] = [];
       api.forEachNode((node) => {
         const rowData = node.data;
-        if (!rowData?._searchText) return;
-        if (rowData._searchText.includes(lowerTerm)) {
+        if (!rowData?.searchText) return;
+        if (rowData.searchText.includes(lowerTerm)) {
           foundIds.push(rowData.id);
         }
       });
