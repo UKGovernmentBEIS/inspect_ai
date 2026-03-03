@@ -95,6 +95,14 @@ class GrokAPI(ModelAPI):
             config=config,
         )
 
+        # raise if we are using trio (gRPC is asyncio-only)
+        from inspect_ai._util._async import current_async_backend
+
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The grok provider does not work with the trio async backend."
+            )
+
         # resolve api key
         if self.api_key is None:
             self.api_key = os.environ.get(
