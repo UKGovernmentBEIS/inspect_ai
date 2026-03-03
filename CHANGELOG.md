@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.186 (03 March 2026)
 
 - Anthropic: Handle updated Anthropic compaction not supported error message.
 - OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g. AzureAI) where they are not supported.
