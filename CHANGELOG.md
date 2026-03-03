@@ -4,7 +4,8 @@
 - OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g. AzureAI) where they are not supported.
 - Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
-- Timelines: Don't attempt to automatically detect branches (require explicit creation by user in custom timelines).
+- Timelines: Don't attempt to automaticlaly detect branches (require explicit creation by user in custom timelines).
+- Timelines: Improved automatic detection of utility agents.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
 
