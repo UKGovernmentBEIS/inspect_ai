@@ -19,12 +19,11 @@ from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.tool import ToolInfo
 
 
-@pytest.mark.asyncio
 @skip_if_no_together
 @skip_if_no_together_base_url
 async def test_openai_compatible() -> None:
     model = get_model(
-        "openai-api/together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "openai-api/together/MiniMaxAI/MiniMax-M2.5",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -66,7 +65,6 @@ def test_strict_tools_default_true() -> None:
     assert tools[0]["function"]["strict"] is True
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_openai_responses_compatible() -> None:
     with environ_var("OPENAI_BASE_URL", "https://api.openai.com/v1"):
@@ -116,7 +114,6 @@ def test_handle_bad_request(
         assert isinstance(response, APIStatusError)
 
 
-@pytest.mark.asyncio
 async def test_initialize_recreates_closed_http_client() -> None:
     api = OpenAICompatibleAPI(
         model_name="openai-api/openai/gpt-5",

@@ -50,7 +50,6 @@ def create_mock_transport():
 class TestTavilySearchRendering:
     """Test the rendering of Tavily search results."""
 
-    @pytest.mark.asyncio
     async def test_search_result_rendering(self):
         """Test that search results are properly rendered in the output."""
         # Create a client with our mock transport
@@ -105,7 +104,6 @@ def create_error_transport(status_code: int, json_body: dict):
 class TestTavilyQueryTooLong:
     """Test that Tavily query-too-long 400 errors are raised as ToolError."""
 
-    @pytest.mark.asyncio
     async def test_query_too_long_raises_tool_error(self):
         """A 400 with Tavily's query-too-long body should raise ToolError."""
         mock_client = httpx.AsyncClient(
@@ -120,7 +118,6 @@ class TestTavilyQueryTooLong:
                 with pytest.raises(ToolError, match="Query is too long"):
                     await search("a" * 401)
 
-    @pytest.mark.asyncio
     async def test_other_400_error_raises_http_status_error(self):
         """A 400 without a parseable Tavily error should propagate as HTTPStatusError."""
         mock_client = httpx.AsyncClient(
@@ -135,7 +132,6 @@ class TestTavilyQueryTooLong:
                 with pytest.raises(httpx.HTTPStatusError):
                     await search("test query")
 
-    @pytest.mark.asyncio
     async def test_query_too_long_with_string_detail(self):
         """A 400 with a string detail should also raise ToolError."""
         mock_client = httpx.AsyncClient(

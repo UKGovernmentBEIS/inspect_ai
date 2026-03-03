@@ -335,7 +335,6 @@ async def test_vllm_base_and_lora_shared_server() -> None:
     assert base_response.completion != digest_response.completion
 
 
-@pytest.mark.asyncio
 @skip_if_github_action
 @skip_if_no_vllm
 async def test_vllm_lora_in_solver() -> None:

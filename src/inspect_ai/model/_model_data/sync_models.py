@@ -20,6 +20,7 @@ The output file (together.yml) is organized by model creator:
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 import shutil
@@ -162,6 +163,82 @@ def process_models(models: list[dict[str, Any]]) -> dict[str, Any]:
     return dict(sorted(organizations.items()))
 
 
+def load_existing_data() -> dict[str, Any]:
+    """Load existing model data from the YAML file.
+
+    Returns:
+        Dictionary of existing org/model data, or empty dict if file doesn't exist.
+    """
+    if not OUTPUT_FILE.exists():
+        return {}
+
+    with open(OUTPUT_FILE) as f:
+        content = yaml.safe_load(f)
+
+    return cast(dict[str, Any], content) if content else {}
+
+
+def merge_models(
+    existing: dict[str, Any], new: dict[str, Any]
+) -> tuple[dict[str, Any], int, int, int]:
+    """Merge new API data with existing model data.
+
+    New models are added, existing models are updated, and models no longer
+    in the API are preserved (not deleted).
+
+    Args:
+        existing: Existing org/model data from YAML file.
+        new: New org/model data from the API.
+
+    Returns:
+        Tuple of (merged data, models added, models updated, models preserved).
+    """
+    merged = copy.deepcopy(existing)
+    new_model_ids = set()
+    added = 0
+    updated = 0
+
+    # Collect all model keys from new data
+    for org_id, org_data in new.items():
+        for model_name in org_data.get("models", {}):
+            new_model_ids.add((org_id, model_name))
+
+    # Add/update from new data
+    for org_id, org_data in new.items():
+        if org_id not in merged:
+            merged[org_id] = org_data
+            added += len(org_data.get("models", {}))
+        else:
+            # Update org display_name from API
+            merged[org_id]["display_name"] = org_data["display_name"]
+            existing_models = merged[org_id].get("models", {})
+            for model_name, model_info in org_data.get("models", {}).items():
+                if model_name not in existing_models:
+                    existing_models[model_name] = model_info
+                    added += 1
+                else:
+                    existing_models[model_name]["context_length"] = model_info[
+                        "context_length"
+                    ]
+                    existing_models[model_name]["display_name"] = model_info[
+                        "display_name"
+                    ]
+                    updated += 1
+            merged[org_id]["models"] = existing_models
+
+    # Count preserved models (in existing but not in new API data)
+    preserved = 0
+    for org_id, org_data in merged.items():
+        for model_name in org_data.get("models", {}):
+            if (org_id, model_name) not in new_model_ids:
+                preserved += 1
+
+    # Sort by org name
+    merged = dict(sorted(merged.items()))
+
+    return merged, added, updated, preserved
+
+
 def backup_existing_file() -> Path | None:
     """Create a backup of the existing YAML file if it exists."""
     if OUTPUT_FILE.exists():
@@ -200,9 +277,22 @@ def main() -> None:
     print(f"Fetched {len(models)} models")
 
     print("Processing models...")
-    data = process_models(models)
-    model_count = sum(len(org["models"]) for org in data.values())
-    print(f"Processed {model_count} models from {len(data)} organizations")
+    new_data = process_models(models)
+    new_model_count = sum(len(org["models"]) for org in new_data.values())
+    print(f"Processed {new_model_count} models from {len(new_data)} organizations")
+
+    # Load existing data and merge
+    existing_data = load_existing_data()
+    if existing_data:
+        print("Merging with existing model data...")
+        data, added, updated, preserved = merge_models(existing_data, new_data)
+        total = sum(len(org["models"]) for org in data.values())
+        print(f"  {added} new models added")
+        print(f"  {updated} existing models updated")
+        print(f"  {preserved} deprecated models preserved")
+        print(f"  {total} total models")
+    else:
+        data = new_data
 
     # Backup existing file
     backup_path = backup_existing_file()

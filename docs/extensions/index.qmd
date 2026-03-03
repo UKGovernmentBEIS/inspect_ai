@@ -12,5 +12,5 @@ execute:
 #| output: asis
 #| echo: false
 exec(open("generate.py").read())
-print(open("extensions_content.md").read())
+print(open("_extensions_content.md").read())
 ```

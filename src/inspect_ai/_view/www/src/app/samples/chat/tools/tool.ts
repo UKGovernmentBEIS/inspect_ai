@@ -4,6 +4,8 @@ import "prismjs/components/prism-python";
 
 import { Arguments1 } from "../../../../@types/log";
 
+export { substituteToolCallContent } from "./substituteToolCallContent";
+
 export const kToolTodoContentType = "agent/todo-list";
 export interface ToolCallResult {
   functionCall: string;

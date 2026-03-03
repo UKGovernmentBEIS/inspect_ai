@@ -381,7 +381,7 @@ class GoogleGenAIAPI(ModelAPI):
                     else:
                         break
             except ClientError as ex:
-                model_call.set_response(
+                model_call.set_error(
                     {"error": {"message": str(ex.message), "code": ex.code}},
                     http_hooks.end_request(request_id),
                 )

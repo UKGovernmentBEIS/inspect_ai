@@ -115,3 +115,36 @@ def test_compute_model_cost_with_all_token_types() -> None:
     # cache_read:  30 *  100 / 1M = 0.003
     # total: 0.083
     assert math.isclose(compute_model_cost(cost_data, usage), 0.083)
+
+
+def test_compute_model_cost_no_double_billing_cached_tokens() -> None:
+    """Verify cached tokens are not double-billed.
+
+    With normalized usage (input_tokens excludes cache), the cost should be:
+    - Non-cached input tokens charged at full input rate
+    - Cached tokens charged at cache read rate only
+    """
+    cost_data = ModelCost(
+        input=3.0,  # $3/M for input
+        output=15.0,  # $15/M for output
+        input_cache_write=0.0,
+        input_cache_read=1.5,  # $1.50/M for cached (50% discount)
+    )
+    # Simulating OpenAI-style response after normalization:
+    # API reports prompt_tokens=1000 (inclusive), cached=600
+    # After normalization: input_tokens=400 (non-cached), cache_read=600
+    usage = ModelUsage(
+        input_tokens=400,
+        output_tokens=100,
+        total_tokens=1100,
+        input_tokens_cache_read=600,
+    )
+
+    cost = compute_model_cost(cost_data, usage)
+
+    # input:      400 * 3.0 / 1M = 0.0012
+    # output:     100 * 15.0 / 1M = 0.0015
+    # cache_read: 600 * 1.5 / 1M = 0.0009
+    # total: 0.0036
+    expected = (400 * 3.0 + 100 * 15.0 + 600 * 1.5) / 1_000_000
+    assert math.isclose(cost, expected)

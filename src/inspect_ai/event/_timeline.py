@@ -150,6 +150,59 @@ class TimelineEvent(BaseModel):
                 return input_tokens + cache_read + cache_write + output_tokens
         return 0
 
+    @property
+    def idle_time(self) -> float:
+        """Seconds of idle time (always 0 for a single event)."""
+        return 0.0
+
+
+_IDLE_THRESHOLD_SECS = 300.0  # 5 minutes
+
+
+def _compute_idle_time(
+    content: Sequence["TimelineEvent | TimelineSpan | TimelineBranch"],
+    start_time: datetime,
+    end_time: datetime,
+) -> float:
+    """Compute idle time using gap-based detection between children.
+
+    Any gap > 5 min between consecutive children (sorted by start_time)
+    is counted as idle. Children's own idle_time is summed recursively.
+
+    Args:
+        content: Child nodes of the span.
+        start_time: Span start time.
+        end_time: Span end time.
+
+    Returns:
+        Idle time in seconds (>= 0).
+    """
+    if not content:
+        return 0.0
+
+    sorted_children = sorted(content, key=lambda c: c.start_time)
+    idle = sum(child.idle_time for child in sorted_children)
+
+    # Gap: span start → first child
+    gap = (sorted_children[0].start_time - start_time).total_seconds()
+    if gap > _IDLE_THRESHOLD_SECS:
+        idle += gap
+
+    # Gaps between consecutive children
+    for i in range(1, len(sorted_children)):
+        gap = (
+            sorted_children[i].start_time - sorted_children[i - 1].end_time
+        ).total_seconds()
+        if gap > _IDLE_THRESHOLD_SECS:
+            idle += gap
+
+    # Gap: last child → span end
+    gap = (end_time - sorted_children[-1].end_time).total_seconds()
+    if gap > _IDLE_THRESHOLD_SECS:
+        idle += gap
+
+    return max(0.0, idle)
+
 
 def _timeline_content_discriminator(v: Any) -> str:
     """Discriminator function for TimelineSpan.content and TimelineBranch.content."""
@@ -183,20 +236,34 @@ class TimelineSpan(BaseModel):
         self.name = self.name.lower()
         return self
 
+    def _content_and_branches(
+        self,
+    ) -> list[TimelineEvent | "TimelineSpan | TimelineBranch"]:
+        items: list[TimelineEvent | TimelineSpan | TimelineBranch] = list(self.content)
+        items.extend(self.branches)
+        return items
+
     @property
     def start_time(self) -> datetime:
-        """Earliest start time among content."""
-        return _min_start_time(self.content)
+        """Earliest start time among content and branches."""
+        return _min_start_time(self._content_and_branches())
 
     @property
     def end_time(self) -> datetime:
-        """Latest end time among content."""
-        return _max_end_time(self.content)
+        """Latest end time among content and branches."""
+        return _max_end_time(self._content_and_branches())
 
     @property
     def total_tokens(self) -> int:
-        """Sum of tokens from all content."""
-        return _sum_tokens(self.content)
+        """Sum of tokens from all content and branches."""
+        return _sum_tokens(self._content_and_branches())
+
+    @property
+    def idle_time(self) -> float:
+        """Seconds of idle time within this span."""
+        return _compute_idle_time(
+            self._content_and_branches(), self.start_time, self.end_time
+        )
 
 
 class TimelineBranch(BaseModel):
@@ -220,6 +287,11 @@ class TimelineBranch(BaseModel):
     def total_tokens(self) -> int:
         """Sum of tokens from all content."""
         return _sum_tokens(self.content)
+
+    @property
+    def idle_time(self) -> float:
+        """Seconds of idle time within this branch."""
+        return _compute_idle_time(self.content, self.start_time, self.end_time)
 
 
 class OutlineNode(BaseModel):

@@ -1,4 +1,3 @@
-import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_groq
 
@@ -11,7 +10,6 @@ from inspect_ai.model import (
 from inspect_ai.util import json_schema
 
 
-@pytest.mark.asyncio
 @skip_if_no_groq
 async def test_core_groq_api() -> None:
     model = get_model(
@@ -31,7 +29,6 @@ class NounPhrase(BaseModel):
     noun_phrase: str
 
 
-@pytest.mark.asyncio
 @skip_if_no_groq
 async def test_groq_api_with_response_schema() -> None:
     model = get_model(

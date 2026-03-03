@@ -55,6 +55,7 @@ class EvalConfigDefaults(TypedDict):
     log_samples: bool
     log_realtime: bool
     log_images: bool
+    log_model_api: bool
     score_display: bool
 
 
@@ -68,6 +69,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
+        "log_model_api": False,
         "score_display": True,
     }
 
@@ -153,6 +155,9 @@ class EvalConfig(BaseModel):
     log_images: bool | None = Field(default=None)
     """Log base64 encoded versions of images."""
 
+    log_model_api: bool | None = Field(default=None)
+    """Log raw model api requests and responses."""
+
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
@@ -219,6 +224,9 @@ class EvalSampleSummary(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -371,6 +379,9 @@ class EvalSample(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -918,6 +929,9 @@ class EvalStats(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for evaluation."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())

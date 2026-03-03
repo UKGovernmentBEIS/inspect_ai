@@ -28,3 +28,6 @@ class ScoreEvent(BaseEvent):
 
     model_usage: dict[str, ModelUsage] | None = Field(default=None)
     """Cumulative model usage at the time of this score."""
+
+    role_usage: dict[str, ModelUsage] | None = Field(default=None)
+    """Cumulative model usage by role at the time of this score."""

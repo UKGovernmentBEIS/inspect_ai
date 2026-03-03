@@ -1,20 +1,11 @@
-.wrapper {
-  padding-top: 0;
-  padding-bottom: 1em;
-  margin-left: 0.5em;
+.cardsContainer {
   display: flex;
   flex-wrap: wrap;
   gap: 1em;
+  width: 100%;
 }
 
-.col1 {
-  flex: 0 1 auto;
-  min-width: 200px;
-  width: fit-content;
-}
-
-.col2 {
-  flex: 1 1 auto;
+.cardsContainer > * {
+  flex: 1 1 300px;
   min-width: 300px;
-  width: fit-content;
 }

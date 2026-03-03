@@ -12,6 +12,7 @@ from inspect_ai.model._model import (
     init_active_model,
     init_model_roles,
     init_model_usage,
+    init_role_usage,
 )
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._subprocess import init_max_subprocesses
@@ -46,6 +47,7 @@ def init_model_context(
     init_active_model(model, config)
     init_model_roles(model_roles or {})
     init_model_usage()
+    init_role_usage()
 
 
 def init_task_context(

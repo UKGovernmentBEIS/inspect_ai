@@ -15,7 +15,6 @@ import anyio
 import pytest
 
 from inspect_ai import Task, eval, task
-from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.entrypoints import clear_entry_points_state
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
@@ -283,10 +282,31 @@ def skip_if_no_docker(func):
 
 
 def skip_if_async_backend(backend):
-    return pytest.mark.skipif(
-        configured_async_backend() == backend,
-        reason=f"Test not compatible with {backend} async backend.",
-    )
+    """Skip the given backend variant of an anyio test.
+
+    This is a runtime check using sniffio so it works correctly with anyio's
+    parametrised [asyncio]/[trio] variants (unlike pytest.mark.skipif which
+    evaluates at collection time before the backend is known).
+
+    For sync functions this is a no-op — they never run under an async backend.
+    """
+    import inspect
+
+    import sniffio
+
+    def decorator(func):
+        if not inspect.iscoroutinefunction(func):
+            return func
+
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            if sniffio.current_async_library() == backend:
+                pytest.skip(f"Test not compatible with {backend} async backend.")
+            return await func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def skip_if_trio(func):

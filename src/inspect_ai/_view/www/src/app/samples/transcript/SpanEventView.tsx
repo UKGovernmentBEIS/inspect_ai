@@ -3,8 +3,7 @@ import { FC, useMemo } from "react";
 import { SpanBeginEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { formatTitle } from "./event/utils";
-import { kSandboxSignalName } from "./transform/fixups";
+import { eventTitle, formatTitle } from "./event/utils";
 import { EventNode, EventType } from "./types";
 
 interface SpanEventViewProps {
@@ -23,9 +22,7 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
 }) => {
   const event = eventNode.event;
   const descriptor = spanDescriptor(event);
-  const title =
-    descriptor.name ||
-    `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+  const title = eventTitle(event);
 
   const text = useMemo(() => summarize(children), [children]);
   const childIds = useMemo(() => children.map((child) => child.id), [children]);
@@ -87,73 +84,21 @@ const summarize = (children: EventNode[]) => {
  */
 const spanDescriptor = (
   event: SpanBeginEvent,
-): { icon?: string; name?: string; endSpace?: boolean } => {
+): { icon?: string; endSpace?: boolean } => {
   const rootStepDescriptor = {
     endSpace: true,
   };
 
-  if (event.type === "solver") {
-    switch (event.name) {
-      case "chain_of_thought":
-        return {
-          ...rootStepDescriptor,
-        };
-      case "generate":
-        return {
-          ...rootStepDescriptor,
-        };
-      case "self_critique":
-        return {
-          ...rootStepDescriptor,
-        };
-      case "system_message":
-        return {
-          ...rootStepDescriptor,
-        };
-      case "use_tools":
-        return {
-          ...rootStepDescriptor,
-        };
-      case "multiple_choice":
-        return {
-          ...rootStepDescriptor,
-        };
-      default:
-        return {
-          ...rootStepDescriptor,
-        };
-    }
-  } else if (event.type === "scorer") {
-    return {
-      ...rootStepDescriptor,
-    };
+  if (event.type === "solver" || event.type === "scorer") {
+    return { ...rootStepDescriptor };
   } else if (event.event === "span_begin") {
-    if (event.span_id === kSandboxSignalName) {
-      return {
-        ...rootStepDescriptor,
-        name: "Sandbox Events",
-      };
-    } else if (event.name === "init") {
-      return {
-        ...rootStepDescriptor,
-        name: "Init",
-      };
-    } else {
-      return {
-        ...rootStepDescriptor,
-      };
-    }
+    return { ...rootStepDescriptor };
   } else {
     switch (event.name) {
       case "sample_init":
-        return {
-          ...rootStepDescriptor,
-          name: "Sample Init",
-        };
+        return { ...rootStepDescriptor };
       default:
-        return {
-          endSpace: false,
-        };
+        return { endSpace: false };
     }
   }
 };

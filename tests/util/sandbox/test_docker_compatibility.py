@@ -295,7 +295,6 @@ class TestIsDockerfileTypeGuard:
 class TestResolveSandboxDockerCompatibility:
     """Test resolve_sandbox() behavior with docker-compatible configs."""
 
-    @pytest.mark.asyncio
     async def test_sample_compose_yaml_forwarded_to_docker_compatible_task(self):
         """Sample's compose.yaml config should be used when task sandbox is docker-compatible."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -319,7 +318,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config == "compose.yaml"
 
-    @pytest.mark.asyncio
     async def test_sample_dockerfile_forwarded_to_docker_compatible_task(self):
         """Sample's Dockerfile config should be used when task sandbox is docker-compatible."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -339,7 +337,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config == "Dockerfile"
 
-    @pytest.mark.asyncio
     async def test_sample_compose_config_forwarded_to_docker_compatible_task(self):
         """Sample's ComposeConfig should be used when task sandbox is docker-compatible."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -363,7 +360,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config == compose_config
 
-    @pytest.mark.asyncio
     async def test_sample_compose_not_forwarded_to_non_docker_compatible_task(self):
         """Sample's compose.yaml should NOT be forwarded when task sandbox is NOT docker-compatible."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -385,7 +381,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_not_docker_compatible"
         assert result.config == "task-config.yaml"
 
-    @pytest.mark.asyncio
     async def test_sample_non_docker_config_not_forwarded(self):
         """Sample's non-docker config should NOT be forwarded even to docker-compatible task."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -406,7 +401,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config == "task-config.yaml"
 
-    @pytest.mark.asyncio
     async def test_same_type_config_always_forwarded(self):
         """Sample config should be forwarded when types match, regardless of docker compatibility."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -428,7 +422,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_not_docker_compatible"
         assert result.config == "sample-config.yaml"
 
-    @pytest.mark.asyncio
     async def test_no_sample_sandbox_uses_task_sandbox(self):
         """When sample has no sandbox, task sandbox should be used."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox
@@ -445,7 +438,6 @@ class TestResolveSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config == "task-config.yaml"
 
-    @pytest.mark.asyncio
     async def test_no_task_sandbox_uses_sample_sandbox(self):
         """When task has no sandbox, sample sandbox should be used."""
         from inspect_ai._eval.task.sandbox import resolve_sandbox

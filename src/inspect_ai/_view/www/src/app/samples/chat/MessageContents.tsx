@@ -5,7 +5,7 @@ import {
   ChatMessageUser,
 } from "../../../@types/log";
 import { MessageContent } from "./MessageContent";
-import { resolveToolInput } from "./tools/tool";
+import { resolveToolInput, substituteToolCallContent } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
 import clsx from "clsx";
@@ -91,7 +91,14 @@ export const MessageContents: FC<MessageContentsProps> = ({
             contentType={contentType}
             output={resolvedToolOutput}
             collapsible={false}
-            view={tool_call.view ? tool_call.view : undefined}
+            view={
+              tool_call.view
+                ? substituteToolCallContent(
+                    tool_call.view,
+                    tool_call.arguments as Record<string, unknown>,
+                  )
+                : undefined
+            }
           />
         );
       }

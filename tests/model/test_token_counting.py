@@ -3,7 +3,6 @@
 import base64
 import os
 
-import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -62,7 +61,6 @@ TEST_TOOL = ToolInfo(
 )
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_openai_count_tokens():
     """Test OpenAI token counting using tiktoken."""
@@ -75,7 +73,6 @@ async def test_openai_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens():
     """Test Anthropic token counting using native API."""
@@ -88,7 +85,6 @@ async def test_anthropic_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tool_tokens():
     """Test Anthropic tool token counting using native API."""
@@ -101,7 +97,6 @@ async def test_anthropic_count_tool_tokens():
     assert isinstance(tool_token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_consecutive_tool_messages():
     """Test Anthropic token counting with consecutive tool messages.
@@ -155,7 +150,6 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_google
 async def test_google_count_tokens():
     """Test Google token counting using native Gemini API."""
@@ -168,7 +162,6 @@ async def test_google_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_count_tokens():
     """Test Grok token counting using native xAI API."""
@@ -181,7 +174,6 @@ async def test_grok_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_mistral
 async def test_default_count_tokens():
     """Test default token counting using tiktoken o200k_base with 10% buffer.

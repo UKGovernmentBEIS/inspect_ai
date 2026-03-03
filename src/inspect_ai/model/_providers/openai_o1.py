@@ -58,7 +58,7 @@ async def generate_o1(
         completion: ChatCompletion = await client.chat.completions.create(**request)
         model_call.set_response(completion.model_dump())
     except BadRequestError as ex:
-        model_call.set_response(as_error_response(ex.body))
+        model_call.set_error(as_error_response(ex.body))
         return handle_bad_request(model, ex), model_call
 
     # return model output
@@ -66,7 +66,13 @@ async def generate_o1(
         model=completion.model,
         choices=chat_choices_from_response(completion, tools, handler),
         usage=ModelUsage(
-            input_tokens=completion.usage.prompt_tokens,
+            input_tokens=completion.usage.prompt_tokens
+            - (
+                completion.usage.prompt_tokens_details.cached_tokens
+                if completion.usage.prompt_tokens_details is not None
+                and completion.usage.prompt_tokens_details.cached_tokens is not None
+                else 0
+            ),
             output_tokens=completion.usage.completion_tokens,
             input_tokens_cache_read=(
                 completion.usage.prompt_tokens_details.cached_tokens

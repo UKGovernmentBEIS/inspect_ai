@@ -14,7 +14,6 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.util import SandboxEnvironmentSpec
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_extension_model():
     # ensure the package is installed

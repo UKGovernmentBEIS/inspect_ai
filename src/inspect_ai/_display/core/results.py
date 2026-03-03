@@ -206,6 +206,21 @@ def task_stats(stats: EvalStats) -> RenderableType:
         )
 
     panel.add_row(table)
+
+    # role usage
+    if stats.role_usage and len(stats.role_usage) > 0:
+        role_table = Table.grid(expand=True)
+        role_table.add_column(style="bold")
+        role_table.add_column()
+
+        for role, usage in stats.role_usage.items():
+            role_table.add_row(
+                *model_usage_summary(f"{role} (role)", usage),
+                style=theme.light,
+            )
+
+        panel.add_row(role_table)
+
     return panel
 
 

@@ -60,6 +60,7 @@ from inspect_ai.model._model import (
     init_active_model,
     init_model_roles,
     init_model_usage,
+    init_role_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -123,6 +124,7 @@ def eval(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -205,6 +207,7 @@ def eval(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -271,6 +274,7 @@ def eval(
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
+                log_model_api=log_model_api,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
@@ -332,6 +336,7 @@ async def eval_async(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -397,6 +402,7 @@ async def eval_async(
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model requests and responses. Note that error requests/responses are always logged.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -457,6 +463,7 @@ async def eval_async(
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
+                log_model_api=log_model_api,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
@@ -523,6 +530,7 @@ async def _eval_async_inner(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -659,6 +667,12 @@ async def _eval_async_inner(
         if epochs is not None and epochs.epochs < 1:
             raise ValueError("epochs must be a positive integer.")
 
+        # resolve log_model_api from env var if not explicitly set
+        if log_model_api is None:
+            log_model_api_env = os.environ.get("INSPECT_EVAL_LOG_MODEL_API")
+            if log_model_api_env is not None:
+                log_model_api = log_model_api_env.lower() in ("true", "1", "yes")
+
         # create config
         epochs_reducer = epochs.reducer if epochs else None
         eval_config = EvalConfig(
@@ -686,6 +700,7 @@ async def _eval_async_inner(
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
+            log_model_api=log_model_api,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score_display=score_display,
@@ -792,6 +807,7 @@ def eval_retry(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     score: bool = True,
@@ -838,6 +854,7 @@ def eval_retry(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -883,6 +900,7 @@ def eval_retry(
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
+            log_model_api=log_model_api,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score=score,
@@ -914,6 +932,7 @@ async def eval_retry_async(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     score: bool = True,
@@ -953,6 +972,7 @@ async def eval_retry_async(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api request and response. Note that error requests/responses are always logged.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -1099,6 +1119,16 @@ async def eval_retry_async(
         log_images = (
             log_images if log_images is not None else eval_log.eval.config.log_images
         )
+        # resolve log_model_api from env var if not explicitly set
+        if log_model_api is None:
+            log_model_api_env = os.environ.get("INSPECT_EVAL_LOG_MODEL_API")
+            if log_model_api_env is not None:
+                log_model_api = log_model_api_env.lower() in ("true", "1", "yes")
+        log_model_api = (
+            log_model_api
+            if log_model_api is not None
+            else eval_log.eval.config.log_model_api
+        )
         log_buffer = (
             log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
         )
@@ -1125,6 +1155,14 @@ async def eval_retry_async(
         )
         if initial_model_usage:
             init_model_usage(initial_model_usage)
+
+        initial_role_usage = (
+            copy.deepcopy(eval_log.stats.role_usage)
+            if eval_log.stats.role_usage
+            else None
+        )
+        if initial_role_usage:
+            init_role_usage(initial_role_usage)
 
         # run the eval
         log = (
@@ -1170,6 +1208,7 @@ async def eval_retry_async(
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
+                log_model_api=log_model_api,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 score=score,
