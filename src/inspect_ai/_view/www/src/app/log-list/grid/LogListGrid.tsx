@@ -19,10 +19,9 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 
-import "../../../components/FindBand.css";
+import { FindBandUI } from "../../../components/FindBandUI";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
-import { ApplicationIcons } from "../../appearance/icons";
 import "../../shared/agGrid";
 import styles from "../../shared/gridCells.module.css";
 import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
@@ -315,12 +314,14 @@ export const LogListGrid: FC<LogListGridProps> = ({
 
   const handleInputKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
+      if (e.key === "Escape") {
+        closeFind();
+      } else if (e.key === "Enter") {
         e.preventDefault();
         goToMatch(currentMatchIndex + (e.shiftKey ? -1 : 1));
       }
     },
-    [goToMatch, currentMatchIndex],
+    [goToMatch, currentMatchIndex, closeFind],
   );
 
   useEffect(() => {
@@ -352,53 +353,19 @@ export const LogListGrid: FC<LogListGridProps> = ({
   return (
     <div className={clsx(styles.gridWrapper)}>
       {showFind && (
-        <div data-unsearchable="true" className="findBand">
-          <input
-            ref={findInputRef}
-            type="text"
-            placeholder="Find"
-            value={findTerm}
-            onChange={(e) => setFindTerm(e.target.value)}
-            onKeyDown={handleInputKeyDown}
-          />
-          <span
-            id="inspect-find-no-results"
-            style={{
-              opacity: findTerm ? (matchIds.length === 0 ? 1 : 0.7) : 0,
-            }}
-            aria-hidden={!findTerm || matchIds.length > 0}
-          >
-            {matchIds.length > 0
-              ? `${currentMatchIndex + 1} of ${matchIds.length}`
-              : "No results"}
-          </span>
-          <button
-            type="button"
-            title="Previous match (Shift+Enter)"
-            className="btn prev"
-            onClick={() => goToMatch(currentMatchIndex - 1)}
-            disabled={matchIds.length === 0}
-          >
-            <i className={ApplicationIcons.arrows.up} />
-          </button>
-          <button
-            type="button"
-            title="Next match (Enter)"
-            className="btn next"
-            onClick={() => goToMatch(currentMatchIndex + 1)}
-            disabled={matchIds.length === 0}
-          >
-            <i className={ApplicationIcons.arrows.down} />
-          </button>
-          <button
-            type="button"
-            title="Close (Escape)"
-            className="btn close"
-            onClick={closeFind}
-          >
-            <i className={ApplicationIcons.close} />
-          </button>
-        </div>
+        <FindBandUI
+          inputRef={findInputRef}
+          value={findTerm}
+          onChange={() => setFindTerm(findInputRef.current?.value ?? "")}
+          onKeyDown={handleInputKeyDown}
+          onClose={closeFind}
+          onPrevious={() => goToMatch(currentMatchIndex - 1)}
+          onNext={() => goToMatch(currentMatchIndex + 1)}
+          disableNav={matchIds.length === 0}
+          noResults={!!findTerm && matchIds.length === 0}
+          matchCount={findTerm ? matchIds.length : undefined}
+          matchIndex={findTerm ? currentMatchIndex : undefined}
+        />
       )}
       <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
         <AgGridReact<LogListRow>
