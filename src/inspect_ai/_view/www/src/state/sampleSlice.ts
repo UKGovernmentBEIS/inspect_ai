@@ -174,7 +174,6 @@ export const createSampleSlice = (
           state.sample.sampleStatus = "loading";
           state.sample.sampleError = undefined;
           state.sample.sample_identifier = { logFile, id, epoch };
-          state.log.selectedSampleHandle = undefined;
         });
       },
       setSampleStatus: (status: SampleStatus) =>

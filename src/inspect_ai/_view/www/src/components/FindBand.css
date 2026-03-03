@@ -45,11 +45,15 @@
 .findBand .btn.next,
 .findBand .btn.prev {
   padding: 0;
+  border: none;
+  background: none;
   font-size: var(--inspect-fond-size-larger);
 }
 
 .findBand .btn.close {
   padding: 0;
+  border: none;
+  background: none;
   font-size: var(--inspect-font-size-title-secondary);
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
