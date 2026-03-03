@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Handle updated Anthropic compaction not supported error message.
+- Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
 - Inspect View: Fix regression displaying running samples when switching samples.
 
