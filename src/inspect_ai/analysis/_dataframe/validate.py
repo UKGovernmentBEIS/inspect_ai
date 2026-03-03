@@ -120,7 +120,7 @@ def iter_tokens(node: JSONPath) -> Iterator[str | int | None]:
     elif isinstance(node, Fields):
         yield from node.fields  # e.g. ["foo"]
     elif isinstance(node, Index):
-        yield node.indices[0] # 0 / -1 
+        yield node.indices[0]  # 0 / -1
     elif isinstance(node, Slice):
         yield None  # treat any slice as wildcard
 
