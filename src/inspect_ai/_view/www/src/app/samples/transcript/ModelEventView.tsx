@@ -110,7 +110,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      className={clsx(className, styles.modelCard)}
+      className={clsx(className)}
       title={formatTitle(panelTitle, totalUsage, callTime, outputRole)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
@@ -124,7 +124,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           toolCallStyle={showToolCalls ? "complete" : "omit"}
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
           allowLinking={false}
-          hideRoleForRoles={["assistant"]}
+          unlabeledRoles={["assistant"]}
         />
         {event.error ? (
           <div className={styles.error}>

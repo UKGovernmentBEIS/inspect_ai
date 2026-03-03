@@ -24,7 +24,7 @@ interface ChatMessageProps {
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
   allowLinking?: boolean;
-  hideRoleForRoles?: string[];
+  unlabeledRoles?: string[];
 }
 
 export const ChatMessage: FC<ChatMessageProps> = memo(
@@ -35,13 +35,13 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
     indented,
     toolCallStyle,
     allowLinking = true,
-    hideRoleForRoles,
+    unlabeledRoles,
   }) => {
     const messageUrl = useSampleMessageUrl(message.id);
     const [mouseOver, setMouseOver] = useState(false);
 
     const collapse = message.role === "system" || message.role === "user";
-    const hideRole = hideRoleForRoles?.includes(message.role) ?? false;
+    const hideRole = unlabeledRoles?.includes(message.role) ?? false;
 
     // When the role header is hidden, skip rendering if there's no visible
     // text content (e.g. assistant messages with only tool_calls).

@@ -16159,27 +16159,25 @@ a._citationLink_1ggvf_9:hover {
 ._toolPanel_1792k_40 {
   display: contents;
 }
-._toolImage_18oux_1 {
+._toolImage_h7uyp_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._output_18oux_6 {
+._output_h7uyp_6 {
   display: grid;
 }
 
-._textOutput_18oux_10 {
+._textOutput_h7uyp_10 {
   padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
   margin-bottom: 0;
   font-size: 0.9em !important;
-  background-color: #1e1e2e;
-  color: #cdd6f4;
   border-radius: var(--bs-border-radius);
 }
 
-._textCode_18oux_21 {
+._textCode_h7uyp_19 {
   word-wrap: anywhere;
   color: inherit;
 }
@@ -17689,50 +17687,44 @@ button._segment_mhb7y_9 {
   font-weight: 600;
   padding-bottom: 0.3em;
 }
-._modelCard_t0mkp_1 {
-  background-color: #f5f6fc;
-  border-color: #e0e2f0;
-  padding-bottom: 0.2rem;
-}
-
-._container_t0mkp_7 {
+._container_1gr6b_1 {
   margin: 0;
   width: 100%;
 }
 
-._all_t0mkp_12 {
+._all_1gr6b_6 {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   column-gap: 1em;
 }
 
-._tableSelection_t0mkp_18 {
+._tableSelection_1gr6b_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._tools_t0mkp_24 {
+._tools_1gr6b_18 {
   grid-column: -1/1;
 }
 
-._codePre_t0mkp_28 {
+._codePre_1gr6b_22 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_t0mkp_28 {
+._code_1gr6b_22 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_t0mkp_40 {
+._progress_1gr6b_34 {
   margin-left: 0.5em;
 }
 
-._error_t0mkp_44 {
+._error_1gr6b_38 {
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
@@ -17742,13 +17734,13 @@ button._segment_mhb7y_9 {
   border-radius: var(--bs-border-radius);
 }
 
-._error_t0mkp_44 > i {
+._error_1gr6b_38 > i {
   color: var(--bs-danger);
   font-size: var(--inspect-font-size-smallest);
   line-height: normal;
 }
 
-._toolConfig_t0mkp_60 {
+._toolConfig_1gr6b_54 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 1em;
@@ -17756,7 +17748,7 @@ button._segment_mhb7y_9 {
   padding-top: 0.5em;
 }
 
-._toolChoice_t0mkp_68 {
+._toolChoice_1gr6b_62 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content auto;
@@ -17765,7 +17757,7 @@ button._segment_mhb7y_9 {
   padding-top: 0.5em;
 }
 
-._traceback_t0mkp_77 {
+._traceback_1gr6b_71 {
   margin-left: 1.5em;
   font-size: 0.85em;
   background: var(--bs-light);
