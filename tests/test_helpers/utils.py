@@ -190,7 +190,10 @@ def skip_if_no_mistral_package(func):
 
 
 def skip_if_no_grok(func):
-    return pytest.mark.api(skip_if_env_var("GROK_API_KEY", exists=False)(func))
+    # gRPC is asyncio-only, so always skip under trio
+    return pytest.mark.api(
+        skip_if_env_var("GROK_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_cloudflare(func):
