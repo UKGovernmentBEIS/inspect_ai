@@ -2,6 +2,7 @@
 
 - Anthropic: Handle updated Anthropic compaction not supported error message.
 - OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g. AzureAI) where they are not supported.
+- Google: Use httpx instead of aiohttp when running under trio async backend for compatibility.
 - Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
 - Inspect View: Fix regression displaying running samples when switching samples.
