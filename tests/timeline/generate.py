@@ -777,26 +777,23 @@ def assert_repr_not_contains(timeline: Timeline, *labels: str) -> None:
 def validate_simple_agent(timeline: Timeline) -> None:
     root = timeline.root
     children = child_span_names(root)
-    assert "react" in children, f"Expected 'react' in root children: {children}"
-    react_spans = find_spans(root, "react")
-    assert len(react_spans) == 1
-    # react has no agent sub-spans
-    react_children = [
-        s for s in child_span_names(react_spans[0]) if s not in ("init", "scoring")
-    ]
-    assert react_children == [], (
-        f"react should have no agent sub-spans: {react_children}"
+    # After solver unwrapping, root directly contains events (no agent child span)
+    agent_children = [s for s in children if s not in ("init", "scoring")]
+    assert agent_children == [], (
+        f"root should have no agent sub-spans: {agent_children}"
     )
-    assert_repr_labels(timeline, "main", "react")
+    assert_repr_labels(timeline, "main")
 
 
 def validate_multi_turn_agent(timeline: Timeline) -> None:
     root = timeline.root
     children = child_span_names(root)
-    assert "react" in children, f"Expected 'react' in root children: {children}"
-    react_spans = find_spans(root, "react")
-    assert len(react_spans) == 1
-    assert_repr_labels(timeline, "main", "react")
+    # After solver unwrapping, root directly contains events (no agent child span)
+    agent_children = [s for s in children if s not in ("init", "scoring")]
+    assert agent_children == [], (
+        f"root should have no agent sub-spans: {agent_children}"
+    )
+    assert_repr_labels(timeline, "main")
 
 
 def validate_nested_sub_agent(timeline: Timeline) -> None:
@@ -806,7 +803,7 @@ def validate_nested_sub_agent(timeline: Timeline) -> None:
     # At least one calculator span should be an agent type
     agent_calcs = [s for s in calc_spans if s.span_type == "agent"]
     assert len(agent_calcs) >= 1, "Expected calculator span with span_type='agent'"
-    assert_repr_labels(timeline, "main", "react", "calculator")
+    assert_repr_labels(timeline, "main", "calculator")
 
 
 def validate_utility_agent(timeline: Timeline) -> None:
@@ -818,26 +815,18 @@ def validate_utility_agent(timeline: Timeline) -> None:
     assert len(utility_lookups) >= 1, (
         "Expected at least one lookup span with utility=True"
     )
-    assert_repr_labels(timeline, "main", "react", "lookup")
+    assert_repr_labels(timeline, "main", "lookup")
 
 
 def validate_sequential_run(timeline: Timeline) -> None:
     root = timeline.root
-    children = child_span_names(root)
-    assert "researcher" in children, (
-        f"Expected 'researcher' in root children: {children}"
-    )
     explore_spans = find_spans(root, "explore")
     assert len(explore_spans) >= 1, "Expected at least one 'explore' span"
-    assert_repr_labels(timeline, "main", "researcher", "explore")
+    assert_repr_labels(timeline, "main", "explore")
 
 
 def validate_parallel_collect(timeline: Timeline) -> None:
     root = timeline.root
-    children = child_span_names(root)
-    assert "coordinator" in children, (
-        f"Expected 'coordinator' in root children: {children}"
-    )
     dig_spans = find_spans(root, "dig")
     assert len(dig_spans) >= 3, f"Expected at least 3 'dig' spans, got {len(dig_spans)}"
     text = repr(timeline)
@@ -847,8 +836,6 @@ def validate_parallel_collect(timeline: Timeline) -> None:
 
 def validate_handoff_and_as_tool(timeline: Timeline) -> None:
     root = timeline.root
-    react_spans = find_spans(root, "react")
-    assert len(react_spans) >= 1, "Expected 'react' span"
     # Both sub-agents should exist somewhere in the tree
     analyst_spans = find_spans(root, "transfer_to_analyst")
     calc_spans = find_spans(root, "calculator")
@@ -861,7 +848,7 @@ def validate_handoff_and_as_tool(timeline: Timeline) -> None:
     assert any(s.span_type == "agent" for s in calc_spans), (
         "Expected calculator with span_type='agent'"
     )
-    assert_repr_labels(timeline, "main", "react", "transfer_to_analyst", "calculator")
+    assert_repr_labels(timeline, "main", "transfer_to_analyst", "calculator")
 
 
 def validate_deep_nesting(timeline: Timeline) -> None:
@@ -883,7 +870,7 @@ def validate_deep_nesting(timeline: Timeline) -> None:
             break
     else:
         raise AssertionError("Expected calculator nested inside analyst")
-    assert_repr_labels(timeline, "analyst")
+    assert_repr_labels(timeline, "main", "analyst")
 
 
 def validate_parallel_with_nesting(timeline: Timeline) -> None:
@@ -932,7 +919,7 @@ def validate_deep_utility(timeline: Timeline) -> None:
     assert any(s.utility for s in lookup_spans), (
         "Expected lookup span with utility=True"
     )
-    assert_repr_labels(timeline, "dispatcher", "lookup")
+    assert_repr_labels(timeline, "main", "dispatcher", "lookup")
 
 
 def validate_parallel_heterogeneous(timeline: Timeline) -> None:
