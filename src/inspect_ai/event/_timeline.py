@@ -7,8 +7,6 @@ Uses inspect_ai's event_tree() to parse span structure.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Any, Callable, Literal
@@ -502,6 +500,8 @@ def timeline_build(events: list[Event]) -> Timeline:
                 )
 
         if agent_node is not None:
+            agent_node.name = "main"
+
             _classify_spans(agent_node, has_explicit_branches)
 
             # Prepend init span to agent content
@@ -538,13 +538,30 @@ def timeline_build(events: list[Event]) -> Timeline:
 def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
     """Run all span classification passes on a root span.
 
-    Detects auto-branches (unless explicit branches exist), classifies
-    utility agents, and branch structure.
+    Classifies utility agents and branch structure.
     """
-    if not has_explicit_branches:
-        _detect_auto_branches(root)
+    _wrap_utility_events(root)
     _classify_utility_agents(root)
     _classify_branches(root, has_explicit_branches)
+
+
+def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
+    """Unwrap a solver span that merely wraps a single agent child.
+
+    If a solver-type span contains exactly one agent-type child span
+    (and no other spans), replace it with that child. Repeats until
+    no more unwrapping is possible.
+    """
+    while span.type == "solver":
+        agent_children = [
+            child
+            for child in span.children
+            if isinstance(child, EventTreeSpan) and child.type == "agent"
+        ]
+        if len(agent_children) != 1:
+            break
+        span = agent_children[0]
+    return span
 
 
 def _build_agent_from_solvers_span(
@@ -579,8 +596,10 @@ def _build_agent_from_solvers_span(
     if agent_spans:
         # Build from explicit agent spans
         if len(agent_spans) == 1:
+            # Unwrap solver spans that merely wrap a single agent child
+            target = _unwrap_solver_span(agent_spans[0])
             return _build_span_from_agent_span(
-                agent_spans[0], has_explicit_branches, other_items
+                target, has_explicit_branches, other_items
             )
         else:
             # Multiple agent spans - create root containing all
@@ -1009,166 +1028,18 @@ def _get_branch_input(
     return None
 
 
-# =============================================================================
-# TimelineBranch Auto-Detection
-# =============================================================================
-
-
-def _message_fingerprint(msg: ChatMessage, cache: dict[int, str] | None = None) -> str:
-    """Compute a fingerprint for a single ChatMessage.
-
-    Serializes role + content, ignoring auto-generated fields like id, source,
-    metadata.
-
-    Args:
-        msg: The chat message to fingerprint.
-        cache: Optional cache keyed by object id for repeated calls on the
-            same message objects.
-
-    Returns:
-        SHA-256 hex digest of the message content.
-    """
-    if cache is not None:
-        cached = cache.get(id(msg))
-        if cached is not None:
-            return cached
-
-    role = msg.role
-    content = msg.content
-    if isinstance(content, str):
-        serialized = content
-    else:
-        # Content is list of Content objects
-        serialized = json.dumps(
-            [c.model_dump(exclude_none=True) for c in content],
-            sort_keys=True,
-        )
-    raw = f"{role}:{serialized}"
-    result = hashlib.sha256(raw.encode()).hexdigest()
-
-    if cache is not None:
-        cache[id(msg)] = result
-    return result
-
-
-def _input_fingerprint(
-    messages: list[ChatMessage], cache: dict[int, str] | None = None
-) -> str:
-    """Compute a fingerprint for a sequence of input messages.
-
-    Args:
-        messages: The input message list.
-        cache: Optional cache keyed by object id, shared across calls
-            to avoid re-hashing the same message objects.
-
-    Returns:
-        SHA-256 hex digest of the concatenated message fingerprints.
-    """
-    parts = [_message_fingerprint(m, cache) for m in messages]
-    combined = "|".join(parts)
-    return hashlib.sha256(combined.encode()).hexdigest()
-
-
-def _detect_auto_branches(agent: TimelineSpan) -> None:
-    """Detect re-rolled ModelEvents with identical inputs and create branches.
-
-    For each group of ModelEvents with the same input fingerprint, the last
-    one stays in content and earlier ones (plus their trailing events up to
-    the next re-roll) become branches.
-
-    CompactionEvents act as hard boundaries: fingerprint grouping is done
-    independently within each region separated by compaction events, so
-    re-rolls are never matched across a compaction boundary.
-
-    Mutates agent in-place.
-
-    Args:
-        agent: The span node to process.
-    """
-    # Cache message fingerprints by object identity to avoid rehashing
-    fp_cache: dict[int, str] = {}
-
-    # Split content into regions at compaction boundaries
-    regions: list[tuple[int, int]] = []
-    region_start = 0
-    for i, item in enumerate(agent.content):
-        if isinstance(item, TimelineEvent) and item.event.event == "compaction":
-            regions.append((region_start, i))
-            region_start = i + 1
-    regions.append((region_start, len(agent.content)))
-
-    # Collect branch ranges across all regions
-    branch_ranges: list[tuple[int, int, list[ChatMessage]]] = []
-
-    for r_start, r_end in regions:
-        # Find ModelEvent indices and their fingerprints within this region
-        model_indices: list[tuple[int, str]] = []
-        for i in range(r_start, r_end):
-            item = agent.content[i]
-            if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-                input_msgs = list(item.event.input)
-                if not input_msgs:
-                    continue
-                fp = _input_fingerprint(input_msgs, fp_cache)
-                model_indices.append((i, fp))
-
-        # Group by fingerprint within this region
-        fingerprint_groups: dict[str, list[int]] = {}
-        for idx, fp in model_indices:
-            fingerprint_groups.setdefault(fp, []).append(idx)
-
-        # Only process groups with duplicates
-        for _fp, indices in fingerprint_groups.items():
-            if len(indices) <= 1:
-                continue
-
-            first_idx = indices[0]
-            first_item = agent.content[first_idx]
-            assert isinstance(first_item, TimelineEvent) and isinstance(
-                first_item.event, ModelEvent
-            )
-            shared_input = list(first_item.event.input)
-
-            for i, branch_start in enumerate(indices[:-1]):
-                next_reroll = indices[i + 1]
-                branch_ranges.append((branch_start, next_reroll, shared_input))
-
-    if not branch_ranges:
-        return
-
-    # Sort by start index descending so we can remove from the end first
-    branch_ranges.sort(key=lambda x: x[0], reverse=True)
-
-    for start, end, shared_input in branch_ranges:
-        branch_content = list(agent.content[start:end])
-        if branch_content:
-            forked_at = _find_forked_at(agent.content, shared_input)
-            agent.branches.append(
-                TimelineBranch(forked_at=forked_at, content=branch_content)
-            )
-        del agent.content[start:end]
-
-    # Reverse branches so they're in original order
-    agent.branches.reverse()
-
-
 def _classify_branches(
     agent: TimelineSpan, has_explicit_branches: bool, *, _is_root: bool = True
 ) -> None:
-    """Recursively detect branches in the agent tree.
+    """Recursively classify branches in the agent tree.
 
-    If not in explicit mode, calls _detect_auto_branches on each agent.
-    Always recurses into child spans in both content and branches.
+    Recurses into child spans in both content and branches.
 
     Args:
         agent: The span node to process.
         has_explicit_branches: Whether explicit branch spans exist globally.
-        _is_root: Internal flag — skips root since _classify_spans already
-            ran _detect_auto_branches on it.
+        _is_root: Internal flag (kept for API compatibility).
     """
-    if not has_explicit_branches and not _is_root:
-        _detect_auto_branches(agent)
-
     # Recurse into child spans in content
     for item in agent.content:
         if isinstance(item, TimelineSpan):
@@ -1179,6 +1050,138 @@ def _classify_branches(
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _classify_branches(item, has_explicit_branches, _is_root=False)
+
+
+# =============================================================================
+# Utility Event Wrapping (bridge-based agents)
+# =============================================================================
+
+
+def _normalize_system_prompt(prompt: str) -> str:
+    """Strip the per-call billing header from a system prompt.
+
+    Claude Code prepends a line like ``x-anthropic-billing-header: ...``
+    with a varying ``cch=`` hash.  Removing it lets us compare prompts
+    across calls.
+
+    Args:
+        prompt: Raw system prompt text.
+
+    Returns:
+        The prompt with the first line removed when it starts with
+        ``x-anthropic-billing-header:``, otherwise unchanged.
+    """
+    if prompt.startswith("x-anthropic-billing-header:"):
+        # Strip the first line (including the newline)
+        idx = prompt.find("\n")
+        if idx != -1:
+            return prompt[idx + 1 :]
+        return ""  # prompt was only the header line
+    return prompt
+
+
+def _get_system_prompt_for_event(event: ModelEvent) -> str | None:
+    """Extract and normalize the system prompt from a single ModelEvent.
+
+    Args:
+        event: The ModelEvent to inspect.
+
+    Returns:
+        The normalized system prompt text, or None if no system message found.
+    """
+    for msg in event.input:
+        if isinstance(msg, ChatMessageSystem):
+            if isinstance(msg.content, str):
+                return _normalize_system_prompt(msg.content)
+            parts = [c.text for c in msg.content if hasattr(c, "text")]
+            raw = "\n".join(parts) if parts else None
+            return _normalize_system_prompt(raw) if raw else None
+    return None
+
+
+def _has_tool_calls(event: ModelEvent) -> bool:
+    """Check whether a ModelEvent's output contains tool calls."""
+    if event.output.choices:
+        msg = event.output.choices[0].message
+        if msg.tool_calls:
+            return True
+    return False
+
+
+def _wrap_utility_events(agent: TimelineSpan) -> None:
+    """Wrap foreign-prompt model calls as synthetic utility spans.
+
+    Within bridge-based agent spans (e.g. Claude Code), short extraction
+    model calls use a different system prompt and produce no tool calls.
+    This function detects them and wraps each one in a ``TimelineSpan``
+    with ``utility=True`` so downstream code treats them as utility agents.
+
+    Operates recursively on the entire span tree.
+
+    Args:
+        agent: The span node to process (mutated in place).
+    """
+    # --- Determine the primary system prompt for this span ---
+    primary_prompt: str | None = None
+
+    # Prefer the prompt of the first ModelEvent that has tool calls
+    for item in agent.content:
+        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            if _has_tool_calls(item.event):
+                primary_prompt = _get_system_prompt_for_event(item.event)
+                break
+
+    # Fall back to the first ModelEvent's prompt
+    if primary_prompt is None:
+        for item in agent.content:
+            if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+                primary_prompt = _get_system_prompt_for_event(item.event)
+                break
+
+    # No ModelEvents at all → nothing to wrap
+    if primary_prompt is None:
+        # Still recurse into child spans
+        for item in agent.content:
+            if isinstance(item, TimelineSpan):
+                _wrap_utility_events(item)
+        for branch in agent.branches:
+            for item in branch.content:
+                if isinstance(item, TimelineSpan):
+                    _wrap_utility_events(item)
+        return
+
+    # --- Scan and wrap utility candidates ---
+    new_content: list[TimelineEvent | TimelineSpan] = []
+    for item in agent.content:
+        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            evt_prompt = _get_system_prompt_for_event(item.event)
+            if (
+                evt_prompt is not None
+                and evt_prompt != primary_prompt
+                and not _has_tool_calls(item.event)
+            ):
+                # Wrap in a synthetic utility span
+                wrapper = TimelineSpan(
+                    id=f"utility-{item.event.uuid or id(item)}",
+                    name="utility",
+                    span_type="agent",
+                    content=[item],
+                )
+                wrapper.utility = True
+                new_content.append(wrapper)
+                continue
+        new_content.append(item)
+
+    agent.content = new_content
+
+    # --- Recurse into child spans and branches ---
+    for item in agent.content:
+        if isinstance(item, TimelineSpan):
+            _wrap_utility_events(item)
+    for branch in agent.branches:
+        for item in branch.content:
+            if isinstance(item, TimelineSpan):
+                _wrap_utility_events(item)
 
 
 # =============================================================================

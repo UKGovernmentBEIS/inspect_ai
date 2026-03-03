@@ -7,6 +7,7 @@ from openai import (
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
+    NotFoundError,
     NotGiven,
     RateLimitError,
     omit,
@@ -284,7 +285,10 @@ class OpenAIAPI(ModelAPI):
 
         # Use native counting for responses API (required for accurate counting)
         if self.responses_api:
-            return await self._count_tokens_native(input, config)
+            try:
+                return await self._count_tokens_native(input, config)
+            except NotFoundError:
+                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -579,11 +583,16 @@ class OpenAIAPI(ModelAPI):
         input_params = await openai_responses_inputs(input, self)
 
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
-        response = await self.client.responses.compact(
-            model=self.service_model_name(),
-            input=input_params,
-            instructions=instructions if instructions is not None else omit,
-        )
+        try:
+            response = await self.client.responses.compact(
+                model=self.service_model_name(),
+                input=input_params,
+                instructions=instructions if instructions is not None else omit,
+            )
+        except NotFoundError:
+            raise NotImplementedError(
+                f"Native compaction endpoint not available for {self.service_model_name()}"
+            ) from None
 
         # Extract compaction item and create ChatMessage with ContentData
         compacted_messages = chat_messages_from_compact_response(

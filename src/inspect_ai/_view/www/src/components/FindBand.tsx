@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import {
   FC,
   KeyboardEvent,
@@ -8,12 +7,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
 import { findScrollableParent, scrollRangeToCenter } from "../utils/dom";
 import { debounce } from "../utils/sync";
 import { useExtendedFind } from "./ExtendedFindContext";
-import "./FindBand.css";
+import { FindBandUI } from "./FindBandUI";
 
 interface FindBandProps {}
 
@@ -334,57 +332,23 @@ export const FindBand: FC<FindBandProps> = () => {
     };
   }, [handleSearch, restoreCursor]);
 
-  const matchCountLabel = useMemo(() => {
-    if (matchCount === null) return null;
-    if (matchCount === 0) return "No results";
-    return `${currentMatchIndex} of ${matchCount}`;
-  }, [matchCount, currentMatchIndex]);
-
   return (
-    <div data-unsearchable="true" className={clsx("findBand")}>
-      <input
-        type="text"
-        ref={searchBoxRef}
-        placeholder="Find"
-        onKeyDown={handleKeyDown}
-        onBeforeInput={handleBeforeInput}
-        onChange={handleInputChange}
-      />
-      {matchCountLabel !== null && (
-        <span
-          className={clsx(
-            "findBand-match-count",
-            matchCount === 0 && "findBand-no-results",
-          )}
-        >
-          {matchCountLabel}
-        </span>
-      )}
-      <button
-        type="button"
-        title="Previous match"
-        className="btn next"
-        onClick={findPrevious}
-      >
-        <i className={ApplicationIcons.arrows.up} />
-      </button>
-      <button
-        type="button"
-        title="Next match"
-        className="btn prev"
-        onClick={findNext}
-      >
-        <i className={ApplicationIcons.arrows.down} />
-      </button>
-      <button
-        type="button"
-        title="Close"
-        className="btn close"
-        onClick={storeHideFind}
-      >
-        <i className={ApplicationIcons.close} />
-      </button>
-    </div>
+    <FindBandUI
+      inputRef={searchBoxRef}
+      onClose={storeHideFind}
+      onNext={findNext}
+      onPrevious={findPrevious}
+      onKeyDown={handleKeyDown}
+      onBeforeInput={handleBeforeInput}
+      onChange={handleInputChange}
+      noResults={matchCount !== null && matchCount === 0}
+      matchCount={matchCount ?? undefined}
+      matchIndex={
+        matchCount !== null && matchCount > 0
+          ? currentMatchIndex - 1
+          : undefined
+      }
+    />
   );
 };
 function windowFind(searchTerm: string, back: boolean): boolean {
