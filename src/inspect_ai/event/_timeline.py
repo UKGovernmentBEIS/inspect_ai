@@ -538,6 +538,7 @@ def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
 
     Classifies utility agents and branch structure.
     """
+    _wrap_utility_events(root)
     _classify_utility_agents(root)
     _classify_branches(root, has_explicit_branches)
 
@@ -1026,6 +1027,138 @@ def _classify_branches(
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _classify_branches(item, has_explicit_branches, _is_root=False)
+
+
+# =============================================================================
+# Utility Event Wrapping (bridge-based agents)
+# =============================================================================
+
+
+def _normalize_system_prompt(prompt: str) -> str:
+    """Strip the per-call billing header from a system prompt.
+
+    Claude Code prepends a line like ``x-anthropic-billing-header: ...``
+    with a varying ``cch=`` hash.  Removing it lets us compare prompts
+    across calls.
+
+    Args:
+        prompt: Raw system prompt text.
+
+    Returns:
+        The prompt with the first line removed when it starts with
+        ``x-anthropic-billing-header:``, otherwise unchanged.
+    """
+    if prompt.startswith("x-anthropic-billing-header:"):
+        # Strip the first line (including the newline)
+        idx = prompt.find("\n")
+        if idx != -1:
+            return prompt[idx + 1 :]
+        return ""  # prompt was only the header line
+    return prompt
+
+
+def _get_system_prompt_for_event(event: ModelEvent) -> str | None:
+    """Extract and normalize the system prompt from a single ModelEvent.
+
+    Args:
+        event: The ModelEvent to inspect.
+
+    Returns:
+        The normalized system prompt text, or None if no system message found.
+    """
+    for msg in event.input:
+        if isinstance(msg, ChatMessageSystem):
+            if isinstance(msg.content, str):
+                return _normalize_system_prompt(msg.content)
+            parts = [c.text for c in msg.content if hasattr(c, "text")]
+            raw = "\n".join(parts) if parts else None
+            return _normalize_system_prompt(raw) if raw else None
+    return None
+
+
+def _has_tool_calls(event: ModelEvent) -> bool:
+    """Check whether a ModelEvent's output contains tool calls."""
+    if event.output.choices:
+        msg = event.output.choices[0].message
+        if msg.tool_calls:
+            return True
+    return False
+
+
+def _wrap_utility_events(agent: TimelineSpan) -> None:
+    """Wrap foreign-prompt model calls as synthetic utility spans.
+
+    Within bridge-based agent spans (e.g. Claude Code), short extraction
+    model calls use a different system prompt and produce no tool calls.
+    This function detects them and wraps each one in a ``TimelineSpan``
+    with ``utility=True`` so downstream code treats them as utility agents.
+
+    Operates recursively on the entire span tree.
+
+    Args:
+        agent: The span node to process (mutated in place).
+    """
+    # --- Determine the primary system prompt for this span ---
+    primary_prompt: str | None = None
+
+    # Prefer the prompt of the first ModelEvent that has tool calls
+    for item in agent.content:
+        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            if _has_tool_calls(item.event):
+                primary_prompt = _get_system_prompt_for_event(item.event)
+                break
+
+    # Fall back to the first ModelEvent's prompt
+    if primary_prompt is None:
+        for item in agent.content:
+            if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+                primary_prompt = _get_system_prompt_for_event(item.event)
+                break
+
+    # No ModelEvents at all → nothing to wrap
+    if primary_prompt is None:
+        # Still recurse into child spans
+        for item in agent.content:
+            if isinstance(item, TimelineSpan):
+                _wrap_utility_events(item)
+        for branch in agent.branches:
+            for item in branch.content:
+                if isinstance(item, TimelineSpan):
+                    _wrap_utility_events(item)
+        return
+
+    # --- Scan and wrap utility candidates ---
+    new_content: list[TimelineEvent | TimelineSpan] = []
+    for item in agent.content:
+        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            evt_prompt = _get_system_prompt_for_event(item.event)
+            if (
+                evt_prompt is not None
+                and evt_prompt != primary_prompt
+                and not _has_tool_calls(item.event)
+            ):
+                # Wrap in a synthetic utility span
+                wrapper = TimelineSpan(
+                    id=f"utility-{item.event.uuid or id(item)}",
+                    name="utility",
+                    span_type="agent",
+                    content=[item],
+                )
+                wrapper.utility = True
+                new_content.append(wrapper)
+                continue
+        new_content.append(item)
+
+    agent.content = new_content
+
+    # --- Recurse into child spans and branches ---
+    for item in agent.content:
+        if isinstance(item, TimelineSpan):
+            _wrap_utility_events(item)
+    for branch in agent.branches:
+        for item in branch.content:
+            if isinstance(item, TimelineSpan):
+                _wrap_utility_events(item)
 
 
 # =============================================================================
