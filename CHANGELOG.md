@@ -2,6 +2,7 @@
 
 - Anthropic: Handle updated Anthropic compaction not supported error message.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+- Inspect View: Fix regression displaying running samples when switching samples.
 
 ## 0.3.185 (01 March 2026)
 
