@@ -1,5 +1,6 @@
 from typing import Callable, Type, TypeVar, cast
 
+from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -9,6 +10,14 @@ from inspect_ai._util.registry import (
 )
 
 from .environment import SandboxEnvironment
+
+_SANDBOX_PACKAGES: dict[str, str] = {
+    "k8s": "inspect-k8s-sandbox",
+    "ec2": "git+https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox.git",
+    "proxmox": "git+https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox.git",
+    "modal": "inspect-sandboxes",
+    "daytona": "inspect-sandboxes",
+}
 
 T = TypeVar("T", bound=SandboxEnvironment)
 
@@ -48,6 +57,9 @@ def registry_find_sandboxenv(envtype: str) -> type[SandboxEnvironment]:
         sandboxenv_type = cast(type[SandboxEnvironment], sanxboxenv_types[0])
         return sandboxenv_type
     else:
+        package = _SANDBOX_PACKAGES.get(envtype)
+        if package:
+            raise pip_dependency_error(f"Sandbox environment '{envtype}'", [package])
         raise ValueError(f"SandboxEnvironment type '{envtype}' not recognized.")
 
 
