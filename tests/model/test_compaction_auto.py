@@ -157,7 +157,7 @@ async def test_auto_fallback_on_unsupported_anthropic_model() -> None:
     strategy = CompactionAuto()
     # Use an older model that doesn't support compaction
     config = GenerateConfig(max_tokens=4096)
-    model = get_model("anthropic/claude-3-haiku-20240307", config=config)
+    model = get_model("anthropic/claude-haiku-4-5", config=config)
     messages = _long_messages()  # Need enough tokens to pass minimum threshold
 
     # Should succeed via fallback since model doesn't support compaction

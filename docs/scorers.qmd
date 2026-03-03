@@ -58,14 +58,6 @@ Inspect includes some simple text matching scorers as well as a couple of model 
     Specialised scorer that is used with the `multiple_choice()` solver.
 
 -   `math()`
-
-    ::: {.callout-note}
-    The math scorer described below is available only in the development version of Inspect SWE. Install the development version from GitHub with:
-
-    ```python
-    pip install git+https://github.com/meridianlabs-ai/inspect_swe
-    ```
-    :::
     
     Scorer for evaluating mathematical expressions and answers. Extracts answers from model output (supporting both `\boxed{}` LaTeX notation and plain text), normalizes mathematical expressions, and uses SymPy to check for mathematical equivalence. Handles various mathematical formats including LaTeX, fractions, roots, percentages, and algebraic expressions. **Note:** Requires the optional `sympy` dependency—install with `pip install sympy`.
 

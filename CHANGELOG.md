@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Anthropic: Handle updated Anthropic compaction not supported error message.
+- Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+
+## 0.3.185 (01 March 2026)
+
+- Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
+- Events: Add `agent_span_id` property to tool events for associating them with their associated agent.
+
+## 0.3.184 (28 February 2026)
+
 - Model API: By default, only log raw model api request/response when an error occurs. Override to log all model api calls with `--log-model-api`.
 - Model API: Truncate the model request to a maximum of 200 lines when printing to the console after an error.
 - Model API: Add SageMaker provider for invoking models hosted on AWS SageMaker endpoints.
