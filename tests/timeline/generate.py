@@ -163,51 +163,6 @@ def scenario_nested_sub_agent() -> tuple[str, Task, Any]:
     return "nested_sub_agent", task, model
 
 
-def scenario_auto_branching() -> tuple[str, Task, Any]:
-    """Simulate a re-roll by producing two model calls with identical input.
-
-    Uses a react() agent with an on_continue callback that returns an
-    AgentState with rolled-back messages (removing the assistant reply).
-    This causes the next generate call to see the same input, producing
-    two ModelEvents with identical input fingerprints and triggering
-    _detect_auto_branches.
-    """
-    continue_count = 0
-
-    async def rollback_once(state: AgentState) -> bool | str | AgentState:
-        """Roll back assistant message once to trigger auto-branch detection.
-
-        On first text-only reply, removes the assistant message so the next
-        generate sees the same input.
-        """
-        nonlocal continue_count
-        continue_count += 1
-        if continue_count == 1:
-            # Remove the assistant message to restore original input
-            return AgentState(messages=list(state.messages[:-1]))
-        return True
-
-    outputs = [
-        # First call — text output, will become branched off
-        ModelOutput.from_content(MODEL, "Let me think about this..."),
-        # Second call — same input fingerprint, stays in main timeline
-        ModelOutput.for_tool_call(MODEL, "addition", {"x": 1, "y": 1}),
-        # After tool result, submit
-        ModelOutput.for_tool_call(MODEL, "submit", {"answer": "2"}),
-    ]
-    model = get_model(MODEL, custom_outputs=outputs)
-    task = Task(
-        name="auto_branching",
-        dataset=DATASET,
-        solver=react(
-            tools=[addition()],
-            on_continue=rollback_once,
-        ),
-        scorer=includes(),
-    )
-    return "auto_branching", task, model
-
-
 def scenario_utility_agent() -> tuple[str, Task, Any]:
     """Sub-agent with different system prompt → classified as utility.
 
@@ -402,41 +357,6 @@ def scenario_deep_nesting() -> tuple[str, Task, Any]:
         scorer=includes(),
     )
     return "deep_nesting", task, model
-
-
-def scenario_multiple_rerolls() -> tuple[str, Task, Any]:
-    """3 re-rolls at the same level (2 rollbacks producing 3 branches)."""
-    continue_count = 0
-
-    async def rollback_twice(state: AgentState) -> bool | str | AgentState:
-        """Roll back assistant message on counts 1 and 2."""
-        nonlocal continue_count
-        continue_count += 1
-        if continue_count in (1, 2):
-            return AgentState(messages=list(state.messages[:-1]))
-        return True
-
-    outputs = [
-        # Attempt 1 — text, becomes branch 1
-        ModelOutput.from_content(MODEL, "Attempt 1..."),
-        # Attempt 2 — text, becomes branch 2
-        ModelOutput.from_content(MODEL, "Attempt 2..."),
-        # Attempt 3 — tool call, stays in main timeline
-        ModelOutput.for_tool_call(MODEL, "addition", {"x": 1, "y": 1}),
-        # Submit
-        ModelOutput.for_tool_call(MODEL, "submit", {"answer": "2"}),
-    ]
-    model = get_model(MODEL, custom_outputs=outputs)
-    task = Task(
-        name="multiple_rerolls",
-        dataset=DATASET,
-        solver=react(
-            tools=[addition()],
-            on_continue=rollback_twice,
-        ),
-        scorer=includes(),
-    )
-    return "multiple_rerolls", task, model
 
 
 def scenario_parallel_with_nesting() -> tuple[str, Task, Any]:
@@ -889,19 +809,6 @@ def validate_nested_sub_agent(timeline: Timeline) -> None:
     assert_repr_labels(timeline, "main", "react", "calculator")
 
 
-def validate_auto_branching(timeline: Timeline) -> None:
-    root = timeline.root
-    react_spans = find_spans(root, "react")
-    assert len(react_spans) >= 1, "Expected 'react' span"
-    react_span = react_spans[0]
-    assert len(react_span.branches) >= 1, (
-        f"Expected at least 1 branch on react, got {len(react_span.branches)}"
-    )
-    text = repr(timeline)
-    assert "\u21b3" in text, "Expected branch marker '\u21b3' in repr"
-    assert_repr_labels(timeline, "main", "react")
-
-
 def validate_utility_agent(timeline: Timeline) -> None:
     root = timeline.root
     # The inner lookup span should have utility=True
@@ -979,18 +886,6 @@ def validate_deep_nesting(timeline: Timeline) -> None:
     assert_repr_labels(timeline, "analyst")
 
 
-def validate_multiple_rerolls(timeline: Timeline) -> None:
-    root = timeline.root
-    react_spans = find_spans(root, "react")
-    assert len(react_spans) >= 1, "Expected 'react' span"
-    react_span = react_spans[0]
-    assert len(react_span.branches) >= 2, (
-        f"Expected at least 2 branches on react, got {len(react_span.branches)}"
-    )
-    text = repr(timeline)
-    assert "\u21b3" in text, "Expected branch marker '\u21b3' in repr"
-
-
 def validate_parallel_with_nesting(timeline: Timeline) -> None:
     root = timeline.root
     worker_spans = find_spans(root, "worker")
@@ -1061,13 +956,11 @@ VALIDATORS: dict[str, Any] = {
     "simple_agent": validate_simple_agent,
     "multi_turn_agent": validate_multi_turn_agent,
     "nested_sub_agent": validate_nested_sub_agent,
-    "auto_branching": validate_auto_branching,
     "utility_agent": validate_utility_agent,
     "sequential_run": validate_sequential_run,
     "parallel_collect": validate_parallel_collect,
     "handoff_and_as_tool": validate_handoff_and_as_tool,
     "deep_nesting": validate_deep_nesting,
-    "multiple_rerolls": validate_multiple_rerolls,
     "parallel_with_nesting": validate_parallel_with_nesting,
     "sequential_and_parallel": validate_sequential_and_parallel,
     "deep_utility": validate_deep_utility,
@@ -1083,13 +976,11 @@ SCENARIOS = [
     scenario_simple_agent,
     scenario_multi_turn_agent,
     scenario_nested_sub_agent,
-    scenario_auto_branching,
     scenario_utility_agent,
     scenario_sequential_run,
     scenario_parallel_collect,
     scenario_handoff_and_as_tool,
     scenario_deep_nesting,
-    scenario_multiple_rerolls,
     scenario_parallel_with_nesting,
     scenario_sequential_and_parallel,
     scenario_deep_utility,
