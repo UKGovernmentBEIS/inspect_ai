@@ -1,19 +1,16 @@
 ## Sandboxes {#sec-sandboxes}
 
-[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
-:   Cloud sandbox for Inspect using Daytona's infrastructure.
+[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox" style="text-decoration:none">UK AISI</a></small>
+:   Python package that provides a Kubernetes sandbox environment for Inspect.
+
+[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox" style="text-decoration:none">UK AISI</a></small>
+:   Python package that provides a EC2 virtual machine sandbox environment for Inspect.
 
 [Modal Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
 :   Serverless container sandbox for Inspect using Modal's cloud infrastructure.
 
 [Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox" style="text-decoration:none">UK AISI</a></small>
 :   Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
-
-[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox" style="text-decoration:none">UK AISI</a></small>
-:   Python package that provides a EC2 virtual machine sandbox environment for Inspect.
-
-[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox" style="text-decoration:none">UK AISI</a></small>
-:   Python package that provides a Kubernetes sandbox environment for Inspect.
 
 [Inspect Policy Sandbox](https://github.com/Dedulus/inspect-policy-sandbox) &mdash; <small><a href="https://github.com/Dedulus" style="text-decoration:none">Arnab Mitra</a></small>
 :   Sandbox wrapper that allows fine grained control over command execution and file I/O.
@@ -35,6 +32,9 @@
 
 [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb) &mdash; <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small>
 :   Integration with Weights and Biases platform.
+
+[CJE](https://github.com/cimo-labs/cje) &mdash; <small><a href="https://cimolabs.com" style="text-decoration:none">CIMO Labs</a></small>
+:   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
 
 
 ## Frameworks {#sec-frameworks}
