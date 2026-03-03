@@ -4,6 +4,7 @@ import asyncio
 
 import anyio
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.background import (
     background_task_group,
@@ -15,7 +16,6 @@ from inspect_ai._util.background import (
 class TestRunInBackground:
     """Test cases for run_in_background function."""
 
-    @pytest.mark.asyncio
     async def test_with_task_group(self):
         """Test run_in_background when task group is set."""
         # Save original state
@@ -38,7 +38,7 @@ class TestRunInBackground:
         finally:
             set_background_task_group(original_tg)
 
-    @pytest.mark.asyncio
+    @skip_if_trio
     async def test_without_task_group_fallback_to_asyncio(self):
         """Test run_in_background falls back to asyncio when no task group is set."""
         # Save original state
@@ -114,21 +114,20 @@ class TestRunInBackground:
         finally:
             set_background_task_group(original_tg)
 
-    @pytest.mark.asyncio
     async def test_argument_passing(self):
         """Test that arguments are passed correctly to the background function."""
         original_tg = background_task_group()
 
         try:
-            set_background_task_group(None)
             result = []
 
             async def background_task(a: int, b: str, c: bool) -> None:
                 result.append((a, b, c))
 
-            run_in_background(background_task, 42, "hello", True)
+            async with anyio.create_task_group() as tg:
+                set_background_task_group(tg)
+                run_in_background(background_task, 42, "hello", True)
 
-            await asyncio.sleep(0.05)
             assert result == [(42, "hello", True)]
 
         finally:

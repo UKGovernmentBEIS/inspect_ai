@@ -12,7 +12,6 @@ async def bytes_iterator(data: bytes, chunk_size: int) -> AsyncIterator[bytes]:
         yield data[i : i + chunk_size]
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "data,read_sizes,expected_results",
     [
@@ -47,7 +46,6 @@ async def test_io_bytes_reader(
             assert result == expected
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "data,chunk_size,read_sizes,expected_results",
     [
@@ -88,7 +86,6 @@ async def test_async_iterator_reader(
             assert result == expected
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "data,chunk_size,read_size",
     [
@@ -107,7 +104,6 @@ async def test_aclose_is_idempotent(
     await reader.aclose()  # Should not raise
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "source_type,data",
     [

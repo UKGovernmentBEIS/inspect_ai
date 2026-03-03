@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
@@ -27,7 +28,7 @@ const findConfig = {
 export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
   const storeHideFind = useStore((state) => state.appActions.hideFind);
-  const { extendedFindTerm } = useExtendedFind();
+  const { extendedFindTerm, countAllMatches } = useExtendedFind();
   const lastFoundItem = useRef<{
     text: string;
     offset: number;
@@ -35,11 +36,13 @@ export const FindBand: FC<FindBandProps> = () => {
   } | null>(null);
   const currentSearchTerm = useRef<string>("");
   const needsCursorRestoreRef = useRef<boolean>(false);
-  const lastNoResultTerm = useRef<string>("");
-  const lastNoResultDirection = useRef<boolean | null>(null);
   const scrollTimeoutRef = useRef<number | null>(null);
   const focusTimeoutRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
+  const cachedCount = useRef<{ term: string; count: number }>({
+    term: "",
+    count: 0,
+  });
   const mutatedPanelsRef = useRef<
     Map<
       HTMLElement,
@@ -51,6 +54,9 @@ export const FindBand: FC<FindBandProps> = () => {
       }
     >
   >(new Map());
+
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
   const getParentExpandablePanel = useCallback(
     (selection: Selection): HTMLElement | undefined => {
@@ -71,87 +77,59 @@ export const FindBand: FC<FindBandProps> = () => {
 
   const handleSearch = useCallback(
     async (back = false) => {
-      // Track this search to handle race conditions
       const thisSearchId = ++searchIdRef.current;
 
-      // The search term
       const searchTerm = searchBoxRef.current?.value ?? "";
       if (!searchTerm) {
+        setMatchCount(null);
+        setCurrentMatchIndex(0);
         return;
       }
 
-      // Reset last found item if search term changed
       if (currentSearchTerm.current !== searchTerm) {
         lastFoundItem.current = null;
         currentSearchTerm.current = searchTerm;
+        setCurrentMatchIndex(0);
       }
 
-      const noResultEl = document.getElementById("inspect-find-no-results");
+      let total: number;
+      if (cachedCount.current.term === searchTerm) {
+        total = cachedCount.current.count;
+      } else {
+        total = countAllMatches(searchTerm);
+        cachedCount.current = { term: searchTerm, count: total };
+      }
+      setMatchCount(total);
 
-      // Skip search if we already know this term has no results in this direction
-      if (
-        lastNoResultTerm.current &&
-        searchTerm.startsWith(lastNoResultTerm.current) &&
-        lastNoResultDirection.current === back
-      ) {
-        if (noResultEl) {
-          noResultEl.style.opacity = "1";
-          noResultEl.setAttribute("aria-hidden", "false");
-        }
+      if (total === 0) {
+        setCurrentMatchIndex(0);
         return;
       }
 
-      // Clear no-result cache if search term changed or direction changed
-      if (
-        lastNoResultTerm.current &&
-        (!searchTerm.startsWith(lastNoResultTerm.current) ||
-          lastNoResultDirection.current !== back)
-      ) {
-        lastNoResultTerm.current = "";
-        lastNoResultDirection.current = null;
-      }
-
-      // Capture the curently focused element so we can restore focus later
       const focusedElement = document.activeElement as HTMLElement;
 
-      // Save current selection before search (window.find may disturb it)
       const selection = window.getSelection();
       let savedRange: Range | null = null;
       if (selection && selection.rangeCount > 0) {
         savedRange = selection.getRangeAt(0).cloneRange();
       }
 
-      // Save scroll position before search (window.find may scroll during search)
       const savedScrollParent = savedRange
         ? findScrollableParent(savedRange.startContainer.parentElement)
         : null;
       const savedScrollTop = savedScrollParent?.scrollTop ?? 0;
 
-      // Find the term in the DOM
-      let result = await findExtendedInDOM(
+      const result = await findExtendedInDOM(
         searchTerm,
         back,
         lastFoundItem.current,
         extendedFindTerm,
       );
 
-      if (!noResultEl) {
-        return;
-      }
-
-      // If a newer search has started, discard this result to avoid race conditions
       if (searchIdRef.current !== thisSearchId) {
         return;
       }
 
-      // Show "No results" if neither current DOM nor virtual search found anything
-      noResultEl.style.opacity = result ? "0" : "1";
-      noResultEl.setAttribute("aria-hidden", result ? "true" : "false");
-
-      lastNoResultTerm.current = result ? "" : searchTerm;
-      lastNoResultDirection.current = result ? null : back;
-
-      // If no result found, restore the previous selection so we stay on current match
       if (!result && savedRange) {
         const sel = window.getSelection();
         if (sel) {
@@ -166,20 +144,29 @@ export const FindBand: FC<FindBandProps> = () => {
       if (result) {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
-          // Remember this item for next time
           const range = selection.getRangeAt(0);
           const parentElement =
             range.startContainer.parentElement ||
             (range.commonAncestorContainer as Element);
+          const isNewMatch = !isLastFoundItem(range, lastFoundItem.current);
           lastFoundItem.current = {
             text: range.toString(),
             offset: range.startOffset,
             parentElement,
           };
 
+          if (isNewMatch) {
+            setCurrentMatchIndex((prev) => {
+              if (back) {
+                return prev <= 1 ? total : prev - 1;
+              } else {
+                return prev >= total ? 1 : prev + 1;
+              }
+            });
+          }
+
           const parentPanel = getParentExpandablePanel(selection);
           if (parentPanel) {
-            // Save original styles if not already tracked
             if (!mutatedPanelsRef.current.has(parentPanel)) {
               mutatedPanelsRef.current.set(parentPanel, {
                 display: parentPanel.style.display,
@@ -194,7 +181,6 @@ export const FindBand: FC<FindBandProps> = () => {
             parentPanel.style.webkitBoxOrient = "";
           }
 
-          // Scroll the selection into view (with a small delay for DOM updates)
           if (scrollTimeoutRef.current !== null) {
             window.clearTimeout(scrollTimeoutRef.current);
           }
@@ -206,7 +192,7 @@ export const FindBand: FC<FindBandProps> = () => {
 
       focusedElement?.focus();
     },
-    [getParentExpandablePanel, extendedFindTerm],
+    [getParentExpandablePanel, extendedFindTerm, countAllMatches],
   );
 
   useEffect(() => {
@@ -215,7 +201,6 @@ export const FindBand: FC<FindBandProps> = () => {
       searchBoxRef.current?.select();
     }, 10);
 
-    // Capture ref values for cleanup
     const mutatedPanels = mutatedPanelsRef.current;
     const scrollTimeout = scrollTimeoutRef.current;
     const focusTimeout = focusTimeoutRef.current;
@@ -273,7 +258,6 @@ export const FindBand: FC<FindBandProps> = () => {
     }
   }, []);
 
-  // Debounced auto-search as you type
   const debouncedSearch = useMemo(
     () =>
       debounce(async () => {
@@ -290,8 +274,6 @@ export const FindBand: FC<FindBandProps> = () => {
   }, [debouncedSearch]);
 
   const handleBeforeInput = useCallback(() => {
-    // Only restore cursor if no text is selected
-    // This preserves native browser behavior (typing replaces selected text)
     const input = searchBoxRef.current;
     if (input) {
       const hasSelection = input.selectionStart !== input.selectionEnd;
@@ -328,18 +310,14 @@ export const FindBand: FC<FindBandProps> = () => {
         return;
       }
 
-      // Skip if modifier keys are held (except for handled shortcuts above)
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      // Auto-focus input when typing printable characters or backspace/delete
       if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete")
         return;
 
       const input = searchBoxRef.current;
       if (!input) return;
 
-      // Only restore cursor if no text is selected
-      // This preserves native browser behavior (typing replaces selected text)
       const hasSelection = input.selectionStart !== input.selectionEnd;
       if (!hasSelection) {
         restoreCursor();
@@ -350,12 +328,17 @@ export const FindBand: FC<FindBandProps> = () => {
       }
     };
 
-    // Use capture phase to intercept browser's native find dialog
     document.addEventListener("keydown", handleGlobalKeyDown, true);
     return () => {
       document.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
   }, [handleSearch, restoreCursor]);
+
+  const matchCountLabel = useMemo(() => {
+    if (matchCount === null) return null;
+    if (matchCount === 0) return "No results";
+    return `${currentMatchIndex} of ${matchCount}`;
+  }, [matchCount, currentMatchIndex]);
 
   return (
     <div data-unsearchable="true" className={clsx("findBand")}>
@@ -367,9 +350,16 @@ export const FindBand: FC<FindBandProps> = () => {
         onBeforeInput={handleBeforeInput}
         onChange={handleInputChange}
       />
-      <span id="inspect-find-no-results" aria-hidden="true">
-        No results
-      </span>
+      {matchCountLabel !== null && (
+        <span
+          className={clsx(
+            "findBand-match-count",
+            matchCount === 0 && "findBand-no-results",
+          )}
+        >
+          {matchCountLabel}
+        </span>
+      )}
       <button
         type="button"
         title="Previous match"
@@ -397,6 +387,31 @@ export const FindBand: FC<FindBandProps> = () => {
     </div>
   );
 };
+function windowFind(searchTerm: string, back: boolean): boolean {
+  // @ts-expect-error: `Window.find` is non-standard
+  return window.find(
+    searchTerm,
+    findConfig.caseSensitive,
+    back,
+    findConfig.wrapAround,
+    findConfig.wholeWord,
+    findConfig.searchInFrames,
+    findConfig.showDialog,
+  ) as boolean;
+}
+
+function positionSelectionForWrap(back: boolean): void {
+  if (!back) return;
+  const sel = window.getSelection();
+  if (sel) {
+    const range = document.createRange();
+    range.selectNodeContents(document.body);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
 async function findExtendedInDOM(
   searchTerm: string,
   back: boolean,
@@ -411,50 +426,68 @@ async function findExtendedInDOM(
   ) => Promise<boolean>,
 ) {
   let result = false;
-  let attempts = 0;
   let hasTriedExtendedSearch = false;
+  let extendedSearchSucceeded = false;
   const maxAttempts = 25;
 
-  do {
-    // @ts-expect-error: `Window.find` is non-standard
-    result = window.find(
-      searchTerm,
-      findConfig.caseSensitive,
-      back,
-      findConfig.wrapAround,
-      findConfig.wholeWord,
-      findConfig.searchInFrames,
-      findConfig.showDialog,
-    );
+  for (let attempts = 0; attempts < maxAttempts; attempts++) {
+    result = windowFind(searchTerm, back);
 
     if (result) {
-      // We have a result, check whether it is valid (not in unsearchable
-      // element and not the same as last). If is isn't valid, ignore it
-      // and continue the loop to find the next match.
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
-
-        // We mark certain elements as unsearchable
         const isUnsearchable = inUnsearchableElement(range);
-
-        // Also check if it's the same item as last time
         const isSameAsLast = isLastFoundItem(range, lastFoundItem);
 
-        // If this is a valid match (not unsearchable and not same as last), we're done
         if (!isUnsearchable && !isSameAsLast) {
           break;
         }
 
-        // If we found the same match as last time, there are no new results
         if (isSameAsLast) {
-          return false;
+          if (!hasTriedExtendedSearch) {
+            hasTriedExtendedSearch = true;
+            window.getSelection()?.removeAllRanges();
+
+            const foundInVirtual = await extendedFindTerm(
+              searchTerm,
+              back ? "backward" : "forward",
+            );
+
+            if (foundInVirtual) {
+              extendedSearchSucceeded = true;
+              continue;
+            }
+          }
+
+          if (extendedSearchSucceeded) {
+            // Extended search scrolled to new content but old match is still in DOM.
+            // Collapse past it so windowFind advances to the new match.
+            const sel = window.getSelection();
+            if (sel?.rangeCount) {
+              sel.getRangeAt(0).collapse(!back);
+            }
+          } else {
+            window.getSelection()?.removeAllRanges();
+            positionSelectionForWrap(back);
+          }
+
+          result = windowFind(searchTerm, back);
+          if (result) {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              const r = sel.getRangeAt(0);
+              if (inUnsearchableElement(r)) {
+                continue;
+              }
+            }
+          }
+          break;
         }
-        // Otherwise continue the loop to find the next match (skip unsearchable)
       }
     } else if (!hasTriedExtendedSearch) {
-      // No result in current DOM and haven't tried extended search yet
       hasTriedExtendedSearch = true;
+      window.getSelection()?.removeAllRanges();
 
       const foundInVirtual = await extendedFindTerm(
         searchTerm,
@@ -462,19 +495,35 @@ async function findExtendedInDOM(
       );
 
       if (foundInVirtual) {
-        // Found in virtual list (which will have scrolled the item into view),
-        // so try finding again in the DOM
-      } else {
-        // Extended search failed, no more options
-        break;
+        extendedSearchSucceeded = true;
+        continue;
       }
+
+      positionSelectionForWrap(back);
+      result = windowFind(searchTerm, back);
+      if (result) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const r = sel.getRangeAt(0);
+          if (inUnsearchableElement(r)) {
+            continue;
+          }
+        }
+      }
+      break;
     } else {
-      // No result and already tried extended search
       break;
     }
+  }
 
-    attempts++;
-  } while (attempts < maxAttempts);
+  if (result) {
+    const sel = window.getSelection();
+    if (sel?.rangeCount && inUnsearchableElement(sel.getRangeAt(0))) {
+      sel.removeAllRanges();
+      result = false;
+    }
+  }
+
   return result;
 }
 

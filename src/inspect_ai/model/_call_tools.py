@@ -132,11 +132,12 @@ async def execute_tools(
             messages: list[ChatMessage] = []
             output: ModelOutput | None = None
             agent: str | None = None
+            agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
             try:
                 try:
-                    result, messages, output, agent = await call_tool(
+                    result, messages, output, agent, agent_span_id = await call_tool(
                         tdefs, message.text, call, event, conversation
                     )
                 # unwrap exception group
@@ -228,6 +229,7 @@ async def execute_tools(
                 view=call.view,
                 error=tool_error,
                 agent=agent,
+                agent_span_id=agent_span_id,
             )
 
             # yield message and event
@@ -322,6 +324,7 @@ async def execute_tools(
                 agent=result_event.agent,
                 failed=True if result_exception else None,
                 message_id=result_messages[0].id if len(result_messages) > 0 else None,
+                agent_span_id=result_event.agent_span_id,
             )
             transcript()._event_updated(event)
 
@@ -344,7 +347,7 @@ async def call_tool(
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
-) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import transcript
@@ -400,14 +403,16 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
-                    return await agent_handoff(tool_def, call, conversation)
+                    handoff_result = await agent_handoff(tool_def, call, conversation)
+                    return (*handoff_result, None)
 
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
                 transcript()._event(event)
                 result: ToolResult = await tool_def.tool(**arguments)
-                return result, [], None, None
+                agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
+                return result, [], None, None, agent_span_id
 
 
 async def agent_handoff(

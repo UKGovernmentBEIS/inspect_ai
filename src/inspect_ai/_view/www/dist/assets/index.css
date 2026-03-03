@@ -16783,12 +16783,19 @@ button._segment_mhb7y_9 {
   background: var(--inspect-input-background);
 }
 
-#inspect-find-no-results {
-  font-size: 0.9em;
-  opacity: 0;
+.findBand-match-count {
+  font-size: 0.85em;
   margin-top: auto;
   margin-bottom: auto;
   margin-right: 0.5em;
+  white-space: nowrap;
+  color: var(--inspect-find-foreground);
+  opacity: 0.7;
+}
+
+.findBand-no-results {
+  opacity: 1;
+  color: var(--bs-danger, #dc3545);
 }
 
 .findBand .btn.next,
@@ -19077,25 +19084,16 @@ span.ap-marker-container:hover span.ap-marker {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
-._wrapper_14r3b_1 {
-  padding-top: 0;
-  padding-bottom: 1em;
-  margin-left: 0.5em;
+._cardsContainer_d0qjo_1 {
   display: flex;
   flex-wrap: wrap;
   gap: 1em;
+  width: 100%;
 }
 
-._col1_14r3b_10 {
-  flex: 0 1 auto;
-  min-width: 200px;
-  width: fit-content;
-}
-
-._col2_14r3b_16 {
-  flex: 1 1 auto;
+._cardsContainer_d0qjo_1 > * {
+  flex: 1 1 300px;
   min-width: 300px;
-  width: fit-content;
 }
 ._label_jbrqc_1 {
   align-self: center;

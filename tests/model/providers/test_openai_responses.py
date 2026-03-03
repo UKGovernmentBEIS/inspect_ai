@@ -413,6 +413,204 @@ def test_chat_messages_from_compact_response_mixed_items():
     assert result[1].source == "generate"
 
 
+def test_chat_messages_from_compact_response_developer_and_user_messages():
+    """Test that developer messages are stripped and user messages are preserved."""
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData, ContentText
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a compact response matching real API output:
+    # developer message, user messages, then compaction item.
+    # Use model_construct to bypass Pydantic validation since the SDK types
+    # restrict role to Literal["assistant"], but the real API returns
+    # developer/user roles in compact responses.
+    developer_msg = ResponseOutputMessage.model_construct(
+        id="msg_dev",
+        type="message",
+        role="developer",
+        status="completed",
+        content=[
+            ResponseOutputText(
+                type="output_text", text="You are a helpful assistant.", annotations=[]
+            )
+        ],
+    )
+
+    user_msg1 = ResponseOutputMessage.model_construct(
+        id="msg_user1",
+        type="message",
+        role="user",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="Hello there", annotations=[])
+        ],
+    )
+
+    user_msg2 = ResponseOutputMessage.model_construct(
+        id="msg_user2",
+        type="message",
+        role="user",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="How are you?", annotations=[])
+        ],
+    )
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[developer_msg, user_msg1, user_msg2, compaction_item],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    # Developer message should be stripped, user messages preserved,
+    # compaction item becomes ContentData
+    assert len(result) == 3
+
+    # First two should be user messages
+    assert isinstance(result[0], ChatMessageUser)
+    assert isinstance(result[0].content, list)
+    assert isinstance(result[0].content[0], ContentText)
+    assert result[0].content[0].text == "Hello there"
+
+    assert isinstance(result[1], ChatMessageUser)
+    assert isinstance(result[1].content, list)
+    assert isinstance(result[1].content[0], ContentText)
+    assert result[1].content[0].text == "How are you?"
+
+    # Last should be compaction metadata
+    assert isinstance(result[2], ChatMessageUser)
+    assert isinstance(result[2].content, list)
+    assert isinstance(result[2].content[0], ContentData)
+    assert result[2].content[0].data["compaction_metadata"]["id"] == "comp_123"
+
+
+def test_chat_messages_from_compact_response_mixed_roles():
+    """Test compact response with developer, user, compaction, and assistant items."""
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData, ContentText
+    from inspect_ai.model._chat_message import (
+        ChatMessageAssistant,
+        ChatMessageUser,
+    )
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Use model_construct for developer/user roles (see note in previous test)
+    developer_msg = ResponseOutputMessage.model_construct(
+        id="msg_dev",
+        type="message",
+        role="developer",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="System prompt", annotations=[])
+        ],
+    )
+
+    user_msg = ResponseOutputMessage.model_construct(
+        id="msg_user",
+        type="message",
+        role="user",
+        status="completed",
+        content=[
+            ResponseOutputText(type="output_text", text="User question", annotations=[])
+        ],
+    )
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_456",
+        encrypted_content="encrypted_stuff",
+        type="compaction",
+    )
+
+    assistant_msg = ResponseOutputMessage(
+        id="msg_asst",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[
+            ResponseOutputText(
+                type="output_text", text="Assistant reply", annotations=[]
+            )
+        ],
+    )
+
+    response = CompactedResponse(
+        id="resp_xyz",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[developer_msg, user_msg, compaction_item, assistant_msg],
+        usage=ResponseUsage(
+            input_tokens=200,
+            output_tokens=100,
+            total_tokens=300,
+            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response, model="gpt-4o")
+
+    # developer stripped, user -> ChatMessageUser, compaction -> ContentData,
+    # assistant -> ChatMessageAssistant
+    assert len(result) == 3
+
+    # User message
+    assert isinstance(result[0], ChatMessageUser)
+    assert isinstance(result[0].content, list)
+    assert isinstance(result[0].content[0], ContentText)
+    assert result[0].content[0].text == "User question"
+
+    # Compaction metadata
+    assert isinstance(result[1], ChatMessageUser)
+    assert isinstance(result[1].content, list)
+    assert isinstance(result[1].content[0], ContentData)
+    assert result[1].content[0].data["compaction_metadata"]["id"] == "comp_456"
+
+    # Assistant message
+    assert isinstance(result[2], ChatMessageAssistant)
+    assert result[2].text == "Assistant reply"
+    assert result[2].model == "gpt-4o"
+    assert result[2].source == "generate"
+
+
 def test_phase_round_trip():
     """Test that the phase field from Codex models is preserved through round-trip."""
     # Create a message with phase stored in ContentText.internal

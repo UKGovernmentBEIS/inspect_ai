@@ -28,6 +28,12 @@ export interface SampleSlice {
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
 
+    prepareForSampleLoad: (
+      logFile: string,
+      id: number | string,
+      epoch: number,
+    ) => void;
+
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
@@ -151,6 +157,23 @@ export const createSampleSlice = (
           state.sample.sampleInState = false;
           state.sample.runningEvents = [];
           state.sample.sampleStatus = "ok";
+          state.log.selectedSampleHandle = undefined;
+        });
+      },
+      prepareForSampleLoad: (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
+        getSamplePolling().stopPolling();
+        selectedSampleRef.current = undefined;
+        set((state) => {
+          state.sample.selectedSampleObject = undefined;
+          state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "loading";
+          state.sample.sampleError = undefined;
+          state.sample.sample_identifier = { logFile, id, epoch };
           state.log.selectedSampleHandle = undefined;
         });
       },

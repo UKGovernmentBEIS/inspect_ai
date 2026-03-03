@@ -186,7 +186,7 @@ class GroqAPI(ModelAPI):
             # return
             return output, model_call
         except APIStatusError as ex:
-            model_call.set_response(
+            model_call.set_error(
                 as_error_response(ex.body), self._http_hooks.end_request(request_id)
             )
             return self.handle_bad_request(ex), model_call

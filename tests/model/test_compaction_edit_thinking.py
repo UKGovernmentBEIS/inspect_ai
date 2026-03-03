@@ -145,7 +145,6 @@ async def check_thinking_compaction(
 
 @skip_if_no_openai
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_openai() -> None:
     await check_thinking_compaction(
         "openai/gpt-5-mini",
@@ -155,7 +154,6 @@ async def test_thinking_compaction_openai() -> None:
 
 @skip_if_no_anthropic
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_anthropic() -> None:
     await check_thinking_compaction(
         "anthropic/claude-sonnet-4-5",
@@ -165,7 +163,6 @@ async def test_thinking_compaction_anthropic() -> None:
 
 @skip_if_no_google
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_google() -> None:
     # Note: Google doesn't support thinking compaction (compact_reasoning_history returns False)
     # This test verifies the behavior is handled gracefully
@@ -177,7 +174,6 @@ async def test_thinking_compaction_google() -> None:
 
 @skip_if_no_mistral
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_mistral() -> None:
     await check_thinking_compaction(
         "mistral/magistral-medium-2509",
@@ -188,7 +184,6 @@ async def test_thinking_compaction_mistral() -> None:
 
 @skip_if_no_grok
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_grok() -> None:
     await check_thinking_compaction(
         "grok/grok-3-mini",

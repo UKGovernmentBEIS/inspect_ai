@@ -8,7 +8,7 @@ import { EventPanel } from "./event/EventPanel";
 import clsx from "clsx";
 import { RecordTree } from "../../content/RecordTree";
 import { RenderedText } from "../../content/RenderedText";
-import { formatTitle } from "./event/utils";
+import { eventTitle, formatTitle } from "./event/utils";
 import styles from "./ScoreEventView.module.css";
 import { EventNode } from "./types";
 
@@ -35,11 +35,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={formatTitle(
-        (event.intermediate ? "Intermediate " : "") + "Score",
-        undefined,
-        event.working_start,
-      )}
+      title={formatTitle(eventTitle(event), undefined, event.working_start)}
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}

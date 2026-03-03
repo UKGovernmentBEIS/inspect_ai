@@ -105,7 +105,7 @@ async def mistral_conversation_generate(
             conv_response.model_dump(), http_hooks.end_request(request_id)
         )
     except SDKError as ex:
-        model_call.set_response(
+        model_call.set_error(
             {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
         )
         if ex.status_code == 400:

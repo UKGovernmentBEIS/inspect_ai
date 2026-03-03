@@ -28,7 +28,6 @@ def memory_tool_call() -> ToolCall:
     )
 
 
-@pytest.mark.asyncio
 async def test_summary_basic() -> None:
     """Test basic summary generation returns expected structure."""
     strategy = CompactionSummary()
@@ -63,7 +62,6 @@ async def test_summary_basic() -> None:
     assert compacted[2] == summary
 
 
-@pytest.mark.asyncio
 async def test_summary_existing_summary() -> None:
     """Test that existing summary in history is recognized."""
     strategy = CompactionSummary()
@@ -96,7 +94,6 @@ async def test_summary_existing_summary() -> None:
     # not re-summarize everything from the beginning
 
 
-@pytest.mark.asyncio
 async def test_summary_memory_addendum_with_memory_calls(
     memory_tool_call: ToolCall,
 ) -> None:
@@ -122,7 +119,6 @@ async def test_summary_memory_addendum_with_memory_calls(
     # (The actual prompt content goes to the model, we verify structure)
 
 
-@pytest.mark.asyncio
 async def test_summary_memory_disabled() -> None:
     """Test that memory addendum is NOT included when memory=False."""
     strategy = CompactionSummary(memory=False)
@@ -140,7 +136,6 @@ async def test_summary_memory_disabled() -> None:
     # Strategy should complete without issues even with memory=False
 
 
-@pytest.mark.asyncio
 async def test_summary_custom_model() -> None:
     """Test that custom model is used when provided."""
     custom_model = get_model("mockllm/custom")
@@ -159,7 +154,6 @@ async def test_summary_custom_model() -> None:
     assert summary is not None
 
 
-@pytest.mark.asyncio
 async def test_summary_custom_prompt() -> None:
     """Test that custom prompt is used when provided."""
     custom_prompt = "Please summarize this conversation in one sentence."
@@ -178,7 +172,6 @@ async def test_summary_custom_prompt() -> None:
     # Strategy should use the custom prompt (verified by successful completion)
 
 
-@pytest.mark.asyncio
 async def test_summary_no_system_message() -> None:
     """Test summary works without system messages."""
     strategy = CompactionSummary()
@@ -200,7 +193,6 @@ async def test_summary_no_system_message() -> None:
     assert isinstance(compacted[1], ChatMessageUser)
 
 
-@pytest.mark.asyncio
 async def test_summary_preserves_input_messages() -> None:
     """Test that input messages are preserved in compacted output."""
     strategy = CompactionSummary()

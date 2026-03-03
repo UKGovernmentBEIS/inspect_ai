@@ -57,6 +57,10 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Specialised scorer that is used with the `multiple_choice()` solver.
 
+-   `math()`
+    
+    Scorer for evaluating mathematical expressions and answers. Extracts answers from model output (supporting both `\boxed{}` LaTeX notation and plain text), normalizes mathematical expressions, and uses SymPy to check for mathematical equivalence. Handles various mathematical formats including LaTeX, fractions, roots, percentages, and algebraic expressions. **Note:** Requires the optional `sympy` dependency—install with `pip install sympy`.
+
 Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
 
 ``` python

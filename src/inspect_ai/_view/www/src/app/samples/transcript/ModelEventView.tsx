@@ -19,7 +19,7 @@ import { Message } from "../chat/messages";
 import styles from "./ModelEventView.module.css";
 import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
-import { formatTiming, formatTitle } from "./event/utils";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface ModelEventViewProps {
@@ -89,9 +89,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     }
   }
 
-  const panelTitle = event.role
-    ? `Model Call (${event.role}): ${event.model}`
-    : `Model Call: ${event.model}`;
+  const panelTitle = eventTitle(event);
 
   const turnLabel = context?.turnInfo
     ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
