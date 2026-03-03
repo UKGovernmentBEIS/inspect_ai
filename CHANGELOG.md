@@ -6,6 +6,7 @@
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
 - Timelines: Don't attempt to automaticlaly detect branches (require explicit creation by user in custom timelines).
 - Timelines: Improved automatic detection of utility agents.
+- AsyncFilesystem: Add `anonymous` and `region_name` parameters to support credential-free access to public S3 buckets.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
 
