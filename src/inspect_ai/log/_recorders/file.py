@@ -4,7 +4,7 @@ from typing import Any
 
 from typing_extensions import override
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.constants import MODEL_NONE
 from inspect_ai._util.file import clean_filename_component, filesystem
 from inspect_ai._util.task import task_display_name
@@ -45,6 +45,7 @@ class FileRecorder(Recorder):
         epoch: int = 1,
         uuid: str | None = None,
         exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample:
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
@@ -77,9 +78,7 @@ class FileRecorder(Recorder):
 
     @classmethod
     @override
-    async def read_log_sample_summaries(
-        cls, location: str, async_fs: AsyncFilesystem | None = None
-    ) -> list[EvalSampleSummary]:
+    async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
         if not eval_log.samples:

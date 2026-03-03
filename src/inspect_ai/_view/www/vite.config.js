@@ -16,7 +16,13 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     resolve: {
-      dedupe: ["react", "react-dom"],
+      dedupe: [
+        "react",
+        "react-dom",
+        "@codemirror/state",
+        "@codemirror/view",
+        "@codemirror/language",
+      ],
     },
     define: {
       __DEV_WATCH__: JSON.stringify(process.env.DEV_LOGGING === "true"),

@@ -628,12 +628,11 @@ def test_react_agent_truncation(
 
 
 def test_react_agent_retry_refusals_disabled() -> None:
-    """Test that without retry_refusals, the agent sees each refusal as a separate generation.
+    """Test that without retry_refusals, 3 consecutive content_filter responses break the loop.
 
-    Without retry_refusals, a content_filter response is returned immediately.
-    The agent loop then continues (adding a "please continue" message) and
-    calls generate again. This test verifies that behavior by checking
-    that two model events occur (one refusal, one success).
+    Without retry_refusals, content_filter responses pass through directly.
+    The agent loop allows up to 3 consecutive content_filter responses before
+    breaking to avoid an infinite loop while giving the model a chance to recover.
     """
     task = Task(
         dataset=addition_dataset(),
@@ -645,13 +644,23 @@ def test_react_agent_retry_refusals_disabled() -> None:
     model = get_model(
         "mockllm/model",
         custom_outputs=[
-            # First generation: refusal (no retry, agent loop continues)
+            # 3 consecutive refusals trigger the break
             ModelOutput.from_content(
                 model="mockllm/model",
                 content="I cannot help with that.",
                 stop_reason="content_filter",
             ),
-            # Second generation: success (after agent sent continue message)
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="I still cannot help.",
+                stop_reason="content_filter",
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="I really cannot help.",
+                stop_reason="content_filter",
+            ),
+            # This output won't be reached
             ModelOutput.for_tool_call(
                 model="mockllm/model",
                 tool_name="submit",
@@ -663,11 +672,13 @@ def test_react_agent_retry_refusals_disabled() -> None:
     log = eval(task, model=model)[0]
     assert log.status == "success"
     assert log.samples
-    # Without retry_refusals, we should see 2 model events
+    # Loop breaks after 3 consecutive content_filter responses
     model_events = sum(
         1 for event in log.samples[0].transcript.events if event.event == "model"
     )
-    assert model_events == 2
+    assert model_events == 3
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 0
 
 
 def test_react_agent_retry_refusals_success() -> None:
@@ -718,11 +729,11 @@ def test_react_agent_retry_refusals_success() -> None:
 
 
 def test_react_agent_retry_refusals_exhausted() -> None:
-    """Test that when retries are exhausted, the final refusal is returned.
+    """Test that when retries are exhausted and consecutive threshold hit, loop breaks.
 
-    With retry_refusals=2, after 3 consecutive refusals (initial + 2 retries),
-    the final refusal is returned and added to messages. The agent loop then
-    continues with a new generation attempt.
+    With retry_refusals=2, each _model_generate call consumes up to 3 outputs
+    (initial + 2 retries). The outer loop allows 3 consecutive content_filter
+    results before breaking. So we need 3 × 3 = 9 refusal outputs total.
     """
     task = Task(
         dataset=addition_dataset(),
@@ -734,27 +745,14 @@ def test_react_agent_retry_refusals_exhausted() -> None:
     model = get_model(
         "mockllm/model",
         custom_outputs=[
-            # First _model_generate call: 3 refusals (initial + 2 retries), exhausted
-            ModelOutput.from_content(
-                model="mockllm/model",
-                content="I cannot help with that.",
-                stop_reason="content_filter",
-            ),
-            ModelOutput.from_content(
-                model="mockllm/model",
-                content="I still cannot help.",
-                stop_reason="content_filter",
-            ),
-            ModelOutput.from_content(
-                model="mockllm/model",
-                content="I really cannot help.",
-                stop_reason="content_filter",
-            ),
-            # Agent loop continues after exhaustion, second _model_generate call: success
-            ModelOutput.for_tool_call(
-                model="mockllm/model",
-                tool_name="submit",
-                tool_arguments={"answer": "2"},
+            # 3 outer loop iterations × 3 refusals each (initial + 2 retries)
+            *(
+                ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"I cannot help ({i}).",
+                    stop_reason="content_filter",
+                )
+                for i in range(9)
             ),
         ],
     )
@@ -762,16 +760,8 @@ def test_react_agent_retry_refusals_exhausted() -> None:
     log = eval(task, model=model)[0]
     assert log.status == "success"
     assert log.samples
-    # After exhausting retries, the final refusal is added to messages.
-    # Then agent loop continues and adds the success. So 2 assistant messages.
-    assistant_messages = [
-        m for m in log.samples[0].messages if isinstance(m, ChatMessageAssistant)
-    ]
-    assert len(assistant_messages) == 2
-    # The final refusal should be in the first assistant message
-    assert "really cannot help" in assistant_messages[0].text
     assert log.results
-    assert log.results.scores[0].metrics["accuracy"].value == 1
+    assert log.results.scores[0].metrics["accuracy"].value == 0
 
 
 def test_react_agent_retry_refusals_no_submit() -> None:
@@ -799,6 +789,43 @@ def test_react_agent_retry_refusals_no_submit() -> None:
             ),
             # Final response
             ModelOutput.from_content(model="mockllm/model", content="2"),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+
+
+def test_react_agent_retry_refusals_recovery() -> None:
+    """Test that a transient refusal doesn't break the loop.
+
+    The model refuses once then succeeds on the next attempt, verifying
+    that the consecutive content_filter counter resets on success.
+    """
+    task = Task(
+        dataset=addition_dataset(),
+        solver=react(tools=[addition()]),
+        scorer=includes(),
+        message_limit=30,
+    )
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            # First generation: refusal (consecutive_content_filter = 1)
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="I cannot help with that.",
+                stop_reason="content_filter",
+            ),
+            # Second generation: success with tool call (counter resets to 0)
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "2"},
+            ),
         ],
     )
 

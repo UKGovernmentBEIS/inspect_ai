@@ -1,13 +1,12 @@
 """Tests for OpenAI model API conversion functions."""
 
-import pytest
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessage,
 )
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.responses import (
     Response,
     ResponseOutputMessage,
@@ -32,7 +31,6 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_basic() -> None:
     """Test basic ChatCompletion conversion to ModelOutput."""
     completion = ChatCompletion(
@@ -72,7 +70,6 @@ async def test_model_output_from_openai_basic() -> None:
     assert result.usage.total_tokens == 30
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_with_tool_calls() -> None:
     """Test ChatCompletion with tool calls conversion."""
     from openai.types.chat.chat_completion_message_function_tool_call import (
@@ -125,7 +122,6 @@ async def test_model_output_from_openai_with_tool_calls() -> None:
     assert message.tool_calls[0].function == "get_weather"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_dict_input() -> None:
     """Test conversion from dict representation of ChatCompletion."""
     completion_dict = {
@@ -155,7 +151,6 @@ async def test_model_output_from_openai_dict_input() -> None:
     assert result.choices[0].message.content == "Test response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_basic() -> None:
     """Test basic Response conversion to ModelOutput."""
     response = Response.model_construct(
@@ -205,7 +200,6 @@ async def test_model_output_from_openai_responses_basic() -> None:
     assert result.usage.total_tokens == 300
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_with_reasoning() -> None:
     """Test Response with reasoning blocks conversion."""
     response = Response.model_construct(
@@ -266,7 +260,6 @@ async def test_model_output_from_openai_responses_with_reasoning() -> None:
     assert result.usage.input_tokens_cache_read == 10
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_dict_input() -> None:
     """Test conversion from dict representation of Response."""
     response_dict = {
@@ -309,7 +302,6 @@ async def test_model_output_from_openai_responses_dict_input() -> None:
     assert result.usage.input_tokens == 20
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_with_refusal() -> None:
     """Test Response with refusal content."""
     response = Response.model_construct(
@@ -348,7 +340,6 @@ async def test_model_output_from_openai_responses_with_refusal() -> None:
     assert result.choices[0].stop_reason == "stop"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_multiple_choices() -> None:
     """Test ChatCompletion with multiple choices (n > 1)."""
     completion = ChatCompletion(
@@ -391,7 +382,6 @@ async def test_model_output_from_openai_multiple_choices() -> None:
     assert result.choices[1].message.content == "Second response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_length_stop_reason() -> None:
     """Test ChatCompletion with length finish reason."""
     completion = ChatCompletion(
@@ -421,3 +411,117 @@ async def test_model_output_from_openai_length_stop_reason() -> None:
 
     assert isinstance(result, ModelOutput)
     assert result.choices[0].stop_reason == "max_tokens"
+
+
+async def test_model_output_from_openai_cache_token_normalization() -> None:
+    """Test that input_tokens excludes cached tokens for OpenAI Chat Completions."""
+    completion = ChatCompletion(
+        id="chatcmpl-cache",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=1000,
+            completion_tokens=50,
+            total_tokens=1050,
+            prompt_tokens_details=PromptTokensDetails(cached_tokens=600),
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    # input_tokens should exclude cached tokens: 1000 - 600 = 400
+    assert result.usage.input_tokens == 400
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050
+
+
+async def test_model_output_from_openai_no_cache_tokens() -> None:
+    """Test that input_tokens is unchanged when there are no cached tokens."""
+    completion = ChatCompletion(
+        id="chatcmpl-nocache",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=500,
+            completion_tokens=50,
+            total_tokens=550,
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    # No cache, input_tokens should equal prompt_tokens
+    assert result.usage.input_tokens == 500
+    assert result.usage.input_tokens_cache_read is None
+    assert result.usage.total_tokens == 550
+
+
+async def test_model_output_from_openai_responses_cache_normalization() -> None:
+    """Test that input_tokens excludes cached tokens for OpenAI Responses API."""
+    response = Response(
+        id="resp-cache",
+        created_at=1234567890,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseOutputMessage(
+                id="msg-1",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText(
+                        type="output_text",
+                        text="Hello!",
+                        annotations=[],
+                    )
+                ],
+            )
+        ],
+        tool_choice="auto",
+        tools=[],
+        parallel_tool_calls=False,
+        usage=ResponseUsage(
+            input_tokens=1000,
+            output_tokens=50,
+            total_tokens=1050,
+            input_tokens_details=InputTokensDetails(cached_tokens=600),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = await model_output_from_openai_responses(response)
+
+    assert result.usage is not None
+    # input_tokens should exclude cached tokens: 1000 - 600 = 400
+    assert result.usage.input_tokens == 400
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050

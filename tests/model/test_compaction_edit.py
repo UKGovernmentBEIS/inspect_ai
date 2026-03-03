@@ -38,9 +38,6 @@ def tool_call_4() -> ToolCall:
 
 
 # Tests for thinking block clearing
-
-
-@pytest.mark.asyncio
 async def test_clear_thinking_keep_one_turn() -> None:
     """Test that only the last assistant turn keeps thinking blocks."""
     strategy = CompactionEdit(keep_thinking_turns=1, keep_tool_uses=10)
@@ -86,7 +83,6 @@ async def test_clear_thinking_keep_one_turn() -> None:
     assert isinstance(last_assistant.content[0], ContentReasoning)
 
 
-@pytest.mark.asyncio
 async def test_clear_thinking_keep_all() -> None:
     """Test that 'all' keeps all thinking blocks."""
     strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=10)
@@ -118,7 +114,6 @@ async def test_clear_thinking_keep_all() -> None:
         assert any(isinstance(c, ContentReasoning) for c in msg.content)
 
 
-@pytest.mark.asyncio
 async def test_clear_thinking_keep_n_turns() -> None:
     """Test keeping last N turns with thinking blocks."""
     strategy = CompactionEdit(keep_thinking_turns=2, keep_tool_uses=10)
@@ -154,7 +149,6 @@ async def test_clear_thinking_keep_n_turns() -> None:
         assert any(isinstance(c, ContentReasoning) for c in msg.content)
 
 
-@pytest.mark.asyncio
 async def test_clear_thinking_string_content() -> None:
     """Test that string content is not affected by thinking clearing."""
     strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=10)
@@ -171,7 +165,6 @@ async def test_clear_thinking_string_content() -> None:
     assert msg.content == "Simple string response"
 
 
-@pytest.mark.asyncio
 async def test_clear_thinking_empty_after_clearing() -> None:
     """Test that content becomes empty string when only reasoning is present."""
     strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=10)
@@ -189,9 +182,6 @@ async def test_clear_thinking_empty_after_clearing() -> None:
 
 
 # Tests for tool clearing with keep_tool_inputs=True
-
-
-@pytest.mark.asyncio
 async def test_clear_tool_results_keep_inputs(
     tool_call_1: ToolCall,
     tool_call_2: ToolCall,
@@ -252,9 +242,6 @@ async def test_clear_tool_results_keep_inputs(
 
 
 # Tests for tool clearing with keep_tool_inputs=False
-
-
-@pytest.mark.asyncio
 async def test_clear_tool_results_remove_inputs(
     tool_call_1: ToolCall, tool_call_2: ToolCall
 ) -> None:
@@ -298,7 +285,6 @@ async def test_clear_tool_results_remove_inputs(
     assert tool_msg.content == "Time: 12:00"
 
 
-@pytest.mark.asyncio
 async def test_clear_tool_multiple_calls_per_turn(
     tool_call_1: ToolCall, tool_call_2: ToolCall, tool_call_3: ToolCall
 ) -> None:
@@ -344,9 +330,6 @@ async def test_clear_tool_multiple_calls_per_turn(
 
 
 # Tests for tool exclusions
-
-
-@pytest.mark.asyncio
 async def test_tool_exclusions(
     tool_call_1: ToolCall, tool_call_2: ToolCall, tool_call_3: ToolCall
 ) -> None:
@@ -395,9 +378,6 @@ async def test_tool_exclusions(
 
 
 # Tests for mixed scenarios
-
-
-@pytest.mark.asyncio
 async def test_mixed_thinking_and_tools(tool_call_1: ToolCall) -> None:
     """Test clearing both thinking and tools together."""
     strategy = CompactionEdit(keep_thinking_turns=1, keep_tool_uses=0)
@@ -445,9 +425,6 @@ async def test_mixed_thinking_and_tools(tool_call_1: ToolCall) -> None:
 
 
 # Tests for edge cases
-
-
-@pytest.mark.asyncio
 async def test_orphaned_tool_calls(tool_call_1: ToolCall) -> None:
     """Test that tool calls without matching results are skipped."""
     strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=0)
@@ -469,7 +446,6 @@ async def test_orphaned_tool_calls(tool_call_1: ToolCall) -> None:
     assert len(assistant.tool_calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_keep_tool_uses_zero(
     tool_call_1: ToolCall, tool_call_2: ToolCall
 ) -> None:
@@ -500,7 +476,6 @@ async def test_keep_tool_uses_zero(
     assert tool_msg_2.content == "(Tool result removed)"
 
 
-@pytest.mark.asyncio
 async def test_empty_messages() -> None:
     """Test with empty message list."""
     strategy = CompactionEdit()
@@ -511,7 +486,6 @@ async def test_empty_messages() -> None:
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_no_assistant_messages() -> None:
     """Test with no assistant messages."""
     strategy = CompactionEdit()
@@ -526,7 +500,6 @@ async def test_no_assistant_messages() -> None:
     assert compacted == messages
 
 
-@pytest.mark.asyncio
 async def test_preserve_message_immutability(tool_call_1: ToolCall) -> None:
     """Test that original messages are not mutated."""
     strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=0)
@@ -558,9 +531,6 @@ async def test_preserve_message_immutability(tool_call_1: ToolCall) -> None:
 
 
 # Tests for provider opt-out of thinking compaction
-
-
-@pytest.mark.asyncio
 async def test_thinking_preserved_when_provider_opts_out() -> None:
     """Test that thinking blocks are preserved when provider doesn't support compaction."""
     strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=10)
@@ -599,7 +569,6 @@ async def test_thinking_preserved_when_provider_opts_out() -> None:
         assert any(isinstance(c, ContentReasoning) for c in msg.content)
 
 
-@pytest.mark.asyncio
 async def test_thinking_cleared_when_provider_supports_it() -> None:
     """Test that thinking blocks are cleared when provider supports compaction."""
     strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=10)
@@ -656,7 +625,6 @@ def memory_tool_call() -> ToolCall:
     )
 
 
-@pytest.mark.asyncio
 async def test_mixed_thinking_tools_memory(
     tool_call_1: ToolCall,
     memory_tool_call: ToolCall,
@@ -744,7 +712,6 @@ async def test_mixed_thinking_tools_memory(
     assert any(isinstance(c, ContentReasoning) for c in last_assistant.content)
 
 
-@pytest.mark.asyncio
 async def test_sequential_compaction_cycles(
     tool_call_1: ToolCall,
     tool_call_2: ToolCall,
@@ -886,7 +853,6 @@ def code_execution_tool_use() -> ContentToolUse:
     )
 
 
-@pytest.mark.asyncio
 async def test_clear_server_tool_use_results(
     web_search_tool_use: ContentToolUse,
     mcp_tool_use: ContentToolUse,
@@ -939,7 +905,6 @@ async def test_clear_server_tool_use_results(
     assert mcp_call.result == '{"data": "some data"}'
 
 
-@pytest.mark.asyncio
 async def test_clear_all_server_tool_uses_when_keep_zero() -> None:
     """Test clearing all server tool uses when keep_tool_uses=0."""
     strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=0)
@@ -970,7 +935,6 @@ async def test_clear_all_server_tool_uses_when_keep_zero() -> None:
     assert tool_use.result == TOOL_RESULT_REMOVED
 
 
-@pytest.mark.asyncio
 async def test_server_tool_use_exclusions(
     web_search_tool_use: ContentToolUse,
     mcp_tool_use: ContentToolUse,
@@ -1018,7 +982,6 @@ async def test_server_tool_use_exclusions(
     assert mcp.result == TOOL_RESULT_REMOVED
 
 
-@pytest.mark.asyncio
 async def test_server_tool_exclusion_by_name() -> None:
     """Test that tools can be excluded by name (for mcp_call)."""
     strategy = CompactionEdit(
@@ -1076,7 +1039,6 @@ async def test_server_tool_exclusion_by_name() -> None:
     assert tool2.result == TOOL_RESULT_REMOVED
 
 
-@pytest.mark.asyncio
 async def test_mixed_client_and_server_tool_clearing(
     tool_call_1: ToolCall,
     tool_call_2: ToolCall,
@@ -1169,7 +1131,6 @@ async def test_mixed_client_and_server_tool_clearing(
     assert ws_second.result == '[{"title": "Second result"}]'
 
 
-@pytest.mark.asyncio
 async def test_multiple_server_tools_in_same_message() -> None:
     """Test clearing multiple server-side tools within the same assistant message."""
     strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=1)
@@ -1223,7 +1184,6 @@ async def test_multiple_server_tools_in_same_message() -> None:
     assert tool_uses[2].result == "result3"
 
 
-@pytest.mark.asyncio
 async def test_server_tool_clearing_preserves_other_content() -> None:
     """Test that clearing server tool results preserves other content in the message."""
     strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=0)

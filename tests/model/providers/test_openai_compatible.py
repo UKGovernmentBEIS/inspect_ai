@@ -16,14 +16,14 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+from inspect_ai.tool import ToolInfo
 
 
-@pytest.mark.asyncio
 @skip_if_no_together
 @skip_if_no_together_base_url
 async def test_openai_compatible() -> None:
     model = get_model(
-        "openai-api/together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "openai-api/together/MiniMaxAI/MiniMax-M2.5",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -41,7 +41,30 @@ async def test_openai_compatible() -> None:
     assert len(response.completion) >= 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.parametrize("strict_tools", [True, False])
+def test_strict_tools_model_arg(strict_tools: bool) -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        strict_tools=strict_tools,
+    )
+
+    tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
+    assert tools[0]["function"]["strict"] is strict_tools
+
+
+def test_strict_tools_default_true() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+    )
+
+    tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
+    assert tools[0]["function"]["strict"] is True
+
+
 @skip_if_no_openai
 async def test_openai_responses_compatible() -> None:
     with environ_var("OPENAI_BASE_URL", "https://api.openai.com/v1"):
@@ -89,3 +112,15 @@ def test_handle_bad_request(
         assert response.stop_reason == stop_reason
     else:
         assert isinstance(response, APIStatusError)
+
+
+async def test_initialize_recreates_closed_http_client() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+    )
+    await api.http_client.aclose()
+    assert api.http_client.is_closed
+    api.initialize()
+    assert not api.http_client.is_closed

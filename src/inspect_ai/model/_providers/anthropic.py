@@ -38,6 +38,7 @@ from anthropic.types import (
     ImageBlockParam,
     Message,
     MessageParam,
+    OutputConfigParam,
     PlainTextSourceParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
@@ -301,12 +302,27 @@ class AnthropicAPI(ModelAPI):
                 **self.model_args,
             )
         else:
+            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
+            # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
+            # create the client with auth_token= (sends Authorization: Bearer)
+            # instead of api_key= (sends X-Api-Key). The Anthropic API rejects
+            # requests that have both headers if the X-Api-Key is invalid, so
+            # we must use one or the other — not both.
+            auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+            if auth_token:
+                return AsyncAnthropic(
+                    base_url=base_url,
+                    auth_token=auth_token,
+                    default_headers={
+                        "anthropic-beta": "oauth-2025-04-20",
+                    },
+                    **self.model_args,
+                )
             # resolve api_key
             if not self.api_key:
                 self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
             if self.api_key is None:
                 raise environment_prerequisite_error("Anthropic", ANTHROPIC_API_KEY)
-            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
             return AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
@@ -444,7 +460,7 @@ class AnthropicAPI(ModelAPI):
                     request, streaming, tools, config
                 )
             except (BadRequestError, APIStatusError) as ex:
-                model_call.set_response(
+                model_call.set_error(
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 raise ex
@@ -584,7 +600,9 @@ class AnthropicAPI(ModelAPI):
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
-            if "does not support context management" in error_msg:
+            if "does not support context management" in error_msg or (
+                "does not support" in error_msg and "compact" in error_msg
+            ):
                 raise NotImplementedError(
                     f"Model {self.model_name} does not support native compaction: {error_msg}"
                 ) from output
@@ -702,15 +720,15 @@ class AnthropicAPI(ModelAPI):
             # max is claude 4.6 only
             if effort == "max" and not self.is_claude_4_6():
                 effort = "high"
-            extra_body["output_config"] = {"effort": effort}
+            params["output_config"] = OutputConfigParam(effort=effort)
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
                 params["thinking"] = dict(type="adaptive")
-                extra_body.setdefault("output_config", {})
-                extra_body["output_config"]["effort"] = reasoning_effort
+                # reasoning_effort takes precedence over effort
+                params["output_config"] = OutputConfigParam(effort=reasoning_effort)
             else:
                 params["thinking"] = dict(
                     type="enabled", budget_tokens=config.reasoning_tokens
@@ -777,9 +795,11 @@ class AnthropicAPI(ModelAPI):
                 max_tokens = max_tokens + config.reasoning_tokens
 
         # apply caps after bumping for reasoning
-        if self.is_claude_4_6():
+        if self.is_claude_4_6() and self.is_claude_4_opus():
+            # Opus 4.6 only
             max_tokens = min(max_tokens, 128000)
-        elif self.is_claude_4_5():
+        elif self.is_claude_4_5() or self.is_claude_4_6():
+            # All other 4.5 and 4.6 models
             max_tokens = min(max_tokens, 64000)
         elif self.is_claude_4_opus():
             max_tokens = min(max_tokens, 32000)
@@ -1125,10 +1145,10 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            # computer_20251124 is only supported by Claude Opus 4.5
-            if (
-                self.is_claude_4_5() or self.is_claude_4_6()
-            ) and self.is_claude_4_opus():
+            # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
+            if self.is_claude_4_6() or (
+                self.is_claude_4_5() and self.is_claude_4_opus()
+            ):
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
                     name="computer",
@@ -1181,10 +1201,6 @@ class AnthropicAPI(ModelAPI):
             return (
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
-                )
-                if (self.is_claude_4_5() or self.is_claude_4_6())
-                else BetaToolTextEditor20250429Param(
-                    type="text_editor_20250429", name="str_replace_based_edit_tool"
                 )
                 if self.is_claude_4()
                 else BetaToolTextEditor20241022Param(

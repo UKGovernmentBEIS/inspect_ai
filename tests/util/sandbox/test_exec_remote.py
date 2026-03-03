@@ -4,22 +4,24 @@ These tests mock the sandbox's exec() method to test the host-side polling loop,
 event assembly, kill behavior, and awaitable mode without needing a real sandbox.
 """
 
-import asyncio
+import contextlib
 import json
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import anyio
 import pytest
 
 from inspect_ai.util._sandbox.exec_remote import (
-    Completed,
+    ExecCompleted,
+    ExecOutput,
     ExecRemoteAwaitableOptions,
     ExecRemoteCommonOptions,
-    ExecRemoteEvent,
     ExecRemoteProcess,
     ExecRemoteStreamingOptions,
-    StderrChunk,
-    StdoutChunk,
+    ExecStderr,
+    ExecStdout,
     exec_remote_awaitable,
     exec_remote_streaming,
 )
@@ -57,6 +59,12 @@ def _kill_response(stdout: str = "", stderr: str = "") -> str:
     return _rpc({"stdout": stdout, "stderr": stderr})
 
 
+@contextlib.contextmanager
+def _no_events_context() -> Iterator[None]:
+    """A no-op context manager to stand in for SandboxEnvironmentProxy.no_events()."""
+    yield
+
+
 def _make_sandbox_mock(responses: list[str]) -> AsyncMock:
     """Create a mock SandboxEnvironment whose exec() returns canned responses.
 
@@ -64,6 +72,7 @@ def _make_sandbox_mock(responses: list[str]) -> AsyncMock:
     """
     sandbox = AsyncMock()
     sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
 
     response_iter = iter(responses)
 
@@ -85,6 +94,7 @@ def _make_never_completing_sandbox() -> AsyncMock:
     """
     sandbox = AsyncMock()
     sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
 
     call_count = 0
 
@@ -115,7 +125,6 @@ def _make_never_completing_sandbox() -> AsyncMock:
 class TestStartRpcParams:
     """Verify that env and cwd are sent as separate RPC params (not baked into command)."""
 
-    @pytest.mark.asyncio
     async def test_command_is_just_the_command(self) -> None:
         """Without env/cwd, the command string is just the shell-joined cmd."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -129,7 +138,6 @@ class TestStartRpcParams:
         assert "env" not in rpc_payload["params"]
         assert "cwd" not in rpc_payload["params"]
 
-    @pytest.mark.asyncio
     async def test_env_sent_as_rpc_param(self) -> None:
         """Env dict is sent as a top-level RPC param, not embedded in command."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -145,7 +153,6 @@ class TestStartRpcParams:
         assert rpc_payload["params"]["command"] == "my_cmd"
         assert rpc_payload["params"]["env"] == {"FOO": "bar", "BAZ": "qux"}
 
-    @pytest.mark.asyncio
     async def test_cwd_sent_as_rpc_param(self) -> None:
         """Working directory is sent as a top-level RPC param, not embedded in command."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -158,7 +165,6 @@ class TestStartRpcParams:
         assert rpc_payload["params"]["command"] == "my_cmd"
         assert rpc_payload["params"]["cwd"] == "/tmp/work"
 
-    @pytest.mark.asyncio
     async def test_env_and_cwd_sent_together(self) -> None:
         """Both env and cwd are sent as separate RPC params."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -192,11 +198,17 @@ class TestStreamingIteration:
                     "stdout": "output",
                     "stderr": "",
                 },
-                [StdoutChunk(data="output"), Completed(exit_code=0)],
+                [
+                    ExecStdout(data="output"),
+                    ExecCompleted(exit_code=0),
+                ],
             ),
             (
                 {"state": "completed", "exit_code": 1, "stdout": "", "stderr": "error"},
-                [StderrChunk(data="error"), Completed(exit_code=1)],
+                [
+                    ExecStderr(data="error"),
+                    ExecCompleted(exit_code=1),
+                ],
             ),
             (
                 {
@@ -206,18 +218,18 @@ class TestStreamingIteration:
                     "stderr": "err",
                 },
                 [
-                    StdoutChunk(data="out"),
-                    StderrChunk(data="err"),
-                    Completed(exit_code=0),
+                    ExecStdout(data="out"),
+                    ExecStderr(data="err"),
+                    ExecCompleted(exit_code=0),
                 ],
             ),
             (
                 {"state": "completed", "exit_code": 0, "stdout": "", "stderr": ""},
-                [Completed(exit_code=0)],
+                [ExecCompleted(exit_code=0)],
             ),
             (
                 {"state": "completed", "exit_code": 1, "stdout": "", "stderr": ""},
-                [Completed(exit_code=1)],
+                [ExecCompleted(exit_code=1)],
             ),
         ],
         ids=[
@@ -228,11 +240,10 @@ class TestStreamingIteration:
             "failure_no_output",
         ],
     )
-    @pytest.mark.asyncio
     async def test_single_poll_completion(
         self,
         poll_response: dict[str, Any],
-        expected_events: list[ExecRemoteEvent],
+        expected_events: list[ExecOutput],
     ) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _rpc(poll_response)])
 
@@ -241,7 +252,6 @@ class TestStreamingIteration:
 
         assert events == expected_events
 
-    @pytest.mark.asyncio
     async def test_multiple_polls_before_completion(self) -> None:
         """Test that running polls with output yield chunks, then completion."""
         sandbox = _make_sandbox_mock(
@@ -260,13 +270,12 @@ class TestStreamingIteration:
         events = [event async for event in proc]
 
         assert events == [
-            StdoutChunk(data="chunk1"),
-            StdoutChunk(data="chunk2"),
-            StdoutChunk(data="chunk3"),
-            Completed(exit_code=0),
+            ExecStdout(data="chunk1"),
+            ExecStdout(data="chunk2"),
+            ExecStdout(data="chunk3"),
+            ExecCompleted(exit_code=0),
         ]
 
-    @pytest.mark.asyncio
     async def test_empty_polls_skipped(self) -> None:
         """Running polls with no output should not yield events."""
         sandbox = _make_sandbox_mock(
@@ -284,8 +293,8 @@ class TestStreamingIteration:
         events = [event async for event in proc]
 
         assert events == [
-            StdoutChunk(data="final"),
-            Completed(exit_code=0),
+            ExecStdout(data="final"),
+            ExecCompleted(exit_code=0),
         ]
 
 
@@ -295,7 +304,6 @@ class TestStreamingIteration:
 
 
 class TestSingleUseIterator:
-    @pytest.mark.asyncio
     async def test_second_iteration_raises(self) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
 
@@ -313,7 +321,6 @@ class TestSingleUseIterator:
 
 
 class TestKill:
-    @pytest.mark.asyncio
     async def test_kill_calls_rpc(self) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _kill_response()])
 
@@ -322,7 +329,6 @@ class TestKill:
 
         assert sandbox.exec.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_kill_before_start_is_noop(self) -> None:
         sandbox = AsyncMock()
         proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
@@ -330,7 +336,6 @@ class TestKill:
         await proc.kill()
         sandbox.exec.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_kill_after_completed_is_noop(self) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
 
@@ -341,7 +346,6 @@ class TestKill:
         await proc.kill()
         assert sandbox.exec.call_count == call_count_before
 
-    @pytest.mark.asyncio
     async def test_kill_after_kill_is_noop(self) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _kill_response()])
 
@@ -352,7 +356,6 @@ class TestKill:
         await proc.kill()
         assert sandbox.exec.call_count == call_count_before
 
-    @pytest.mark.asyncio
     async def test_kill_enqueues_remaining_output(self) -> None:
         sandbox = _make_sandbox_mock(
             [_start_response(), _kill_response(stdout="remaining", stderr="errs")]
@@ -362,11 +365,10 @@ class TestKill:
         await proc.kill()
 
         assert proc._pending_events == [
-            StdoutChunk(data="remaining"),
-            StderrChunk(data="errs"),
+            ExecStdout(data="remaining"),
+            ExecStderr(data="errs"),
         ]
 
-    @pytest.mark.asyncio
     async def test_killed_process_stops_iteration(self) -> None:
         """After external kill, iteration yields remaining output then stops."""
         sandbox = _make_sandbox_mock(
@@ -379,9 +381,8 @@ class TestKill:
         proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
         events = [event async for event in proc]
 
-        assert events == [StdoutChunk(data="last")]
+        assert events == [ExecStdout(data="last")]
 
-    @pytest.mark.asyncio
     async def test_kill_suppresses_rpc_exception(self) -> None:
         """kill() should not propagate exceptions from the RPC call.
 
@@ -421,7 +422,6 @@ class TestKill:
 
 
 class TestCancellation:
-    @pytest.mark.asyncio
     async def test_cancellation_kills_process(self) -> None:
         """When iteration is cancelled, the process should be killed."""
         kill_called = False
@@ -441,11 +441,10 @@ class TestCancellation:
                 pass
 
         with patch.object(proc, "kill", side_effect=mock_kill):
-            task = asyncio.create_task(iterate())
-            await asyncio.sleep(0.05)
-            task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(iterate)
+                await anyio.sleep(0.05)
+                tg.cancel_scope.cancel()
 
         assert kill_called
 
@@ -464,7 +463,6 @@ class TestAwaitableMode:
         ],
         ids=["success", "failure"],
     )
-    @pytest.mark.asyncio
     async def test_returns_exec_result(
         self,
         exit_code: int,
@@ -487,7 +485,6 @@ class TestAwaitableMode:
         assert result.stdout == stdout
         assert result.stderr == stderr
 
-    @pytest.mark.asyncio
     async def test_accumulates_output_across_polls(self) -> None:
         sandbox = _make_sandbox_mock(
             [
@@ -506,7 +503,6 @@ class TestAwaitableMode:
         assert result.stdout == "abc"
         assert result.stderr == "xyz"
 
-    @pytest.mark.asyncio
     async def test_killed_process_returns_failure(self) -> None:
         """If the process is killed externally, awaitable returns failure."""
         sandbox = _make_sandbox_mock(
@@ -525,7 +521,6 @@ class TestAwaitableMode:
 
 
 class TestTimeout:
-    @pytest.mark.asyncio
     async def test_timeout_raises_timeout_error(self) -> None:
         """Awaitable mode raises TimeoutError when timeout expires."""
         sandbox = _make_never_completing_sandbox()
@@ -538,7 +533,6 @@ class TestTimeout:
                 ExecRemoteAwaitableOptions(timeout=1, poll_interval=0.1),
             )
 
-    @pytest.mark.asyncio
     async def test_timeout_none_does_not_timeout(self) -> None:
         """No timeout means the command runs to completion."""
         sandbox = _make_sandbox_mock([_start_response(), _poll_response(stdout="done")])
@@ -550,11 +544,11 @@ class TestTimeout:
         assert result.success is True
         assert result.stdout == "done"
 
-    @pytest.mark.asyncio
     async def test_timeout_kills_process(self) -> None:
         """On timeout, the process should be killed."""
         sandbox = AsyncMock()
         sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
 
         call_count = 0
         methods_called: list[str] = []
@@ -611,7 +605,6 @@ class TestInputHandling:
         ],
         ids=["string", "bytes_decoded"],
     )
-    @pytest.mark.asyncio
     async def test_input_passed_to_start(
         self, input_value: str | bytes, expected_rpc_input: str
     ) -> None:
@@ -639,14 +632,12 @@ class TestPidAccess:
         with pytest.raises(RuntimeError, match="not been submitted"):
             _ = proc.pid
 
-    @pytest.mark.asyncio
     async def test_pid_after_start(self) -> None:
         sandbox = _make_sandbox_mock([_start_response()])
 
         proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
         assert proc.pid == 42
 
-    @pytest.mark.asyncio
     async def test_anext_before_start_raises(self) -> None:
         proc = ExecRemoteProcess(AsyncMock(), ["cmd"], ExecRemoteCommonOptions(), 5)
         proc._iteration_started = True
@@ -670,7 +661,6 @@ def _close_stdin_response(stdout: str = "", stderr: str = "") -> str:
 
 
 class TestWriteStdin:
-    @pytest.mark.asyncio
     async def test_write_stdin_sends_rpc(self) -> None:
         """write_stdin sends data via exec_remote_write_stdin RPC."""
         sandbox = _make_sandbox_mock([_start_response(), _write_stdin_response()])
@@ -687,7 +677,6 @@ class TestWriteStdin:
         assert payload["params"]["pid"] == 42
         assert payload["params"]["data"] == "hello"
 
-    @pytest.mark.asyncio
     async def test_write_stdin_bytes_decoded(self) -> None:
         """Bytes input is decoded to UTF-8 before sending."""
         sandbox = _make_sandbox_mock([_start_response(), _write_stdin_response()])
@@ -700,7 +689,6 @@ class TestWriteStdin:
         payload = json.loads(rpc_call.kwargs.get("input", rpc_call[1].get("input", "")))
         assert payload["params"]["data"] == "bytes data"
 
-    @pytest.mark.asyncio
     async def test_write_stdin_without_stdin_open_raises(self) -> None:
         """write_stdin raises RuntimeError when stdin_open is False."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -711,7 +699,6 @@ class TestWriteStdin:
         ):
             await proc.write_stdin("data")
 
-    @pytest.mark.asyncio
     async def test_write_stdin_before_start_raises(self) -> None:
         """write_stdin raises RuntimeError when process not started."""
         proc = ExecRemoteProcess(
@@ -720,7 +707,6 @@ class TestWriteStdin:
         with pytest.raises(RuntimeError, match="not been submitted"):
             await proc.write_stdin("data")
 
-    @pytest.mark.asyncio
     async def test_write_stdin_after_completed_raises(self) -> None:
         """write_stdin raises RuntimeError after process has completed."""
         sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
@@ -732,7 +718,6 @@ class TestWriteStdin:
         with pytest.raises(RuntimeError, match="process has terminated"):
             await proc.write_stdin("data")
 
-    @pytest.mark.asyncio
     async def test_write_stdin_after_killed_raises(self) -> None:
         """write_stdin raises RuntimeError after process has been killed."""
         sandbox = _make_sandbox_mock([_start_response(), _kill_response()])
@@ -744,7 +729,6 @@ class TestWriteStdin:
         with pytest.raises(RuntimeError, match="process has terminated"):
             await proc.write_stdin("data")
 
-    @pytest.mark.asyncio
     async def test_write_stdin_enqueues_output(self) -> None:
         """Output returned from write_stdin is enqueued as pending events."""
         sandbox = _make_sandbox_mock(
@@ -760,12 +744,11 @@ class TestWriteStdin:
         await proc.write_stdin("hello")
 
         events = [event async for event in proc]
-        assert any(isinstance(e, StdoutChunk) and e.data == "chunk1" for e in events)
-        assert any(isinstance(e, StderrChunk) and e.data == "err1" for e in events)
+        assert any(isinstance(e, ExecStdout) and e.data == "chunk1" for e in events)
+        assert any(isinstance(e, ExecStderr) and e.data == "err1" for e in events)
 
 
 class TestCloseStdin:
-    @pytest.mark.asyncio
     async def test_close_stdin_sends_rpc(self) -> None:
         """close_stdin sends exec_remote_close_stdin RPC."""
         sandbox = _make_sandbox_mock([_start_response(), _close_stdin_response()])
@@ -780,7 +763,6 @@ class TestCloseStdin:
         assert payload["method"] == "exec_remote_close_stdin"
         assert payload["params"]["pid"] == 42
 
-    @pytest.mark.asyncio
     async def test_close_stdin_without_stdin_open_raises(self) -> None:
         """close_stdin raises RuntimeError when stdin_open is False."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -791,7 +773,6 @@ class TestCloseStdin:
         ):
             await proc.close_stdin()
 
-    @pytest.mark.asyncio
     async def test_close_stdin_before_start_raises(self) -> None:
         """close_stdin raises RuntimeError when process not started."""
         proc = ExecRemoteProcess(
@@ -800,7 +781,6 @@ class TestCloseStdin:
         with pytest.raises(RuntimeError, match="not been submitted"):
             await proc.close_stdin()
 
-    @pytest.mark.asyncio
     async def test_close_stdin_after_completed_is_noop(self) -> None:
         """close_stdin is a no-op after process has completed."""
         sandbox = _make_sandbox_mock([_start_response(), _poll_response()])
@@ -813,7 +793,6 @@ class TestCloseStdin:
         await proc.close_stdin()
         assert sandbox.exec.call_count == call_count_before
 
-    @pytest.mark.asyncio
     async def test_close_stdin_enqueues_output(self) -> None:
         """Output returned from close_stdin is enqueued as pending events."""
         sandbox = _make_sandbox_mock(
@@ -829,10 +808,9 @@ class TestCloseStdin:
         await proc.close_stdin()
 
         events = [event async for event in proc]
-        assert any(isinstance(e, StdoutChunk) and e.data == "final_out" for e in events)
-        assert any(isinstance(e, StderrChunk) and e.data == "final_err" for e in events)
+        assert any(isinstance(e, ExecStdout) and e.data == "final_out" for e in events)
+        assert any(isinstance(e, ExecStderr) and e.data == "final_err" for e in events)
 
-    @pytest.mark.asyncio
     async def test_close_stdin_after_killed_is_noop(self) -> None:
         """close_stdin is a no-op after process has been killed."""
         sandbox = _make_sandbox_mock([_start_response(), _kill_response()])
@@ -847,7 +825,6 @@ class TestCloseStdin:
 
 
 class TestStdinOpenStartParam:
-    @pytest.mark.asyncio
     async def test_stdin_open_passed_to_start_rpc(self) -> None:
         """stdin_open=True is passed through to exec_remote_start RPC."""
         sandbox = _make_sandbox_mock([_start_response()])
@@ -861,7 +838,6 @@ class TestStdinOpenStartParam:
         )
         assert rpc_payload["params"]["stdin_open"] is True
 
-    @pytest.mark.asyncio
     async def test_stdin_open_false_not_sent(self) -> None:
         """stdin_open=False (default) is not included in start RPC params."""
         sandbox = _make_sandbox_mock([_start_response()])

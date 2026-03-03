@@ -1,21 +1,109 @@
-## Unreleased
+## 0.3.186 (03 March 2026)
+
+- Anthropic: Handle updated Anthropic compaction not supported error message.
+- OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g. AzureAI) where they are not supported.
+- Google: Use httpx instead of aiohttp when running under trio async backend for compatibility.
+- Grok: Raise clear error when using the grok provider under the trio async backend (gRPC is asyncio-only).
+- Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
+- Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+- Timelines: Don't attempt to automaticlaly detect branches (require explicit creation by user in custom timelines).
+- Timelines: Improved automatic detection of utility agents and automatically unwrap solver/agent pairs.
+- AsyncFilesystem: Add `anonymous` and `region_name` parameters to support credential-free access to public S3 buckets.
+- Inspect View: Add support for find in log list.
+- Inspect View: Fix regression displaying running samples when switching samples.
+
+## 0.3.185 (01 March 2026)
+
+- Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
+- Events: Add `agent_span_id` property to tool events for associating them with their associated agent.
+
+## 0.3.184 (28 February 2026)
+
+- Model API: By default, only log raw model api request/response when an error occurs. Override to log all model api calls with `--log-model-api`.
+- Model API: Truncate the model request to a maximum of 200 lines when printing to the console after an error.
+- Model API: Add SageMaker provider for invoking models hosted on AWS SageMaker endpoints.
+- Model API: Normalize handling of cached tokens in `ModelUsage` (input tokens now excludes cached tokens whereas previously it included them for some providers).
+- Model API: Track model usage by model role in addition to globally.
+- OpenAI: Capture system and user messages in compaction responses.
+- OpenAI: Warn user when reasoning options are passed to non-reasoning model.
+- OpenAI: Pass through `phase` for gpt-5.3-codex models.
+- OpenAI Compatible: Re-create closed httpx client after disconnect.
+- Anthropic: Support ANTHROPIC_AUTH_TOKEN for OAuth Bearer authentication.
+- Anthropic: Enable `computer_20251124` tool version (with zoom) for Claude Sonnet 4.6.
+- vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
+- Tools: Enable parameter placeholders in tool views.
+- OpenRouter: Improved capture of reasoning summaries for Gemini models.
+- Scoring: Add `math()` scorer which handles comparing mathematical expressions.
+- ReAct Agent: Break out of `react()` agent loop if the model refuses three times without choosing to call the `submit()` tool. 
+- Agent Bridge: Only require `openai` package when bridging the openai completions or reaponses API.
+- Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.
+- Timelines: Improve agent detection logic in `timeline_build()`.
+- Performance: Share a single `AsyncFilesystem` via ContextVar within each async context, eliminating redundant S3 client creation and connection pool fragmentation.
+- Inspect View: Improve virtualized find in transcript by matching event titles as well as contents.
+- Testing: Migrate async tests from pytest-asyncio to anyio, enabling dual-backend (asyncio/trio) test execution via `--runtrio` flag.
+- Testing: Run `--runtrio` as trio-only in a separate process to prevent cross-backend global state contamination; convert batch tests from asyncio to anyio.
+- Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
+
+## 0.3.183 (24 February 2026)
+
+- Improved naming and typeinfo for `exec_remote()` output stream events.
+- Scoring: Don't use task level metric overrides when appending scores to an existing log.
+- Inspect View: Add support for downloading sample JSON.
+- Inspect View: Server returns correct content length for responses.
+
+## 0.3.182 (24 February 2026)
+
+- AzureAI: Pass `max_completion_tokens` to gpt-5 and o-series models.
+- Events: Add timeline functions for providing additional structure for event viewing and traversal.
+- Bugfix: Fix Inspect View showing stale sample data when rapidly switching between samples.
+
+## 0.3.181 (23 February 2026)
+
+- Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
+- Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
+- OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
+- Anthropic: Use `output_config` directly (rather than via `extra_body`) which is compatible with batch mode.
+- Google: Add latest Gemini models to model info database.
+- Sandboxes: Verify execute result size automatically for all sandbox exec calls.
+- Sandboxes: Export `exec_remote()` types from root namespace and add docs.
+- Eval Set: Add `TASK_IDENTIFIER_VERSION` to support persistence of task identifiers in inspect_flow.
+- Eval Retry: Don't retry with `model_base_url` unless it was explicitly specified by the user.
+- Agent Bridge: Add model_aliases to agent bridge and pass Model to GenerateFilter.
+- Dependencies: Update to nest-asyncio2 v1.7.2 to address anyio threading issue.
+- Inspect View: Display all non-undefined edited score values.
+- Bugfix: Don't reuse eval_set logs when `sample_shuffle` changes and `limit` constrains sample selection.
+- Bugfix: `eval_set` now correctly handles pending tasks and incomplete tasks (e.g. limit/epoch changes) in a single pass, instead of skipping incomplete tasks when new tasks were present.
+- Bugfix: Reuse S3 clients in log recorders to fix session leak.
+- Bugfix: Create eval set bundle even when all logs are already complete.
+- Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
+- Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
+- Bugfix: Skip non-JSON lines in MCP server stdout parsing,
+- Bugfix: Remove doubled MIME prefix in MCP content conversion.
+- Bugfix: Ensure that `eval()` specified `model_roles` override task-level roles.
+- Bugfix: Improve max sample size error.
+
+## 0.3.180 (20 February 2026)
 
 - Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
 - Anthropic: Increase max_tokens caps for Claude 4.5 and 4.6 models.
 - Anthropic: Update to new sdk types released with Sonnet 4.6 (v0.80.0 of `anthropic` package is now required).
+- Anthropic: Remove uses of Sonnet 3.7 from tests (no longer available).
 - Hugging Face: More flexible control over application of chat templates (enables support for generation from base models).
 - VLLM: Don't retry when the error indicates that the VLLM server has crashed.
 - Analysis: Async reading of logs/samples in `samples_df()` (now 50x faster).
 - Sandboxes: Don't require Docker compatible sandboxes to implement `config_deserialize()`.
 - Sandboxes: New `exec_remote()` method for async execution of long-running commands.
 - Compaction: Add `type` field to `CompactionEvent` to record compaction type.
+- Web Search: Treat Tavily query character limits as ToolErrors.
 - Limits: New `cost_limit()` context manager for scoped application of cost limits.
 - Performance: Disable expensive per-sample options when running high-throughput workloads.
 - Events: Rename `EventNode` to `EventTreeNode` and `SpanNode` to `EventTreeSpan` (old type names will still work at runtime with a deprecation warning).
 - Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 - Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
+- Bugfix: Google batch JSONL serialization now correctly nests generation config fields (e.g. `thinking_config`) under `generation_config` in the REST schema.
+- Bugfix: Google batch polling no longer hangs forever when a batch job reaches `EXPIRED` or `PARTIALLY_SUCCEEDED` state.
 
 ## 0.3.179 (12 February 2026)
 
@@ -33,6 +121,7 @@
 - Inspect View: Improve transcript display appearance in VSCode.
 - Inspect View: Improve log events display in transcripts.
 - Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
+- Inspect View: Fix stale state read in logsSlice after syncLogs.
 
 ## 0.3.177 (10 February 2026)
 

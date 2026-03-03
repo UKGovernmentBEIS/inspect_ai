@@ -258,9 +258,9 @@ class SandboxEnvironment(abc.ABC):
            proc = await sandbox.exec_remote(["pytest", "-v"])
            async for event in proc:
                match event:
-                   case StdoutChunk(data=data): print(data, end="")
-                   case StderrChunk(data=data): print(data, end="", file=sys.stderr)
-                   case Completed(exit_code=code): print(f"Done: {code}")
+                   case ExecStdout(data=data): print(data, end="")
+                   case ExecStderr(data=data): print(data, end="", file=sys.stderr)
+                   case ExecCompleted(exit_code=code): print(f"Done: {code}")
            ```
 
         2. Fire-and-forget with explicit kill:
@@ -295,6 +295,9 @@ class SandboxEnvironment(abc.ABC):
             If stream=True: ExecRemoteProcess handle with events iterator and kill() method.
                 The process is guaranteed to have been started in the sandbox when this returns.
             If stream=False: ExecResult[str] with success, returncode, stdout, and stderr.
+
+        Raises:
+            TimeoutError: If `timeout` is specified in ExecRemoteAwaitableOptions and the command exceeds it (only applicable when `stream=False`).
         """
         return await (exec_remote_streaming if stream else exec_remote_awaitable)(
             self, cmd, self.default_polling_interval(), options

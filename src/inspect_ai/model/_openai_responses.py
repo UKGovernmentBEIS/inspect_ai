@@ -164,6 +164,7 @@ from ._providers._openai_computer_use import (
 from ._providers._openai_web_search import maybe_web_search_tool
 
 MESSAGE_ID = "message_id"
+MESSAGE_PHASE = "message_phase"
 
 
 class ResponsesModelInfo(Protocol):
@@ -587,6 +588,9 @@ def _process_response_output_items(
     for output in outputs:
         match output:
             case ResponseOutputMessage(content=content, id=id):
+                # extract phase if present (extra field from API)
+                phase: str | None = getattr(output, "phase", None)
+
                 # find logprobs in content if available
                 logprobs_content = next(
                     (
@@ -601,11 +605,15 @@ def _process_response_output_items(
                         logprobs_content.logprobs
                     )
 
+                internal: dict[str, JsonValue] = {MESSAGE_ID: id}
+                if phase is not None:
+                    internal[MESSAGE_PHASE] = phase
+
                 message_content.extend(
                     [
                         ContentText(
                             text=c.text,
-                            internal={MESSAGE_ID: id},
+                            internal=dict(internal),
                             citations=(
                                 [
                                     to_inspect_citation(annotation)
@@ -617,7 +625,7 @@ def _process_response_output_items(
                         )
                         if isinstance(c, ResponseOutputText)
                         else ContentText(
-                            text=c.refusal, refusal=True, internal={MESSAGE_ID: id}
+                            text=c.refusal, refusal=True, internal=dict(internal)
                         )
                         for c in content
                     ]
@@ -998,28 +1006,31 @@ def _openai_input_items_from_chat_message_assistant(
     # items to return
     items: list[ResponseInputItemParam] = []
     pending_response_output_id: str | None = None
+    pending_response_phase: str | None = None
     pending_response_output: list[
         ResponseOutputRefusalParam | ResponseOutputTextParam
     ] = []
 
     def flush_pending_context_text() -> None:
-        nonlocal pending_response_output_id
+        nonlocal pending_response_output_id, pending_response_phase
         if len(pending_response_output) > 0:
-            items.append(
-                ResponseOutputMessageParam(
-                    type="message",
-                    role="assistant",
-                    # this actually can be `None`, and it will in fact be `None` when the
-                    # assistant message is synthesized by the scaffold as opposed to being
-                    # replayed from the model
-                    # Is it okay to dynamically generate this here? We need this in
-                    # order to read this back into the equivalent BaseModel for the bridge
-                    id=pending_response_output_id,  # type: ignore[typeddict-item]
-                    content=pending_response_output.copy(),
-                    status="completed",
-                )
+            msg_param = ResponseOutputMessageParam(
+                type="message",
+                role="assistant",
+                # this actually can be `None`, and it will in fact be `None` when the
+                # assistant message is synthesized by the scaffold as opposed to being
+                # replayed from the model
+                # Is it okay to dynamically generate this here? We need this in
+                # order to read this back into the equivalent BaseModel for the bridge
+                id=pending_response_output_id,  # type: ignore[typeddict-item]
+                content=pending_response_output.copy(),
+                status="completed",
             )
+            if pending_response_phase is not None:
+                msg_param["phase"] = pending_response_phase  # type: ignore[typeddict-item]
+            items.append(msg_param)
         pending_response_output_id = None
+        pending_response_phase = None
         pending_response_output.clear()
 
     # filter consecutive reasoning blocks if we have a model that demands it
@@ -1077,23 +1088,29 @@ def _openai_input_items_from_chat_message_assistant(
                         f"OpenAI Responses: Unspected tool_type '{tool_type}'"
                     )
             case ContentText(text=text, refusal=refusal):
-                # see if we have a message id
+                # see if we have a message id and phase
                 message_id: str | None = None
-                if (
-                    isinstance(content.internal, dict)
-                    and MESSAGE_ID in content.internal
-                ):
-                    id_value = content.internal[MESSAGE_ID]
-                    message_id = id_value if isinstance(id_value, str) else None
-                else:
-                    message_id = None
+                message_phase: str | None = None
+                if isinstance(content.internal, dict):
+                    if MESSAGE_ID in content.internal:
+                        id_value = content.internal[MESSAGE_ID]
+                        message_id = id_value if isinstance(id_value, str) else None
+                    if MESSAGE_PHASE in content.internal:
+                        phase_value = content.internal[MESSAGE_PHASE]
+                        message_phase = (
+                            phase_value if isinstance(phase_value, str) else None
+                        )
 
                 # see if we need to flush d
-                if message_id is not pending_response_output_id:
+                if (
+                    message_id != pending_response_output_id
+                    or message_phase != pending_response_phase
+                ):
                     flush_pending_context_text()
 
                 # register pending output
                 pending_response_output_id = message_id
+                pending_response_phase = message_phase
                 pending_response_output.append(
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
@@ -1529,6 +1546,16 @@ def _outputs_to_result(outputs: list[OutputLogs | OutputImage] | None) -> str:
         return ""
 
 
+def _output_message_role(item: ResponseOutputMessage) -> str:
+    """Get the role of a ResponseOutputMessage as a string.
+
+    The SDK types restrict role to Literal["assistant"], but the compact
+    endpoint returns messages with role="developer" and role="user".
+    Using getattr avoids mypy's non-overlapping comparison check.
+    """
+    return str(getattr(item, "role", "assistant"))
+
+
 def chat_messages_from_compact_response(
     response: CompactedResponse,
     model: str | None = None,
@@ -1542,7 +1569,9 @@ def chat_messages_from_compact_response(
 
     The order of items is preserved. Items are processed in order:
     - ResponseCompactionItem becomes a ChatMessageUser with compaction metadata
-    - Consecutive non-compaction items are grouped into ChatMessageAssistant messages
+    - ResponseOutputMessage with role="developer" is stripped (orchestrator handles system messages)
+    - ResponseOutputMessage with role="user" becomes a ChatMessageUser
+    - Other items (role="assistant", reasoning, tool calls) are grouped into ChatMessageAssistant
 
     The compaction metadata is stored in a ContentData object within a ChatMessageUser.
     When replayed, _extract_compaction_from_content_data() will extract this metadata
@@ -1585,7 +1614,7 @@ def chat_messages_from_compact_response(
     # Process items in order
     for item in response.output:
         if isinstance(item, ResponseCompactionItem):
-            # Flush any pending non-compaction items first
+            # Flush any pending assistant items first
             flush_pending_items()
 
             found_compaction = True
@@ -1606,8 +1635,34 @@ def chat_messages_from_compact_response(
                     source="generate",
                 )
             )
+        elif (
+            isinstance(item, ResponseOutputMessage)
+            and _output_message_role(item) == "developer"
+        ):
+            # Skip developer messages - the orchestrator's prefix handling
+            # is the authoritative source for system messages
+            pass
+        elif (
+            isinstance(item, ResponseOutputMessage)
+            and _output_message_role(item) == "user"
+        ):
+            # Flush any pending assistant items first
+            flush_pending_items()
+            # Convert user message content to ChatMessageUser
+            # Content items are ResponseOutputText or ResponseOutputRefusal
+            user_content: list[Content] = [
+                ContentText(text=c.text)
+                if isinstance(c, ResponseOutputText)
+                else ContentText(text=c.refusal, refusal=True)
+                for c in item.content
+            ]
+            if user_content:
+                messages.append(
+                    ChatMessageUser(content=user_content, source="generate")
+                )
         else:
-            # Accumulate non-compaction items
+            # Accumulate assistant items (ResponseOutputMessage with role="assistant",
+            # ResponseReasoningItem, ResponseFunctionToolCall, etc.)
             pending_items.append(item)
 
     # Flush any remaining pending items

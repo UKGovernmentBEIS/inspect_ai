@@ -39,6 +39,7 @@ from .._openai import (
     OpenAIAsyncHttpxClient,
     messages_to_openai,
     model_output_from_openai,
+    needs_max_completion_tokens,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -64,6 +65,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
+        strict_tools: bool = True,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -117,6 +119,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
+        self.strict_tools = strict_tools
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -135,6 +138,8 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def initialize(self) -> None:
         super().initialize()
+        if self.http_client.is_closed:
+            self.http_client = OpenAIAsyncHttpxClient()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
@@ -235,7 +240,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
-                model_call.set_response(
+                model_call.set_error(
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 return self.handle_bad_request(ex), model_call
@@ -287,11 +292,19 @@ class OpenAICompatibleAPI(ModelAPI):
         return False
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        return openai_completion_params(
+        params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
         )
+
+        if (
+            needs_max_completion_tokens(self.service_model_name())
+            and "max_tokens" in params
+        ):
+            params["max_completion_tokens"] = params.pop("max_tokens")
+
+        return params
 
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""
@@ -304,7 +317,7 @@ class OpenAICompatibleAPI(ModelAPI):
         # some inference platforms (e.g. hf-inference) require strict=True
         openai_tools = openai_chat_tools(tools)
         for tool in openai_tools:
-            tool["function"]["strict"] = True
+            tool["function"]["strict"] = self.strict_tools
         return openai_tools
 
     async def messages_to_openai(

@@ -194,6 +194,9 @@ def react(
             # track attempts
             attempt_count = 0
 
+            # track consecutive content_filter responses
+            consecutive_content_filter = 0
+
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
@@ -209,6 +212,15 @@ def react(
                         continue
                     else:
                         break
+
+                # check for content filter (model refusal) -- allow a few
+                # chances to recover before breaking to avoid infinite loop
+                if state.output.stop_reason == "content_filter":
+                    consecutive_content_filter += 1
+                    if consecutive_content_filter >= 3:
+                        break
+                else:
+                    consecutive_content_filter = 0
 
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:
@@ -348,6 +360,9 @@ def react_no_submit(
             # create compact function
             compact = _agent_compact(compaction, state.messages, tools, model)
 
+            # track consecutive content_filter responses
+            consecutive_content_filter = 0
+
             # main loop
             while True:
                 # generate output and append assistant message
@@ -362,6 +377,15 @@ def react_no_submit(
                         continue
                     else:
                         break
+
+                # check for content filter (model refusal) -- allow a few
+                # chances to recover before breaking to avoid infinite loop
+                if state.output.stop_reason == "content_filter":
+                    consecutive_content_filter += 1
+                    if consecutive_content_filter >= 3:
+                        break
+                else:
+                    consecutive_content_filter = 0
 
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:

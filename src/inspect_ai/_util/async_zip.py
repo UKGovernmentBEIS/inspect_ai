@@ -4,13 +4,12 @@ Supports reading individual members from large ZIP archives (including ZIP64)
 stored locally or remotely (e.g., S3) using async range requests.
 """
 
-from __future__ import annotations
-
 import struct
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
+import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -42,12 +41,6 @@ class CentralDirectory:
     etag: str | None = None
 
 
-async def _get_central_directory(
-    filesystem: AsyncFilesystem, filename: str
-) -> CentralDirectory:
-    return await _parse_central_directory(filesystem, filename)
-
-
 async def _find_central_directory(
     filesystem: AsyncFilesystem, filename: str
 ) -> CentralDirectoryLocation:
@@ -73,10 +66,10 @@ async def _find_central_directory(
 
     # Parse 32-bit EOCD fields
     (
-        _disk_no,
-        _cd_start_disk,
-        _num_entries_disk,
-        _num_entries_total,
+        disk_no,
+        cd_start_disk,
+        num_entries_disk,
+        num_entries_total,
         cd_size_32,
         cd_offset_32,
         _comment_len,
@@ -85,30 +78,55 @@ async def _find_central_directory(
     cd_offset = cd_offset_32
     cd_size = cd_size_32
 
-    # Check for ZIP64 EOCD locator
-    loc_sig = b"PK\x06\x07"
-    loc_idx = tail.rfind(loc_sig, 0, idx)
-    if loc_idx != -1:
-        # Parse ZIP64 EOCD locator to get EOCD64 offset
-        fields = struct.unpack_from("<IQI", tail, loc_idx + 4)
-        eocd64_offset = fields[1]
+    # Only look for ZIP64 structures when the standard EOCD has overflow
+    # sentinel values. Searching unconditionally can match the PK\x06\x07
+    # signature inside compressed entry data, causing false positives.
+    needs_zip64 = (
+        disk_no == 0xFFFF
+        or cd_start_disk == 0xFFFF
+        or num_entries_disk == 0xFFFF
+        or num_entries_total == 0xFFFF
+        or cd_size_32 == 0xFFFFFFFF
+        or cd_offset_32 == 0xFFFFFFFF
+    )
 
-        # Read ZIP64 EOCD (reuse tail if possible)
-        if eocd64_offset >= tail_start:
-            rel = eocd64_offset - tail_start
-            eocd64_data = tail[rel : rel + 56]
+    if needs_zip64:
+        # The ZIP64 EOCD Locator is exactly 20 bytes and per the spec
+        # appears immediately before the standard EOCD record.
+        loc_sig = b"PK\x06\x07"
+        loc_idx = idx - 20
+        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == loc_sig:
+            pass  # found at expected position
         else:
-            eocd64_data = await filesystem.read_file_bytes_fully(
-                filename, eocd64_offset, eocd64_offset + 56
-            )
+            # Fall back to searching (handles non-standard writers)
+            loc_idx = tail.rfind(loc_sig, 0, idx)
 
-        # Verify ZIP64 EOCD signature
-        eocd64_sig = b"PK\x06\x06"
-        if not eocd64_data.startswith(eocd64_sig):
-            raise ValueError("Corrupt ZIP64 structure")
+        if loc_idx >= 0 and tail[loc_idx : loc_idx + 4] == loc_sig:
+            # Parse ZIP64 EOCD locator to get EOCD64 offset
+            fields = struct.unpack_from("<IQI", tail, loc_idx + 4)
+            eocd64_offset = fields[1]
 
-        # Parse ZIP64 central directory size and offset
-        cd_size, cd_offset = struct.unpack_from("<QQ", eocd64_data, 40)
+            # Sanity check: offset must be within the file
+            file_size = tail_start + len(tail)
+            if eocd64_offset >= file_size:
+                raise ValueError("Corrupt ZIP64 structure")
+
+            # Read ZIP64 EOCD (reuse tail if possible)
+            if eocd64_offset >= tail_start:
+                rel = eocd64_offset - tail_start
+                eocd64_data = tail[rel : rel + 56]
+            else:
+                eocd64_data = await filesystem.read_file_bytes_fully(
+                    filename, eocd64_offset, eocd64_offset + 56
+                )
+
+            # Verify ZIP64 EOCD signature
+            eocd64_sig = b"PK\x06\x06"
+            if not eocd64_data.startswith(eocd64_sig):
+                raise ValueError("Corrupt ZIP64 structure")
+
+            # Parse ZIP64 central directory size and offset
+            cd_size, cd_offset = struct.unpack_from("<QQ", eocd64_data, 40)
 
     return CentralDirectoryLocation(cd_offset, cd_size, tail, tail_start, suffix.etag)
 
@@ -306,18 +324,22 @@ class AsyncZipReader:
         self._filename = filename
         self._chunk_size = chunk_size
         self._central_directory: CentralDirectory | None = None
+        self._lock = anyio.Lock()
 
     @property
     def etag(self) -> str | None:
         """ETag from the S3 response used to read the central directory."""
-        return self._central_directory.etag if self._central_directory else None
+        cd = self._central_directory
+        return cd.etag if cd is not None else None
 
     async def entries(self) -> CentralDirectory:
         """Load and cache the central directory."""
         if self._central_directory is None:
-            self._central_directory = await _get_central_directory(
-                self._filesystem, self._filename
-            )
+            async with self._lock:
+                if self._central_directory is None:
+                    self._central_directory = await _parse_central_directory(
+                        self._filesystem, self._filename
+                    )
         return self._central_directory
 
     async def get_member_entry(self, member_name: str) -> ZipEntry:

@@ -59,9 +59,6 @@ def other_tool() -> ToolInfo:
 # ==============================================================================
 # Threshold Resolution Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_threshold_absolute_int() -> None:
     """Test that integer threshold is used as-is."""
     strategy = CompactionEdit(threshold=500)  # Absolute token count
@@ -83,7 +80,6 @@ async def test_threshold_absolute_int() -> None:
     assert len(result) == 3
 
 
-@pytest.mark.asyncio
 async def test_threshold_absolute_float_above_one() -> None:
     """Test that threshold > 1.0 is treated as absolute."""
     strategy = CompactionEdit(threshold=5000.0)  # Float > 1.0 = absolute
@@ -105,9 +101,6 @@ async def test_threshold_absolute_float_above_one() -> None:
 # ==============================================================================
 # Memory Warning Logic Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
     """Test that memory warning is issued when tokens > 0.9 * threshold."""
     # Use a low threshold so we can trigger memory warning zone
@@ -134,7 +127,6 @@ async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
     assert len(result) >= 3  # At least the original messages
 
 
-@pytest.mark.asyncio
 async def test_memory_warning_disabled() -> None:
     """Test that memory warning is NOT issued when strategy.memory=False."""
     strategy = CompactionEdit(threshold=100, memory=False)
@@ -162,7 +154,6 @@ async def test_memory_warning_disabled() -> None:
     assert not has_warning
 
 
-@pytest.mark.asyncio
 async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
     """Test that memory warning is NOT issued when MEMORY_TOOL not in tools."""
     strategy = CompactionEdit(threshold=100, memory=True)
@@ -193,9 +184,6 @@ async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
 # ==============================================================================
 # Prefix Preservation Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_prefix_restored() -> None:
     """Test that prefix messages are restored after compaction."""
     strategy = CompactionSummary(threshold=100)
@@ -226,7 +214,6 @@ async def test_prefix_restored() -> None:
     assert isinstance(result[0], ChatMessageSystem)
 
 
-@pytest.mark.asyncio
 async def test_prefix_empty() -> None:
     """Test that empty prefix is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -248,9 +235,6 @@ async def test_prefix_empty() -> None:
 # ==============================================================================
 # Multiple Compaction Cycles Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_cycle_processed_ids() -> None:
     """Test that sequential calls track processed_message_ids correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -281,7 +265,6 @@ async def test_cycle_processed_ids() -> None:
     assert len(result2) == 5
 
 
-@pytest.mark.asyncio
 async def test_cycle_token_cache() -> None:
     """Test that token counts are cached and reused across calls."""
     strategy = CompactionEdit(threshold=500)
@@ -307,9 +290,6 @@ async def test_cycle_token_cache() -> None:
 # ==============================================================================
 # Tool Token Handling Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_tools_empty() -> None:
     """Test that empty tools list is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -327,7 +307,6 @@ async def test_tools_empty() -> None:
     assert len(result) == 2
 
 
-@pytest.mark.asyncio
 async def test_tools_none() -> None:
     """Test that None tools is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -348,9 +327,6 @@ async def test_tools_none() -> None:
 # ==============================================================================
 # Boundary Condition Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_boundary_under_threshold() -> None:
     """Test that tokens under threshold don't trigger compaction."""
     strategy = CompactionEdit(threshold=10000)  # High threshold
@@ -370,7 +346,6 @@ async def test_boundary_under_threshold() -> None:
     assert len(result) == 3
 
 
-@pytest.mark.asyncio
 async def test_boundary_triggers_compaction() -> None:
     """Test that tokens above threshold trigger compaction (with tool calls to clear)."""
     from inspect_ai.tool import ToolCall
@@ -407,9 +382,6 @@ async def test_boundary_triggers_compaction() -> None:
 # ==============================================================================
 # Strategy Return Value Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_return_edit_none() -> None:
     """Test that CompactionEdit returns None for summary."""
     strategy = CompactionEdit(threshold=50)
@@ -429,7 +401,6 @@ async def test_return_edit_none() -> None:
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_return_trim_none() -> None:
     """Test that CompactionTrim returns None for summary."""
     strategy = CompactionTrim(threshold=50)
@@ -449,7 +420,6 @@ async def test_return_trim_none() -> None:
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_return_summary_not_none() -> None:
     """Test that CompactionSummary returns non-None summary."""
     # Use threshold that triggers compaction but can accommodate the summary output
@@ -480,9 +450,6 @@ async def test_return_summary_not_none() -> None:
 # ==============================================================================
 # Edge Case Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_edge_small_threshold() -> None:
     """Test that very small threshold (100 tokens) works correctly."""
     strategy = CompactionEdit(threshold=100)
@@ -501,7 +468,6 @@ async def test_edge_small_threshold() -> None:
     assert result is not None
 
 
-@pytest.mark.asyncio
 async def test_single_message() -> None:
     """Test compaction with a single message."""
     strategy = CompactionEdit(threshold=500)
@@ -518,7 +484,6 @@ async def test_single_message() -> None:
     assert len(result) == 1
 
 
-@pytest.mark.asyncio
 async def test_summary_integration() -> None:
     """Test that summary message is recognized in subsequent calls."""
     strategy = CompactionSummary(threshold=100)
@@ -554,9 +519,6 @@ async def test_summary_integration() -> None:
 # ==============================================================================
 # Iterative Compaction Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_iterative_compaction_succeeds() -> None:
     """Test that iterative compaction retries until under threshold."""
     # Use CompactionTrim with threshold that requires 2+ passes to succeed.
@@ -583,7 +545,6 @@ async def test_iterative_compaction_succeeds() -> None:
     assert len(result) < len(messages)
 
 
-@pytest.mark.asyncio
 async def test_iterative_compaction_stops_when_no_progress() -> None:
     """Test that iteration stops if compaction makes no progress."""
     # CompactionEdit with nothing to clear should stop immediately
@@ -604,7 +565,6 @@ async def test_iterative_compaction_stops_when_no_progress() -> None:
         await compact.compact_input(messages)
 
 
-@pytest.mark.asyncio
 async def test_compaction_error_message_breakdown() -> None:
     """Test that RuntimeError includes tools, prefix, messages breakdown."""
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
@@ -753,7 +713,6 @@ def teststrip_citations_handles_multiple_citations() -> None:
     assert content_text.citations is None
 
 
-@pytest.mark.asyncio
 async def test_compaction_strips_citations() -> None:
     """Test that compaction strips citations from messages."""
     from inspect_ai.tool import ToolCall

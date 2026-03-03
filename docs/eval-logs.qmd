@@ -34,6 +34,8 @@ This article will focus primarily on configuring Inspect's logging behavior (loc
 
 3. [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) --- Data visualization framework built to work with Inspect logs.
 
+4. [CJE](https://github.com/cimo-labs/cje) --- Calibrate model-graded scorer accuracy against oracle labels using causal inference.
+
 ## Log Location
 
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
@@ -113,6 +115,15 @@ inspect eval images.py --log-format=json --no-log-images
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
+## Model API Logging
+
+If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the `ModelEvent`). For example:
+
+``` bash
+inspect eval ctf.py --log-model-api
+```
+
+Note that model api requests that result in an error are always logged.
 
 ## Log File API {#sec-log-file-api}
 

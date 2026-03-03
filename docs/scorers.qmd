@@ -57,6 +57,10 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Specialised scorer that is used with the `multiple_choice()` solver.
 
+-   `math()`
+    
+    Scorer for evaluating mathematical expressions and answers. Extracts answers from model output (supporting both `\boxed{}` LaTeX notation and plain text), normalizes mathematical expressions, and uses SymPy to check for mathematical equivalence. Handles various mathematical formats including LaTeX, fractions, roots, percentages, and algebraic expressions. **Note:** Requires the optional `sympy` dependency—install with `pip install sympy`.
+
 Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
 
 ``` python
@@ -766,7 +770,13 @@ When rescoring a previously scored log file you have two options:
 1)  Append Mode (Default): The new scores will be added alongside the existing scores in the log file, keeping both the old and new results.
 2)  Overwrite Mode: The new scores will replace the existing scores in the log file, removing the old results.
 
-You can choose which mode to use based on whether you want to preserve or discard the previous scoring data. To control this, use the `--action` arg:
+You can choose which mode to use based on whether you want to preserve or discard the previous scoring data.
+
+::: {.callout-note appearance="simple"}
+When using append mode, the new scorer uses its own metrics independently—the original eval's metric configuration is not applied to the appended scorer. This means append works even when the original eval used metrics from packages that are not available in the current environment.
+:::
+
+To control this, use the `--action` arg:
 
 ``` bash
 # append scores from custom scorer

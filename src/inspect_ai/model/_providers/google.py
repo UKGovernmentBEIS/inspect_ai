@@ -11,6 +11,7 @@ from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
+import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
@@ -92,7 +93,7 @@ from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._providers._google_batch import GoogleBatcher
+from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
     get_candidate_citations,
@@ -344,13 +345,7 @@ class GoogleGenAIAPI(ModelAPI):
                 while tool_calling_attempts < 3:
                     if self._batcher:
                         response = await self._batcher.generate_for_request(
-                            {
-                                "contents": [
-                                    content.model_dump(exclude_none=True)
-                                    for content in gemini_contents
-                                ],
-                                **parameters.model_dump(exclude_none=True),
-                            }
+                            batch_request_dict(parameters, gemini_contents)
                         )
                     elif self.streaming:
                         response = await self._stream_generate_content(
@@ -387,7 +382,7 @@ class GoogleGenAIAPI(ModelAPI):
                     else:
                         break
             except ClientError as ex:
-                model_call.set_response(
+                model_call.set_error(
                     {"error": {"message": str(ex.message), "code": ex.code}},
                     http_hooks.end_request(request_id),
                 )
@@ -657,10 +652,18 @@ class GoogleGenAIAPI(ModelAPI):
         return False
 
     def model_client(self, http_options: HttpOptions | None = None) -> Client:
+        from inspect_ai._util._async import current_async_backend
+
         http_options = http_options or HttpOptions(
             base_url=self.base_url,
             api_version=self.api_version,
         )
+        # aiohttp requires asyncio; use httpx under trio for compatibility
+        if (
+            current_async_backend() == "trio"
+            and http_options.httpx_async_client is None
+        ):
+            http_options.httpx_async_client = httpx.AsyncClient()
         return Client(
             vertexai=self.is_vertex(),
             api_key=self.api_key,

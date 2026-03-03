@@ -88,6 +88,28 @@ class TestOpenrouterReasoningDetailsToReasoning:
         assert result.reasoning == "eyJlbmNyeXB0ZWQiOiJ0cnVlIn0="
         assert result.redacted is True
 
+    def test_text_and_encrypted_combined(self):
+        """Both text and encrypted preserves text as summary."""
+        details = [
+            {
+                "type": "reasoning.text",
+                "format": "google-gemini-v1",
+                "text": "Let me think about this step by step...",
+                "id": "t1",
+            },
+            {
+                "type": "reasoning.encrypted",
+                "format": "google-gemini-v1",
+                "data": "CiQBjz1rXxKfW2fJuqbBlfGrk8wxR",
+                "id": "e1",
+            },
+        ]
+        result = openrouter_reasoning_details_to_reasoning(details)
+
+        assert result.reasoning == "CiQBjz1rXxKfW2fJuqbBlfGrk8wxR"
+        assert result.summary == "Let me think about this step by step..."
+        assert result.redacted is True
+
     def test_empty_list_logs_warning(self):
         """Empty reasoning_details list logs warning and returns raw JSON."""
         with patch("inspect_ai.model._providers.openrouter.logger") as mock_logger:

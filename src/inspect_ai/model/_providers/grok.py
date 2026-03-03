@@ -95,6 +95,14 @@ class GrokAPI(ModelAPI):
             config=config,
         )
 
+        # raise if we are using trio (gRPC is asyncio-only)
+        from inspect_ai._util._async import current_async_backend
+
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The grok provider does not work with the trio async backend."
+            )
+
         # resolve api key
         if self.api_key is None:
             self.api_key = os.environ.get(
@@ -225,7 +233,7 @@ class GrokAPI(ModelAPI):
                     chat_response, tools
                 ), model_call
             except grpc.RpcError as ex:
-                model_call.set_response(
+                model_call.set_error(
                     {"error": {"code": str(ex.code()), "details": ex.details()}},
                     time.monotonic() - start_time,
                 )
@@ -535,8 +543,9 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
+    cached = usage.cached_prompt_text_tokens or 0
     return ModelUsage(
-        input_tokens=usage.prompt_tokens,
+        input_tokens=usage.prompt_tokens - cached,
         output_tokens=usage.completion_tokens,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,

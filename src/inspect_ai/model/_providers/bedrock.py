@@ -461,7 +461,7 @@ class BedrockAPI(ModelAPI):
                 )
 
             except ClientError as ex:
-                model_call.set_response(
+                model_call.set_error(
                     as_error_response(ex.response),
                     self._http_hooks.end_request(request_id),
                 )

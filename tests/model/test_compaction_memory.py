@@ -221,9 +221,6 @@ def test_clear_memory_content_mixed_tools(
 
 
 # Tests for CompactionEdit + Memory integration
-
-
-@pytest.mark.asyncio
 async def test_compaction_edit_clears_memory_content(
     memory_create_call: ToolCall,
 ) -> None:
@@ -246,7 +243,6 @@ async def test_compaction_edit_clears_memory_content(
     assert tc.arguments["command"] == "create"  # metadata preserved
 
 
-@pytest.mark.asyncio
 async def test_compaction_edit_preserves_memory_content_when_disabled(
     memory_create_call: ToolCall,
 ) -> None:
@@ -271,9 +267,6 @@ async def test_compaction_edit_preserves_memory_content_when_disabled(
 
 
 # Tests for CompactionTrim + Memory integration
-
-
-@pytest.mark.asyncio
 async def test_compaction_trim_clears_memory_content(
     memory_create_call: ToolCall,
 ) -> None:
@@ -296,7 +289,6 @@ async def test_compaction_trim_clears_memory_content(
     assert tc.arguments["command"] == "create"  # metadata preserved
 
 
-@pytest.mark.asyncio
 async def test_compaction_trim_preserves_memory_content_when_disabled(
     memory_create_call: ToolCall,
 ) -> None:
