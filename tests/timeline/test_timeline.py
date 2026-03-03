@@ -9,12 +9,10 @@ from inspect_ai import eval
 from inspect_ai.event import Timeline, timeline_build
 
 from .generate import (
-    scenario_auto_branching,
     scenario_deep_nesting,
     scenario_deep_utility,
     scenario_handoff_and_as_tool,
     scenario_multi_turn_agent,
-    scenario_multiple_rerolls,
     scenario_nested_sub_agent,
     scenario_parallel_collect,
     scenario_parallel_heterogeneous,
@@ -23,12 +21,10 @@ from .generate import (
     scenario_sequential_run,
     scenario_simple_agent,
     scenario_utility_agent,
-    validate_auto_branching,
     validate_deep_nesting,
     validate_deep_utility,
     validate_handoff_and_as_tool,
     validate_multi_turn_agent,
-    validate_multiple_rerolls,
     validate_nested_sub_agent,
     validate_parallel_collect,
     validate_parallel_heterogeneous,
@@ -65,10 +61,6 @@ def test_timeline_nested_sub_agent() -> None:
     _run_and_validate(scenario_nested_sub_agent, validate_nested_sub_agent)
 
 
-def test_timeline_auto_branching() -> None:
-    _run_and_validate(scenario_auto_branching, validate_auto_branching)
-
-
 def test_timeline_utility_agent() -> None:
     _run_and_validate(scenario_utility_agent, validate_utility_agent)
 
@@ -87,10 +79,6 @@ def test_timeline_handoff_and_as_tool() -> None:
 
 def test_timeline_deep_nesting() -> None:
     _run_and_validate(scenario_deep_nesting, validate_deep_nesting)
-
-
-def test_timeline_multiple_rerolls() -> None:
-    _run_and_validate(scenario_multiple_rerolls, validate_multiple_rerolls)
 
 
 def test_timeline_parallel_with_nesting() -> None:

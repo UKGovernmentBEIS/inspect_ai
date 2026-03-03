@@ -7,8 +7,6 @@ Uses inspect_ai's event_tree() to parse span structure.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Any, Callable, Literal
@@ -538,11 +536,8 @@ def timeline_build(events: list[Event]) -> Timeline:
 def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
     """Run all span classification passes on a root span.
 
-    Detects auto-branches (unless explicit branches exist), classifies
-    utility agents, and branch structure.
+    Classifies utility agents and branch structure.
     """
-    if not has_explicit_branches:
-        _detect_auto_branches(root)
     _classify_utility_agents(root)
     _classify_branches(root, has_explicit_branches)
 
@@ -1009,166 +1004,18 @@ def _get_branch_input(
     return None
 
 
-# =============================================================================
-# TimelineBranch Auto-Detection
-# =============================================================================
-
-
-def _message_fingerprint(msg: ChatMessage, cache: dict[int, str] | None = None) -> str:
-    """Compute a fingerprint for a single ChatMessage.
-
-    Serializes role + content, ignoring auto-generated fields like id, source,
-    metadata.
-
-    Args:
-        msg: The chat message to fingerprint.
-        cache: Optional cache keyed by object id for repeated calls on the
-            same message objects.
-
-    Returns:
-        SHA-256 hex digest of the message content.
-    """
-    if cache is not None:
-        cached = cache.get(id(msg))
-        if cached is not None:
-            return cached
-
-    role = msg.role
-    content = msg.content
-    if isinstance(content, str):
-        serialized = content
-    else:
-        # Content is list of Content objects
-        serialized = json.dumps(
-            [c.model_dump(exclude_none=True) for c in content],
-            sort_keys=True,
-        )
-    raw = f"{role}:{serialized}"
-    result = hashlib.sha256(raw.encode()).hexdigest()
-
-    if cache is not None:
-        cache[id(msg)] = result
-    return result
-
-
-def _input_fingerprint(
-    messages: list[ChatMessage], cache: dict[int, str] | None = None
-) -> str:
-    """Compute a fingerprint for a sequence of input messages.
-
-    Args:
-        messages: The input message list.
-        cache: Optional cache keyed by object id, shared across calls
-            to avoid re-hashing the same message objects.
-
-    Returns:
-        SHA-256 hex digest of the concatenated message fingerprints.
-    """
-    parts = [_message_fingerprint(m, cache) for m in messages]
-    combined = "|".join(parts)
-    return hashlib.sha256(combined.encode()).hexdigest()
-
-
-def _detect_auto_branches(agent: TimelineSpan) -> None:
-    """Detect re-rolled ModelEvents with identical inputs and create branches.
-
-    For each group of ModelEvents with the same input fingerprint, the last
-    one stays in content and earlier ones (plus their trailing events up to
-    the next re-roll) become branches.
-
-    CompactionEvents act as hard boundaries: fingerprint grouping is done
-    independently within each region separated by compaction events, so
-    re-rolls are never matched across a compaction boundary.
-
-    Mutates agent in-place.
-
-    Args:
-        agent: The span node to process.
-    """
-    # Cache message fingerprints by object identity to avoid rehashing
-    fp_cache: dict[int, str] = {}
-
-    # Split content into regions at compaction boundaries
-    regions: list[tuple[int, int]] = []
-    region_start = 0
-    for i, item in enumerate(agent.content):
-        if isinstance(item, TimelineEvent) and item.event.event == "compaction":
-            regions.append((region_start, i))
-            region_start = i + 1
-    regions.append((region_start, len(agent.content)))
-
-    # Collect branch ranges across all regions
-    branch_ranges: list[tuple[int, int, list[ChatMessage]]] = []
-
-    for r_start, r_end in regions:
-        # Find ModelEvent indices and their fingerprints within this region
-        model_indices: list[tuple[int, str]] = []
-        for i in range(r_start, r_end):
-            item = agent.content[i]
-            if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-                input_msgs = list(item.event.input)
-                if not input_msgs:
-                    continue
-                fp = _input_fingerprint(input_msgs, fp_cache)
-                model_indices.append((i, fp))
-
-        # Group by fingerprint within this region
-        fingerprint_groups: dict[str, list[int]] = {}
-        for idx, fp in model_indices:
-            fingerprint_groups.setdefault(fp, []).append(idx)
-
-        # Only process groups with duplicates
-        for _fp, indices in fingerprint_groups.items():
-            if len(indices) <= 1:
-                continue
-
-            first_idx = indices[0]
-            first_item = agent.content[first_idx]
-            assert isinstance(first_item, TimelineEvent) and isinstance(
-                first_item.event, ModelEvent
-            )
-            shared_input = list(first_item.event.input)
-
-            for i, branch_start in enumerate(indices[:-1]):
-                next_reroll = indices[i + 1]
-                branch_ranges.append((branch_start, next_reroll, shared_input))
-
-    if not branch_ranges:
-        return
-
-    # Sort by start index descending so we can remove from the end first
-    branch_ranges.sort(key=lambda x: x[0], reverse=True)
-
-    for start, end, shared_input in branch_ranges:
-        branch_content = list(agent.content[start:end])
-        if branch_content:
-            forked_at = _find_forked_at(agent.content, shared_input)
-            agent.branches.append(
-                TimelineBranch(forked_at=forked_at, content=branch_content)
-            )
-        del agent.content[start:end]
-
-    # Reverse branches so they're in original order
-    agent.branches.reverse()
-
-
 def _classify_branches(
     agent: TimelineSpan, has_explicit_branches: bool, *, _is_root: bool = True
 ) -> None:
-    """Recursively detect branches in the agent tree.
+    """Recursively classify branches in the agent tree.
 
-    If not in explicit mode, calls _detect_auto_branches on each agent.
-    Always recurses into child spans in both content and branches.
+    Recurses into child spans in both content and branches.
 
     Args:
         agent: The span node to process.
         has_explicit_branches: Whether explicit branch spans exist globally.
-        _is_root: Internal flag — skips root since _classify_spans already
-            ran _detect_auto_branches on it.
+        _is_root: Internal flag (kept for API compatibility).
     """
-    if not has_explicit_branches and not _is_root:
-        _detect_auto_branches(agent)
-
     # Recurse into child spans in content
     for item in agent.content:
         if isinstance(item, TimelineSpan):
