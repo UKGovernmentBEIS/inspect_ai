@@ -4,6 +4,7 @@
 - OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g. AzureAI) where they are not supported.
 - Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+- Inspect View: Fix regression displaying running samples when switching samples.
 
 ## 0.3.185 (01 March 2026)
 
