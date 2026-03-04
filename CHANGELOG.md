@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Grok: Support for batch inference.
+- Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
@@ -18,6 +19,7 @@
 - AsyncFilesystem: Add `anonymous` and `region_name` parameters to support credential-free access to public S3 buckets.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
+- Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 
 ## 0.3.185 (01 March 2026)
 
