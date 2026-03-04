@@ -347,6 +347,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
+            eventsCleared={
+              (sample as Record<string, unknown> | undefined)
+                ?._events_cleared === true
+            }
             initialEventId={sampleDetailNavigation.event}
             topOffset={tabsHeight}
             running={running}
