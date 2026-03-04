@@ -78,6 +78,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const sample = useMemo(() => {
     return sampleData.getSelectedSample();
   }, [sampleData]);
+  const eventsCleared = sampleData.eventsCleared;
 
   const runningSampleData = sampleData.running;
 
@@ -379,10 +380,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
-            eventsCleared={
-              (sample as Record<string, unknown> | undefined)
-                ?._events_cleared === true
-            }
+            eventsCleared={eventsCleared}
             initialEventId={sampleDetailNavigation.event}
             topOffset={tabsHeight}
             running={running}

@@ -23,23 +23,9 @@ describe("clearLargeEventsArray", () => {
     expect(decode(result)).toBe(json);
   });
 
-  it("clears events and adds _events_cleared marker when events exceed limit", () => {
-    // Create a JSON with events larger than MAX_EVENTS_SIZE_BYTES (350MB)
-    // We'll test with a smaller threshold by creating data > 350MB
-    // Instead, test the byte-level logic with a mock that's > threshold
-    // The function checks data.length first, so we need data > 350MB to proceed
-    // For unit testing, we'll test the marker insertion logic directly
-
-    // Create a large enough payload to trigger clearing
-    // MAX_EVENTS_SIZE_BYTES = 350 * 1024 * 1024, MAX_TOTAL_SIZE = 512 * 1024 * 1024
-    // The early exit is: if (data.length <= MAX_EVENTS_SIZE_BYTES) return data
-    // So we need data > 350MB to even check events
-
-    // Since creating 350MB+ buffers in tests is impractical, we test the marker
-    // insertion logic by verifying the output format with a helper
+  it("returns data unchanged for small payloads even with events", () => {
     const json = '{"id":"test","events":[{"event":"model"}],"scores":{}}';
     const data = encode(json);
-    // This won't trigger clearing since data is small
     const result = clearLargeEventsArray(data);
     expect(decode(result)).toBe(json);
   });
