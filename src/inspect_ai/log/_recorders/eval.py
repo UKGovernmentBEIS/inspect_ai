@@ -14,7 +14,10 @@ from typing_extensions import override
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import (
+    DESERIALIZING_CONTEXT,
+    log_schema_version,
+)
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
@@ -123,7 +126,7 @@ class EvalRecorder(FileRecorder):
     @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
-        start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
+        start = LogStart(version=log_schema_version(), eval=eval, plan=plan)
         await log.start(start)
 
     @override

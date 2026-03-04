@@ -9,7 +9,11 @@ from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import (
+    DESERIALIZING_CONTEXT,
+    LOG_SCHEMA_VERSION,
+    log_schema_version,
+)
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
@@ -252,7 +256,7 @@ def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     _validate_version(log.version)
 
     # set the version to the schema version we'll be returning
-    log.version = LOG_SCHEMA_VERSION
+    log.version = log_schema_version()
 
     # prune if header_only
     if header_only:
@@ -311,7 +315,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             raise ValueError("Unable to read version of log format.")
 
         _validate_version(version)
-        version = LOG_SCHEMA_VERSION
+        version = log_schema_version()
 
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
