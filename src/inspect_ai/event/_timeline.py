@@ -500,6 +500,8 @@ def timeline_build(events: list[Event]) -> Timeline:
                 )
 
         if agent_node is not None:
+            agent_node.name = "main"
+
             _classify_spans(agent_node, has_explicit_branches)
 
             # Prepend init span to agent content
@@ -543,6 +545,25 @@ def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
     _classify_branches(root, has_explicit_branches)
 
 
+def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
+    """Unwrap a solver span that merely wraps a single agent child.
+
+    If a solver-type span contains exactly one agent-type child span
+    (and no other spans), replace it with that child. Repeats until
+    no more unwrapping is possible.
+    """
+    while span.type == "solver":
+        agent_children = [
+            child
+            for child in span.children
+            if isinstance(child, EventTreeSpan) and child.type == "agent"
+        ]
+        if len(agent_children) != 1:
+            break
+        span = agent_children[0]
+    return span
+
+
 def _build_agent_from_solvers_span(
     solvers_span: EventTreeSpan, has_explicit_branches: bool
 ) -> TimelineSpan | None:
@@ -575,8 +596,10 @@ def _build_agent_from_solvers_span(
     if agent_spans:
         # Build from explicit agent spans
         if len(agent_spans) == 1:
+            # Unwrap solver spans that merely wrap a single agent child
+            target = _unwrap_solver_span(agent_spans[0])
             return _build_span_from_agent_span(
-                agent_spans[0], has_explicit_branches, other_items
+                target, has_explicit_branches, other_items
             )
         else:
             # Multiple agent spans - create root containing all

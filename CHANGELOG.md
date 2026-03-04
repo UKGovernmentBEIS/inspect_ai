@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Grok: Support for batch inference.
+- Inspect View: Fix truncation of the bottom of events and messages panels.
+- Inspect View: Improve appearance of model events in transcript.
+
+## 0.3.186 (03 March 2026)
+
 - Anthropic: Handle updated Anthropic compaction not supported error message.
 - OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g. AzureAI) where they are not supported.
 - Google: Use httpx instead of aiohttp when running under trio async backend for compatibility.
@@ -7,7 +13,7 @@
 - Serialization: Remove dependency on `frozendict` as fallback; update jsonpath-ng dependency.
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
 - Timelines: Don't attempt to automaticlaly detect branches (require explicit creation by user in custom timelines).
-- Timelines: Improved automatic detection of utility agents.
+- Timelines: Improved automatic detection of utility agents and automatically unwrap solver/agent pairs.
 - AsyncFilesystem: Add `anonymous` and `region_name` parameters to support credential-free access to public S3 buckets.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
