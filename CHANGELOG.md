@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Fix truncation of the bottom of events and messages panels.
+- Inspect View: Improve appearance of model events in transcript.
 
 ## 0.3.186 (03 March 2026)
 
