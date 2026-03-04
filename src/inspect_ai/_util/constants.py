@@ -46,3 +46,11 @@ DEFAULT_CACHE_DAYS = 7
 
 DESERIALIZING = "deserializing"
 DESERIALIZING_CONTEXT = {DESERIALIZING: True}
+
+
+def log_schema_version() -> int:
+    """Return the log schema version to use for writing."""
+    import os
+
+    val = os.environ.get("INSPECT_LOG_FORMAT_V3", "")
+    return 3 if val.lower() in ("1", "true", "yes") else 2

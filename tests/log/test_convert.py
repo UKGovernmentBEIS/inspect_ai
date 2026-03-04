@@ -5,7 +5,6 @@ from typing import Literal
 
 import pytest
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.event import ModelEvent, SampleInitEvent
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
@@ -135,8 +134,10 @@ def test_stream_convert_preserves_log_updates(
 def test_convert_applies_message_pool_dedup(
     tmp_path: pathlib.Path,
     stream: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """Converting a v2 .eval file should apply message pool dedup."""
+    monkeypatch.setenv("INSPECT_LOG_FORMAT_V3", "1")
     input_file = (
         _TESTS_DIR
         / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
@@ -154,7 +155,7 @@ def test_convert_applies_message_pool_dedup(
     assert output_file.exists()
 
     log = read_eval_log(str(output_file))
-    assert log.version == LOG_SCHEMA_VERSION
+    assert log.version == 3
     assert log.samples
 
     for sample in log.samples:

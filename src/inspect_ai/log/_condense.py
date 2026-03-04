@@ -7,7 +7,7 @@ from typing import (
 
 from pydantic import JsonValue
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_schema_version
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -86,18 +86,22 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
     condensed_events = walk_events(sample.events, events_fn, context)
 
-    # Carry forward existing pool entries for idempotent re-condensation
-    message_pool: list[ChatMessage] = list(sample.message_pool)
-    msg_index = _build_msg_index(message_pool)
-    condensed_events = condense_model_event_inputs(
-        condensed_events, message_pool, msg_index
-    )
+    message_pool: list[ChatMessage] = []
+    call_pool: list[JsonValue] = []
 
-    call_pool: list[JsonValue] = list(sample.call_pool)
-    call_index = _build_call_index(call_pool)
-    condensed_events = condense_model_event_calls(
-        condensed_events, call_pool, call_index
-    )
+    if log_schema_version() >= 3:
+        # Carry forward existing pool entries for idempotent re-condensation
+        message_pool = list(sample.message_pool)
+        msg_index = _build_msg_index(message_pool)
+        condensed_events = condense_model_event_inputs(
+            condensed_events, message_pool, msg_index
+        )
+
+        call_pool = list(sample.call_pool)
+        call_index = _build_call_index(call_pool)
+        condensed_events = condense_model_event_calls(
+            condensed_events, call_pool, call_index
+        )
 
     return sample.model_copy(
         update={
