@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Grok: Support for batch inference.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
 
