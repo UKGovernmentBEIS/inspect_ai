@@ -117,8 +117,9 @@ function findArrayEnd(data: Uint8Array, arrayStart: number): number {
 }
 
 /**
- * Clears events array at the byte level if it exceeds 100MB.
- * Replaces the entire events array with an empty array.
+ * Clears events array at the byte level if it exceeds the size limits.
+ * Replaces the entire events array with an empty array and adds an
+ * "_events_cleared" marker to the JSON so the UI can show a helpful message.
  * This allows handling gigabyte-sized files without running out of memory.
  */
 export function clearLargeEventsArray(data: Uint8Array): Uint8Array {
@@ -142,17 +143,24 @@ export function clearLargeEventsArray(data: Uint8Array): Uint8Array {
     return data;
   }
 
-  // Build result with empty events array: []
+  // Build result with empty events array [] and a marker property
   const before = data.slice(0, arrayStart + 1); // Up to and including [
-  const after = data.slice(arrayEnd); // From ] onwards
+  const closingBracket = data.slice(arrayEnd, arrayEnd + 1); // ]
+  const afterBracket = data.slice(arrayEnd + 1); // Everything after ]
+  const marker = new TextEncoder().encode(',"_events_cleared":true');
 
-  // Combine: before + ] + after (just close the bracket immediately)
-  const result = new Uint8Array(before.length + after.length);
+  const result = new Uint8Array(
+    before.length + closingBracket.length + marker.length + afterBracket.length,
+  );
 
   let offset = 0;
   result.set(before, offset);
   offset += before.length;
-  result.set(after, offset);
+  result.set(closingBracket, offset);
+  offset += closingBracket.length;
+  result.set(marker, offset);
+  offset += marker.length;
+  result.set(afterBracket, offset);
 
   return result;
 }
