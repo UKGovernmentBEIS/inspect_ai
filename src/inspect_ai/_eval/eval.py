@@ -121,6 +121,8 @@ def eval(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
+    max_read_file_size: int | None = None,
+    max_exec_output_size: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
@@ -203,6 +205,10 @@ def eval(
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
+        max_read_file_size: Maximum size (in bytes) for sandbox file reads.
+            Overrides the default 100 MiB limit.
+        max_exec_output_size: Maximum size (in bytes) for sandbox exec output.
+            Overrides the default 10 MiB limit.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
@@ -271,6 +277,8 @@ def eval(
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
+                max_read_file_size=max_read_file_size,
+                max_exec_output_size=max_exec_output_size,
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
@@ -333,6 +341,8 @@ async def eval_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
+    max_read_file_size: int | None = None,
+    max_exec_output_size: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
@@ -399,6 +409,10 @@ async def eval_async(
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
+        max_read_file_size: Maximum size (in bytes) for sandbox file reads.
+            Overrides the default 100 MiB limit.
+        max_exec_output_size: Maximum size (in bytes) for sandbox exec output.
+            Overrides the default 10 MiB limit.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
@@ -460,6 +474,8 @@ async def eval_async(
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
+                max_read_file_size=max_read_file_size,
+                max_exec_output_size=max_exec_output_size,
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
@@ -527,6 +543,8 @@ async def _eval_async_inner(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
+    max_read_file_size: int | None = None,
+    max_exec_output_size: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
@@ -696,6 +714,8 @@ async def _eval_async_inner(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
+            max_read_file_size=max_read_file_size,
+            max_exec_output_size=max_exec_output_size,
             sandbox_cleanup=sandbox_cleanup,
             log_samples=log_samples,
             log_realtime=log_realtime,
@@ -797,6 +817,8 @@ def eval_retry(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
+    max_read_file_size: int | None = None,
+    max_exec_output_size: int | None = None,
     sandbox_cleanup: bool | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
@@ -836,6 +858,10 @@ def eval_retry(
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
+        max_read_file_size: Maximum size (in bytes) for sandbox file reads.
+            Overrides the default 100 MiB limit.
+        max_exec_output_size: Maximum size (in bytes) for sandbox exec output.
+            Overrides the default 10 MiB limit.
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
         trace: Trace message interactions with evaluated model to terminal.
@@ -892,6 +918,8 @@ def eval_retry(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
+            max_read_file_size=max_read_file_size,
+            max_exec_output_size=max_exec_output_size,
             sandbox_cleanup=sandbox_cleanup,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
@@ -924,6 +952,8 @@ async def eval_retry_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
+    max_read_file_size: int | None = None,
+    max_exec_output_size: int | None = None,
     sandbox_cleanup: bool | None = None,
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
@@ -956,6 +986,10 @@ async def eval_retry_async(
         max_tasks: Maximum number of tasks to run in parallel (default is 1)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
+        max_read_file_size: Maximum size (in bytes) for sandbox file reads.
+            Overrides the default 100 MiB limit.
+        max_exec_output_size: Maximum size (in bytes) for sandbox exec output.
+            Overrides the default 10 MiB limit.
         sandbox_cleanup: Cleanup sandbox environments after task completes
            (defaults to True)
         fail_on_error: `True` to fail on first sample error
@@ -1088,6 +1122,12 @@ async def eval_retry_async(
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
+        max_read_file_size = (
+            max_read_file_size or eval_log.eval.config.max_read_file_size
+        )
+        max_exec_output_size = (
+            max_exec_output_size or eval_log.eval.config.max_exec_output_size
+        )
         sandbox_cleanup = (
             sandbox_cleanup
             if sandbox_cleanup is not None
@@ -1205,6 +1245,8 @@ async def eval_retry_async(
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
+                max_read_file_size=max_read_file_size,
+                max_exec_output_size=max_exec_output_size,
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,

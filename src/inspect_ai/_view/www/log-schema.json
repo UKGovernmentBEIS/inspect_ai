@@ -2041,6 +2041,30 @@
           "default": null,
           "title": "Max Sandboxes"
         },
+        "max_read_file_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Read File Size"
+        },
+        "max_exec_output_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Exec Output Size"
+        },
         "sandbox_cleanup": {
           "anyOf": [
             {
@@ -2159,6 +2183,8 @@
         "max_tasks",
         "max_subprocesses",
         "max_sandboxes",
+        "max_read_file_size",
+        "max_exec_output_size",
         "sandbox_cleanup",
         "log_samples",
         "log_realtime",

@@ -264,6 +264,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_SANDBOXES",
     )
     @click.option(
+        "--max-read-file-size",
+        type=int,
+        help="Maximum size (in bytes) for sandbox file reads (default: 100 MiB).",
+        envvar="INSPECT_EVAL_MAX_READ_FILE_SIZE",
+    )
+    @click.option(
+        "--max-exec-output-size",
+        type=int,
+        help="Maximum size (in bytes) for sandbox exec output (default: 10 MiB).",
+        envvar="INSPECT_EVAL_MAX_EXEC_OUTPUT_SIZE",
+    )
+    @click.option(
         "--message-limit",
         type=int,
         help="Limit on total messages used for each sample.",
@@ -652,6 +664,8 @@ def eval_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    max_read_file_size: int | None,
+    max_exec_output_size: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
@@ -714,6 +728,8 @@ def eval_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
+        max_read_file_size=max_read_file_size,
+        max_exec_output_size=max_exec_output_size,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
@@ -857,6 +873,8 @@ def eval_set_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    max_read_file_size: int | None,
+    max_exec_output_size: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
@@ -926,6 +944,8 @@ def eval_set_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
+        max_read_file_size=max_read_file_size,
+        max_exec_output_size=max_exec_output_size,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
@@ -993,6 +1013,8 @@ def eval_exec(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    max_read_file_size: int | None,
+    max_exec_output_size: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
@@ -1112,6 +1134,8 @@ def eval_exec(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
+            max_read_file_size=max_read_file_size,
+            max_exec_output_size=max_exec_output_size,
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
@@ -1224,6 +1248,18 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=int,
     help=MAX_SANDBOXES_HELP,
     envvar="INSPECT_EVAL_MAX_SANDBOXES",
+)
+@click.option(
+    "--max-read-file-size",
+    type=int,
+    help="Maximum size (in bytes) for sandbox file reads (default: 100 MiB).",
+    envvar="INSPECT_EVAL_MAX_READ_FILE_SIZE",
+)
+@click.option(
+    "--max-exec-output-size",
+    type=int,
+    help="Maximum size (in bytes) for sandbox exec output (default: 10 MiB).",
+    envvar="INSPECT_EVAL_MAX_EXEC_OUTPUT_SIZE",
 )
 @click.option(
     "--no-sandbox-cleanup",
@@ -1361,6 +1397,8 @@ def eval_retry_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    max_read_file_size: int | None,
+    max_exec_output_size: int | None,
     no_sandbox_cleanup: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
@@ -1420,6 +1458,8 @@ def eval_retry_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
+        max_read_file_size=max_read_file_size,
+        max_exec_output_size=max_exec_output_size,
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
         fail_on_error=fail_on_error,
