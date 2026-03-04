@@ -1,11 +1,15 @@
+import hashlib
+import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
+from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
-from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
@@ -51,6 +55,36 @@ class ChatMessageBase(BaseModel):
         # Generate ID if needed and not deserializing
         if self.id is None and not is_deserializing:
             self.id = uuid()
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _wrap(
+        cls,
+        data: dict[str, Any],
+        handler: ModelWrapValidatorHandler["ChatMessageBase"],
+        info: ValidationInfo,
+    ) -> "ChatMessageBase":
+        if info.context is None:
+            return handler(data)
+        cache: dict[Any, ChatMessageBase] | None = info.context.get(MESSAGE_CACHE)
+        if cache is None:
+            return handler(data)
+        try:
+            cache_key: bytes = hashlib.sha256(
+                json.dumps(data, sort_keys=True).encode()
+            ).digest()
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Failed to dump object with json ({ex}). Falling back to repr which is slower",
+            )
+            cache_key = hashlib.sha256(repr(data).encode()).digest()
+        hit = cache.get(cache_key)
+        if hit is not None:
+            return hit
+        res = handler(data)
+        cache[cache_key] = res
+        return res
 
     @property
     def text(self) -> str:
