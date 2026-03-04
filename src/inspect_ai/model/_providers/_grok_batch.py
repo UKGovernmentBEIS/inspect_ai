@@ -18,8 +18,12 @@ from inspect_ai.model._retry import ModelRetryConfig
 from .util.batch import Batch, BatchCheckResult, Batcher, BatchRequest
 
 CompletedBatchInfo = bool
-XAI_MAX_BATCH_REQUEST_COUNT = 1_000_000
-XAI_MAX_REQUEST_PAYLOAD_BYTES = 25 * 1024 * 1024
+# xAI docs note batches above this size may be throttled.
+XAI_DOC_MAX_BATCH_REQUEST_COUNT = 1_000_000
+# xAI docs publish a per-request payload contract of 25MB.
+# This is not the observed gRPC add transport ceiling; we avoid that by
+# submitting one request per add call below.
+XAI_DOC_MAX_REQUEST_PAYLOAD_BYTES = 25 * 1024 * 1024
 GRPC_STATUS_BY_CODE = {status.value[0]: status for status in grpc.StatusCode}
 
 
@@ -35,10 +39,8 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             retry_config=retry_config,
             # xAI docs: very large batches (>1,000,000 requests) may be throttled.
             # https://docs.x.ai/developers/advanced-api-usage/batch-api
-            max_batch_request_count=XAI_MAX_BATCH_REQUEST_COUNT,
-            # xAI docs publish a per-request payload limit (25MB), not an aggregate
-            # batch payload limit. Keep this aggregate guardrail and enforce the
-            # per-request cap below.
+            max_batch_request_count=XAI_DOC_MAX_BATCH_REQUEST_COUNT,
+            # Framework-level aggregate queue guardrail (not an xAI hard limit).
             max_batch_size_mb=200,
         )
         self._client = client
@@ -53,7 +55,7 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
                     separators=(",", ":"),
                 )
             )
-            if request_size_bytes > XAI_MAX_REQUEST_PAYLOAD_BYTES:
+            if request_size_bytes > XAI_DOC_MAX_REQUEST_PAYLOAD_BYTES:
                 raise ValueError(
                     f"Batch request {batch_request.custom_id} exceeds xAI's 25MB payload limit "
                     + f"({request_size_bytes} bytes)."
@@ -88,6 +90,8 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             batch_name=f"inspect_batch_{int(time.time())}"
         )
         # Add requests one-by-one to avoid large gRPC payloads in a single add call.
+        # Observed gRPC transport caps (~4MB decode / ~20MB send on packed add)
+        # are empirical, not documented API contract.
         for request in requests:
             await self._client.batch.add(
                 batch_id=batch.batch_id,
