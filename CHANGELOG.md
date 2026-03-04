@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Fix truncation of the bottom of events and messages panels.
+
 ## 0.3.186 (03 March 2026)
 
 - Anthropic: Handle updated Anthropic compaction not supported error message.
