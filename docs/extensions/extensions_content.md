@@ -33,6 +33,9 @@
 [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb) &mdash; <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small>
 :   Integration with Weights and Biases platform.
 
+[CJE](https://github.com/cimo-labs/cje) &mdash; <small><a href="https://cimolabs.com" style="text-decoration:none">CIMO Labs</a></small>
+:   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
+
 
 ## Frameworks {#sec-frameworks}
 

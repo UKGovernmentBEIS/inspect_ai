@@ -58,6 +58,9 @@ class ToolEvent(BaseEvent):
     agent: str | None = Field(default=None)
     """Name of agent if the tool call was an agent handoff."""
 
+    agent_span_id: str | None = Field(default=None)
+    """Span ID of the agent span, if this tool call spawned an agent."""
+
     failed: bool | None = Field(default=None)
     """Did the tool call fail with a hard error?."""
 
@@ -73,6 +76,7 @@ class ToolEvent(BaseEvent):
         agent: str | None,
         failed: bool | None,
         message_id: str | None,
+        agent_span_id: str | None = None,
     ) -> None:
         self.result = result
         self.truncated = truncated
@@ -84,6 +88,8 @@ class ToolEvent(BaseEvent):
         self.agent = agent
         self.failed = failed
         self.message_id = message_id
+        if agent_span_id is not None:
+            self.agent_span_id = agent_span_id
 
     # mechanism for operator to cancel the tool call
 

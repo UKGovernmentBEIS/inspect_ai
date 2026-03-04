@@ -23,7 +23,7 @@ from inspect_ai.tool import ToolInfo
 @skip_if_no_together_base_url
 async def test_openai_compatible() -> None:
     model = get_model(
-        "openai-api/together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "openai-api/together/MiniMaxAI/MiniMax-M2.5",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,

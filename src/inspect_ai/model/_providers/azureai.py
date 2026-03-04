@@ -238,7 +238,7 @@ class AzureAIAPI(ModelAPI):
             ), model_call
 
         except AzureError as ex:
-            model_call.set_response({"error": {"message": str(ex.message)}})
+            model_call.set_error({"error": {"message": str(ex.message)}})
             return self.handle_azure_error(ex), model_call
         finally:
             await client.close()

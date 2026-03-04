@@ -221,6 +221,8 @@ website:
           href: reference/inspect_ai.scorer.qmd#answer
         - text: choice
           href: reference/inspect_ai.scorer.qmd#choice
+        - text: math
+          href: reference/inspect_ai.scorer.qmd#math
         - text: f1
           href: reference/inspect_ai.scorer.qmd#f1
         - text: exact

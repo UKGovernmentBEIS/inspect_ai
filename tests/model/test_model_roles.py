@@ -106,6 +106,84 @@ def check_model_role(log: EvalLog, role: str, model: str) -> None:
     assert model_event.model == model
 
 
+def test_role_usage_tracking_mockllm() -> None:
+    @task
+    def mock_role_task():
+        return Task(solver=role_solver())
+
+    log = eval(mock_role_task(), model_roles={RED_TEAM: MOCK_A})[0]
+
+    assert log.stats.role_usage is not None
+    assert RED_TEAM in log.stats.role_usage
+    assert log.stats.role_usage[RED_TEAM].total_tokens > 0
+
+    assert log.samples is not None
+    assert len(log.samples) > 0
+    sample = log.samples[0]
+    assert sample.role_usage is not None
+    assert RED_TEAM in sample.role_usage
+    assert sample.role_usage[RED_TEAM].total_tokens > 0
+
+
+def test_role_usage_shared_model() -> None:
+    log = eval(
+        Task(solver=multi_role_solver()),
+        model_roles={GRADER: MOCK_A, REVIEWER: MOCK_A},
+    )[0]
+
+    # Both roles used the same model
+    assert log.stats.model_usage is not None
+    assert MOCK_A in log.stats.model_usage
+
+    # Role usage should separate them
+    assert log.stats.role_usage is not None
+    assert GRADER in log.stats.role_usage
+    assert REVIEWER in log.stats.role_usage
+
+    grader_tokens = log.stats.role_usage[GRADER].total_tokens
+    reviewer_tokens = log.stats.role_usage[REVIEWER].total_tokens
+    total_tokens = log.stats.model_usage[MOCK_A].total_tokens
+
+    # Both roles have usage
+    assert grader_tokens > 0
+    assert reviewer_tokens > 0
+    assert total_tokens == grader_tokens + reviewer_tokens
+
+
+def test_role_usage_eval_retry() -> None:
+    @task
+    def mock_role_task_retry():
+        return Task(solver=role_solver())
+
+    log = eval(mock_role_task_retry(), model_roles={RED_TEAM: MOCK_A})[0]
+    original_tokens = log.stats.role_usage[RED_TEAM].total_tokens
+    log.status = "cancelled"
+    log.samples = []
+    log_retry = eval_retry(log)[0]
+
+    assert log_retry.stats.role_usage is not None
+    assert RED_TEAM in log_retry.stats.role_usage
+    retry_tokens = log_retry.stats.role_usage[RED_TEAM].total_tokens
+    assert retry_tokens >= original_tokens
+
+
+@skip_if_no_google
+@skip_if_no_openai
+def test_role_usage_tracking() -> None:
+    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
+
+    assert log.stats.role_usage is not None
+    assert RED_TEAM in log.stats.role_usage
+    assert log.stats.role_usage[RED_TEAM].total_tokens > 0
+
+    assert log.samples is not None
+    assert len(log.samples) > 0
+    sample = log.samples[0]
+    assert sample.role_usage is not None
+    assert RED_TEAM in sample.role_usage
+    assert sample.role_usage[RED_TEAM].total_tokens > 0
+
+
 @solver
 def check_memoize_solver():
     def validate(condition: bool, description: str):

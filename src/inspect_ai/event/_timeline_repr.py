@@ -239,7 +239,7 @@ def _collect_rows(
     rows.append(
         _Row(
             depth=depth,
-            name=span.name,
+            name="main" if depth == 0 else span.name,
             segments=[(span.start_time, span.end_time)],
             tokens=span.total_tokens,
             markers=markers,
@@ -416,7 +416,7 @@ def render_timeline(timeline: "Timeline", width: int | None = None) -> str:
 
     # Handle empty/degenerate timelines
     if not root.content:
-        return f"{root.name} (empty)"
+        return "main"
 
     view_start = root.start_time
     view_end = root.end_time
@@ -424,7 +424,7 @@ def render_timeline(timeline: "Timeline", width: int | None = None) -> str:
     rows = _collect_rows(root, 0, view_start, view_end)
 
     if not rows:
-        return f"{root.name} (empty)"
+        return "main"
 
     # Compute column widths
     token_width = 6  # e.g. " 48.5k"

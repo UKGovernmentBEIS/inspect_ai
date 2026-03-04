@@ -88,16 +88,17 @@ The sandbox is also available to custom scorers.
 
 ## Environment Binding
 
-There are two sandbox environments built in to Inspect and four available as external packages:
+There are two sandbox environments built in to Inspect and five available as external packages. Dockerfile-compatible sandboxes accept standard `Dockerfile` and `compose.yaml` configuration files.
 
-| Environment Type | Description |
-|---------------------------|---------------------------------------------|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
-| `k8s` | Run `sandbox()` methods within a Kubernetes cluster (see the [K8s Sandbox](https://k8s-sandbox.aisi.org.uk/) package documentation for additional details). |
-| `ec2` | Run `sandbox()` methods on an AWS EC2 virtual machine (see the [EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) package documentation for additional details). |
-| `modal` | Run `sandbox()` methods within a Modal container (see the [Modal Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) package documentation for additional details). |
-| `proxmox` | Run `sandbox()` methods within a virtual machine (see the [Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) package documentation for additional details). |
+| Environment Type | Package | Dockerfile | Description |
+|---|---|---|---|
+| `local` | Built-in | No | Local file system (only inside another sandbox). |
+| `docker` | Built-in | Yes | Local [Docker](#sec-docker-configuration) container. |
+| `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) cloud sandbox. |
+| `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) serverless container. |
+| `k8s` | [inspect-k8s-sandbox](https://pypi.org/project/inspect-k8s-sandbox/) | No | Docker containers within a [Kubernetes](https://k8s-sandbox.aisi.org.uk/) cluster. |
+| `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
+| `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | Virtual machine within a [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) instance. |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 

@@ -135,7 +135,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     not close it on exit (the original owner handles cleanup).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, anonymous: bool = False, region_name: str | None = None) -> None:
+        self._anonymous = anonymous
+        self._region_name = region_name
         self._s3_client: Any | None = None
         self._s3_client_async: Any | None = None
         self._s3_lock = anyio.Lock()
@@ -296,11 +298,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     def s3_client(self) -> Any:
         if self._s3_client is None:
+            from botocore import UNSIGNED
+
             config = Config(
                 max_pool_connections=50,
                 retries={"max_attempts": 10, "mode": "adaptive"},
+                **({"signature_version": UNSIGNED} if self._anonymous else {}),
             )
-            self._s3_client = boto3.client("s3", config=config)
+            self._s3_client = boto3.client(
+                "s3", config=config, region_name=self._region_name
+            )
 
         return self._s3_client
 
@@ -308,19 +315,28 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         if self._s3_client_async is None:
             async with self._s3_lock:
                 if self._s3_client_async is None:
-                    self._s3_client_async = await self._create_s3_client_async()
+                    self._s3_client_async = await self._create_s3_client_async(
+                        anonymous=self._anonymous,
+                        region_name=self._region_name,
+                    )
         return self._s3_client_async
 
     @staticmethod
-    async def _create_s3_client_async() -> Any:
+    async def _create_s3_client_async(
+        anonymous: bool = False, region_name: str | None = None
+    ) -> Any:
         import aioboto3
+        from botocore import UNSIGNED
 
         session = aioboto3.Session()
         config = AioConfig(
             max_pool_connections=50,
             retries={"max_attempts": 10, "mode": "adaptive"},
+            **({"signature_version": UNSIGNED} if anonymous else {}),
         )
-        return await session.client("s3", config=config).__aenter__()
+        return await session.client(
+            "s3", config=config, region_name=region_name
+        ).__aenter__()
 
 
 def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:
