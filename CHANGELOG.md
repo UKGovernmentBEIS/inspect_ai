@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Grok: Support for batch inference.
+- Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
 
