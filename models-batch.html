@@ -547,7 +547,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect supports calling the batch processing APIs for <a href="https://platform.openai.com/docs/guides/batch">OpenAI</a>, <a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic</a>, <a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google</a>, and <a href="https://docs.together.ai/docs/batch-inference">Together AI</a> models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).</p>
+<p>Inspect supports calling the batch processing APIs for <a href="https://platform.openai.com/docs/guides/batch">OpenAI</a>, <a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic</a>, <a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google</a>, <a href="https://docs.x.ai/developers/advanced-api-usage/batch-api">xAI</a>, and <a href="https://docs.together.ai/docs/batch-inference">Together AI</a> models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).</p>
 <p>When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.</p>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -639,6 +639,7 @@ Important
 <li><p><a href="https://platform.openai.com/docs/guides/batch">Open AI Batch Processing</a></p></li>
 <li><p><a href="https://docs.anthropic.com/en/docs/build-with-claude/batch-processing">Anthropic Batch Processing</a></p></li>
 <li><p><a href="https://ai.google.dev/gemini-api/docs/batch-mode">Google Batch Mode</a><a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p></li>
+<li><p><a href="https://docs.x.ai/developers/advanced-api-usage/batch-api">xAI Batch API</a></p></li>
 <li><p><a href="https://docs.together.ai/docs/batch-inference">Together AI Batch Inference</a></p></li>
 </ul>
 <p>In general, you should keep the following limitations in mind when using batch processing:</p>

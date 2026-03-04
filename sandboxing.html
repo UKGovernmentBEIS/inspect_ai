@@ -736,16 +736,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>local</code></td>
-<td>Built-in</td>
-<td>No</td>
-<td>Local file system (only inside another sandbox).</td>
-</tr>
-<tr class="even">
 <td><code>docker</code></td>
 <td>Built-in</td>
 <td>Yes</td>
-<td>Local <a href="#sec-docker-configuration">Docker</a> container.</td>
+<td><a href="#sec-docker-configuration">Docker</a> local installation.</td>
+</tr>
+<tr class="even">
+<td><code>k8s</code></td>
+<td><a href="https://pypi.org/project/inspect-k8s-sandbox/">inspect-k8s-sandbox</a></td>
+<td>Yes</td>
+<td><a href="https://k8s-sandbox.aisi.org.uk/">Kubernetes</a> cluster.</td>
 </tr>
 <tr class="odd">
 <td><code>daytona</code></td>
@@ -757,25 +757,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>modal</code></td>
 <td><a href="https://pypi.org/project/inspect-sandboxes/">inspect-sandboxes</a></td>
 <td>Yes</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal">Modal</a> serverless container.</td>
+<td><a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal">Modal</a> cloud sandbox.</td>
 </tr>
 <tr class="odd">
-<td><code>k8s</code></td>
-<td><a href="https://pypi.org/project/inspect-k8s-sandbox/">inspect-k8s-sandbox</a></td>
-<td>No</td>
-<td>Docker containers within a <a href="https://k8s-sandbox.aisi.org.uk/">Kubernetes</a> cluster.</td>
-</tr>
-<tr class="even">
 <td><code>ec2</code></td>
 <td><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">inspect_ec2_sandbox</a></td>
 <td>No</td>
 <td><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">AWS EC2</a> virtual machine.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>proxmox</code></td>
 <td><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">inspect_proxmox_sandbox</a></td>
 <td>No</td>
-<td>Virtual machine within a <a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox</a> instance.</td>
+<td><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox</a> with virtual machines.</td>
+</tr>
+<tr class="odd">
+<td><code>local</code></td>
+<td>Built-in</td>
+<td>No</td>
+<td>Local file system (no sandbox).</td>
 </tr>
 </tbody>
 </table>

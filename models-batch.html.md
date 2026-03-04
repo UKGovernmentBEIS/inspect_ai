@@ -6,7 +6,8 @@
 Inspect supports calling the batch processing APIs for
 [OpenAI](https://platform.openai.com/docs/guides/batch),
 [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing),
-[Google](https://ai.google.dev/gemini-api/docs/batch-mode), and
+[Google](https://ai.google.dev/gemini-api/docs/batch-mode),
+[xAI](https://docs.x.ai/developers/advanced-api-usage/batch-api), and
 [Together AI](https://docs.together.ai/docs/batch-inference) models.
 Batch processing has lower token costs (typically 50% of normal costs)
 and higher rate limits, but also substantially longer processing
@@ -118,6 +119,9 @@ limitations:
 
 - [Google Batch
   Mode](https://ai.google.dev/gemini-api/docs/batch-mode)[^1]
+
+- [xAI Batch
+  API](https://docs.x.ai/developers/advanced-api-usage/batch-api)
 
 - [Together AI Batch
   Inference](https://docs.together.ai/docs/batch-inference)
