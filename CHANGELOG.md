@@ -3,6 +3,7 @@
 - Grok: Support for batch inference.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
+- Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
 
 ## 0.3.186 (03 March 2026)
 
