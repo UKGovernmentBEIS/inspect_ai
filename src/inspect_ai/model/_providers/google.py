@@ -7,7 +7,7 @@ from copy import copy
 from io import BytesIO
 from logging import getLogger
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
@@ -145,6 +145,13 @@ DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
         "threshold": HarmBlockThreshold.BLOCK_NONE,
     },
 ]
+
+
+class CategorizedTools(NamedTuple):
+    google_search: GoogleSearch | None
+    code_execution: ToolCodeExecution | None
+    computer_use: Tool | None
+    function_declarations: list[FunctionDeclaration]
 
 
 class GoogleGenAIAPI(ModelAPI):
@@ -792,19 +799,9 @@ class GoogleGenAIAPI(ModelAPI):
 
     def _categorize_tool(
         self,
-        acc: tuple[
-            GoogleSearch | None,
-            ToolCodeExecution | None,
-            Tool | None,
-            list[FunctionDeclaration],
-        ],
+        acc: CategorizedTools,
         tool: ToolInfo,
-    ) -> tuple[
-        GoogleSearch | None,
-        ToolCodeExecution | None,
-        Tool | None,
-        list[FunctionDeclaration],
-    ]:
+    ) -> CategorizedTools:
         """Reducer function that categorizes tools into native search vs function declarations.
 
         Returns:
@@ -813,19 +810,16 @@ class GoogleGenAIAPI(ModelAPI):
             all non-native-search tools converted to FunctionDeclaration objects.
         """
         if tool.options and self._use_native_search(tool):
-            return (self._google_search_options(tool.options), acc[1], acc[2], acc[3])
+            return acc._replace(google_search=self._google_search_options(tool.options))
         elif tool.options and self._use_native_code_execution(tool):
-            return (acc[0], ToolCodeExecution(), acc[2], acc[3])
+            return acc._replace(code_execution=ToolCodeExecution())
         else:
             computer_use = maybe_computer_use_tool(self.model_name, tool)
             if computer_use is not None:
-                return (acc[0], acc[1], computer_use, acc[3])
+                return acc._replace(computer_use=computer_use)
             else:
-                return (
-                    acc[0],
-                    acc[1],
-                    acc[2],
-                    acc[3]
+                return acc._replace(
+                    function_declarations=acc.function_declarations
                     + [
                         FunctionDeclaration(
                             name=tool.name,
@@ -848,18 +842,15 @@ class GoogleGenAIAPI(ModelAPI):
 
     def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
         # categorize tools into native tools vs function declarations
-        search_seed: GoogleSearch | None = None
-        execution_seed: ToolCodeExecution | None = None
-        computer_use_seed: Tool | None = None
         google_search, code_execution, computer_use, function_declarations = (
             functools.reduce(
                 self._categorize_tool,
                 tools,
-                (
-                    search_seed,
-                    execution_seed,
-                    computer_use_seed,
-                    list[FunctionDeclaration](),
+                CategorizedTools(
+                    google_search=None,
+                    code_execution=None,
+                    computer_use=None,
+                    function_declarations=[],
                 ),
             )
         )

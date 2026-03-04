@@ -520,20 +520,10 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
     if output.message.tool_calls:
         for idx, tc in enumerate(output.message.tool_calls):
             if tc.function == "computer":
-                action_name, action_args = gemini_action_from_tool_call(tc)
-                fc_part: dict[str, Any] = {
-                    "functionCall": {"name": action_name, "args": action_args}
-                }
+                name, args = gemini_action_from_tool_call(tc)
+                fc_part: dict[str, Any] = {"functionCall": {"name": name, "args": args}}
             else:
-                if isinstance(tc.arguments, str):
-                    try:
-                        args = json.loads(tc.arguments)
-                    except json.JSONDecodeError:
-                        args = {"raw": tc.arguments}
-                else:
-                    args = tc.arguments
-
-                fc_part = {"functionCall": {"name": tc.function, "args": args}}
+                fc_part = {"functionCall": {"name": tc.function, "args": tc.arguments}}
 
             if idx == 0 and working_reasoning_block is not None:
                 fc_part["thoughtSignature"] = working_reasoning_block.reasoning
