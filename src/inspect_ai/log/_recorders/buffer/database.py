@@ -17,6 +17,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.constants import log_schema_version
 from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.hash import mm3_hash
@@ -637,7 +638,7 @@ class SampleBufferDatabase(SampleBuffer):
         self._insert_attachments(conn, event.id, event.epoch, attachments)
 
         # message/call pool dedup for ModelEvents
-        if isinstance(event.event, ModelEvent):
+        if isinstance(event.event, ModelEvent) and log_schema_version() >= 3:
             key = (event.id, event.epoch)
 
             # message pool
