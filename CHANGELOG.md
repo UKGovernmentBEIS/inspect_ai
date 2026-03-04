@@ -11,6 +11,7 @@
 - AsyncFilesystem: Add `anonymous` and `region_name` parameters to support credential-free access to public S3 buckets.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
+- Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 
 ## 0.3.185 (01 March 2026)
 
