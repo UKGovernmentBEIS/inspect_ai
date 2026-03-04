@@ -8430,7 +8430,7 @@
   "description": "Evaluation log.",
   "properties": {
     "version": {
-      "default": 3,
+      "default": 2,
       "title": "Version",
       "type": "integer"
     },

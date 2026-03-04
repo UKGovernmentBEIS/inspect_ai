@@ -10,8 +10,8 @@ from typing_extensions import override
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import (
-    DESERIALIZING_CONTEXT,
     LOG_SCHEMA_VERSION,
+    get_deserializing_context,
     log_schema_version,
 )
 from inspect_ai._util.error import EvalError
@@ -254,7 +254,7 @@ def _validate_version(ver: int) -> None:
 
 def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     """Parse raw JSON data into an EvalLog, validating version and pruning if header_only."""
-    log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
+    log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
 
     # fail for unknown version
     _validate_version(log.version)
