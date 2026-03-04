@@ -118,9 +118,16 @@ async def sandbox_with(
 
 
 async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
+    # Lightweight check — avoids transferring file contents (Linux/macOS).
     try:
-        # TODO: This is gross. We actually read the file contents just to see if
-        # it's readable.
+        result = await environment.exec(["test", "-r", file])
+        if result.success:
+            return True
+    except Exception:
+        pass
+
+    # Fallback: read the file. Cross-platform but transfers full contents.
+    try:
         await environment.read_file(file, False)
         return True
     # allow exception types known to be raised from read_file
