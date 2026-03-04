@@ -15,6 +15,7 @@ interface ChatMessageRowProps {
   padded?: boolean;
   highlightUserMessage?: boolean;
   allowLinking?: boolean;
+  unlabeledRoles?: string[];
 }
 
 /**
@@ -28,6 +29,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   indented,
   highlightUserMessage,
   allowLinking = true,
+  unlabeledRoles,
 }) => {
   if (number) {
     return (
@@ -57,6 +59,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
             indented={indented}
             toolCallStyle={toolCallStyle}
             allowLinking={allowLinking}
+            unlabeledRoles={unlabeledRoles}
           />
         </div>
       </>
@@ -79,6 +82,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           indented={indented}
           toolCallStyle={toolCallStyle}
           allowLinking={allowLinking}
+          unlabeledRoles={unlabeledRoles}
         />
         {resolvedMessage.message.role === "user" ? (
           <div style={{ height: "10px" }}></div>
