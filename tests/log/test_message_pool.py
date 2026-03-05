@@ -325,10 +325,10 @@ def test_condense_call_request_messages():
         assert "messages" not in event.call.request
         assert event.call.call_key == "messages"
 
-    # Event 1: 1 message -> [[0,1]]
-    assert model_events[0].call.call_refs == [[0, 1]]
-    # Event 2: 3 messages -> [[0,3]]
-    assert model_events[1].call.call_refs == [[0, 3]]
+    # Event 1: 1 message -> [(0,1)]
+    assert model_events[0].call.call_refs == [(0, 1)]
+    # Event 2: 3 messages -> [(0,3)]
+    assert model_events[1].call.call_refs == [(0, 3)]
 
 
 def test_resolve_call_request_messages():
@@ -557,40 +557,42 @@ def test_stream_convert_preserves_message_pool():
 @pytest.mark.parametrize(
     "indices, expected",
     [
-        pytest.param([0, 1, 2, 3, 4], [[0, 5]], id="contiguous-prefix"),
-        pytest.param([3, 4, 5], [[3, 6]], id="contiguous-with-offset"),
-        pytest.param([0, 1, 2, 7, 8, 9], [[0, 3], [7, 10]], id="two-ranges"),
+        pytest.param([0, 1, 2, 3, 4], [(0, 5)], id="contiguous-prefix"),
+        pytest.param([3, 4, 5], [(3, 6)], id="contiguous-with-offset"),
+        pytest.param([0, 1, 2, 7, 8, 9], [(0, 3), (7, 10)], id="two-ranges"),
         pytest.param(
-            [0, 3, 4, 5, 9], [[0, 1], [3, 6], [9, 10]], id="mixed-singles-and-ranges"
+            [0, 3, 4, 5, 9], [(0, 1), (3, 6), (9, 10)], id="mixed-singles-and-ranges"
         ),
-        pytest.param([2, 5, 8], [[2, 3], [5, 6], [8, 9]], id="all-singles"),
-        pytest.param([7], [[7, 8]], id="single-element"),
+        pytest.param([2, 5, 8], [(2, 3), (5, 6), (8, 9)], id="all-singles"),
+        pytest.param([7], [(7, 8)], id="single-element"),
         pytest.param([], [], id="empty"),
-        pytest.param([3, 4], [[3, 5]], id="pair"),
-        pytest.param([1, 2, 0], [[1, 3], [0, 1]], id="non-increasing"),
-        pytest.param([1, 1, 0], [[1, 2], [1, 2], [0, 1]], id="repeated"),
+        pytest.param([3, 4], [(3, 5)], id="pair"),
+        pytest.param([1, 2, 0], [(1, 3), (0, 1)], id="non-increasing"),
+        pytest.param([1, 1, 0], [(1, 2), (1, 2), (0, 1)], id="repeated"),
     ],
 )
-def test_compress_refs(indices: list[int], expected: list[list[int]]):
+def test_compress_refs(indices: list[int], expected: list[tuple[int, int]]):
     assert _compress_refs(indices) == expected
 
 
 @pytest.mark.parametrize(
     "refs, pool, expected",
     [
-        pytest.param([[0, 5]], list(range(10)), [0, 1, 2, 3, 4], id="range"),
+        pytest.param([(0, 5)], list(range(10)), [0, 1, 2, 3, 4], id="range"),
         pytest.param(
-            [[2, 3], [5, 6], [8, 9]],
+            [(2, 3), (5, 6), (8, 9)],
             [f"msg{i}" for i in range(10)],
             ["msg2", "msg5", "msg8"],
             id="singles",
         ),
         pytest.param(
-            [[0, 1], [3, 6], [9, 10]], list(range(10)), [0, 3, 4, 5, 9], id="mixed"
+            [(0, 1), (3, 6), (9, 10)], list(range(10)), [0, 3, 4, 5, 9], id="mixed"
         ),
     ],
 )
-def test_expand_refs(refs: list[list[int]], pool: list[object], expected: list[object]):
+def test_expand_refs(
+    refs: list[tuple[int, int]], pool: list[object], expected: list[object]
+):
     assert _expand_refs(refs, pool) == expected
 
 
@@ -607,12 +609,12 @@ def test_condense_produces_range_encoded_input_refs():
     sample = _make_sample_with_repeated_inputs()
     condensed = condense_sample(sample)
     model_events = [e for e in condensed.events if isinstance(e, ModelEvent)]
-    # Turn 1: 2 messages [0,1] -> [[0,2]]
-    assert model_events[0].input_refs == [[0, 2]]
-    # Turn 2: 4 messages [0,1,2,3] -> [[0,4]]
-    assert model_events[1].input_refs == [[0, 4]]
-    # Turn 3: 5 messages [0,1,2,3,4] -> [[0,5]]
-    assert model_events[2].input_refs == [[0, 5]]
+    # Turn 1: 2 messages [0,1] -> [(0,2)]
+    assert model_events[0].input_refs == [(0, 2)]
+    # Turn 2: 4 messages [0,1,2,3] -> [(0,4)]
+    assert model_events[1].input_refs == [(0, 4)]
+    # Turn 3: 5 messages [0,1,2,3,4] -> [(0,5)]
+    assert model_events[2].input_refs == [(0, 5)]
 
 
 def test_condense_produces_range_encoded_call_refs():
@@ -620,10 +622,10 @@ def test_condense_produces_range_encoded_call_refs():
     sample = _make_sample_with_call_messages()
     condensed = condense_sample(sample)
     model_events = [e for e in condensed.events if isinstance(e, ModelEvent)]
-    # Event 1: 1 message [0] -> [[0,1]]
-    assert model_events[0].call.call_refs == [[0, 1]]
-    # Event 2: 3 messages [0,1,2] -> [[0,3]]
-    assert model_events[1].call.call_refs == [[0, 3]]
+    # Event 1: 1 message [0] -> [(0,1)]
+    assert model_events[0].call.call_refs == [(0, 1)]
+    # Event 2: 3 messages [0,1,2] -> [(0,3)]
+    assert model_events[1].call.call_refs == [(0, 3)]
 
 
 def test_resolve_range_encoded_input_refs():
@@ -645,7 +647,7 @@ def test_resolve_range_encoded_input_refs():
                 tool_choice="auto",
                 config=GenerateConfig(),
                 output=ModelOutput(),
-                input_refs=[[0, 3]],
+                input_refs=[(0, 3)],
             )
         ],
     )
@@ -664,7 +666,7 @@ def test_resolve_range_encoded_call_refs():
     call = ModelCall(
         request={"model": "test"},
         response=None,
-        call_refs=[[0, 2]],
+        call_refs=[(0, 2)],
         call_key="messages",
     )
     sample = EvalSample(

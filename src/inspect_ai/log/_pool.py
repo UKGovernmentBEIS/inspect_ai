@@ -132,31 +132,31 @@ def condense_model_event_inputs(
 _CALL_MESSAGE_KEYS: Final = ("messages", "contents")
 
 
-def _compress_refs(indices: list[int]) -> list[list[int]]:
+def _compress_refs(indices: list[int]) -> list[tuple[int, int]]:
     """Compress contiguous int indices into range-encoded refs.
 
-    Every element is a ``[start, end)`` range pair.
+    Every element is a ``(start, end_exclusive)`` range pair.
 
     Examples::
 
-        [0,1,2,3]   -> [[0,4]]
-        [0,3,4,5,9] -> [[0,1],[3,6],[9,10]]
-        [2,5,8]     -> [[2,3],[5,6],[8,9]]
-        [3,4]       -> [[3,5]]
+        [0,1,2,3]   -> [(0,4)]
+        [0,3,4,5,9] -> [(0,1),(3,6),(9,10)]
+        [2,5,8]     -> [(2,3),(5,6),(8,9)]
+        [3,4]       -> [(3,5)]
     """
     if not indices:
         return []
-    result: list[list[int]] = []
+    result: list[tuple[int, int]] = []
     start = indices[0]
-    end = start + 1
+    end_exclusive = start + 1
     for i in indices[1:]:
-        if i == end:
-            end += 1
+        if i == end_exclusive:
+            end_exclusive += 1
         else:
-            result.append([start, end])
+            result.append((start, end_exclusive))
             start = i
-            end = i + 1
-    result.append([start, end])
+            end_exclusive = i + 1
+    result.append((start, end_exclusive))
     return result
 
 
@@ -164,16 +164,16 @@ _T = TypeVar("_T")
 
 
 def _expand_refs(
-    refs: list[list[int]],
+    refs: list[tuple[int, int]],
     pool: list[_T],
 ) -> list[_T]:
     """Expand range-encoded refs against a pool.
 
-    Each element is ``[start, end)``: a half-open range yielding ``pool[start:end]``.
+    Each element is ``(start, end_exclusive)``: yields ``pool[start:end_exclusive]``.
     """
     result: list[_T] = []
-    for item in refs:
-        result.extend(pool[item[0] : item[1]])
+    for start, end_exclusive in refs:
+        result.extend(pool[start:end_exclusive])
     return result
 
 

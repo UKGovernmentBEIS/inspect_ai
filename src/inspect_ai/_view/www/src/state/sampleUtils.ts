@@ -6,10 +6,10 @@ type ChatMessage = EvalSample["messages"][number];
 
 /**
  * Expand range-encoded refs against a pool.
- * Each ref element is [start, end) (half-open range).
+ * Each ref element is [start, end_exclusive) — a half-open range.
  */
-const expandRefs = <T>(refs: number[][], pool: T[]): T[] =>
-  refs.flatMap(([start, end]) => pool.slice(start, end));
+const expandRefs = <T>(refs: [number, number][], pool: T[]): T[] =>
+  refs.flatMap(([start, end_exclusive]) => pool.slice(start, end_exclusive));
 
 /**
  * Resolve input_refs and call_refs in a flat event list against their pools.
@@ -25,7 +25,10 @@ const resolveEventRefs = (
     const resolved: SampleEvent = Array.isArray(event.input_refs)
       ? {
           ...event,
-          input: expandRefs<ChatMessage>(event.input_refs, msgPool),
+          input: expandRefs<ChatMessage>(
+            event.input_refs as [number, number][],
+            msgPool,
+          ),
           input_refs: null,
         }
       : event;
@@ -40,7 +43,7 @@ const resolveEventRefs = (
         request: {
           ...resolved.call.request,
           [resolved.call.call_key || "messages"]: expandRefs<JsonValue>(
-            resolved.call.call_refs,
+            resolved.call.call_refs as [number, number][],
             callPool,
           ),
         },

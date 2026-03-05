@@ -4918,9 +4918,16 @@
           "anyOf": [
             {
               "items": {
-                "items": {
-                  "type": "integer"
-                },
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
                 "type": "array"
               },
               "type": "array"
@@ -5102,9 +5109,16 @@
           "anyOf": [
             {
               "items": {
-                "items": {
-                  "type": "integer"
-                },
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
                 "type": "array"
               },
               "type": "array"
