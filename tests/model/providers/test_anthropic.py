@@ -1,5 +1,4 @@
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, create_autospec
 
 import pytest
 from test_helpers.utils import skip_if_no_anthropic
@@ -146,6 +145,7 @@ async def test_anthropic_count_tokens_single_tool_result() -> None:
 
 async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     """Ensure continuation parsing preserves server tool-use/result pairing."""
+    from anthropic import AsyncAnthropic
     from anthropic.types import (
         Message,
         ServerToolUseBlock,
@@ -194,11 +194,9 @@ async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     api.service = None
     api.model_name = "claude-sonnet-4-6"
 
-    api.client = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=AsyncMock(side_effect=[head_message, tail_message])
-        )
-    )
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(side_effect=[head_message, tail_message])
+    api.client = client
 
     _, output = await AnthropicAPI._perform_request_and_continuations(
         api,
