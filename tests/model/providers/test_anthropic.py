@@ -1,3 +1,4 @@
+import types
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
@@ -189,17 +190,21 @@ async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
         usage=Usage(input_tokens=1, output_tokens=1),
     )
 
-    api = object.__new__(AnthropicAPI)
+    api = create_autospec(AnthropicAPI, instance=True)
     api._batcher = None
-    api.service = None
     api.model_name = "claude-sonnet-4-6"
+    api.service_model_name.return_value = "claude-sonnet-4-6"
 
     client = create_autospec(AsyncAnthropic, instance=True)
     client.messages.create = AsyncMock(side_effect=[head_message, tail_message])
     api.client = client
 
-    _, output = await AnthropicAPI._perform_request_and_continuations(
-        api,
+    # Bind the real method so recursive continuation calls work
+    api._perform_request_and_continuations = types.MethodType(
+        AnthropicAPI._perform_request_and_continuations, api
+    )
+
+    _, output = await api._perform_request_and_continuations(
         request={"messages": []},
         streaming=False,
         tools=[],

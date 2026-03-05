@@ -627,6 +627,11 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
+        if pending_tool_uses is None:
+            pending_tool_uses = dict()
+        if pending_mcp_tool_uses is None:
+            pending_mcp_tool_uses = dict()
+
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
         batch_config = normalized_batch_config(config.batch)
@@ -652,11 +657,6 @@ class AnthropicAPI(ModelAPI):
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
             head_message = await self.client.messages.create(**request, stream=False)
-
-        if pending_tool_uses is None:
-            pending_tool_uses = dict()
-        if pending_mcp_tool_uses is None:
-            pending_mcp_tool_uses = dict()
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
