@@ -115,6 +115,16 @@ inspect eval images.py --log-format=json --no-log-images
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
+## Refusal Logging
+
+If you are concerned with proactively detecting when model refusals are occuring, you can specify the `--log-refusals` flag (or `log_refusals` option to `eval()`) to log refusals as warnings. For example:
+
+``` bash
+inspect eval ctf.py --log-refusals
+```
+
+Note that in all cases a counter of refusals during the eval or eval set is provided at the bottom right of the task display.
+
 ## Model API Logging
 
 If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the `ModelEvent`). For example:

@@ -125,6 +125,7 @@ def eval(
     log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -208,6 +209,7 @@ def eval(
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
         log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -275,6 +277,7 @@ def eval(
                 log_realtime=log_realtime,
                 log_images=log_images,
                 log_model_api=log_model_api,
+                log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
@@ -337,6 +340,7 @@ async def eval_async(
     log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -403,6 +407,7 @@ async def eval_async(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
         log_model_api: Log raw model requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -464,6 +469,7 @@ async def eval_async(
                 log_realtime=log_realtime,
                 log_images=log_images,
                 log_model_api=log_model_api,
+                log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
@@ -531,6 +537,7 @@ async def _eval_async_inner(
     log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -581,6 +588,7 @@ async def _eval_async_inner(
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
+            log_refusals=log_refusals,
             task_group=tg,
             **kwargs,
         )
@@ -808,6 +816,7 @@ def eval_retry(
     log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     score: bool = True,
@@ -855,6 +864,7 @@ def eval_retry(
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
         log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -901,6 +911,7 @@ def eval_retry(
             log_realtime=log_realtime,
             log_images=log_images,
             log_model_api=log_model_api,
+            log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score=score,
@@ -933,6 +944,7 @@ async def eval_retry_async(
     log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     score: bool = True,
@@ -973,6 +985,7 @@ async def eval_retry_async(
         log_images: Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
         log_model_api: Log raw model api request and response. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -1129,6 +1142,11 @@ async def eval_retry_async(
             if log_model_api is not None
             else eval_log.eval.config.log_model_api
         )
+        # resolve log_refusals from env var if not explicitly set
+        if log_refusals is None:
+            log_refusals_env = os.environ.get("INSPECT_EVAL_LOG_REFUSALS")
+            if log_refusals_env is not None:
+                log_refusals = log_refusals_env.lower() in ("true", "1", "yes")
         log_buffer = (
             log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
         )
@@ -1209,6 +1227,7 @@ async def eval_retry_async(
                 log_realtime=log_realtime,
                 log_images=log_images,
                 log_model_api=log_model_api,
+                log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 score=score,
@@ -1230,11 +1249,14 @@ def eval_init(
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
+    log_refusals: bool | None = None,
     task_group: TaskGroup | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[Model]:
     # init eval context
-    init_eval_context(log_level, log_level_transcript, max_subprocesses, task_group)
+    init_eval_context(
+        log_level, log_level_transcript, log_refusals, max_subprocesses, task_group
+    )
 
     # resolve model and task args
     model_args = resolve_args(model_args)

@@ -64,6 +64,7 @@ LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
+LOG_REFUSALS_HELP = "Log warnings for model refusals."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -365,6 +366,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=LOG_MODEL_API_HELP,
         envvar="INSPECT_EVAL_LOG_MODEL_API",
+    )
+    @click.option(
+        "--log-refusals/--no-log-refusals",
+        type=bool,
+        default=False,
+        is_flag=True,
+        help=LOG_REFUSALS_HELP,
+        envvar="INSPECT_EVAL_LOG_REFUSALS",
     )
     @click.option(
         "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
@@ -672,6 +681,7 @@ def eval_command(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -735,6 +745,7 @@ def eval_command(
         no_log_realtime=no_log_realtime,
         log_images=log_images,
         log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         no_score=no_score,
@@ -878,6 +889,7 @@ def eval_set_command(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -948,6 +960,7 @@ def eval_set_command(
         no_log_realtime=no_log_realtime,
         log_images=log_images,
         log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         no_score=no_score,
@@ -1015,6 +1028,7 @@ def eval_exec(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -1129,6 +1143,7 @@ def eval_exec(
             log_realtime=log_realtime,
             log_images=log_images,
             log_model_api=log_model_api,
+            log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score=score,
@@ -1335,6 +1350,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_LOG_MODEL_API",
 )
 @click.option(
+    "--log-refusals/--no-log-refusals",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help=LOG_REFUSALS_HELP,
+    envvar="INSPECT_EVAL_LOG_REFUSALS",
+)
+@click.option(
     "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
 )
 @click.option(
@@ -1403,6 +1426,7 @@ def eval_retry_command(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -1424,6 +1448,7 @@ def eval_retry_command(
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
     log_model_api = True if log_model_api is True else None
+    log_refusals = True if log_refusals is True else None
     score = False if no_score else True
     score_display = False if no_score_display else None
 
@@ -1462,6 +1487,7 @@ def eval_retry_command(
         log_realtime=log_realtime,
         log_images=log_images,
         log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         score=score,

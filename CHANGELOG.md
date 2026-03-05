@@ -2,7 +2,7 @@
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - Grok: Support for batch inference.
-- Refusals: Added refusal counter to task display and log warnings when refusals occur.
+- Refusals: Added refusal counter to task display and add option to log warnings when refusals occur (`--log-refusals`).
 - Eval: Add `--generate-config` CLI option for specifying config via YAML or JSON file.
 - Eval Logs: Add `exclude_fields` parameter to `read_eval_log_samples()`.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.

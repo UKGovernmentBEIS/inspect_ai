@@ -74,9 +74,35 @@ def test_refusal_logging(monkeypatch: pytest.MonkeyPatch) -> None:
     warnings: list[str] = []
     monkeypatch.setattr(
         "inspect_ai.log._refusal.logger",
-        type(
-            "MockLogger", (), {"warning": lambda self, msg: warnings.append(msg)}
-        )(),
+        type("MockLogger", (), {"warning": lambda self, msg: warnings.append(msg)})(),
+    )
+
+    task = Task(
+        dataset=[Sample(input="test", target="ignored")],
+        solver=[generate()],
+        scorer=includes(),
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Content policy violation.",
+                stop_reason="content_filter",
+            ),
+        ],
+    )
+    eval(task, model=model, log_refusals=True)
+    assert any("Model refusal" in w for w in warnings)
+    assert any("Content policy violation." in w for w in warnings)
+
+
+def test_refusal_no_logging(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Refusals do not log warnings when log_refusals is not set."""
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai.log._refusal.logger",
+        type("MockLogger", (), {"warning": lambda self, msg: warnings.append(msg)})(),
     )
 
     task = Task(
@@ -95,5 +121,4 @@ def test_refusal_logging(monkeypatch: pytest.MonkeyPatch) -> None:
         ],
     )
     eval(task, model=model)
-    assert any("Model refusal" in w for w in warnings)
-    assert any("Content policy violation." in w for w in warnings)
+    assert not any("Model refusal" in w for w in warnings)
