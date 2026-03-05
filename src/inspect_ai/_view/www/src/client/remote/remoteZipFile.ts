@@ -44,9 +44,9 @@ export class FileSizeLimitError extends Error {
   }
 }
 
-const PARALLEL_CHUNK_THRESHOLD = 20 * 1024 * 1024; // 20MB
+const PARALLEL_CHUNK_THRESHOLD = 8 * 1024 * 1024; // 8MB
 const PARALLEL_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB per chunk
-const MAX_PARALLEL_CHUNKS = 6;
+const MAX_PARALLEL_CHUNKS = 10;
 
 const fetchBytesParallel = async (
   fetchFn: (url: string, start: number, end: number) => Promise<Uint8Array>,
