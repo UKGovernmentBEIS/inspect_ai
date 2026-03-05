@@ -665,6 +665,10 @@ class GoogleGenAIAPI(ModelAPI):
         return str(self.api_key)
 
     @override
+    def tool_result_images(self) -> bool:
+        return True
+
+    @override
     def is_auth_failure(self, ex: Exception) -> bool:
         if isinstance(ex, APIError):
             return ex.code == 401
@@ -1125,9 +1129,11 @@ async def content(
         content_text = (
             message.error.message if message.error is not None else message.text
         )
-        response_dict: dict[str, object] = {"content": content_text}
+        response_dict: dict[str, object] = {
+            "content": content_text,
+            "safety_acknowledgement": "true",
+        }
         if message.function == "computer":
-            response_dict["safety_acknowledgement"] = "true"
             response_dict["url"] = ""
             response_name = (
                 message.tool_call_id.rsplit("_", 1)[0]
@@ -1384,6 +1390,8 @@ def completion_choice_from_candidate(
                         tool_call_from_gemini_computer_action(part.function_call)
                     )
                 else:
+                    if part.function_call.args:
+                        part.function_call.args.pop("safety_decision", None)
                     tool_calls.append(
                         ToolCall(
                             id=f"{part.function_call.name}_{uuid()}",
