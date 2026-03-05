@@ -1,3 +1,4 @@
+import io
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -256,14 +257,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
-                if len(content) > _S3_MAX_PUT_OBJECT_SIZE:
-                    await _s3_multipart_upload_async(
-                        await self.s3_client_async(), bucket, key, content
-                    )
-                else:
-                    await (await self.s3_client_async()).put_object(
-                        Bucket=bucket, Key=key, Body=content
-                    )
+                client = await self.s3_client_async()
+                await client.upload_fileobj(
+                    Fileobj=io.BytesIO(content), Bucket=bucket, Key=key
+                )
             else:
                 await anyio.to_thread.run_sync(
                     s3_write_file, self.s3_client(), bucket, key, content
@@ -381,77 +378,8 @@ def s3_read_file_suffix(
     return SuffixResult(data, total_size, etag)
 
 
-_S3_MAX_PUT_OBJECT_SIZE = 5 * 1024 * 1024 * 1024  # 5GB
-_S3_MULTIPART_PART_SIZE = 100 * 1024 * 1024  # 100MB per part
-
-
-async def _s3_multipart_upload_async(
-    client: Any, bucket: str, key: str, content: bytes
-) -> None:
-    response = await client.create_multipart_upload(Bucket=bucket, Key=key)
-    upload_id = response["UploadId"]
-    try:
-        parts: list[dict[str, Any]] = []
-        part_number = 1
-        offset = 0
-        while offset < len(content):
-            chunk = content[offset : offset + _S3_MULTIPART_PART_SIZE]
-            part_response = await client.upload_part(
-                Bucket=bucket,
-                Key=key,
-                UploadId=upload_id,
-                PartNumber=part_number,
-                Body=chunk,
-            )
-            parts.append({"ETag": part_response["ETag"], "PartNumber": part_number})
-            offset += _S3_MULTIPART_PART_SIZE
-            part_number += 1
-        await client.complete_multipart_upload(
-            Bucket=bucket,
-            Key=key,
-            UploadId=upload_id,
-            MultipartUpload={"Parts": parts},
-        )
-    except BaseException:
-        await client.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
-        raise
-
-
-def _s3_multipart_upload_sync(s3: Any, bucket: str, key: str, content: bytes) -> None:
-    response = s3.create_multipart_upload(Bucket=bucket, Key=key)
-    upload_id = response["UploadId"]
-    try:
-        parts: list[dict[str, Any]] = []
-        part_number = 1
-        offset = 0
-        while offset < len(content):
-            chunk = content[offset : offset + _S3_MULTIPART_PART_SIZE]
-            part_response = s3.upload_part(
-                Bucket=bucket,
-                Key=key,
-                UploadId=upload_id,
-                PartNumber=part_number,
-                Body=chunk,
-            )
-            parts.append({"ETag": part_response["ETag"], "PartNumber": part_number})
-            offset += _S3_MULTIPART_PART_SIZE
-            part_number += 1
-        s3.complete_multipart_upload(
-            Bucket=bucket,
-            Key=key,
-            UploadId=upload_id,
-            MultipartUpload={"Parts": parts},
-        )
-    except BaseException:
-        s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
-        raise
-
-
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
-    if len(content) > _S3_MAX_PUT_OBJECT_SIZE:
-        _s3_multipart_upload_sync(s3, bucket, key, content)
-    else:
-        s3.put_object(Bucket=bucket, Key=key, Body=content)
+    s3.upload_fileobj(Fileobj=io.BytesIO(content), Bucket=bucket, Key=key)
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
