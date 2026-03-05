@@ -576,7 +576,7 @@ export type Input3 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type InputRefs = number[][] | null;
+export type InputRefs = [unknown, unknown][] | null;
 export type Name9 = string;
 export type Description2 = string;
 export type Type20 = "object";
@@ -598,7 +598,7 @@ export type Response = {
 } | null;
 export type Error3 = boolean | null;
 export type Time1 = number | null;
-export type CallRefs = number[][] | null;
+export type CallRefs = [unknown, unknown][] | null;
 export type CallKey = string | null;
 export type Completed1 = string | null;
 export type WorkingTime = number | null;
