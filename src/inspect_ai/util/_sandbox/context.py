@@ -158,6 +158,7 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
 async def sandbox_with_injection(
     injectables: SandboxInjectable | list[SandboxInjectable],
     name: str | None = None,
+    target: SandboxEnvironment | None = None,
 ) -> SandboxEnvironment:
     """Get a SandboxEnvironment that satisfies all the given injection requirements.
 
@@ -165,6 +166,7 @@ async def sandbox_with_injection(
         injectables: Single SandboxInjectable or list of SandboxInjectables.
             Each injectable is a (detector, injector) tuple.
         name: Optional sandbox environment name.
+        target: Optional sandbox instance to inject into directly.
 
     Returns:
         SandboxEnvironment instance that satisfies all injection requirements.
@@ -177,13 +179,16 @@ async def sandbox_with_injection(
     if isinstance(injectables, tuple):
         injectables = [injectables]
 
-    target_sandbox, needed_injections = (
+    if target is not None:
+        target_sandbox = target
+        needed_injections = await _get_needed_injections(target, injectables)
+    elif name:
         # Named sandbox: inject directly into the specified sandbox
-        (sb := sandbox(name), await _get_needed_injections(sb, injectables))
-        if name
+        target_sandbox = sandbox(name)
+        needed_injections = await _get_needed_injections(target_sandbox, injectables)
+    else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
-        else await _get_injection_target(injectables)
-    )
+        target_sandbox, needed_injections = await _get_injection_target(injectables)
 
     for detector, injector in needed_injections:
         await injector(target_sandbox)

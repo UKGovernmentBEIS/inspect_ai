@@ -67,12 +67,15 @@ InstallState = Literal["pypi", "clean", "edited"]
 
 
 async def sandbox_with_injected_tools(
-    *, sandbox_name: str | None = None
+    *,
+    sandbox_name: str | None = None,
+    sandbox: SandboxEnvironment | None = None,
 ) -> SandboxEnvironment:
     """Create a sandbox environment with sandbox tools injection.
 
     Args:
         sandbox_name: Optional name for the sandbox environment.
+        sandbox: Optional sandbox instance to inject into directly.
 
     Returns:
         A sandbox environment with container tools injected.
@@ -83,6 +86,7 @@ async def sandbox_with_injected_tools(
             _inject_container_tools_code,
         ),
         name=sandbox_name,
+        target=sandbox,
     )
 
 
