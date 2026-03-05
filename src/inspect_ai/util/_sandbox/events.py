@@ -4,7 +4,6 @@ import shlex
 from datetime import datetime, timezone
 from typing import Any, Iterator, Literal, Type, Union, overload
 
-import anyio
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 from typing_extensions import override
@@ -18,23 +17,15 @@ from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
-from .exec_remote import (
-    ExecRemoteAwaitableOptions,
-    ExecRemoteProcess,
-    ExecRemoteStreamingOptions,
-    exec_remote_awaitable,
-    exec_remote_streaming,
-)
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .service import SERVICES_DIR
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
+        super().__init__()
         self._sandbox = sandbox
         self._events = True
-        self._tools_injected = False
-        self._inject_lock = anyio.Lock()
 
     @override
     async def exec(
@@ -205,45 +196,6 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     @override
     def default_polling_interval(self) -> float:
         return self._sandbox.default_polling_interval()
-
-    @overload
-    async def exec_remote(
-        self,
-        cmd: list[str],
-        options: ExecRemoteStreamingOptions | None = None,
-        *,
-        stream: Literal[True] = True,
-    ) -> ExecRemoteProcess: ...
-
-    @overload
-    async def exec_remote(
-        self,
-        cmd: list[str],
-        options: ExecRemoteAwaitableOptions | None = None,
-        *,
-        stream: Literal[False],
-    ) -> ExecResult[str]: ...
-
-    @override
-    async def exec_remote(
-        self,
-        cmd: list[str],
-        options: ExecRemoteStreamingOptions | ExecRemoteAwaitableOptions | None = None,
-        *,
-        stream: bool = True,
-    ) -> ExecRemoteProcess | ExecResult[str]:
-        from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-            sandbox_with_injected_tools,
-        )
-
-        async with self._inject_lock:
-            if not self._tools_injected:
-                await sandbox_with_injected_tools(sandbox=self._sandbox)
-                self._tools_injected = True
-        sb = self._sandbox
-        return await (exec_remote_streaming if stream else exec_remote_awaitable)(
-            sb, cmd, sb.default_polling_interval(), options
-        )
 
     @contextlib.contextmanager
     def no_events(self) -> Iterator[None]:
