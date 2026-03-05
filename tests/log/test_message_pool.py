@@ -28,7 +28,6 @@ from inspect_ai.log._log import (
 from inspect_ai.log._pool import (
     _compress_refs,
     _expand_refs,
-    repair_duplicate_message_ids,
     resolve_sample_message_pool,
 )
 from inspect_ai.model._chat_message import (
@@ -693,100 +692,24 @@ def test_resolve_range_encoded_call_refs():
     assert model_events[0].call.call_refs is None
 
 
-def test_repair_duplicate_message_ids():
-    """repair_duplicate_message_ids reassigns IDs for same-ID-different-content messages."""
-    msg_id = "shared-id"
-    user_msg = ChatMessageUser(content="Hello")
-
-    assistant_v1 = ChatMessageAssistant(
-        id=msg_id,
-        content=[ContentText(text="Answer"), ContentReasoning(reasoning="thinking...")],
-    )
-    assistant_v2 = ChatMessageAssistant(
-        id=msg_id,
-        content=[ContentText(text="Answer")],
-    )
-
-    event1 = ModelEvent(
-        model="test",
-        input=[user_msg, assistant_v1],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput(model="test"),
-    )
-    event2 = ModelEvent(
-        model="test",
-        input=[user_msg, assistant_v2],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput(model="test"),
-    )
-
-    sample = EvalSample(
-        id=1,
-        epoch=1,
-        input="test",
-        target="test",
-        events=[event1, event2],
-    )
-
-    # Without repair: only 2 pool entries (dedup conflates them)
-    condensed_no_repair = condense_sample(sample)
-    assert len(condensed_no_repair.message_pool) == 2
-
-    # With repair step before condense: 3 pool entries
-    repaired = repair_duplicate_message_ids(sample)
-    condensed_repaired = condense_sample(repaired)
-    assert len(condensed_repaired.message_pool) == 3
-
-    # Round-trip the repaired version
-    resolved = resolve_sample_message_pool(condensed_repaired)
-    resolved_event1_input = resolved.events[0].input
-    resolved_event2_input = resolved.events[1].input
-
-    # Event 1 should have reasoning, event 2 should not
-    assert any(
-        isinstance(c, ContentReasoning)
-        for msg in resolved_event1_input
-        if isinstance(msg.content, list)
-        for c in msg.content
-    )
-    assert not any(
-        isinstance(c, ContentReasoning)
-        for msg in resolved_event2_input
-        if isinstance(msg.content, list)
-        for c in msg.content
-    )
-
-
 def test_condense_same_id_different_content_gets_separate_pool_entries():
     """Messages with the same .id but different content must get separate pool entries.
 
-    Simulates what resolve_reasoning_history does: strips reasoning from a
-    message and assigns a new ID via model_copy(update={"id": uuid(), ...}).
-    The pool dedup must store both versions separately.
+    This tests hash-based dedup: even though msg.id is identical, the different
+    content produces different hashes, so both versions are stored separately.
     """
-    from shortuuid import uuid as make_uuid
-
+    shared_id = "same-id-for-both"
     user_msg = ChatMessageUser(content="Hello")
     assistant_msg = ChatMessageAssistant(
+        id=shared_id,
         content=[ContentText(text="Answer"), ContentReasoning(reasoning="thinking...")],
     )
 
-    # Simulate resolve_reasoning_history stripping reasoning with new ID
-    stripped_msg = assistant_msg.model_copy(
-        update={
-            "id": make_uuid(),
-            "content": [
-                c for c in assistant_msg.content if not isinstance(c, ContentReasoning)
-            ],
-        }
+    # Same ID, different content (user mutated without updating ID)
+    stripped_msg = ChatMessageAssistant(
+        id=shared_id,
+        content=[ContentText(text="Answer")],
     )
-
-    # Verify IDs differ (this is what the fix ensures)
-    assert stripped_msg.id != assistant_msg.id
 
     event1 = ModelEvent(
         model="test",
@@ -815,8 +738,8 @@ def test_condense_same_id_different_content_gets_separate_pool_entries():
 
     condensed = condense_sample(sample)
 
-    # Both versions should be in the pool
-    assert len(condensed.message_pool) >= 3  # user_msg + 2 assistant versions
+    # user_msg + two different assistant versions = 3 pool entries
+    assert len(condensed.message_pool) == 3
 
     # Round-trip: resolve and verify content is preserved
     resolved = resolve_sample_message_pool(condensed)
