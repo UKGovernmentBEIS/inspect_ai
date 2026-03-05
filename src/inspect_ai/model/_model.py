@@ -1039,7 +1039,7 @@ class Model:
             )
 
         # report refusal
-        if model_output.stop_reason == "content_filter":
+        if not model_output.empty and model_output.stop_reason == "content_filter":
             report_refusal(model_output.completion)
 
         # return results
