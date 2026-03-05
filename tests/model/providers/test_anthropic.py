@@ -1,7 +1,11 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
 import pytest
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentToolUse
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -9,6 +13,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.tool import ToolCall
 
 
@@ -137,3 +142,72 @@ async def test_anthropic_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
+    """Ensure continuation parsing preserves server tool-use/result pairing."""
+    from anthropic.types import (
+        Message,
+        ServerToolUseBlock,
+        Usage,
+        WebSearchToolResultBlock,
+        WebSearchToolResultError,
+    )
+
+    head_message = Message(
+        id="msg_head",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason="pause_turn",
+        content=[
+            ServerToolUseBlock(
+                id="toolu_1",
+                type="server_tool_use",
+                name="web_search",
+                input={"query": "inspect ai"},
+            )
+        ],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+    tail_message = Message(
+        id="msg_tail",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason="end_turn",
+        content=[
+            WebSearchToolResultBlock(
+                type="web_search_tool_result",
+                tool_use_id="toolu_1",
+                content=WebSearchToolResultError(
+                    type="web_search_tool_result_error",
+                    error_code="unavailable",
+                ),
+            )
+        ],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+
+    api = object.__new__(AnthropicAPI)
+    api._batcher = None
+    api.service = None
+    api.model_name = "claude-sonnet-4-6"
+
+    api.client = SimpleNamespace(
+        messages=SimpleNamespace(
+            create=AsyncMock(side_effect=[head_message, tail_message])
+        )
+    )
+
+    _, output = await AnthropicAPI._perform_request_and_continuations(
+        api,
+        request={"messages": []},
+        streaming=False,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    tool_uses = [c for c in output.message.content if isinstance(c, ContentToolUse)]
+    assert len(tool_uses) == 1
+    assert tool_uses[0].id == "toolu_1"
