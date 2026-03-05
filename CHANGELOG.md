@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Detect some additional "content_filter" stop reason conditions.
 - Grok: Support for batch inference.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
