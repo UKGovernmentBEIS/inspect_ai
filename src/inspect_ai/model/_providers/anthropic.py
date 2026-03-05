@@ -617,6 +617,9 @@ class AnthropicAPI(ModelAPI):
         streaming: bool,
         tools: list[ToolInfo],
         config: GenerateConfig,
+        pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
+        | None = None,
+        pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -650,8 +653,18 @@ class AnthropicAPI(ModelAPI):
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
+        if pending_tool_uses is None:
+            pending_tool_uses = dict()
+        if pending_mcp_tool_uses is None:
+            pending_mcp_tool_uses = dict()
+
         head_model_output, continuation_required = await model_output_from_message(
-            self.client, self.service_model_name(), head_message, tools
+            self.client,
+            self.service_model_name(),
+            head_message,
+            tools,
+            pending_tool_uses=pending_tool_uses,
+            pending_mcp_tool_uses=pending_mcp_tool_uses,
         )
 
         if continuation_required:
@@ -660,7 +673,12 @@ class AnthropicAPI(ModelAPI):
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
-                tail_request, streaming, tools, config
+                tail_request,
+                streaming,
+                tools,
+                config,
+                pending_tool_uses=pending_tool_uses,
+                pending_mcp_tool_uses=pending_mcp_tool_uses,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1878,10 +1896,16 @@ async def model_output_from_message(
     model: str | None,
     message: Message,
     tools: list[ToolInfo],
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
+    | None = None,
+    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
 ) -> tuple[ModelOutput, bool]:
     # extract content and tool calls
     content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
-        message.content, tools
+        message.content,
+        tools,
+        pending_tool_uses=pending_tool_uses,
+        pending_mcp_tool_uses=pending_mcp_tool_uses,
     )
 
     # count reasoning tokens
@@ -1972,6 +1996,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
         | ContentBlock
     ],
     tools: list[ToolInfo],
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
+    | None = None,
+    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
 ) -> tuple[list[Content], list[ToolCall] | None]:
     # resolve params to blocks
     content_blocks: list[
@@ -2002,8 +2029,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
 
-    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock] = dict()
-    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
+    if pending_tool_uses is None:
+        pending_tool_uses = dict()
+    if pending_mcp_tool_uses is None:
+        pending_mcp_tool_uses = dict()
+
     for content_block in content_blocks:
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
             tool_use_block = BetaMCPToolUseBlock.model_validate(
@@ -2014,7 +2044,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             tool_result_block = BetaMCPToolResultBlock.model_validate(
                 content_block.model_dump()
             )
-            pending_mcp_tool_use = pending_mcp_tool_uses.get(
+            pending_mcp_tool_use = pending_mcp_tool_uses.pop(
                 tool_result_block.tool_use_id, None
             )
             if pending_mcp_tool_use is None:
@@ -2048,7 +2078,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif content_block.type == "web_fetch_tool_result":
             # confirm that there is a pending tool use
-            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
                     "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
@@ -2082,7 +2112,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             or content_block.type == "text_editor_code_execution_tool_result"
         ):
             # confirm that there is a pending tool use
-            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
                     "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
@@ -2163,7 +2193,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif isinstance(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
-            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
                     "WebSearchToolResultBlock without previous ServerToolUseBlock"
