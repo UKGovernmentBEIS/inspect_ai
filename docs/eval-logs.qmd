@@ -117,7 +117,7 @@ You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a glo
 
 ## Refusal Logging
 
-If you are concerned with proactively detecting when model refusals are occuring, you can specify the `--log-refusals` flag (or `log_refusals` option to `eval()`) to log refusals as warnings. For example:
+If you are concerned with proactively detecting when model refusals are occurring, you can specify the `--log-refusals` flag (or `log_refusals` option to `eval()`) to log refusals as warnings. For example:
 
 ``` bash
 inspect eval ctf.py --log-refusals
