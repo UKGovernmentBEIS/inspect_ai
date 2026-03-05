@@ -27,7 +27,7 @@ from ..core.display import (
     TaskSuccess,
     TaskWithResult,
 )
-from ..core.footer import task_http_retries_str
+from ..core.footer import task_http_retries_str, task_refusals_str
 from ..core.panel import task_title
 from ..core.results import task_metric
 
@@ -201,10 +201,13 @@ class LogTaskDisplay(TaskDisplay):
         )
         status_parts.append(resources)
 
-        # Add rate limits
+        # Add rate limits and refusals
         rate_limits = task_http_retries_str()
         if rate_limits:
             status_parts.append(rate_limits)
+        refusals = task_refusals_str()
+        if refusals:
+            status_parts.append(refusals)
 
         # Print on new line
         logging.info(", ".join(status_parts), stacklevel=stacklevel)
