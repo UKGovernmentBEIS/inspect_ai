@@ -480,6 +480,7 @@ def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
 # =============================================================================
 
 
+@pytest.mark.skip(reason="Slow (allocates 5GB+) and requires real S3 credentials")
 async def test_write_file_s3_large_file() -> None:
     """write_file fails for S3 files larger than 5GB because put_object has a 5GB limit.
 
