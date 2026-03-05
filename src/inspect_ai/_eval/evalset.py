@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
@@ -15,7 +16,7 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
-from typing_extensions import Unpack
+from typing_extensions import Unpack, override
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -76,6 +77,51 @@ class Log(NamedTuple):
     info: EvalLogInfo
     header: EvalLog
     task_identifier: str
+
+
+class EvalSetScanProgress(ReadEvalLogsProgress):
+    """Logs progress while scanning for existing eval logs during resume."""
+
+    def __init__(self, log_dir: str) -> None:
+        self.log_dir = log_dir
+        self.total_files = 0
+        self.completed = 0
+        self.start_time: float | None = None
+        self._last_log_count = 0
+
+    @override
+    def before_reading_logs(self, total_files: int) -> None:
+        self.total_files = total_files
+        self.start_time = time.monotonic()
+        if total_files > 0:
+            logger.info(
+                "Found %d eval log files in %s, reading headers...",
+                total_files,
+                self.log_dir,
+            )
+
+    @override
+    def after_read_log(self, log_file: str) -> None:
+        self.completed += 1
+        interval = max(100, self.total_files // 10)
+        if (
+            self.completed - self._last_log_count >= interval
+            or self.completed == self.total_files
+        ):
+            logger.info("Reading eval logs: %d/%d", self.completed, self.total_files)
+            self._last_log_count = self.completed
+
+    def log_completion(self, completed_count: int, pending_count: int) -> None:
+        """Log final summary after scan completes."""
+        if self.start_time is not None and self.total_files > 0:
+            duration = time.monotonic() - self.start_time
+            logger.info(
+                "Resume scan complete: %d logs read in %.1fs (%d completed, %d pending)",
+                self.total_files,
+                duration,
+                completed_count,
+                pending_count,
+            )
 
 
 @dataclass
@@ -393,7 +439,8 @@ def eval_set(
         )
 
         # list all logs currently in the log directory (update manifest if there are some)
-        all_logs = list_all_eval_logs(log_dir)
+        scan_progress = EvalSetScanProgress(log_dir)
+        all_logs = list_all_eval_logs(log_dir, progress=scan_progress)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
 
@@ -438,6 +485,13 @@ def eval_set(
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
+
+        # Log scan completion summary
+        scan_progress.log_completion(
+            completed_count=len(log_task_identifiers),
+            pending_count=len(pending_tasks),
+        )
+
         tasks_to_run: (
             list[ResolvedTask | PreviousTask] | list[ResolvedTask] | list[PreviousTask]
         )
