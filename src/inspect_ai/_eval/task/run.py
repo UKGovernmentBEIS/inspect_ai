@@ -8,11 +8,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Awaitable, Callable, Literal
+from typing import TYPE_CHECKING, Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
+
+if TYPE_CHECKING:
+    from inspect_ai.agent._setting import Setting
 
 from inspect_ai._display import (
     TaskCancelled,
@@ -244,6 +247,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         message_limit=config.message_limit,
         token_limit=config.token_limit,
         cost_limit=config.cost_limit,
+        task_setting=task.setting,
     )
 
     # resolve the plan (unroll chains)
@@ -1246,6 +1250,7 @@ async def resolve_dataset(
     message_limit: int | None,
     token_limit: int | None,
     cost_limit: float | None,
+    task_setting: "Setting | Callable[[Sample], Setting] | None" = None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # slice dataset
     dataset = slice_dataset(dataset, limit, sample_id)
@@ -1282,6 +1287,14 @@ async def resolve_dataset(
         )
         for epoch, sample in zip(sample_epochs, samples)
     ]
+
+    # apply setting after deepcopy (avoids deepcopy of callables)
+    if task_setting is not None:
+        for state, sample in zip(states, samples):
+            if callable(task_setting):
+                state.setting = task_setting(sample)
+            else:
+                state.setting = task_setting
 
     return (dataset, samples, states)
 

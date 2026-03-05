@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Type, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -34,6 +34,9 @@ from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._limited_conversation import ChatMessageList
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
+
+if TYPE_CHECKING:
+    from inspect_ai.agent._setting import Setting
 
 
 @dataclass
@@ -164,6 +167,7 @@ class TaskState:
         store: dict[str, Any] | None = None,
         scores: dict[str, Score] | None = None,
         sample_uuid: str | None = None,
+        setting: "Setting | None" = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
@@ -181,6 +185,7 @@ class TaskState:
         self._store = Store(store)
         self._uuid = sample_uuid or uuid()
         self._scores = scores
+        self._setting: Setting | None = setting
 
         if choices:
             self.choices = Choices(choices)
@@ -411,6 +416,15 @@ class TaskState:
     @scores.setter
     def scores(self, scores: dict[str, Score] | None) -> None:
         self._scores = scores
+
+    @property
+    def setting(self) -> "Setting | None":
+        """Execution setting provided by the problem definition."""
+        return self._setting
+
+    @setting.setter
+    def setting(self, val: "Setting | None") -> None:
+        self._setting = val
 
     @property
     def uuid(self) -> str:

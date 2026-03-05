@@ -1,4 +1,5 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
+from inspect_ai.agent._setting import OnTurn, Setting, Workspace, setting
 
 from ._basic_agent import basic_agent
 from ._bridge import bridge
@@ -23,6 +24,10 @@ __all__ = [
     "basic_agent",
     "bridge",
     "human_agent",
+    "OnTurn",
+    "Setting",
+    "Workspace",
+    "setting",
     "chain",
     "fork",
     "generate",

@@ -4,6 +4,8 @@ from typing import Awaitable, Callable, cast
 from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai.agent._react import _default_workspace_tools
+from inspect_ai.agent._setting_utils import handle_on_turn, tools_from_setting
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
@@ -11,7 +13,7 @@ from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
-from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._limit import token_limit as create_token_limit
 
@@ -168,6 +170,16 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # merge setting tools into state.tools
+            merged = tools_from_setting(
+                state.tools, _default_workspace_tools, framework_tools={submit_name}
+            )
+            state.tools = [
+                t if isinstance(t, Tool) else t.as_tool()
+                for t in merged
+                if not isinstance(t, ToolSource)
+            ]
+
             # resolve message_limit -- prefer parameter then fall back to task.
             # if there is no message limit AND no token limit then provide
             # a default message limit of 50 (so that the task can't run forever
@@ -244,8 +256,19 @@ def basic_agent(
                                     ChatMessageUser(content=response_message)
                                 )
 
+                    # fire setting on_turn callback (before continue message)
+                    on_turn_result = await handle_on_turn()
+                    if on_turn_result.action == "break":
+                        break
+                    elif on_turn_result.action == "continue":
+                        if on_turn_result.message is not None:
+                            state.messages.append(
+                                ChatMessageUser(content=on_turn_result.message)
+                            )
+                        continue
+
                     # no tool calls, urge the model to continue
-                    else:
+                    if not state.output.message.tool_calls:
                         state.messages.append(ChatMessageUser(content=continue_message))
 
             return state

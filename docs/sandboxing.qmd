@@ -14,6 +14,10 @@ By default, model tool calls are executed within the main process running the ev
 
 To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
+::: {.callout-tip appearance="simple"}
+To indicate which sandboxes should be visible to the agent (and which should be hidden), use `Workspace` declarations in a `Setting`. See [Task Settings](agent-settings.qmd#workspaces) for details.
+:::
+
 ## Example: File Listing
 
 Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `sandbox()` function to get access to the `SandboxEnvironment` instance for the currently executing `Sample`:

@@ -105,6 +105,7 @@ website:
            contents:
                - agents.qmd
                - react-agent.qmd
+               - agent-settings.qmd
                - multi-agent.qmd
                - agent-custom.qmd
                - agent-bridge.qmd

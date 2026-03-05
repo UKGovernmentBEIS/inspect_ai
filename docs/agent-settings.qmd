@@ -1,0 +1,227 @@
+---
+title: Task Settings
+---
+
+## Overview
+
+By default, Inspect couples tools to solvers and exposes all sandbox environments to the agent. This works well for simple evaluations, but breaks down when:
+
+- Some sandboxes should be hidden from the agent (e.g. a target server or resource container).
+- Tasks need to provide tools specific to the problem (e.g. a tool that queries a database or interacts with a service).
+- The task needs a per-turn callback to check completion, advance state, or inject guidance.
+
+The `Setting` type lets a task describe the *execution setting* the agent operates in---which sandboxes are accessible, what tools are available, and what happens each turn. Agent scaffolding (like `react()` and `basic_agent()`) consumes the setting to decide what tools and access to provide.
+
+## Setting
+
+A `Setting` is declared on a `Task` and contains three fields:
+
+| Field        | Type                        | Description                                                                 |
+|--------------|-----------------------------|-----------------------------------------------------------------------------|
+| `workspaces` | `tuple[Workspace, ...]`     | Sandboxes the agent should work in. First is primary.                       |
+| `tools`      | `tuple[Tool \| ToolDef, ...]` | Task-specific tools.                                                    |
+| `on_turn`    | `OnTurn \| None`            | Callback to be called each iteration of the agent loop.                     |
+
+Here is a minimal example:
+
+``` python
+from inspect_ai import Task
+from inspect_ai.agent import Setting, Workspace
+from inspect_ai.dataset import json_dataset
+from inspect_ai.scorer import includes
+
+task = Task(
+    dataset=json_dataset("challenges.json"),
+    sandbox=("docker", "compose.yaml"),
+    setting=Setting(
+        workspaces=(Workspace(description="Debian workspace"),),
+    ),
+    scorer=includes(),
+)
+```
+
+When a `Setting` is provided, it describes the intended tool surface. The built-in agents (`react()` and `basic_agent()`) honour this by creating bash tools from workspaces rather than using the solver-level tools directly.
+
+## Workspaces {#workspaces}
+
+A `Workspace` represents a sandbox environment the agent should work in:
+
+| Field         | Type          | Description                                             |
+|---------------|---------------|---------------------------------------------------------|
+| `name`        | `str`         | Sandbox name (matches docker-compose service). Default: `"default"`. |
+| `description` | `str`         | Human-readable description shown to the agent.          |
+| `user`        | `str \| None` | User to run commands as in this sandbox.                |
+
+### Single Workspace
+
+The simplest case---one workspace with a description:
+
+``` python
+Setting(
+    workspaces=(
+        Workspace(
+            description="Workspace with /opt/tools/decompile",
+            user="hacker",
+        ),
+    ),
+)
+```
+
+The built-in agents create a `bash` tool targeting this workspace, with the description injected so the model knows what it's for.
+
+### Multiple Workspaces
+
+When the agent needs access to more than one sandbox, list multiple workspaces. The built-in agents name the tools to distinguish them---the first workspace gets `bash`, others get `bash_{name}`:
+
+``` python
+Setting(
+    workspaces=(
+        Workspace(name="default", description="Development environment"),
+        Workspace(name="db", description="Database server with PostgreSQL"),
+    ),
+)
+```
+
+This produces two tools: `bash` (for `default`) and `bash_db` (for `db`), each with its workspace description.
+
+### Hidden Sandboxes
+
+Sandboxes that are **not** listed as workspaces should be hidden from the agent. The built-in agents will not create tools for them. This is the lockdown mechanism---omission means "don't touch."
+
+``` python
+Task(
+    sandbox=("docker", "compose.yaml"),  # defines default + target services
+    setting=Setting(
+        workspaces=(
+            Workspace(
+                name="default",
+                description="Workspace. Target at port 8080.",
+                user="hacker",
+            ),
+            # "target" sandbox NOT listed — should be hidden from agent
+        ),
+    ),
+)
+```
+
+::: {.callout-important appearance="simple"}
+If a sandbox is not listed as a workspace, scaffolding should not create tools for it. Scoring code and custom tools can still access hidden sandboxes directly via `sandbox("target")`.
+:::
+
+## Tools
+
+Use `Setting.tools` to inject custom tools that the agent needs for a particular task:
+
+``` python
+Setting(
+    workspaces=(
+        Workspace(description="Development environment"),
+    ),
+    tools=(custom_decompile_tool(),),
+)
+```
+
+## On Turn
+
+The `on_turn` callback is intended to be called each iteration of the agent loop, after tool results are processed but before the `on_continue` handler. It lets the task request per-turn logic like completion checks or time advancement.
+
+``` python
+OnTurn = Callable[[], Awaitable[bool | str | None]]
+```
+
+The return value indicates what should happen next:
+
+| Return Value   | Effect                                                              |
+|----------------|---------------------------------------------------------------------|
+| `None` / `True` | Continue normally (run `on_continue` as usual).                   |
+| `False`        | Stop the agent (`state.completed = True`).                         |
+| `str`          | Inject the string as a user message and continue (skips `on_continue`). |
+
+Here is an example that checks a flag file each turn:
+
+``` python
+from inspect_ai.util import sandbox
+
+async def check_flag() -> bool | str | None:
+    result = await sandbox().exec(["cat", "/tmp/flag.txt"])
+    if result.success and "SOLVED" in result.stdout:
+        return False  # stop the agent
+    return None  # continue normally
+
+Setting(
+    workspaces=(Workspace(description="CTF challenge environment"),),
+    on_turn=check_flag,
+)
+```
+
+::: {.callout-note appearance="simple"}
+The `on_turn` callback takes no arguments. If it needs access to task state, use `sample_state()` from `inspect_ai.solver`.
+:::
+
+## Per-Sample Settings
+
+Pass a callable instead of a static `Setting` to vary the configuration per sample:
+
+``` python
+Task(
+    sandbox=("docker", "compose.yaml"),
+    setting=lambda sample: Setting(
+        workspaces=(
+            Workspace(user=sample.metadata.get("user", "nobody")),
+        ),
+        tools=tuple(sample.metadata.get("extra_tools", [])),
+    ),
+)
+```
+
+The callable receives the `Sample` and returns a `Setting`. This is the recommended pattern when your `on_turn` callback uses mutable state---the factory ensures each concurrent sample gets its own callback instance rather than sharing one.
+
+## Custom Agents {#custom-agents}
+
+The built-in `react()` and `basic_agent()` automatically consume settings. If you're writing a custom agent, two utilities handle the integration:
+
+### tools_from_setting()
+
+Merges setting tools with your solver tools. You provide a `workspace_tools` factory that decides what tools to create for each workspace:
+
+``` python
+from inspect_ai.agent import Workspace, tools_from_setting
+from inspect_ai.tool import bash, python
+from inspect_ai.tool._tool_with import tool_with
+
+def my_workspace_tools(ws: Workspace, index: int) -> list:
+    prefix = "" if index == 0 else f"_{ws.name}"
+    return [
+        tool_with(bash(sandbox=ws.name, user=ws.user), name=f"bash{prefix}"),
+        tool_with(python(sandbox=ws.name, user=ws.user), name=f"python{prefix}"),
+    ]
+
+# Inside your agent's execute function:
+resolved_tools = tools_from_setting(
+    list(tools),
+    my_workspace_tools,
+    framework_tools={"submit"},
+)
+```
+
+When no setting exists, `solver_tools` are returned unchanged. When a setting exists, `workspace_tools` is called for each workspace, `Setting.tools` are prepended, and solver tools are dropped unless they're in `framework_tools` or are `ToolSource` instances.
+
+### handle_on_turn()
+
+Calls the setting's `on_turn` callback and returns an action:
+
+``` python
+from inspect_ai.agent import handle_on_turn
+
+# Inside your agent loop, after processing tool results:
+result = await handle_on_turn()
+if result.action == "break":
+    break
+elif result.action == "continue":
+    if result.message is not None:
+        state.messages.append(ChatMessageUser(content=result.message))
+    continue
+# "proceed" — run on_continue as normal
+```
+
+The `OnTurnResult` has two fields: `action` (`"break"`, `"continue"`, or `"proceed"`) and an optional `message` string.

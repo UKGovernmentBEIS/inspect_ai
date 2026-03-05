@@ -159,6 +159,8 @@ See these additional articles to learn more about creating agent evaluations wit
 
 -   [ReAct Agent](react-agent.qmd) provides details on using and customizing the built-in ReAct agent.
 
+-   [Task Settings](agent-settings.qmd) explains how tasks can declare workspaces, tools, and per-turn callbacks for agents via the `Setting` type.
+
 -   [Multi Agent](multi-agent.qmd) covers various ways to compose agents together in multi-agent architectures.
 
 -   [Custom Agents](agent-custom.qmd) describes Inspect APIs available for creating custom agents.

@@ -12,6 +12,7 @@ from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._view.view import view
 from inspect_ai.agent._human.agent import human_cli
+from inspect_ai.agent._setting import Setting, Workspace
 from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
 from inspect_ai.solver._human_agent import human_agent
@@ -38,4 +39,6 @@ __all__ = [
     "task",
     "task_with",
     "view",
+    "Setting",
+    "Workspace",
 ]
