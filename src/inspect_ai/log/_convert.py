@@ -14,10 +14,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     write_eval_log,
 )
-from inspect_ai.log._pool import (
-    repair_duplicate_message_ids,
-    resolve_sample_message_pool,
-)
+from inspect_ai.log._pool import resolve_sample_message_pool
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.log._recorders.create import recorder_type_for_location
 
@@ -101,10 +98,7 @@ def convert_eval_logs(
         else:
             log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
             if log.samples:
-                log.samples = [
-                    condense_sample(repair_duplicate_message_ids(sample))
-                    for sample in log.samples
-                ]
+                log.samples = [condense_sample(sample) for sample in log.samples]
             write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":
@@ -147,7 +141,7 @@ async def _stream_convert_file(
                 # Must resolve message pool refs before re-condensing,
                 # otherwise condense_sample will overwrite pools with empty lists
                 sample = resolve_sample_message_pool(sample)
-            sample = condense_sample(repair_duplicate_message_ids(sample))
+            sample = condense_sample(sample)
             await output_recorder.log_sample(
                 log_header.eval,
                 sample,

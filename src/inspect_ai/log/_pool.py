@@ -1,29 +1,22 @@
 """Message and call pool deduplication for eval samples.
 
-Design note — identity-based dedup
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Pool dedup keys on ``msg.id``, NOT deep content comparison. Deep comparison
-would be correct-by-construction but prohibitively expensive for the hot path
-(O(N²) serialisation per sample). Instead we maintain the invariant that
-``msg.id`` uniquely identifies content:
+Design note — hash-based dedup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Pool dedup keys on a murmur3 hash of the full sorted-keys JSON serialisation
+of each ChatMessage.  This is correct-by-construction: identical content
+always produces the same hash, and mutated content (even with a stale
+``msg.id``) produces a different hash.
 
-* All code paths that mutate a message's content MUST assign a new ID
-  (``model_copy(update={"id": uuid(), ...})``). Every known mutation site
-  (reasoning stripping, screenshot replacement, citation removal, etc.)
-  has been audited and fixed.
-* ``repair_duplicate_message_ids()`` catches violations from legacy files
-  by detecting same-id-different-content and reassigning IDs before
-  condensation. This is called during ``convert_eval_log``.
-
-Do NOT replace the id-based lookup with deep equality checks — the
-performance cost is the reason this design exists.
+The cost is O(N²) serialisations per sample (each of the N model events
+carries the full conversation history of ~N messages). This is accepted
+as the price of correctness without requiring callers to maintain an
+invariant on ``msg.id``.
 """
 
 import json
 from typing import Final, TypeVar
 
 from pydantic import JsonValue
-from shortuuid import uuid
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.model._chat_message import ChatMessage
@@ -33,56 +26,16 @@ from ..event._model import ModelEvent
 from ._log import EvalSample
 
 
-def _anonymous_msg_key(msg: ChatMessage) -> str:
-    """Compute a stable dedup key for a message without an ID."""
-    return f"_anon_{mm3_hash(json.dumps(json.loads(msg.model_dump_json()), sort_keys=True))}"
-
-
-def repair_duplicate_message_ids(sample: EvalSample) -> EvalSample:
-    """Reassign IDs for messages that share an ID but have different content.
-
-    Legacy eval files may contain messages where mutation sites (e.g. stripping
-    reasoning, replacing screenshots) modified content without assigning a new
-    ID. This violates the invariant that msg.id uniquely identifies content,
-    causing condense_model_event_inputs to silently use the wrong version.
-
-    Call this before condense_sample when converting old files.
-    """
-    seen: dict[str, str] = {}  # msg_id -> model_dump_json
-    repaired = False
-    new_events: list[Event] = []
-
-    for event in sample.events:
-        if isinstance(event, ModelEvent) and event.input:
-            new_input: list[ChatMessage] = []
-            input_changed = False
-            for msg in event.input:
-                msg_id = msg.id
-                if msg_id is not None:
-                    serialized = msg.model_dump_json()
-                    if msg_id in seen:
-                        if seen[msg_id] != serialized:
-                            msg = msg.model_copy(update={"id": uuid()})
-                            input_changed = True
-                    else:
-                        seen[msg_id] = serialized
-                new_input.append(msg)
-            if input_changed:
-                event = event.model_copy(update={"input": new_input})
-                repaired = True
-        new_events.append(event)
-
-    if not repaired:
-        return sample
-    return sample.model_copy(update={"events": new_events})
+def _msg_hash(msg: ChatMessage) -> str:
+    """Compute a content hash for dedup keying."""
+    return mm3_hash(json.dumps(json.loads(msg.model_dump_json()), sort_keys=True))
 
 
 def _build_msg_index(pool: list[ChatMessage]) -> dict[str, int]:
     """Build msg_id -> pool index mapping, matching condense_model_event_inputs logic."""
     index: dict[str, int] = {}
     for i, msg in enumerate(pool):
-        msg_id = msg.id if msg.id is not None else _anonymous_msg_key(msg)
-        index[msg_id] = i
+        index[_msg_hash(msg)] = i
     return index
 
 
@@ -104,7 +57,7 @@ def condense_model_event_inputs(
     Collects all messages from ModelEvent inputs into the message_pool list
     and replaces each ModelEvent's input with range-encoded input_refs.
 
-    See module docstring for why dedup keys on msg.id, not deep comparison.
+    See module docstring for the hash-based dedup strategy.
     """
     result: list[Event] = []
     for event in events:
@@ -116,11 +69,11 @@ def condense_model_event_inputs(
             if event.input:
                 raw_indices: list[int] = []
                 for msg in event.input:
-                    msg_id = msg.id if msg.id is not None else _anonymous_msg_key(msg)
-                    if msg_id not in msg_index:
-                        msg_index[msg_id] = len(message_pool)
+                    h = _msg_hash(msg)
+                    if h not in msg_index:
+                        msg_index[h] = len(message_pool)
                         message_pool.append(msg)
-                    raw_indices.append(msg_index[msg_id])
+                    raw_indices.append(msg_index[h])
                 event = event.model_copy(
                     update={"input": [], "input_refs": _compress_refs(raw_indices)}
                 )
