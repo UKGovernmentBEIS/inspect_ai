@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Computer Tool: Support for use of the native Gemini computer use tool (available in `gemini-2.5-computer-use-preview`, `gemini-3-pro-preview`, and `gemini-3-flash-preview` models).
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - Grok: Support for batch inference.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.

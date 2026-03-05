@@ -4,6 +4,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool import TOOL_INIT_MODEL_INPUT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallModelInput, ToolCallModelInputHints
+from inspect_ai.tool._tool_info import ToolInfo
 
 from . import _common as common
 
@@ -30,10 +31,25 @@ Action = Literal[
     "wait",
     "screenshot",
     "zoom",
+    "open_web_browser",
+    "navigate",
 ]
 
 
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
+
+
+def is_computer_tool_info(tool: ToolInfo) -> bool:
+    return tool.name == "computer" and set(tool.parameters.properties.keys()) == {
+        "action",
+        "coordinate",
+        "duration",
+        "region",
+        "scroll_amount",
+        "scroll_direction",
+        "start_coordinate",
+        "text",
+    }
 
 
 @tool
@@ -98,6 +114,9 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
               - `screenshot`: Take a screenshot.
               - `zoom`: Take a zoomed-in screenshot of a specified region at native resolution.
                   - Example: execute(action="zoom", region=[100, 100, 500, 400])
+              - `open_web_browser`: Open the web browser in full screen view.
+              - `navigate`: Navigate to a URL in the browser.
+                  - Example: execute(action="navigate", text="https://example.com")
           coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen to which to move or drag. Required only by `action=mouse_move` and `action=left_click_drag`.
           duration (int | None): The duration to wait or hold the key down for. Required only by `action=hold_key` and `action=wait`.
           region (list[int] | None): The region to zoom into as [x0, y0, x1, y1] coordinates. Required only by `action=zoom`.
@@ -119,6 +138,8 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     timeout=timeout,
                 )
             case "type":
+                if coordinate is not None:
+                    await common.left_click(coordinate, timeout=timeout)
                 return await common.type(not_none(text, "text"), timeout=timeout)
             case "cursor_position":
                 return await common.cursor_position(timeout=timeout)
@@ -179,6 +200,10 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 return await common.screenshot(timeout=timeout)
             case "zoom":
                 return await common.zoom(not_none(region, "region"), timeout=timeout)
+            case "open_web_browser":
+                return await common.open_web_browser(timeout=timeout)
+            case "navigate":
+                return await common.navigate(not_none(text, "text"), timeout=timeout)
 
         raise ToolParsingError(f"Invalid action: {action}")
 

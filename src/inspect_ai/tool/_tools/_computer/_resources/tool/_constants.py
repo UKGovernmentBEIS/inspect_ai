@@ -22,4 +22,6 @@ Action = Literal[
     "wait",
     "screenshot",
     "zoom",
+    "open_web_browser",
+    "navigate",
 ]

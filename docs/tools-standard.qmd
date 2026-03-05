@@ -264,7 +264,7 @@ The schema for the `text_editor()` tool is based on the standard Anthropic [text
 
 The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures.
 
-The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic and OpenAI models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
+The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic, OpenAI, and Google models tuned for computer use.
 
 ### Configuration
 
@@ -323,6 +323,7 @@ To evaluate the task with models tuned for computer use:
 ``` bash
 inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
 inspect eval computer.py --model openai/computer-use-preview
+inspect eval computer.py --model google/gemini-3-flash-preview
 ```
 
 #### Options
@@ -423,7 +424,7 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool) and [Open AI](https://platform.openai.com/docs/guides/tools-computer-use) computer tool schemas. When using models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`) the computer tool will automatically bind to the native computer tool definitions (as this presumably provides improved performance).
+The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool) and [OpenAI](https://platform.openai.com/docs/guides/tools-computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions (as this presumably provides improved performance).
 
 If you want to experiment with bypassing the native computer tool types and just register the computer tool as a normal function based tool then specify the `--no-internal-tools` generation option as follows:
 

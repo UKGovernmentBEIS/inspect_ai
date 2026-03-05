@@ -16,6 +16,11 @@ def _create_parser() -> ArgumentParser:
         aliases=["cursor_position", "left_mouse_down", "left_mouse_up"],
     )
 
+    subparsers.add_parser("open_web_browser")
+
+    navigate = subparsers.add_parser("navigate")
+    _add_text(navigate)
+
     key_and_type = subparsers.add_parser("type", aliases=["key"])
     _add_text(key_and_type)
 
