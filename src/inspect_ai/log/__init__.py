@@ -43,6 +43,7 @@ from ._log import (
     EvalStatus,
 )
 from ._metric import recompute_metrics
+from ._pool import resolve_sample_message_pool
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
@@ -82,6 +83,7 @@ __all__ = [
     "read_eval_log_sample_summaries",
     "condense_sample",
     "resolve_sample_attachments",
+    "resolve_sample_message_pool",
     "write_eval_log",
     "write_eval_log_async",
     "write_log_dir_manifest",

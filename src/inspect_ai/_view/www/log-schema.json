@@ -2924,6 +2924,33 @@
           "title": "Attachments",
           "type": "object"
         },
+        "message_pool": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Message Pool",
+          "type": "array"
+        },
+        "call_pool": {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Call Pool",
+          "type": "array"
+        },
         "limit": {
           "anyOf": [
             {
@@ -2963,6 +2990,8 @@
         "error",
         "error_retries",
         "attachments",
+        "message_pool",
+        "call_pool",
         "limit"
       ],
       "title": "EvalSample",
@@ -4884,13 +4913,45 @@
           ],
           "default": null,
           "title": "Time"
+        },
+        "call_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Refs"
+        },
+        "call_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Key"
         }
       },
       "required": [
         "request",
         "response",
         "error",
-        "time"
+        "time",
+        "call_refs",
+        "call_key"
       ],
       "title": "ModelCall",
       "type": "object",
@@ -5037,6 +5098,24 @@
           "title": "Input",
           "type": "array"
         },
+        "input_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Refs"
+        },
         "tools": {
           "items": {
             "$ref": "#/$defs/ToolInfo"
@@ -5178,6 +5257,7 @@
         "model",
         "role",
         "input",
+        "input_refs",
         "tools",
         "tool_choice",
         "config",

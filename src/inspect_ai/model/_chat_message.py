@@ -64,14 +64,11 @@ class ChatMessageBase(BaseModel):
         handler: ModelWrapValidatorHandler["ChatMessageBase"],
         info: ValidationInfo,
     ) -> "ChatMessageBase":
-        # Some parts of the eval log can be very repetitive. A sequence of model events will often
-        # duplicate the same ChatMessage many times. When the log is initially generated, this is not
-        # an issue, since the data structure will just contain a reference to the same object.
-        # When deserializing, however, we want to avoid creating a new ChatMessage object for each
-        # instance of the same message.
         if info.context is None:
             return handler(data)
-        cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
+        cache: dict[Any, ChatMessageBase] | None = info.context.get(MESSAGE_CACHE)
+        if cache is None:
+            return handler(data)
         try:
             cache_key: bytes = hashlib.sha256(
                 json.dumps(data, sort_keys=True).encode()

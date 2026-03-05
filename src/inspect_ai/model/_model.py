@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 import anyio
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 from tenacity import (
     RetryCallState,
     retry,
@@ -1602,15 +1603,15 @@ def resolve_reasoning_history(
                 # remove it unless we are in "last" mode and haven't yet found last
                 if has_reasoning:
                     if reasoning_history == "none" or found_last:
-                        message = message.model_copy(
-                            update={
-                                "content": [
-                                    content
-                                    for content in message.content
-                                    if not isinstance(content, ContentReasoning)
-                                ]
-                            }
-                        )
+                        filtered = [
+                            content
+                            for content in message.content
+                            if not isinstance(content, ContentReasoning)
+                        ]
+                        if len(filtered) != len(message.content):
+                            message = message.model_copy(
+                                update={"id": uuid(), "content": filtered}
+                            )
                     found_last = True
 
             resolved_messages.append(message)
@@ -1648,9 +1649,12 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
+            original_content = message.content
             message.content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
+            if message.content is not original_content:
+                message.id = uuid()
 
     # return modified messages
     return messages
@@ -1703,7 +1707,6 @@ def tool_result_images_reducer(
             messages
             + [
                 ChatMessageTool(
-                    id=message.id,
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
                     function=message.function,
