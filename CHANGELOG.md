@@ -2,6 +2,7 @@
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - Grok: Support for batch inference.
+- Eval: Add `--generate-config` CLI option for specifying config via YAML or JSON file.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
