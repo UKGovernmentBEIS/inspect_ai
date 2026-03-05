@@ -26,6 +26,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
+    ChatMessageUser,
 )
 
 from ._event import Event
@@ -1154,6 +1155,18 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     new_content: list[TimelineEvent | TimelineSpan] = []
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            # Warmup/cache-priming call (max_tokens=1)
+            if _is_warmup_call(item.event):
+                wrapper = TimelineSpan(
+                    id=f"utility-{item.event.uuid or id(item)}",
+                    name="utility",
+                    span_type="agent",
+                    content=[item],
+                )
+                wrapper.utility = True
+                new_content.append(wrapper)
+                continue
+
             evt_prompt = _get_system_prompt_for_event(item.event)
             if (
                 evt_prompt is not None
@@ -1182,6 +1195,19 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _wrap_utility_events(item)
+
+
+def _is_warmup_call(event: ModelEvent) -> bool:
+    """Detect cache-priming warmup calls (max_tokens=1, single-word user prompt)."""
+    if event.config.max_tokens is None or event.config.max_tokens > 1:
+        return False
+    # Check that the last user message is a single word
+    for msg in reversed(event.input):
+        if isinstance(msg, ChatMessageUser):
+            if isinstance(msg.content, str):
+                return len(msg.content.split()) <= 1
+            return False
+    return False
 
 
 # =============================================================================
