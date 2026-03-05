@@ -230,6 +230,7 @@ def _parse_computer_tool_call_arguments(
     output: ResponseComputerToolCall,
 ) -> dict[str, object]:
     action = output.action
+    assert action
 
     if action.type == "click":
         coordinate = [action.x, action.y]
