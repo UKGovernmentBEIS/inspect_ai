@@ -1,10 +1,13 @@
 ## Unreleased
 
+- OpenAI: Detect some additional "content_filter" stop reason conditions.
 - Grok: Support for batch inference.
+- Eval Logs: Add `exclude_fields` parameter to `read_eval_log_samples()`.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
+- Testing: Fix intermittent `test_thinking_compaction_openai` failure caused by unhandled tool calls in follow-up model response.
 
 ## 0.3.186 (03 March 2026)
 

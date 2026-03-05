@@ -103,6 +103,11 @@ async def check_thinking_compaction(
         )
         messages.append(output2.message)
 
+        # Execute any tool calls from output2 (model may call tools again)
+        if output2.message.tool_calls:
+            result2 = await execute_tools(messages, tools)
+            messages.extend(result2.messages)
+
     # Step 4: Add thank you message
     messages.append(ChatMessageUser(content="Thank you for the suggestions!"))
 
