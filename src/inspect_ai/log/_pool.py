@@ -7,10 +7,12 @@ of each ChatMessage.  This is correct-by-construction: identical content
 always produces the same hash, and mutated content (even with a stale
 ``msg.id``) produces a different hash.
 
-The cost is O(N²) serialisations per sample (each of the N model events
-carries the full conversation history of ~N messages). This is accepted
-as the price of correctness without requiring callers to maintain an
-invariant on ``msg.id``.
+The theoretical cost is O(N²) serialisations per sample (each of the N
+model events carries the full conversation history of ~N messages).
+In practice an ``id(obj)`` → hash cache avoids re-serialising the same
+Python object, bringing the common case back to O(N) while remaining
+correct even when users mutate objects (same object identity = same
+content by definition).
 """
 
 import json
@@ -59,6 +61,7 @@ def condense_model_event_inputs(
 
     See module docstring for the hash-based dedup strategy.
     """
+    obj_id_cache: dict[int, str] = {}
     result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent):
@@ -69,7 +72,10 @@ def condense_model_event_inputs(
             if event.input:
                 raw_indices: list[int] = []
                 for msg in event.input:
-                    h = _msg_hash(msg)
+                    obj_key = id(msg)
+                    h = obj_id_cache.get(obj_key) or obj_id_cache.setdefault(
+                        obj_key, _msg_hash(msg)
+                    )
                     if h not in msg_index:
                         msg_index[h] = len(message_pool)
                         message_pool.append(msg)
