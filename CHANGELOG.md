@@ -1,10 +1,18 @@
 ## Unreleased
 
+- OpenAI: Detect some additional "content_filter" stop reason conditions.
+- OpenAI: Handle `web_search_call` response witgh no `action` field.
+- Anthropic: Handle continuations that split server tool use and its result across messages.
 - Grok: Support for batch inference.
+- Refusals: Added refusal counter to task display and add option to log warnings when refusals occur (`--log-refusals`).
+- Eval: Add `--generate-config` CLI option for specifying config via YAML or JSON file.
+- Eval Logs: Add `exclude_fields` parameter to `read_eval_log_samples()`.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
+- Timelines: Detect k/v warmup calls as utility agents.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
 - Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
+- Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
 
 ## 0.3.186 (03 March 2026)
 
