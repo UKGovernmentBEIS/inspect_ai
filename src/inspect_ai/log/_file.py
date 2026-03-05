@@ -416,8 +416,8 @@ def read_eval_log_sample(
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
        exclude_fields (set[str] | None): Set of field names to exclude when reading
-          the sample. Useful for reducing memory usage when reading large samples
-          with fields like 'store' or 'attachments' that aren't needed.
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        EvalSample object read from file.
@@ -480,8 +480,8 @@ async def read_eval_log_sample_async(
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
        exclude_fields (set[str] | None): Set of field names to exclude when reading
-          the sample. Useful for reducing memory usage when reading large samples
-          with fields like 'store' or 'attachments' that aren't needed.
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
        reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
@@ -579,6 +579,7 @@ def read_eval_log_samples(
     all_samples_required: bool = True,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.
 
@@ -593,6 +594,9 @@ def read_eval_log_samples(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -630,6 +634,7 @@ def read_eval_log_samples(
                     epoch=epoch_id,
                     resolve_attachments=resolve_attachments,
                     format=format,
+                    exclude_fields=exclude_fields,
                 )
                 yield sample
             except IndexError:
