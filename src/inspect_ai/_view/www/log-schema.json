@@ -1200,7 +1200,8 @@
           "enum": [
             "auto",
             "low",
-            "high"
+            "high",
+            "original"
           ],
           "title": "Detail",
           "type": "string"

@@ -666,7 +666,8 @@ def _process_response_output_items(
                 has_tool_calls = True
                 if output.id is not None:
                     assistant_internal().tool_calls[output.call_id] = cast(
-                        ResponseComputerToolCallParam, output.model_dump()
+                        ResponseComputerToolCallParam,
+                        output.model_dump(exclude_none=True),
                     )
 
                 if output.pending_safety_checks:
