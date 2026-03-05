@@ -92,9 +92,7 @@ export const fetchLogFile = async (
 export const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
-  const parseListing = async (
-    text: string,
-  ): Promise<LogFilesFetchResponse> => {
+  const parseListing = async (text: string): Promise<LogFilesFetchResponse> => {
     const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
     return { raw: text, parsed };
   };
