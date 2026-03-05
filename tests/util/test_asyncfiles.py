@@ -480,6 +480,19 @@ def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
 # =============================================================================
 
 
+async def test_write_file_s3_large_file() -> None:
+    """write_file fails for S3 files larger than 5GB because put_object has a 5GB limit.
+
+    S3 put_object API has a hard 5GB limit. Files larger than 5GB require
+    multipart upload, which write_file does not currently support.
+    """
+    size = 5 * 1024 * 1024 * 1024 + 1  # 5GB + 1 byte
+    large_data = b"\x00" * size
+
+    async with AsyncFilesystem() as fs:
+        await fs.write_file("s3://inspect-flow-test/large_test/big.bin", large_data)
+
+
 def test_nest_asyncio_with_s3_requests(mock_s3: None) -> None:
     """Nested run_coroutine shares filesystem and both S3 requests succeed.
 
