@@ -3110,28 +3110,40 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="even">
+<td><code>--log-refusals</code> / <code>--no-log-refusals</code></td>
+<td>boolean</td>
+<td>Log warnings for model refusals.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared</code></td>
 <td>text</td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every <code>n</code> seconds).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-score</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-score-display</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--generate-config</code></td>
+<td>text</td>
+<td>YAML or JSON config file with GenerateConfig (alternatively, use the options for individual config values).</td>
+<td>None</td>
 </tr>
 <tr class="even">
 <td><code>--max-tokens</code></td>

@@ -150,9 +150,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#march-2026" id="toc-march-2026" class="nav-link" data-scroll-target="#march-2026">0.3.186 (03 March 2026)</a></li>
-  <li><a href="#march-2026-1" id="toc-march-2026-1" class="nav-link" data-scroll-target="#march-2026-1">0.3.185 (01 March 2026)</a></li>
+  <li><a href="#march-2026" id="toc-march-2026" class="nav-link active" data-scroll-target="#march-2026">0.3.187 (05 March 2026)</a></li>
+  <li><a href="#march-2026-1" id="toc-march-2026-1" class="nav-link" data-scroll-target="#march-2026-1">0.3.186 (03 March 2026)</a></li>
+  <li><a href="#march-2026-2" id="toc-march-2026-2" class="nav-link" data-scroll-target="#march-2026-2">0.3.185 (01 March 2026)</a></li>
   <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.184 (28 February 2026)</a></li>
   <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.183 (24 February 2026)</a></li>
   <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.182 (24 February 2026)</a></li>
@@ -345,16 +345,27 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="march-2026" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026">0.3.187 (05 March 2026)</h2>
 <ul>
+<li>OpenAI: Detect some additional “content_filter” stop reason conditions.</li>
+<li>OpenAI: Handle <code>web_search_call</code> response witgh no <code>action</code> field.</li>
+<li>OpenAI: Support for OpenAI SDK 2.25 (GPT 5.4, image detail “original”).</li>
+<li>Anthropic: Handle continuations that split server tool use and its result across messages.</li>
 <li>Grok: Support for batch inference.</li>
+<li>Refusals: Added refusal counter to task display and add option to log warnings when refusals occur (<code>--log-refusals</code>).</li>
+<li>Eval: Add <code>--generate-config</code> CLI option for specifying config via YAML or JSON file.</li>
+<li>Eval Logs: Add <code>exclude_fields</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_samples">read_eval_log_samples()</a></span>.</li>
+<li>Sandboxes: Longer default timeout (120) for sandbox RPC polling.</li>
+<li>Timelines: Detect k/v warmup calls as utility agents.</li>
 <li>Inspect View: Fix truncation of the bottom of events and messages panels.</li>
 <li>Inspect View: Improve appearance of model events in transcript.</li>
+<li>Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain <code>[trio-...]</code> instead of <code>[trio]</code>.</li>
+<li>Testing: Fix intermittent <code>test_thinking_compaction_openai</code> failure caused by unhandled tool calls in follow-up model response.</li>
 </ul>
 </section>
-<section id="march-2026" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026">0.3.186 (03 March 2026)</h2>
+<section id="march-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-1">0.3.186 (03 March 2026)</h2>
 <ul>
 <li>Anthropic: Handle updated Anthropic compaction not supported error message.</li>
 <li>OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g.&nbsp;AzureAI) where they are not supported.</li>
@@ -367,10 +378,11 @@ ul.task-list li input[type="checkbox"] {
 <li>AsyncFilesystem: Add <code>anonymous</code> and <code>region_name</code> parameters to support credential-free access to public S3 buckets.</li>
 <li>Inspect View: Add support for find in log list.</li>
 <li>Inspect View: Fix regression displaying running samples when switching samples.</li>
+<li>Testing: Fix “Event loop is closed” error in bridge compaction tests by properly closing AsyncOpenAI client.</li>
 </ul>
 </section>
-<section id="march-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-1">0.3.185 (01 March 2026)</h2>
+<section id="march-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-2">0.3.185 (01 March 2026)</h2>
 <ul>
 <li>Anthropic: Use <code>text_editor_20250728</code> for all Claude 4.x models per Anthropic docs.</li>
 <li>Events: Add <code>agent_span_id</code> property to tool events for associating them with their associated agent.</li>
