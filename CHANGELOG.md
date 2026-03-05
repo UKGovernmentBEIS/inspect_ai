@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.187 (05 March 2026)
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - OpenAI: Handle `web_search_call` response witgh no `action` field.
