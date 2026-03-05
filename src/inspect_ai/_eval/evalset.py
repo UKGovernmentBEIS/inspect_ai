@@ -35,7 +35,7 @@ from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
-from inspect_ai.log._bundle import bundle_log_dir
+from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
@@ -141,6 +141,7 @@ def eval_set(
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
+    embed_viewer: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -240,6 +241,7 @@ def eval_set(
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
+        embed_viewer: If True, embed a log viewer into the log directory.
         **kwargs: Model generation options.
 
     Returns:
@@ -507,6 +509,10 @@ def eval_set(
         bundle_log_dir(
             log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
         )
+
+    # if specified, embed a log viewer into the log directory
+    if embed_viewer:
+        embed_log_dir(log_dir=log_dir)
 
     # report final status
     success = all_evals_succeeded(results)

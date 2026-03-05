@@ -4,6 +4,7 @@
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
+- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 
 ## 0.3.186 (03 March 2026)
 

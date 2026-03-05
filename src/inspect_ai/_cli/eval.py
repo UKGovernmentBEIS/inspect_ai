@@ -774,6 +774,12 @@ def eval_command(
     help="Overwrite existing bundle dir.",
 )
 @click.option(
+    "--embed-viewer",
+    type=bool,
+    is_flag=True,
+    help="Embed a log viewer into the log directory.",
+)
+@click.option(
     "--log-dir-allow-dirty",
     type=bool,
     is_flag=True,
@@ -871,6 +877,7 @@ def eval_set_command(
     no_score_display: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
+    embed_viewer: bool | None,
     log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
@@ -946,6 +953,7 @@ def eval_set_command(
         retry_cleanup=not no_retry_cleanup,
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
+        embed_viewer=True if embed_viewer else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
         eval_set_id=eval_set_id,
         **config,
@@ -1013,6 +1021,7 @@ def eval_exec(
     retry_cleanup: bool | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
+    embed_viewer: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -1132,6 +1141,7 @@ def eval_exec(
         params["retry_cleanup"] = retry_cleanup
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
+        params["embed_viewer"] = embed_viewer
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
         params["eval_set_id"] = eval_set_id
         success, _ = eval_set(**params)
