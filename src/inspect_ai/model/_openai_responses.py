@@ -850,11 +850,19 @@ mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
 
 
 def web_search_to_tool_use(output: ResponseFunctionWebSearch) -> ContentToolUse:
+    if output.action is None:
+        # Preserve web_search_call items that omit action.
+        action_name = "search"
+        action_arguments = to_json_str_safe({"type": "search", "query": ""})
+    else:
+        action_name = output.action.type
+        action_arguments = output.action.to_json(exclude_none=True)
+
     return ContentToolUse(
         tool_type="web_search",
         id=output.id,
-        name=output.action.type,
-        arguments=output.action.to_json(exclude_none=True),
+        name=action_name,
+        arguments=action_arguments,
         result="",
         error="failed" if output.status == "failed" else None,
     )

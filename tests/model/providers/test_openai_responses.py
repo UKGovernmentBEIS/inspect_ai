@@ -1,3 +1,5 @@
+import json
+
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -754,3 +756,24 @@ def test_phase_round_trip_mixed():
 
     # Second message: has phase
     assert message_items[1]["phase"] == "commentary"
+
+
+def test_web_search_to_tool_use_handles_missing_action() -> None:
+    """Ensure missing web search action does not break tool-use conversion."""
+    from openai.types.responses import ResponseFunctionWebSearch
+
+    from inspect_ai.model._openai_responses import web_search_to_tool_use
+
+    web_search = ResponseFunctionWebSearch.model_construct(
+        type="web_search_call",
+        id="ws_missing_action",
+        action=None,
+        status="completed",
+    )
+
+    content = web_search_to_tool_use(web_search)
+
+    assert content.tool_type == "web_search"
+    assert content.id == "ws_missing_action"
+    assert content.name == "search"
+    assert json.loads(content.arguments) == {"type": "search", "query": ""}

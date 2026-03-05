@@ -1,6 +1,8 @@
 ## Unreleased
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
+- OpenAI: Handle `web_search_call` response witgh no `action` field.
+- Anthropic: Handle continuations that split server tool use and its result across messages.
 - Grok: Support for batch inference.
 - Refusals: Added refusal counter to task display and add option to log warnings when refusals occur (`--log-refusals`).
 - Eval: Add `--generate-config` CLI option for specifying config via YAML or JSON file.
