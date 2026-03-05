@@ -2,6 +2,7 @@
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - OpenAI: Handle `web_search_call` response witgh no `action` field.
+- OpenAI: Support for OpenAI SDK 2.25 (GPT 5.4, image detail "original").
 - Anthropic: Handle continuations that split server tool use and its result across messages.
 - Grok: Support for batch inference.
 - Refusals: Added refusal counter to task display and add option to log warnings when refusals occur (`--log-refusals`).
