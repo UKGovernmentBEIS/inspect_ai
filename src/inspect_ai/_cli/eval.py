@@ -2,6 +2,7 @@ import functools
 from typing import Any, Callable, Literal, cast
 
 import click
+from pydantic import TypeAdapter
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -17,12 +18,16 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_RETRY_ON_ERROR,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._generate_config import BatchConfig, ResponseSchema
+from inspect_ai.model._generate_config import (
+    BatchConfig,
+    ResponseSchema,
+)
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
@@ -388,6 +393,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCORE_DISPLAY",
     )
     @click.option(
+        "--generate-config",
+        type=str,
+        envvar="INSPECT_EVAL_GENERATE_CONFIG",
+        help="YAML or JSON config file with GenerateConfig (alternatively, use the options for individual config values).",
+    )
+    @click.option(
         "--max-tokens",
         type=int,
         help="The maximum number of tokens that can be generated in the completion (default is model specific)",
@@ -611,6 +622,7 @@ def eval_command(
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
+    generate_config: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -816,6 +828,7 @@ def eval_set_command(
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
+    generate_config: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -1143,9 +1156,28 @@ def eval_exec(
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
+    # start with config file if specified
+    adapter = TypeAdapter(GenerateConfigArgs)
+    generate_config_file = locals.pop("generate_config", None)
+    if generate_config_file:
+        # read file
+        generate_config = resolve_args(generate_config_file)
+
+        # validate all the fields are valid
+        extra_keys = generate_config.keys() - GenerateConfigArgs.__annotations__.keys()
+        if extra_keys:
+            raise PrerequisiteError(
+                f"Unexpected GenerateConfig fields in {generate_config_file}: {extra_keys}"
+            )
+
+        # create base config
+        base_config = adapter.validate_python(generate_config, strict=True)
+    else:
+        base_config = GenerateConfigArgs()
+
     # build generate config
     config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-    config = GenerateConfigArgs()
+    config = GenerateConfigArgs(**base_config)
     for key, value in locals.items():
         if key in config_keys and value is not None:
             if key == "stop_seqs":
