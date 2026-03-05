@@ -2,6 +2,7 @@
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - Grok: Support for batch inference.
+- Eval Logs: Add `exclude_fields` parameter to `read_eval_log_samples()`.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
