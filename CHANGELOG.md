@@ -1,3 +1,8 @@
+## Unreleased
+
+- OpenAI: Fix mypy issues with OpenAI SDK 2.26 (now required).
+- Improve error serialization for model call objects.
+
 ## 0.3.187 (05 March 2026)
 
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
