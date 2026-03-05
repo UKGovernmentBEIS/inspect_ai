@@ -88,12 +88,12 @@ def pytest_collection_modifyitems(config, items):
         # under trio.
         skip_non_trio = pytest.mark.skip(reason="running trio variants only")
         for item in items:
-            if "[trio]" not in item.nodeid:
+            if "[trio" not in item.nodeid:
                 item.add_marker(skip_non_trio)
     else:
         skip_trio = pytest.mark.skip(reason="need --runtrio option to run")
         for item in items:
-            if "[trio]" in item.nodeid:
+            if "[trio" in item.nodeid:
                 item.add_marker(skip_trio)
 
     if not config.getoption("--runslow"):

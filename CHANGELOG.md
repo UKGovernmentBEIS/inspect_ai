@@ -1,7 +1,15 @@
 ## Unreleased
 
+- OpenAI: Detect some additional "content_filter" stop reason conditions.
+- Grok: Support for batch inference.
+- Eval: Add `--generate-config` CLI option for specifying config via YAML or JSON file.
+- Eval Logs: Add `exclude_fields` parameter to `read_eval_log_samples()`.
+- Sandboxes: Longer default timeout (120) for sandbox RPC polling.
+- Timelines: Detect k/v warmup calls as utility agents.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
+- Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
+- Testing: Fix intermittent `test_thinking_compaction_openai` failure caused by unhandled tool calls in follow-up model response.
 
 ## 0.3.186 (03 March 2026)
 
@@ -16,6 +24,7 @@
 - AsyncFilesystem: Add `anonymous` and `region_name` parameters to support credential-free access to public S3 buckets.
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
+- Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 
 ## 0.3.185 (01 March 2026)
 
