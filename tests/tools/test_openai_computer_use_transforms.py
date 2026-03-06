@@ -1,6 +1,7 @@
 from openai.types.responses import ResponseComputerToolCall
 from openai.types.responses.computer_action import (
     Click,
+    ComputerAction,
     DoubleClick,
     Drag,
     DragPath,
@@ -20,8 +21,20 @@ from inspect_ai.model._providers._openai_computer_use import (
 )
 
 
+def _make_tool_call(
+    actions: list[ComputerAction], call_id: str = "call_id"
+) -> ResponseComputerToolCall:
+    return ResponseComputerToolCall(
+        id="test_id",
+        actions=actions,
+        call_id=call_id,
+        pending_safety_checks=[],
+        status="completed",
+        type="computer_call",
+    )
+
+
 def test_left_click_bidirectional():
-    # Test forward: args → old Action type
     args = {"action": "left_click", "coordinate": [100, 200]}
     action = tool_call_arguments_to_actions({"actions": [args]})[0]
 
@@ -31,16 +44,9 @@ def test_left_click_bidirectional():
     assert action.x == 100
     assert action.y == 200
 
-    # Test reverse: new Action type → args
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Click(type="click", button="left", x=100, y=200)],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Click(type="click", button="left", x=100, y=200)])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -53,15 +59,9 @@ def test_right_click_bidirectional():
     assert action.x == 50
     assert action.y == 75
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Click(type="click", button="right", x=50, y=75)],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Click(type="click", button="right", x=50, y=75)])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -74,15 +74,9 @@ def test_middle_click_bidirectional():
     assert action.x == 300
     assert action.y == 400
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Click(type="click", button="wheel", x=300, y=400)],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Click(type="click", button="wheel", x=300, y=400)])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -95,15 +89,9 @@ def test_double_click_bidirectional():
     assert action.x == 150
     assert action.y == 250
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[DoubleClick(type="double_click", x=150, y=250)],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([DoubleClick(type="double_click", x=150, y=250)])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -134,20 +122,11 @@ def test_drag_bidirectional():
     assert action.path[1].x == 100
     assert action.path[1].y == 200
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[
-            Drag(
-                type="drag",
-                path=[DragPath(x=10, y=20), DragPath(x=100, y=200)],
-            )
-        ],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call(
+            [Drag(type="drag", path=[DragPath(x=10, y=20), DragPath(x=100, y=200)])]
+        )
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -159,15 +138,9 @@ def test_keypress_with_special_keys():
     assert action.type == "keypress"
     assert action.keys == ["ENTER", "TAB", "SPACE"]
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Keypress(type="keypress", keys=["ENTER", "TAB", "SPACE"])],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Keypress(type="keypress", keys=["ENTER", "TAB", "SPACE"])])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [{"action": "key", "text": "Return+Tab+space"}]}
 
 
@@ -188,15 +161,9 @@ def test_mouse_move_bidirectional():
     assert action.x == 500
     assert action.y == 600
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Move(type="move", x=500, y=600)],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Move(type="move", x=500, y=600)])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -216,15 +183,9 @@ def test_screenshot_bidirectional():
     assert isinstance(action, Screenshot)
     assert action.type == "screenshot"
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Screenshot(type="screenshot")],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Screenshot(type="screenshot")])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -295,15 +256,9 @@ def test_type_text_bidirectional():
     assert action.type == "type"
     assert action.text == "Hello, World!"
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Type(type="type", text="Hello, World!")],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    parsed = _parse_computer_tool_call_arguments(
+        _make_tool_call([Type(type="type", text="Hello, World!")])
     )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {"actions": [args]}
 
 
@@ -315,15 +270,7 @@ def test_wait_action():
     assert isinstance(action, Wait)
     assert action.type == "wait"
 
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[Wait(type="wait")],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
-    )
-    parsed = _parse_computer_tool_call_arguments(tool_call)
+    parsed = _parse_computer_tool_call_arguments(_make_tool_call([Wait(type="wait")]))
     # Duration is hardcoded to 1 in the reverse transform
     assert parsed == {"actions": [{"action": "wait", "duration": 1}]}
 
@@ -357,17 +304,12 @@ def test_unknown_action_defaults_to_screenshot():
 
 
 def test_multi_action_parse():
-    click = Click(type="click", button="left", x=100, y=200)
-    type_action = Type(type="type", text="hello")
-    screenshot = Screenshot(type="screenshot")
-
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[click, type_action, screenshot],
-        call_id="call_id",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
+    tool_call = _make_tool_call(
+        [
+            Click(type="click", button="left", x=100, y=200),
+            Type(type="type", text="hello"),
+            Screenshot(type="screenshot"),
+        ]
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
     assert parsed == {
@@ -380,17 +322,13 @@ def test_multi_action_parse():
 
 
 def test_tool_call_wraps_actions():
-    tool_call = ResponseComputerToolCall(
-        id="test_id",
-        actions=[
+    tool_call = _make_tool_call(
+        [
             Click(type="click", button="left", x=100, y=200),
             Type(type="type", text="hello"),
             Screenshot(type="screenshot"),
         ],
         call_id="call_123",
-        pending_safety_checks=[],
-        status="completed",
-        type="computer_call",
     )
     result = tool_call_from_openai_computer_tool_call(tool_call)
     assert result.id == "call_123"

@@ -232,22 +232,20 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         start_coordinate: list[int] | None,
         text: str | None,
     ) -> dict[str, object]:
-        args: dict[str, object] = {"action": action}
-        if coordinate is not None:
-            args["coordinate"] = coordinate
-        if duration is not None:
-            args["duration"] = duration
-        if region is not None:
-            args["region"] = region
-        if scroll_amount is not None:
-            args["scroll_amount"] = scroll_amount
-        if scroll_direction is not None:
-            args["scroll_direction"] = scroll_direction
-        if start_coordinate is not None:
-            args["start_coordinate"] = start_coordinate
-        if text is not None:
-            args["text"] = text
-        return args
+        return {
+            k: v
+            for k, v in dict(
+                action=action,
+                coordinate=coordinate,
+                duration=duration,
+                region=region,
+                scroll_amount=scroll_amount,
+                scroll_direction=scroll_direction,
+                start_coordinate=start_coordinate,
+                text=text,
+            ).items()
+            if v is not None
+        }
 
     # if max_screenshots is specified then polk model input into where @tool can find it
     if max_screenshots is not None:

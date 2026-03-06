@@ -28,6 +28,44 @@ from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
+# Canonical mappings — inverses are derived programmatically.
+_BUTTON_TO_ACTION: dict[str, str] = {
+    "left": "left_click",
+    "right": "right_click",
+    "wheel": "middle_click",
+    "back": "back_click",
+    "forward": "forward_click",
+}
+_ACTION_TO_BUTTON: dict[str, str] = {v: k for k, v in _BUTTON_TO_ACTION.items()}
+
+_OPENAI_KEY_TO_XDOTOOL: dict[str, str] = {
+    "ENTER": "Return",
+    "LEFT": "Left",
+    "RIGHT": "Right",
+    "UP": "Up",
+    "DOWN": "Down",
+    "ESC": "Escape",
+    "SPACE": "space",
+    "BACKSPACE": "BackSpace",
+    "TAB": "Tab",
+}
+_XDOTOOL_TO_OPENAI_KEY: dict[str, str] = {
+    v: k for k, v in _OPENAI_KEY_TO_XDOTOOL.items()
+}
+
+_COMPUTER_PARAMETERS = frozenset(
+    [
+        "action",
+        "coordinate",
+        "duration",
+        "region",
+        "scroll_amount",
+        "scroll_direction",
+        "start_coordinate",
+        "text",
+    ]
+)
+
 
 def tool_call_from_openai_computer_tool_call(
     output: ResponseComputerToolCall,
@@ -46,22 +84,9 @@ def maybe_computer_use_tool(
         ComputerUseToolParam(type="computer")
         if "gpt-5.4" in model_name
         and tool.name == "computer"
-        and (sorted(tool.parameters.properties.keys()) == sorted(computer_parameters()))
+        and tool.parameters.properties.keys() == _COMPUTER_PARAMETERS
         else None
     )
-
-
-def computer_parameters() -> list[str]:
-    return [
-        "action",
-        "coordinate",
-        "duration",
-        "region",
-        "scroll_amount",
-        "scroll_direction",
-        "start_coordinate",
-        "text",
-    ]
 
 
 def computer_call_output(
@@ -82,6 +107,14 @@ def computer_call_output(
     )
 
 
+def _get_coordinate(
+    args: dict[str, object], key: str = "coordinate"
+) -> tuple[int, int]:
+    c = args.get(key, [0, 0])
+    assert isinstance(c, (list, tuple)) and len(c) >= 2
+    return (int(c[0]), int(c[1]))
+
+
 def tool_call_arguments_to_actions(
     arguments: dict[str, object],
 ) -> list[ComputerAction]:
@@ -92,83 +125,42 @@ def tool_call_arguments_to_actions(
 
 def _single_arg_to_action(arguments: dict[str, object]) -> ComputerAction:
     action_type = str(arguments.get("action", ""))
-    action: ComputerAction
 
-    if action_type in [
-        "left_click",
-        "right_click",
-        "middle_click",
-        "back_click",
-        "forward_click",
-    ]:
-        coordinate = arguments.get("coordinate", [0, 0])
-        button_map = {
-            "left_click": "left",
-            "right_click": "right",
-            "middle_click": "wheel",
-            "back_click": "back",
-            "forward_click": "forward",
-        }
-        action = Click(
+    if action_type in _ACTION_TO_BUTTON:
+        x, y = _get_coordinate(arguments)
+        return Click(
             type="click",
-            button=button_map[action_type],  # type: ignore[arg-type]
-            x=coordinate[0],  # type: ignore[index]
-            y=coordinate[1],  # type: ignore[index]
+            button=_ACTION_TO_BUTTON[action_type],  # type: ignore[arg-type]
+            x=x,
+            y=y,
         )
-    elif action_type == "double_click":
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = DoubleClick(
-            type="double_click",
-            x=coordinate[0],  # type: ignore[index]
-            y=coordinate[1],  # type: ignore[index]
-        )
-    elif action_type == "triple_click":
+    elif action_type in ("double_click", "triple_click"):
         # Triple click doesn't exist in OpenAI's spec, map to double click
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = DoubleClick(
-            type="double_click",
-            x=coordinate[0],  # type: ignore[index]
-            y=coordinate[1],  # type: ignore[index]
-        )
+        x, y = _get_coordinate(arguments)
+        return DoubleClick(type="double_click", x=x, y=y)
     elif action_type == "left_click_drag":
-        start_coordinate = arguments.get("start_coordinate", [0, 0])
-        end_coordinate = arguments.get("coordinate", [0, 0])
-        action = Drag(
+        sx, sy = _get_coordinate(arguments, "start_coordinate")
+        ex, ey = _get_coordinate(arguments)
+        return Drag(
             type="drag",
-            path=[
-                DragPath(x=start_coordinate[0], y=start_coordinate[1]),  # type: ignore[index]
-                DragPath(x=end_coordinate[0], y=end_coordinate[1]),  # type: ignore[index]
-            ],
+            path=[DragPath(x=sx, y=sy), DragPath(x=ex, y=ey)],
         )
-    elif action_type in ["key", "hold_key"]:
+    elif action_type in ("key", "hold_key"):
         text = str(arguments.get("text", ""))
-        reverse_mapping = {
-            "Return": "ENTER",
-            "Left": "LEFT",
-            "Right": "RIGHT",
-            "Up": "UP",
-            "Down": "DOWN",
-            "Escape": "ESC",
-            "space": "SPACE",
-            "BackSpace": "BACKSPACE",
-            "Tab": "TAB",
-        }
-        keys = [reverse_mapping.get(key, key) for key in text.split("+")]
-        action = Keypress(
-            type="keypress",
-            keys=keys,
-        )
-    elif action_type in ["mouse_move", "cursor_position"]:
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = Move(
-            type="move",
-            x=coordinate[0],  # type: ignore[index]
-            y=coordinate[1],  # type: ignore[index]
-        )
+        keys = [_XDOTOOL_TO_OPENAI_KEY.get(key, key) for key in text.split("+")]
+        return Keypress(type="keypress", keys=keys)
+    elif action_type in (
+        "mouse_move",
+        "cursor_position",
+        "left_mouse_down",
+        "left_mouse_up",
+    ):
+        x, y = _get_coordinate(arguments)
+        return Move(type="move", x=x, y=y)
     elif action_type == "screenshot":
-        action = Screenshot(type="screenshot")
+        return Screenshot(type="screenshot")
     elif action_type == "scroll":
-        coordinate = arguments.get("coordinate", [0, 0])
+        x, y = _get_coordinate(arguments)
         scroll_direction = str(arguments.get("scroll_direction", "down"))
         scroll_amount = int(str(arguments.get("scroll_amount", 1)))
 
@@ -183,32 +175,13 @@ def _single_arg_to_action(arguments: dict[str, object]) -> ComputerAction:
         elif scroll_direction == "right":
             scroll_x = scroll_amount
 
-        action = Scroll(
-            type="scroll",
-            x=coordinate[0],  # type: ignore[index]
-            y=coordinate[1],  # type: ignore[index]
-            scroll_x=scroll_x,
-            scroll_y=scroll_y,
-        )
+        return Scroll(type="scroll", x=x, y=y, scroll_x=scroll_x, scroll_y=scroll_y)
     elif action_type == "type":
-        text = str(arguments.get("text", ""))
-        action = TypeAction(
-            type="type",
-            text=text,
-        )
+        return TypeAction(type="type", text=str(arguments.get("text", "")))
     elif action_type == "wait":
-        action = Wait(type="wait")
-    elif action_type in ["left_mouse_down", "left_mouse_up"]:
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = Move(
-            type="move",
-            x=coordinate[0],  # type: ignore[index]
-            y=coordinate[1],  # type: ignore[index]
-        )
+        return Wait(type="wait")
     else:
-        action = Screenshot(type="screenshot")
-
-    return action
+        return Screenshot(type="screenshot")
 
 
 def _parse_computer_tool_call_arguments(
@@ -221,15 +194,8 @@ def _parse_computer_tool_call_arguments(
 
 def _parse_single_action(action: ComputerAction) -> dict[str, object]:
     if isinstance(action, Click):
-        button_map = {
-            "left": "left_click",
-            "right": "right_click",
-            "wheel": "middle_click",
-            "back": "back_click",
-            "forward": "forward_click",
-        }
         return {
-            "action": button_map[action.button],
+            "action": _BUTTON_TO_ACTION[action.button],
             "coordinate": [action.x, action.y],
         }
     elif isinstance(action, DoubleClick):
@@ -249,20 +215,11 @@ def _parse_single_action(action: ComputerAction) -> dict[str, object]:
         }
     elif isinstance(action, Keypress):
         # TODO: This mapping logic is copied from their example, but seems incomplete
-        mapping = {
-            "ENTER": "Return",
-            "LEFT": "Left",
-            "RIGHT": "Right",
-            "UP": "Up",
-            "DOWN": "Down",
-            "ESC": "Escape",
-            "SPACE": "space",
-            "BACKSPACE": "BackSpace",
-            "TAB": "Tab",
-        }
         return {
             "action": "key",
-            "text": "+".join([mapping.get(key, key) for key in action.keys]),
+            "text": "+".join(
+                [_OPENAI_KEY_TO_XDOTOOL.get(key, key) for key in action.keys]
+            ),
         }
     elif isinstance(action, Move):
         return {"action": "mouse_move", "coordinate": [action.x, action.y]}
