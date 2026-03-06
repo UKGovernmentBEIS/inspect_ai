@@ -697,7 +697,7 @@ def metric_from_spec(spec: MetricSpec, **kwargs: Any) -> Metric:
         else contextlib.nullcontext()
     )
 
-    # pretty solver name for error messages
+    # pretty metric name for error messages
     pretty_metric_file = (
         cwd_relative_path(metric_file.as_posix()) if metric_file else None
     )
@@ -725,7 +725,7 @@ def metric_from_spec(spec: MetricSpec, **kwargs: Any) -> Metric:
                     )
                 else:
                     raise PrerequisiteError(
-                        f"The source file {pretty_metric_file} has more than one @metric function (qualify which metric using e.g. '{metric_file.name}y@metric_fn')"
+                        f"The source file {pretty_metric_file} has more than one @metric function (qualify which metric using e.g. '{metric_file.name}@metric_fn')"
                     )
 
             # create decorator based metrics using the registry

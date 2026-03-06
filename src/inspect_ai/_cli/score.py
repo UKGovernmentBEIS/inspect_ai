@@ -275,7 +275,7 @@ def _resolve_output_file(
 def resolve_metrics(
     metric: tuple[str, ...] | None,
 ) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None:
-    if metric is not None:
+    if metric is not None and len(metric) > 0:
         return [metric_from_spec(MetricSpec(m)) for m in metric]
     else:
         return None
