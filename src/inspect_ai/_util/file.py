@@ -379,7 +379,7 @@ def absolute_file_path(file: str) -> str:
     fs_scheme = urlparse(file).scheme
     if not fs_scheme and not os.path.isabs(file):
         file = Path(file).resolve().as_posix()
-    return file
+    return strip_trailing_sep(file)
 
 
 def to_uri(path_or_uri: str) -> str:
@@ -493,6 +493,22 @@ def safe_filename(s: str, max_length: int = 255) -> str:
 # parse components out later without worrying about underscores
 def clean_filename_component(component: str) -> str:
     return component.replace("_", "-").replace("/", "-").replace(":", "-")
+
+
+def strip_trailing_sep(path: str) -> str:
+    """Remove trailing separators from a path, preserving the root.
+
+    Matches pathlib behavior: exactly ``//`` is preserved per POSIX,
+    any other all-separator path collapses to a single separator.
+    """
+    fs = filesystem(path)
+    stripped = path.rstrip(fs.sep)
+    if stripped:
+        return stripped
+    # All separators — preserve exactly "//" per POSIX, otherwise collapse
+    if path == fs.sep * 2:
+        return path
+    return fs.sep
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
