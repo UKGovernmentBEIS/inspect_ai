@@ -101,3 +101,27 @@ def test_hf_disable_chat_template() -> None:
     message = ChatMessageUser(content="Lorem ipsum dolor")
     chat = model.api.hf_chat([message], [])  # type: ignore[attr-defined]
     assert chat == "user: Lorem ipsum dolor\n"
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_continuous_batching_arguments() -> None:
+    """Test that continuous batching model arguments are accepted."""
+    model = get_model(
+        "hf/EleutherAI/pythia-70m",
+        config=GenerateConfig(
+            max_tokens=1,
+            seed=42,
+            temperature=0.01,
+        ),
+        chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
+        continuous_batching=True,
+        num_blocks=100,
+        max_batch_tokens=2048,
+        scheduler="fifo",
+    )
+    # Verify the model was created successfully with the arguments
+    assert model.api.continuous_batching is True  # type: ignore[attr-defined]
+    assert model.api.num_blocks == 100  # type: ignore[attr-defined]
+    assert model.api.max_batch_tokens == 2048  # type: ignore[attr-defined]
+    assert model.api.scheduler == "fifo"  # type: ignore[attr-defined]
