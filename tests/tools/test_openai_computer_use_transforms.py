@@ -41,7 +41,7 @@ def test_left_click_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_right_click_bidirectional():
@@ -62,7 +62,7 @@ def test_right_click_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_middle_click_bidirectional():
@@ -83,7 +83,7 @@ def test_middle_click_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_double_click_bidirectional():
@@ -104,7 +104,7 @@ def test_double_click_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_triple_click_maps_to_double_click():
@@ -148,7 +148,7 @@ def test_drag_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_keypress_with_special_keys():
@@ -168,7 +168,7 @@ def test_keypress_with_special_keys():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [{"action": "key", "text": "Return+Tab+space"}]
+    assert parsed == {"actions": [{"action": "key", "text": "Return+Tab+space"}]}
 
 
 def test_keypress_with_regular_keys():
@@ -197,7 +197,7 @@ def test_mouse_move_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_cursor_position_maps_to_move():
@@ -225,7 +225,7 @@ def test_screenshot_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_scroll_down():
@@ -304,7 +304,7 @@ def test_type_text_bidirectional():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [args]
+    assert parsed == {"actions": [args]}
 
 
 def test_wait_action():
@@ -325,7 +325,7 @@ def test_wait_action():
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
     # Duration is hardcoded to 1 in the reverse transform
-    assert parsed == [{"action": "wait", "duration": 1}]
+    assert parsed == {"actions": [{"action": "wait", "duration": 1}]}
 
 
 def test_left_mouse_down_maps_to_move():
@@ -370,11 +370,13 @@ def test_multi_action_parse():
         type="computer_call",
     )
     parsed = _parse_computer_tool_call_arguments(tool_call)
-    assert parsed == [
-        {"action": "left_click", "coordinate": [100, 200]},
-        {"action": "type", "text": "hello"},
-        {"action": "screenshot"},
-    ]
+    assert parsed == {
+        "actions": [
+            {"action": "left_click", "coordinate": [100, 200]},
+            {"action": "type", "text": "hello"},
+            {"action": "screenshot"},
+        ]
+    }
 
 
 def test_tool_call_wraps_actions():

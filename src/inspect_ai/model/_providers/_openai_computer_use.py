@@ -35,7 +35,7 @@ def tool_call_from_openai_computer_tool_call(
     return ToolCall(
         id=output.call_id,
         function="computer",
-        arguments={"actions": _parse_computer_tool_call_arguments(output)},
+        arguments=_parse_computer_tool_call_arguments(output),
     )
 
 
@@ -213,10 +213,10 @@ def _single_arg_to_action(arguments: dict[str, object]) -> ComputerAction:
 
 def _parse_computer_tool_call_arguments(
     output: ResponseComputerToolCall,
-) -> list[dict[str, object]]:
+) -> dict[str, object]:
     actions = output.actions
     assert actions, "Expected actions array in computer_call"
-    return [_parse_single_action(action) for action in actions]
+    return {"actions": [_parse_single_action(action) for action in actions]}
 
 
 def _parse_single_action(action: ComputerAction) -> dict[str, object]:
