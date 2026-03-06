@@ -30,12 +30,14 @@ def find_element_id(input: list[ChatMessage], pattern: str) -> int:
         The integer element id.
     """
     most_recent_message = input[-1]
-    assert isinstance(most_recent_message, ChatMessageTool) and not isinstance(
-        most_recent_message.content, str
-    )
-    at_content = most_recent_message.content[-1]
-    assert isinstance(at_content, ContentText)
-    match = re.search(rf"\[(\d+)\]\s*{pattern}", at_content.text)
+    assert isinstance(most_recent_message, ChatMessageTool)
+    if isinstance(most_recent_message.content, str):
+        text = most_recent_message.content
+    else:
+        at_content = most_recent_message.content[-1]
+        assert isinstance(at_content, ContentText)
+        text = at_content.text
+    match = re.search(rf"\[(\d+)\]\s*{pattern}", text)
     assert match, f"Could not find element matching {pattern} in accessibility tree"
     return int(match.group(1))
 
