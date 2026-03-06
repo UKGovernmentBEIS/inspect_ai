@@ -30,6 +30,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tools._computer._computer import is_builtin_computer_tool
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -125,6 +126,7 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
+            has_computer_tool=any(is_builtin_computer_tool(t) for t in tools),
         ),
     )
     if isinstance(background, bool):
@@ -265,9 +267,8 @@ def completion_params_responses(
     responses_store: bool | None,
     tools: bool,
     tool_params: list[ToolParam],
+    has_computer_tool: bool,
 ) -> dict[str, Any]:
-    # TODO: we'll need a computer_use_preview bool for the 'include'
-    # and 'reasoning' parameters
     def unsupported_warning(param: str) -> None:
         warn_once(
             logger,
@@ -283,7 +284,7 @@ def completion_params_responses(
         params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if model_info.is_computer_use_preview():
+    if model_info.has_reasoning_options():
         params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
@@ -291,9 +292,16 @@ def completion_params_responses(
     if responses_store is None and config.extra_body and "store" in config.extra_body:
         responses_store = config.extra_body["store"]
 
+    if has_computer_tool and responses_store is not True:
+        warn_once(
+            logger,
+            "OpenAI computer use tool requires store=True; overriding store setting.",
+        )
+        responses_store = True
+
     if responses_store is not True:
         params["store"] = False
-        if model_info.has_reasoning_options() or model_info.is_computer_use_preview():
+        if model_info.has_reasoning_options():
             params["include"].append("reasoning.encrypted_content")
 
     if config.max_tokens is not None:

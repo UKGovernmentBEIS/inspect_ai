@@ -5,19 +5,19 @@ from openai.types.responses import (
     ResponseComputerToolCall,
     ResponseComputerToolCallOutputScreenshotParam,
 )
-from openai.types.responses.response_computer_tool_call import (
-    Action,
-    ActionClick,
-    ActionDoubleClick,
-    ActionDrag,
-    ActionDragPath,
-    ActionKeypress,
-    ActionMove,
-    ActionScreenshot,
-    ActionScroll,
-    ActionType,
-    ActionWait,
+from openai.types.responses.computer_action import (
+    Click,
+    ComputerAction,
+    DoubleClick,
+    Drag,
+    DragPath,
+    Keypress,
+    Move,
+    Screenshot,
+    Scroll,
+    Wait,
 )
+from openai.types.responses.computer_action import Type as TypeAction
 from openai.types.responses.response_computer_tool_call_param import (
     PendingSafetyCheck,
 )
@@ -27,7 +27,25 @@ from inspect_ai._util.content import Content, ContentImage
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
+from inspect_ai.tool._tools._computer import is_builtin_computer_tool
+
+# Canonical mappings — inverses are derived programmatically.
+_BUTTON_TO_ACTION: dict[str, str] = {
+    "left": "left_click",
+    "right": "right_click",
+    "wheel": "middle_click",
+    "back": "back_click",
+    "forward": "forward_click",
+}
+_ACTION_TO_BUTTON: dict[str, str] = {v: k for k, v in _BUTTON_TO_ACTION.items()}
+
+# Approximate pixels per scroll wheel click. Used to convert between OpenAI's
+# pixel-based scroll_x/scroll_y and the sandbox's click-based scroll_amount.
+# Unfortunately, there's no constant multiplier — it depends on the application
+# receiving the event. Since OpenAI seems trained primarily on Playwright/browser
+# mode, we'll use Chromium's kWheelDelta = 120px per click from here:
+# https://source.chromium.org/chromium/chromium/src/+/main:ui/events/event.cc;l=637?q=kwheelde&ss=chromium%2Fchromium%2Fsrc
+_PIXELS_PER_SCROLL_CLICK = 120
 
 
 def tool_call_from_openai_computer_tool_call(
@@ -40,25 +58,12 @@ def tool_call_from_openai_computer_tool_call(
     )
 
 
-def maybe_computer_use_preview_tool(
+def maybe_computer_use_tool(
     model_name: str, tool: ToolInfo
 ) -> ComputerToolParam | None:
-    # computer_use_preview only supported by models with "computer-use-preview" in name
     return (
-        ComputerToolParam(
-            type="computer_use_preview",  # type: ignore[typeddict-item]
-            # The OpenAI model is ahead of the sdk — "ubuntu" -> "linux"
-            environment="linux",  # type: ignore
-            # Note: The dimensions passed here for display_width and display_height should
-            # match the dimensions of screenshots returned by the tool.
-            # Those dimensions will always be one of the values in MAX_SCALING_TARGETS
-            # in _x11_client.py.
-            # TODO: enhance this code to calculate the dimensions based on the scaled screen
-            # size used by the container.
-            display_width=1366,
-            display_height=768,
-        )
-        if "computer-use-preview" in model_name and is_computer_tool_info(tool)
+        ComputerToolParam(type="computer")
+        if "gpt-5.4" in model_name and is_builtin_computer_tool(tool)
         else None
     )
 
@@ -81,159 +86,101 @@ def computer_call_output(
     )
 
 
-def tool_call_arguments_to_action(
-    arguments: dict[str, object],
-) -> Action:
-    action_type = str(arguments.get("action", ""))
-    action: Action
+def _get_coordinate(
+    args: dict[str, object], key: str = "coordinate"
+) -> tuple[int, int]:
+    c = args.get(key, [0, 0])
+    assert isinstance(c, (list, tuple)) and len(c) >= 2
+    return (int(c[0]), int(c[1]))
 
-    if action_type in [
-        "left_click",
-        "right_click",
-        "middle_click",
-        "back_click",
-        "forward_click",
-    ]:
-        coordinate = arguments.get("coordinate", [0, 0])
-        button_map = {
-            "left_click": "left",
-            "right_click": "right",
-            "middle_click": "wheel",
-            "back_click": "back",
-            "forward_click": "forward",
-        }
-        action = ActionClick(
+
+def tool_call_arguments_to_actions(
+    arguments: dict[str, object],
+) -> list[ComputerAction]:
+    actions_list = arguments.get("actions")
+    assert isinstance(actions_list, list), "Expected 'actions' list in arguments"
+    return [_single_arg_to_action(a) for a in actions_list]
+
+
+def _single_arg_to_action(arguments: dict[str, object]) -> ComputerAction:
+    action_type = str(arguments.get("action", ""))
+
+    if action_type in _ACTION_TO_BUTTON:
+        x, y = _get_coordinate(arguments)
+        return Click(
             type="click",
-            button=button_map[action_type],  # type: ignore
-            x=coordinate[0],  # type: ignore
-            y=coordinate[1],  # type: ignore
+            button=_ACTION_TO_BUTTON[action_type],  # type: ignore[arg-type]
+            x=x,
+            y=y,
         )
-    elif action_type == "double_click":
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = ActionDoubleClick(
-            type="double_click",
-            x=coordinate[0],  # type: ignore
-            y=coordinate[1],  # type: ignore
-        )
-    elif action_type == "triple_click":
+    elif action_type in ("double_click", "triple_click"):
         # Triple click doesn't exist in OpenAI's spec, map to double click
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = ActionDoubleClick(
-            type="double_click",
-            x=coordinate[0],  # type: ignore
-            y=coordinate[1],  # type: ignore
-        )
+        x, y = _get_coordinate(arguments)
+        return DoubleClick(type="double_click", x=x, y=y)
     elif action_type == "left_click_drag":
-        start_coordinate = arguments.get("start_coordinate", [0, 0])
-        end_coordinate = arguments.get("coordinate", [0, 0])
-        action = ActionDrag(
+        sx, sy = _get_coordinate(arguments, "start_coordinate")
+        ex, ey = _get_coordinate(arguments)
+        return Drag(
             type="drag",
-            path=[
-                ActionDragPath(x=start_coordinate[0], y=start_coordinate[1]),  # type: ignore
-                ActionDragPath(x=end_coordinate[0], y=end_coordinate[1]),  # type: ignore
-            ],
+            path=[DragPath(x=sx, y=sy), DragPath(x=ex, y=ey)],
         )
-    elif action_type in ["key", "hold_key"]:
+    elif action_type in ("key", "hold_key"):
         text = str(arguments.get("text", ""))
-        # Reverse the mapping from _parse_computer_tool_call_arguments
-        reverse_mapping = {
-            "Return": "ENTER",
-            "Left": "LEFT",
-            "Right": "RIGHT",
-            "Up": "UP",
-            "Down": "DOWN",
-            "Escape": "ESC",
-            "space": "SPACE",
-            "BackSpace": "BACKSPACE",
-            "Tab": "TAB",
-        }
-        keys = []
-        for key in text.split("+"):
-            mapped_key = reverse_mapping.get(key, key)
-            keys.append(mapped_key)
-        action = ActionKeypress(
-            type="keypress",
-            keys=keys,
-        )
-    elif action_type in ["mouse_move", "cursor_position"]:
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = ActionMove(
-            type="move",
-            x=coordinate[0],  # type: ignore
-            y=coordinate[1],  # type: ignore
-        )
+        keys = text.split("+")
+        return Keypress(type="keypress", keys=keys)
+    elif action_type in (
+        "mouse_move",
+        "cursor_position",
+        "left_mouse_down",
+        "left_mouse_up",
+    ):
+        x, y = _get_coordinate(arguments)
+        return Move(type="move", x=x, y=y)
     elif action_type == "screenshot":
-        action = ActionScreenshot(type="screenshot")
+        return Screenshot(type="screenshot")
     elif action_type == "scroll":
-        coordinate = arguments.get("coordinate", [0, 0])
+        x, y = _get_coordinate(arguments)
         scroll_direction = str(arguments.get("scroll_direction", "down"))
-        scroll_amount = int(str(arguments.get("scroll_amount", 1)))
+        clicks = int(str(arguments.get("scroll_amount", 1)))
+        pixels = clicks * _PIXELS_PER_SCROLL_CLICK
 
         scroll_x = 0
         scroll_y = 0
         if scroll_direction == "up":
-            scroll_y = -scroll_amount
+            scroll_y = -pixels
         elif scroll_direction == "down":
-            scroll_y = scroll_amount
+            scroll_y = pixels
         elif scroll_direction == "left":
-            scroll_x = -scroll_amount
+            scroll_x = -pixels
         elif scroll_direction == "right":
-            scroll_x = scroll_amount
+            scroll_x = pixels
 
-        action = ActionScroll(
-            type="scroll",
-            x=coordinate[0],  # type: ignore
-            y=coordinate[1],  # type: ignore
-            scroll_x=scroll_x,
-            scroll_y=scroll_y,
-        )
+        return Scroll(type="scroll", x=x, y=y, scroll_x=scroll_x, scroll_y=scroll_y)
     elif action_type == "type":
-        text = str(arguments.get("text", ""))
-        action = ActionType(
-            type="type",
-            text=text,
-        )
+        return TypeAction(type="type", text=str(arguments.get("text", "")))
     elif action_type == "wait":
-        # OpenAI's wait doesn't support duration parameter
-        action = ActionWait(type="wait")
-    elif action_type in ["left_mouse_down", "left_mouse_up"]:
-        # These don't have direct equivalents in OpenAI's spec
-        # Map to a move for now (could potentially be ignored)
-        coordinate = arguments.get("coordinate", [0, 0])
-        action = ActionMove(
-            type="move",
-            x=coordinate[0],  # type: ignore
-            y=coordinate[1],  # type: ignore
-        )
+        return Wait(type="wait")
     else:
-        # Default to screenshot if action type is unknown
-        action = ActionScreenshot(type="screenshot")
-
-    return action
+        return Screenshot(type="screenshot")
 
 
 def _parse_computer_tool_call_arguments(
     output: ResponseComputerToolCall,
 ) -> dict[str, object]:
-    action = output.action
-    assert action
+    actions = output.actions
+    assert actions, "Expected actions array in computer_call"
+    return {"actions": [_parse_single_action(action) for action in actions]}
 
-    if action.type == "click":
-        coordinate = [action.x, action.y]
-        match action.button:
-            case "left":
-                return {"action": "left_click", "coordinate": coordinate}
-            case "right":
-                return {"action": "right_click", "coordinate": coordinate}
-            case "wheel":
-                return {"action": "middle_click", "coordinate": coordinate}
-            case "back":
-                return {"action": "back_click", "coordinate": coordinate}
-            case "forward":
-                return {"action": "forward_click", "coordinate": coordinate}
-    elif action.type == "double_click":
+
+def _parse_single_action(action: ComputerAction) -> dict[str, object]:
+    if isinstance(action, Click):
+        return {
+            "action": _BUTTON_TO_ACTION[action.button],
+            "coordinate": [action.x, action.y],
+        }
+    elif isinstance(action, DoubleClick):
         return {"action": "double_click", "coordinate": [action.x, action.y]}
-    elif action.type == "drag":
+    elif isinstance(action, Drag):
         # TODO: For now, we go directly from the first to the last coordinate in
         # the path. Ultimately, we'll need to extend the tool to support all of
         # the intermediate coordinates in the path.
@@ -246,50 +193,37 @@ def _parse_computer_tool_call_arguments(
             "start_coordinate": [start.x, start.y],
             "coordinate": [end.x, end.y],
         }
-    elif action.type == "keypress":
-        # TODO: This mapping logic is copied from their example, but seems incomplete
-        mapping = {
-            "ENTER": "Return",
-            "LEFT": "Left",
-            "RIGHT": "Right",
-            "UP": "Up",
-            "DOWN": "Down",
-            "ESC": "Escape",
-            "SPACE": "space",
-            "BACKSPACE": "BackSpace",
-            "TAB": "Tab",
-        }
+    elif isinstance(action, Keypress):
         return {
             "action": "key",
-            "text": "+".join([mapping.get(key, key) for key in action.keys]),
+            "text": "+".join(action.keys),
         }
-    elif action.type == "move":
+    elif isinstance(action, Move):
         return {"action": "mouse_move", "coordinate": [action.x, action.y]}
-    elif action.type == "screenshot":
+    elif isinstance(action, Screenshot):
         return {"action": "screenshot"}
-    elif action.type == "scroll":
-        # TODO: OpenAI spec's with x/y distances. Their example code treats the
-        # unit of measurement as a "click" of the scroll wheel. Since it's not
-        # really a thing to scroll both horizontally and vertically at the same
-        # time, we'll just pick one of the potentially two directions and
-        # scroll along that dimension.
-        (scroll_direction, scroll_amount) = (
+    elif isinstance(action, Scroll):
+        # OpenAI uses pixel distances; the sandbox uses scroll-wheel clicks.
+        # Since it's not really a thing to scroll both horizontally and
+        # vertically at the same time, pick the dominant axis.
+        (scroll_direction, pixels) = (
             ("right" if action.scroll_x > 0 else "left", abs(action.scroll_x))
             if action.scroll_x
             else ("down" if action.scroll_y > 0 else "up", abs(action.scroll_y))
         )
+        clicks = max(1, round(pixels / _PIXELS_PER_SCROLL_CLICK))
         return {
             "action": "scroll",
             "coordinate": [action.x, action.y],
             "scroll_direction": scroll_direction,
-            "scroll_amount": scroll_amount,
+            "scroll_amount": clicks,
         }
-    elif action.type == "type":
+    elif isinstance(action, TypeAction):
         return {"action": "type", "text": action.text}
-    elif action.type == "wait":
+    elif isinstance(action, Wait):
         return {"action": "wait", "duration": 1}
 
-    assert False, f"Unexpected action type: {action.type}"
+    assert False, f"Unexpected action type: {type(action)}"
 
 
 def _content_image(input: str | list[Content]) -> str:
