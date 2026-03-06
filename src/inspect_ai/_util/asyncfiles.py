@@ -1,3 +1,4 @@
+import io
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -256,8 +257,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
-                await (await self.s3_client_async()).put_object(
-                    Bucket=bucket, Key=key, Body=content
+                client = await self.s3_client_async()
+                await client.upload_fileobj(
+                    Fileobj=io.BytesIO(content), Bucket=bucket, Key=key
                 )
             else:
                 await anyio.to_thread.run_sync(
@@ -377,7 +379,7 @@ def s3_read_file_suffix(
 
 
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
-    s3.put_object(Bucket=bucket, Key=key, Body=content)
+    s3.upload_fileobj(Fileobj=io.BytesIO(content), Bucket=bucket, Key=key)
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
