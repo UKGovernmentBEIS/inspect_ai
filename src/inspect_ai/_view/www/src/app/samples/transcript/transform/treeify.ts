@@ -49,10 +49,7 @@ const treeifyWithSpans = (events: Events, depth: number): EventNode[] => {
     const node = createNode(event, parentNode);
 
     if (event.event === SPAN_BEGIN) {
-      const spanId = getEventSpanId(event);
-      if (spanId !== null) {
-        spanNodes.set(spanId, node);
-      }
+      spanNodes.set(event.id, node);
     }
   };
 
