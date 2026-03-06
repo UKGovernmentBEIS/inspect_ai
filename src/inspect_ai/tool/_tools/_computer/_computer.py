@@ -49,6 +49,11 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         Defaults to 180 (set to `None` for no timeout).
     """
 
+    # NOTE: Models with native computer use (Anthropic, OpenAI) never see this
+    # docstring or parameter schema — they use provider-specific tool params
+    # (e.g. ComputerUseToolParam, BetaToolComputerUse*Param). This signature
+    # only matters for models without native support, where the added complexity
+    # of the `actions` parameter is acceptable.
     async def execute(
         action: Action | None = None,
         coordinate: list[int] | None = None,
