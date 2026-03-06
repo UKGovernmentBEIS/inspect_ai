@@ -2,6 +2,7 @@
 
 - Timelines: Detect `agent_result` for timeline spans.
 - Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
+- AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
 
@@ -26,7 +27,6 @@
 - Inspect View: Improve appearance of model events in transcript.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
 - Testing: Fix intermittent `test_thinking_compaction_openai` failure caused by unhandled tool calls in follow-up model response.
-- AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
 
 ## 0.3.186 (03 March 2026)
 
