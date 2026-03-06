@@ -121,3 +121,71 @@ class TestGoogleSearchRendering:
             ]
 
             mock_model.generate.assert_called()
+
+    async def test_search_url_encodes_non_printable_characters(self):
+        """Test that search queries with non-printable characters are properly URL-encoded."""
+        mock_client = httpx.AsyncClient(transport=create_mock_transport())
+
+        mock_model = AsyncMock()
+        mock_model.generate.return_value.message.text = "yes"
+
+        with (
+            patch("httpx.AsyncClient") as mock_async_client_cls,
+            patch("inspect_ai.model._model.get_model") as mock_get_model,
+            patch(
+                "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys"
+            ) as mock_get_keys,
+        ):
+            mock_async_client_cls.return_value = mock_client
+            mock_get_model.return_value = mock_model
+            mock_get_keys.return_value = ("dummy-key", "dummy-cse-id")
+
+            search = google_search_provider()
+
+            # Non-printable ASCII character should not crash
+            result = await search("test\x01query")
+            assert result is not None
+
+    async def test_search_url_encodes_special_characters(self):
+        """Test that queries with special characters don't corrupt the URL structure."""
+        captured_urls: list[str] = []
+        inner_transport = create_mock_transport()
+
+        async def capturing_handler(request):
+            captured_urls.append(str(request.url))
+            return await inner_transport.handle_async_request(request)
+
+        mock_client = httpx.AsyncClient(
+            transport=httpx.MockTransport(capturing_handler)
+        )
+
+        mock_model = AsyncMock()
+        mock_model.generate.return_value.message.text = "yes"
+
+        with (
+            patch("httpx.AsyncClient") as mock_async_client_cls,
+            patch("inspect_ai.model._model.get_model") as mock_get_model,
+            patch(
+                "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys"
+            ) as mock_get_keys,
+        ):
+            mock_async_client_cls.return_value = mock_client
+            mock_get_model.return_value = mock_model
+            mock_get_keys.return_value = ("dummy-key", "dummy-cse-id")
+
+            search = google_search_provider()
+
+            result = await search("a&b=c#d")
+            assert result is not None
+
+            api_urls = [u for u in captured_urls if "googleapis.com" in u]
+            # The mock returns 2 results but num_results defaults to 3,
+            # so the provider paginates up to max_provider_calls (3) times
+            assert len(api_urls) == 3
+
+            # The query parameter value should be percent-encoded so that '&',
+            # '=', and '#' aren't interpreted as special characters
+            for api_url in api_urls:
+                assert "q=a%26b%3Dc%23d" in api_url, (
+                    f"Expected encoded query param in URL, got: {api_url}"
+                )
