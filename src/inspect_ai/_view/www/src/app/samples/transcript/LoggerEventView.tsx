@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { LoggerEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventRow } from "./event/EventRow";
+import { eventTitle } from "./event/utils";
 
 import { FC } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
@@ -27,7 +28,7 @@ export const LoggerEventView: FC<LoggerEventViewProps> = ({
   return (
     <EventRow
       className={className}
-      title={event.message.level}
+      title={eventTitle(event)}
       icon={ApplicationIcons.logging[event.message.level.toLowerCase()]}
     >
       <div className={clsx("text-size-base", styles.grid)}>

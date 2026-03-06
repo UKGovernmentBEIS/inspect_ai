@@ -129,7 +129,7 @@ async def score(
 ) -> None:
     platform_init()
 
-    init_eval_context(log_level, None)
+    init_eval_context(log_level, None, log_refusals=True)
     scorer_args = parse_cli_config(args=s, config=None)
 
     recorder = create_recorder_for_location(log_file, log_dir)

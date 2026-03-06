@@ -1,4 +1,3 @@
-import atexit
 import functools
 import logging
 import os
@@ -7,6 +6,7 @@ from subprocess import Popen
 from typing import Any
 from urllib.parse import urlparse
 
+import anyio
 from openai import APIConnectionError, APIStatusError
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
@@ -17,7 +17,7 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.local_server import (
     DEFAULT_RETRY_DELAY,
     configure_devices,
@@ -36,45 +36,84 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
+from ._vllm_lora import (
+    VLLMServer,
+    _vllm_servers,
+    ensure_adapter_loaded,
+    get_adapter_rank,
+    parse_vllm_model,
+)
 from .openai_compatible import OpenAICompatibleAPI
 
-# Environment variable names
-# VLLM_BASE_URL = "VLLM_BASE_URL"
-# VLLM_API_KEY = "VLLM_API_KEY"
 VLLM_DEFAULT_SERVER_ARGS = "VLLM_DEFAULT_SERVER_ARGS"
 VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
 
-# Set up logger for this module
 logger = logging.getLogger(__name__)
 
 
 class VLLMAPI(OpenAICompatibleAPI):
-    """
-    Provider for using vLLM models.
+    """Provider for using vLLM models with optional LoRA adapter support.
 
     This provider can either:
     1. Connect to an existing vLLM server (if base_url or port is provided)
     2. Start a new vLLM server for the specified model
 
-    Args:
-        model_name (str): Name or path of the model to use, e.g. "Devstral-Small-2505"
-        base_url (str | None): Base URL of the vLLM server. If not provided, will use localhost.
-        port (int | None): Port of the vLLM server. If not provided, will use a free port on localhost.
-        api_key (str | None): API key for the vLLM server. If not provided, will use "inspectai" as default.
-        config (GenerateConfig): Configuration for generation. Defaults to GenerateConfig().
-        is_mistral (bool): Whether the model is a Mistral model. If True, it will handle folding user messages into tool messages as Mistral does not support a user message immediately after a tool message. Defaults to False.
+    LoRA adapters are specified with ``"base-model:adapter"`` syntax::
 
-    Additional server_args:
-        timeout (int): Timeout for the server (default: 10 minutes)
-        host (str): Host to bind the server to (default: "0.0.0.0")
-        configure_logging (bool): Enable fine-grained vLLM logging (default: False)
-        device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tensor_parallel_size is not provided, the server will use the number of devices as the tensor parallel size.
+        get_model("vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter")
+
+    Multiple models sharing the same base reuse a single server.  The
+    server is started lazily on the first ``generate()`` call, after all
+    model ``__init__`` calls have completed so that ``enable_lora`` and
+    ``max_lora_rank`` are computed correctly across all adapters.
+
+    Args:
+        model_name (str): Name or path of the model to use. Optionally
+            include ``:adapter`` suffix to specify a LoRA adapter from
+            HuggingFace or a local path.
+        base_url (str | None): Base URL of an existing vLLM server. If
+            not provided, a new server will be started on localhost.
+        port (int | None): Port of an existing vLLM server on localhost.
+            If not provided, a free port is chosen automatically.
+        api_key (str | None): API key for the vLLM server. Defaults to
+            the ``VLLM_API_KEY`` env var, or ``"inspectai"`` if unset.
+        config (GenerateConfig): Configuration for generation. Defaults
+            to ``GenerateConfig()``.
+        is_mistral (bool): Whether the model is a Mistral model. If
+            ``True``, user messages immediately following tool messages
+            are folded together (Mistral does not support this sequence).
+            Defaults to ``False``.
+        retry_delay (int | None): Seconds to wait between retries
+            (default 5).
+        lazy_init (bool): If ``True`` (default), defer server startup to
+            the first ``generate()`` call.  This ensures ``enable_lora``
+            and ``max_lora_rank`` are computed correctly when multiple
+            models share a base.  Set to ``False`` to start the server
+            immediately in ``__init__`` (useful for single-model setups
+            where you want fast failure on misconfiguration).
+        **server_args: Additional arguments forwarded to the ``vllm
+            serve`` command.  Notable keys:
+
+            - ``timeout`` (int): Server startup timeout in seconds
+              (default: 10 minutes).
+            - ``host`` (str): Host to bind the server to (default:
+              ``"0.0.0.0"``).
+            - ``configure_logging`` (bool): Enable fine-grained vLLM
+              logging (default: ``False``).
+            - ``device`` / ``devices`` (str): GPU device(s) to run the
+              server on, as used in ``CUDA_VISIBLE_DEVICES``. If
+              ``tensor_parallel_size`` is not provided, it is set to the
+              number of devices automatically.
+            - ``enable_lora`` (bool): Force LoRA mode even without
+              ``:adapter`` syntax (default: auto-detected from model
+              name).
 
     Environment variables:
-        VLLM_BASE_URL: Base URL for an existing vLLM server
-        VLLM_API_KEY: API key for the vLLM server
-        VLLM_DEFAULT_SERVER_ARGS: JSON string of default server args, e.g. '{"tensor_parallel_size": 4, "max_model_len": 8192}'
-        VLLM_CONFIGURE_LOGGING: Enable fine-grained vLLM logging
+        VLLM_BASE_URL: Base URL for an existing vLLM server.
+        VLLM_API_KEY: API key for the vLLM server.
+        VLLM_DEFAULT_SERVER_ARGS: JSON string of default server args,
+            e.g. ``'{"tensor_parallel_size": 4, "max_model_len": 8192}'``.
+        VLLM_CONFIGURE_LOGGING: Enable fine-grained vLLM logging.
     """
 
     def __init__(
@@ -86,135 +125,169 @@ class VLLMAPI(OpenAICompatibleAPI):
         config: GenerateConfig = GenerateConfig(),
         is_mistral: bool = False,
         retry_delay: int | None = None,
+        lazy_init: bool = True,
         **server_args: Any,
     ) -> None:
-        # Validate inputs
+        # Parse "base-model" or "base-model:adapter-path"
+        self.base_model, self.adapter_path, self.adapter_name = parse_vllm_model(
+            model_name
+        )
+
         if base_url and port:
             raise ValueError("base_url and port cannot both be provided.")
-        if port:
-            base_url = f"http://localhost:{port}/v1"
 
-        # save retry delay
-        self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
+        self.api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
+        self.model_name = self.base_model
+        self.base_url: str | None = None
 
-        # Initialize server process and port variables
+        # Store for deferred OpenAICompatibleAPI.__init__()
+        self._init_config = config
+        self._init_base_url = f"http://localhost:{port}/v1" if port else base_url
+        self._server_resolved = False
+
         self.is_mistral = is_mistral
-        self.server_process: Popen[str] | None = None
-        self.port: int | None = port
+        self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
+        self.port = port
         self.server_args = merge_env_server_args(
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
-        self.server_found = True
-        try:
-            # Try to initialize with existing server
-            super().__init__(
-                model_name=model_name,
-                base_url=base_url,
-                api_key=api_key
-                or os.environ.get(
-                    "VLLM_API_KEY", "dummy"
-                ),  # we get the env var here so we can fallback to a non-none value
-                config=config,
-                service="vLLM",
-                service_base_url=base_url,
-            )
-            logger.info(f"Using existing vLLM server at {self.base_url}")
-            preq_err = None
-        except PrerequisiteError as e:
-            self.server_found = False
-            preq_err = e
+        # Get or create the shared server entry for this base model
+        # and incrementally update LoRA config.
+        self._server = _vllm_servers.setdefault(self.base_model, VLLMServer())
+        if self.adapter_path:
+            self._server.enable_lora = True
+            rank = get_adapter_rank(self.adapter_path)
+            if rank is not None:
+                self._server.max_lora_rank = max(self._server.max_lora_rank or 0, rank)
 
-        if not self.server_found:
-            if preq_err:
-                logger.warning(
-                    f"vLLM server config has missing prerequisites {preq_err}. Starting new server for {model_name}."
-                )
+        if not lazy_init:
+            self._resolve_server()
+
+    # -- server lifecycle ----------------------------------------------------
+
+    def _resolve_server(self) -> None:
+        """Resolve or start the vLLM server, then call ``super().__init__``."""
+        if self._server_resolved:
+            return
+
+        server = self._server
+
+        if server.base_url is None:
+            external_url = self._init_base_url or os.environ.get("VLLM_BASE_URL")
+            server.api_key = self.api_key
+            if external_url:
+                server.base_url = external_url
             else:
-                logger.warning(
-                    f"Existing vLLM server not found. Starting new server for {model_name}."
-                )
+                base_url, process, port = self._start_server(self.base_model, self.port)
+                logger.info(f"vLLM server started at {base_url}")
 
-            # Extract and handle the configure_logging parameter
-            configure_logging = self.server_args.pop("configure_logging", False)
-            os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
+                server.base_url = base_url
+                server.process = process
+                server.port = port
 
-            # Start the server
-            base_url, api_key = self._start_server(
-                model_name, api_key=api_key, port=self.port
-            )
-            logger.warning(f"vLLM server started at {base_url}")
+        super().__init__(
+            model_name=self.base_model,
+            base_url=server.base_url,
+            api_key=self.api_key,
+            config=self._init_config,
+            service="vLLM",
+            service_base_url=server.base_url,
+        )
+        self._server_resolved = True
 
-            # Initialize with new server
-            super().__init__(
-                model_name=model_name,
-                base_url=base_url,
-                api_key=api_key,
-                config=config,
-                service="vLLM",
-                service_base_url=base_url,
-            )
+        if self.adapter_path and self.adapter_name:
+            ensure_adapter_loaded(self._server, self.adapter_path, self.adapter_name)
+
+    async def _ensure_server_started(self) -> None:
+        """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
+        if self._server_resolved:
+            return
+        async with self._server._init_lock:
+            await anyio.to_thread.run_sync(self._resolve_server)
 
     def _start_server(
         self,
         model_path: str,
-        api_key: str | None = None,
         port: int | None = None,
-    ) -> tuple[str, str]:
-        """Start a new vLLM server and return the base URL and API key.
+    ) -> tuple[str, Popen[str], int]:
+        """Start a new vLLM server subprocess.
 
         Args:
-            model_path: Path to the model to use
-            api_key: API key for the server
-            port: Port for the server. If None, will find a free port.
+            model_path: HuggingFace model ID or local path.
+            port: Port to bind to. If ``None``, a free port is chosen.
 
         Returns:
-            tuple[str, str]: The base URL for the server and the API key
+            Tuple of (base_url, process, port).
         """
-        # Verify vllm package is installed since we're starting a server
         try:
             import vllm  # type: ignore  # noqa: F401
         except ImportError:
             raise pip_dependency_error("vLLM Server", ["vllm"])
 
-        # Handle device configuration
+        server = self._server
+        if server.enable_lora:
+            self.server_args.setdefault("enable_lora", True)
+            if server.max_lora_rank is not None:
+                self.server_args.setdefault("max_lora_rank", server.max_lora_rank)
+            os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
+
+        configure_logging = self.server_args.pop("configure_logging", False)
+        os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
+
         self.server_args, env_vars = configure_devices(
             self.server_args, parallel_size_param="tensor_parallel_size"
         )
 
-        if not api_key:
-            api_key = "inspectai"  # Create a default API key if not provided
-
         timeout = self.server_args.pop("timeout", None)
         host = self.server_args.pop("host", "0.0.0.0")
 
-        # Build command as a list
-        cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", api_key]
+        cmd = [
+            "vllm",
+            "serve",
+            model_path,
+            "--host",
+            host,
+            "--api-key",
+            self.api_key,
+        ]
 
-        base_url, self.server_process, self.port = start_local_server(
+        base_url, process, found_port = start_local_server(
             cmd,
             host=host,
-            port=port,  # If None, find a free port
-            api_key=api_key,
+            port=port,
+            api_key=self.api_key,
             server_type="vLLM",
             timeout=timeout,
             server_args=self.server_args,
             env=env_vars,
         )
-
-        # Register cleanup function to run when Python exits
-        atexit.register(self._cleanup_server)
-
-        return base_url, api_key
+        return base_url, process, found_port
 
     @property
     def server_is_running(self) -> bool:
-        """Check if the server is running."""
-        if self.server_process is None:
+        """Check if the server process is still alive."""
+        if self._server.process is None:
             return False
+        return self._server.process.poll() is None
 
-        # Check if process is still alive
-        return self.server_process.poll() is None
+    async def aclose(self) -> None:
+        """Close the OpenAI client and terminate the server if we started it."""
+        if self._server_resolved:
+            await super().aclose()
+        self.close()
+
+    def close(self) -> None:
+        """Terminate the server if we spawned it.
+
+        Does not close the OpenAI client (use ``aclose`` for that).
+        """
+        if self._server.process is not None and self._server.process.poll() is None:
+            logger.info("Cleaning up vLLM server")
+            terminate_process(self._server.process)
+            self._server.process = None
+
+    # -- ModelAPI overrides --------------------------------------------------
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -227,6 +300,18 @@ class VLLMAPI(OpenAICompatibleAPI):
     @override
     def retry_wait(self) -> WaitBaseT | None:
         return wait_fixed(self.retry_delay)
+
+    @override
+    def service_model_name(self) -> str:
+        """Return adapter name for LoRA requests, else the base model.
+
+        vLLM's OpenAI-compatible API routes LoRA requests by the ``model``
+        field, so we send the adapter name instead of the base model when
+        a LoRA adapter is in use.
+        """
+        if self.adapter_name:
+            return self.adapter_name
+        return self.base_model
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -243,38 +328,13 @@ class VLLMAPI(OpenAICompatibleAPI):
             )
             return False
 
-        if self.server_process is not None and not self.server_is_running:
+        if self._server.process is not None and not self.server_is_running:
             logger.error("Inspect-managed vLLM server process exited; not retrying.")
             return False
 
         return super().should_retry(ex)
 
-    def _cleanup_server(self) -> None:
-        """Cleanup method to terminate server process when Python exits."""
-        if self.server_is_running and self.server_process is not None:
-            logger.info("Cleaning up vLLM server")
-            terminate_process(self.server_process)
-            self.server_process, self.port = None, None
-
-    async def aclose(self) -> None:
-        """Close the client and terminate the server if we started it."""
-        logger.info("Closing vLLM server")
-
-        # Close the OpenAI client
-        await super().aclose()
-
-        self.close()
-
-    def close(self) -> None:
-        """
-        Terminate the server if we started it.
-
-        Note that this does not close the OpenAI client as we are not in an async context.
-        """
-        self._cleanup_server()
-
-        # Deregister the atexit handler since we've manually cleaned up
-        atexit.unregister(self._cleanup_server)
+    # -- generation ----------------------------------------------------------
 
     async def generate(
         self,
@@ -283,32 +343,31 @@ class VLLMAPI(OpenAICompatibleAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # check if last message is an assistant message, in this case we want to
-        # continue the final message instead of generating a new one
-        if input[-1].role == "assistant":
-            # Create a copy of the config to avoid modifying the original
-            config = config.model_copy()
+        await self._ensure_server_started()
 
-            # Set these parameters in extra_body
+        # If the last message is from the assistant, continue it rather
+        # than starting a new generation turn.
+        if input[-1].role == "assistant":
+            config = config.model_copy()
             if config.extra_body is None:
                 config.extra_body = {}
-
-            # Only set these values if they're not already present in extra_body
             if (
                 "add_generation_prompt" not in config.extra_body
                 and "continue_final_message" not in config.extra_body
             ):
                 config.extra_body["add_generation_prompt"] = False
                 config.extra_body["continue_final_message"] = True
-        # if model is mistral, we need to fold user messages into tool messages, as mistral does not support a user message immediately after a tool message
+
+        # Mistral does not support a user message immediately after a tool
+        # message, so fold them together.
         if self.is_mistral:
             input = functools.reduce(mistral_message_reducer, input, [])
+
         return await super().generate(input, tools, tool_choice, config)
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         if ex.status_code == 400:
-            # Extract message safely
             if isinstance(ex.body, dict) and "message" in ex.body:
                 content = str(ex.body.get("message"))
             else:
@@ -324,9 +383,13 @@ class VLLMAPI(OpenAICompatibleAPI):
         return ex
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
 def _is_fatal_vllm_error(ex: BaseException) -> bool:
-    # Matches the vLLM startup OOM signature from server logs as well as
-    # common CUDA OOM variants that are not transient.
+    """Match vLLM startup OOM and CUDA OOM variants that are not transient."""
     fatal_markers = (
         "free memory on device",
         "less than desired gpu memory utilization",
@@ -351,7 +414,7 @@ def _is_fatal_vllm_error(ex: BaseException) -> bool:
 
 
 def _is_dead_local_vllm_endpoint(ex: BaseException, base_url: str | None) -> bool:
-    # Only short-circuit connection failures for localhost endpoints.
+    """Short-circuit connection failures for localhost endpoints only."""
     if not isinstance(ex, APIConnectionError):
         return False
     if not base_url:

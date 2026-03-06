@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_bedrock,
@@ -72,76 +71,62 @@ async def check_model_length(
     assert output.stop_reason == "model_length"
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_model_length_openai():
     await check_model_length(GPT_4O)
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_model_length_openai_responses():
     await check_model_length(GPT_4O, responses_api=True)
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai_azure
 async def test_model_length_openai_azure():
     await check_model_length(GPT_4O_MINI_AZURE)
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai_azure
 async def test_model_length_openai_responses_azure():
     await check_model_length(GPT_4O_MINI_AZURE, responses_api=True)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_model_length_anthropic():
     await check_model_length(CLAUDE_4_6_SONNET)
 
 
 # TODO: Anthropic Bedrock
-
-
-@pytest.mark.asyncio
 @skip_if_no_google
 async def test_model_length_google():
     await check_model_length(GEMINI_2_0_FLASH)
 
 
-@pytest.mark.asyncio
 @skip_if_no_mistral
 async def test_model_length_mistral():
     await check_model_length(MISTRAL_LARGE_2411)
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_model_length_grok():
     await check_model_length(GROK_3_MINI)
 
 
-@pytest.mark.asyncio
 @skip_if_no_groq
 async def test_model_length_groq():
     await check_model_length(GROQ_LLAMA_3_3_70B_VERSATILE)
 
 
-@pytest.mark.asyncio
 @skip_if_no_cloudflare
 async def test_model_length_cloudflare():
     await check_model_length(CLOUDFLARE_LLAMA_3_1_8B)
 
 
-@pytest.mark.asyncio
 @skip_if_no_together
 async def test_model_length_together():
     await check_model_length(TOGETHER_LLAMA_3_3_70B)
 
 
-@pytest.mark.asyncio
 @skip_if_no_bedrock
 async def test_model_length_bedrock():
     await check_model_length(BEDROCK_NOVA_LITE_1_0)

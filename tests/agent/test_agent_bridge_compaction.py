@@ -45,14 +45,13 @@ def bridge_compaction_agent(compaction, num_calls: int = 4) -> Agent:
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state, compaction=compaction) as bridge:
-            client = AsyncOpenAI()
-
-            # Make multiple calls to accumulate context
-            for _ in range(num_calls):
-                await client.chat.completions.create(
-                    model="inspect",
-                    messages=await messages_to_openai(bridge.state.messages),
-                )
+            async with AsyncOpenAI() as client:
+                # Make multiple calls to accumulate context
+                for _ in range(num_calls):
+                    await client.chat.completions.create(
+                        model="inspect",
+                        messages=await messages_to_openai(bridge.state.messages),
+                    )
 
             return bridge.state
 

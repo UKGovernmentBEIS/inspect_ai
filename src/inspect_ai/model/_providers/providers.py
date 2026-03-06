@@ -131,7 +131,7 @@ def mistral() -> type[ModelAPI]:
 def grok() -> type[ModelAPI]:
     FEATURE = "Grok API"
     PACKAGE = "xai_sdk"
-    MIN_VERSION = "1.4.0"
+    MIN_VERSION = "1.7.0"
 
     # verify we have the package
     try:
@@ -249,6 +249,13 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi(name="sagemaker")
+def sagemaker() -> type[ModelAPI]:
+    from .sagemaker import SagemakerAPI
+
+    return SagemakerAPI
+
+
 @modelapi(name="sglang")
 def sglang() -> type[ModelAPI]:
     # Only validate OpenAI compatibility (needed for the API interface)
@@ -316,7 +323,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.17.0"
+    MIN_VERSION = "2.26.0"
 
     # verify we have the package
     try:

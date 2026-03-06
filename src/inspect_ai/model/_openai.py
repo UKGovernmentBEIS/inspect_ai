@@ -144,7 +144,9 @@ async def openai_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     elif content.type == "audio":
         audio_data_uri = await file_as_data_uri(content.audio)
@@ -760,7 +762,13 @@ def model_output_from_openai(
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens,
+                input_tokens=completion.usage.prompt_tokens
+                - (
+                    completion.usage.prompt_tokens_details.cached_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    and completion.usage.prompt_tokens_details.cached_tokens is not None
+                    else 0
+                ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
@@ -833,6 +841,7 @@ def openai_handle_bad_request(
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
 

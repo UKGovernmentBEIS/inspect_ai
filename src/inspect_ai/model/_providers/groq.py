@@ -186,7 +186,7 @@ class GroqAPI(ModelAPI):
             # return
             return output, model_call
         except APIStatusError as ex:
-            model_call.set_response(
+            model_call.set_error(
                 as_error_response(ex.body), self._http_hooks.end_request(request_id)
             )
             return self.handle_bad_request(ex), model_call
@@ -369,7 +369,9 @@ async def as_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     else:
         raise RuntimeError("Groq models do not support audio or video inputs.")

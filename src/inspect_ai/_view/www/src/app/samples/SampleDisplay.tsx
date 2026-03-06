@@ -78,6 +78,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const sample = useMemo(() => {
     return sampleData.getSelectedSample();
   }, [sampleData]);
+  const eventsCleared = sampleData.eventsCleared;
 
   const runningSampleData = sampleData.running;
 
@@ -356,7 +357,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         <TabPanel
           key={kSampleTranscriptTabId}
           id={kSampleTranscriptTabId}
-          className={clsx("sample-tab", styles.transcriptContainer)}
+          className={clsx(
+            "sample-tab",
+            styles.transcriptContainer,
+            styles.overflowVisible,
+          )}
           title="Transcript"
           onSelected={onSelectedTab}
           selected={
@@ -375,6 +380,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
+            eventsCleared={eventsCleared}
             initialEventId={sampleDetailNavigation.event}
             topOffset={tabsHeight}
             running={running}
@@ -384,7 +390,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         <TabPanel
           key={kSampleMessagesTabId}
           id={kSampleMessagesTabId}
-          className={clsx("sample-tab", styles.fullWidth, styles.chat)}
+          className={clsx(
+            "sample-tab",
+            styles.fullWidth,
+            styles.chat,
+            styles.overflowVisible,
+          )}
           title="Messages"
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleMessagesTabId}

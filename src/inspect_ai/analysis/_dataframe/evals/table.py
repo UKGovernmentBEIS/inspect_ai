@@ -4,7 +4,7 @@ from functools import partial
 from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
+from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import read_eval_log_async
@@ -139,16 +139,16 @@ def _read_evals_df(
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
 
-    async def read_eval_df(item: str | EvalLog, fs: AsyncFilesystem) -> EvalLog:
+    async def read_eval_df(item: str | EvalLog) -> EvalLog:
         log = (
-            await read_eval_log_async(item, header_only=True, async_fs=fs)
+            await read_eval_log_async(item, header_only=True)
             if isinstance(item, str)
             else item
         )
         progress()
         return log
 
-    logs = run_tg_collect_with_fs([partial(read_eval_df, item) for item in logs])
+    logs = run_coroutine(tg_collect([partial(read_eval_df, item) for item in logs]))
 
     for log in logs:
         if strict:

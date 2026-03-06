@@ -37,7 +37,6 @@ async def test_openai_api_key():
     await check_explicit_api_key("openai/gpt-4", "OPENAI_API_KEY")
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_api_key():
     await check_explicit_api_key("grok/grok-3-mini", "GROK_API_KEY")
@@ -64,6 +63,4 @@ async def test_mistral_api_key():
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_api_key():
-    await check_explicit_api_key(
-        "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "TOGETHER_API_KEY"
-    )
+    await check_explicit_api_key("together/MiniMaxAI/MiniMax-M2.5", "TOGETHER_API_KEY")

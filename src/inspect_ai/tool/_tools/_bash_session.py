@@ -142,6 +142,10 @@ def bash_session(
           a new command will not be processed until the previous completes. To
           abort a long-running command, use the "interrupt" action:
           `bash_session(action="interrupt")`
+        - If output ends with "> " (the shell's continuation prompt), it means
+          the previous input contained unmatched quotes, backticks, or other
+          incomplete syntax. Either complete the quoted input or use the
+          "interrupt" action to cancel, then retry with corrected input.
 
         Example use case:
         - For a short-running command with a nominal amount of output, a single

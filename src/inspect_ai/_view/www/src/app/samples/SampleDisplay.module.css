@@ -58,3 +58,7 @@
 .transcriptContainer {
   padding-bottom: 1em;
 }
+
+.overflowVisible {
+  overflow-y: visible;
+}

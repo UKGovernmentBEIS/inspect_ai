@@ -15,11 +15,12 @@ import { EventSection } from "./event/EventSection";
 import { ANSIDisplay } from "../../../components/AnsiDisplay";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { usePrismHighlight } from "../../../components/prism";
+import { formatDateTime } from "../../../utils/format";
 import { Message } from "../chat/messages";
 import styles from "./ModelEventView.module.css";
 import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
-import { formatTiming, formatTitle } from "./event/utils";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface ModelEventViewProps {
@@ -89,20 +90,28 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     }
   }
 
-  const panelTitle = event.role
-    ? `Model Call (${event.role}): ${event.model}`
-    : `Model Call: ${event.model}`;
+  const panelTitle = eventTitle(event);
 
-  const turnLabel = context?.turnInfo
+  const outputRole =
+    outputMessages.length > 0 ? outputMessages[0].role : undefined;
+
+  const outputTimestamp = event.completed
+    ? formatDateTime(new Date(event.completed))
+    : undefined;
+
+  const baseTurnLabel = context?.turnInfo
     ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
     : undefined;
+
+  const turnLabel =
+    [outputTimestamp, baseTurnLabel].filter(Boolean).join(" | ") || undefined;
 
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      className={className}
-      title={formatTitle(panelTitle, totalUsage, callTime)}
+      className={clsx(className)}
+      title={formatTitle(panelTitle, totalUsage, callTime, outputRole)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
       turnLabel={turnLabel}
@@ -115,6 +124,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           toolCallStyle={showToolCalls ? "complete" : "omit"}
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
           allowLinking={false}
+          unlabeledRoles={["assistant"]}
         />
         {event.error ? (
           <div className={styles.error}>

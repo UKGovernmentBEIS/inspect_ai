@@ -18,7 +18,7 @@ from typing import (
     overload,
 )
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
+from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
@@ -307,7 +307,7 @@ def _read_samples_df_serial(
 
         # read samples
         async def read_samples_async(
-            eval_id: str, eval_log: EvalLog, async_fs: AsyncFilesystem
+            eval_id: str, eval_log: EvalLog
         ) -> Iterable[EvalSample | EvalSampleSummary]:
             # get samples (in-memory, full log, or summaries from disk)
             if (
@@ -318,21 +318,23 @@ def _read_samples_df_serial(
                 samples: Iterable[EvalSample | EvalSampleSummary] = eval_log.samples
             elif require_full_samples:
                 full_log = await read_eval_log_async(
-                    eval_log.location, resolve_attachments=True, async_fs=async_fs
+                    eval_log.location, resolve_attachments=True
                 )
                 samples = full_log.samples or []
             else:
-                samples = await read_eval_log_sample_summaries_async(
-                    eval_log.location, async_fs=async_fs
-                )
+                samples = await read_eval_log_sample_summaries_async(eval_log.location)
             p.update()
             return samples
 
-        log_samples = run_tg_collect_with_fs(
-            [
-                partial(read_samples_async, eval_id, eval_log)
-                for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs)
-            ]
+        log_samples = run_coroutine(
+            tg_collect(
+                [
+                    partial(read_samples_async, eval_id, eval_log)
+                    for eval_id, eval_log in zip(
+                        evals_table[EVAL_ID].to_list(), eval_logs
+                    )
+                ]
+            )
         )
 
         for samples, eval_id, eval_log in zip(

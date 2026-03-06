@@ -2,7 +2,6 @@ from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 
 import httpx
-import pytest
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
@@ -75,7 +74,6 @@ def create_mock_transport():
 class TestGoogleSearchRendering:
     """Test the rendering of Google search results."""
 
-    @pytest.mark.asyncio
     async def test_search_result_rendering(self):
         """Test that search results are properly rendered in the output."""
         mock_client = httpx.AsyncClient(transport=create_mock_transport())

@@ -9,6 +9,7 @@ title: "inspect_ai.scorer"
 ### pattern
 ### answer
 ### choice
+### math
 ### f1
 ### exact
 ### model_graded_qa

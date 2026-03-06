@@ -302,12 +302,27 @@ class AnthropicAPI(ModelAPI):
                 **self.model_args,
             )
         else:
+            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
+            # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
+            # create the client with auth_token= (sends Authorization: Bearer)
+            # instead of api_key= (sends X-Api-Key). The Anthropic API rejects
+            # requests that have both headers if the X-Api-Key is invalid, so
+            # we must use one or the other — not both.
+            auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+            if auth_token:
+                return AsyncAnthropic(
+                    base_url=base_url,
+                    auth_token=auth_token,
+                    default_headers={
+                        "anthropic-beta": "oauth-2025-04-20",
+                    },
+                    **self.model_args,
+                )
             # resolve api_key
             if not self.api_key:
                 self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
             if self.api_key is None:
                 raise environment_prerequisite_error("Anthropic", ANTHROPIC_API_KEY)
-            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
             return AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
@@ -445,7 +460,7 @@ class AnthropicAPI(ModelAPI):
                     request, streaming, tools, config
                 )
             except (BadRequestError, APIStatusError) as ex:
-                model_call.set_response(
+                model_call.set_error(
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 raise ex
@@ -585,7 +600,9 @@ class AnthropicAPI(ModelAPI):
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
-            if "does not support context management" in error_msg:
+            if "does not support context management" in error_msg or (
+                "does not support" in error_msg and "compact" in error_msg
+            ):
                 raise NotImplementedError(
                     f"Model {self.model_name} does not support native compaction: {error_msg}"
                 ) from output
@@ -600,6 +617,9 @@ class AnthropicAPI(ModelAPI):
         streaming: bool,
         tools: list[ToolInfo],
         config: GenerateConfig,
+        pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
+        | None = None,
+        pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
     ) -> tuple[dict[str, Any], ModelOutput]:
         """
         This helper function is split out so that it can be easily call itself recursively in cases where the model requires a continuation
@@ -607,6 +627,11 @@ class AnthropicAPI(ModelAPI):
         It considers the result from the initial request the "head" and the result
         from the continuation the "tail".
         """
+        if pending_tool_uses is None:
+            pending_tool_uses = dict()
+        if pending_mcp_tool_uses is None:
+            pending_mcp_tool_uses = dict()
+
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
         batch_config = normalized_batch_config(config.batch)
@@ -634,7 +659,12 @@ class AnthropicAPI(ModelAPI):
             head_message = await self.client.messages.create(**request, stream=False)
 
         head_model_output, continuation_required = await model_output_from_message(
-            self.client, self.service_model_name(), head_message, tools
+            self.client,
+            self.service_model_name(),
+            head_message,
+            tools,
+            pending_tool_uses=pending_tool_uses,
+            pending_mcp_tool_uses=pending_mcp_tool_uses,
         )
 
         if continuation_required:
@@ -643,7 +673,12 @@ class AnthropicAPI(ModelAPI):
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
-                tail_request, streaming, tools, config
+                tail_request,
+                streaming,
+                tools,
+                config,
+                pending_tool_uses=pending_tool_uses,
+                pending_mcp_tool_uses=pending_mcp_tool_uses,
             )
 
             head_content = _content_list(head_model_output.message.content)
@@ -1128,10 +1163,10 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            # computer_20251124 is only supported by Claude Opus 4.5
-            if (
-                self.is_claude_4_5() or self.is_claude_4_6()
-            ) and self.is_claude_4_opus():
+            # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
+            if self.is_claude_4_6() or (
+                self.is_claude_4_5() and self.is_claude_4_opus()
+            ):
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
                     name="computer",
@@ -1184,10 +1219,6 @@ class AnthropicAPI(ModelAPI):
             return (
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
-                )
-                if (self.is_claude_4_5() or self.is_claude_4_6())
-                else BetaToolTextEditor20250429Param(
-                    type="text_editor_20250429", name="str_replace_based_edit_tool"
                 )
                 if self.is_claude_4()
                 else BetaToolTextEditor20241022Param(
@@ -1865,10 +1896,16 @@ async def model_output_from_message(
     model: str | None,
     message: Message,
     tools: list[ToolInfo],
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
+    | None = None,
+    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
 ) -> tuple[ModelOutput, bool]:
     # extract content and tool calls
     content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
-        message.content, tools
+        message.content,
+        tools,
+        pending_tool_uses=pending_tool_uses,
+        pending_mcp_tool_uses=pending_mcp_tool_uses,
     )
 
     # count reasoning tokens
@@ -1959,6 +1996,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
         | ContentBlock
     ],
     tools: list[ToolInfo],
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
+    | None = None,
+    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
 ) -> tuple[list[Content], list[ToolCall] | None]:
     # resolve params to blocks
     content_blocks: list[
@@ -1989,8 +2029,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
 
-    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock] = dict()
-    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
+    if pending_tool_uses is None:
+        pending_tool_uses = dict()
+    if pending_mcp_tool_uses is None:
+        pending_mcp_tool_uses = dict()
+
     for content_block in content_blocks:
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
             tool_use_block = BetaMCPToolUseBlock.model_validate(
@@ -2001,7 +2044,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             tool_result_block = BetaMCPToolResultBlock.model_validate(
                 content_block.model_dump()
             )
-            pending_mcp_tool_use = pending_mcp_tool_uses.get(
+            pending_mcp_tool_use = pending_mcp_tool_uses.pop(
                 tool_result_block.tool_use_id, None
             )
             if pending_mcp_tool_use is None:
@@ -2035,7 +2078,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
         elif content_block.type == "web_fetch_tool_result":
             # confirm that there is a pending tool use
-            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
                     "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
@@ -2069,7 +2112,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
             or content_block.type == "text_editor_code_execution_tool_result"
         ):
             # confirm that there is a pending tool use
-            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
                     "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
@@ -2150,7 +2193,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif isinstance(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
-            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
                     "WebSearchToolResultBlock without previous ServerToolUseBlock"

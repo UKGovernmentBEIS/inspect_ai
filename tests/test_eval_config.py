@@ -48,6 +48,32 @@ def test_eval_config_task_cli():
         check_log(log, "green", check_model_roles=True)
 
 
+def test_eval_generate_config_cli():
+    with tempfile.TemporaryDirectory() as log_dir:
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "tests/test_eval_config.py@eval_config_task",
+                "--generate-config",
+                config_path("generate_config.yaml"),
+                "--temperature",
+                "0.9",
+                "--log-dir",
+                log_dir,
+                "--model",
+                "mockllm/model",
+            ],
+            check=True,
+        )
+        log = read_eval_log(list_eval_logs(log_dir)[0])
+        # temperature should be overridden by explicit CLI option
+        assert log.plan.config.temperature == 0.9
+        # these should come from the config file
+        assert log.plan.config.max_tokens == 512
+        assert log.plan.config.seed == 42
+
+
 @solver
 def eval_config_solver(shape="square"):
     async def solve(state, generate):

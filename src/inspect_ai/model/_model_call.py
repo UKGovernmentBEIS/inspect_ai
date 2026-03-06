@@ -8,6 +8,14 @@ from inspect_ai._util.json import jsonable_python
 
 def as_error_response(body: object | None) -> dict[str, JsonValue]:
     """Convert an exception body to a safe response dict for ModelCall."""
+    if isinstance(body, BaseModel):
+        try:
+            return cast(dict[str, JsonValue], body.model_dump(warnings=False))
+        except Exception:
+            return cast(
+                dict[str, JsonValue],
+                json.loads(body.model_dump_json(warnings=False)),
+            )
     if isinstance(body, dict):
         return cast(dict[str, JsonValue], jsonable_python(body))
     if isinstance(body, str):
@@ -38,6 +46,9 @@ class ModelCall(BaseModel):
 
     response: dict[str, JsonValue] | None = Field(default=None)
     """Raw response data from model (None if call is still pending)."""
+
+    error: bool | None = Field(default=None)
+    """Did this model call result in an error."""
 
     time: float | None = Field(default=None)
     """Time taken for underlying model call."""
@@ -91,6 +102,10 @@ class ModelCall(BaseModel):
             )
         self.response = response_dict
         self.time = time
+
+    def set_error(self, response: Any, time: float | None = None) -> None:
+        self.error = True
+        self.set_response(response, time)
 
 
 def _walk_json_value(

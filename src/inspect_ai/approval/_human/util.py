@@ -1,10 +1,16 @@
+from pydantic import JsonValue
 from rich.console import RenderableType
 from rich.highlighter import ReprHighlighter
+from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 
 from inspect_ai._util.transcript import transcript_markdown
-from inspect_ai.tool._tool_call import ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCallContent,
+    ToolCallView,
+    substitute_tool_call_content,
+)
 from inspect_ai.util._display import display_type
 
 HUMAN_APPROVED = "Human operator approved tool call."
@@ -13,16 +19,31 @@ HUMAN_TERMINATED = "Human operator asked that the sample be terminated."
 HUMAN_ESCALATED = "Human operator escalated the tool call approval."
 
 
-def render_tool_approval(message: str, view: ToolCallView) -> list[RenderableType]:
+def render_tool_approval(
+    message: str, view: ToolCallView, arguments: dict[str, JsonValue] | None = None
+) -> list[RenderableType]:
     renderables: list[RenderableType] = []
     text_highlighter = ReprHighlighter()
+
+    # substitute placeholders in view content
+    if arguments is not None:
+        view = ToolCallView(
+            context=substitute_tool_call_content(view.context, arguments)
+            if view.context
+            else None,
+            call=substitute_tool_call_content(view.call, arguments)
+            if view.call
+            else None,
+        )
 
     # ignore content if trace enabled
     message = message.strip() if display_type() != "conversation" else ""
 
     def add_view_content(view_content: ToolCallContent) -> None:
         if view_content.title:
-            renderables.append(Text.from_markup(f"[bold]{view_content.title}[/bold]\n"))
+            renderables.append(
+                Text.from_markup(f"[bold]{escape(view_content.title)}[/bold]\n")
+            )
         if view_content.format == "markdown":
             renderables.append(transcript_markdown(view_content.content))
         else:

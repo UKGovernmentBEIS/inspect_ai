@@ -1,6 +1,9 @@
 import { ApprovalEvent, ModelEvent, ToolEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
-import { resolveToolInput } from "../chat/tools/tool";
+import {
+  resolveToolInput,
+  substituteToolCallContent,
+} from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
@@ -10,7 +13,7 @@ import { FC, useMemo } from "react";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { ChatView } from "../chat/ChatView";
 import { EventNodeContext } from "./TranscriptVirtualList";
-import { formatTiming, formatTitle } from "./event/utils";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 import { EventNode, EventType } from "./types";
 
@@ -59,12 +62,11 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
     };
   }, [children]);
 
-  const title = `Tool: ${event.view?.title || event.function}`;
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={formatTitle(title, undefined, event.working_time)}
+      title={formatTitle(eventTitle(event), undefined, event.working_time)}
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
@@ -81,7 +83,14 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           contentType={contentType}
           output={event.error?.message || event.result}
           mode="compact"
-          view={event.view ? event.view : undefined}
+          view={
+            event.view
+              ? substituteToolCallContent(
+                  event.view,
+                  event.arguments as Record<string, unknown>,
+                )
+              : undefined
+          }
         />
 
         {lastModelNode ? (

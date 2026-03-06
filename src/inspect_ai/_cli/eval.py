@@ -2,6 +2,7 @@ import functools
 from typing import Any, Callable, Literal, cast
 
 import click
+from pydantic import TypeAdapter
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -17,12 +18,16 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_RETRY_ON_ERROR,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._generate_config import BatchConfig, ResponseSchema
+from inspect_ai.model._generate_config import (
+    BatchConfig,
+    ResponseSchema,
+)
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
@@ -58,6 +63,8 @@ RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no re
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
+LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
+LOG_REFUSALS_HELP = "Log warnings for model refusals."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -353,6 +360,22 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help=LOG_IMAGES_HELP,
     )
     @click.option(
+        "--log-model-api/--no-log-model-api",
+        type=bool,
+        default=False,
+        is_flag=True,
+        help=LOG_MODEL_API_HELP,
+        envvar="INSPECT_EVAL_LOG_MODEL_API",
+    )
+    @click.option(
+        "--log-refusals/--no-log-refusals",
+        type=bool,
+        default=False,
+        is_flag=True,
+        help=LOG_REFUSALS_HELP,
+        envvar="INSPECT_EVAL_LOG_REFUSALS",
+    )
+    @click.option(
         "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
     )
     @click.option(
@@ -377,6 +400,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SCORE_HELP,
         envvar="INSPECT_EVAL_SCORE_DISPLAY",
+    )
+    @click.option(
+        "--generate-config",
+        type=str,
+        envvar="INSPECT_EVAL_GENERATE_CONFIG",
+        help="YAML or JSON config file with GenerateConfig (alternatively, use the options for individual config values).",
     )
     @click.option(
         "--max-tokens",
@@ -602,6 +631,7 @@ def eval_command(
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
+    generate_config: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -650,6 +680,8 @@ def eval_command(
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
+    log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -712,6 +744,8 @@ def eval_command(
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
         log_images=log_images,
+        log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         no_score=no_score,
@@ -805,6 +839,7 @@ def eval_set_command(
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
+    generate_config: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -853,6 +888,8 @@ def eval_set_command(
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
+    log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -922,6 +959,8 @@ def eval_set_command(
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
         log_images=log_images,
+        log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         no_score=no_score,
@@ -988,6 +1027,8 @@ def eval_exec(
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
+    log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -1101,6 +1142,8 @@ def eval_exec(
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
+            log_model_api=log_model_api,
+            log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score=score,
@@ -1128,9 +1171,28 @@ def eval_exec(
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
+    # start with config file if specified
+    adapter = TypeAdapter(GenerateConfigArgs)
+    generate_config_file = locals.pop("generate_config", None)
+    if generate_config_file:
+        # read file
+        generate_config = resolve_args(generate_config_file)
+
+        # validate all the fields are valid
+        extra_keys = generate_config.keys() - GenerateConfigArgs.__annotations__.keys()
+        if extra_keys:
+            raise PrerequisiteError(
+                f"Unexpected GenerateConfig fields in {generate_config_file}: {extra_keys}"
+            )
+
+        # create base config
+        base_config = adapter.validate_python(generate_config, strict=True)
+    else:
+        base_config = GenerateConfigArgs()
+
     # build generate config
     config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-    config = GenerateConfigArgs()
+    config = GenerateConfigArgs(**base_config)
     for key, value in locals.items():
         if key in config_keys and value is not None:
             if key == "stop_seqs":
@@ -1280,6 +1342,22 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_LOG_IMAGES",
 )
 @click.option(
+    "--log-model-api/--no-log-model-api",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help=LOG_MODEL_API_HELP,
+    envvar="INSPECT_EVAL_LOG_MODEL_API",
+)
+@click.option(
+    "--log-refusals/--no-log-refusals",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help=LOG_REFUSALS_HELP,
+    envvar="INSPECT_EVAL_LOG_REFUSALS",
+)
+@click.option(
     "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
 )
 @click.option(
@@ -1347,6 +1425,8 @@ def eval_retry_command(
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
+    log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -1367,6 +1447,8 @@ def eval_retry_command(
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
+    log_model_api = True if log_model_api is True else None
+    log_refusals = True if log_refusals is True else None
     score = False if no_score else True
     score_display = False if no_score_display else None
 
@@ -1404,6 +1486,8 @@ def eval_retry_command(
         log_samples=log_samples,
         log_realtime=log_realtime,
         log_images=log_images,
+        log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         score=score,

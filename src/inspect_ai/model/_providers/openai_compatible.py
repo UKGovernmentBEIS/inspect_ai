@@ -138,6 +138,8 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def initialize(self) -> None:
         super().initialize()
+        if self.http_client.is_closed:
+            self.http_client = OpenAIAsyncHttpxClient()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
@@ -238,7 +240,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
-                model_call.set_response(
+                model_call.set_error(
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 return self.handle_bad_request(ex), model_call

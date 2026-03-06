@@ -28,6 +28,12 @@ export interface SampleSlice {
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
 
+    prepareForSampleLoad: (
+      logFile: string,
+      id: number | string,
+      epoch: number,
+    ) => void;
+
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
@@ -79,6 +85,7 @@ const initialState: SampleState = {
   sampleInState: false,
   sampleStatus: "ok",
   sampleError: undefined,
+  eventsCleared: false,
 
   visiblePopover: undefined,
 
@@ -109,6 +116,12 @@ export const createSampleSlice = (
       setSelectedSample: (sample: EvalSample, logFile: string) => {
         const isLarge = isLargeSample(sample);
 
+        // Detect if events were cleared by the preprocessor:
+        // a sample with messages but no events indicates the events array
+        // was stripped to reduce memory usage.
+        const eventsCleared =
+          sample.events.length === 0 && (sample.messages?.length ?? 0) > 0;
+
         // Update state based on sample size
         set((state) => {
           state.sample.sample_identifier = {
@@ -117,6 +130,7 @@ export const createSampleSlice = (
             logFile: logFile,
           };
           state.sample.sampleInState = !isLarge;
+          state.sample.eventsCleared = eventsCleared;
 
           // Only store in state if it's small
           if (!isLarge) {
@@ -152,6 +166,22 @@ export const createSampleSlice = (
           state.sample.runningEvents = [];
           state.sample.sampleStatus = "ok";
           state.log.selectedSampleHandle = undefined;
+        });
+      },
+      prepareForSampleLoad: (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
+        getSamplePolling().stopPolling();
+        selectedSampleRef.current = undefined;
+        set((state) => {
+          state.sample.selectedSampleObject = undefined;
+          state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "loading";
+          state.sample.sampleError = undefined;
+          state.sample.sample_identifier = { logFile, id, epoch };
         });
       },
       setSampleStatus: (status: SampleStatus) =>
