@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
 from openai.types.responses import (
-    ComputerUseToolParam,
+    ComputerToolParam,
     ResponseComputerToolCall,
     ResponseComputerToolCallOutputScreenshotParam,
 )
@@ -79,9 +79,9 @@ def tool_call_from_openai_computer_tool_call(
 
 def maybe_computer_use_tool(
     model_name: str, tool: ToolInfo
-) -> ComputerUseToolParam | None:
+) -> ComputerToolParam | None:
     return (
-        ComputerUseToolParam(type="computer")
+        ComputerToolParam(type="computer")
         if "gpt-5.4" in model_name
         and tool.name == "computer"
         and tool.parameters.properties.keys() == _COMPUTER_PARAMETERS

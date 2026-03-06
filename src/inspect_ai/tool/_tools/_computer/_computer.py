@@ -116,12 +116,24 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         Returns:
           The output of the command. Many commands will include a screenshot reflecting the result of the command in their output.
         """
-        action_list = actions if actions is not None else [
-            _build_action_args(
-                action, coordinate, duration, region,
-                scroll_amount, scroll_direction, start_coordinate, text,
-            )
-        ] if action is not None else None
+        action_list = (
+            actions
+            if actions is not None
+            else [
+                _build_action_args(
+                    action,
+                    coordinate,
+                    duration,
+                    region,
+                    scroll_amount,
+                    scroll_direction,
+                    start_coordinate,
+                    text,
+                )
+            ]
+            if action is not None
+            else None
+        )
         assert action_list, "Either 'action' or 'actions' must be provided"
 
         result: ToolResult = "OK"

@@ -6,7 +6,7 @@ from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
     CompactedResponse,
-    ComputerUseToolParam,
+    ComputerToolParam,
     CustomToolParam,
     EasyInputMessageParam,
     FunctionToolParam,
@@ -1477,7 +1477,7 @@ def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
     return tool_param.get("type") == "mcp"
 
 
-def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerUseToolParam]:
+def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam]:
     return tool_param.get("type") == "computer"
 
 
