@@ -1,3 +1,7 @@
+## Unreleased
+
+- Timelines: Detect `agent_result` for timeline spans.
+
 ## 0.3.188 (05 March 2026)
 
 - OpenAI: Fix mypy issues with OpenAI SDK 2.26 (now required).
