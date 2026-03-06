@@ -16,20 +16,20 @@ To select a model for an evaluation, pass it's name on the command line or use t
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4o-mini
-inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4o-mini")
-eval("arc.py", model="anthropic/claude-3-5-sonnet-latest")
+eval("arc.py", model="anthropic/claude-sonnet-4-0")
 ```
 
 Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable (either in the shell or a `.env` file) to select a model externally:
 
 ``` bash
-INSPECT_EVAL_MODEL=google/gemini-1.5-pro
+INSPECT_EVAL_MODEL=google/gemini-2.5-pro
 ```
 
 #### No Model
@@ -56,14 +56,14 @@ You can specify generation options either on the command line or in direct calls
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4 --temperature 0.9
-inspect eval arc.py --model google/gemini-1.5-pro --max-connections 20
+inspect eval arc.py --model google/gemini-2.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4", temperature=0.9)
-eval("arc.py", model="google/gemini-1.5-pro", max_connections=20)
+eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation config options.
@@ -73,7 +73,7 @@ Use `inspect eval --help` to learn about all of the available generation config 
 If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
 
 ``` bash
-inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
+inspect eval arc.py --model google/gemini-2.5-pro -M location=us-east5
 ```
 
 See the documentation for the requisite model provider for information on how model args are passed through to model clients.
@@ -162,6 +162,38 @@ Or with `eval()`:
 eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
 ```
 
+Note that the built-in [model-graded scorers](scorers.qmd#model-graded) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
+
+### Role Resolution
+
+Model roles are resolved based on what is passed to `eval()`. This means that if you fully construct tasks before calling `eval()` (e.g. by calling their `@task` function) then the initialization code for tasks, solvers, and scorers for can't see the model role definitions. 
+
+Given this, you should always call `get_model()` _inside_ the implementation of your solver or scorer function rather than during initialization. For example:
+
+**Don't do this (model role not yet visible)**
+
+``` python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    model = get_model(role="grader") # <1> 
+    async def score(state: TaskState, target: Target):   
+        ...
+```
+
+1. Role is not yet visible when `@task` function is called before `eval()`.
+
+**Rather do this (defer until role is visible)**
+
+``` python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    async def score(state: TaskState, target: Target):  
+        model = get_model(role="grader") # <1>  
+        ...
+```
+
+1. Role is visible since we are calling this after `eval()`.
+
 ### Role Defaults
 
 By default if there is a no role explicitly defined then `get_model(role="...")` will return the default model for the evaluation. You can specify an alternate default model as follows:
@@ -212,8 +244,12 @@ inspect eval math.py \
 
 -   [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
 
+-   [Compaction](compaction.qmd) covers compacting message histories for long-running agents that exceed the context window.
+
 -   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
+
+-   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
 
 -   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.

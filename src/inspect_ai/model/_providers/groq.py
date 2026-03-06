@@ -32,6 +32,8 @@ from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._call_tools import parse_tool_call
@@ -44,7 +46,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -82,14 +84,20 @@ class GroqAPI(ModelAPI):
         if not self.api_key:
             raise environment_prerequisite_error("Groq", GROQ_API_KEY)
 
-        self.client = AsyncGroq(
+        self.model_args = model_args
+        self.initialize()
+
+    def _create_client(self) -> AsyncGroq:
+        return AsyncGroq(
             api_key=self.api_key,
-            base_url=model_base_url(base_url, "GROQ_BASE_URL"),
-            **model_args,
+            base_url=model_base_url(self.base_url, "GROQ_BASE_URL"),
+            **self.model_args,
             http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
         )
 
-        # create time tracker
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
     @override
@@ -106,18 +114,6 @@ class GroqAPI(ModelAPI):
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=model_call_filter,
-                time=self._http_hooks.end_request(request_id),
-            )
-
         messages = await as_groq_chat_messages(input)
 
         params = self.completion_params(config)
@@ -132,8 +128,14 @@ class GroqAPI(ModelAPI):
         request = dict(
             messages=messages,
             model=self.model_name,
-            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
             **params,
+        )
+
+        model_call = set_active_model_event_call(
+            request=request,
+            filter=model_call_filter,
         )
 
         try:
@@ -141,7 +143,9 @@ class GroqAPI(ModelAPI):
                 **request,
             )
 
-            response = completion.model_dump()
+            model_call.set_response(
+                completion.model_dump(), self._http_hooks.end_request(request_id)
+            )
 
             # extract metadata
             metadata: dict[str, Any] = {
@@ -180,9 +184,12 @@ class GroqAPI(ModelAPI):
             )
 
             # return
-            return output, model_call()
+            return output, model_call
         except APIStatusError as ex:
-            return self.handle_bad_request(ex), model_call()
+            model_call.set_error(
+                as_error_response(ex.body), self._http_hooks.end_request(request_id)
+            )
+            return self.handle_bad_request(ex), model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
@@ -202,6 +209,20 @@ class GroqAPI(ModelAPI):
             params["seed"] = config.seed
         if config.num_choices is not None:
             params["n"] = config.num_choices
+        if config.reasoning_effort is not None:
+            params["reasoning_effort"] = config.reasoning_effort
+        if config.response_schema is not None:
+            params["response_format"] = dict(
+                type="json_schema",
+                json_schema=dict(
+                    name=config.response_schema.name,
+                    schema=config.response_schema.json_schema.model_dump(
+                        exclude_none=True
+                    ),
+                    description=config.response_schema.description,
+                    strict=config.response_schema.strict,
+                ),
+            )
         return params
 
     def _chat_choices_from_response(
@@ -231,12 +252,27 @@ class GroqAPI(ModelAPI):
         return str(self.api_key)
 
     @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return ex.status_code == 401
+        return False
+
+    @override
     def collapse_user_messages(self) -> bool:
         return False
 
     @override
     def collapse_assistant_messages(self) -> bool:
         return False
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Groq model names don't map directly to HuggingFace format.
+        Return the raw model name and rely on fuzzy matching in get_model_info().
+        """
+        return self.model_name
 
     @override
     def max_tokens(self) -> Optional[int]:
@@ -254,7 +290,7 @@ class GroqAPI(ModelAPI):
                 content = str(error.get("message", content))
                 code = error.get("code", code)
 
-            if code == "context_length_exceeded":
+            if code == "context_length_exceeded" or "reduce the length" in content:
                 return ModelOutput.from_content(
                     model=self.model_name,
                     content=content,
@@ -283,9 +319,21 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
         return ChatCompletionUserMessageParam(role="user", content=content)
 
     elif isinstance(message, ChatMessageAssistant):
+        # emulate reasoning
+        if isinstance(message.content, list):
+            content = "\n".join(
+                [
+                    c.text if isinstance(c, ContentText) else reasoning_to_think_tag(c)
+                    for c in message.content
+                    if isinstance(c, ContentText | ContentReasoning)
+                ]
+            )
+        else:
+            content = message.content
+
         return ChatCompletionAssistantMessageParam(
             role="assistant",
-            content=message.text,
+            content=content,
             tool_calls=[
                 ChatCompletionMessageToolCallParam(
                     id=call.id,
@@ -321,7 +369,9 @@ async def as_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     else:
         raise RuntimeError("Groq models do not support audio or video inputs.")

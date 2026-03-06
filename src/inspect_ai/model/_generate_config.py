@@ -5,6 +5,8 @@ from typing import Any, Literal, Union
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.util._json import JSONSchema
 
 
@@ -25,6 +27,32 @@ class ResponseSchema(BaseModel):
     OpenAI and Mistral only."""
 
 
+class BatchConfig(BaseModel):
+    """Batch processing configuration."""
+
+    size: int | None = Field(default=None)
+    """Target minimum number of requests to include in each batch. If not specified, uses default of 100. Batches may be smaller if the timeout is reached or if requests don’t fit within size limits."""
+
+    max_size: int | None = Field(default=None)
+    """Maximum number of requests to include in each batch. If not specified, falls back to the provider-specific maximum batch size."""
+
+    send_delay: float | None = Field(default=None)
+    """Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low.
+    """
+
+    tick: float | None = Field(default=None)
+    """Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds.
+
+    When expecting a very large number of concurrent batches, consider increasing this value to reduce overhead from continuous polling since an http request must be made for each batch on each tick.
+    """
+
+    max_batches: int | None = Field(default=None)
+    """Maximum number of batches to have in flight at once for a provider (defaults to 100)."""
+
+    max_consecutive_check_failures: int | None = Field(default=None)
+    """Maximum number of consecutive check failures before failing a batch (defaults to 1000)."""
+
+
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
@@ -33,6 +61,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     timeout: int | None
     """Request timeout (in seconds)."""
+
+    attempt_timeout: int | None
+    """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
 
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
@@ -74,10 +105,10 @@ class GenerateConfigArgs(TypedDict, total=False):
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
 
     logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
+    """Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
 
     top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, and Huggingface only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only."""
 
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
@@ -91,14 +122,22 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["low", "medium", "high"] | None
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+    verbosity: Literal["low", "medium", "high"] | None
+    """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
+
+    effort: Literal["low", "medium", "high", "max"] | None
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
+
+    reasoning_effort: (
+        Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
+    )
+    """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
     reasoning_tokens: int | None
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
-    reasoning_summary: Literal["concise", "detailed", "auto"] | None
-    """Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only."""
+    reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None
+    """Provide summary of reasoning steps (OpenAI reasoning models only). Use 'auto' to access the most detailed summarizer available for the current model (defaults to 'auto' if your organization is verified by OpenAI)."""
 
     reasoning_history: Literal["none", "all", "last", "auto"] | None
     """Include reasoning in chat message history sent to generate."""
@@ -106,8 +145,17 @@ class GenerateConfigArgs(TypedDict, total=False):
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
+    extra_headers: dict[str, str] | None
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    cache: bool | CachePolicy | None
+    """Policy for caching of model generations."""
+
+    batch: bool | int | BatchConfig | None
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
 
 class GenerateConfig(BaseModel):
@@ -117,7 +165,10 @@ class GenerateConfig(BaseModel):
     """Maximum number of times to retry request (defaults to unlimited)."""
 
     timeout: int | None = Field(default=None)
-    """Request timeout (in seconds)."""
+    """Timeout (in seconds) for an entire request (including retries)."""
+
+    attempt_timeout: int | None = Field(default=None)
+    """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
 
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""
@@ -176,16 +227,24 @@ class GenerateConfig(BaseModel):
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+    verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
+    """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
+
+    effort: Literal["low", "medium", "high", "max"] | None = Field(default=None)
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
+
+    reasoning_effort: (
+        Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
+    ) = Field(default=None)
+    """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
-    reasoning_summary: Literal["concise", "detailed", "auto"] | None = Field(
+    reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None = Field(
         default=None
     )
-    """Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only."""
+    """Provide summary of reasoning steps (OpenAI reasoning models only). Use 'auto' to access the most detailed summarizer available for the current model (defaults to 'auto' if your organization is verified by OpenAI)."""
 
     reasoning_history: Literal["none", "all", "last", "auto"] | None = Field(
         default=None
@@ -195,8 +254,17 @@ class GenerateConfig(BaseModel):
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, vLLM, and SGLang only."""
 
+    extra_headers: dict[str, str] | None = Field(default=None)
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    cache: bool | CachePolicy | None = Field(default=None)
+    """Policy for caching of model generate output."""
+
+    batch: bool | int | BatchConfig | None = Field(default=None)
+    """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
@@ -245,3 +313,15 @@ def set_active_generate_config(config: GenerateConfig) -> None:
 active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
     "generate_config", default=GenerateConfig()
 )
+
+
+def normalized_batch_config(
+    batch: bool | int | BatchConfig | None,
+) -> BatchConfig | None:
+    return (
+        batch
+        if isinstance(batch, BatchConfig)
+        else None
+        if not batch
+        else BatchConfig(size=DEFAULT_BATCH_SIZE if batch is True else batch)
+    )

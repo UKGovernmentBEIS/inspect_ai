@@ -35,14 +35,14 @@ export function createLogPolling(
     log.debug(`refresh: ${selectedLogFile}`);
 
     try {
-      const logContents = await api.get_log_summary(selectedLogFile);
+      const logDetails = await api.get_log_details(selectedLogFile);
 
       set((state) => {
         // Set the log summary
-        state.log.selectedLogSummary = logContents;
+        state.log.selectedLogDetails = logDetails;
         log.debug(
-          `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
-          logContents,
+          `Setting refreshed summary ${logDetails.sampleSummaries.length} samples`,
+          logDetails,
         );
 
         // Clear pending summaries if requested
@@ -129,14 +129,24 @@ export function createLogPolling(
           // Continue polling
           return true;
         } else if (pendingSamples.status === "NotFound") {
-          // The eval has completed (no more events/pending samples will be delivered)
+          // NotFound can mean either:
+          // 1. The eval completed (buffer cleaned up)
+          // 2. The sample buffer isn't ready yet (eval just started)
+          // Only stop polling if the eval is no longer running.
+          const currentStatus = get().log.selectedLogDetails?.status;
+          if (currentStatus === "started") {
+            log.debug(
+              `NotFound but eval still running, continuing to poll: ${logFileName}`,
+            );
+            // Refresh log details to pick up any status changes
+            await refreshLog(logFileName, false);
+            return true;
+          }
+
           log.debug(`Stop polling running samples: ${logFileName}`);
 
           // Clear pending summaries and refresh in one transaction
-          if (
-            loadedPendingSamples ||
-            state.log.selectedLogSummary?.status === "started"
-          ) {
+          if (loadedPendingSamples) {
             log.debug(`Refresh log: ${logFileName}`);
             await refreshLog(logFileName, true);
           }

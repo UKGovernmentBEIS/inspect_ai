@@ -7,11 +7,12 @@ import time
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
-from sqlite3 import Connection
+from sqlite3 import Connection, OperationalError
 from typing import Callable, Iterator, Literal
 
 import psutil
 from pydantic import BaseModel
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
@@ -20,9 +21,11 @@ from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai.model import ChatMessage
 
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
+    WalkContext,
     attachments_content_fn,
     walk_events,
     walk_input,
@@ -82,8 +85,9 @@ class SampleBufferDatabase(SampleBuffer):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_id TEXT,
         sample_epoch INTEGER,
-        hash TEXT UNIQUE,
-        content TEXT
+        hash TEXT,
+        content TEXT,
+        UNIQUE(sample_id, sample_epoch, hash)
     );
 
     -- Indices for foreign keys and common queries
@@ -146,7 +150,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
-            sample = self._consense_sample(conn, sample)
+            sample = self._condense_sample(conn, sample)
             conn.execute(
                 """
                 INSERT INTO samples (id, epoch, data)
@@ -160,10 +164,10 @@ class SampleBufferDatabase(SampleBuffer):
             # collect the values for all events
             values: list[str | int] = []
             for event in events:
-                event = self._consense_event(conn, event)
+                event = self._condense_event(conn, event)
                 values.extend(
                     (
-                        event.event.id_,
+                        event.event.uuid or uuid(),
                         str(event.id),
                         event.epoch,
                         to_json_str_safe(event.event),
@@ -182,7 +186,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def complete_sample(self, summary: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
-            summary = self._consense_sample(conn, summary)
+            summary = self._condense_sample(conn, summary)
             conn.execute(
                 """
                 UPDATE samples SET data = ? WHERE id = ? and epoch = ?
@@ -209,29 +213,36 @@ class SampleBufferDatabase(SampleBuffer):
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
-                # Build a query using individual column comparisons instead of row values
-                placeholders = " OR ".join(
-                    ["(sample_id=? AND sample_epoch=?)" for _ in samples]
-                )
+                BATCH_SIZE = 100
+                for i in range(0, len(samples), BATCH_SIZE):
+                    # Slice out the batch
+                    batch = samples[i : i + BATCH_SIZE]
 
-                # Flatten parameters for binding
-                parameters = [item for tup in samples for item in tup]
+                    # Build a query using individual column comparisons instead of row values
+                    placeholders = " OR ".join(
+                        ["(sample_id=? AND sample_epoch=?)" for _ in batch]
+                    )
 
-                # Delete associated events first
-                events_query = f"""
-                    DELETE FROM events
-                    WHERE {placeholders}
-                """
-                cursor.execute(events_query, parameters)
+                    # Flatten parameters for binding
+                    parameters = [item for tup in batch for item in tup]
 
-                # Then delete the samples using the same approach
-                placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in samples])
+                    # Delete associated events first
+                    events_query = f"""
+                        DELETE FROM events
+                        WHERE {placeholders}
+                    """
+                    cursor.execute(events_query, parameters)
 
-                samples_query = f"""
-                    DELETE FROM samples
-                    WHERE {placeholders}
-                """
-                cursor.execute(samples_query, parameters)
+                    # Then delete the samples using the same approach
+                    placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in batch])
+
+                    samples_query = f"""
+                        DELETE FROM samples
+                        WHERE {placeholders}
+                    """
+                    cursor.execute(samples_query, parameters)
+            except OperationalError as ex:
+                logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
 
@@ -247,7 +258,7 @@ class SampleBufferDatabase(SampleBuffer):
         db_dir = resolve_db_dir() / log_subdir
 
         if db_dir.exists():
-            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.glob("*.*.db")]
+            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.rglob("*.*.db")]
             return logs
         else:
             return None
@@ -388,7 +399,9 @@ class SampleBufferDatabase(SampleBuffer):
         return TaskData(**task_data)
 
     def _get_samples(
-        self, conn: Connection, resolve_attachments: bool = False
+        self,
+        conn: Connection,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> Iterator[EvalSampleSummary]:
         cursor = conn.execute(
             """
@@ -410,7 +423,7 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
-        resolve_attachments: bool = False,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> Iterator[EventData]:
         query = """
             SELECT id, event_id, data
@@ -426,10 +439,12 @@ class SampleBufferDatabase(SampleBuffer):
 
         cursor = conn.execute(query, params)
 
+        message_cache: dict[str, ChatMessage] = {}
+
         for row in cursor:
             event = json.loads(row["data"])
-            if resolve_attachments:
-                event = self._resolve_event_attachments(conn, event)
+            if resolve_attachments is True or resolve_attachments == "full":
+                event = self._resolve_event_attachments(conn, event, message_cache)
             yield EventData(
                 id=row["id"],
                 event_id=row["event_id"],
@@ -466,7 +481,7 @@ class SampleBufferDatabase(SampleBuffer):
                 content=row["content"],
             )
 
-    def _consense_sample(
+    def _condense_sample(
         self, conn: Connection, sample: EvalSampleSummary
     ) -> EvalSampleSummary:
         # alias attachments
@@ -474,7 +489,9 @@ class SampleBufferDatabase(SampleBuffer):
         sample = sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._create_attachments_content_fn(attachments)
+                    sample.input,
+                    self._create_attachments_content_fn(attachments),
+                    WalkContext(message_cache={}, only_core=False),
                 )
             }
         )
@@ -491,16 +508,20 @@ class SampleBufferDatabase(SampleBuffer):
         return sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._resolve_attachments_content_fn(conn)
+                    sample.input,
+                    self._resolve_attachments_content_fn(conn),
+                    WalkContext(message_cache={}, only_core=False),
                 )
             }
         )
 
-    def _consense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
+    def _condense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
         # alias attachments
         attachments: dict[str, str] = {}
         event.event = walk_events(
-            [event.event], self._create_attachments_content_fn(attachments)
+            [event.event],
+            self._create_attachments_content_fn(attachments),
+            WalkContext(message_cache={}, only_core=False),
         )[0]
 
         # insert attachments
@@ -509,8 +530,14 @@ class SampleBufferDatabase(SampleBuffer):
         # return events with aliases
         return event
 
-    def _resolve_event_attachments(self, conn: Connection, event: JsonData) -> JsonData:
-        return walk_json_dict(event, self._resolve_attachments_content_fn(conn))
+    def _resolve_event_attachments(
+        self, conn: Connection, event: JsonData, message_cache: dict[str, ChatMessage]
+    ) -> JsonData:
+        return walk_json_dict(
+            event,
+            self._resolve_attachments_content_fn(conn),
+            WalkContext(message_cache=message_cache, only_core=False),
+        )
 
     def _create_attachments_content_fn(
         self, attachments: dict[str, str]
@@ -694,7 +721,7 @@ def maximum_ids(
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
     try:
         db_dir = resolve_db_dir(db_dir)
-        for db in db_dir.glob("*.*.db"):
+        for db in db_dir.rglob("*.*.db"):
             # this is a failsafe cleanup method for buffer db's leaked during
             # abnormal terminations. therefore, it's not critical that we clean
             # it up immediately. it's also possible that users are _sharing_
@@ -714,6 +741,12 @@ def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
 def cleanup_sample_buffer_db(path: Path) -> None:
     try:
         path.unlink(missing_ok=True)
+        try:
+            # Remove the directory if it's empty
+            path.parent.rmdir()
+        except OSError:
+            # Not empty or other error, which is fine
+            pass
     except Exception as ex:
         logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
 

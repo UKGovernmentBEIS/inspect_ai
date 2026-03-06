@@ -89,7 +89,7 @@ def basic_agent(
        max_attempts: Maximum number of submissions to accept before terminating.
        message_limit: Limit on messages in sample before terminating agent.
           If not specified, will use limit_messages defined for the task. If there is none
-          defined for the task, 50 will be used as a default.
+          defined for the task and there is no `token_limit`, 50 will be used as a default.
        token_limit: Limit on tokens used in sample before terminating agent.
        max_tool_output: Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig.
@@ -168,9 +168,13 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # resolve message_limit -- prefer parameter then fall back to task
-            # (if there is no message_limit then default to 50)
-            state.message_limit = message_limit or state.message_limit or 50
+            # resolve message_limit -- prefer parameter then fall back to task.
+            # if there is no message limit AND no token limit then provide
+            # a default message limit of 50 (so that the task can't run forever
+            # if the model never submits)
+            state.message_limit = message_limit or state.message_limit
+            if state.message_limit is None and token_limit is None:
+                state.message_limit = 50
 
             # track attempts
             attempts = 0

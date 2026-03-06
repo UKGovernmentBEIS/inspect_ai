@@ -3,6 +3,7 @@ from typing import AsyncIterator
 
 from inspect_ai._util.json import json_changes
 from inspect_ai._util.registry import registry_log_name
+from inspect_ai.event._state import StateEvent
 from inspect_ai.util._span import span
 
 from ._solver import Solver
@@ -15,7 +16,7 @@ class SolverTranscript:
         self.before = state_jsonable(before_state)
 
     def complete(self, after_state: TaskState) -> None:
-        from inspect_ai.log._transcript import StateEvent, transcript
+        from inspect_ai.log._transcript import transcript
 
         after = state_jsonable(after_state)
         changes = json_changes(self.before, after)

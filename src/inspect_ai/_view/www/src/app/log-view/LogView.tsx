@@ -14,6 +14,7 @@ import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { useLogNavigation } from "../routing/logNavigation";
 import styles from "./LogView.module.css";
+import { useErrorTabConfig } from "./tabs/ErrorTab";
 import { useInfoTabConfig } from "./tabs/InfoTab";
 import { useJsonTabConfig } from "./tabs/JsonTab";
 import { useModelsTab } from "./tabs/ModelsTab";
@@ -28,7 +29,7 @@ export const LogView: FC = () => {
   const refreshLog = useRefreshLog();
   const navigation = useLogNavigation();
 
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const evalSpec = useEvalSpec();
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
@@ -36,40 +37,48 @@ export const LogView: FC = () => {
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
-    selectedLogSummary?.status,
+    selectedLogDetails?.status,
     refreshLog,
   );
 
-  const configTabConfig = useInfoTabConfig(
+  const intoTabConfig = useInfoTabConfig(
     evalSpec,
-    selectedLogSummary?.plan,
-    selectedLogSummary?.error,
-    selectedLogSummary?.results,
+    selectedLogDetails?.plan,
+    selectedLogDetails?.error,
+    selectedLogDetails?.results,
+    selectedLogDetails?.status,
   );
 
-  const taskTabConfig = useTaskTabConfig(evalSpec, selectedLogSummary?.stats);
+  const errorTabConfig = useErrorTabConfig(selectedLogDetails?.error);
+
+  const taskTabConfig = useTaskTabConfig(
+    evalSpec,
+    selectedLogDetails?.stats,
+    selectedLogDetails?.results?.early_stopping,
+  );
 
   const modelsTabConfig = useModelsTab(
     evalSpec,
-    selectedLogSummary?.stats,
-    selectedLogSummary?.status,
+    selectedLogDetails?.stats,
+    selectedLogDetails?.status,
   );
 
   const jsonTabConfig = useJsonTabConfig(
-    selectedLogSummary?.version,
-    selectedLogSummary?.status,
+    selectedLogDetails?.version,
+    selectedLogDetails?.status,
     evalSpec,
-    selectedLogSummary?.plan,
-    selectedLogSummary?.error,
-    selectedLogSummary?.results,
-    selectedLogSummary?.stats,
+    selectedLogDetails?.plan,
+    selectedLogDetails?.error,
+    selectedLogDetails?.results,
+    selectedLogDetails?.stats,
   );
 
   const tabs: Record<string, TabDescriptor<any>> = {
     ...(samplesTabConfig ? { samples: samplesTabConfig } : {}),
     task: taskTabConfig,
     model: modelsTabConfig,
-    config: configTabConfig,
+    config: intoTabConfig,
+    ...(selectedLogDetails?.error ? { error: errorTabConfig } : {}),
     json: jsonTabConfig,
   };
 
@@ -84,7 +93,7 @@ export const LogView: FC = () => {
         navigation.selectTab(id);
       }
     },
-    [setSelectedTab, navigation.selectTab],
+    [setSelectedTab, navigation],
   );
 
   if (evalSpec === undefined) {
@@ -111,11 +120,11 @@ export const LogView: FC = () => {
       <Fragment>
         <TitleView
           evalSpec={evalSpec}
-          evalPlan={selectedLogSummary?.plan}
-          evalResults={selectedLogSummary?.results}
+          evalPlan={selectedLogDetails?.plan}
+          evalResults={selectedLogDetails?.results}
           runningMetrics={runningMetrics}
-          evalStats={selectedLogSummary?.stats}
-          status={selectedLogSummary?.status}
+          evalStats={selectedLogDetails?.stats}
+          status={selectedLogDetails?.status}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>

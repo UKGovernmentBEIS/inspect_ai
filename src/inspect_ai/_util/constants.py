@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
@@ -7,6 +7,7 @@ PKG_NAME = Path(__file__).parent.parent.stem
 PKG_PATH = Path(__file__).parent.parent
 DEFAULT_EPOCHS = 1
 DEFAULT_MAX_CONNECTIONS = 10
+DEFAULT_MAX_CONNECTIONS_BATCH = 10000
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_VIEW_PORT = 7575
 DEFAULT_SERVER_HOST = "127.0.0.1"
@@ -40,6 +41,12 @@ BASE_64_DATA_REMOVED = "<base64-data-removed>"
 SANDBOX_SETUP_TIMEOUT = 300
 NO_CONTENT = "(no content)"
 MODEL_NONE = "none/none"
+DEFAULT_BATCH_SIZE = 100
+DEFAULT_CACHE_DAYS = 7
 
 DESERIALIZING = "deserializing"
-DESERIALIZING_CONTEXT = {DESERIALIZING: True}
+MESSAGE_CACHE = "message_cache"
+
+
+def get_deserializing_context() -> dict[str, Any]:
+    return {DESERIALIZING: True, MESSAGE_CACHE: {}}

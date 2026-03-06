@@ -51,6 +51,10 @@ def background(
         raise RuntimeError(
             "background() function must be called from a running sample."
         )
+    if sample.tg is None:
+        raise RuntimeError(
+            "background() function must be called after sample has been started."
+        )
 
     # handle and log background exceptions
     async def run() -> None:

@@ -1,11 +1,11 @@
 import contextlib
 import logging
-from datetime import datetime
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 import anyio
 
 from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log import EvalStats
 
@@ -27,7 +27,7 @@ from ..core.display import (
     TaskSuccess,
     TaskWithResult,
 )
-from ..core.footer import task_http_retries_str
+from ..core.footer import task_http_retries_str, task_refusals_str
 from ..core.panel import task_title
 from ..core.results import task_metric
 
@@ -85,8 +85,8 @@ class LogDisplay(Display):
 
     def _task_stats_str(self, stats: EvalStats) -> str:
         # eval time
-        started = datetime.fromisoformat(stats.started_at)
-        completed = datetime.fromisoformat(stats.completed_at)
+        started = datetime_from_iso_format_safe(stats.started_at)
+        completed = datetime_from_iso_format_safe(stats.completed_at)
         elapsed = completed - started
         res = f"total time: {elapsed}"
         # token usage
@@ -201,10 +201,13 @@ class LogTaskDisplay(TaskDisplay):
         )
         status_parts.append(resources)
 
-        # Add rate limits
+        # Add rate limits and refusals
         rate_limits = task_http_retries_str()
         if rate_limits:
             status_parts.append(rate_limits)
+        refusals = task_refusals_str()
+        if refusals:
+            status_parts.append(refusals)
 
         # Print on new line
         logging.info(", ".join(status_parts), stacklevel=stacklevel)

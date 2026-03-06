@@ -1,4 +1,7 @@
-import os
+from __future__ import annotations
+
+import contextlib
+from typing import AsyncGenerator
 
 import anyio
 import click
@@ -8,19 +11,23 @@ from rich.prompt import Prompt
 from rich.table import Table
 from typing_extensions import Unpack
 
-from inspect_ai._cli.util import parse_cli_config
+from inspect_ai._cli.util import int_or_bool_flag_callback, parse_cli_config
 from inspect_ai._display import display
+from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
-from inspect_ai._eval.score import ScoreAction, task_score
+from inspect_ai._eval.score import (
+    ScoreAction,
+    resolve_scorers,
+    score_async,
+)
 from inspect_ai._util._async import configured_async_backend
-from inspect_ai._util.file import basename, dirname, exists
-from inspect_ai.log._log import EvalLog
+from inspect_ai._util.file import filesystem
+from inspect_ai._util.platform import platform_init
+from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
 
 from .common import CommonOptions, common_options, process_common_options
-
-SCORES_PER_ROW = 4
 
 
 @click.command("score")
@@ -48,31 +55,50 @@ SCORES_PER_ROW = 4
     "--overwrite",
     type=bool,
     is_flag=True,
+    envvar="INSPECT_SCORE_OVERWRITE",
     help="Overwrite log file with the scored version",
+)
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, writable=True),
+    envvar="INSPECT_SCORE_OUTPUT_FILE",
+    help="Output file to write the scored log to.",
+)
+@click.option(
+    "--stream",
+    flag_value="true",
+    type=str,
+    is_flag=False,
+    default=False,
+    callback=int_or_bool_flag_callback(True, false_value=False, is_one_true=False),
+    help="Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored.",
+    envvar="INSPECT_SCORE_STREAM",
 )
 @common_options
 def score_command(
     log_file: str,
     overwrite: bool | None,
+    output_file: str | None,
     scorer: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     action: ScoreAction | None,
+    stream: int | bool = False,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
-    # read common options
     process_common_options(common)
 
-    # score
     async def run_score() -> None:
         return await score(
             log_dir=common["log_dir"],
             log_file=log_file,
+            output_file=output_file,
             scorer=scorer,
             s=s,
             overwrite=False if overwrite is None else overwrite,
             action=action,
             log_level=common["log_level"],
+            stream=stream,
         )
 
     anyio.run(run_score, backend=configured_async_backend())
@@ -82,41 +108,83 @@ async def score(
     log_dir: str,
     log_file: str,
     scorer: str | None,
-    s: tuple[str] | None,
+    s: tuple[str, ...] | None,
     overwrite: bool,
     action: ScoreAction | None,
     log_level: str | None,
     output_file: str | None = None,
+    stream: int | bool = False,
 ) -> None:
-    # init eval context
-    init_eval_context(log_level, None)
+    platform_init()
+
+    init_eval_context(log_level, None, log_refusals=True)
     scorer_args = parse_cli_config(args=s, config=None)
 
-    # read the eval log
     recorder = create_recorder_for_location(log_file, log_dir)
-    eval_log = await recorder.read_log(log_file)
+    eval_log = await recorder.read_log(log_file, header_only=bool(stream))
+    num_samples = (
+        len(eval_log.samples)
+        if eval_log.samples
+        else eval_log.results.total_samples
+        if eval_log.results
+        else None
+    )
+    if num_samples is None or num_samples == 0:
+        raise ValueError(
+            f"Cannot determine the number of samples to score for {log_file}"
+        )
 
-    # resolve the target output file (prompts user)
-    output_file = resolve_output_file(
+    scorers = resolve_scorers(eval_log, scorer, scorer_args)
+    if len(scorers) == 0:
+        raise ValueError(
+            "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
+        )
+    action = resolve_action(eval_log, action)
+    output_file = _resolve_output_file(
         log_file, output_file=output_file, overwrite=overwrite
     )
+    write_recorder = create_recorder_for_location(output_file, log_dir)
 
-    # resolve action
-    action = resolve_action(eval_log, action)
+    read_sample = None
+    if stream:
+        sample_map = await recorder.read_log_sample_ids(log_file)
+        semaphore = anyio.Semaphore(len(sample_map) if stream is True else stream)
 
-    # check that there are samples therein
-    if eval_log.samples is None or len(eval_log.samples) == 0:
-        raise ValueError(f"{log_file} does not include samples to score")
+        @contextlib.asynccontextmanager
+        async def _read_sample(idx_sample: int) -> AsyncGenerator[EvalSample, None]:
+            async with semaphore:
+                sample = await recorder.read_log_sample(
+                    log_file, *sample_map[idx_sample]
+                )
+                yield sample
+                await write_recorder.log_sample(eval_log.eval, sample)
+                del sample
 
-    # re-score the task
-    eval_log = await task_score(
-        log=eval_log, scorer=scorer, scorer_args=scorer_args, action=action
+        read_sample = _read_sample
+        await write_recorder.log_init(eval_log.eval, location=output_file)
+        await write_recorder.log_start(eval_log.eval, eval_log.plan)
+
+    eval_log = await score_async(
+        log=eval_log,
+        scorers=scorers,
+        action=action,
+        copy=False,
+        samples=read_sample,
     )
 
-    # re-write the log
-    await recorder.write_log(output_file, eval_log)
+    if stream:
+        await write_recorder.log_finish(
+            eval_log.eval,
+            eval_log.status,
+            eval_log.stats,
+            eval_log.results,
+            eval_log.reductions,
+            eval_log.error,
+            invalidated=eval_log.invalidated,
+        )
+    else:
+        await recorder.write_log(output_file, eval_log)
 
-    # print results
     print_results(output_file, eval_log)
 
 
@@ -130,43 +198,8 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
     grid.add_row("")
 
     if eval_log.results:
-        # Process scores in groups
-        for i in range(0, len(eval_log.results.scores), SCORES_PER_ROW):
-            # Create a grid for this row of scores
-            score_row = Table.grid(
-                expand=False,
-                padding=(0, 2, 0, 0),
-            )
-
-            # Add columns for each score in this row
-            for _ in range(SCORES_PER_ROW):
-                score_row.add_column()
-
-            # Create individual score tables and add them to the row
-            score_tables: list[Table | str] = []
-            for score in eval_log.results.scores[i : i + SCORES_PER_ROW]:
-                table = Table(
-                    show_header=False, show_lines=False, box=None, show_edge=False
-                )
-                table.add_column()
-                table.add_column()
-
-                # Add score name and metrics
-                table.add_row(f"[bold]{score.name}[/bold]")
-                for name, metric in score.metrics.items():
-                    table.add_row(f"{name}", f"{metric.value:.3f}")
-
-                score_tables.append(table)
-
-            # Fill remaining slots with empty tables if needed
-            while len(score_tables) < SCORES_PER_ROW:
-                score_tables.append("")
-
-            # Add the score tables to this row
-            score_row.add_row(*score_tables)
-
-            # Add this row of scores to the main grid
-            grid.add_row(score_row)
+        for row in task_scores(eval_log.results.scores, pad_edge=True):
+            grid.add_row(row)
 
     grid.add_row("")
     grid.add_row(f" Log: [{theme.link}]{output_file}[/{theme.link}]")
@@ -183,45 +216,44 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
     console.print(p)
 
 
-def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool) -> str:
+def _resolve_output_file(
+    log_file: str, output_file: str | None, overwrite: bool
+) -> str:
     # resolve the output file (we may overwrite, use the passed file name, or suggest a new name)
-    if output_file is None:
-        if overwrite:
-            # explicitly asked to overwrite
-            return log_file
-        else:
-            if exists(log_file):
-                # Ask if we should overwrite
-                file_action = Prompt.ask(
-                    "Overwrite existing log file or create new log file?",
-                    choices=["overwrite", "create", "o", "c"],
-                    default="create",
-                )
-                if file_action in ["overwrite", "o"]:
-                    return log_file
-                else:
-                    file_name = basename(log_file)
-                    base_dir = dirname(log_file)
-                    _, ext = os.path.splitext(file_name)
+    output_file = output_file or log_file
+    output_fs = filesystem(output_file or log_file)
 
-                    count = 0
-
-                    def filename() -> str:
-                        if count > 0:
-                            return f"{file_name.removesuffix(ext)}-scored-{count}{ext}"
-                        else:
-                            return f"{file_name.removesuffix(ext)}-scored{ext}"
-
-                    while exists(f"{os.path.join(base_dir, filename())}"):
-                        count = count + 1
-
-                    suggested_file = filename()
-                    user_file = Prompt.ask("Output file name?", default=suggested_file)
-                    return os.path.join(base_dir, user_file)
-            else:
-                return log_file
-    else:
+    if not output_fs.exists(output_file) or overwrite:
         return output_file
+
+    # Ask if we should overwrite
+    file_action = Prompt.ask(
+        f"Overwrite {output_file} or create new file?",
+        choices=["overwrite", "create", "o", "c"],
+        default="create",
+    )
+    if file_action in ["overwrite", "o"]:
+        return output_file
+
+    # parse the file path, which could be a local file path
+    # or an S3 url.
+    dir_name = output_fs.sep.join(output_file.split(output_fs.sep)[:-1])
+    file_name = output_file.split(output_fs.sep)[-1]
+    file_stem = file_name.split(".")[0]
+    file_ext = ".".join(file_name.split(".")[1:])
+
+    # suggest a new file name
+    new_output_file = f"{dir_name}{output_fs.sep}{file_stem}-scored.{file_ext}"
+    count = 0
+    while output_fs.exists(new_output_file):
+        count = count + 1
+        new_output_file = (
+            f"{dir_name}{output_fs.sep}{file_stem}-scored-{count}.{file_ext}"
+        )
+
+    # confirm the file name
+    user_file = Prompt.ask("Output file name?", default=new_output_file)
+    return user_file
 
 
 def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction:
@@ -234,6 +266,6 @@ def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction
             choices=["overwrite", "append", "o", "a"],
             default="append",
         )
-        return "overwrite" if user_action in ["ovewrite", "o"] else "append"
+        return "overwrite" if user_action in ["overwrite", "o"] else "append"
     else:
         return "overwrite"

@@ -12,10 +12,9 @@ from typing import (
 )
 
 from inspect_ai._util.content import (
+    Content,
     ContentAudio,
-    ContentData,
     ContentImage,
-    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -38,19 +37,10 @@ ToolResult = (
     | float
     | bool
     | ContentText
-    | ContentReasoning
     | ContentImage
     | ContentAudio
     | ContentVideo
-    | ContentData
-    | list[
-        ContentText
-        | ContentReasoning
-        | ContentImage
-        | ContentAudio
-        | ContentVideo
-        | ContentData
-    ]
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo]
 )
 """Valid types for results from tool calls."""
 
@@ -273,6 +263,19 @@ def tool(
         return create_tool_wrapper(func)
     else:
         return create_tool_wrapper
+
+
+def tool_result_content(
+    content: str | list[Content],
+) -> str | list[ContentText | ContentImage | ContentAudio | ContentVideo]:
+    if isinstance(content, str):
+        return content
+    else:
+        return [
+            c
+            for c in content
+            if isinstance(c, ContentText | ContentImage | ContentAudio | ContentVideo)
+        ]
 
 
 TOOL_PROMPT = "prompt"

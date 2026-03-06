@@ -1,37 +1,23 @@
-interface LogListFooterProps {
-  logDir: string;
-  itemCount: number;
-  progressText?: string;
-}
-
 import clsx from "clsx";
-import { FC } from "react";
-import { useLogsListing, usePagination } from "../../state/hooks";
+import { FC, ReactNode } from "react";
 import styles from "./LogListFooter.module.css";
-import { LogPager } from "./LogPager";
-import { kDefaultPageSize, kLogsPaginationId } from "./LogsPanel";
+
+interface LogListFooterProps {
+  itemCount: number;
+  itemCountLabel?: string;
+  filteredCount?: number;
+  progressText?: string;
+  progressBar?: ReactNode;
+}
 
 export const LogListFooter: FC<LogListFooterProps> = ({
   itemCount,
+  itemCountLabel,
+  filteredCount,
   progressText,
+  progressBar,
 }) => {
-  // Get pagination info from the store
-  const { page, itemsPerPage } = usePagination(
-    kLogsPaginationId,
-    kDefaultPageSize,
-  );
-
-  // Get filtered count from the store
-  const { filteredCount } = useLogsListing();
   const effectiveItemCount = filteredCount ?? itemCount;
-
-  const currentPage = page || 0;
-  const pageItemCount = Math.min(
-    itemsPerPage,
-    effectiveItemCount - currentPage * itemsPerPage,
-  );
-  const startItem = effectiveItemCount > 0 ? currentPage * itemsPerPage + 1 : 0;
-  const endItem = startItem + pageItemCount - 1;
 
   return (
     <div className={clsx("text-size-smaller", styles.footer)}>
@@ -48,19 +34,21 @@ export const LogListFooter: FC<LogListFooterProps> = ({
               {progressText}...
             </div>
           </div>
-        ) : undefined}
+        ) : null}
       </div>
-      <div className={clsx(styles.center)}>
-        <LogPager itemCount={effectiveItemCount} />
-      </div>
+      <div className={clsx(styles.center)} />
       <div className={clsx(styles.right)}>
-        <div>
-          {effectiveItemCount === 0
-            ? ""
-            : filteredCount !== undefined && filteredCount !== itemCount
-              ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
-              : `${startItem} - ${endItem} / ${effectiveItemCount}`}
-        </div>
+        {progressBar ? (
+          progressBar
+        ) : (
+          <div>
+            {effectiveItemCount === 0
+              ? ""
+              : filteredCount !== undefined && filteredCount !== itemCount
+                ? `${effectiveItemCount} / ${itemCount} ${itemCountLabel || "items"}`
+                : `${effectiveItemCount} ${itemCountLabel || "items"}`}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -43,6 +43,7 @@ const system_msg_added_sig: ChangeType = {
         key="system_msg_event_preview"
         id="system_msg_event_preview"
         messages={[message] as Messages}
+        allowLinking={false}
       />
     );
   },
@@ -71,6 +72,33 @@ const add_tools: ChangeType = {
   },
   render: (changes, resolvedState) => {
     return renderTools(changes, resolvedState);
+  },
+};
+
+const messages: ChangeType = {
+  type: "messages",
+  match: (changes: JsonChange[]) => {
+    const allMessages = changes.every((change) => {
+      if (change.op === "add" && change.path.match(/\/messages\/\d+/)) {
+        return (
+          typeof change.value["role"] === "string" &&
+          ["user", "assistant", "system", "tool"].includes(change.value["role"])
+        );
+      }
+      return false;
+    });
+    return allMessages;
+  },
+  render: (changes) => {
+    const messages = changes.map((c) => c.value);
+    return (
+      <ChatView
+        key="system_msg_event_preview"
+        id="system_msg_event_preview"
+        messages={messages as unknown as Messages}
+        allowLinking={false}
+      />
+    );
   },
 };
 
@@ -238,6 +266,7 @@ const createMessageRenderer = (name: string, role: string): ChangeType => {
           key="system_msg_event_preview"
           id="system_msg_event_preview"
           messages={[message] as Messages}
+          allowLinking={false}
         />
       );
     },
@@ -250,6 +279,7 @@ export const RenderableChangeTypes: ChangeType[] = [
   createMessageRenderer("user_msg", "user"),
   use_tools,
   add_tools,
+  messages,
 ];
 
 export const StoreSpecificRenderableTypes: ChangeType[] = [

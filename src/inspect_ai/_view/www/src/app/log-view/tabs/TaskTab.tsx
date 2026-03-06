@@ -1,18 +1,25 @@
 import clsx from "clsx";
 import { FC, useMemo } from "react";
-import { EvalSpec, EvalStats } from "../../../@types/log";
+import { EarlyStoppingSummary, EvalSpec, EvalStats } from "../../../@types/log";
 import { Card, CardBody, CardHeader } from "../../../components/Card";
 import { kLogViewTaskTabId } from "../../../constants";
-import { formatDuration, toTitleCase } from "../../../utils/format";
+import {
+  formatDateTime,
+  formatDuration,
+  formatNumber,
+  toTitleCase,
+} from "../../../utils/format";
 import { ghCommitUrl } from "../../../utils/git";
 
 import { MetaDataGrid } from "../../content/MetaDataGrid";
+import { RecordTree } from "../../content/RecordTree";
 import styles from "./TaskTab.module.css";
 
 // Individual hook for Info tab
 export const useTaskTabConfig = (
   evalSpec: EvalSpec | undefined,
   evalStats?: EvalStats,
+  earlyStopping?: EarlyStoppingSummary | null,
 ) => {
   return useMemo(() => {
     return {
@@ -23,17 +30,23 @@ export const useTaskTabConfig = (
       componentProps: {
         evalSpec,
         evalStats,
+        earlyStopping,
       },
     };
-  }, [evalSpec, evalStats]);
+  }, [evalSpec, evalStats, earlyStopping]);
 };
 
 interface TaskTabProps {
   evalSpec?: EvalSpec;
   evalStats?: EvalStats;
+  earlyStopping?: EarlyStoppingSummary | null;
 }
 
-export const TaskTab: FC<TaskTabProps> = ({ evalSpec, evalStats }) => {
+export const TaskTab: FC<TaskTabProps> = ({
+  evalSpec,
+  evalStats,
+  earlyStopping,
+}) => {
   const config: Record<string, unknown> = {};
   Object.entries(evalSpec?.config || {}).forEach((entry) => {
     const key = entry[0];
@@ -109,18 +122,32 @@ export const TaskTab: FC<TaskTabProps> = ({ evalSpec, evalStats }) => {
 
               <MetaDataGrid
                 entries={{
-                  ["Start"]: new Date(
-                    evalStats?.started_at || 0,
-                  ).toLocaleString(),
-                  ["End"]: new Date(
-                    evalStats?.completed_at || 0,
-                  ).toLocaleString(),
+                  ["Start"]: formatDateTime(
+                    new Date(evalStats?.started_at || 0),
+                  ),
+                  ["End"]: formatDateTime(
+                    new Date(evalStats?.completed_at || 0),
+                  ),
                   ["Duration"]: totalDuration,
                 }}
               />
             </div>
           </CardBody>
         </Card>
+
+        {earlyStopping && (
+          <Card>
+            <CardHeader
+              label={`Early Stopping (${earlyStopping.manager} — ${formatNumber(earlyStopping.early_stops.length)} skipped)`}
+            />
+            <CardBody>
+              <RecordTree
+                id={`early-stopping-metadata`}
+                record={earlyStopping.metadata}
+              />
+            </CardBody>
+          </Card>
+        )}
 
         {Object.keys(task_args).length > 0 && (
           <Card>

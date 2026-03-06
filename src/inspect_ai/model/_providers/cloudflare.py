@@ -65,3 +65,16 @@ class CloudFlareAPI(OpenAICompatibleAPI):
     @override
     def max_tokens(self) -> int:
         return DEFAULT_MAX_TOKENS
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        CloudFlare model names have the @cf/ prefix added in the constructor.
+        This method strips that prefix for database lookup.
+        """
+        name = self.service_model_name()
+        # Strip @cf/ prefix if present
+        if name.startswith("@cf/"):
+            name = name[4:]
+        return name

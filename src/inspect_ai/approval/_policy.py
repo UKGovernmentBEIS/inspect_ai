@@ -112,7 +112,6 @@ class ApproverPolicyConfig(BaseModel):
     def collect_unknown_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-
         known_fields = set(["name", "tools", "params"])
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 

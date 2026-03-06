@@ -18,9 +18,11 @@ from inspect_ai.hooks._hooks import (
     RunEnd,
     RunStart,
     SampleEnd,
+    SampleInit,
     SampleStart,
     TaskEnd,
     TaskStart,
+    has_api_key_override,
     hooks,
     override_api_key,
 )
@@ -36,6 +38,7 @@ class MockHooks(Hooks):
         self.run_end_events: list[RunEnd] = []
         self.task_start_events: list[TaskStart] = []
         self.task_end_events: list[TaskEnd] = []
+        self.sample_init_events: list[SampleInit] = []
         self.sample_start_events: list[SampleStart] = []
         self.sample_end_events: list[SampleEnd] = []
         self.transcript_events_sync: list[EventData] = []
@@ -47,6 +50,7 @@ class MockHooks(Hooks):
         assert not self.run_end_events
         assert not self.task_start_events
         assert not self.task_end_events
+        assert not self.sample_init_events
         assert not self.sample_start_events
         assert not self.sample_end_events
         assert not self.transcript_events_sync
@@ -76,6 +80,9 @@ class MockHooks(Hooks):
 
     async def on_task_end(self, data: TaskEnd) -> None:
         self.task_end_events.append(data)
+
+    async def on_sample_init(self, data: SampleInit) -> None:
+        self.sample_init_events.append(data)
 
     async def on_sample_start(self, data: SampleStart) -> None:
         self.sample_start_events.append(data)
@@ -155,10 +162,11 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 1
     assert len(mock_hooks.task_end_events) == 1
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
     assert mock_hooks.equal_transcript_events() >= 11
-    assert len(mock_hooks.model_usage_events) == 0
+    assert len(mock_hooks.model_usage_events) == 1
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(
@@ -175,10 +183,11 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.run_end_events) == 1
         assert len(h.task_start_events) == 1
         assert len(h.task_end_events) == 1
+        assert len(h.sample_init_events) == 1
         assert len(h.sample_start_events) == 1
         assert len(h.sample_end_events) == 1
         assert mock_hooks.equal_transcript_events() >= 11
-        assert len(h.model_usage_events) == 0
+        assert len(h.model_usage_events) == 1
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
@@ -194,6 +203,7 @@ def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 2
     assert len(mock_hooks.task_end_events) == 2
+    assert len(mock_hooks.sample_init_events) == 2
     assert len(mock_hooks.sample_start_events) == 2
     assert len(mock_hooks.sample_end_events) == 2
 
@@ -210,6 +220,7 @@ def test_hooks_with_multiple_samples(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 1
     assert len(mock_hooks.task_end_events) == 1
+    assert len(mock_hooks.sample_init_events) == 2
     assert len(mock_hooks.sample_start_events) == 2
     assert len(mock_hooks.sample_end_events) == 2
 
@@ -221,6 +232,7 @@ def test_hooks_with_multiple_epochs(mock_hooks: MockHooks) -> None:
         epochs=3,
     )
 
+    assert len(mock_hooks.sample_init_events) == 3
     assert len(mock_hooks.sample_start_events) == 3
     assert len(mock_hooks.sample_end_events) == 3
 
@@ -232,7 +244,8 @@ def test_hooks_with_sample_retries(mock_hooks: MockHooks) -> None:
         retry_on_error=10,
     )
 
-    # Will succeed on 3rd attempt, but just 1 sample start and end event.
+    # Will succeed on 3rd attempt, but just 1 sample init/start/end event.
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
 
@@ -245,8 +258,37 @@ def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
     )
 
     # Will fail on first attempt without any retries.
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
+
+
+def test_hooks_with_error_passes_exception_to_run_end(mock_hooks: MockHooks) -> None:
+    with pytest.raises(RuntimeError, match="test"):
+        with patch("inspect_ai._eval.eval.eval_init", side_effect=RuntimeError("test")):
+            eval(
+                Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(1)),
+                model="mockllm/model",
+                retry_on_error=0,
+            )
+
+    assert len(mock_hooks.run_end_events) == 1
+    assert mock_hooks.run_end_events[0].exception is not None
+
+
+def test_hooks_with_base_exception_passes_exception_to_run_end(
+    mock_hooks: MockHooks,
+) -> None:
+    with pytest.raises(KeyboardInterrupt):
+        with patch("inspect_ai._eval.eval.eval_init", side_effect=KeyboardInterrupt()):
+            eval(
+                Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(1)),
+                model="mockllm/model",
+                retry_on_error=0,
+            )
+
+    assert len(mock_hooks.run_end_events) == 1
+    assert mock_hooks.run_end_events[0].exception is not None
 
 
 def test_hooks_do_not_need_to_subscribe_to_all_events(
@@ -255,6 +297,28 @@ def test_hooks_do_not_need_to_subscribe_to_all_events(
     eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(hooks_minimal.run_start_events) == 1
+
+
+def test_has_api_key_override_true(mock_hooks: MockHooks) -> None:
+    res = has_api_key_override()
+    assert res is True
+
+
+def test_has_api_key_override_false(hooks_minimal: MockMinimalHooks) -> None:
+    res = has_api_key_override()
+    assert res is False
+
+
+def test_has_api_key_override_no_hooks() -> None:
+    res = has_api_key_override()
+    assert res is False
+
+
+def test_has_api_key_override_multiple_hooks(
+    mock_hooks: MockHooks, hooks_minimal: MockMinimalHooks
+) -> None:
+    res = has_api_key_override()
+    assert res is True
 
 
 def test_api_key_override(mock_hooks: MockHooks) -> None:

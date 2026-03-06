@@ -8,13 +8,14 @@ from typing import Any, Generator, Iterator, cast
 
 import pytest
 
+from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.database import sync_to_filestore
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.log._transcript import Event, InfoEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 
 
@@ -348,7 +349,7 @@ def test_large_event_attachment_handling(db: SampleBufferDatabase) -> None:
 
 
 def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
-    """Test that identical large content creates only one attachment."""
+    """Test that identical large content creates only one attachment per sample."""
     large_input: list[ChatMessage] = [ChatMessageUser(content="x" * 150)]
 
     # Create two samples with the same large input
@@ -370,7 +371,7 @@ def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
     with db._get_connection() as conn:
         cursor = conn.execute("SELECT COUNT(*) FROM attachments")
         attachment_count = cursor.fetchone()[0]
-        assert attachment_count == 1
+        assert attachment_count == 2
 
 
 def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:

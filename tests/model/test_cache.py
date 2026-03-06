@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalSample, ModelEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.log import EvalSample
 from inspect_ai.solver import generate
 
 
@@ -25,7 +26,7 @@ def test_cache():
             > 0
         )
 
-    timestamp = str(datetime.now())
+    timestamp = str(datetime.now(timezone.utc))
 
     def check_eval_with_cache(cache_hit: bool):
         log = eval(

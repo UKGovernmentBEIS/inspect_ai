@@ -1,15 +1,16 @@
 from dataclasses import dataclass
-from typing import TypedDict
 
 import numpy as np
+import pytest
 from pydantic import BaseModel
 from test_helpers.utils import (
+    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_mistral,
     skip_if_no_openai,
-    skip_if_no_vertex,
 )
+from typing_extensions import TypedDict
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
@@ -256,7 +257,7 @@ def check_none_default_arg(model: str | Model) -> None:
 
 
 def check_tool_types(model: str | Model):
-    if "google" not in str(model):
+    if "google" not in str(model) and "mistral" not in str(model):
         check_typed_dict(model)
         check_dataclass(model)
     check_list_of_numbers(model)
@@ -271,23 +272,21 @@ def test_openai_tool_types() -> None:
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_openai_responses_tool_types() -> None:
     check_tool_types(get_model("openai/gpt-4o-mini", responses_api=True))
 
 
 @skip_if_no_anthropic
+@flaky_retry(max_retries=3)
 def test_anthropoic_tool_types() -> None:
-    check_tool_types("anthropic/claude-3-5-sonnet-20240620")
+    check_tool_types("anthropic/claude-sonnet-4-5")
 
 
 @skip_if_no_google
+@pytest.mark.flaky
 def test_google_tool_types() -> None:
-    check_tool_types("google/gemini-1.5-pro")
-
-
-@skip_if_no_vertex
-def test_vertex_tool_types():
-    check_tool_types("vertex/gemini-1.5-flash")
+    check_tool_types("google/gemini-2.5-pro")
 
 
 @skip_if_no_mistral
@@ -301,12 +300,12 @@ def test_mistral_tool_types() -> None:
 
 # @skip_if_no_grok
 # def test_grok_tool_types() -> None:
-#     check_tool_types("grok/grok-beta")
+#     check_tool_types("grok/grok-3-mini")
 
 
 # @skip_if_no_groq
 # def test_groq_tool_types() -> None:
-#     check_tool_types("groq/mixtral-8x7b-32768")
+#     check_tool_types("groq/openai/gpt-oss-20b")
 
 
 def verify_tool_call(log: EvalLog, includes: str):

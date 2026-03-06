@@ -1,21 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from inspect_ai.log import (
-    InfoEvent,
-    LoggerEvent,
-    SpanBeginEvent,
-    SpanEndEvent,
-    SpanNode,
+from inspect_ai.event import (
+    EventTreeSpan,
     event_sequence,
     event_tree,
 )
-from inspect_ai.log._message import LoggingMessage
-
-# TODO: these tests currently failing
-# test_task_grouping():
-# test_complex_task_grouping
-# task_order_deterministic
-# test_sequence_preserves_event_order
+from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._logger import LoggerEvent, LoggingMessage
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 
 
 def test_empty_input():
@@ -38,7 +30,7 @@ def test_single_span():
 
     # Verify tree structure
     assert len(tree) == 1
-    assert isinstance(tree[0], SpanNode)
+    assert isinstance(tree[0], EventTreeSpan)
     assert tree[0].id == "span1"
     assert tree[0].begin == span_begin
     assert tree[0].end == span_end
@@ -73,7 +65,7 @@ def test_nested_spans():
     # Verify parent node
     assert len(tree) == 1
     parent_node = tree[0]
-    assert isinstance(parent_node, SpanNode)
+    assert isinstance(parent_node, EventTreeSpan)
     assert parent_node.id == "parent"
     assert parent_node.begin == parent_begin
     assert parent_node.end == parent_end
@@ -81,7 +73,7 @@ def test_nested_spans():
     # Verify child node is inside parent
     assert len(parent_node.children) == 2  # child span and log event
     child_span = next(
-        child for child in parent_node.children if isinstance(child, SpanNode)
+        child for child in parent_node.children if isinstance(child, EventTreeSpan)
     )
     assert child_span.id == "child"
     assert len(child_span.children) == 1
@@ -123,7 +115,7 @@ def test_events_outside_spans():
 
     assert len(tree) == 3
     assert tree[0] == log1
-    assert isinstance(tree[1], SpanNode)
+    assert isinstance(tree[1], EventTreeSpan)
     assert tree[2] == log3
 
     sequence = list(event_sequence(tree))
@@ -139,7 +131,7 @@ def test_missing_span_end():
     tree = event_tree(events)
 
     assert len(tree) == 1
-    assert isinstance(tree[0], SpanNode)
+    assert isinstance(tree[0], EventTreeSpan)
     assert tree[0].end is None
 
     sequence = list(event_sequence(tree))
@@ -211,5 +203,5 @@ def test_sequence_preserves_event_order():
 
 def logger_msg(msg: str) -> LoggingMessage:
     return LoggingMessage(
-        level="info", message="msg", created=datetime.now().timestamp()
+        level="info", message="msg", created=datetime.now(timezone.utc).timestamp()
     )

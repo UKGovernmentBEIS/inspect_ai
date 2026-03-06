@@ -1,26 +1,36 @@
+import io
 import math
 import os
 import tempfile
 from datetime import datetime, timezone
+from typing import Literal
 
 import pytest
 from pydantic_core import PydanticSerializationError
+from typing_extensions import override
 
 from inspect_ai import Task, eval
 from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sandbox import SandboxEvent
+from inspect_ai.event._score_edit import ScoreEditEvent
+from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log
-from inspect_ai.log._file import read_eval_log_sample, write_eval_log
-from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import (
-    BaseEvent,
-    ModelEvent,
-    SandboxEvent,
-    SubtaskEvent,
-    ToolEvent,
+from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.log._file import (
+    ReadEvalLogsProgress,
+    list_eval_logs,
+    read_eval_log_headers,
+    read_eval_log_sample,
+    write_eval_log,
 )
+from inspect_ai.log._log import EvalLog
+from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer import exact
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -103,23 +113,39 @@ def test_read_sample():
         assert sample.target == " Yes"
 
 
+def test_read_sample_by_uuid():
+    log_files = [
+        os.path.join("tests", "log", "test_eval_log", file)
+        for file in ["log_read_sample.json", "log_read_sample.eval"]
+    ]
+    for log_file in log_files:
+        sampleA = read_eval_log_sample(log_file, id=1, epoch=1)
+        sampleB = read_eval_log_sample(log_file, uuid=sampleA.uuid)
+        assert sampleA.id == sampleB.id
+        assert sampleA.epoch == sampleB.epoch
+        assert sampleA.uuid == sampleB.uuid
+        assert sampleA.input == sampleB.input
+
+
+def test_read_sample_with_exclude_fields():
+    eval_log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_read_sample.eval"
+    )
+    sample = read_eval_log_sample(
+        eval_log_file, id=1, epoch=1, exclude_fields={"store", "events"}
+    )
+    assert sample.id == 1
+    assert sample.epoch == 1
+    assert sample.input is not None
+    assert not sample.store
+    assert not sample.events
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)
     eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
     check_log_location(eval_log_file)
-
-
-def resolve_deserialized_event(
-    original: BaseEvent, deserialized: BaseEvent
-) -> BaseEvent:
-    # The id_ field is not serialized, so a new id will be assigned
-    # each time we create a new event. This forces the ids to be
-    # identical since the comparison is meaningless since the value is
-    # never serialized.
-
-    deserialized.id_ = original.id_
-    return deserialized
 
 
 def test_can_round_trip_serialize_model_event():
@@ -140,9 +166,61 @@ def test_can_round_trip_serialize_model_event():
 
     serialized = original.model_dump_json()
     deserialized = ModelEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
+
+
+def _inject_invalid_unicode_into_log(log: EvalLog) -> EvalLog:
+    # Ensure samples exist
+    assert log.samples is not None and len(log.samples) > 0
+    sample = log.samples[0]
+    # Inject invalid surrogate into the model output content
+    surrogate_input = "\udc00"
+    sample.output = ModelOutput.from_content(
+        model="mockllm/model",
+        content=f"This is a surrogate: {surrogate_input}",
+    )
+    # Sanity check the invalid content is present in the in-memory object
+    assert sample.output.choices[0].message.content == "This is a surrogate: \udc00"
+    return log
+
+
+def test_json_log_writer_handles_invalid_unicode_safely(tmp_path: str):
+    # Read a valid log, mutate it to include invalid unicode in model output
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    log = read_eval_log(log_file)
+    log = _inject_invalid_unicode_into_log(log)
+
+    # Attempt to write as .json should raise due to unsafe serialization path
+    out_path = os.path.join(tmp_path, "bad_unicode_log.json")
+    write_eval_log(log, out_path)
+
+    # Read the log back in
+    roundtripped_log = read_eval_log(out_path)
+    assert roundtripped_log.samples and len(roundtripped_log.samples) > 0
+    assert (
+        roundtripped_log.samples[0].output.choices[0].message.content
+        == "This is a surrogate: \\udc00"
+    )
+
+
+def test_eval_log_writer_handles_invalid_unicode_safely(tmp_path: str):
+    # Read a valid log, mutate it to include invalid unicode in model output
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    log = read_eval_log(log_file)
+    log = _inject_invalid_unicode_into_log(log)
+
+    # Attempt to write as .eval should raise due to unsafe serialization path
+    out_path = os.path.join(tmp_path, "bad_unicode_log.eval")
+    write_eval_log(log, out_path)
+
+    # Read the log back in
+    roundtripped_log = read_eval_log(out_path)
+    assert roundtripped_log.samples and len(roundtripped_log.samples) > 0
+    assert (
+        roundtripped_log.samples[0].output.choices[0].message.content
+        == "This is a surrogate: \\udc00"
+    )
 
 
 def test_can_round_trip_serialize_tool_event():
@@ -152,7 +230,6 @@ def test_can_round_trip_serialize_tool_event():
 
     serialized = original.model_dump_json()
     deserialized = ToolEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -162,7 +239,6 @@ def test_can_round_trip_serialize_sandbox_event():
 
     serialized = original.model_dump_json()
     deserialized = SandboxEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
 
     assert original == deserialized
 
@@ -172,7 +248,21 @@ def test_can_round_trip_serialize_subtask_event():
 
     serialized = original.model_dump_json()
     deserialized = SubtaskEvent.model_validate_json(serialized)
-    deserialized = resolve_deserialized_event(original, deserialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_score_edit_event():
+    from inspect_ai.scorer._metric import ScoreEdit
+
+    provenance = ProvenanceData(author="test_user", reason="Test edit")
+    edit = ScoreEdit(value="I", provenance=provenance)
+    original = ScoreEditEvent(
+        score_name="test_scorer", edit=edit, timestamp=datetime.now(timezone.utc)
+    )
+
+    serialized = original.model_dump_json()
+    deserialized = ScoreEditEvent.model_validate_json(serialized)
 
     assert original == deserialized
 
@@ -203,3 +293,204 @@ def check_log_raises(log_file):
         read_log(log_file)
     with pytest.raises(ValueError):
         read_log(log_file, header_only=True)
+
+
+def test_unicode_surrogates_are_escaped():
+    task = Task(
+        dataset=[Sample(input="Say hello.", target="Hello")],
+        solver=generate(),
+        scorer=exact(),
+    )
+
+    [log] = eval(
+        tasks=task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(
+                    model="mockllm/model",
+                    content="\udc00\udc00\udc00",
+                )
+            ],
+        ),
+    )
+    assert log.status == "success"
+    sample = log.samples[0]
+    assert sample.output.message.text == "\\udc00\\udc00\\udc00"
+    assert sample.scores["exact"].answer == "\\udc00\\udc00\\udc00"
+
+
+@pytest.mark.parametrize("resolve_attachments", [True, False, "full", "core"])
+def test_message_deduplication(
+    resolve_attachments: bool | Literal["full", "core"],
+):
+    log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_message_deduplication.eval"
+    )
+
+    sample = read_eval_log_sample(
+        log_file, id=0, epoch=1, resolve_attachments=resolve_attachments
+    )
+
+    messages_by_id = {}
+    if resolve_attachments != "core":
+        for message in sample.messages:
+            if message.id not in messages_by_id:
+                messages_by_id[message.id] = message
+            else:
+                assert message is messages_by_id[message.id]
+    for event in sample.events:
+        if isinstance(event, ModelEvent):
+            for message in event.input:
+                if message.id is None:
+                    continue
+                if message.id not in messages_by_id:
+                    messages_by_id[message.id] = message
+                else:
+                    assert message is messages_by_id[message.id]
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_bytes_format(format):
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+
+    log = read_eval_log(file_path)
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    bytesio = io.BytesIO(file_bytes)
+    log2 = read_eval_log(bytesio, format=format)
+
+    assert not log2.location
+    assert log.eval.task == log2.eval.task
+    assert log2.samples
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_bytes_format_detection(format):
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+
+    log = read_eval_log(file_path)
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    bytesio = io.BytesIO(file_bytes)
+    log2 = read_eval_log(bytesio, format="auto")
+
+    assert log.eval.task == log2.eval.task
+    assert log2.samples
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_bytes_header(format):
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+
+    log = read_eval_log(file_path, header_only=True)
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    bytesio = io.BytesIO(file_bytes)
+    log2 = read_eval_log(bytesio, header_only=True, format=format)
+
+    assert log2.samples is None
+    assert log.eval.task == log2.eval.task
+
+
+list_logs_dir = os.path.join("tests", "log", "test_list_logs")
+
+
+def test_progress_called_with_read_eval_log_headers():
+    log_files = list_eval_logs(list_logs_dir, formats=["eval", "json"])
+
+    class TrackingProgress(ReadEvalLogsProgress):
+        def __init__(self) -> None:
+            self.total: int | None = None
+            self.read_files: list[str] = []
+
+        @override
+        def before_reading_logs(self, total_files: int) -> None:
+            self.total = total_files
+
+        @override
+        def after_read_log(self, log_file: str) -> None:
+            self.read_files.append(log_file)
+
+    progress = TrackingProgress()
+    headers = read_eval_log_headers(log_files, progress)
+
+    assert progress.total == len(log_files)
+    assert len(progress.read_files) == len(log_files)
+    assert len(headers) == len(log_files)
+
+
+# =============================================================================
+# Tests that verify eval log reading works under the Trio backend.
+#
+# NOTE: We use anyio.run(backend="trio") directly rather than
+# @pytest.mark.anyio because pytest-asyncio's asyncio_mode=auto
+# intercepts the [trio] variant and runs it under asyncio, masking the bug.
+# =============================================================================
+
+
+def test_read_eval_log_header_trio():
+    """Test reading .eval log header works under the Trio backend."""
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file, header_only=True)
+
+        assert log.eval is not None
+        assert log.status is not None
+        assert log.samples is None  # header_only
+
+    anyio.run(main, backend="trio")
+
+
+def test_read_eval_log_full_trio():
+    """Test reading full .eval log works under the Trio backend."""
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file)
+
+        assert log.eval is not None
+        assert log.samples is not None
+        assert len(log.samples) > 0
+
+    anyio.run(main, backend="trio")
+
+
+def test_read_eval_log_sample_trio():
+    """Test reading a sample from .eval log works under the Trio backend."""
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    eval_log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_read_sample.eval"
+    )
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            sample = await read_eval_log_sample_async(eval_log_file, id=1, epoch=1)
+
+        assert sample.id == 1
+        assert sample.epoch == 1
+
+    anyio.run(main, backend="trio")

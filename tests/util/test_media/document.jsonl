@@ -1,0 +1,1 @@
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "Can you please describe the contents of the attached PDF?"}, { "type": "document", "document": "attention.pdf" }]} ], "target": "attention" }

@@ -14,8 +14,7 @@ class CitationBase(BaseModel):
                 {"type": "string"},
                 {
                     "type": "array",
-                    "items": [{"type": "integer"}, {"type": "integer"}],
-                    "additionalItems": False,
+                    "items": {"type": "integer"},
                     "minItems": 2,
                     "maxItems": 2,
                 },

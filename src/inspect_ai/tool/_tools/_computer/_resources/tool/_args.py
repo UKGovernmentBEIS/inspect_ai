@@ -47,6 +47,9 @@ def _create_parser() -> ArgumentParser:
     wait = subparsers.add_parser("wait")
     _add_duration(wait)
 
+    zoom = subparsers.add_parser("zoom")
+    _add_region(zoom)
+
     return parser
 
 
@@ -76,3 +79,7 @@ def _add_duration(subparser: ArgumentParser) -> Action:
 
 def _add_text(subparser: ArgumentParser, required: bool = True) -> Action:
     return subparser.add_argument("--text", type=str, required=required)
+
+
+def _add_region(subparser: ArgumentParser) -> Action:
+    return subparser.add_argument("--region", type=int, nargs=4, required=True)

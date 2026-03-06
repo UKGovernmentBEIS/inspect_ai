@@ -13,7 +13,7 @@ from ._agent import Agent, AgentState
 async def run(
     agent: Agent,
     input: str | list[ChatMessage] | AgentState,
-    limits: list[Limit] = [],
+    limits: list[Limit],
     *,
     name: str | None = None,
     **agent_kwargs: Any,
@@ -24,6 +24,7 @@ async def run(
 async def run(
     agent: Agent,
     input: str | list[ChatMessage] | AgentState,
+    limits: None = ...,
     *,
     name: str | None = None,
     **agent_kwargs: Any,
@@ -33,7 +34,7 @@ async def run(
 async def run(
     agent: Agent,
     input: str | list[ChatMessage] | AgentState,
-    limits: list[Limit] = [],
+    limits: list[Limit] | None = None,
     *,
     name: str | None = None,
     **agent_kwargs: Any,
@@ -81,15 +82,18 @@ async def run(
     state = AgentState(messages=input_messages)
 
     # run the agent with limits, catching errors which are a direct result of our limits
-    with apply_limits(limits, catch_errors=True) as limit_scope:
+    with apply_limits(limits or [], catch_errors=True) as limit_scope:
         # run the agent
         agent_name = name or registry_unqualified_name(agent)
         async with span(name=agent_name, type="agent"):
             state = await agent(state, **agent_kwargs)
-            if limits:
-                return state, None
-            else:
+            if limits is None:
                 return state
+            else:
+                return state, None
 
     # execution reaches this point iff one of "our" limits was exceeded
-    return state, limit_scope.limit_error
+    if limits is not None:
+        return state, limit_scope.limit_error
+    else:
+        return state

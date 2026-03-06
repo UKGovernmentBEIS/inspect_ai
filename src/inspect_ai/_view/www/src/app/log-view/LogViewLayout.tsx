@@ -1,10 +1,12 @@
 import clsx from "clsx";
-import { FC, KeyboardEvent, useCallback, useRef } from "react";
+import { FC, useEffect, useRef } from "react";
+import { ActivityBar } from "../../components/ActivityBar";
 import { ErrorPanel } from "../../components/ErrorPanel";
+import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
-import { ProgressBar } from "../../components/ProgressBar";
 import { useStore } from "../../state/store";
-import { Navbar } from "../navbar/Navbar";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
+import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogView } from "./LogView";
 
 /**
@@ -15,40 +17,54 @@ export const LogViewLayout: FC = () => {
   const appStatus = useStore((state) => state.app.status);
 
   // Find
-  const nativeFind = useStore((state) => state.capabilities.nativeFind);
   const showFind = useStore((state) => state.app.showFind);
   const setShowFind = useStore((state) => state.appActions.setShowFind);
+  const nativeFind = useStore((state) => state.app.nativeFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
   const singleFileMode = useStore((state) => state.app.singleFileMode);
 
   // Logs Data
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
+  const logFiles = useStore((state) => state.logs.logs);
+
+  // Route params
+  const { logPath } = useLogRouteParams();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
+  const fullScreen = logFiles.length === 1 && !logDir;
 
-  const handleKeyboard = useCallback(
-    (e: KeyboardEvent) => {
-      // Add keyboard shortcuts for find, if needed
-      if (nativeFind || !setShowFind) {
-        return;
-      }
+  // Global keydown handler for keyboard shortcuts
+  useEffect(() => {
+    if (nativeFind) {
+      return;
+    }
 
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        setShowFind(true);
+        e.preventDefault(); // Always prevent browser find
+        e.stopPropagation();
+        if (setShowFind) {
+          setShowFind(true);
+        }
       } else if (e.key === "Escape") {
         hideFind();
       }
-    },
-    [nativeFind, setShowFind, hideFind],
-  );
+    };
+
+    // Use capture phase to catch event before it reaches other handlers
+    document.addEventListener("keydown", handleGlobalKeyDown, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, [setShowFind, hideFind, nativeFind]);
 
   return (
-    <>
+    <ExtendedFindProvider>
       <div
         ref={mainAppRef}
         className={clsx(
@@ -58,11 +74,17 @@ export const LogViewLayout: FC = () => {
           "log-view",
         )}
         tabIndex={0}
-        onKeyDown={handleKeyboard}
       >
-        {!nativeFind && showFind ? <FindBand /> : ""}
-        {!singleFileMode ? <Navbar /> : ""}
-        <ProgressBar animating={appStatus.loading} />
+        {showFind ? <FindBand /> : ""}
+        {!singleFileMode ? (
+          <ApplicationNavbar
+            fnNavigationUrl={logsUrl}
+            currentPath={logPath}
+            showActivity="log"
+          />
+        ) : (
+          <ActivityBar animating={!!appStatus.loading} />
+        )}
         {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."
@@ -72,6 +94,6 @@ export const LogViewLayout: FC = () => {
           <LogView />
         )}
       </div>
-    </>
+    </ExtendedFindProvider>
   );
 };

@@ -4,9 +4,11 @@ from typing import Any
 
 from typing_extensions import override
 
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.constants import MODEL_NONE
-from inspect_ai._util.file import filesystem
-from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai._util.file import clean_filename_component, filesystem
+from inspect_ai._util.task import task_display_name
+from inspect_ai.dataset._util import normalise_sample_id
 
 from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from .recorder import Recorder
@@ -18,13 +20,13 @@ class FileRecorder(Recorder):
     __last_read_sample_log: tuple[str, EvalLog] | None = None
 
     def __init__(
-        self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
+        self, log_dir: str, suffix: str, fs_options: dict[str, Any] | None = None
     ) -> None:
         self.log_dir = log_dir.rstrip("/\\")
         self.suffix = suffix
 
         # initialise filesystem
-        self.fs = filesystem(log_dir, fs_options)
+        self.fs = filesystem(log_dir, fs_options if fs_options is not None else {})
         self.fs.mkdir(self.log_dir, exist_ok=True)
 
     def is_local(self) -> bool:
@@ -37,7 +39,13 @@ class FileRecorder(Recorder):
     @override
     @classmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample:
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
@@ -47,11 +55,17 @@ class FileRecorder(Recorder):
             raise IndexError(f"No samples found in log {location}")
 
         # find the sample
+        id = normalise_sample_id(id) if id is not None else id
         eval_sample = next(
             (
                 sample
                 for sample in (eval_log.samples)
-                if sample.id == id and sample.epoch == epoch
+                if (
+                    id
+                    and normalise_sample_id(sample.id) == id
+                    and sample.epoch == epoch
+                )
+                or (uuid and sample.uuid == uuid)
             ),
             None,
         )
@@ -74,7 +88,7 @@ class FileRecorder(Recorder):
     @classmethod
     async def _log_file_maybe_cached(cls, location: str) -> EvalLog:
         # establish the log to read from (might be cached)
-        if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
+        if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == location):
             eval_log = cls.__last_read_sample_log[1]
         else:
             eval_log = await cls.read_log(location)
@@ -82,22 +96,19 @@ class FileRecorder(Recorder):
         return eval_log
 
     def _log_file_key(self, eval: EvalSpec) -> str:
-        # clean underscores, slashes, and : from the log file key (so we can reliably parse it
-        # later without worrying about underscores)
-        def clean(s: str) -> str:
-            return s.replace("_", "-").replace("/", "-").replace(":", "-")
-
         # remove package from task name
-        task = registry_unqualified_name(eval.task)  # noqa: F841
+        task = task_display_name(eval.task)  # noqa: F841
 
         # derive log file pattern
         log_file_pattern = os.getenv("INSPECT_EVAL_LOG_FILE_PATTERN", "{task}_{id}")
 
         # compute and return log file name
-        log_file_name = f"{clean(eval.created)}_" + log_file_pattern
-        log_file_name = log_file_name.replace("{task}", clean(task))
-        log_file_name = log_file_name.replace("{id}", clean(eval.task_id))
-        model = clean(eval.model) if eval.model != MODEL_NONE else ""
+        log_file_name = f"{clean_filename_component(eval.created)}_" + log_file_pattern
+        log_file_name = log_file_name.replace("{task}", clean_filename_component(task))
+        log_file_name = log_file_name.replace(
+            "{id}", clean_filename_component(eval.task_id)
+        )
+        model = clean_filename_component(eval.model) if eval.model != MODEL_NONE else ""
         log_file_name = log_file_name.replace("{model}", model)
         return log_file_name
 

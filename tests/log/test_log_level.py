@@ -1,8 +1,8 @@
 from logging import DEBUG, getLogger
 
 from inspect_ai import Task, eval
+from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import LoggerEvent
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, TaskState, solver
 

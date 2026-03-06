@@ -2,6 +2,7 @@ from contextvars import ContextVar
 from copy import copy
 
 from inspect_ai.model._conversation import ModelConversation
+from inspect_ai.model._model import sample_model_usage, sample_role_usage
 from inspect_ai.solver._task_state import TaskState, sample_state
 
 from ._metric import Score
@@ -28,7 +29,8 @@ async def score(conversation: ModelConversation) -> list[Score]:
         a task that does not have a scorer.
 
     """
-    from inspect_ai.log._transcript import ScoreEvent, transcript
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.log._transcript import transcript
 
     # get TaskState (if the `conversation` is a `TaskState` use it directly,
     # otherwise synthesize one)
@@ -55,10 +57,17 @@ async def score(conversation: ModelConversation) -> list[Score]:
     scores: list[Score] = []
     for scorer in scorers:
         score = await scorer(state, target)
-        scores.append(score)
-        transcript()._event(
-            ScoreEvent(score=score, target=target.target, intermediate=True)
-        )
+        if score is not None:
+            scores.append(score)
+            transcript()._event(
+                ScoreEvent(
+                    score=score,
+                    target=target.target,
+                    intermediate=True,
+                    model_usage=sample_model_usage() or None,
+                    role_usage=sample_role_usage() or None,
+                )
+            )
 
     return scores
 

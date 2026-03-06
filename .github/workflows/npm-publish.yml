@@ -1,0 +1,76 @@
+name: Publish React Viewer Lib
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Run in dry-run mode (don't actually publish)"
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: "Publish as pre-release (beta)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+    environment: npm
+    defaults:
+      run:
+        working-directory: src/inspect_ai/_view/www
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm (for Trusted Publishing)
+        run: |
+          npm i -g npm@^11.5.1
+          npm --version          
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Sync version from git tag
+        run: npm version from-git --no-git-tag-version
+
+      - name: Bump to prerelease version
+        if: ${{ inputs.prerelease }}
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          TIMESTAMP=$(date +%s)
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          npm version "${NEW_VERSION}-beta.${TIMESTAMP}" --no-git-tag-version
+
+      - name: Run quality checks
+        run: yarn check-all
+
+      - name: Build library for prerelease
+        if: ${{ inputs.prerelease }}
+        run: yarn build:lib
+
+      - name: Publish to NPM (dry-run)
+        if: ${{ inputs.dry-run }}
+        run: npm publish --dry-run --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
+
+      - name: Publish to NPM
+        if: ${{ !inputs.dry-run }}
+        run: npm publish --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}

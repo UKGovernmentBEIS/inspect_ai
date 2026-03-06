@@ -1,21 +1,27 @@
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../../@types/log";
+import { clearLargeEventsArray } from "../../utils/clear-events-preprocessor";
 import { asyncJsonParse } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
-  EvalSummary,
+  LogDetails,
+  LogPreview,
   LogViewAPI,
   SampleSummary,
 } from "../api/types";
+import { toLogPreview } from "../utils/type-utils";
 import {
   CentralDirectoryEntry,
   FileSizeLimitError,
   openRemoteZipFile,
 } from "./remoteZipFile";
 
-// don't try to load samples greater than 50mb
-const MAX_BYTES = 50 * 1024 * 1024;
 const OPEN_RETRY_LIMIT = 5;
+
+// Maximum uncompressed sample size (512MB). Files larger than this will
+// fail to allocate memory in the browser, so we reject them early with a
+// clear error rather than crashing with "Array buffer allocation failed".
+const MAX_SAMPLE_SIZE_BYTES = 2048 * 1024 * 1024;
 
 interface SampleEntry {
   sampleId: string;
@@ -31,8 +37,8 @@ export class SampleNotFoundError extends Error {
   }
 }
 export interface RemoteLogFile {
-  readHeader: () => Promise<EvalHeader>;
-  readLogSummary: () => Promise<EvalSummary>;
+  readEvalBasicInfo: () => Promise<LogPreview>;
+  readLogSummary: () => Promise<LogDetails>;
   readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
 }
@@ -65,8 +71,8 @@ export const openRemoteLogFile = async (
     try {
       remoteZipFile = await openRemoteZipFile(
         url,
-        api.eval_log_size,
-        api.eval_log_bytes,
+        api.get_log_size,
+        api.get_log_bytes,
       );
     } catch {
       retryCount++;
@@ -85,17 +91,38 @@ export const openRemoteLogFile = async (
     );
   }
 
+  interface JSONPreprocessor {
+    preprocess: (data: Uint8Array) => Uint8Array;
+  }
+
   /**
    * Reads and parses a JSON file from the zip.
+   * Optionally applies a preprocessor to transform bytes before decoding.
    */
   const readJSONFile = async (
     file: string,
     maxBytes?: number,
+    preprocessor?: JSONPreprocessor,
   ): Promise<Object> => {
     try {
-      const data = await remoteZipFile.readFile(file, maxBytes);
+      let data = await remoteZipFile.readFile(file, maxBytes);
+
+      // Apply preprocessor if provided
+      if (preprocessor) {
+        data = preprocessor.preprocess(data);
+      }
+
       const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
+
+      // Check if decoding failed (resulted in empty string)
+      if (data.length > 0 && jsonString.length === 0) {
+        throw new Error(
+          `Failed to decode ${file} (${(data.length / 1024 / 1024).toFixed(0)}MB). ` +
+            `The file may be corrupted or contain invalid UTF-8 sequences.`,
+        );
+      }
+
       return asyncJsonParse(jsonString);
     } catch (error) {
       if (error instanceof FileSizeLimitError) {
@@ -138,13 +165,29 @@ export const openRemoteLogFile = async (
     epoch: number,
   ): Promise<EvalSample> => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
-    if (remoteZipFile.centralDirectory.has(sampleFile)) {
-      return (await readJSONFile(sampleFile, MAX_BYTES)) as EvalSample;
-    } else {
+
+    if (!remoteZipFile.centralDirectory.has(sampleFile)) {
       throw new SampleNotFoundError(
         `Unable to read sample file ${sampleFile} - it is not present in the manifest.`,
       );
     }
+
+    // Check the uncompressed size before attempting to read – this avoids
+    // crashing the browser with "Array buffer allocation failed".
+    const entry = remoteZipFile.centralDirectory.get(sampleFile)!;
+    if (entry.uncompressedSize > MAX_SAMPLE_SIZE_BYTES) {
+      throw new FileSizeLimitError(sampleFile, MAX_SAMPLE_SIZE_BYTES);
+    }
+
+    // Use a preprocessor to clear large events arrays
+    const eventsPreprocessor: JSONPreprocessor = {
+      preprocess: clearLargeEventsArray,
+    };
+    return (await readJSONFile(
+      sampleFile,
+      undefined,
+      eventsPreprocessor,
+    )) as EvalSample;
   };
 
   /**
@@ -161,6 +204,11 @@ export const openRemoteLogFile = async (
         plan: evalSpec.plan,
       };
     }
+  };
+
+  const readEvalBasicInfo = async (): Promise<LogPreview> => {
+    const header = await readHeader();
+    return toLogPreview(header);
   };
 
   /**
@@ -215,7 +263,7 @@ export const openRemoteLogFile = async (
   };
 
   return {
-    readHeader,
+    readEvalBasicInfo,
     readLogSummary: async () => {
       const [header, sampleSummaries] = await Promise.all([
         readHeader(),

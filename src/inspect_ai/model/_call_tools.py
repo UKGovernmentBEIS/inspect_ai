@@ -1,6 +1,7 @@
 import inspect
 import json
 import types
+import typing
 from copy import copy, deepcopy
 from dataclasses import is_dataclass
 from datetime import date, datetime, time
@@ -13,6 +14,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     NamedTuple,
     Optional,
     Sequence,
@@ -36,11 +38,11 @@ from pydantic import BaseModel
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
-    ContentData,
     ContentImage,
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
@@ -48,7 +50,6 @@ from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
-from inspect_ai.model._display import display_conversation_message
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
@@ -56,6 +57,7 @@ from inspect_ai.tool._tool import (
     ToolParsingError,
     ToolResult,
     ToolSource,
+    tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
@@ -113,7 +115,8 @@ async def execute_tools(
     """
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-        from inspect_ai.log._transcript import ToolEvent, transcript
+        from inspect_ai.event._tool import ToolEvent
+        from inspect_ai.log._transcript import transcript
 
         tdefs = await tool_defs(tools)
 
@@ -129,11 +132,12 @@ async def execute_tools(
             messages: list[ChatMessage] = []
             output: ModelOutput | None = None
             agent: str | None = None
+            agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
             try:
                 try:
-                    result, messages, output, agent = await call_tool(
+                    result, messages, output, agent, agent_span_id = await call_tool(
                         tdefs, message.text, call, event, conversation
                     )
                 # unwrap exception group
@@ -189,19 +193,15 @@ async def execute_tools(
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
             if isinstance(
-                result,
-                ContentText | ContentImage | ContentAudio | ContentVideo | ContentData,
+                result, ContentText | ContentImage | ContentAudio | ContentVideo
             ):
-                content: str | list[Content] = [result]
+                content: (
+                    str | list[ContentText | ContentImage | ContentAudio | ContentVideo]
+                ) = [result]
             elif isinstance(result, list) and (
                 len(result) == 0
                 or isinstance(
-                    result[0],
-                    ContentText
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                    | ContentData,
+                    result[0], ContentText | ContentImage | ContentAudio | ContentVideo
                 )
             ):
                 content = result
@@ -229,6 +229,7 @@ async def execute_tools(
                 view=call.view,
                 error=tool_error,
                 agent=agent,
+                agent_span_id=agent_span_id,
             )
 
             # yield message and event
@@ -238,11 +239,10 @@ async def execute_tools(
                         ExecuteToolsResult(
                             messages=[
                                 ChatMessageTool(
-                                    content=content,
+                                    content=cast(list[Content], content),
                                     tool_call_id=call.id,
                                     function=call.function,
                                     error=tool_error,
-                                    internal=call.internal,
                                 )
                             ]
                             + messages,
@@ -267,7 +267,6 @@ async def execute_tools(
                 function=call.function,
                 arguments=call.arguments,
                 view=call.view,
-                internal=call.internal,
                 pending=True,
             )
 
@@ -301,7 +300,7 @@ async def execute_tools(
                     id=call.id,
                     function=call.function,
                     arguments=call.arguments,
-                    result=tool_message.content,
+                    result=tool_result_content(tool_message.content),
                     truncated=None,
                     view=call.view,
                     error=tool_message.error,
@@ -310,11 +309,8 @@ async def execute_tools(
                     f"Tool call '{call.function}' was cancelled by operator."
                 )
                 result_messages.append(tool_message)
-                display_conversation_message(tool_message)
             elif result is not None:
-                for message in result.messages:
-                    result_messages.append(message)
-                    display_conversation_message(message)
+                result_messages.extend(result.messages)
                 if result.output is not None:
                     result_output = result.output
 
@@ -327,6 +323,8 @@ async def execute_tools(
                 waiting_time=waiting_time_end - waiting_time_start,
                 agent=result_event.agent,
                 failed=True if result_exception else None,
+                message_id=result_messages[0].id if len(result_messages) > 0 else None,
+                agent_span_id=result_event.agent_span_id,
             )
             transcript()._event_updated(event)
 
@@ -349,9 +347,10 @@ async def call_tool(
     call: ToolCall,
     event: BaseModel,
     conversation: list[ChatMessage],
-) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
-    from inspect_ai.log._transcript import SampleLimitEvent, ToolEvent, transcript
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import transcript
 
     # dodge circular import
     assert isinstance(event, ToolEvent)
@@ -382,9 +381,6 @@ async def call_tool(
     if not approved:
         if approval and approval.decision == "terminate":
             message = "Tool call approver requested termination."
-            transcript()._event(
-                SampleLimitEvent(type="operator", limit=1, message=message)
-            )
             raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
@@ -407,14 +403,16 @@ async def call_tool(
             async with span(tool_def.tool.name, type="handoff"):
                 async with span(name=call.function, type="tool"):
                     transcript()._event(event)
-                    return await agent_handoff(tool_def, call, conversation)
+                    handoff_result = await agent_handoff(tool_def, call, conversation)
+                    return (*handoff_result, None)
 
         # normal tool call
         else:
             async with span(name=call.function, type="tool"):
                 transcript()._event(event)
                 result: ToolResult = await tool_def.tool(**arguments)
-                return result, [], None, None
+                agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
+                return result, [], None, None, agent_span_id
 
 
 async def agent_handoff(
@@ -453,13 +451,36 @@ async def agent_handoff(
             content=tool_result,
             tool_call_id=call.id,
             function=call.function,
-            internal=call.internal,
         )
     )
+
+    def is_transferred_to_tool_response(message: ChatMessage) -> bool:
+        return isinstance(message, ChatMessageTool) and message.tool_call_id == call.id
 
     # run input filter if we have one
     if agent_tool.input_filter is not None:
         agent_conversation = await agent_tool.input_filter(agent_conversation)
+
+    # if our ChatMessageTool boundary was removed (e.g. due to using the `remove_tools`
+    # or `content_only` filter) then add a ChatMessageUser boundary.
+    if not is_transferred_to_tool_response(agent_conversation[-1]):
+        agent_conversation.append(ChatMessageUser(content=tool_result))
+
+    def is_agent_conversation_boundary(message: ChatMessage) -> bool:
+        if is_transferred_to_tool_response(message):
+            return True
+        elif isinstance(message, ChatMessageUser):
+            if isinstance(message.content, str):
+                return message.content == tool_result
+            elif len(message.content) > 0 and isinstance(
+                message.content[0], ContentText
+            ):
+                return message.content[0].text == tool_result
+            else:
+                return False
+
+        else:
+            return False
 
     # remove system messages (as they can refer to tools or other special
     # instructions that don't apply to the sub-agent)
@@ -485,6 +506,16 @@ async def agent_handoff(
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex
+
+    # find the demaraction line of 'new' messages
+    agent_conversation_boundary_indices = [
+        i
+        for i, msg in enumerate(agent_state.messages)
+        if is_agent_conversation_boundary(msg)
+    ]
+    if agent_conversation_boundary_indices:
+        start_idx = agent_conversation_boundary_indices[-1] + 1
+        agent_state.messages = agent_state.messages[start_idx:]
 
     # determine which messages are new and return only those (but exclude new
     # system messages as they an internal matter for the handed off to agent.
@@ -543,7 +574,26 @@ def prepend_agent_name(
         return message.model_copy(update=dict(content=content))
 
 
-def tools_info(
+async def resolve_tools(
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
+) -> list[Tool | ToolDef | ToolInfo]:
+    # resolve top level tool source
+    if isinstance(tools, ToolSource):
+        tools = await tools.tools()
+
+    # resolve tool sources
+    resolved_tools: list[Tool | ToolDef | ToolInfo] = []
+    for tool in tools:
+        if isinstance(tool, ToolSource):
+            source_tools = await tool.tools()
+            resolved_tools.extend(source_tools)
+        else:
+            resolved_tools.append(tool)
+
+    return resolved_tools
+
+
+def get_tools_info(
     tools: Sequence[Tool | ToolDef | ToolInfo],
 ) -> list[ToolInfo]:
     tools_info: list[ToolInfo] = []
@@ -609,7 +659,9 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # as a fallback try to parse it from the docstring
         elif "docstring_type" in docstring_info:
             docstring_type = docstring_info["docstring_type"]
-            type_hint = getattr(__builtins__, docstring_type, None)
+            import builtins
+
+            type_hint = getattr(builtins, docstring_type, None)
 
         # error if there is no type_hint
         if type_hint is None:
@@ -633,7 +685,9 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
     args = get_args(type_hint)
 
     if origin is None:
-        if type_hint in [int, str, float, bool]:
+        if type_hint == typing.Any:
+            return input
+        elif type_hint in [int, str, float, bool]:
             try:
                 return type_hint(input)
             except (ValueError, TypeError):
@@ -644,7 +698,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             if input.endswith("Z"):
                 # convert trailing Z to +00:00
                 input = input[:-1] + "+00:00"
-            return datetime.fromisoformat(input)
+            return datetime_from_iso_format_safe(input)
         elif type_hint == date:
             return date.fromisoformat(input)
         elif type_hint == time:
@@ -751,12 +805,16 @@ def truncate_tool_output(
         return None
 
 
-def tool_parse_error_message(arguments: str, ex: Exception) -> str:
-    return f"Error parsing the following tool call arguments:\n\n{arguments}\n\nError details: {ex}"
+def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
+    return f"Error parsing the following tool call arguments:\n\n{arguments or ''}\n\nError details: {ex}"
 
 
 def parse_tool_call(
-    id: str, function: str, arguments: str, tools: list[ToolInfo] | None = None
+    id: str,
+    function: str,
+    arguments: str | None,
+    tools: list[ToolInfo] | None = None,
+    type: Literal["function", "custom"] = "function",
 ) -> ToolCall:
     """Parse a tool call from a JSON payload.
 
@@ -774,7 +832,7 @@ def parse_tool_call(
         logger.info(error)
 
     # if the arguments is a dict, then handle it with a plain json.loads
-    arguments = arguments.strip()
+    arguments = (arguments or "").strip()
     if arguments.startswith("{"):
         try:
             arguments_dict = json.loads(arguments)
@@ -803,10 +861,7 @@ def parse_tool_call(
 
     # return ToolCall with error payload
     return ToolCall(
-        id=id,
-        function=function,
-        arguments=arguments_dict,
-        parse_error=error,
+        id=id, function=function, arguments=arguments_dict, parse_error=error, type=type
     )
 
 

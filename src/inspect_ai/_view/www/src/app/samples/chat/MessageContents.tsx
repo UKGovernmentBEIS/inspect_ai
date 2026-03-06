@@ -5,7 +5,7 @@ import {
   ChatMessageUser,
 } from "../../../@types/log";
 import { MessageContent } from "./MessageContent";
-import { resolveToolInput } from "./tools/tool";
+import { resolveToolInput, substituteToolCallContent } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
 import clsx from "clsx";
@@ -16,19 +16,28 @@ import { ChatViewToolCallStyle, Citation } from "./types";
 
 interface MessageContentsProps {
   id: string;
-  message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
+  message:
+    | ChatMessageAssistant
+    | ChatMessageSystem
+    | ChatMessageUser
+    | ChatMessageTool;
   toolMessages: ChatMessageTool[];
   toolCallStyle: ChatViewToolCallStyle;
 }
 
 export interface MessagesContext {
+  citeOffset: number;
   citations: Citation[];
+  role: "system" | "user" | "assistant" | "tool" | "unknown";
 }
 
-export const defaultContext = () => {
+export const defaultContext = (
+  role: "system" | "user" | "assistant" | "tool" | "unknown",
+) => {
   return {
     citeOffset: 0,
     citations: [],
+    role,
   };
 };
 
@@ -38,7 +47,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
   toolMessages,
   toolCallStyle,
 }) => {
-  const context: MessagesContext = defaultContext();
+  const context: MessagesContext = defaultContext(message.role);
   if (
     message.role === "assistant" &&
     message.tool_calls &&
@@ -47,10 +56,8 @@ export const MessageContents: FC<MessageContentsProps> = ({
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call, idx) => {
       // Extract tool input
-      const { input, functionCall, highlightLanguage } = resolveToolInput(
-        tool_call.function,
-        tool_call.arguments,
-      );
+      const { input, description, functionCall, contentType } =
+        resolveToolInput(tool_call.function, tool_call.arguments);
 
       let toolMessage;
       if (tool_call.id) {
@@ -80,8 +87,18 @@ export const MessageContents: FC<MessageContentsProps> = ({
             key={`tool-call-${idx}`}
             functionCall={functionCall}
             input={input}
-            highlightLanguage={highlightLanguage}
+            description={description}
+            contentType={contentType}
             output={resolvedToolOutput}
+            collapsible={false}
+            view={
+              tool_call.view
+                ? substituteToolCallContent(
+                    tool_call.view,
+                    tool_call.arguments as Record<string, unknown>,
+                  )
+                : undefined
+            }
           />
         );
       }
@@ -100,7 +117,9 @@ export const MessageContents: FC<MessageContentsProps> = ({
   } else {
     return (
       <>
-        <MessageContent contents={message.content} context={context} />
+        {message.content && (
+          <MessageContent contents={message.content} context={context} />
+        )}
       </>
     );
   }

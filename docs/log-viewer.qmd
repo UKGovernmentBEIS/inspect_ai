@@ -34,10 +34,16 @@ By default, `inspect view` will use the configured log directory of the environm
 $ inspect view --log-dir ./experiment-logs
 ```
 
-By default it will run on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
+By default it will run locally (127.0.0.1) on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs --port 6565
+```
+
+If you're running the evaluation viewer on a remote machine (such as via SSH), you must explicitly allow access from external networks using the --host 0.0.0.0 option. You'll be able to access the view at `http://$MACHINE_IP:6565` .
+
+``` bash
+$ inspect view --log-dir ./experiment-logs --host 0.0.0.0
 ```
 
 You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
@@ -253,6 +259,28 @@ logs-www
 4.  The logs to be displayed
 
 Deploy this folder to a static webserver to publish the log viewer.
+
+### HuggingFace Spaces
+
+You can publish your bundled log viewer directly to [HuggingFace Spaces](https://huggingface.co/spaces) by specifying an output directory that starts with `hf/`. For example, to publish to a space named `my-org/my-eval-logs`:
+
+``` bash
+$ inspect view bundle --log-dir logs --output-dir hf/my-org/my-eval-logs
+```
+
+The space will be created as a static space and your logs will be immediately available at `https://huggingface.co/spaces/my-org/my-eval-logs`. By default, the space will be created as private. To create a public space, you can use the Python API:
+
+``` python
+from inspect_ai.log import bundle_log_dir
+
+bundle_log_dir(
+    log_dir="logs",
+    output_dir="hf/my-org/my-eval-logs",
+    fs_options={"private": False}
+)
+```
+
+Note that publishing to HuggingFace Spaces requires the `huggingface_hub` package and authentication with HuggingFace (via `huggingface-cli login` or the `HF_TOKEN` environment variable).
 
 ### Other Notes {.unlisted}
 

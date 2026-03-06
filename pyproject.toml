@@ -6,11 +6,23 @@ build-backend = "setuptools.build_meta"
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools_scm]
+git_describe_command = [
+  'git',
+  'describe',
+  '--dirty',
+  '--tags',
+  '--long',
+  '--match',
+  '[0-9]*.[0-9]*.[0-9]*',
+]
 
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["inspect_ai*"]
+
+[tool.setuptools.package-data]
+inspect_ai = ["binaries/*", "tool/sandbox_tools/sandbox_tools_version.txt"]
 
 
 [tool.ruff]
@@ -26,9 +38,9 @@ select = [
   "I",      # isort
   "B",      # flake8-bugbear
   "SIM101", # duplicate isinstance
-  "UP038",  # non-pep604-isinstance
   # "RET", # flake8-return
   # "RUF", # ruff rules
+  "DTZ",
 ]
 ignore = [
   "E203",
@@ -63,9 +75,7 @@ norecursedirs = [
   "tests/test_package",
   "tests/test_task_list",
 ]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-log_level = "warning"
+log_level = "WARNING"
 
 [tool.mypy]
 exclude = [
@@ -73,7 +83,11 @@ exclude = [
   "build",
   "(?:^|/)_resources/",
   "examples/bridge",
+  "examples/evals_in_eval",
+  "examples/hooks",
+  "examples/http_proxy",
   "src/inspect_tool_support",
+  "src/inspect_sandbox_tools",
 ]
 warn_unused_ignores = true
 no_implicit_reexport = true
@@ -137,22 +151,25 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-  "anthropic",
-  "aioboto3",
+  "adlfs>=2025.8.0",
+  "anthropic>=0.80.0",
+  "azure-identity",
   "azure-ai-inference",
-  "google-cloud-aiplatform",
-  "google-genai",
-  "griffe",
-  "groq",
+  "fastapi",
+  "google-genai>=1.56.0",
+  "griffe<=1.14.0",
+  "groq>=0.28.0",
+  "huggingface_hub>=1.0.0",
+  "inspect_scout",
   "ipython",
   "jsonpath-ng",
   "markdown",
   "mcp>=1.10.0",
-  "mistralai",
+  "mistralai>=1.9.11",
   "moto[server]",
-  "mypy>=1.16.0",
+  "mypy>=1.17.0",
   "nbformat",
-  "openai",
+  "openai>=2.26.0",
   "pandas>=2.0.0",
   "panflute",
   "pip",
@@ -160,17 +177,21 @@ dev = [
   "pyarrow>=10.0.1",
   "pylint",
   "pytest",
-  "pytest-asyncio",
   "pytest-cov",
   "pytest-dotenv",
+  "pytest-mock",
+  "pytest-watcher",
   "pytest-xdist",
-  "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
+  "ruff==0.9.6",            # match version specified in .pre-commit-config.yaml
+  "together>=2.0.0",
   "textual-dev>=0.86.2",
   "trio",
   "pandas-stubs",
   "pyarrow-stubs",
+  "types-grpcio",
   "types-Markdown",
   "types-PyYAML",
+  "types-regex",
   "types-beautifulsoup4",
   "types-aioboto3",
   "types-boto3",
@@ -180,9 +201,21 @@ dev = [
   "types-protobuf",
   "types-psutil",
   "types-python-dateutil",
+  "xai_sdk>=1.7.0",
+  "uvicorn",
+  # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
+  "zipfile-zstd>=0.0.4; python_version < '3.14'",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
+doc = [
+  "quarto-cli==1.7.32",
+  "jupyter",
+  "nbclient",
+  "panflute",
+  "markdown",
+  "griffe<=1.14.0",
+  "click>=8.2.0",
+]
 dist = ["twine", "build"]
 
 [tool.typos.default.extend-words]

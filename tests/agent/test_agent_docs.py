@@ -6,7 +6,7 @@ from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.content import ContentText
 from inspect_ai.agent import (
     Agent,
     AgentState,
@@ -29,7 +29,7 @@ from inspect_ai.solver import (
     user_message,
 )
 from inspect_ai.tool import ToolFunction, bash_session, text_editor, web_browser
-from inspect_ai.tool._tool import Tool, tool
+from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.util._collect import collect
 
 
@@ -231,7 +231,7 @@ def test_agent_critic_parameters():
 
 @tool
 def web_researcher() -> Tool:
-    async def execute(query: str) -> list[Content]:
+    async def execute(query: str) -> ToolResult:
         """Expert web researcher.
 
         Args:

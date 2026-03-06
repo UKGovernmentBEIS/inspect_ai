@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
+
+from inspect_ai._util.platform import running_in_notebook
+from inspect_ai.model._chat_message import ChatMessage
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+from typing_extensions import overload
+
+from inspect_ai.log._log import EvalLog
+
+from ..columns import Column, ColumnError
+from ..samples.table import MessagesDetail, _read_samples_df
+from ..util import LogPaths, resolve_logs, verify_prerequisites
+from .columns import MessageColumns
+
+MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
+"""Filter for `messages_df()` rows."""
+
+
+@overload
+def messages_df(
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
+    columns: Sequence[Column] = MessageColumns,
+    filter: MessageFilter | None = None,
+    strict: Literal[True] = True,
+    parallel: bool | int = False,
+    quiet: bool | None = None,
+) -> "pd.DataFrame": ...
+
+
+@overload
+def messages_df(
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
+    columns: Sequence[Column] = MessageColumns,
+    filter: MessageFilter | None = None,
+    strict: Literal[False] = False,
+    parallel: bool | int = False,
+    quiet: bool | None = None,
+) -> tuple["pd.DataFrame", list[ColumnError]]: ...
+
+
+def messages_df(
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
+    columns: Sequence[Column] = MessageColumns,
+    filter: MessageFilter | None = None,
+    strict: bool = True,
+    parallel: bool | int = False,
+    quiet: bool | None = None,
+) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
+    """Read a dataframe containing messages from a set of evals.
+
+    Args:
+       logs: One or more paths to log files, log directories, or EvalLog objects.
+          Defaults to the contents of the currently active log directory
+          (e.g. ./logs or INSPECT_LOG_DIR).
+       columns: Specification for what columns to read from log files.
+       filter: Callable that filters messages
+       strict: Raise import errors immediately. Defaults to `True`.
+          If `False` then a tuple of `DataFrame` and errors is returned.
+       parallel: If `True`, use `ProcessPoolExecutor` to read logs in parallel
+          (with workers based on `mp.cpu_count()`, capped at 8). If `int`, read
+          in parallel with the specified number of workers. If `False` (the default)
+          do not read in parallel.
+       quiet: If `True`, do not show any output or progress. Defaults to `False`
+          for terminal environments, and `True` for notebooks.
+
+    Returns:
+       For `strict`, a Pandas `DataFrame` with information for the specified logs.
+       For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
+       encountered (by log file) during import.
+    """
+    verify_prerequisites()
+
+    # resolve filter/detail
+    detail = MessagesDetail(filter=filter) if callable(filter) else MessagesDetail()
+    quiet = quiet if quiet is not None else running_in_notebook()
+    logs = resolve_logs(logs)
+
+    return _read_samples_df(
+        logs,
+        columns,
+        strict=strict,
+        detail=detail,
+        parallel=parallel,
+        progress=not quiet,
+    )

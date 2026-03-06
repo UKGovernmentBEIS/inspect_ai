@@ -1,19 +1,26 @@
 import uuid
-from typing import Any, Literal, Type
+from typing import Any, Literal, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai._util.content import Content
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._chat_message import ChatMessageAssistant
+from ._chat_message import ChatMessage, ChatMessageAssistant
+
+_T = TypeVar("_T", int, float)
 
 
 class ModelUsage(BaseModel):
     """Token usage for completion."""
 
     input_tokens: int = Field(default=0)
-    """Total input tokens used."""
+    """Input tokens charged at full rate (excludes cached tokens).
+
+    This count excludes tokens reported in input_tokens_cache_read and
+    input_tokens_cache_write. The true total input token count is:
+    input_tokens + (input_tokens_cache_read or 0) + (input_tokens_cache_write or 0).
+    """
 
     output_tokens: int = Field(default=0)
     """Total output tokens used."""
@@ -30,8 +37,11 @@ class ModelUsage(BaseModel):
     reasoning_tokens: int | None = Field(default=None)
     """Number of tokens used for reasoning."""
 
+    total_cost: float | None = Field(default=None)
+    """Total cost in dollars for this usage."""
+
     def __add__(self, other: "ModelUsage") -> "ModelUsage":
-        def optional_sum(a: int | None, b: int | None) -> int | None:
+        def optional_sum(a: _T | None, b: _T | None) -> _T | None:
             if a is not None and b is not None:
                 return a + b
             if a is not None:
@@ -53,6 +63,7 @@ class ModelUsage(BaseModel):
             reasoning_tokens=optional_sum(
                 self.reasoning_tokens, other.reasoning_tokens
             ),
+            total_cost=optional_sum(self.total_cost, other.total_cost),
         )
 
 
@@ -117,9 +128,9 @@ class ChatCompletionChoice(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_stop_reason(
-        cls: Type["ChatCompletionChoice"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def migrate_stop_reason(cls: Type["ChatCompletionChoice"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         if "stop_reason" in values:
             stop_reason = values["stop_reason"]
             if stop_reason == "length":
@@ -136,6 +147,9 @@ class ModelOutput(BaseModel):
 
     choices: list[ChatCompletionChoice] = Field(default=[])
     """Completion choices."""
+
+    completion: str = Field(default="")
+    """Model completion."""
 
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
@@ -163,30 +177,49 @@ class ModelOutput(BaseModel):
         """First message choice."""
         return self.choices[0].message
 
-    @property
-    def completion(self) -> str:
-        """Text of first message choice text."""
-        if len(self.choices) > 0:
-            return self.choices[0].message.text
-        else:
-            return ""
+    @model_validator(mode="after")
+    def set_completion(self) -> "ModelOutput":
+        if getattr(self, "completion", None) is None or not self.completion:
+            self.completion = (
+                self.choices[0].message.text if len(self.choices) > 0 else ""
+            )
+        return self
 
-    @completion.setter
-    def completion(self, completion: str) -> None:
-        """Set the text of the first message choice.
+    @staticmethod
+    def from_message(
+        message: ChatMessage,
+        stop_reason: StopReason = "stop",
+    ) -> "ModelOutput":
+        """Create ModelOutput from a ChatMessageAssistant.
 
         Args:
-          completion (str): Text for first message.
+            message: Assistant message.
+            stop_reason: Stop reason for generation
         """
-        if len(self.choices) > 0:
-            self.choices[0].message.text = completion
-        else:
-            self.choices.append(
+        from inspect_ai.model._model import active_model
+
+        # narrow to assistant message
+        if not isinstance(message, ChatMessageAssistant):
+            message = ChatMessageAssistant(content=message.content, source="generate")
+
+        # try to find an active model if one not specified
+        model = message.model
+        if model is None:
+            active = active_model()
+            if active is not None:
+                model = active.api.model_name
+            else:
+                model = ""
+
+        return ModelOutput(
+            model=model,
+            choices=[
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion, model=self.model),
-                    stop_reason="stop",
+                    message=message,
+                    stop_reason=stop_reason,
                 )
-            )
+            ],
+        )
 
     @staticmethod
     def from_content(
@@ -195,7 +228,7 @@ class ModelOutput(BaseModel):
         stop_reason: StopReason = "stop",
         error: str | None = None,
     ) -> "ModelOutput":
-        """Create ModelOutput from simple text content.
+        """Create ModelOutput from a `str` or `list[Content]`.
 
         Args:
            model: Model name.
@@ -257,7 +290,6 @@ class ModelOutput(BaseModel):
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
-                                internal=internal,
                                 arguments=tool_arguments,
                             )
                         ],

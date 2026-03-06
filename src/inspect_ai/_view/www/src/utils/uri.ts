@@ -1,6 +1,6 @@
 export const directoryRelativeUrl = (file: string, dir?: string): string => {
   if (!dir) {
-    return encodeURIComponent(file);
+    return uriEncodePathSegments(file);
   }
 
   // Normalize paths to ensure consistent directory separators
@@ -27,8 +27,13 @@ export const directoryRelativeUrl = (file: string, dir?: string): string => {
     return encodedSegments.join("/");
   }
 
-  // If path can't be made relative, return undefined
-  return encodeURIComponent(file);
+  return uriEncodePathSegments(normalizedFile);
+};
+
+const uriEncodePathSegments = (path: string): string => {
+  // encode each path segment separately
+  const segments = path.split("/");
+  return segments.map((segment) => encodeURIComponent(segment)).join("/");
 };
 
 export const join = (file: string, dir?: string): string => {
@@ -44,6 +49,11 @@ export const join = (file: string, dir?: string): string => {
   const dirWithSlash = normalizedLogDir.endsWith("/")
     ? normalizedLogDir
     : normalizedLogDir + "/";
+
+  // If file already starts with the logDir, it's already an absolute path, don't join again
+  if (normalizedFile.startsWith(dirWithSlash)) {
+    return normalizedFile;
+  }
 
   return dirWithSlash + normalizedFile;
 };
@@ -79,3 +89,28 @@ export function encodePathParts(url: string): string {
       .join("/");
   }
 }
+
+/**
+ * Tests whether a string is a valid URI.
+ *
+ * @param value - The string to test
+ * @returns true if the string is a valid URI, false otherwise
+ */
+export const isUri = (value: string): boolean => {
+  if (!value) return false;
+
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const prettyDirUri = (uri: string) => {
+  if (uri.startsWith("file://")) {
+    return uri.replace("file://", "");
+  } else {
+    return uri;
+  }
+};

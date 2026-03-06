@@ -49,7 +49,8 @@ class HttpHooks:
         # read the request info (if available) and purge from dict
         request_info = self._requests.pop(request_id, None)
         if request_info is None:
-            raise RuntimeError(f"request_id not registered: {request_id}")
+            logger.warning(f"Hooks: request_id not registered: {request_id}")
+            return 0
 
         # return elapsed time
         return time.monotonic() - request_info.last_request
@@ -57,7 +58,8 @@ class HttpHooks:
     def update_request_time(self, request_id: str) -> None:
         request_info = self._requests.get(request_id, None)
         if not request_info:
-            raise RuntimeError(f"No request registered for request_id: {request_id}")
+            logger.warning(f"Hooks: No request registered for request_id: {request_id}")
+            return
 
         # update the attempts and last request time
         request_info = RequestInfo(request_info.attempts + 1, time.monotonic())

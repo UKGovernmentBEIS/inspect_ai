@@ -3,9 +3,12 @@ import inspect
 import logging
 import re
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
+
+import numpy as np
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
@@ -33,9 +36,11 @@ from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
+    ScorerSpec,
     scorer_metrics,
     unique_scorer_name,
 )
+from inspect_ai.util._early_stopping import EarlyStoppingSummary
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,22 @@ class ScorerInfo:
 
     @staticmethod
     def from_name(name: str) -> "ScorerInfo":
-        return ScorerInfo(name=name, metrics=[accuracy(), stderr()])
+        from inspect_ai._eval.loader import scorer_from_spec
+
+        # load the scorer to gather that scorer's metrics
+        try:
+            scorer = scorer_from_spec(ScorerSpec(scorer=name), task_path=None)
+        except Exception:
+            scorer = None
+
+        # use the metrics if we were able to load the scorer
+        # otherwise, use the default metrics
+        if scorer is not None:
+            metrics = scorer_metrics(scorer)
+        else:
+            metrics = [accuracy(), stderr()]
+
+        return ScorerInfo(name=name, metrics=metrics)
 
 
 def eval_results(
@@ -66,30 +86,57 @@ def eval_results(
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
-    metrics: list[Metric] | dict[str, list[Metric]] | None,
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
+    scorer_names: list[str] | None = None,
+    early_stopping: EarlyStoppingSummary | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
-    results = EvalResults(total_samples=samples, completed_samples=len(scores))
+    results = EvalResults(
+        total_samples=samples,
+        completed_samples=len(scores),
+        early_stopping=early_stopping,
+    )
     reductions = None
 
     # extract scorers info from scorers then create scorers info for any
     # scores not already accounted for by a scorer name
     scorers_info = [ScorerInfo.from_scorer(scorer) for scorer in (scorers or [])]
-    scorer_names = {info.name for info in scorers_info}
+
+    # use resolved scorer names to detect scores that are present in task state
+    # that don't have a corresponding scorer
+    resolved_scorer_names = (
+        set(scorer_names)
+        if scorer_names is not None
+        else {info.name for info in scorers_info}
+    )
+
     for sample_scores in scores:
         for name, sample_score in sample_scores.items():
-            if sample_score.scorer is None and name not in scorer_names:
-                scorers_info.append(ScorerInfo.from_name(name))
-                scorer_names.add(name)
+            if sample_score.scorer is None and name not in resolved_scorer_names:
+                # the scorer info for this score
+                scorer_info = ScorerInfo.from_name(name)
+
+                # resolve the task scores
+                if metrics is not None:
+                    scorer_info.metrics = metrics
+
+                # capture the scorer information
+                scorers_info.append(scorer_info)
+                resolved_scorer_names.add(name)
 
     # record scorer
     if len(scorers_info) > 0:
         result_scores: list[EvalScore] = []
         sample_reductions: list[EvalSampleReductions] = []
-        for scorer_info in scorers_info:
-            # this scorer
-            scorer_name = unique_scorer_name(
-                scorer_info.name, [eval_score.name for eval_score in result_scores]
+        for index, scorer_info in enumerate(scorers_info):
+            # this scorer (if an explicit list of scorer name is provided, use those
+            # otherwise, generate a unique name for the scorer)
+            scorer_name = (
+                scorer_names[index]
+                if scorer_names
+                else unique_scorer_name(
+                    scorer_info.name, [eval_score.name for eval_score in result_scores]
+                )
             )
 
             # scores for this scorer
@@ -99,69 +146,46 @@ def eval_results(
 
             # Group the scores by sample_id
             reducers, use_reducer_name = resolve_reducer(reducers)
-            for reducer in reducers:
-                reducer_display_nm = (
-                    reducer_log_name(reducer) if use_reducer_name else None
+            if len(reducers) == 0:
+                # Compute metrics without reduction since no reducers were
+                # explicitly specified
+                eval_scores = compute_eval_scores(
+                    resolved_scores,
+                    scorer_info.metrics,
+                    scorer_name,
+                    scorer_info,
+                    None,
                 )
-                reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
+                result_scores.extend(eval_scores)
 
-                # record this scorer's intermediate results
-                reduced_samples = EvalSampleReductions(
-                    scorer=scorer_name,
-                    reducer=reducer_display_nm,
-                    samples=[
-                        EvalSampleScore(**ss.score.__dict__, sample_id=ss.sample_id)
-                        for ss in reduced_scores
-                    ],
-                )
-                sample_reductions.append(reduced_samples)
+            else:
+                for reducer in reducers:
+                    reducer_display_nm = (
+                        reducer_log_name(reducer) if use_reducer_name else None
+                    )
+                    reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
 
-                # Compute metrics for this scorer
-                targets = metrics if metrics is not None else scorer_info.metrics
-                if isinstance(targets, list):
-                    ## split the metrics into the simple metrics and any dictionary
-                    ## metrics, to be processed independently
-                    simple_metrics, dict_metrics = split_metrics(
-                        cast(list[Metric | dict[str, list[Metric]]], targets)
+                    # record this scorer's intermediate results
+                    reduced_samples = EvalSampleReductions(
+                        scorer=scorer_name,
+                        reducer=reducer_display_nm,
+                        samples=[
+                            EvalSampleScore(**ss.score.__dict__, sample_id=ss.sample_id)
+                            for ss in reduced_scores
+                        ],
                     )
+                    sample_reductions.append(reduced_samples)
 
-                    # If there is a simple list of metrics
-                    # just compute the metrics for this scorer
-                    result_scores.extend(
-                        scorer_for_metrics(
-                            scorer_name=scorer_name,
-                            scorer_info=scorer_info,
-                            sample_scores=reduced_scores,
-                            metrics=simple_metrics,
-                            reducer_name=reducer_display_nm,
-                        )
+                    # Compute metrics for this scorer
+                    eval_scores = compute_eval_scores(
+                        reduced_scores,
+                        scorer_info.metrics,
+                        scorer_name,
+                        scorer_info,
+                        reducer_display_nm,
                     )
-                    for dict_metric in dict_metrics:
-                        result_scores.extend(
-                            scorers_from_metric_dict(
-                                scorer_name=scorer_name,
-                                scorer_info=scorer_info,
-                                sample_scores=reduced_scores,
-                                metrics=dict_metric,
-                                reducer_name=reducer_display_nm,
-                            )
-                        )
-                else:
-                    # If there is a dictionary of metrics, apply
-                    # the metrics to the values within the scores
-                    # (corresponding by key) and emit an EvalScorer for
-                    # each key (which effectively creates multiple scorers
-                    # by expanding a dictionary score value into multiple
-                    # results with metrics)
-                    result_scores.extend(
-                        scorers_from_metric_dict(
-                            scorer_name=scorer_name,
-                            scorer_info=scorer_info,
-                            sample_scores=reduced_scores,
-                            metrics=targets,
-                            reducer_name=reducer_display_nm,
-                        )
-                    )
+                    result_scores.extend(eval_scores)
+
             # build results
         results.scores = result_scores
         reductions = sample_reductions
@@ -169,11 +193,76 @@ def eval_results(
     return results, reductions
 
 
+def compute_eval_scores(
+    scores: list[SampleScore],
+    metrics: list[MetricProtocol | MetricDeprecated]
+    | dict[str, list[MetricProtocol | MetricDeprecated]]
+    | list[
+        MetricProtocol
+        | MetricDeprecated
+        | dict[str, list[MetricProtocol | MetricDeprecated]]
+    ],
+    scorer_name: str,
+    scorer_info: ScorerInfo,
+    reducer_display_nm: str | None = None,
+) -> list[EvalScore]:
+    result_scores: list[EvalScore] = []
+    # Compute metrics for this scorer
+    if isinstance(metrics, list):
+        ## split the metrics into the simple metrics and any dictionary
+        ## metrics, to be processed independently
+        simple_metrics, dict_metrics = split_metrics(
+            cast(list[Metric | dict[str, list[Metric]]], metrics)
+        )
+
+        # If there is a simple list of metrics
+        # just compute the metrics for this scorer
+        result_scores.extend(
+            scorer_for_metrics(
+                scorer_name=scorer_name,
+                scorer_info=scorer_info,
+                sample_scores=scores,
+                metrics=simple_metrics,
+                reducer_name=reducer_display_nm,
+            )
+        )
+        for dict_metric in dict_metrics:
+            result_scores.extend(
+                scorers_from_metric_dict(
+                    scorer_name=scorer_name,
+                    scorer_info=scorer_info,
+                    sample_scores=scores,
+                    metrics=dict_metric,
+                    reducer_name=reducer_display_nm,
+                )
+            )
+    else:
+        # If there is a dictionary of metrics, apply
+        # the metrics to the values within the scores
+        # (corresponding by key) and emit an EvalScorer for
+        # each key (which effectively creates multiple scorers
+        # by expanding a dictionary score value into multiple
+        # results with metrics)
+        result_scores.extend(
+            scorers_from_metric_dict(
+                scorer_name=scorer_name,
+                scorer_info=scorer_info,
+                sample_scores=scores,
+                metrics=metrics,
+                reducer_name=reducer_display_nm,
+            )
+        )
+
+    return result_scores
+
+
 def resolve_reducer(
     reducers: ScoreReducer | list[ScoreReducer] | None,
 ) -> tuple[list[ScoreReducer], bool]:
     if reducers is None:
         return ([mean_score()], False)
+    elif isinstance(reducers, list) and len(reducers) == 0:
+        return ([], True)
     else:
         return (reducers if isinstance(reducers, list) else [reducers], True)
 
@@ -201,6 +290,19 @@ def scorer_for_metrics(
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
+
+    ## filter the sample_scores to exclude Nan values, which will not be scored
+    ## unscored_samples to note the number of samples that were not scored
+    sample_scores_with_values = []
+    for sample_score in sample_scores:
+        if not isinstance(sample_score.score.value, float) or not np.isnan(
+            sample_score.score.value
+        ):
+            sample_scores_with_values.append(sample_score)
+
+    unscored_samples = len(sample_scores) - len(sample_scores_with_values)
+    scored_samples = len(sample_scores_with_values)
+
     # we want to use simple names for metrics in the metrics dict
     # (i.e. without package prefixes). we do this by getting the
     # unqualified name, then appending a suffix if there are duplicates
@@ -214,15 +316,15 @@ def scorer_for_metrics(
         )
         params = registry_params(metric)
         # process metric values
-        if len(sample_scores) > 0:
-            metric_value = call_metric(metric, sample_scores)
+        if len(sample_scores_with_values) > 0:
+            metric_value = call_metric(metric, sample_scores_with_values)
         else:
             metric_value = float("Nan")
         base_metric_name = registry_log_name(metric)
 
         # If the metric value is a dictionary, turn each of the entries
         # in the dictionary into a result
-        if isinstance(metric_value, dict):
+        if isinstance(metric_value, Mapping):
             for metric_key, value in metric_value.items():
                 if value is not None:
                     name = metrics_unique_key(metric_key, list(list_metrics.keys()))
@@ -232,7 +334,7 @@ def scorer_for_metrics(
 
         # If the metric value is a list, turn each element in the list
         # into a result
-        elif isinstance(metric_value, list):
+        elif isinstance(metric_value, Sequence):
             for index, value in enumerate(metric_value):
                 if value is not None:
                     count = str(index + 1)
@@ -261,6 +363,8 @@ def scorer_for_metrics(
             if len(scorer_info.metadata.keys()) > 0
             else None,
             metrics=list_metrics,
+            scored_samples=scored_samples,
+            unscored_samples=unscored_samples,
         )
     )
     return results
@@ -285,6 +389,12 @@ def scorers_from_metric_dict(
     for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
         metric_scores: list[SampleScore] = []
+
+        ## filter the sample_scores to exclude Nan values, which will not be scored
+        ## unscored_samples to note the number of samples that were not scored
+        unscored_samples = 0
+        scored_samples = 0
+
         for sample_score in sample_scores:
             if isinstance(sample_score.score.value, dict):
                 if metric_key in sample_score.score.value:
@@ -293,7 +403,13 @@ def scorers_from_metric_dict(
                     metric_score.score.value = cast(
                         float, sample_score.score.value[metric_key]
                     )
-                    metric_scores.append(metric_score)
+                    if isinstance(metric_score.score.value, float) and np.isnan(
+                        metric_score.score.value
+                    ):
+                        unscored_samples += 1
+                    else:
+                        scored_samples += 1
+                        metric_scores.append(metric_score)
                 else:
                     raise TypeError(
                         f"key '{metric_key}' isn't present in the score value dictionary"
@@ -345,6 +461,8 @@ def scorers_from_metric_dict(
                 if len(scorer_info.metadata.keys()) > 0
                 else None,
                 metrics=result_metrics,
+                scored_samples=scored_samples,
+                unscored_samples=unscored_samples,
             )
         )
     return results

@@ -1,7 +1,9 @@
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal, TypedDict
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, field_validator
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from inspect_ai._util.content import Content
 
@@ -15,7 +17,7 @@ class ToolCallContent(BaseModel):
     format: Literal["text", "markdown"]
     """Format (text or markdown)."""
 
-    content: str
+    content: str = Field(default_factory=str)
     """Text or markdown content."""
 
 
@@ -33,7 +35,7 @@ class ToolCallView(BaseModel):
     """Custom representation of tool call."""
 
 
-@dataclass
+@pydantic_dataclass
 class ToolCall:
     id: str
     """Unique identifier for tool call."""
@@ -44,17 +46,22 @@ class ToolCall:
     arguments: dict[str, Any]
     """Arguments to function."""
 
-    internal: JsonValue | None = field(default=None)
-    """Model provider specific payload - typically used to aid transformation back to model types."""
-
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""
 
     view: ToolCallContent | None = field(default=None)
     """Custom view of tool call input."""
 
-    type: str | None = field(default=None)
-    """Tool call type (deprecated)."""
+    type: Literal["function", "custom"] = field(default="function")
+    """Type of tool call."""
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def migrate_type(cls, v: Any) -> Any:
+        """Migrate None values from deprecated type field to 'function'."""
+        if v is None:
+            return "function"
+        return v
 
 
 @dataclass
@@ -83,6 +90,31 @@ class ToolCallError:
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
+
+
+def substitute_tool_call_content(
+    content: ToolCallContent, arguments: dict[str, JsonValue]
+) -> ToolCallContent:
+    """Substitute ``{{param_name}}`` placeholders in *content* from *arguments*.
+
+    Placeholders whose ``param_name`` does not appear in *arguments* are left
+    as-is.  Returns a **new** ``ToolCallContent`` – the original is not mutated.
+    """
+
+    def _replace(text: str) -> str:
+        def _sub(m: re.Match[str]) -> str:
+            key = m.group(1)
+            if key in arguments:
+                return str(arguments[key])
+            return m.group(0)
+
+        return re.sub(r"\{\{(\w+)\}\}", _sub, text)
+
+    return ToolCallContent(
+        title=_replace(content.title) if content.title else content.title,
+        format=content.format,
+        content=_replace(content.content),
+    )
 
 
 class ToolCallModelInputHints(TypedDict):

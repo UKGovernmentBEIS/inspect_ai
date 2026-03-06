@@ -1,27 +1,38 @@
 import { EvalSample } from "../@types/log";
-import { SampleState, SampleStatus } from "../app/types";
-import { SampleSummary } from "../client/api/types";
+import { Event, SampleState, SampleStatus } from "../app/types";
 import { kSampleMessagesTabId } from "../constants";
-import { createLogger } from "../utils/logger";
-import { createSamplePolling } from "./samplePolling";
-import { resolveSample } from "./sampleUtils";
+import {
+  cleanupSamplePolling,
+  getSamplePolling,
+} from "./samplePollingInstance";
 import { StoreState } from "./store";
 import { isLargeSample } from "./store_filter";
-
-const log = createLogger("sampleSlice");
 
 // Create a module-level ref to store large sample objects
 let selectedSampleRef: { current: EvalSample | undefined } = {
   current: undefined,
 };
 
+export const kDefaultExcludeEvents = [
+  "sample_init",
+  "sandbox",
+  "state",
+  "store",
+];
+
 export interface SampleSlice {
   sample: SampleState;
   sampleActions: {
     // The actual sample data
-    setSelectedSample: (sample: EvalSample) => void;
+    setSelectedSample: (sample: EvalSample, logFile: string) => void;
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
+
+    prepareForSampleLoad: (
+      logFile: string,
+      id: number | string,
+      epoch: number,
+    ) => void;
 
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
@@ -36,6 +47,9 @@ export interface SampleSlice {
     setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
     collapseId: (key: string, id: string, collapsed: boolean) => void;
     clearCollapsedIds: (key: string) => void;
+    setCollapsedMode: (mode: "collapsed" | "expanded" | null) => void;
+
+    setFilteredEventTypes: (types: string[]) => void;
 
     setVisiblePopover: (id: string) => void;
     clearVisiblePopover: () => void;
@@ -43,16 +57,22 @@ export interface SampleSlice {
     setSelectedOutlineId: (id: string) => void;
     clearSelectedOutlineId: () => void;
 
-    // Loading
-    loadSample: (
+    // Used by useSampleLoader to clear state for running samples
+    clearSampleForPolling: (
       logFile: string,
-      sampleSummary: SampleSummary,
-    ) => Promise<void>;
+      id: number | string,
+      epoch: number,
+    ) => void;
 
-    pollSample: (
+    // Used by useSampleLoader to set identifier before loading
+    setSampleIdentifier: (
       logFile: string,
-      sampleSummary: SampleSummary,
-    ) => Promise<void>;
+      id: number | string,
+      epoch: number,
+    ) => void;
+
+    // Used by samplePolling to update running events
+    setRunningEvents: (events: Event[]) => void;
   };
 }
 
@@ -65,6 +85,7 @@ const initialState: SampleState = {
   sampleInState: false,
   sampleStatus: "ok",
   sampleError: undefined,
+  eventsCleared: false,
 
   visiblePopover: undefined,
 
@@ -74,6 +95,10 @@ const initialState: SampleState = {
   // The resolved events
   runningEvents: [],
   collapsedEvents: null,
+  collapsedMode: null,
+  eventFilter: {
+    filteredTypes: [...kDefaultExcludeEvents],
+  },
 
   collapsedIdBuckets: {},
   selectedOutlineId: undefined,
@@ -84,23 +109,28 @@ export const createSampleSlice = (
   get: () => StoreState,
   _store: any,
 ): [SampleSlice, () => void] => {
-  // The sample poller
-  const samplePolling = createSamplePolling(get, set);
-
   const slice = {
     // Actions
     sample: initialState,
     sampleActions: {
-      setSelectedSample: (sample: EvalSample) => {
+      setSelectedSample: (sample: EvalSample, logFile: string) => {
         const isLarge = isLargeSample(sample);
+
+        // Detect if events were cleared by the preprocessor:
+        // a sample with messages but no events indicates the events array
+        // was stripped to reduce memory usage.
+        const eventsCleared =
+          sample.events.length === 0 && (sample.messages?.length ?? 0) > 0;
 
         // Update state based on sample size
         set((state) => {
           state.sample.sample_identifier = {
             id: sample.id,
             epoch: sample.epoch,
+            logFile: logFile,
           };
           state.sample.sampleInState = !isLarge;
+          state.sample.eventsCleared = eventsCleared;
 
           // Only store in state if it's small
           if (!isLarge) {
@@ -127,12 +157,31 @@ export const createSampleSlice = (
           : selectedSampleRef.current;
       },
       clearSelectedSample: () => {
-        // Clear both the ref and the state
+        getSamplePolling().stopPolling();
         selectedSampleRef.current = undefined;
         set((state) => {
           state.sample.sample_identifier = undefined;
           state.sample.selectedSampleObject = undefined;
           state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "ok";
+          state.log.selectedSampleHandle = undefined;
+        });
+      },
+      prepareForSampleLoad: (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
+        getSamplePolling().stopPolling();
+        selectedSampleRef.current = undefined;
+        set((state) => {
+          state.sample.selectedSampleObject = undefined;
+          state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "loading";
+          state.sample.sampleError = undefined;
+          state.sample.sample_identifier = { logFile, id, epoch };
         });
       },
       setSampleStatus: (status: SampleStatus) =>
@@ -159,6 +208,7 @@ export const createSampleSlice = (
           if (state.sample.collapsedEvents !== null) {
             state.sample.collapsedEvents = null;
           }
+          state.sample.collapsedMode = null;
         });
       },
       collapseEvent: (scope: string, id: string, collapsed: boolean) => {
@@ -199,6 +249,16 @@ export const createSampleSlice = (
           delete state.sample.collapsedIdBuckets[key];
         });
       },
+      setCollapsedMode: (mode: "collapsed" | "expanded" | null) => {
+        set((state) => {
+          state.sample.collapsedMode = mode;
+        });
+      },
+      setFilteredEventTypes: (types: string[]) => {
+        set((state) => {
+          state.sample.eventFilter.filteredTypes = types;
+        });
+      },
       setVisiblePopover: (id: string) => {
         set((state) => {
           state.sample.visiblePopover = id;
@@ -219,72 +279,45 @@ export const createSampleSlice = (
           state.sample.selectedOutlineId = undefined;
         });
       },
-      pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
-        // Poll running sample
-        const state = get();
-        const sampleExists = state.sample.sampleInState
-          ? !!state.sample.selectedSampleObject
-          : !!selectedSampleRef.current;
-
-        if (state.log.loadedLog && sampleExists) {
-          samplePolling.startPolling(logFile, sampleSummary);
-        }
+      clearSampleForPolling: (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
+        // Clear the previous sample so component uses runningEvents instead
+        // of old sample.events
+        selectedSampleRef.current = undefined;
+        set((state) => {
+          state.sample.selectedSampleObject = undefined;
+          state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          // Set the new sample identifier for the sample we're about to poll
+          state.sample.sample_identifier = {
+            id,
+            epoch,
+            logFile,
+          };
+        });
       },
-      loadSample: async (logFile: string, sampleSummary: SampleSummary) => {
-        const sampleActions = get().sampleActions;
-
-        sampleActions.setSampleError(undefined);
-        sampleActions.setSampleStatus("loading");
-        const state = get();
-
-        try {
-          if (sampleSummary.completed !== false) {
-            log.debug(
-              `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
-            );
-            const sample = await get().api?.get_log_sample(
-              logFile,
-              sampleSummary.id,
-              sampleSummary.epoch,
-            );
-            log.debug(
-              `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
-            );
-            if (sample) {
-              const migratedSample = resolveSample(sample);
-
-              if (
-                state.sample.sample_identifier?.id !== sample.id &&
-                state.sample.sample_identifier?.epoch !== sample.epoch
-              ) {
-                sampleActions.clearCollapsedEvents();
-              }
-              sampleActions.setSelectedSample(migratedSample);
-              sampleActions.setSampleStatus("ok");
-            } else {
-              sampleActions.setSampleStatus("error");
-              throw new Error(
-                "Unable to load sample - an unknown error occurred",
-              );
-            }
-          } else {
-            log.debug(
-              `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
-            );
-
-            // Poll running sample
-            samplePolling.startPolling(logFile, sampleSummary);
-          }
-        } catch (e) {
-          sampleActions.setSampleError(e as Error);
-          sampleActions.setSampleStatus("error");
-        }
+      setSampleIdentifier: (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
+        set((state) => {
+          state.sample.sample_identifier = { id, epoch, logFile };
+        });
+      },
+      setRunningEvents: (events: Event[]) => {
+        set((state) => {
+          state.sample.runningEvents = events;
+        });
       },
     },
   } as const;
 
   const cleanup = () => {
-    samplePolling.cleanup();
+    cleanupSamplePolling();
     // Clear the ref when cleaning up
     selectedSampleRef.current = undefined;
   };

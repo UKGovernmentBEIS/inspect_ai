@@ -3,7 +3,6 @@
 
 import inspect
 import logging
-import textwrap
 from types import FrameType
 from typing import Any, Set
 
@@ -108,10 +107,8 @@ def deprecation_warning(
 ) -> None:
     logger = logging.getLogger(__name__)
 
-    msg = textwrap.fill(
-        f"DEPRECATED: {default_deprecation_msg(None, msg, version, remove_in)}",
-        width=70,
-    )
+    msg = f"DEPRECATED: {default_deprecation_msg(None, msg, version, remove_in)}"
+
     if calling_frame is None:
         # The useful thing to let the user know is what called the
         # function that generated the deprecation warning.  The current
@@ -123,7 +120,7 @@ def deprecation_warning(
         calling_frame = _find_calling_frame(2)
     if calling_frame is not None:
         info = inspect.getframeinfo(calling_frame)
-        msg += "\n(called from %s:%s)" % (info.filename.strip(), info.lineno)
+        msg += " (called from %s:%s)" % (info.filename.strip(), info.lineno)
         if msg in _emitted_warnings:
             return
         _emitted_warnings.add(msg)
@@ -188,6 +185,6 @@ def default_deprecation_msg(
     if remove_in:
         comment.append("will be removed in %s" % (remove_in))
     if comment:
-        return user_msg + "  (%s)" % (", ".join(comment),)
+        return user_msg + " (%s)" % (", ".join(comment),)
     else:
         return user_msg

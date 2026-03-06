@@ -1,8 +1,11 @@
 from collections import namedtuple
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from functools import reduce
+from typing import Any
+
+import numpy as np
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
@@ -37,59 +40,97 @@ pass_at_5_threshhold = pass_at(5, 2)
 
 
 def test_simple_reducers() -> None:
+    _test_simple_reducers_impl(include_nan=False)
+
+
+def test_nan_simple_reducers() -> None:
+    _test_simple_reducers_impl(include_nan=True)
+
+
+def test_all_nan_simple_reducers() -> None:
     simple_scores = [
-        Score(value=6),
-        Score(value=0),
-        Score(value=0),
-        Score(value=0),
-        Score(value=8),
-        Score(value=4),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
     ]
-    assert avg_reducer(simple_scores).value == 3
-    assert median_reducer(simple_scores).value == 2
-    assert mode_reducer(simple_scores).value == 0
-    assert max_reducer(simple_scores).value == 8
-    assert at_least_3_reducer(simple_scores).value == 1
-    assert at_least_4_reducer(simple_scores).value == 0
-    assert pass_at_2_no_threshhold(simple_scores).value == 0.8
-    assert pass_at_3_threshhold(simple_scores).value == 0.95
-    assert pass_at_5_no_threshhold(simple_scores).value == 1.0
-    assert pass_at_5_threshhold(simple_scores).value == 1.0
+
+    assert _is_nan(avg_reducer(simple_scores).value)
+    assert _is_nan(median_reducer(simple_scores).value)
+    assert _is_nan(mode_reducer(simple_scores).value)
+    assert _is_nan(max_reducer(simple_scores).value)
+    assert _is_nan(at_least_3_reducer(simple_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(simple_scores).value)
+    assert _is_nan(pass_at_3_threshhold(simple_scores).value)
+    assert _is_nan(pass_at_5_no_threshhold(simple_scores).value)
+    assert _is_nan(pass_at_5_threshhold(simple_scores).value)
 
 
 def test_list_reducers() -> None:
+    _test_list_reducers_impl(include_nan=False)
+
+
+def test_nan_list_reducers() -> None:
+    _test_list_reducers_impl(include_nan=True)
+
+
+def test_all_nan_list_reducers() -> None:
     list_scores = [
-        Score(value=[1, 2]),
-        Score(value=[4, 3]),
-        Score(value=[3, 1]),
-        Score(value=[1, 2]),
-        Score(value=[1, 2]),
+        Score(value=[float("nan"), float("nan")]),
+        Score(value=[float("nan"), float("nan")]),
+        Score(value=[float("nan"), float("nan")]),
     ]
-    assert avg_reducer(list_scores).value == [2, 2]
-    assert median_reducer(list_scores).value == [1, 2]
-    assert mode_reducer(list_scores).value == [1, 2]
-    assert max_reducer(list_scores).value == [4, 3]
-    assert at_least_3_reducer(list_scores).value == [1, 1]
-    assert at_least_4_reducer(list_scores).value == [1, 1]
-    assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+
+    def assert_list_nan(x: Any) -> bool:
+        return isinstance(x, list) and all(_is_nan(v) for v in x)
+
+    reduced = avg_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = median_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = mode_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = max_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = at_least_3_reducer(list_scores).value
+    assert_list_nan(reduced)
+    reduced = pass_at_2_no_threshhold(list_scores).value
+    assert_list_nan(reduced)
 
 
 def test_dict_reducers() -> None:
+    _test_dict_reducers_impl(include_nan=False)
+
+
+def test_nan_dict_reducers() -> None:
+    _test_dict_reducers_impl(include_nan=True)
+
+
+def test_all_nan_dict_reducers() -> None:
     dict_scores = [
-        Score(value={"coolness": 5, "spiciness": 1}),
-        Score(value={"coolness": 4, "spiciness": 1}),
-        Score(value={"coolness": 3, "spiciness": 1}),
-        Score(value={"coolness": 2, "spiciness": 1}),
-        Score(value={"coolness": 1, "spiciness": 21}),
+        Score(value={"coolness": float("nan"), "spiciness": float("nan")}),
+        Score(value={"coolness": float("nan"), "spiciness": float("nan")}),
+        Score(value={"coolness": float("nan"), "spiciness": float("nan")}),
     ]
-    assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
-    assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
-    assert mode_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
-    assert max_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
-    assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
-    assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
-    assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
-    assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+
+    def assert_dict_nan(x: Any) -> bool:
+        return (
+            isinstance(x, dict)
+            and all(key in x for key in ["coolness", "spiciness"])
+            and all(_is_nan(v) for v in x.values())
+        )
+
+    reduced = avg_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = median_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = mode_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = max_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = at_least_3_reducer(dict_scores).value
+    assert_dict_nan(reduced)
+    reduced = pass_at_2_no_threshhold(dict_scores).value
+    assert_dict_nan(reduced)
 
 
 def test_reducer_preserve_metadata() -> None:
@@ -175,7 +216,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -193,7 +234,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -211,7 +252,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -246,10 +287,27 @@ def eval_with_reducer():
     return eval(task, model="mockllm/model", epochs=Epochs(5, max_score()))[0]
 
 
+def eval_no_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    return eval(task, model="mockllm/model", epochs=Epochs(5, []))[0]
+
+
 def test_reducer_by_name():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=Epochs(5, "at_least_2"))[0]
     assert log.eval.config.epochs_reducer == ["at_least_2"]
+
+
+def test_no_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=Epochs(5, []))[0]
+    assert log.eval.config.epochs_reducer == []
+
+
+def test_default_reducer():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=4)[0]
+    assert log.eval.config.epochs_reducer == ["mean"]
 
 
 def test_eval_reducer():
@@ -265,6 +323,11 @@ def test_score_reducer():
     assert log.eval.config.epochs_reducer == ["mode", "mean"]
 
 
+def test_score_no_reducer():
+    log = score(eval_no_reducer(), match())
+    assert log.eval.config.epochs_reducer == []
+
+
 def test_main_reducer():
     str_scores = [
         Score(value="I"),
@@ -274,3 +337,86 @@ def test_main_reducer():
         Score(value="C"),
     ]
     assert mean_score()(str_scores).value == 0.4
+
+
+def test_main_reducer_nan():
+    str_scores = [
+        Score(value="I"),
+        Score(value="I"),
+        Score(value="I"),
+        Score(value="C"),
+        Score(value="C"),
+        Score(value=float("nan")),
+    ]
+    assert mean_score()(str_scores).value == 0.4
+
+
+def _test_simple_reducers_impl(include_nan: bool = False) -> None:
+    simple_scores = [
+        Score(value=6),
+        Score(value=0),
+        Score(value=0),
+        Score(value=0),
+        Score(value=8),
+        Score(value=4),
+    ]
+    if include_nan:
+        simple_scores.append(Score(value=float("nan")))
+
+    assert avg_reducer(simple_scores).value == 3
+    assert median_reducer(simple_scores).value == 2
+    assert mode_reducer(simple_scores).value == 0
+    assert max_reducer(simple_scores).value == 8
+    assert at_least_3_reducer(simple_scores).value == 1
+    assert at_least_4_reducer(simple_scores).value == 0
+    assert pass_at_2_no_threshhold(simple_scores).value == 0.8
+    assert pass_at_3_threshhold(simple_scores).value == 0.95
+    assert pass_at_5_no_threshhold(simple_scores).value == 1.0
+    assert pass_at_5_threshhold(simple_scores).value == 1.0
+
+
+def _test_list_reducers_impl(include_nan: bool = False) -> None:
+    list_scores = [
+        Score(value=[1, 2]),
+        Score(value=[4, 3]),
+        Score(value=[3, 1]),
+        Score(value=[1, 2]),
+        Score(value=[1, 2]),
+    ]
+    if include_nan:
+        list_scores.append(Score(value=[float("nan"), float("nan")]))
+
+    assert avg_reducer(list_scores).value == [2, 2]
+    assert median_reducer(list_scores).value == [1, 2]
+    assert mode_reducer(list_scores).value == [1, 2]
+    assert max_reducer(list_scores).value == [4, 3]
+    assert at_least_3_reducer(list_scores).value == [1, 1]
+    assert at_least_4_reducer(list_scores).value == [1, 1]
+    assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+
+
+def _test_dict_reducers_impl(include_nan: bool = False) -> None:
+    dict_scores = [
+        Score(value={"coolness": 5, "spiciness": 1}),
+        Score(value={"coolness": 4, "spiciness": 1}),
+        Score(value={"coolness": 3, "spiciness": 1}),
+        Score(value={"coolness": 2, "spiciness": 1}),
+        Score(value={"coolness": 1, "spiciness": 21}),
+    ]
+    if include_nan:
+        dict_scores.append(
+            Score(value={"coolness": float("nan"), "spiciness": float("nan")})
+        )
+
+    assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
+    assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
+    assert mode_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
+    assert max_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
+    assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
+    assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+
+
+def _is_nan(x: Any) -> bool:
+    return isinstance(x, float) and np.isnan(x)

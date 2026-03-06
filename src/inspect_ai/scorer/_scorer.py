@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import wraps
@@ -35,7 +36,7 @@ class Scorer(Protocol):
         self,
         state: TaskState,
         target: Target,
-    ) -> Score:
+    ) -> Score | None:
         r"""Score model outputs.
 
         Evaluate the passed outputs and targets and return a
@@ -85,7 +86,7 @@ P = ParamSpec("P")
 
 
 def scorer_register(
-    scorer: Callable[P, Scorer], name: str = "", metadata: dict[str, Any] = {}
+    scorer: Callable[P, Scorer], name: str = "", metadata: dict[str, Any] | None = None
 ) -> Callable[P, Scorer]:
     r"""Register a function or class as a scorer.
 
@@ -102,7 +103,12 @@ def scorer_register(
     """
     scorer_name = name if name else getattr(scorer, "__name__")
     registry_add(
-        scorer, RegistryInfo(type="scorer", name=scorer_name, metadata=metadata)
+        scorer,
+        RegistryInfo(
+            type="scorer",
+            name=scorer_name,
+            metadata=metadata if metadata is not None else {},
+        ),
     )
     return scorer
 
@@ -121,7 +127,8 @@ def scorer_create(name: str, **kwargs: Any) -> Scorer:
 
 
 def scorer(
-    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+    metrics: Sequence[Metric | Mapping[str, Sequence[Metric]]]
+    | Mapping[str, Sequence[Metric]],
     name: str | None = None,
     **metadata: Any,
 ) -> Callable[[Callable[P, Scorer]], Callable[P, Scorer]]:

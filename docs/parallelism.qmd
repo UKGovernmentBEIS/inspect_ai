@@ -83,7 +83,7 @@ You can evaluate multiple models in parallel by passing a list of models to the 
 eval("mathematics.py", model=[
     "openai/gpt-4-turbo",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro"
+    "google/gemini-2.5-pro"
 ])
 ```
 
@@ -94,7 +94,7 @@ Since each model provider has its own `max_connections` they don't contend with 
 If you want to specify multiple models when using the `--model` CLI argument or `INSPECT_EVAL_MODEL` environment variable, just separate the model names with commas. For example:
 
 ``` bash
-INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
+INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-2.5-pro
 ```
 
 ## Multiple Tasks {#sec-multiple-tasks}
@@ -187,8 +187,8 @@ Let's say you have a scorer that uses three different models to score based on m
 from inspect_ai.model import get_model
 
 models = [
-  get_model("openai/gpt-4"),
-  get_model("anthropic/claude-3-sonnet-20240229"),
+  get_model("openai/gpt-5"),
+  get_model("anthropic/claude-sonnet-4-5"),
   get_model("mistral/mistral-large-latest")
 ]
 
@@ -307,7 +307,7 @@ Note that there are some features of Inspect that do not yet work when using Tri
 
 2. Interaction with AWS S3 (e.g. for log storage) uses the [s3fs](https://s3fs.readthedocs.io/en/latest/) package, which currently works only with asyncio.
 
-3. The [Bedrock](providers.qmd#aws-bedrock) provider depends on asyncio so cannot be used with the Trio backend.
+3. The [Bedrock](providers.qmd#aws-bedrock) and [Grok](providers.qmd#grok) providers depend on asyncio so cannot be used with the Trio backend.
 
 ### Portable Async
 

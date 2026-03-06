@@ -3,13 +3,18 @@ import JSON5 from "json5";
 import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import JSONPanel from "../../components/JsonPanel";
-import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { formatNumber } from "../../utils/format";
 import { isJson } from "../../utils/json";
 import { ApplicationIcons } from "../appearance/icons";
 import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
+import {
+  isMessageContent,
+  MessageContent,
+} from "../samples/chat/MessageContent";
+import { defaultContext } from "../samples/chat/MessageContents";
 import { MetaDataGrid } from "./MetaDataGrid";
 import styles from "./RenderedContent.module.css";
+import { RenderedText } from "./RenderedText";
 import { Buckets, ContentRenderer, RenderOptions } from "./types";
 
 interface RenderedContentProps {
@@ -148,7 +153,7 @@ const contentRenderers: (
         const rendered = entry.value.trim();
         if (options.renderString === "markdown") {
           return {
-            rendered: <MarkdownDiv markdown={rendered} />,
+            rendered: <RenderedText markdown={rendered} />,
           };
         } else {
           return {
@@ -254,6 +259,28 @@ const contentRenderers: (
       render: (_id, entry, _options) => {
         return {
           rendered: entry.value._html,
+        };
+      },
+    },
+    MessageContent: {
+      bucket: Buckets.first,
+      canRender: (entry) => {
+        // Check if the value is an array of chat messages
+        return (
+          Array.isArray(entry.value) &&
+          entry.value.every((item: unknown) => {
+            return isMessageContent(item);
+          })
+        );
+      },
+      render: (_id, entry, _options) => {
+        return {
+          rendered: (
+            <MessageContent
+              contents={entry.value}
+              context={defaultContext("unknown")}
+            />
+          ),
         };
       },
     },

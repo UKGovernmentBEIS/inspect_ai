@@ -23,7 +23,7 @@ def test_json_schema():
     assert json_schema(time) == JSONSchema(type="string", format="time")
     assert json_schema(
         Enum("TestEnum", {"ALPHA": "alpha", "BRAVO": "bravo"})
-    ) == JSONSchema(enum=["alpha", "bravo"])
+    ) == JSONSchema(type="string", enum=["alpha", "bravo"])
     assert json_schema(Any) == JSONSchema()
     assert json_schema(List[int]) == JSONSchema(
         type="array", items=JSONSchema(type="integer")
@@ -40,7 +40,9 @@ def test_json_schema():
     assert json_schema(Union[int, str]) == JSONSchema(
         anyOf=[JSONSchema(type="integer"), JSONSchema(type="string")]
     )
-    assert json_schema(Literal["alpha", "bravo"]) == JSONSchema(enum=["alpha", "bravo"])
+    assert json_schema(Literal["alpha", "bravo"]) == JSONSchema(
+        type="string", enum=["alpha", "bravo"]
+    )
 
 
 def test_cls_json_schema() -> None:

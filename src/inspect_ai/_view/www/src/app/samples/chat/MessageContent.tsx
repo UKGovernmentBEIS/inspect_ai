@@ -1,23 +1,32 @@
 import clsx from "clsx";
 
-import { FC, ReactNode } from "react";
+import { FC, Fragment, ReactNode } from "react";
 import {
   ContentAudio,
   ContentData,
+  ContentDocument,
   ContentImage,
   ContentReasoning,
   ContentText,
+  ContentToolUse,
   ContentVideo,
   Format1,
   Format2,
 } from "../../../@types/log";
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
+import { isJson } from "../../../utils/json";
+
+import { CodePanel } from "../../../components/CodePanel";
+import { jsonParse } from "../../../utils/json-worker";
+import { RenderedText } from "../../content/RenderedText";
 import { ContentDataView } from "./content-data/ContentDataView";
+import { ContentDocumentView } from "./documents/ContentDocumentView";
+import { JsonMessageContent } from "./JsonMessageContent";
 import { MessageCitations } from "./MessageCitations";
 import styles from "./MessageContent.module.css";
 import { MessagesContext } from "./MessageContents";
+import { ServerToolCall } from "./server-tools/ServerToolCall";
 import { ToolOutput } from "./tools/ToolOutput";
 import { Citation } from "./types";
 
@@ -27,8 +36,10 @@ type ContentObject =
   | ContentImage
   | ContentAudio
   | ContentVideo
+  | ContentDocument
   | ContentTool
-  | ContentData;
+  | ContentData
+  | ContentToolUse;
 
 type ContentType = string | string[] | ContentObject;
 
@@ -38,6 +49,17 @@ interface MessageContentProps {
   contents: Contents;
   context: MessagesContext;
 }
+
+export const isMessageContent = (
+  content: unknown,
+): content is ContentObject => {
+  return (
+    typeof content === "object" &&
+    content !== null &&
+    "type" in content &&
+    typeof content.type === "string"
+  );
+};
 
 /**
  * Renders message content based on its type.
@@ -108,7 +130,7 @@ interface MessageRenderer {
 
 const messageRenderers: Record<string, MessageRenderer> = {
   text: {
-    render: (key, content, isLast) => {
+    render: (key, content, isLast, context) => {
       // The context provides a way to share context between different
       // rendering. In this case, we'll use it to keep track of citations
       const c = content as ContentText;
@@ -118,26 +140,68 @@ const messageRenderers: Record<string, MessageRenderer> = {
         return undefined;
       }
 
-      return (
-        <>
-          <MarkdownDiv
-            key={key}
-            markdown={c.text || ""}
-            className={isLast ? "no-last-para-padding" : ""}
-          />
-          {c.citations ? (
-            <MessageCitations citations={c.citations as Citation[]} />
-          ) : undefined}
-        </>
-      );
+      const purgeInternalContainers = (text: string): string => {
+        // Remove any <internal>...</internal> tags and their contents
+        // For user messages, allow 'think' tags to remain as these
+        // are likely to be user created messages (vs. internal containers)
+        // holding encoded model reasoning.
+        const isAssistantMessage = context.role === "assistant";
+        const internalTags = !isAssistantMessage
+          ? ["internal", "content-internal"]
+          : ["internal", "content-internal", "think"];
+        internalTags.forEach((tag) => {
+          const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, "gm");
+          text = text.replace(regex, "");
+        });
+
+        return text.trim();
+      };
+
+      if (isJson(c.text)) {
+        const obj = JSON.parse(c.text);
+        return <JsonMessageContent id={`${key}-json`} json={obj} />;
+      } else {
+        return (
+          <Fragment key={key}>
+            <RenderedText
+              markdown={purgeInternalContainers(c.text) || ""}
+              className={isLast ? "no-last-para-padding" : ""}
+            />
+            {c.citations ? (
+              <MessageCitations citations={c.citations as Citation[]} />
+            ) : undefined}
+          </Fragment>
+        );
+      }
     },
   },
   reasoning: {
-    render: (key, content, isLast) => {
+    render: (key, content, isLast, _context) => {
       const r = content as ContentReasoning;
-      if (!r.reasoning && !r.redacted) {
-        return undefined;
+
+      // Possible titles
+      let title = "Reasoning";
+      let text = r.reasoning;
+      if (r.redacted) {
+        text = r.summary || "Reasoning encrypted by model provider.";
+        if (r.summary) {
+          title = "Reasoning (Summary)";
+        }
+      } else if (!text) {
+        text = r.summary || "Reasoning text not provided.";
+        if (r.summary) {
+          title = "Reasoning (Summary)";
+        }
       }
+
+      // See if this might be code looking reasoning (specifically
+      // trying to detect Open Router style reasoning)
+      const renderReasoningCode = isOpenRouterReasoning(text);
+
+      const codeFormatted = renderReasoningCode
+        ? JSON.stringify(jsonParse(text), null, 2)
+        : text;
+
       return (
         <div key={key} className={clsx(styles.reasoning, "text-size-small")}>
           <div
@@ -147,23 +211,20 @@ const messageRenderers: Record<string, MessageRenderer> = {
               isLast ? "no-last-para-padding" : "",
             )}
           >
-            Reasoning
+            {title}
           </div>
           <ExpandablePanel id={`${key}-reasoning`} collapse={true}>
-            <MarkdownDiv
-              markdown={
-                r.redacted
-                  ? "Reasoning encrypted by model provider."
-                  : r.reasoning
-              }
-            />
+            {!renderReasoningCode && <RenderedText markdown={codeFormatted} />}
+            {renderReasoningCode && (
+              <CodePanel language="json" code={codeFormatted} />
+            )}
           </ExpandablePanel>
         </div>
       );
     },
   },
   image: {
-    render: (key, content) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentImage;
       if (c.image.startsWith("data:")) {
         return <img src={c.image} className={styles.contentImage} key={key} />;
@@ -173,7 +234,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   audio: {
-    render: (key, content) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentAudio;
       return (
         <audio controls key={key}>
@@ -183,7 +244,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   video: {
-    render: (key, content) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentVideo;
       return (
         <video width="500" height="375" controls key={key}>
@@ -193,15 +254,29 @@ const messageRenderers: Record<string, MessageRenderer> = {
     },
   },
   tool: {
-    render: (key, content) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentTool;
       return <ToolOutput output={c.content} key={key} />;
     },
   },
+  // server-side tool use
+  tool_use: {
+    render: (key, content, _isLast, _context) => {
+      const c = content as ContentToolUse;
+      // If the tool use has a tool, render it
+      return <ServerToolCall id={key} content={c} />;
+    },
+  },
   data: {
-    render: (key, content) => {
+    render: (key, content, _isLast, _context) => {
       const c = content as ContentData;
       return <ContentDataView id={key} contentData={c} />;
+    },
+  },
+  document: {
+    render: (key, content, _isLast, _context) => {
+      const c = content as ContentDocument;
+      return <ContentDocumentView id={key} document={c} />;
     },
   },
 };
@@ -341,3 +416,7 @@ const isCitationWithRange = (
 ): citation is DistributiveOmit<Citation, "cited_text"> & {
   cited_text: [number, number];
 } => Array.isArray(citation.cited_text);
+
+const isOpenRouterReasoning = (text: string): boolean => {
+  return text.startsWith("[{'format'");
+};

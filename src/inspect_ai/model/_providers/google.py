@@ -1,3 +1,4 @@
+import base64
 import functools
 import hashlib
 import json
@@ -5,17 +6,22 @@ import os
 from copy import copy
 from io import BytesIO
 from logging import getLogger
+from textwrap import dedent
 from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
+import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
     Candidate,
+    CodeExecutionResult,
     Content,
     ContentListUnion,
     ContentListUnionDict,
+    ContentUnion,
+    ExecutableCode,
     File,
     FinishReason,
     FunctionCallingConfig,
@@ -30,17 +36,21 @@ from google.genai.types import (
     HarmBlockThreshold,
     HarmCategory,
     HttpOptions,
+    Image,
+    Language,
+    Outcome,
     Part,
     SafetySetting,
     SafetySettingDict,
-    Schema,
     ThinkingConfig,
+    ThinkingLevel,
     Tool,
+    ToolCodeExecution,
     ToolConfig,
     ToolListUnion,
-    Type,
 )
 from pydantic import JsonValue
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -50,16 +60,20 @@ from inspect_ai._util.content import (
 from inspect_ai._util.content import (
     ContentAudio,
     ContentData,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -75,15 +89,22 @@ from inspect_ai.model import (
     StopReason,
     TopLogprob,
 )
+from inspect_ai.model._chat_message import ChatMessageSystem
+from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._providers._google_citations import get_candidate_citations
+from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
+from inspect_ai.model._providers._google_citations import (
+    distribute_citations_to_text_parts,
+    get_candidate_citations,
+)
+from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
     ToolFunction,
     ToolInfo,
-    ToolParam,
-    ToolParams,
 )
 
 from .util import model_base_url
@@ -140,6 +161,9 @@ class GoogleGenAIAPI(ModelAPI):
 
         # record api version
         self.api_version = api_version
+
+        # record streaming preference
+        self.streaming = bool(model_args.pop("streaming", False))
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -211,6 +235,11 @@ class GoogleGenAIAPI(ModelAPI):
                         + "or the 'location' custom model arg (-M) when running against vertex."
                     )
 
+            # custom base_url
+            self.base_url = model_base_url(
+                self.base_url, ["GOOGLE_VERTEX_BASE_URL", "VERTEX_BASE_URL"]
+            )
+
         # normal google endpoint
         else:
             # read api key from env
@@ -223,6 +252,9 @@ class GoogleGenAIAPI(ModelAPI):
         # save model args
         self.model_args = model_args
 
+        # initialize batcher
+        self._batcher: GoogleBatcher | None = None
+
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
@@ -233,84 +265,342 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # create client
-        client = Client(
-            vertexai=self.is_vertex(),
-            api_key=self.api_key,
-            http_options={
-                "base_url": self.base_url,
-                "api_version": self.api_version,
-            },
-            **self.model_args,
+        # http options
+        http_options = HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
         )
 
-        # create hooks and allocate request
-        http_hooks = HttpxHooks(client._api_client._async_httpx_client)
-        request_id = http_hooks.start_request()
+        # apply timeout if specified
+        if config.timeout:
+            http_options.timeout = config.timeout * 1000
 
-        # Create google-genai types.
-        gemini_contents = await as_chat_messages(client, input)
-        gemini_tools = self.chat_tools(tools) if len(tools) > 0 else None
-        gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
-        parameters = GenerateContentConfig(
-            http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
-            temperature=config.temperature,
-            top_p=config.top_p,
-            top_k=config.top_k,
-            max_output_tokens=config.max_tokens,
-            stop_sequences=config.stop_seqs,
-            candidate_count=config.num_choices,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            safety_settings=safety_settings_to_list(self.safety_settings),
-            tools=gemini_tools,
-            tool_config=gemini_tool_config,
-            system_instruction=await extract_system_message_as_parts(client, input),  # type: ignore[arg-type]
-            thinking_config=self.chat_thinking_config(config),
-        )
-        if config.response_schema is not None:
-            parameters.response_mime_type = "application/json"
-            parameters.response_schema = schema_from_param(
-                config.response_schema.json_schema, nullable=None
+        # resolve batcher as required
+        self._resolve_batcher(config, http_options)
+
+        # create client and manage its lifetime to this call
+        client = self.model_client(http_options)
+        async with client.aio:
+            # create hooks and allocate request
+            http_hooks = HttpxHooks(client._api_client._async_httpx_client)
+            request_id = http_hooks.start_request()
+
+            # Create google-genai types.
+            gemini_contents = await as_chat_messages(
+                client, input, emulate_reasoning=not self.is_gemini_thinking()
             )
+            has_native_tools, gemini_tools = (
+                self.chat_tools(tools) if len(tools) > 0 else (False, None)
+            )
+            gemini_tool_config = (
+                chat_tool_config(tool_choice)
+                if not has_native_tools and len(tools) > 0
+                else None
+            )
+            system_instruction = await extract_system_message_as_parts(
+                client, input, tools
+            )
+            parameters = GenerateContentConfig(
+                http_options=HttpOptions(
+                    headers={HttpHooks.REQUEST_ID_HEADER: request_id}
+                    | (config.extra_headers or {})
+                ),
+                temperature=config.temperature,
+                top_p=config.top_p,
+                top_k=config.top_k,
+                max_output_tokens=config.max_tokens,
+                stop_sequences=config.stop_seqs,
+                candidate_count=config.num_choices,
+                presence_penalty=config.presence_penalty,
+                frequency_penalty=config.frequency_penalty,
+                response_logprobs=config.logprobs,
+                logprobs=config.top_logprobs,
+                safety_settings=safety_settings_to_list(self.safety_settings),
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                system_instruction=system_instruction,  # type: ignore[arg-type]
+                thinking_config=self.chat_thinking_config(config),
+            )
+            if config.response_schema is not None:
+                parameters.response_mime_type = "application/json"
+                parameters.response_json_schema = (
+                    config.response_schema.json_schema.model_dump(exclude_none=True)
+                )
 
-        response: GenerateContentResponse | None = None
-
-        def model_call() -> ModelCall:
-            return build_model_call(
+            model_call = start_model_call(
                 contents=gemini_contents,  # type: ignore[arg-type]
                 safety_settings=self.safety_settings,
                 generation_config=parameters,
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
-                response=response,
-                time=http_hooks.end_request(request_id),
+                system_instruction=system_instruction,
             )
 
-        try:
-            response = await client.aio.models.generate_content(
-                model=self.service_model_name(),
-                contents=gemini_contents,  # type: ignore[arg-type]
-                config=parameters,
-            )
-        except ClientError as ex:
-            return self.handle_client_error(ex), model_call()
+            response: GenerateContentResponse | None = None
 
-        model_name = response.model_version or self.service_model_name()
-        output = ModelOutput(
-            model=model_name,
-            choices=completion_choices_from_candidates(model_name, response),
-            usage=usage_metadata_to_model_usage(response.usage_metadata),
+            try:
+                # google sometimes requires retries for malformed function calls
+                # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+                tool_calling_attempts = 0
+                while tool_calling_attempts < 3:
+                    if self._batcher:
+                        response = await self._batcher.generate_for_request(
+                            batch_request_dict(parameters, gemini_contents)
+                        )
+                    elif self.streaming:
+                        response = await self._stream_generate_content(
+                            client=client,
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
+                    else:
+                        response = await client.aio.models.generate_content(
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
+                    # retry for MALFORMED_FUNCTION_CALL
+                    if (
+                        response.candidates
+                        and response.candidates[0].finish_reason
+                        == FinishReason.MALFORMED_FUNCTION_CALL
+                        and not has_native_tools
+                    ):
+                        # tick retries
+                        tool_calling_attempts += 1
+
+                        # apply retry context
+                        retry_contents, retry_tool_config = _malformed_function_retry(
+                            response, tool_choice
+                        )
+                        gemini_contents.extend(retry_contents)
+                        if retry_tool_config is not None:
+                            parameters.tool_config = retry_tool_config
+
+                    # otherwise we are done
+                    else:
+                        break
+            except ClientError as ex:
+                model_call.set_error(
+                    {"error": {"message": str(ex.message), "code": ex.code}},
+                    http_hooks.end_request(request_id),
+                )
+                return self.handle_client_error(ex), model_call
+
+            assert response is not None  # mypy confused by retry loop
+
+            model_call.set_response(response, http_hooks.end_request(request_id))
+
+            model_name = response.model_version or self.service_model_name()
+            output = ModelOutput(
+                model=model_name,
+                choices=completion_choices_from_candidates(model_name, response),
+                usage=usage_metadata_to_model_usage(response.usage_metadata),
+            )
+
+            return output, model_call
+
+    async def _stream_generate_content(
+        self,
+        client: Client,
+        model: str,
+        contents: list[ContentUnion],
+        config: GenerateContentConfig,
+    ) -> GenerateContentResponse:
+        """Stream content generation and accumulate response.
+
+        Accumulates parts from streaming chunks and constructs a response
+        that matches non-streaming structure, allowing existing parsing logic
+        to handle the conversion to Inspect format.
+
+        Raises:
+            RuntimeError: If no chunks received from stream
+        """
+        candidates_parts: dict[int, list[Part]] = {}
+        last_chunk: GenerateContentResponse | None = None
+
+        stream = await client.aio.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=config,
         )
 
-        return output, model_call()
+        async for chunk in stream:
+            last_chunk = chunk
+            if chunk.candidates:
+                for candidate in chunk.candidates:
+                    if candidate.index is None:
+                        continue
+
+                    idx = candidate.index
+                    if idx not in candidates_parts:
+                        candidates_parts[idx] = []
+
+                    if candidate.content and candidate.content.parts:
+                        candidates_parts[idx].extend(candidate.content.parts)
+
+        if last_chunk is None:
+            raise RuntimeError(
+                f"No response chunks received from streaming API for model {model}"
+            )
+
+        final_candidates = []
+        for idx in sorted(candidates_parts.keys()):
+            accumulated_parts = candidates_parts[idx]
+
+            merged_parts: list[Part] = []
+            thinking_texts: list[str] = []
+            output_texts: list[str] = []
+
+            for part in accumulated_parts:
+                if part.thought_signature:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+
+                    if part.text:
+                        combined_text = "".join(output_texts) + part.text
+                        merged_parts.append(
+                            Part(
+                                thought_signature=part.thought_signature,
+                                text=combined_text,
+                            )
+                        )
+                        output_texts = []
+                    elif part.function_call or part.executable_code:
+                        if output_texts:
+                            merged_parts.append(Part(text="".join(output_texts)))
+                            output_texts = []
+
+                        if part.function_call:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    function_call=part.function_call,
+                                )
+                            )
+                        elif part.executable_code:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    executable_code=part.executable_code,
+                                )
+                            )
+                    else:
+                        if output_texts:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    text="".join(output_texts),
+                                )
+                            )
+                            output_texts = []
+
+                elif part.thought is True and part.text:
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
+                    thinking_texts.append(part.text)
+                elif part.text:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    output_texts.append(part.text)
+                else:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
+                    merged_parts.append(part)
+
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+
+            last_candidate_for_idx = None
+            if last_chunk.candidates:
+                for c in last_chunk.candidates:
+                    if c.index == idx:
+                        last_candidate_for_idx = c
+                        break
+
+            if last_candidate_for_idx:
+                final_candidates.append(
+                    Candidate(
+                        content=Content(parts=merged_parts, role="model"),
+                        finish_reason=last_candidate_for_idx.finish_reason,
+                        safety_ratings=last_candidate_for_idx.safety_ratings,
+                        citation_metadata=last_candidate_for_idx.citation_metadata,
+                        token_count=last_candidate_for_idx.token_count,
+                        grounding_metadata=last_candidate_for_idx.grounding_metadata,
+                        avg_logprobs=last_candidate_for_idx.avg_logprobs,
+                        index=idx,
+                    )
+                )
+
+        return GenerateContentResponse(
+            candidates=final_candidates,
+            usage_metadata=last_chunk.usage_metadata,
+            model_version=last_chunk.model_version,
+        )
+
+    @override
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        client = self.model_client()
+        async with client.aio:
+            # normalize to messages
+            if isinstance(input, str):
+                input = [ChatMessageUser(content=input)]
+
+            # turn system into user for purposes of counting
+            count_messages = [
+                ChatMessageUser(content=m.content)
+                if isinstance(m, ChatMessageSystem)
+                else m
+                for m in input
+            ]
+            contents: list[ContentUnion] = [
+                await content(
+                    client, m, emulate_reasoning=not self.is_gemini_thinking()
+                )
+                for m in count_messages
+            ]
+            response = await client.aio.models.count_tokens(
+                model=self.service_model_name(), contents=contents
+            )
+            if response.total_tokens is not None:
+                return response.total_tokens
+            else:
+                logger.warning("Gemini token count returned None")
+                return await super().count_tokens(input, config)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup."""
+        return f"google/{self.service_model_name()}"
+
     def is_gemini(self) -> bool:
         return "gemini-" in self.service_model_name()
+
+    def is_gemini_flash(self) -> bool:
+        return "flash" in self.service_model_name()
 
     def is_gemini_1_5(self) -> bool:
         return "gemini-1.5" in self.service_model_name()
@@ -318,8 +608,33 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_2_0(self) -> bool:
         return "gemini-2.0" in self.service_model_name()
 
+    def is_gemini_2_5(self) -> bool:
+        return "gemini-2.5" in self.service_model_name()
+
+    def is_gemini_3(self) -> bool:
+        return "gemini-3" in self.service_model_name()
+
+    def is_gemini_3_flash(self) -> bool:
+        return self.is_gemini_3() and self.is_gemini_flash()
+
+    def is_gemini_3_plus(self) -> bool:
+        return (
+            self.is_gemini()
+            and not self.is_gemini_1_5()
+            and not self.is_gemini_2_0()
+            and not self.is_gemini_2_5()
+        )
+
+    def is_gemini_thinking(self) -> bool:
+        return not self.is_gemini_1_5() and not self.is_gemini_2_0()
+
+    def is_gemini_thinking_only(self) -> bool:
+        return (
+            self.is_gemini_2_5() or self.is_gemini_3()
+        ) and "-pro" in self.service_model_name()
+
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
             return is_retryable_http_status(ex.code)
         else:
@@ -330,7 +645,44 @@ class GoogleGenAIAPI(ModelAPI):
         """Scope for enforcing max_connections."""
         return str(self.api_key)
 
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIError):
+            return ex.code == 401
+        return False
+
+    def model_client(self, http_options: HttpOptions | None = None) -> Client:
+        from inspect_ai._util._async import current_async_backend
+
+        http_options = http_options or HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
+        )
+        # aiohttp requires asyncio; use httpx under trio for compatibility
+        if (
+            current_async_backend() == "trio"
+            and http_options.httpx_async_client is None
+        ):
+            http_options.httpx_async_client = httpx.AsyncClient()
+        return Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options=http_options,
+            **self.model_args,
+        )
+
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
+        # exceeding a quota with a limit of 0 means no access to model or capability,
+        # for these cases convert to a runtime error so the sample fails.
+        if (
+            ex.code == 429
+            and ex.message
+            and "quota" in ex.message
+            and "limit: 0" in ex.message
+        ):
+            return RuntimeError(ex.message)
+
+        # detect context overflow and convert to ModelOutput
         if (
             ex.code == 400
             and ex.message
@@ -344,6 +696,8 @@ class GoogleGenAIAPI(ModelAPI):
                 content=ex.message,
                 stop_reason="model_length",
             )
+        elif ex.code == 400:
+            return ex
         else:
             raise ex
 
@@ -353,15 +707,56 @@ class GoogleGenAIAPI(ModelAPI):
             self.is_gemini() and not self.is_gemini_1_5() and not self.is_gemini_2_0()
         )
         if has_thinking_config:
-            if config.reasoning_tokens == 0:
-                # When reasoning_tokens is set to zero, we disable reasoning and return None.
-                # We cannot return a ThinkingConfig with reasoning_tokens set to 0,
-                # as this will cause the Gemini API to return a 400 INVALID_ARGUMENT error.
-                return None
+            # user is attempting to turn off reasoning, this only works for some models
+            # so we warn for those models where it can't be done.
+            if config.reasoning_tokens == 0 or config.reasoning_effort == "none":
+                if self.is_gemini_thinking_only():
+                    # When reasoning_tokens is set to 0 and it's a thinking only model we don't
+                    # bother trying to shut down thinking as this is not possible:
+                    #   https://ai.google.dev/gemini-api/docs/thinking#set-budget
+                    # warn and return include_thoughts=True so the user sees what is happening
+                    warn_once(
+                        logger,
+                        f"Thinking cannot be disabled for model {self.service_model_name()}.",
+                    )
+                    return ThinkingConfig(include_thoughts=True)
+                else:
+                    # otherwise do the disable
+                    return ThinkingConfig(include_thoughts=False, thinking_budget=0)
 
-            return ThinkingConfig(
-                include_thoughts=True, thinking_budget=config.reasoning_tokens
-            )
+            # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
+            # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
+            elif config.reasoning_effort is not None and self.is_gemini_3_plus():
+                # note: minimal and medium currently only supported by flash model
+                is_flash = self.is_gemini_3_flash()
+                match config.reasoning_effort:
+                    case "minimal":
+                        thinking_level = (
+                            ThinkingLevel.MINIMAL if is_flash else ThinkingLevel.LOW
+                        )
+                    case "low":
+                        thinking_level = ThinkingLevel.LOW
+                    case "medium":
+                        thinking_level = (
+                            ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
+                        )
+                    case "high" | "xhigh":
+                        thinking_level = ThinkingLevel.HIGH
+                    case _:
+                        thinking_level = None  # can't happen, keep mypy happy
+                return ThinkingConfig(
+                    include_thoughts=True, thinking_level=thinking_level
+                )
+
+            # enable thinking_budget if specified
+            elif config.reasoning_tokens is not None:
+                return ThinkingConfig(
+                    include_thoughts=True, thinking_budget=config.reasoning_tokens
+                )
+
+            # generic thinking with defaults
+            else:
+                return ThinkingConfig(include_thoughts=True)
         else:
             return None
 
@@ -374,9 +769,24 @@ class GoogleGenAIAPI(ModelAPI):
             and (self.is_gemini() and not self.is_gemini_1_5())
         )
 
+    def _use_native_code_execution(self, tool: ToolInfo) -> bool:
+        return (
+            tool.name == "code_execution"
+            and tool.options is not None
+            and "google" in tool.options.get("providers", {})
+            # Support "starts with" Gemini 2.0
+            and (self.is_gemini() and not self.is_gemini_1_5())
+        )
+
     def _categorize_tool(
-        self, acc: tuple[bool, list[FunctionDeclaration]], tool: ToolInfo
-    ) -> tuple[bool, list[FunctionDeclaration]]:
+        self,
+        acc: tuple[
+            GoogleSearch | None, ToolCodeExecution | None, list[FunctionDeclaration]
+        ],
+        tool: ToolInfo,
+    ) -> tuple[
+        GoogleSearch | None, ToolCodeExecution | None, list[FunctionDeclaration]
+    ]:
         """Reducer function that categorizes tools into native search vs function declarations.
 
         Returns:
@@ -385,16 +795,21 @@ class GoogleGenAIAPI(ModelAPI):
             all non-native-search tools converted to FunctionDeclaration objects.
         """
         return (
-            (True, acc[1])
-            if self._use_native_search(tool)
+            (self._google_search_options(tool.options), acc[1], acc[2])
+            if tool.options and self._use_native_search(tool)
+            else (acc[0], ToolCodeExecution(), acc[2])
+            if tool.options and self._use_native_code_execution(tool)
             else (
                 acc[0],
-                acc[1]
+                acc[1],
+                acc[2]
                 + [
                     FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
-                        parameters=schema_from_param(tool.parameters)
+                        parameters_json_schema=tool.parameters.model_dump(
+                            exclude_none=True
+                        )
                         if len(tool.parameters.properties) > 0
                         else None,
                     )
@@ -402,22 +817,72 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
-    def chat_tools(self, tools: list[ToolInfo]) -> ToolListUnion:
-        has_native_search, function_declarations = functools.reduce(
-            self._categorize_tool, tools, (False, list[FunctionDeclaration]())
+    def _google_search_options(self, options: dict[str, Any]) -> GoogleSearch:
+        gemini_options = options.get("gemini", None)
+        if isinstance(gemini_options, dict):
+            return GoogleSearch.model_validate(gemini_options)
+        else:
+            return GoogleSearch()
+
+    def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
+        # cleave up tools (must use either native tools or client tools but not both)
+        search_seed: GoogleSearch | None = None
+        execution_seed: ToolCodeExecution | None = None
+        google_search, code_execution, function_declarations = functools.reduce(
+            self._categorize_tool,
+            tools,
+            (search_seed, execution_seed, list[FunctionDeclaration]()),
         )
 
-        # TODO: Google doesn't yet support native search concurrently with other tools.
-        # Revisit this from time to time to adapt when they fix it.
-        if has_native_search and function_declarations:
-            raise ValueError(
-                "Gemini does not yet support native search concurrently with other tools."
+        # native tools
+        if google_search or code_execution:
+            if function_declarations:
+                raise ValueError(
+                    "Gemini does not yet support native web search or code execution concurrently with other tools."
+                )
+            native_tools: ToolListUnion = []
+            if google_search:
+                native_tools.append(Tool(google_search=google_search))
+            if code_execution:
+                native_tools.append(Tool(code_execution=code_execution))
+            return (True, native_tools)
+
+        # client tools
+        else:
+            return (False, [Tool(function_declarations=function_declarations)])
+
+    def _resolve_batcher(
+        self, config: GenerateConfig, http_options: HttpOptions
+    ) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+
+        # verify we aren't trying to use the batcher with vertex
+        if self.is_vertex():
+            raise NotImplementedError(
+                "Cannot use batch inference with Vertex AI (GCS-based batch jobs not supported)"
             )
 
-        return (
-            [Tool(google_search=GoogleSearch())]
-            if has_native_search
-            else [Tool(function_declarations=function_declarations)]
+        # create a dedicated client instance for the batcher
+        client = Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options=http_options,
+            **self.model_args,
+        )
+
+        self._batcher = GoogleBatcher(
+            client,
+            batch_config,
+            model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                lambda ex: None,
+                log_model_retry,
+            ),
+            self.service_model_name(),
         )
 
 
@@ -432,26 +897,34 @@ def safety_settings_to_list(
     return settings
 
 
-def build_model_call(
+def start_model_call(
     contents: ContentListUnion | ContentListUnionDict,
     generation_config: GenerateContentConfig,
     safety_settings: list[SafetySettingDict],
     tools: ToolListUnion | None,
     tool_config: ToolConfig | None,
-    response: GenerateContentResponse | None,
-    time: float | None,
+    system_instruction: list[File | Part | Image | str] | None,
 ) -> ModelCall:
-    return ModelCall.create(
+    return set_active_model_event_call(
         request=dict(
             contents=contents,
-            generation_config=generation_config,
+            # the excluded fields are passed to the Python API as part of
+            # GenerateContentConfig however they are passed separately in
+            # the actual http request body, so reflect that here
+            generation_config=generation_config.model_copy(
+                update={
+                    "safety_settings": None,
+                    "tools": None,
+                    "tool_config": None,
+                    "system_instruction": None,
+                }
+            ),
             safety_settings=safety_settings,
             tools=tools if tools is not None else None,
             tool_config=tool_config if tool_config is not None else None,
+            system_instruction=system_instruction,
         ),
-        response=response if response is not None else {},
         filter=model_call_filter,
-        time=time,
     )
 
 
@@ -463,7 +936,7 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 
 async def as_chat_messages(
-    client: Client, messages: list[ChatMessage]
+    client: Client, messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> list[Content]:
     # There is no "system" role in the `google-genai` package. Instead, system messages
     # are included in the `GenerateContentConfig` as a `system_instruction`. Strip any
@@ -471,7 +944,10 @@ async def as_chat_messages(
     supported_messages = [message for message in messages if message.role != "system"]
 
     # build google chat messages
-    chat_messages = [await content(client, message) for message in supported_messages]
+    chat_messages = [
+        await content(client, message, emulate_reasoning)
+        for message in supported_messages
+    ]
 
     # combine consecutive tool messages
     chat_messages = functools.reduce(
@@ -486,23 +962,30 @@ def consecutive_tool_message_reducer(
     messages: list[Content],
     message: Content,
 ) -> list[Content]:
-    if (
-        message.role == "function"
-        and len(messages) > 0
-        and messages[-1].role == "function"
-    ):
+    if is_tool_message(message) and len(messages) > 0 and is_tool_message(messages[-1]):
         messages[-1] = Content(
-            role="function", parts=(messages[-1].parts or []) + (message.parts or [])
+            role="user", parts=(messages[-1].parts or []) + (message.parts or [])
         )
     else:
         messages.append(message)
     return messages
 
 
+def is_tool_message(message: Content) -> bool:
+    return (
+        message.role == "user"
+        and message.parts is not None
+        and len(message.parts) > 0
+        and message.parts[0].function_response is not None
+    )
+
+
 async def content(
     client: Client,
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
+    emulate_reasoning: bool = False,
 ) -> Content:
+    working_reasoning_block = None
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
             return Content(
@@ -516,39 +999,102 @@ async def content(
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
-        # tool call parts
-        if message.tool_calls is not None:
-            content_parts.extend(
-                [
-                    Part.from_function_call(
-                        name=tool_call.function,
-                        args=tool_call.arguments,
-                    )
-                    for tool_call in message.tool_calls
-                ]
-            )
 
-        # content parts
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
-            content_parts.extend(
-                [await content_part(client, content) for content in message.content]
-            )
+            for i, content in enumerate(message.content):
+                if isinstance(content, ContentReasoning):
+                    if emulate_reasoning:
+                        content_parts.append(Part(text=reasoning_to_think_tag(content)))
+                    else:
+                        # if this is encrypted reasoning, save it for applying the thought_signature
+                        # to the next part (don't emit a separate thought part during replay)
+                        if content.redacted:
+                            working_reasoning_block = content
+                        else:
+                            # unencrypted reasoning (for older models or debugging)
+                            content_parts.append(
+                                Part(text=content.reasoning, thought=True)
+                            )
 
-        # return parts
+                else:
+                    # server side tool use
+                    if isinstance(content, ContentToolUse):
+                        parts_to_append = parts_from_server_tool_use(content)
+
+                    # other content
+                    else:
+                        parts_to_append = [await content_part(client, content)]
+
+                    # If previously there was a reasoning block, we need to set the "thought_signature"
+                    # using the reasoning from that block.
+                    # However, if there are tool calls in this message, the signature should go on
+                    # the first tool call instead, not on text or server tool use parts
+                    # (per Gemini API docs).
+                    if (
+                        working_reasoning_block is not None
+                        and message.tool_calls is None
+                    ):
+                        if (
+                            working_reasoning_block.reasoning is not None
+                            and working_reasoning_block.redacted
+                        ):
+                            parts_to_append[0].thought_signature = base64.b64decode(
+                                working_reasoning_block.reasoning.encode()
+                            )
+                        else:
+                            logger.warning(
+                                "Reasoning block must have a reasoning signature to set thought_signature."
+                            )
+                        # Now, reset the previous reasoning block.
+                        working_reasoning_block = None
+                    content_parts.extend(parts_to_append)
+
+        # Now handle tool calls
+        if message.tool_calls is not None:
+            # Per Gemini API docs: thought_signature goes on the first tool call in a message.
+            # For parallel function calls, only the first FC gets the signature.
+            # For sequential function calls (multi-step), each step is a separate message,
+            # so each will have its own reasoning block and signature.
+            # The loop below applies the signature to the first tool call (when working_reasoning_block
+            # is not None), then clears it so subsequent tool calls don't get it.
+            for tool_call in message.tool_calls:
+                # extract the part
+                part = Part.from_function_call(
+                    name=tool_call.function,
+                    args=tool_call.arguments,
+                )
+
+                # handle reasoning block if available
+                if working_reasoning_block is not None:
+                    # tool call reasoning should always use a thought_signature
+                    if (
+                        working_reasoning_block.reasoning is not None
+                        and working_reasoning_block.redacted
+                    ):
+                        part.thought_signature = base64.b64decode(
+                            working_reasoning_block.reasoning.encode()
+                        )
+                    else:
+                        logger.warning(
+                            "Reasoning block must have a reasoning signature to set thought_signature."
+                        )
+                    working_reasoning_block = None
+
+                content_parts.append(part)
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
-            name=message.tool_call_id,
+            name=message.function,
             response={
                 "content": (
                     message.error.message if message.error is not None else message.text
                 )
             },
         )
-        return Content(role="function", parts=[Part(function_response=response)])
+        return Content(role="user", parts=[Part(function_response=response)])
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
@@ -557,16 +1103,18 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
-        return Part.from_text(text=content.reasoning or NO_CONTENT)
+        raise RuntimeError("content_part should never encounter ContentReasoning")
     elif isinstance(content, ContentData):
-        assert False, "Google provider should never encounter ContentData"
+        raise RuntimeError("Google provider should never encounter ContentData")
+    elif isinstance(content, ContentToolUse):
+        raise RuntimeError("Google provider should never encounter ContentToolUse")
     else:
         return await chat_content_to_part(client, content)
 
 
 async def chat_content_to_part(
     client: Client,
-    content: ContentImage | ContentAudio | ContentVideo,
+    content: ContentImage | ContentAudio | ContentVideo | ContentDocument,
 ) -> Part:
     if isinstance(content, ContentImage):
         content_bytes, mime_type = await file_as_data(content.image)
@@ -579,10 +1127,9 @@ async def chat_content_to_part(
 
 
 async def extract_system_message_as_parts(
-    client: Client,
-    messages: list[ChatMessage],
-) -> list[File | Part | str] | None:
-    system_parts: list[File | Part | str] = []
+    client: Client, messages: list[ChatMessage], tools: list[ToolInfo]
+) -> list[File | Part | Image | str] | None:
+    system_parts: list[File | Part | Image | str] = []
     for message in messages:
         if message.role == "system":
             content = message.content
@@ -594,83 +1141,40 @@ async def extract_system_message_as_parts(
                 )
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
-    # google-genai raises "ValueError: content is required." if the list is empty.
-    return system_parts or None
 
+    # if there are tools then inject a message to prevent MALFORMED_FUNCTION_CALL
+    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+    if len(tools) > 0:
+        system_parts.append(
+            Part(
+                text=dedent("""
+                ## Function Calling
+                - Do not generate code. Always generate the function call json
+                When calling functions, output the function name exactly as defined. Do not prepend 'default_api.' or any other namespace to the function name
+                """)
+            )
+        )
 
-# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
-def schema_from_param(
-    param: ToolParam | ToolParams, nullable: bool | None = False
-) -> Schema:
-    if isinstance(param, ToolParams):
-        param = ToolParam(
-            type=param.type, properties=param.properties, required=param.required
-        )
+    # if every part is text then return list[str] rather than list[Part]
+    # works around issue w/ open-telemetry not expecting parts
+    if system_parts:
+        text_parts: list[File | Part | Image | str] = []
+        for p in system_parts:
+            if isinstance(p, str):
+                text_parts.append(p)
+            elif isinstance(p, Part) and p.text is not None:
+                text_parts.append(p.text)
+            else:
+                break
 
-    if param.type == "number":
-        return Schema(
-            type=Type.NUMBER, description=param.description, nullable=nullable
-        )
-    elif param.type == "integer":
-        return Schema(
-            type=Type.INTEGER, description=param.description, nullable=nullable
-        )
-    elif param.type == "boolean":
-        return Schema(
-            type=Type.BOOLEAN, description=param.description, nullable=nullable
-        )
-    elif param.type == "string":
-        if param.format == "date-time":
-            return Schema(
-                type=Type.STRING,
-                description=param.description,
-                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
-                nullable=nullable,
-            )
-        elif param.format == "date":
-            return Schema(
-                type=Type.STRING,
-                description=param.description,
-                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
-                nullable=nullable,
-            )
-        elif param.format == "time":
-            return Schema(
-                type=Type.STRING,
-                description=param.description,
-                format="^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
-                nullable=nullable,
-            )
-        return Schema(
-            type=Type.STRING, description=param.description, nullable=nullable
-        )
-    elif param.type == "array":
-        return Schema(
-            type=Type.ARRAY,
-            description=param.description,
-            items=schema_from_param(param.items) if param.items else None,
-            nullable=nullable,
-        )
-    elif param.type == "object":
-        return Schema(
-            type=Type.OBJECT,
-            description=param.description,
-            properties={k: schema_from_param(v) for k, v in param.properties.items()}
-            if param.properties is not None
-            else {},
-            required=param.required,
-            nullable=nullable,
-        )
-    # convert unions to optional params if the second type is 'null'
-    elif param.anyOf:
-        if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
-            return schema_from_param(param.anyOf[0], nullable=True)
+        if len(text_parts) == len(system_parts):
+            return text_parts
         else:
-            return Schema(type=Type.TYPE_UNSPECIFIED)
-    elif param.enum:
-        return Schema(type=Type.STRING, format="enum", enum=param.enum)
+            return system_parts
+
     else:
-        return Schema(type=Type.TYPE_UNSPECIFIED)
+        # google-genai raises "ValueError: content is required." if the list is empty.
+        return None
 
 
 def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
@@ -692,46 +1196,91 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
 def completion_choice_from_candidate(
     model: str, candidate: Candidate
 ) -> ChatCompletionChoice:
-    # content can be None when the finish_reason is SAFETY
-    if candidate.content is None:
-        content: (
-            str
-            | list[
-                ContentText
-                | ContentReasoning
-                | ContentImage
-                | ContentAudio
-                | ContentVideo
-                | ContentData
-            ]
-        ) = ""
-    # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
-    elif candidate.content.parts is None:
-        content = ""
-    else:
-        # Google's grounded search metadata provides start/end indices for cited
-        # text based on the joining of all separate text parts (despite the doc
-        # suggesting that they provide part_index). Thankfully, the doc also says:
-        #
-        #   Exactly one field within a Part should be set, representing the specific type
-        #   of content being conveyed. Using multiple fields within the same `Part`
-        #   instance is considered invalid.
-        #
-        # That means that we can safely collapse adjacent parts with a `text` field
-        # and not fear that we're breaking other types of content parts
-        parts = functools.reduce(
-            _combine_text_parts, candidate.content.parts, list[Part]()
-        )
+    # content we'll return
+    content: list[
+        ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentToolUse
+        | ContentAudio
+        | ContentVideo
+        | ContentData
+        | ContentDocument
+    ] = []
 
-        content = [
-            ContentReasoning(reasoning=part.text)
-            if part.thought is True
-            else ContentText(
-                text=part.text, citations=get_candidate_citations(candidate)
-            )
-            for part in parts
-            if part.text is not None
-        ]
+    # google distributes reasoning text and thought_signature across multiple
+    # content parts -- we need to consolidate this into a single ContentReasoning
+    # to match our schema (we'll unroll it back into parts on replay)
+    working_reasoning_block: ContentReasoning | None = None
+
+    # content can be None when the finish_reason is SAFETY
+    # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
+    if candidate.content is not None and candidate.content.parts is not None:
+        # traverse parts
+        parts = candidate.content.parts
+        for i, part in enumerate(parts):
+            if part.text is None and part.executable_code is None:
+                continue  # We only care about text and executable_code here
+
+            if part.code_execution_result is not None:
+                continue  # We pickup code execution results with part.executable_code
+
+            if part.text is not None and part.thought is True:
+                # we'll create and append a reasoning block, saving a reference
+                # to it so that we can ammend it with a thought signature if/when
+                # one arrives later in the stream (note that multiple reasoning
+                # parts without a signature can occur)
+                working_reasoning_block = ContentReasoning(
+                    reasoning=part.text,
+                    redacted=False,
+                )
+                content.append(working_reasoning_block)
+            else:
+                # Check if this block has an associated thought_signature and
+                # whether it corresponds to the previous ContentReasoning block.
+                if part.thought_signature is not None:
+                    if working_reasoning_block is None:
+                        # append the reasoning block to the list
+                        content.append(
+                            ContentReasoning(
+                                reasoning=base64.b64encode(
+                                    part.thought_signature
+                                ).decode(),
+                                redacted=True,
+                            )
+                        )
+                    else:
+                        # attach the though_signature to the previous reasoning block
+                        working_reasoning_block.summary = (
+                            working_reasoning_block.reasoning
+                        )
+                        working_reasoning_block.reasoning = base64.b64encode(
+                            part.thought_signature
+                        ).decode()
+                        working_reasoning_block.redacted = True
+                        # clear it out
+                        working_reasoning_block = None
+
+                if part.text is not None:
+                    content.append(ContentText(text=part.text))
+                if part.executable_code is not None:
+                    # lookahead for execution result
+                    code_execution_result = (
+                        parts[i + 1].code_execution_result
+                        if i + 1 < len(parts)
+                        else None
+                    )
+                    # append tool use
+                    content.append(
+                        server_tool_use_from_executable_code(
+                            part.executable_code, code_execution_result
+                        )
+                    )
+
+    # distribute citations to individual ContentText parts with adjusted indexes
+    citations = get_candidate_citations(candidate)
+    if citations:
+        distribute_citations_to_text_parts(content, citations)
 
     # now tool calls
     tool_calls: list[ToolCall] = []
@@ -739,29 +1288,64 @@ def completion_choice_from_candidate(
         for part in candidate.content.parts:
             if part.function_call:
                 if (
-                    part.function_call is not None
-                    and part.function_call.name is not None
-                    and part.function_call.args is not None
+                    part.function_call is None
+                    or part.function_call.name is None
+                    or part.function_call.args is None
                 ):
-                    tool_calls.append(
-                        ToolCall(
-                            id=part.function_call.name,
-                            function=part.function_call.name,
-                            arguments=part.function_call.args,
-                        )
-                    )
-                else:
                     raise ValueError(f"Incomplete function call: {part.function_call}")
+
+                # If the part has a thought_signature, try and associate it with the previous working block
+                if part.thought_signature:
+                    if working_reasoning_block is None:
+                        # We make the assumption that tool calls don't have independent reasoning
+                        # blocks unless they are preceded by a reasoning block.
+                        reasoning_block = ContentReasoning(
+                            reasoning=base64.b64encode(part.thought_signature).decode(),
+                            redacted=True,
+                        )
+
+                        content.append(reasoning_block)
+                    else:
+                        # attach the thought_signature to the previous reasoning block
+                        working_reasoning_block.summary = (
+                            working_reasoning_block.reasoning
+                        )
+                        working_reasoning_block.reasoning = base64.b64encode(
+                            part.thought_signature
+                        ).decode()
+                        working_reasoning_block.redacted = True
+                        working_reasoning_block = None
+
+                tool_calls.append(
+                    ToolCall(
+                        id=f"{part.function_call.name}_{uuid()}",
+                        function=part.function_call.name,
+                        arguments=part.function_call.args,
+                    )
+                )
 
     # stop reason
     stop_reason = finish_reason_to_stop_reason(
         candidate.finish_reason or FinishReason.STOP
     )
 
+    # if finish reason is MALFORMED_FUNCTION_CALL then we should put words the model's
+    # mouth indicating that it had trouble calling a tool
+    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+    if candidate.finish_reason == FinishReason.MALFORMED_FUNCTION_CALL:
+        content.append(
+            ContentText(
+                text=dedent(f"""
+                I seem to have had trouble calling a function and replied with {_malformed_function_message(candidate)}.
+                I need to fix this by generating the function call JSON instead.
+                """)
+            )
+        )
+
     # build choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content,
+            content=content if len(content) > 0 else "",
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             model=model,
             source="generate",
@@ -861,6 +1445,45 @@ def usage_metadata_to_model_usage(
     )
 
 
+def server_tool_use_from_executable_code(
+    executable_code: ExecutableCode, result: CodeExecutionResult | None
+) -> ContentToolUse:
+    # parse out output and error
+    if result is not None:
+        result_output = result.output or ""
+        if result.outcome is not None and result.outcome != Outcome.OUTCOME_OK:
+            result_error: str | None = result.outcome
+        else:
+            result_error = None
+    else:
+        result_output = ""
+        result_error = None
+
+    # return tool use
+    return ContentToolUse(
+        tool_type="code_execution",
+        id="",
+        name=executable_code.language or Language.LANGUAGE_UNSPECIFIED,
+        arguments=executable_code.code or "",
+        result=result_output,
+        error=result_error,
+    )
+
+
+def parts_from_server_tool_use(tool: ContentToolUse) -> list[Part]:
+    parts: list[Part] = [
+        Part.from_executable_code(code=tool.arguments, language=Language(tool.name))
+    ]
+    if tool.result or tool.error:
+        parts.append(
+            Part.from_code_execution_result(
+                outcome=Outcome(tool.error) if tool.error else Outcome.OUTCOME_OK,
+                output=tool.result,
+            )
+        )
+    return parts
+
+
 def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
     match finish_reason:
         case FinishReason.STOP:
@@ -937,7 +1560,7 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
 
 
 async def file_for_content(
-    client: Client, content: ContentAudio | ContentVideo
+    client: Client, content: ContentAudio | ContentVideo | ContentDocument
 ) -> File:
     # helper to write trace messages
     def trace(message: str) -> None:
@@ -946,8 +1569,10 @@ async def file_for_content(
     # get the file bytes and compute sha256 hash
     if isinstance(content, ContentAudio):
         file = content.audio
-    else:
+    elif isinstance(content, ContentVideo):
         file = content.video
+    else:
+        file = content.document
     content_bytes, mime_type = await file_as_data(file)
     content_sha256 = hashlib.sha256(content_bytes).hexdigest()
     # we cache uploads for re-use, open the db where we track that
@@ -987,14 +1612,47 @@ async def file_for_content(
         return upload
 
 
-def _combine_text_parts(acc: list[Part], part: Part) -> list[Part]:
-    """Combine adjacent text parts into a single part."""
-    return (
-        acc + [part]
-        if part.text is None
-        or part.thought is True
-        or len(acc) == 0
-        or acc[-1].text is None
-        or acc[-1].thought is True
-        else acc[:-1] + [Part(text=acc[-1].text + part.text)]
+def _malformed_function_retry(
+    response: GenerateContentResponse, tool_choice: ToolChoice
+) -> tuple[list[Content], ToolConfig | None]:
+    content = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    text=f"I attempted to call a function but produced: {_malformed_function_message(response)}"
+                )
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    text="Please try again and generate valid function call JSON, not Python code."
+                )
+            ],
+        ),
+    ]
+
+    # force tool calling if it was 'auto'
+    tool_config = chat_tool_config("any") if tool_choice == "auto" else None
+
+    return content, tool_config
+
+
+def _malformed_function_message(candidate: Candidate | GenerateContentResponse) -> str:
+    DEFAULT_FINISH_MESSAGE = (
+        "a malformed function call (possibly Python code instead of JSON)"
     )
+
+    # resolve candidate
+    if isinstance(candidate, GenerateContentResponse):
+        if not candidate.candidates:
+            return DEFAULT_FINISH_MESSAGE
+
+        candidate = candidate.candidates[0]
+
+    if candidate.finish_message:
+        return candidate.finish_message
+    else:
+        return DEFAULT_FINISH_MESSAGE

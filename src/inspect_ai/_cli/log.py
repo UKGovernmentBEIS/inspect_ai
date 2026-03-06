@@ -10,8 +10,9 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
+from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai.log import list_eval_logs
+from inspect_ai.log import EvalStatus, list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
     eval_log_json_str,
@@ -72,7 +73,7 @@ def list_logs_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def log_list(
-    status: Literal["started", "success", "cancelled", "error"] | None,
+    status: EvalStatus | None,
     absolute: bool,
     json: bool,
     no_recursive: bool | None,
@@ -104,10 +105,27 @@ def log_list(
             print(log.name)
 
 
+def resolve_attachments_callback(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> bool | Literal["full", "core"]:
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return False
+
+    if value is None:
+        return False
+    elif value == "full":
+        return "full"
+    elif value == "core":
+        return "core"
+    else:
+        raise click.BadParameter(f"Expected 'full', or 'core'. Got: {value}")
+
+
 @log_command.command("list")
 @list_logs_options
 def list_command(
-    status: Literal["started", "success", "cancelled", "error"] | None,
+    status: EvalStatus | None,
     absolute: bool,
     json: bool,
     no_recursive: bool | None,
@@ -126,9 +144,22 @@ def list_command(
     default=False,
     help="Read and print only the header of the log file (i.e. no samples).",
 )
-def dump_command(path: str, header_only: bool) -> None:
+@click.option(
+    "--resolve-attachments",
+    type=click.Choice(["full", "core"]),
+    flag_value="core",
+    is_flag=False,
+    default=None,
+    callback=resolve_attachments_callback,
+    help="Resolve attachments (duplicated content blocks) to their full content.",
+)
+def dump_command(
+    path: str, header_only: bool, resolve_attachments: bool | Literal["full", "core"]
+) -> None:
     """Print log file contents as JSON."""
-    log = read_eval_log(path, header_only=header_only)
+    log = read_eval_log(
+        path, header_only=header_only, resolve_attachments=resolve_attachments
+    )
     print(eval_log_json_str(log))
 
 
@@ -152,21 +183,51 @@ def dump_command(path: str, header_only: bool) -> None:
     default=False,
     help="Overwrite files in the output directory.",
 )
+@click.option(
+    "--resolve-attachments",
+    type=click.Choice(["full", "core"]),
+    flag_value="core",
+    is_flag=False,
+    default=None,
+    callback=resolve_attachments_callback,
+    help="Resolve attachments (duplicated content blocks) to their full content.",
+)
+@click.option(
+    "--stream",
+    flag_value="true",
+    type=str,
+    is_flag=False,
+    default=False,
+    callback=int_or_bool_flag_callback(True, false_value=False, is_one_true=False),
+    help="Stream the samples through the conversion process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being converted.",
+)
 def convert_command(
-    path: str, to: Literal["eval", "json"], output_dir: str, overwrite: bool
+    path: str,
+    to: Literal["eval", "json"],
+    output_dir: str,
+    overwrite: bool,
+    resolve_attachments: bool | Literal["full", "core"],
+    stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
-    convert_eval_logs(path, to, output_dir, overwrite)
+    convert_eval_logs(
+        path,
+        to,
+        output_dir,
+        overwrite,
+        resolve_attachments=resolve_attachments,
+        stream=stream,
+    )
 
 
 @log_command.command("headers", hidden=True)
 @click.argument("files", nargs=-1)
-def headers_command(files: tuple[str]) -> None:
+def headers_command(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
     headers(files)
 
 
-def headers(files: tuple[str]) -> None:
+def headers(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
     headers = read_eval_log_headers(list(files))
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))

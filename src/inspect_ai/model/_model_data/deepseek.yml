@@ -1,0 +1,21 @@
+DeepSeek:
+  display_name: DeepSeek
+  models:
+    deepseek-chat:
+      display_name: "V3"
+      release_date: 2024-12-26
+      knowledge_cutoff_date: 2024-07-01
+      context_length: 65536
+      versions:
+        DeepSeek-V3-0324:
+          release_date: 2025-03-24
+          snapshot: "0324"
+    deepseek-reasoner:
+      display_name: "R1"
+      release_date: 2025-02-17
+      context_length: 65536
+      reasoning: True
+      versions:
+        DeepSeek-R1-0528:
+          rlease_date: 2025-05-28
+          snapshot: "0528"

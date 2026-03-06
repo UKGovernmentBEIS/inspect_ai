@@ -6,6 +6,8 @@ Inspect provides many built-in components, including facilities for prompt engin
 
 To get started with Inspect, please see the documentation at <https://inspect.aisi.org.uk/>.
 
+Inspect also includes a collection of over 100 pre-built evaluations ready to run on any model (learn more at [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/))
+
 ***
 
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:
@@ -30,3 +32,15 @@ make test
 ```
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
+
+***
+
+To work on the Inspect documentation, install the optional `[doc]` dependencies with the `-e` flag and build the docs:
+
+```
+pip install -e ".[doc]"
+cd docs
+quarto render # or 'quarto preview'
+```
+
+If you intend to work on the docs iteratively, you'll want to install the Quarto extension in VS Code.

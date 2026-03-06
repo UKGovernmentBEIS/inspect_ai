@@ -1,10 +1,10 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { Input2, Input5, Result2, SubtaskEvent } from "../../../@types/log";
+import { Input2, Input5, Result3, SubtaskEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";
-import { formatTiming, formatTitle } from "./event/utils";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
 import { EventNode, EventType } from "./types";
 
@@ -43,18 +43,12 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
     );
   }
 
-  // Is this a traditional subtask or a fork?
-  const type = event.type === "fork" ? "Fork" : "Subtask";
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
       className={className}
-      title={formatTitle(
-        `${type}: ${event.name}`,
-        undefined,
-        event.working_time,
-      )}
+      title={formatTitle(eventTitle(event), undefined, event.working_time)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       childIds={children.map((child) => child.id)}
       collapseControl="bottom"
@@ -66,7 +60,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
 
 interface SubtaskSummaryProps {
   input: Input2 | Input5;
-  result: Result2;
+  result: Result3;
 }
 /**
  * Renders the StateEventView component.

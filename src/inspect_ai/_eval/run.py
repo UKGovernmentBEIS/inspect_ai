@@ -6,13 +6,13 @@ from typing import Any, Awaitable, Callable, Set, cast
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
+from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 import anyio
-from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
@@ -23,7 +23,6 @@ from inspect_ai._display.core.active import (
 from inspect_ai._display.core.display import TaskSpec
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
@@ -58,6 +57,7 @@ log = logging.getLogger(__name__)
 
 
 async def eval_run(
+    eval_set_id: str | None,
     run_id: str,
     tasks: list[ResolvedTask],
     parallel: int,
@@ -70,6 +70,7 @@ async def eval_run(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,
+    run_samples: bool = True,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -95,7 +96,7 @@ async def eval_run(
 
     # run startup pass for the sandbox environments
     shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
-    if has_sandbox:
+    if has_sandbox and run_samples:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
             resolve_sandbox_environment(eval_sandbox), tasks, eval_config, cleanup
@@ -186,11 +187,23 @@ async def eval_run(
                 else:
                     task.working_limit = task_eval_config.working_limit
 
+                # sample cost limit
+                if task_eval_config.cost_limit is None:
+                    task_eval_config.cost_limit = task.cost_limit
+                else:
+                    task.cost_limit = task_eval_config.cost_limit
+
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:
                     task_eval_config.fail_on_error = task.fail_on_error
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
+
+                # continue_on_fail
+                if task_eval_config.continue_on_fail is None:
+                    task_eval_config.continue_on_fail = task.continue_on_fail
+                else:
+                    task.continue_on_fail = task_eval_config.continue_on_fail
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -198,7 +211,9 @@ async def eval_run(
                     task_version=task.version,
                     task_file=resolved_task.task_file,
                     task_registry_name=resolved_task.task.registry_name,
-                    task_id=resolved_task.id if resolved_task.id else uuid(),
+                    task_display_name=resolved_task.task.display_name,
+                    task_id=resolved_task.id,
+                    eval_set_id=eval_set_id,
                     run_id=run_id,
                     solver=eval_solver_spec,
                     tags=tags,
@@ -233,6 +248,7 @@ async def eval_run(
                         config=task_eval_config,
                         solver=eval_solver,
                         tags=tags,
+                        run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
@@ -538,7 +554,7 @@ async def startup_sandbox_environments(
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
     return [
-        TaskSpec(registry_unqualified_name(task.task.name), ModelName(task.model))
+        TaskSpec(task_display_name(task.task.name), ModelName(task.model))
         for task in tasks
     ]
 

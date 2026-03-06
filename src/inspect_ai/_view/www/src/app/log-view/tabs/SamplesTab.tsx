@@ -1,8 +1,7 @@
-import { FC, Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { VirtuosoHandle } from "react-virtuoso";
+import type { AgGridReact } from "ag-grid-react";
+import { FC, Fragment, useEffect, useMemo, useRef } from "react";
 import { Status } from "../../../@types/log";
 import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
-import { SampleDialog } from "../../../app/samples/SampleDialog.tsx";
 import {
   SampleTools,
   ScoreFilterTools,
@@ -13,17 +12,13 @@ import { ToolButton } from "../../../components/ToolButton.tsx";
 import { kLogViewSamplesTabId } from "../../../constants.ts";
 import {
   useFilteredSamples,
-  useGroupBy,
-  useGroupByOrder,
   useSampleDescriptor,
-  useScore,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
-import { getSampleProcessor } from "./grouping.ts";
-import { ListItem } from "./types.ts";
+import { SampleListItem } from "./types.ts";
 
 // Individual hook for Samples tab
 export const useSamplesTabConfig = (
@@ -32,7 +27,6 @@ export const useSamplesTabConfig = (
 ) => {
   const totalSampleCount = useTotalSampleCount();
   const samplesDescriptor = useSampleDescriptor();
-  const sampleSummaries = useFilteredSamples();
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
 
   return useMemo(() => {
@@ -48,7 +42,7 @@ export const useSamplesTabConfig = (
         !samplesDescriptor
           ? undefined
           : totalSampleCount === 1
-            ? [<ScoreFilterTools />]
+            ? [<ScoreFilterTools key="sample-score-tool" />]
             : [
                 <SampleTools key="sample-tools" />,
                 evalStatus === "started" && !streamSamples && (
@@ -64,8 +58,8 @@ export const useSamplesTabConfig = (
   }, [
     evalStatus,
     refreshLog,
-    sampleSummaries,
     samplesDescriptor,
+    streamSamples,
     totalSampleCount,
   ]);
 };
@@ -76,17 +70,14 @@ interface SamplesTabProps {
 }
 
 export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
-
   const sampleSummaries = useFilteredSamples();
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   // Compute the limit to apply to the sample count (this is so)
   // we can provide a total expected sample count for this evaluation
   const evalSampleCount = useMemo(() => {
-    const limit = selectedLogSummary?.eval.config.limit;
+    const limit = selectedLogDetails?.eval.config.limit;
     const limitCount =
       limit === null || limit === undefined
         ? undefined
@@ -94,109 +85,41 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
           ? limit
           : (limit[1] as number) - (limit[0] as number);
     return (
-      (limitCount || selectedLogSummary?.eval.dataset.samples || 0) *
-      (selectedLogSummary?.eval.config.epochs || 0)
+      (limitCount || selectedLogDetails?.eval.dataset.samples || 0) *
+      (selectedLogDetails?.eval.config.epochs || 0)
     );
-  }, [selectedLogSummary?.eval.config.limit]);
+  }, [
+    selectedLogDetails?.eval.config.epochs,
+    selectedLogDetails?.eval.config.limit,
+    selectedLogDetails?.eval.dataset.samples,
+  ]);
 
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();
-  const groupBy = useGroupBy();
-  const groupByOrder = useGroupByOrder();
-  const currentScore = useScore();
   const selectSample = useStore((state) => state.logActions.selectSample);
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
-  const selectedSampleIdentifier = useStore(
-    (state) => state.sample.sample_identifier,
-  );
+  const sampleListHandle = useRef<AgGridReact<SampleListItem> | null>(null);
 
-  const [items, setItems] = useState<ListItem[]>([]);
-  const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
-
-  const sampleListHandle = useRef<VirtuosoHandle | null>(null);
-
-  // Keep the selected item scrolled into view
-  useEffect(() => {
-    setTimeout(() => {
-      if (sampleListHandle.current) {
-        sampleListHandle.current.scrollIntoView({ index: selectedSampleIndex });
-      }
-    }, 0);
-  }, [selectedSampleIndex]);
-
-  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
-
-  // Focus the sample list when sample dialog is hidden, but only when it's being dismissed
-  const previousShowingDialogRef = useRef(showingSampleDialog);
-  useEffect(() => {
-    // Only focus when transitioning from showing dialog to not showing dialog
-    if (
-      previousShowingDialogRef.current &&
-      !showingSampleDialog &&
-      sampleListHandle.current
-    ) {
-      setTimeout(() => {
-        const element = document.querySelector(".samples-list");
-        if (element instanceof HTMLElement) {
-          element.focus();
-        }
-      }, 10);
-    }
-    previousShowingDialogRef.current = showingSampleDialog;
-  }, [showingSampleDialog]);
-
-  const sampleProcessor = useMemo(() => {
-    if (!samplesDescriptor) return undefined;
-
-    return getSampleProcessor(
-      sampleSummaries || [],
-      selectedLogSummary?.eval?.config?.epochs || 1,
-      groupBy,
-      groupByOrder,
-      samplesDescriptor,
-      currentScore,
+  const items: SampleListItem[] = useMemo(() => {
+    if (!samplesDescriptor) return [];
+    return sampleSummaries.map(
+      (sample): SampleListItem => ({
+        data: sample,
+        answer:
+          samplesDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+        completed: sample.completed !== undefined ? sample.completed : true,
+      }),
     );
-  }, [
-    samplesDescriptor,
-    sampleSummaries,
-    selectedLogSummary?.eval?.config?.epochs,
-    groupBy,
-    groupByOrder,
-    currentScore,
-  ]);
+  }, [sampleSummaries, samplesDescriptor]);
 
   useEffect(() => {
-    const resolvedSamples = sampleSummaries?.flatMap((sample, index) => {
-      const results: ListItem[] = [];
-      const previousSample =
-        index !== 0 ? sampleSummaries[index - 1] : undefined;
-      const items = sampleProcessor
-        ? sampleProcessor(sample, index, previousSample)
-        : [];
-
-      results.push(...items);
-      return results;
-    });
-
-    setItems(resolvedSamples || []);
-    setSampleItems(
-      resolvedSamples
-        ? resolvedSamples.filter((item) => {
-            return item.type === "sample";
-          })
-        : [],
-    );
-
-    if (sampleSummaries.length === 1) {
-      selectSample(0);
+    if (sampleSummaries.length === 1 && selectedLogFile) {
+      const sample = sampleSummaries[0];
+      selectSample(sample.id, sample.epoch, selectedLogFile);
     }
-  }, [sampleSummaries, sampleProcessor]);
-
-  const title =
-    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
-      ? sampleItems[selectedSampleIndex].label
-      : "";
+  }, [sampleSummaries, selectSample, selectedLogFile]);
 
   if (totalSampleCount === 0) {
     if (running) {
@@ -208,27 +131,17 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     return (
       <Fragment>
         {samplesDescriptor && totalSampleCount === 1 ? (
-          <InlineSampleDisplay />
+          <InlineSampleDisplay showActivity={sampleStatus === "loading"} />
         ) : undefined}
         {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList
             listHandle={sampleListHandle}
             items={items}
+            earlyStopping={selectedLogDetails?.results?.early_stopping}
             totalItemCount={evalSampleCount}
             running={running}
           />
         ) : undefined}
-        {showingSampleDialog && (
-          <SampleDialog
-            id={
-              selectedSampleIdentifier
-                ? `${selectedSampleIdentifier.id}_${selectedSampleIdentifier.epoch}`
-                : ""
-            }
-            title={title}
-            showingSampleDialog={showingSampleDialog}
-          />
-        )}
       </Fragment>
     );
   }

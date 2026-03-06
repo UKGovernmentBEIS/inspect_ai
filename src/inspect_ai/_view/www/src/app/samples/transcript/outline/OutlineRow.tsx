@@ -37,7 +37,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
   const toggle = toggleIcon(node, collapsed);
 
   const popoverId = `${node.id}-popover`;
-  const { isShowing } = useSamplePopover(popoverId);
+  const { isShowing, setShowing } = useSamplePopover(popoverId);
 
   const ref = useRef(null);
 
@@ -53,6 +53,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
           selected ? styles.selected : "",
         )}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
+        data-unsearchable={true}
       >
         <div
           className={clsx(styles.toggle)}
@@ -88,6 +89,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
         id={`${node.id}-popover`}
         positionEl={ref.current}
         isOpen={isShowing}
+        setIsOpen={setShowing}
         className={clsx(styles.popper)}
         placement="auto-end"
       >

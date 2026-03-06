@@ -2,16 +2,21 @@ import re
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util._json_rpc import exec_model_request
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
+)
+from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
+    LEGACY_SANDBOX_CLI,
+    legacy_tool_support_sandbox,
+)
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.tool._tool_support_helpers import (
-    exec_model_request,
-    tool_support_sandbox,
-)
 from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._store_model import StoreModel, store_as
 
 from ._back_compat import old_web_browser_cmd
@@ -395,7 +400,7 @@ async def _web_browser_cmd(
     # TODO: Is it worth it to plumb this down from the @tool?
     timeout = 180
     try:
-        (sandbox_env, _) = await tool_support_sandbox("web browser")
+        (sandbox_env, _) = await legacy_tool_support_sandbox("web browser")
     except PrerequisiteError as e:
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
@@ -409,13 +414,17 @@ async def _web_browser_cmd(
     # bind to store (use instance id if provided)
     store = store_as(WebBrowserStore, instance=instance)
 
+    # Create transport for all RPC calls
+    transport = SandboxJSONRPCTransport(sandbox_env, LEGACY_SANDBOX_CLI)
+
     if not store.session_id:
         store.session_id = (
             await exec_model_request(
-                sandbox=sandbox_env,
                 method="web_new_session",
                 params={"headful": False},
                 result_type=NewSessionResult,
+                transport=transport,
+                error_mapper=SandboxToolsErrorMapper,
                 timeout=timeout,
             )
         ).session_name
@@ -423,10 +432,11 @@ async def _web_browser_cmd(
     params["session_name"] = store.session_id
 
     crawler_result = await exec_model_request(
-        sandbox=sandbox_env,
         method=tool_name,
         params=params,
         result_type=CrawlerResult,
+        transport=transport,
+        error_mapper=SandboxToolsErrorMapper,
         timeout=timeout,
     )
     if crawler_result.error and crawler_result.error.strip() != "":

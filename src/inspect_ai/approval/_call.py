@@ -3,6 +3,7 @@ from logging import getLogger
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_log_name
+from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
@@ -46,7 +47,7 @@ def record_approval(
     view: ToolCallView | None,
     approval: Approval,
 ) -> None:
-    from inspect_ai.log._transcript import ApprovalEvent, transcript
+    from inspect_ai.log._transcript import transcript
 
     transcript()._event(
         ApprovalEvent(

@@ -28,7 +28,12 @@ export const ChatMessageRenderer: ContentRenderer = {
       rendered: (
         <NavPills id={`${id}-navpills`}>
           <ChatSummary title="Last Turn" id={id} messages={entry.value} />
-          <ChatView title="All" id={id} messages={entry.value} />
+          <ChatView
+            title="All"
+            id={id}
+            messages={entry.value}
+            allowLinking={false}
+          />
         </NavPills>
       ),
     };

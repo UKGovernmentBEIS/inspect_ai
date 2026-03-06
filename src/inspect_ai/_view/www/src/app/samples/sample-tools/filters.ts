@@ -116,6 +116,7 @@ const getNestedPropertyValue = (obj: any, path: string): any => {
 
 const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
   return {
+    epoch: sample.epoch,
     has_error: !!sample.error,
     has_retries: sample.retries !== undefined && sample.retries > 0,
     id: sample.id,
@@ -147,6 +148,12 @@ export const sampleFilterItems = (
       throw new Error("Unable to create a canonical name for a score");
     }
     const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
+
+    // This is not a filterable score
+    if (descriptor.filterable === false) {
+      return;
+    }
+
     const scoreType = descriptor?.scoreType;
     if (!descriptor) {
       items.push({

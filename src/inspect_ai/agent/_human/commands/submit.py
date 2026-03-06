@@ -152,7 +152,7 @@ class SubmitCommand(SessionEndCommand):
             if self._record_session:
                 state.logs = await self._read_session_logs()
             state.running = False
-            state.answer = answer
+            state.answer = answer if answer is not None else ""
 
         return submit
 

@@ -4,15 +4,18 @@ from ._answer import AnswerPattern, answer
 from ._choice import choice
 from ._classification import exact, f1
 from ._match import includes, match
+from ._math import math
 from ._metric import (
     CORRECT,
     INCORRECT,
     NOANSWER,
     PARTIAL,
+    UNCHANGED,
     Metric,
     MetricProtocol,
     SampleScore,
     Score,
+    ScoreEdit,
     Value,
     ValueToFloat,
     metric,
@@ -43,6 +46,7 @@ from ._target import Target
 __all__ = [
     "includes",
     "match",
+    "math",
     "model_graded_qa",
     "model_graded_fact",
     "answer",
@@ -74,6 +78,8 @@ __all__ = [
     "INCORRECT",
     "PARTIAL",
     "NOANSWER",
+    "UNCHANGED",
+    "ScoreEdit",
     "multi_scorer",
     "ScoreReducer",
     "ScoreReducers",
@@ -86,11 +92,18 @@ __all__ = [
     "pass_at",
 ]
 _BOOTSTRAP_RENAME_VERSION = "0.3.58"
+_PROVENANCE_DATA_VERSION = "0.3.154"
 _REMOVED_IN = "0.4"
 
 relocated_module_attribute(
     "bootstrap_std",
     "inspect_ai.scorer.bootstrap_stderr",
     _BOOTSTRAP_RENAME_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "ProvenanceData",
+    "inspect_ai.log.ProvenanceData",
+    _PROVENANCE_DATA_VERSION,
     _REMOVED_IN,
 )

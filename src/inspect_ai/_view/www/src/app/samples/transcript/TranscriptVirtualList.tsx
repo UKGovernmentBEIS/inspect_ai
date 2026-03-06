@@ -1,6 +1,7 @@
-import { FC, memo, RefObject, useEffect, useMemo } from "react";
+import { FC, memo, RefObject } from "react";
 import {
   ApprovalEvent,
+  CompactionEvent,
   ErrorEvent,
   InfoEvent,
   InputEvent,
@@ -9,6 +10,7 @@ import {
   SampleInitEvent,
   SampleLimitEvent,
   SandboxEvent,
+  ScoreEditEvent,
   ScoreEvent,
   SpanBeginEvent,
   StateEvent,
@@ -31,22 +33,24 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode, kTranscriptCollapseScope } from "./types";
+import { EventNode } from "./types";
 
-import { useStore } from "../../../state/store";
+import { VirtuosoHandle } from "react-virtuoso";
+import { ScoreEditEventView } from "./ScoreEditEventView";
 import { SpanEventView } from "./SpanEventView";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
-import { flatTree } from "./transform/treeify";
+import { CompactionEventView } from "./CompactionEventView";
 
 interface TranscriptVirtualListProps {
   id: string;
   eventNodes: EventNode[];
-  defaultCollapsedIds: Record<string, boolean>;
+  listHandle: RefObject<VirtuosoHandle | null>;
   initialEventId: string | null;
   offsetTop?: number;
-  scrollRef: RefObject<HTMLDivElement | null>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
+  turnMap?: Map<string, { turnNumber: number; totalTurns: number }>;
 }
 
 /**
@@ -58,61 +62,46 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       id,
       scrollRef,
       eventNodes,
-      defaultCollapsedIds,
+      listHandle,
       running,
       initialEventId,
       offsetTop,
       className,
+      turnMap,
     } = props;
-
-    // The list of events that have been collapsed
-    const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
-    const setCollapsedEvents = useStore(
-      (state) => state.sampleActions.setCollapsedEvents,
-    );
-
-    const flattenedNodes = useMemo(() => {
-      // flattten the event tree
-      return flatTree(
-        eventNodes,
-        (collapsedEvents
-          ? collapsedEvents[kTranscriptCollapseScope]
-          : undefined) || defaultCollapsedIds,
-      );
-    }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
-
-    // Update the collapsed events when the default collapsed IDs change
-    // This effect only depends on defaultCollapsedIds, not eventNodes
-    useEffect(() => {
-      // Only initialize collapsedEvents if it's empty
-      if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-        setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
-      }
-    }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
     return (
       <TranscriptVirtualListComponent
         id={id}
-        eventNodes={flattenedNodes}
+        listHandle={listHandle}
+        eventNodes={eventNodes}
         initialEventId={initialEventId}
         offsetTop={offsetTop}
         scrollRef={scrollRef}
         running={running}
         className={className}
+        turnMap={turnMap}
       />
     );
   },
 );
 
+export interface EventNodeContext {
+  hasToolEvents?: boolean;
+  turnInfo?: { turnNumber: number; totalTurns: number };
+}
+
 interface RenderedEventNodeProps {
   node: EventNode;
+  next?: EventNode;
   className?: string | string[];
+  context?: EventNodeContext;
 }
 /**
  * Renders the event based on its type.
  */
 export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
-  ({ node, className }) => {
+  ({ node, next, className, context }) => {
     switch (node.event.event) {
       case "sample_init":
         return (
@@ -138,6 +127,14 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           />
         );
 
+      case "compaction":
+        return (
+          <CompactionEventView
+            eventNode={node as EventNode<CompactionEvent>}
+            className={className}
+          />
+        );
+
       case "logger":
         return (
           <LoggerEventView
@@ -150,7 +147,9 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <ModelEventView
             eventNode={node as EventNode<ModelEvent>}
+            showToolCalls={next?.event.event !== "tool"}
             className={className}
+            context={context}
           />
         );
 
@@ -158,6 +157,14 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <ScoreEventView
             eventNode={node as EventNode<ScoreEvent>}
+            className={className}
+          />
+        );
+
+      case "score_edit":
+        return (
+          <ScoreEditEventView
+            eventNode={node as EventNode<ScoreEditEvent>}
             className={className}
           />
         );
@@ -211,6 +218,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
             eventNode={node as EventNode<ToolEvent>}
             className={className}
             children={node.children}
+            context={context}
           />
         );
 

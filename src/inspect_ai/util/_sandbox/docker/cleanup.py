@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+from logging import getLogger
 from pathlib import Path
 from typing import Awaitable, Callable, Set
 
@@ -8,16 +9,42 @@ from rich.panel import Panel
 from rich.table import Table
 
 from inspect_ai._util._async import coro_print_exceptions
+from inspect_ai._util.trace import trace_message
 
 from .compose import compose_down, compose_ls, compose_ps
-from .config import is_auto_compose_file, safe_cleanup_auto_compose
-from .util import ComposeProject
+from .config import auto_compose_dir, is_auto_compose_file, safe_cleanup_auto_compose
+from .util import TRACE_DOCKER, ComposeProject, is_inspect_project
+
+logger = getLogger(__name__)
 
 
 def project_cleanup_startup() -> None:
     _running_projects.set([])
     _auto_compose_files.set(set())
     _cleanup_completed.set(False)
+
+
+def _cleanup_orphaned_auto_compose_files(running_project_names: set[str]) -> None:
+    """Remove auto-compose files that no longer have running Docker projects.
+
+    Args:
+        running_project_names: Set of currently running inspect project names.
+
+    This handles cleanup for files left behind by crashed processes.
+    """
+    compose_dir = auto_compose_dir()
+
+    # Remove files for projects no longer running
+    for file in compose_dir.iterdir():
+        if file.suffix == ".yaml" and file.stem not in running_project_names:
+            try:
+                file.unlink()
+            except Exception as ex:
+                trace_message(
+                    logger,
+                    TRACE_DOCKER,
+                    f"Failed to remove orphaned compose file {file}: {ex}",
+                )
 
 
 def project_startup(project: ComposeProject) -> None:
@@ -115,6 +142,9 @@ async def cli_cleanup(project_name: str | None) -> None:
     # enumerate all inspect projects
     projects = await compose_ls()
 
+    # get set of running project names for orphan cleanup
+    running_names = {p.Name for p in projects if is_inspect_project(p.Name)}
+
     # filter by project name
     if project_name:
         projects = list(filter(lambda p: p.Name == project_name, projects))
@@ -138,6 +168,9 @@ async def cli_cleanup(project_name: str | None) -> None:
         # remove auto compose files
         for compose_project in compose_projects:
             safe_cleanup_auto_compose(compose_project.config)
+
+    # clean up orphaned auto-compose files from crashed processes
+    _cleanup_orphaned_auto_compose_files(running_names)
 
 
 def running_projects() -> list[ComposeProject]:

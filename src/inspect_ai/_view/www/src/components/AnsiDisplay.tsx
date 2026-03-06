@@ -1,7 +1,9 @@
 import { ANSIColor, ANSIOutput, ANSIOutputRun, ANSIStyle } from "ansi-output";
 import clsx from "clsx";
-import { CSSProperties, FC } from "react";
-import "./AnsiDisplay.css";
+import { CSSProperties, FC, useState } from "react";
+import { ToolButton } from "./ToolButton";
+
+import styles from "./AnsiDisplay.module.css";
 
 interface ANSIDisplayProps {
   output: string;
@@ -14,28 +16,105 @@ export const ANSIDisplay: FC<ANSIDisplayProps> = ({
   style,
   className,
 }) => {
+  const [showRaw, setShowRaw] = useState(false);
   const ansiOutput = new ANSIOutput();
   ansiOutput.processOutput(output);
 
+  // Check if more than 80% of lines share the same background color
+  const getUniformBackgroundColor = (): string | undefined => {
+    const backgroundColorCounts = new Map<string, number>();
+    let totalLinesWithBackground = 0;
+
+    // Count background colors across all lines
+    for (const line of ansiOutput.outputLines) {
+      let lineBackgroundColor: string | undefined = undefined;
+
+      // Get the background color for this line (from any run that has one)
+      for (const run of line.outputRuns) {
+        if (run.format?.backgroundColor) {
+          lineBackgroundColor = run.format.backgroundColor;
+          break;
+        }
+      }
+
+      if (lineBackgroundColor) {
+        totalLinesWithBackground++;
+        backgroundColorCounts.set(
+          lineBackgroundColor,
+          (backgroundColorCounts.get(lineBackgroundColor) || 0) + 1,
+        );
+      }
+    }
+
+    // Return undefined if no lines have backgrounds
+    if (totalLinesWithBackground === 0) {
+      return undefined;
+    }
+
+    // Compute percentages for each background color
+    const backgroundColorPercentages = new Map<string, number>();
+    for (const [color, count] of backgroundColorCounts.entries()) {
+      backgroundColorPercentages.set(color, count / totalLinesWithBackground);
+    }
+
+    // Find the color with the highest percentage
+    let dominantColor: string | undefined = undefined;
+    let maxPercentage = 0;
+
+    for (const [color, percentage] of backgroundColorPercentages.entries()) {
+      if (percentage > maxPercentage) {
+        maxPercentage = percentage;
+        dominantColor = color;
+      }
+    }
+
+    // Return the color if it appears in more than 80% of lines
+    return maxPercentage > 0.8 ? dominantColor : undefined;
+  };
+
+  const uniformBackgroundColor = getUniformBackgroundColor();
+  const backgroundStyle = uniformBackgroundColor
+    ? computeForegroundBackgroundColor(kBackground, uniformBackgroundColor)
+    : {};
+
   let firstOutput = false;
   return (
-    <div className={clsx("ansi-display", className)} style={{ ...style }}>
-      {ansiOutput.outputLines.map((line, index) => {
-        firstOutput = firstOutput || !!line.outputRuns.length;
-        return (
-          <div key={index} className={"ansi-display-line"}>
-            {!line.outputRuns.length ? (
-              firstOutput ? (
-                <br />
-              ) : null
-            ) : (
-              line.outputRuns.map((outputRun) => (
-                <OutputRun key={outputRun.id} run={outputRun} />
-              ))
-            )}
-          </div>
-        );
-      })}
+    <div
+      className={clsx(styles.ansiDisplayContainer, className)}
+      style={{ ...style }}
+    >
+      <ToolButton
+        className={clsx(styles.ansiDisplayToggle, "text-size-smallest")}
+        icon="bi bi-code-slash"
+        label=""
+        latched={showRaw}
+        onClick={() => setShowRaw(!showRaw)}
+        title={showRaw ? "Show rendered output" : "Show raw output"}
+      />
+      {showRaw ? (
+        <pre className={clsx(styles.ansiDisplay, styles.ansiDisplayRaw)}>
+          {output}
+        </pre>
+      ) : (
+        <div className={clsx(styles.ansiDisplay)} style={backgroundStyle}>
+          {ansiOutput.outputLines.map((line, index) => {
+            firstOutput = firstOutput || !!line.outputRuns.length;
+            return (
+              <div key={index} className={clsx(styles.ansiDisplayLine)}>
+                {!line.outputRuns.length ? (
+                  firstOutput ? (
+                    <br />
+                  ) : null
+                ) : (
+                  line.outputRuns.map((outputRun) => (
+                    <OutputRun key={outputRun.id} run={outputRun} />
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

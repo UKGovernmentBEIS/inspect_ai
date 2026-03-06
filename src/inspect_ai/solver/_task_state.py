@@ -8,24 +8,27 @@ from typing import Any, Type, Union, cast, overload
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._util.interrupt import check_sample_interrupt
-from inspect_ai.dataset._dataset import MT, Sample, metadata_as
+from inspect_ai._util.metadata import MT, metadata_as
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
     ModelName,
     ModelOutput,
 )
-from inspect_ai.model._call_tools import tools_info
-from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.model._call_tools import get_tools_info
+from inspect_ai.model._model import sample_total_cost, sample_total_tokens
+from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import (
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
 )
+from inspect_ai.util._limit import cost_limit as create_cost_limit
 from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._limited_conversation import ChatMessageList
@@ -151,27 +154,33 @@ class TaskState:
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
         target: Target = Target(""),
-        choices: list[str] | None = [],
+        choices: list[str] | None = None,
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        cost_limit: float | None = None,
         completed: bool = False,
-        metadata: dict[str, Any] = {},
+        metadata: dict[str, Any] | None = None,
+        store: dict[str, Any] | None = None,
+        scores: dict[str, Score] | None = None,
+        sample_uuid: str | None = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
         self._epoch = epoch
         self._input = input
         self._target = target
-        self._metadata = metadata
+        self._metadata = metadata if metadata is not None else {}
         self._messages: list[ChatMessage] = ChatMessageList(messages)
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
+        self._cost_limit = create_cost_limit(cost_limit)
         self._completed = completed
-        self._store = Store()
-        self._uuid = uuid()
+        self._store = Store(store)
+        self._uuid = sample_uuid or uuid()
+        self._scores = scores
 
         if choices:
             self.choices = Choices(choices)
@@ -235,11 +244,7 @@ class TaskState:
         write access to the user chat prompt. Raises an
         exception if there is no user prompt
         """
-        prompt = next((m for m in reversed(self.messages) if m.role == "user"), None)
-        if prompt:
-            return prompt
-        else:
-            raise ValueError("user_prompt requested from TaskState but none available")
+        return user_prompt(self.messages)
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -350,6 +355,29 @@ class TaskState:
         return sample_total_tokens()
 
     @property
+    def cost_limit(self) -> float | None:
+        """Limit on total cost (in dollars) allowed per sample."""
+        return self._cost_limit.limit
+
+    @cost_limit.setter
+    def cost_limit(self, cost: float | None) -> None:
+        """Set limit on total cost allowed per sample.
+
+        Also checks whether the current cost usage exceeds the new limit.
+        """
+        self._cost_limit.limit = cost
+        check_cost_limit()
+
+        from inspect_ai.log._samples import set_active_sample_cost_limit
+
+        set_active_sample_cost_limit(cost)
+
+    @property
+    def cost_usage(self) -> float:
+        """Total cost (in dollars) used for the current sample."""
+        return sample_total_cost()
+
+    @property
     def completed(self) -> bool:
         """Is the task completed.
 
@@ -363,7 +391,6 @@ class TaskState:
         if self._completed:
             return True
         else:
-            check_sample_interrupt()
             return self._completed
 
     @completed.setter
@@ -376,8 +403,14 @@ class TaskState:
         """The scoring target for this `Sample`."""
         return self._target
 
-    scores: dict[str, Score] | None = None
-    """Scores yielded by running task."""
+    @property
+    def scores(self) -> dict[str, Score] | None:
+        """Scores yielded by running task."""
+        return self._scores
+
+    @scores.setter
+    def scores(self, scores: dict[str, Score] | None) -> None:
+        self._scores = scores
 
     @property
     def uuid(self) -> str:
@@ -430,20 +463,21 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
         if state is None:
             return dict()
 
-    def as_jsonable(value: Any) -> Any:
-        return to_jsonable_python(value, exclude_none=True, fallback=lambda _x: None)
-
     state_data = dict(
-        messages=as_jsonable(state.messages),
-        tools=tools_info(state.tools),
+        messages=state.messages,
+        tools=get_tools_info(state.tools),
         tool_choice=state.tool_choice,
         store=store_jsonable(state.store),
         output=state.output,
         completed=state.completed,
-        metadata=as_jsonable(state.metadata),
+        metadata=state.metadata,
     )
-    jsonable = as_jsonable(state_data)
-    return cast(dict[str, Any], deepcopy(jsonable))
+    jsonable = to_jsonable_python(
+        state_data,
+        exclude_none=True,
+        fallback=lambda _x: None,
+    )
+    return cast(dict[str, Any], jsonable)
 
 
 def sample_jsonable(sample: Sample) -> dict[str, Any]:

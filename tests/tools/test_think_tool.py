@@ -3,7 +3,7 @@ from test_helpers.utils import skip_if_no_anthropic, skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log._transcript import ModelEvent
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import think
 
@@ -17,7 +17,7 @@ def check_think_tool(description: str | None = None):
         ],
         solver=[use_tools(think(description=description)), generate()],
     )
-    log = eval(task, model="anthropic/claude-3-5-haiku-latest")[0]
+    log = eval(task, model="anthropic/claude-sonnet-4-6")[0]
     assert log.status == "success"
     tool_event = get_tool_event(log)
     assert tool_event

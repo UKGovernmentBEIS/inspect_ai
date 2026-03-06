@@ -8,8 +8,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput
 from inspect_ai.scorer import CORRECT, includes
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import sandbox
-from inspect_ai.util._sandbox.docker.config import is_dockerfile
+from inspect_ai.util import is_dockerfile, sandbox
 
 SANDBOX_SETUP_FILE = (Path(__file__).parent / "sandbox_setup.sh").as_posix()
 SANDBOX_SETUP_ERROR_FILE = (Path(__file__).parent / "sandbox_setup_error.sh").as_posix()
@@ -128,7 +127,10 @@ def test_docker_sandbox_setup_symlink():
 @pytest.mark.slow
 def test_docker_sandbox_setup_fail_on_error():
     task = Task(
-        dataset=[Sample(input="Say hello.", setup=SANDBOX_SETUP_ERROR_FILE)],
+        dataset=[
+            Sample(input="Say hello.", setup=SANDBOX_SETUP_ERROR_FILE),
+            Sample(input="Say hello.", setup=SANDBOX_SETUP_FILE),
+        ],
         sandbox="docker",
     )
 
@@ -141,6 +143,16 @@ def test_docker_sandbox_setup_fail_on_error():
     assert log.status == "success"
     assert log.samples
     assert log.samples[0].error
+    assert not log.samples[1].error
+
+    # fail_on_error=True, continue_on_fail=True (entire eval fails, but all samples are evaluated)
+    log = eval(task, model="mockllm/model", fail_on_error=True, continue_on_fail=True)[
+        0
+    ]
+    assert log.status == "error"
+    assert log.samples
+    assert log.samples[0].error
+    assert not log.samples[1].error
 
 
 def test_is_dockerfile():

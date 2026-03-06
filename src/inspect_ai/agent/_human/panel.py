@@ -6,6 +6,7 @@ from textual.containers import (
     Horizontal,
     VerticalScroll,
 )
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import (
     Button,
@@ -74,9 +75,13 @@ class HumanAgentPanel(InputPanel):
 
     @throttle(1)
     def update_state(self, state: HumanAgentState) -> None:
-        status_bar = self.query_one(StatusBar)
-        status_bar.running = state.running
-        status_bar.time = state.time
+        try:
+            status_bar = self.query_one(StatusBar)
+            status_bar.running = state.running
+            status_bar.time = state.time
+        except NoMatches:
+            # may not exist if we are in ContentSwitcher
+            pass
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial=LoadingView.ID):

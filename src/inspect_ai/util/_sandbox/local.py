@@ -12,7 +12,6 @@ from .environment import (
 )
 from .limits import (
     SandboxEnvironmentLimits,
-    verify_exec_result_size,
     verify_read_file_size,
 )
 from .registry import sandboxenv
@@ -52,10 +51,11 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
+        concurrency: bool = True,
     ) -> ExecResult[str]:
         if user is not None:
             warnings.warn(
@@ -74,8 +74,8 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             env=env,
             timeout=timeout,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+            concurrency=concurrency,
         )
-        verify_exec_result_size(result)
         return result
 
     @override
@@ -107,6 +107,9 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         else:
             with open(file, "rb") as f:
                 return f.read()
+
+    def default_polling_interval(self) -> float:
+        return 0.2
 
     def _resolve_file(self, file: str) -> str:
         path = Path(file)

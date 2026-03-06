@@ -8,12 +8,17 @@ from mcp import JSONRPCRequest, StdioServerParameters
 from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
-from inspect_ai.tool._tool_support_helpers import (
+from inspect_ai._util._json_rpc import (
     exec_model_request,
     exec_notification,
     exec_scalar_request,
-    tool_support_sandbox,
 )
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
+)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from ._context import MCPServerContext
 
@@ -32,9 +37,10 @@ async def sandbox_client(  # type: ignore
     timeout: int | None = None,  # default 180 seconds
 ) -> MCPServerContext:  # type: ignore
     timeout = timeout or 180
-    (sandbox_environment, _) = await tool_support_sandbox(
-        "mcp support", sandbox_name=sandbox_name
-    )
+    sandbox_environment = await sandbox_with_injected_tools(sandbox_name=sandbox_name)
+
+    # Create transport for all RPC calls
+    transport = SandboxJSONRPCTransport(sandbox_environment, SANDBOX_CLI)
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[SessionMessage | Exception]
@@ -48,10 +54,11 @@ async def sandbox_client(  # type: ignore
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
     session_id = await exec_scalar_request(
-        sandbox=sandbox_environment,
         method="mcp_launch_server",
         params={"server_params": server.model_dump()},
         result_type=int,
+        transport=transport,
+        error_mapper=SandboxToolsErrorMapper,
         timeout=timeout,
     )
 
@@ -70,25 +77,26 @@ async def sandbox_client(  # type: ignore
                         await read_stream_writer.send(
                             SessionMessage(
                                 message=await exec_model_request(
-                                    sandbox=sandbox_environment,
                                     method="mcp_send_request",
                                     params={
                                         "session_id": session_id,
                                         "request": root.model_dump(),
                                     },
                                     result_type=JSONRPCMessage,
+                                    transport=transport,
+                                    error_mapper=SandboxToolsErrorMapper,
                                     timeout=timeout,
                                 )
                             )
                         )
                     elif isinstance(root, JSONRPCNotification):
                         await exec_notification(
-                            sandbox=sandbox_environment,
                             method="mcp_send_notification",
                             params={
                                 "session_id": session_id,
                                 "notification": root.model_dump(),
                             },
+                            transport=transport,
                             timeout=timeout,
                         )
                     else:
@@ -105,9 +113,10 @@ async def sandbox_client(  # type: ignore
             yield read_stream, write_stream
         finally:
             await exec_scalar_request(
-                sandbox=sandbox_environment,
                 method="mcp_kill_server",
                 params={"session_id": session_id},
                 result_type=type(None),
+                transport=transport,
+                error_mapper=SandboxToolsErrorMapper,
                 timeout=timeout,
             )

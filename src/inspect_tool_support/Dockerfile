@@ -4,12 +4,15 @@
 
 FROM python:3.12-bookworm
 
-# Install pipx to manage Python applications in isolated environments and add
-# its installation directory to PATH
+# Install pipx to manage Python applications in isolated environments
 RUN apt-get update && apt-get install -y pipx && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* && \
-    pipx ensurepath
-ENV PATH="$PATH:/root/.local/bin"
-RUN pipx install inspect-tool-support && inspect-tool-support post-install
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install inspect-tool-support to a custom location that's on the path and has permissions granting access to all users
+ENV PATH="$PATH:/opt/inspect/bin"
+RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+    pipx install inspect-tool-support && \
+    chmod -R 755 /opt/inspect && \
+    inspect-tool-support post-install
 
 CMD ["tail", "-f", "/dev/null"]

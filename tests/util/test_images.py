@@ -6,7 +6,6 @@ from test_helpers.utils import (
     skip_if_no_grok,
     skip_if_no_mistral,
     skip_if_no_openai,
-    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval, task
@@ -37,7 +36,7 @@ def check_images(model):
 
 @skip_if_no_google
 def test_google_images():
-    check_images("google/gemini-1.5-flash")
+    check_images("google/gemini-2.5-flash")
 
 
 @skip_if_no_openai
@@ -50,14 +49,9 @@ def test_openai_responses_images():
     check_images(get_model("openai/gpt-4o", responses_api=True))
 
 
-@skip_if_no_vertex
-def test_vertex_images():
-    check_images("vertex/gemini-1.5-flash")
-
-
 @skip_if_no_anthropic
 def test_anthropic_images():
-    check_images("anthropic/claude-3-sonnet-20240229")
+    check_images("anthropic/claude-sonnet-4-5")
 
 
 @skip_if_no_mistral
@@ -67,4 +61,4 @@ def test_mistral_images():
 
 @skip_if_no_grok
 def test_grok_images():
-    check_images("grok/grok-vision-beta")
+    check_images("grok/grok-imagine-image")

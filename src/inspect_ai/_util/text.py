@@ -20,7 +20,9 @@ def strip_punctuation(s: str) -> str:
 
 def strip_numeric_punctuation(s: str) -> str:
     # strip $, €, £, and ,
-    stripped = re.sub(r"[$,£,€]", "", s)
+    # *,_ to string formatting characters sometimes added by LLMs
+    stripped = re.sub(r"[$,£,€,*,_]", "", s)
+
     # strip . if it's followed by a space, the end of the string,
     # or a non-digit character
     stripped = re.sub(r"\.(?=\s|$|\D)", "", stripped)
@@ -52,7 +54,7 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
         if len(input) <= max_bytes:
             return None
         else:
-            return TruncatedOutput(input[:max_bytes], len(input))
+            return truncate_str(input, max_bytes)
 
     # fast path for smaller strings (4 bytes/char is max for unicode)
     if len(input) * 4 <= max_bytes:
@@ -64,12 +66,52 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
         if len(encoded) <= max_bytes:
             return None
         else:
-            return TruncatedOutput(
-                encoded[:max_bytes].decode("utf-8", errors="replace"), len(encoded)
-            )
+            return truncate_bytes(encoded, max_bytes)
     except Exception as ex:
         logger.warning(f"Unexpected error occurred truncating string: {ex}")
         return None
+
+
+def truncate_str(input: str, max_bytes: int) -> TruncatedOutput | None:
+    """Truncate ASCII string with middle truncation, taking half chars from front and half from back."""
+    # If input fits within limit, no truncation needed
+    if len(input) <= max_bytes:
+        return None
+
+    # If max_bytes is 0, truncate to empty string
+    if max_bytes == 0:
+        return TruncatedOutput("", len(input))
+
+    # Split chars in half (same as bytes for ASCII)
+    half_chars = max_bytes // 2
+    start_portion = input[:half_chars]
+    end_portion = input[-(max_bytes - half_chars) :]
+
+    # Combine portions
+    result = start_portion + end_portion
+
+    return TruncatedOutput(result, len(input))
+
+
+def truncate_bytes(input: bytes, max_bytes: int) -> TruncatedOutput | None:
+    """Truncate bytes with middle truncation, taking half bytes from front and half from back."""
+    # If input fits within limit, no truncation needed
+    if len(input) <= max_bytes:
+        return None
+
+    # If max_bytes is 0, truncate to empty string
+    if max_bytes == 0:
+        return TruncatedOutput("", len(input))
+
+    # Split bytes in half
+    half_bytes = max_bytes // 2
+    start_portion = input[:half_bytes]
+    end_portion = input[-(max_bytes - half_bytes) :]
+
+    # Combine portions
+    result_bytes = start_portion + end_portion
+
+    return TruncatedOutput(result_bytes.decode("utf-8", errors="replace"), len(input))
 
 
 def str_to_float(s: str) -> float:
@@ -151,6 +193,12 @@ def str_to_float(s: str) -> float:
     base_value = 0.0
 
     if base_part:
+        # find the first valid float (LLMs may include additional spurious output)
+        match = re.match(r"^([+-]?\d+(?:\.\d+)?)", base_part)
+        if match is None:
+            raise ValueError(f"Value could not be parsed as a float: {s}")
+        base_part = match.group(1)
+
         try:
             base_value = float(base_part)
         except ValueError:

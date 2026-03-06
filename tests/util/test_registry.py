@@ -3,6 +3,7 @@ from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     registry_create_from_dict,
     registry_info,
+    registry_kwargs,
     registry_lookup,
     registry_value,
 )
@@ -76,3 +77,37 @@ def test_registry_tag_overridden_default_with_required() -> None:
     task_instance = task_with_default_and_required("required_value", variant="override")
     log = eval(task_instance)[0]
     assert log.eval.task_args == {"required": "required_value", "variant": "override"}
+
+
+def test_registry_kwargs() -> None:
+    @solver
+    def create_solver(tool: Tool) -> Solver:
+        return use_tools(tool)
+
+    mysolver = create_solver(bash(timeout=10))
+
+    obj = {
+        "solver": mysolver,
+        "solver_list": [mysolver],
+        "solver_tuple": (mysolver,),
+        "solver_dict": {"inner_solver": mysolver},
+    }
+    dict = registry_value(obj)
+    for solver_dict in (
+        dict["solver"],
+        dict["solver_list"][0],
+        dict["solver_tuple"][0],
+        dict["solver_dict"]["inner_solver"],
+    ):
+        assert solver_dict["type"] == "solver"
+        assert solver_dict["name"] == "create_solver"
+        assert solver_dict["params"]["tool"]["type"] == "tool"
+
+    args = registry_kwargs(**dict)
+    for arg_solver in (
+        args["solver"],
+        args["solver_list"][0],
+        args["solver_tuple"][0],
+        args["solver_dict"]["inner_solver"],
+    ):
+        assert isinstance(arg_solver, Solver)

@@ -2,25 +2,44 @@
 title: "inspect_ai.tool"
 ---
 
-## Tools
+## Computing Tools
 
+### web_search
 ### bash
 ### python
 ### bash_session
 ### text_editor
-### web_browser
 ### computer
-### web_search
+### code_execution
+### web_browser
+
+## Agentic Tools
+
+### skill
+### memory
+### update_plan
 ### think
 
 ## MCP
 
 ### mcp_connection
 ### mcp_server_stdio
-### mcp_server_sse
+### mcp_server_http
 ### mcp_server_sandbox
+### mcp_server_sse
 ### mcp_tools
 ### MCPServer
+### MCPServerConfig 
+### MCPServerConfigStdio
+### MCPServerConfigHTTP 
+
+## Skills
+
+### skill
+### read_skills
+### install_skills
+### Skill
+### SkillInfo
 
 ## Dynamic 
 
@@ -39,6 +58,8 @@ title: "inspect_ai.tool"
 ### ToolParams
 ### ToolParam
 ### ToolSource
+### WebSearchProviders
+### CodeExecutionProviders
 
 ## Decorator
 

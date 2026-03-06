@@ -1,12 +1,12 @@
 import clsx from "clsx";
 import { EvalSample } from "../../../@types/log";
 import { Card, CardBody } from "../../../components/Card";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { inputString } from "../../../utils/format";
 
 import { FC, RefObject } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { useEvalDescriptor } from "../../../state/hooks";
+import { RenderedText } from "../../content/RenderedText";
 import { SampleScoresGrid } from "./SampleScoresGrid";
 import styles from "./SampleScoresView.module.css";
 
@@ -64,7 +64,7 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
             id={`sample-score-${sample.id}-${sample.epoch}`}
             collapse={true}
           >
-            <MarkdownDiv
+            <RenderedText
               markdown={scoreInput.join("\n")}
               className={clsx(styles.wordBreak, "text-size-base")}
             />

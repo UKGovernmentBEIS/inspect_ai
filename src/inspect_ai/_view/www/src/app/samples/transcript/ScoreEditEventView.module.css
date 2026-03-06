@@ -1,0 +1,37 @@
+.container {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 1em;
+  margin: 0;
+}
+
+.wrappingContent {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.separator {
+  grid-column: 1 / -1;
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+}
+
+.metadata {
+  margin: 0.5em 0;
+}
+
+.unchanged {
+  margin-top: 0.2em;
+  margin-bottom: 0;
+}
+
+.section {
+  font-weight: 600;
+}
+
+.spacer {
+  height: 2em;
+}
+
+.section {
+  margin-top: 1em;
+}

@@ -19,6 +19,8 @@ def human_cli(
     intermediate_scoring: bool = False,
     record_session: bool = True,
     user: str | None = None,
+    instructions: str | None = None,
+    bashrc: str | None = None,
 ) -> Agent:
     """Human CLI agent for tasks that run in a sandbox.
 
@@ -39,6 +41,8 @@ def human_cli(
        intermediate_scoring: Allow the human agent to check their score while working.
        record_session: Record all user commands and outputs in the sandbox bash session.
        user: User to login as. Defaults to the sandbox environment's default user.
+       instructions: Additional instructions beyond the default task command instructions.
+       bashrc: Additional content to include in the .bashrc file for the human cli shell.
 
     Returns:
        Agent: Human CLI agent.
@@ -64,11 +68,15 @@ def human_cli(
                 with sandbox_proxy.no_events():
                     # create agent commands
                     commands = human_agent_commands(
-                        state, answer, intermediate_scoring, record_session
+                        state,
+                        answer,
+                        intermediate_scoring,
+                        record_session,
+                        instructions,
                     )
 
                     # install agent tools
-                    await install_human_agent(user, commands, record_session)
+                    await install_human_agent(user, commands, bashrc, record_session)
 
                     # hookup the view ui
                     view.connect(connection)

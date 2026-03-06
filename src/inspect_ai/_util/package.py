@@ -5,7 +5,9 @@ import site
 import sys
 from functools import lru_cache
 from importlib.metadata import Distribution, PackageNotFoundError
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
 
 
 def get_installed_package_name(obj: Any) -> str | None:
@@ -67,26 +69,64 @@ def package_path_is_in_site_packages(path: str) -> bool:
     )
 
 
+class VcsInfo(BaseModel):
+    vcs: Literal["git", "hg", "bzr", "svn"]
+    commit_id: str
+    requested_revision: str | None = None
+    resolved_revision: str | None = None
+
+
+class ArchiveInfo(BaseModel):
+    hash: str | None = None  # Deprecated format: "<algorithm>=<hash>"
+    hashes: dict[str, str] | None = None  # New format: {"sha256": "<hex>"}
+
+
+class DirInfo(BaseModel):
+    editable: bool = Field(default=False)  # Default: False
+
+
+class DirectUrl(BaseModel):
+    url: str
+    vcs_info: VcsInfo | None = None
+    archive_info: ArchiveInfo | None = None
+    dir_info: DirInfo | None = None
+    subdirectory: str | None = None
+
+
 @lru_cache(maxsize=None)
-def package_is_installed_editable(package: str) -> bool:
-    # get the distribution
+def get_package_direct_url(package: str) -> DirectUrl | None:
+    """Retrieve the PEP 610 direct_url.json
+
+    `direct_url.json` is a metadata file created by pip (and other Python package
+    installers) in the .dist-info directory of installed packages. It's defined by
+    PEP 610 and records how a package was installed when it came from a direct URL
+    source rather than PyPI.
+
+    When is it created?
+
+    This file is created when installing packages via:
+    - Git URLs: pip install git+https://github.com/user/repo.git
+    - Local directories: pip install /path/to/package
+    - Editable installs: pip install -e /path/to/package or pip install -e git+...
+    - Direct archive URLs: pip install https://example.com/package.tar.gz
+    """
     try:
         distribution = Distribution.from_name(package)
     except (ValueError, PackageNotFoundError):
-        return False
+        return None
 
-    # read the direct_url json
-    direct_url_json = distribution.read_text("direct_url.json")
-    if not direct_url_json:
-        return False
+    if (json_text := distribution.read_text("direct_url.json")) is None:
+        return None
 
-    # parse the json
     try:
-        direct_url = json.loads(direct_url_json)
-        if not isinstance(direct_url, dict):
-            return False
-    except json.JSONDecodeError:
-        return False
+        return DirectUrl.model_validate_json(json_text)
+    except (json.JSONDecodeError, ValueError):
+        return None
 
-    # read the editable property
-    return direct_url.get("dir_info", {}).get("editable", False) is not False
+
+def package_is_installed_editable(package: str) -> bool:
+    return (
+        (direct_url := get_package_direct_url(package)) is not None
+        and direct_url.dir_info is not None
+        and direct_url.dir_info.editable
+    )

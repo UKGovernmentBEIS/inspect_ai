@@ -1,8 +1,10 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { SampleLimitEvent, Type15 } from "../../../@types/log";
+import { SampleLimitEvent, Type17 } from "../../../@types/log";
+import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
+import { eventTitle, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface SampleLimitEventViewProps {
@@ -17,24 +19,7 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
   eventNode,
   className,
 }) => {
-  const resolve_title = (type: Type15) => {
-    switch (type) {
-      case "custom":
-        return "Custom Limit Exceeded";
-      case "time":
-        return "Time Limit Exceeded";
-      case "message":
-        return "Message Limit Exceeded";
-      case "token":
-        return "Token Limit Exceeded";
-      case "operator":
-        return "Operator Canceled";
-      case "working":
-        return "Execution Time Limit Exceeded";
-    }
-  };
-
-  const resolve_icon = (type: Type15) => {
+  const resolve_icon = (type: Type17) => {
     switch (type) {
       case "custom":
         return ApplicationIcons.limits.custom;
@@ -48,17 +33,23 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
         return ApplicationIcons.limits.operator;
       case "working":
         return ApplicationIcons.limits.execution;
+      case "cost":
+        return ApplicationIcons.limits.cost;
     }
   };
 
-  const title = resolve_title(eventNode.event.type);
   const icon = resolve_icon(eventNode.event.type);
 
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={title}
+      title={formatTitle(
+        eventTitle(eventNode.event),
+        undefined,
+        eventNode.event.working_start,
+      )}
+      subTitle={formatDateTime(new Date(eventNode.event.timestamp))}
       icon={icon}
       className={className}
     >

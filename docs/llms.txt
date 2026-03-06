@@ -9,16 +9,18 @@
 - [Log Viewer](https://inspect.aisi.org.uk/log-viewer.html.md): Goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 - [VS Code](https://inspect.aisi.org.uk/vscode.html.md) Provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
 
-- [Tasks](https://inspect.aisi.org.uk/tasks.html.md) bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.
+- [Tasks](https://inspect.aisi.org.uk/tasks.html.md) bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.
 - [Datasets](https://inspect.aisi.org.uk/datasets.html.md): Datasets provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 - [Solvers](https://inspect.aisi.org.uk/solvers.html.md): Solvers are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies. Here we cover using the built-in solvers and creating your own more sophisticated ones.
 - [Scorers](https://inspect.aisi.org.uk/scorers.html.md): Scorers evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
 - [Models](https://inspect.aisi.org.uk/models.html.md): Models provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
-- [Providers](ttps://inspect.ai-safety-institute.org.uk/providers.html.md) covers usage details and available options for the various supported providers.
+- [Providers](https://inspect.ai-safety-institute.org.uk/providers.html.md) covers usage details and available options for the various supported providers.
 - [Caching](https://inspect.aisi.org.uk/caching.html.md): Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense.
+- [Compaction](https://inspect.aisi.org.uk/compaction.html.md) Covers compacting message histories for long-running agents that exceed the context window.
 - [Multimodal](https://inspect.aisi.org.uk/multimodal.html.md) This article describes how to use images, audio, and video in evaluations.
 - [Reasoning](https://inspect.aisi.org.uk/reasoning.html.md) documents the additional options and data available for reasoning models.
+- [Batch Mode](https://inspect.aisi.org.uk/models-batch.html.md) covers using batch processing APIs for model inference.
 - [JSON Output](https://inspect.aisi.org.uk/structured.html.md) explains how to constrain model output to a particular JSON schema.
 
 - [Tool Basics](https://inspect.aisi.org.uk/tools.html.md): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
@@ -32,7 +34,7 @@
 - [ReAct Agent](https://inspect.aisi.org.uk/react-agent.html.md)  provides details on using and customizing the built-in ReAct agent.  
 - [Multi Agent](https://inspect.aisi.org.uk/multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
 - [Custom Agents](https://inspect.aisi.org.uk/agent-custom.html.md): This article describes Inspect APIs available for creating custom agents.
-- [Agent Bridge](agent-bridge.qmd): Facility for integrating agents from 3rd party frameworks like AutoGen or LangChain.
+- [Agent Bridge](agent-bridge.qmd): Facility for integrating agents from 3rd party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI.
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html.md): This article describes the `human_cli()` agent which enables human baselining for computing tasks.
 
 - [Eval Logs](https://inspect.aisi.org.uk/eval-logs.html.md): Explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
@@ -44,6 +46,7 @@
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Describes advanced execution tracing tools used to diagnose runtime issues.
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
 - [Interactivity](https://inspect.aisi.org.uk/interactivity.html.md): Covers various ways to introduce user interaction into the implementation of tasks (for example, confirming consequential actions or prompting the model dynamically based on the trajectory of the evaluation).
+- [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md): Describes the early stopping API for ending tasks early based on previously score samples.
 - [Extensions](https://inspect.aisi.org.uk/extensions.html.md) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
 
 ## Reference: Python API
@@ -57,6 +60,7 @@
 - [inspect_ai.dataset](https://inspect.aisi.org.uk/reference/inspect_ai.dataset.html.md) describes the types used to read and manipulate datasets and samples.
 - [inspect_ai.approval](https://inspect.aisi.org.uk/reference/inspect_ai.approval.html.md) covers using built in approvers as well as the types used to create custom approvers and approval policies.
 - [inspect_ai.log](https://inspect.aisi.org.uk/reference/inspect_ai.log.html.md) describes the types used to list, read, write, and traverse the contents of eval log files.
+- [inspect_ai.event](https://inspect.aisi.org.uk/reference/inspect_ai.event.html.md) Events recorded during execution of transcripts.
 - [inspect_ai.analysis](https://inspect.aisi.org.uk/reference/inspect_ai.analysis.html.md) covers the Python API for reading logs into dataframes for analysis.
 - [inspect_ai.util](https://inspect.aisi.org.uk/reference/inspect_ai.util.html.md) covers various utility functions for concurrency, sandboxes, the store, and more.
 

@@ -1,6 +1,6 @@
 import os
 from json import dumps
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from openai import APIStatusError
@@ -10,12 +10,13 @@ from openai.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
-from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._generate_config import GenerateConfig, normalized_batch_config
+from .._model import ModelAPI, log_model_retry
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -26,6 +27,7 @@ from .._model_output import (
     as_stop_reason,
 )
 from .._openai import chat_message_assistant_from_openai
+from ._together_batch import TogetherBatcher
 from .openai_compatible import OpenAICompatibleAPI
 from .util import (
     chat_api_input,
@@ -50,19 +52,24 @@ def chat_choices_from_response_together(
         if logprob_dict is None:
             logprobs_models.append(logprob_dict)
             continue
-        tokens = logprob_dict["tokens"]
-        token_logprobs = logprob_dict["token_logprobs"]
-        logprobs_sequence = []
-        for token, logprob in zip(tokens, token_logprobs):
-            logprobs_sequence.append(
-                Logprob(
-                    token=token,
-                    logprob=logprob,
-                    bytes=list(map(ord, token)),
-                    top_logprobs=None,
+        # native togetherai format
+        if "tokens" in logprob_dict:
+            tokens = logprob_dict["tokens"]
+            token_logprobs = logprob_dict["token_logprobs"]
+            logprobs_sequence = []
+            for token, logprob in zip(tokens, token_logprobs):
+                logprobs_sequence.append(
+                    Logprob(
+                        token=token,
+                        logprob=logprob,
+                        bytes=list(map(ord, token)),
+                        top_logprobs=None,
+                    )
                 )
-            )
-        logprobs_models.append(Logprobs(content=logprobs_sequence))
+            logprobs_models.append(Logprobs(content=logprobs_sequence))
+        # openai format (e.g. for openai/gpt-oss-20b)
+        elif "content" in logprob_dict:
+            logprobs_models.append(Logprobs(**logprob_dict))
     return [
         ChatCompletionChoice(
             message=chat_message_assistant_from_openai(
@@ -82,6 +89,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        emulate_tools: bool = False,
     ) -> None:
         super().__init__(
             model_name=model_name,
@@ -90,12 +98,23 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             config=config,
             service="Together",
             service_base_url="https://api.together.xyz/v1",
+            emulate_tools=emulate_tools,
         )
+        self._batcher: TogetherBatcher | None = None
 
     # Together uses a default of 512 so we bump it up
     @override
     def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Together uses HuggingFace-style model names (e.g., meta-llama/Llama-3.1-8B-Instruct)
+        which match our database format directly.
+        """
+        return self.service_model_name()
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
@@ -132,6 +151,38 @@ class TogetherAIAPI(OpenAICompatibleAPI):
     ) -> list[ChatCompletionChoice]:
         return chat_choices_from_response_together(completion, tools)
 
+    @override
+    async def _generate_completion(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ChatCompletion:
+        self._resolve_batcher(config)
+        return (
+            await self._batcher.generate_for_request(request)
+            if self._batcher
+            else cast(
+                ChatCompletion, await self.client.chat.completions.create(**request)
+            )
+        )
+
+    def _resolve_batcher(self, config: GenerateConfig) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+
+        self._batcher = TogetherBatcher(
+            self.client,
+            batch_config,
+            # TODO: In the future, we could pass max_retries and timeout
+            # from batch_config falling back to config
+            model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                lambda ex: None,
+                log_model_retry,
+            ),
+        )
+
 
 # Implementation of REST client for Together (currently not used)
 
@@ -161,8 +212,15 @@ class TogetherRESTAPI(ModelAPI):
             config=config,
         )
 
-        self.client = httpx.AsyncClient()
         self.model_args = model_args
+        self.initialize()
+
+    def _create_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient()
+
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
 
     async def generate(
         self,
@@ -229,6 +287,12 @@ class TogetherRESTAPI(ModelAPI):
     def should_retry(self, ex: Exception) -> bool:
         return should_retry_chat_api_error(ex)
 
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, httpx.HTTPStatusError):
+            return ex.response.status_code == 401
+        return False
+
     # cloudflare enforces rate limits by model for each account
     @override
     def connection_key(self) -> str:
@@ -294,8 +358,6 @@ def together_logprobs(choice: dict[str, Any]) -> Logprobs | None:
                     top_logprobs=None,
                 )
             )
-        tlp = Logprobs(content=logprobs_sequence)
-        print(tlp.model_dump_json(indent=2))
-        return tlp
+        return Logprobs(content=logprobs_sequence)
     else:
         return None

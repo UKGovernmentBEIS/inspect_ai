@@ -1,0 +1,124 @@
+---
+title: Early Stopping
+---
+
+## Overview
+
+Early stopping enables you to skip samples or epochs during evaluation based on results observed so far. This is useful for implementing [adaptive testing algorithms](https://en.wikipedia.org/wiki/Computerized_adaptive_testing) that dynamically decide which samples to run based on prior performance, potentially saving significant computation time while maintaining evaluation quality.
+
+Common use cases include:
+
+- **Stopping a sample after consistent results**: If a sample has been answered correctly (or incorrectly) across multiple epochs, skip remaining epochs.
+- **Adaptive difficulty**: Focus evaluation time on samples near the model's capability boundary.
+- **Resource optimization**: Skip samples that are unlikely to provide additional signal.
+
+## EarlyStopping Protocol
+
+To implement early stopping, create a class that implements the `EarlyStopping` protocol and pass it to the `early_stopping` parameter of a `Task`:
+
+```python
+from inspect_ai import Task, task
+from inspect_ai.util import EarlyStopping, EarlyStop
+
+@task
+def my_task():
+    return Task(
+        dataset=my_dataset,
+        solver=my_solver,
+        scorer=my_scorer,
+        early_stopping=MyEarlyStopping(),
+        epochs=5,
+    )
+```
+
+The `EarlyStopping` protocol defines four async methods:
+
+| Method | Description |
+|--------|-------------|
+| `start_task()` | Called at the beginning of an eval to register task metadata. |
+| `schedule_sample()` | Called before each sample runs; return `EarlyStop` to skip it. |
+| `complete_sample()` | Called when a sample completes with its scores. |
+| `complete_task()` | Called when the task completes; return metadata for the log. |
+
+## Example Implementation
+
+Here is a simple example that randomly stops samples early (for demonstration purposes):
+
+```python
+from pydantic import JsonValue
+from typing_extensions import override
+
+from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalSpec
+from inspect_ai.scorer import SampleScore
+from inspect_ai.util import EarlyStopping, EarlyStop
+
+class RandomEarlyStopping(EarlyStopping):
+    @override
+    async def start_task(
+        self, task: EvalSpec, samples: list[Sample], epochs: int
+    ) -> str:
+        """Task initialization."""
+
+        # TODO: create a structure to track all of the samples/epochs
+        # this will generally be updated w/ scores in complete_sample() 
+
+        # return task name
+        return "random"
+
+    @override
+    async def schedule_sample(
+        self, id: str | int, epoch: int
+    ) -> EarlyStop | None:
+        """Return EarlyStop to skip this sample, or None to run it."""
+
+        # TODO: determine whether the given sample has been run based
+        # on the previously accumulated samples scores.
+
+        # randomly stop some samples
+        if random() < 0.5:
+            return EarlyStop(id=id, epoch=epoch, reason="random stop")
+
+        return None
+
+    @override
+    async def complete_sample(
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+    ) -> None:
+        """Process results from a completed sample."""
+
+        # TODO: track scored samples and use this to determine the
+        # appropriate return value for calls to schedule_sample()
+
+        pass
+
+    @override
+    async def complete_task(self) -> dict[str, JsonValue]:
+        """Return custom metadata to record in the eval log."""
+
+        # TODO: return any custom data about the early stopping output
+        # (will be written to the log and displayed in the viewer)
+
+        return {}
+```
+
+## EarlyStop
+
+When `schedule_sample()` returns an `EarlyStop`, the sample is skipped. The `EarlyStop` class includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `str | int` | Sample dataset id. |
+| `epoch` | `int` | Sample epoch. |
+| `reason` | `str | None` | Optional reason for the early stop. |
+| `metadata` | `dict[str, JsonValue] | None` | Optional metadata about the stop. |
+
+## Log Output
+
+Early stopping information is recorded in the eval log as an `EarlyStoppingSummary`, which includes:
+
+- The name of the early stopping manager
+- A list of all samples that were stopped early
+- Any metadata returned by `complete_task()`
+
+This allows you to analyze and audit the early stopping behavior after evaluation completes.

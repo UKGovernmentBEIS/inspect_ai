@@ -52,4 +52,11 @@
   padding-bottom: 0;
   display: grid;
   grid-template-columns: minmax(0, max-content) max-content;
+  gap: 0.5rem;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
 }

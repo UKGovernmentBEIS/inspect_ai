@@ -11,9 +11,12 @@ title: "inspect_ai.hooks"
 
 ### ApiKeyOverride
 ### ModelUsageData
+### EvalSetStart
+### EvalSetEnd
 ### RunEnd
 ### RunStart
 ### SampleEnd
+### SampleInit
 ### SampleStart
 ### TaskEnd
 ### TaskStart

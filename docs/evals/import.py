@@ -16,13 +16,18 @@ group_order = {
     "Mathematics": 5,
     "Reasoning": 6,
     "Knowledge": 7,
-    "Scheming": 8,
-    "Personality": 9
+    "Multimodal": 8,
+    "Writing": 9,
+    "Scheming": 10,
+    "Personality": 11,
+    "Bias": 12,
+ 
 }
-    
+
 records = sorted(records, key=lambda x: group_order.get(x["group"], float('inf')))    
 
 for record in records:
+    record["url"] = f'https://ukgovernmentbeis.github.io/inspect_evals/evals/{record["group"].lower()}/{record["path"].split("/")[-1]}'
     record["categories"] = [record["group"]]
     if "tags" in record:
         record["categories"].extend(record["tags"])

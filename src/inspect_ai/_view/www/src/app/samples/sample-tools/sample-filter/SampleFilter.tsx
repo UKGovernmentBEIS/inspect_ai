@@ -31,6 +31,7 @@ interface SampleFilterProps {}
 const FILTER_TOOLTIP = `
 Filter samples by:
   • Scores
+  • Epoch: e.g. "epoch == 1" or "epoch <= 2"
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
   • Samples that have been retried: has_retries
@@ -154,7 +155,7 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
   const filter = useStore((state) => state.log.filter);
   const filterError = useStore((state) => state.log.filterError);
   const samples = useStore(
-    (state) => state.log.selectedLogSummary?.sampleSummaries,
+    (state) => state.log.selectedLogDetails?.sampleSummaries,
   );
   const setFilter = useStore((state) => state.logActions.setFilter);
 
@@ -178,10 +179,11 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
     [filterError],
   );
 
-  const debounceSetFilter = useCallback(
-    debounce((value: string) => {
-      setFilter(value);
-    }, 200),
+  const debounceSetFilter = useMemo(
+    () =>
+      debounce((value: string) => {
+        setFilter(value);
+      }, 200),
     [setFilter],
   );
 
@@ -193,10 +195,10 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
           debounceSetFilter(newValue);
         }
       }),
-    [setFilter],
+    [debounceSetFilter, evalDescriptor],
   );
 
-  // Initialize editor
+  // Initialize editor (only once on mount)
   useEffect(() => {
     editorViewRef.current?.destroy();
 
@@ -220,7 +222,8 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
     });
 
     return () => editorViewRef.current?.destroy();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Handle filter value changes
   useEffect(() => {
@@ -244,20 +247,20 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
       effects:
         updateListenerCompartment.current.reconfigure(makeUpdateListener()),
     });
-  }, [evalDescriptor]);
+  }, [evalDescriptor, makeUpdateListener]);
 
   useEffect(() => {
     editorViewRef.current?.dispatch({
       effects:
         autocompletionCompartment.current.reconfigure(makeAutocompletion()),
     });
-  }, [filterItems, samples]);
+  }, [filterItems, makeAutocompletion, samples]);
 
   useEffect(() => {
     editorViewRef.current?.dispatch({
       effects: linterCompartment.current.reconfigure(makeLinter()),
     });
-  }, [filterError]);
+  }, [filterError, makeLinter]);
 
   return (
     <div style={{ display: "flex" }}>

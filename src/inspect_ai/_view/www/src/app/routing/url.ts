@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import {
   kSampleMessagesTabId,
   kSampleTabIds,
@@ -45,20 +45,79 @@ export const useDecodedParams = <
   return decodedParams;
 };
 
+export interface LogOrSampleRouteParams {
+  logPath?: string;
+  id?: string;
+  epoch?: string;
+  sampleTabId?: string;
+  tabId?: string;
+  uuid: string | undefined;
+}
+
+export const useLogOrSampleRouteParams = (): LogOrSampleRouteParams => {
+  const location = useLocation();
+
+  const logParams = useLogRouteParams();
+  const sampleParams = useSamplesRouteParams();
+
+  if (location.pathname.startsWith("/samples/")) {
+    return {
+      logPath: sampleParams.samplesPath,
+      id: sampleParams.sampleId,
+      epoch: sampleParams.epoch,
+      sampleTabId: sampleParams.tabId,
+      tabId: undefined,
+      uuid: undefined,
+    };
+  } else {
+    return {
+      logPath: logParams.logPath,
+      id: logParams.sampleId,
+      epoch: logParams.epoch,
+      tabId: logParams.tabId,
+      sampleTabId: logParams.sampleTabId,
+      uuid: logParams.sampleUuid,
+    };
+  }
+};
+
 /**
  * Hook that parses log route parameters from the splat route.
  * Handles nested paths properly by parsing the full path after /logs/
+ *
+ * Note: We use the raw URL hash instead of React Router's decoded params
+ * because React Router decodes %2F to /, which breaks parsing of sample IDs
+ * that contain slashes (e.g., "ascii/bike" encoded as "ascii%2Fbike").
  */
 export const useLogRouteParams = () => {
-  const params = useParams<{
-    "*": string;
-    sampleId?: string;
-    epoch?: string;
-    sampleTabId?: string;
-  }>();
+  const location = useLocation();
 
   return useMemo(() => {
-    const splatPath = params["*"] || "";
+    // Get the raw path from location.pathname (which React Router keeps encoded)
+    // For hash routing, we need to extract from the pathname
+    // The location.pathname for hash routing is the part after # but before ?
+    // Example: /logs/path/to/file.eval/samples/sample/ascii%2Fbike/1
+    const rawPath = location.pathname;
+
+    // Extract the splat path (everything after /logs/)
+    const logsMatch = rawPath.match(/^\/logs\/(.*)$/);
+    const splatPath = logsMatch ? logsMatch[1] : "";
+
+    // Check for sample UUID route pattern
+    const sampleUuidMatch = splatPath.match(
+      /^(.+?)\/samples\/sample_uuid\/([^/]+)(?:\/(.+?))?\/?\s*$/,
+    );
+    if (sampleUuidMatch) {
+      const [, logPath, sampleUuid, sampleTabId] = sampleUuidMatch;
+      return {
+        logPath: decodeUrlParam(logPath),
+        tabId: undefined,
+        sampleTabId: decodeUrlParam(sampleTabId),
+        sampleId: undefined,
+        epoch: undefined,
+        sampleUuid: decodeUrlParam(sampleUuid),
+      };
+    }
 
     // Check for full sample route pattern in splat path (when route params aren't populated)
     // Pattern: logPath/samples/sample/sampleId/epoch/sampleTabId (with optional trailing slash)
@@ -180,13 +239,56 @@ export const useLogRouteParams = () => {
         epoch: undefined,
       };
     }
-  }, [params]);
+  }, [location.pathname]);
+};
+
+/**
+ * Hook that parses samples route parameters from the splat route.
+ * Handles nested paths properly by parsing the full path after /samples/
+ * Also handles sample detail routes: /samples/path/to/file.eval/sample/id/epoch
+ *
+ * Note: We use location.pathname instead of React Router's decoded params
+ * because React Router decodes %2F to /, which breaks parsing of sample IDs
+ * that contain slashes (e.g., "ascii/bike" encoded as "ascii%2Fbike").
+ */
+export const useSamplesRouteParams = () => {
+  const location = useLocation();
+
+  return useMemo(() => {
+    // Get the raw path from location.pathname (which keeps encoding intact)
+    const rawPath = location.pathname;
+
+    // Extract the splat path (everything after /samples/)
+    const samplesMatch = rawPath.match(/^\/samples\/(.*)$/);
+    const splatPath = samplesMatch ? samplesMatch[1] : "";
+
+    const sampleMatch = splatPath.match(
+      /^(.+?)\/sample\/([^/]+)\/([^/]+)(?:\/([^/]+))?\/?$/,
+    );
+
+    if (sampleMatch) {
+      const [, logPath, sampleId, epoch, tabId] = sampleMatch;
+      return {
+        samplesPath: decodeUrlParam(logPath),
+        sampleId: decodeUrlParam(sampleId),
+        epoch: decodeUrlParam(epoch),
+        tabId: tabId ? decodeUrlParam(tabId) : undefined,
+      };
+    }
+
+    // Otherwise it's just a folder path
+    return {
+      samplesPath: splatPath ? decodeUrlParam(splatPath) : undefined,
+      sampleId: undefined,
+      epoch: undefined,
+      tabId: undefined,
+    };
+  }, [location.pathname]);
 };
 
 export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/*";
-export const kSampleRouteUrlPattern =
-  "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
+export const kSamplesRouteUrlPattern = "/samples";
 
 export const baseUrl = (
   logPath: string,
@@ -194,13 +296,36 @@ export const baseUrl = (
   sampleEpoch?: string | number,
 ) => {
   if (sampleId !== undefined && sampleEpoch !== undefined) {
-    return sampleUrl(logPath, sampleId, sampleEpoch);
+    return logSamplesUrl(logPath, sampleId, sampleEpoch);
   } else {
-    return logUrl(logPath);
+    return logsUrl(logPath);
   }
 };
 
-export const sampleUrl = (
+export type SampleUrlBuilder = (
+  logPath: string,
+  sampleId?: string | number,
+  sampleEpoch?: string | number,
+  sampleTabId?: string,
+) => string;
+
+export const useSampleUrlBuilder = () => {
+  const location = useLocation();
+  return (
+    logPath: string,
+    sampleId?: string | number,
+    sampleEpoch?: string | number,
+    sampleTabId?: string,
+  ) => {
+    if (sampleId && sampleEpoch && location.pathname.startsWith("/samples/")) {
+      return samplesSampleUrl(logPath, sampleId, sampleEpoch, sampleTabId);
+    } else {
+      return logSamplesUrl(logPath, sampleId, sampleEpoch, sampleTabId);
+    }
+  };
+};
+
+export const logSamplesUrl = (
   logPath: string,
   sampleId?: string | number,
   sampleEpoch?: string | number,
@@ -210,8 +335,11 @@ export const sampleUrl = (
   const decodedLogPath = decodeUrlParam(logPath) || logPath;
 
   if (sampleId !== undefined && sampleEpoch !== undefined) {
+    // Encode sampleId to handle slashes and special characters
+    // This must be done before encodePathParts since it splits on /
+    const encodedSampleId = encodeURIComponent(String(sampleId));
     return encodePathParts(
-      `/logs/${decodedLogPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`,
+      `/logs/${decodedLogPath}/samples/sample/${encodedSampleId}/${sampleEpoch}/${sampleTabId || ""}`,
     );
   } else {
     return encodePathParts(
@@ -220,19 +348,34 @@ export const sampleUrl = (
   }
 };
 
+export const samplesSampleUrl = (
+  logPath: string,
+  sampleId: string | number,
+  epoch: string | number,
+  sampleTabId?: string,
+) => {
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  // Encode sampleId to handle slashes and special characters
+  // This must be done before encodePathParts since it splits on /
+  const encodedSampleId = encodeURIComponent(String(sampleId));
+  return encodePathParts(
+    `/samples/${decodedLogPath}/sample/${encodedSampleId}/${epoch}/${sampleTabId || ""}`,
+  );
+};
+
 export const sampleEventUrl = (
+  builder: SampleUrlBuilder,
   eventId: string,
   logPath: string,
   sampleId?: string | number,
   sampleEpoch?: string | number,
 ) => {
-  const baseUrl = sampleUrl(
+  const baseUrl = builder(
     logPath,
     sampleId,
     sampleEpoch,
     kSampleTranscriptTabId,
   );
-
   return `${baseUrl}?event=${eventId}`;
 };
 
@@ -243,29 +386,39 @@ export const useSampleMessageUrl = (
 ) => {
   const {
     logPath: urlLogPath,
-    sampleId: urlSampleId,
+    id: urlSampleId,
     epoch: urlEpoch,
-  } = useLogRouteParams();
+  } = useLogOrSampleRouteParams();
+  const builder = useSampleUrlBuilder();
 
   const log_file = useStore((state) => state.logs.selectedLogFile);
-  const log_dir = useStore((state) => state.logs.logs.log_dir);
+  const log_dir = useStore((state) => state.logs.logDir);
 
   let targetLogPath = urlLogPath;
   if (!targetLogPath && log_file) {
-    targetLogPath = makeLogPath(log_file, log_dir);
+    targetLogPath = makeLogsPath(log_file, log_dir);
   }
 
-  const eventUrl = useMemo(() => {
+  const messageUrl = useMemo(() => {
     return messageId && targetLogPath
       ? sampleMessageUrl(
+          builder,
           messageId,
           targetLogPath,
           sampleId || urlSampleId,
           sampleEpoch || urlEpoch,
         )
       : undefined;
-  }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
-  return eventUrl;
+  }, [
+    messageId,
+    targetLogPath,
+    builder,
+    sampleId,
+    urlSampleId,
+    sampleEpoch,
+    urlEpoch,
+  ]);
+  return messageUrl;
 };
 
 export const useSampleEventUrl = (
@@ -275,57 +428,68 @@ export const useSampleEventUrl = (
 ) => {
   const {
     logPath: urlLogPath,
-    sampleId: urlSampleId,
+    id: urlSampleId,
     epoch: urlEpoch,
-  } = useLogRouteParams();
+  } = useLogOrSampleRouteParams();
+  const builder = useSampleUrlBuilder();
 
   const log_file = useStore((state) => state.logs.selectedLogFile);
-  const log_dir = useStore((state) => state.logs.logs.log_dir);
+  const log_dir = useStore((state) => state.logs.logDir);
 
   let targetLogPath = urlLogPath;
   if (!targetLogPath && log_file) {
-    targetLogPath = makeLogPath(log_file, log_dir);
+    targetLogPath = makeLogsPath(log_file, log_dir);
   }
 
   const eventUrl = useMemo(() => {
     return targetLogPath
       ? sampleEventUrl(
+          builder,
           eventId,
           targetLogPath,
           sampleId || urlSampleId,
           sampleEpoch || urlEpoch,
         )
       : undefined;
-  }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+  }, [
+    targetLogPath,
+    builder,
+    eventId,
+    sampleId,
+    urlSampleId,
+    sampleEpoch,
+    urlEpoch,
+  ]);
   return eventUrl;
 };
 
 export const sampleMessageUrl = (
+  builder: SampleUrlBuilder,
   messageId: string,
   logPath: string,
   sampleId?: string | number,
   sampleEpoch?: string | number,
 ) => {
-  const baseUrl = sampleUrl(
-    logPath,
-    sampleId,
-    sampleEpoch,
-    kSampleMessagesTabId,
-  );
-
+  const baseUrl = builder(logPath, sampleId, sampleEpoch, kSampleMessagesTabId);
   return `${baseUrl}?message=${messageId}`;
 };
 
-export const logUrl = (log_file: string, log_dir?: string, tabId?: string) => {
-  return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+export const samplesUrl = (log_file: string, log_dir?: string) => {
+  const path = makeLogsPath(log_file, log_dir);
+  const decodedLogSegment = decodeUrlParam(path) || path;
+  return encodePathParts(`/samples/${decodedLogSegment}`);
 };
 
-export const makeLogPath = (log_file: string, log_dir?: string) => {
+export const logsUrl = (log_file: string, log_dir?: string, tabId?: string) => {
+  return logsUrlRaw(makeLogsPath(log_file, log_dir), tabId);
+};
+
+export const makeLogsPath = (log_file: string, log_dir?: string) => {
   const pathSegment = directoryRelativeUrl(log_file, log_dir);
   return pathSegment;
 };
 
-export const logUrlRaw = (log_segment: string, tabId?: string) => {
+export const logsUrlRaw = (log_segment: string, tabId?: string) => {
   // Ensure log_segment is decoded before encoding for URL construction
   const decodedLogSegment = decodeUrlParam(log_segment) || log_segment;
 
@@ -338,11 +502,12 @@ export const logUrlRaw = (log_segment: string, tabId?: string) => {
 
 export const supportsLinking = () => {
   return (
-    //location.hostname !== "localhost" &&
-    location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:"
+    location.hostname !== "localhost" &&
+    location.hostname !== "127.0.0.1" &&
+    location.protocol !== "vscode-webview:"
   );
 };
 
 export const toFullUrl = (path: string) => {
-  return `${window.location.origin}${window.location.pathname}#${path}`;
+  return `${window.location.origin}${window.location.pathname}${window.location.search}#${path}`;
 };

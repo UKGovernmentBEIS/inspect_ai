@@ -1,6 +1,7 @@
-import { FC, useEffect } from "react";
+import { FC } from "react";
 import { formatDateTime, formatTime } from "../utils/format";
 import { AsciinemaPlayer } from "./AsciinemaPlayer";
+import { useRevokableUrls } from "./hooks";
 import "./HumanBaselineView.css";
 import { LightboxCarousel } from "./LightboxCarousel";
 
@@ -32,22 +33,8 @@ export const HumanBaselineView: FC<HumanBaselineViewProps> = ({
   running,
   sessionLogs,
 }) => {
+  const createRevokableUrl = useRevokableUrls();
   const player_fns = [];
-
-  // handle creation and revoking of these URLs
-  const revokableUrls: string[] = [];
-  const revokableUrl = (data: BlobPart) => {
-    const blob = new Blob([data], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    revokableUrls.push(url);
-    return url;
-  };
-
-  useEffect(() => {
-    return () => {
-      revokableUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, []);
 
   // Make a player for each session log
   let count = 1;
@@ -69,9 +56,9 @@ export const HumanBaselineView: FC<HumanBaselineViewProps> = ({
       render: () => (
         <AsciinemaPlayer
           id={`player-${currentCount}`}
-          inputUrl={revokableUrl(sessionLog.input)}
-          outputUrl={revokableUrl(sessionLog.output)}
-          timingUrl={revokableUrl(sessionLog.timing)}
+          inputUrl={createRevokableUrl(sessionLog.input)}
+          outputUrl={createRevokableUrl(sessionLog.output)}
+          timingUrl={createRevokableUrl(sessionLog.timing)}
           rows={rows}
           cols={cols}
           className={"asciinema-player"}

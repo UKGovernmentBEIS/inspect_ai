@@ -1,5 +1,5 @@
 import { StateSnapshot } from "react-virtuoso";
-import { AppState, AppStatus } from "../app/types";
+import { AppState } from "../app/types";
 import { Capabilities } from "../client/api/types";
 import { kLogViewSamplesTabId, kSampleTranscriptTabId } from "../constants";
 import { clearDocumentSelection } from "../utils/browser";
@@ -9,11 +9,13 @@ export interface AppSlice {
   app: AppState;
   capabilities: Capabilities;
   appActions: {
-    setStatus: (status: AppStatus) => void;
+    setLoading: (loading: boolean, error?: Error) => void;
     setShowFind: (show: boolean) => void;
     hideFind: () => void;
+    setNativeFind: (nativeFind: boolean) => void;
 
-    setShowingSampleDialog: (showing: boolean) => void;
+    setShowingTranscriptFilterDialog: (showing: boolean) => void;
+    setShowingOptionsDialog: (showing: boolean) => void;
     setWorkspaceTab: (tab: string) => void;
     clearWorkspaceTab: () => void;
 
@@ -34,6 +36,13 @@ export interface AppSlice {
     setListPosition: (name: string, state: StateSnapshot) => void;
     clearListPosition: (name: string) => void;
 
+    getVisibleRange: (name: string) => { startIndex: number; endIndex: number };
+    setVisibleRange: (
+      name: string,
+      value: { startIndex: number; endIndex: number },
+    ) => void;
+    clearVisibleRange: (name: string) => void;
+
     getCollapsed: (name: string, defaultValue?: boolean) => boolean;
     setCollapsed: (name: string, value: boolean) => void;
 
@@ -45,15 +54,13 @@ export interface AppSlice {
     setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
     removePropertyValue: (bagName: string, key: string) => void;
 
-    setPagination: (
-      name: string,
-      pagination: { page: number; pageSize: number },
-    ) => void;
-    clearPagination: (name: string) => void;
-
     setUrlHash: (urlHash: string) => void;
 
     setSingleFileMode: (singleFile: boolean) => void;
+
+    setDisplayMode: (mode: "raw" | "rendered") => void;
+
+    setLogsSampleView: (logsSampleView: boolean) => void;
   };
 }
 
@@ -61,10 +68,11 @@ const kDefaultWorkspaceTab = kLogViewSamplesTabId;
 const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {
-  status: { loading: false },
+  status: { loading: 0, syncing: false },
   showFind: false,
   dialogs: {
-    sample: false,
+    transcriptFilter: false,
+    options: false,
   },
   tabs: {
     workspace: kDefaultWorkspaceTab,
@@ -72,10 +80,12 @@ const initialState: AppState = {
   },
   scrollPositions: {},
   listPositions: {},
+  visibleRanges: {},
   collapsed: {},
   messages: {},
   propertyBags: {},
-  pagination: {},
+  displayMode: "rendered",
+  logsSampleView: false,
 };
 
 export const createAppSlice = (
@@ -102,9 +112,13 @@ export const createAppSlice = (
 
     // Actions
     appActions: {
-      setStatus: (status: AppStatus) =>
+      setLoading: (loading: boolean, error?: Error) =>
         set((state) => {
-          state.app.status = status;
+          state.app.status.loading = Math.max(
+            state.app.status.loading + (loading ? 1 : -1),
+            0,
+          );
+          state.app.status.error = error;
         }),
 
       setShowFind: (show: boolean) =>
@@ -118,21 +132,29 @@ export const createAppSlice = (
           state.app.showFind = false;
         });
       },
-      setShowingSampleDialog: (showing: boolean) => {
+      setNativeFind: (nativeFind: boolean) =>
+        set((state) => {
+          state.app.nativeFind = nativeFind;
+        }),
+      setShowingTranscriptFilterDialog: (showing: boolean) => {
         const state = get();
-        const isShowing = state.app.dialogs.sample;
-
+        const isShowing = state.app.dialogs.transcriptFilter;
         if (showing === isShowing) {
           return;
         }
-
         set((state) => {
-          state.app.dialogs.sample = showing;
+          state.app.dialogs.transcriptFilter = showing;
         });
-        if (!showing) {
-          const state = get();
-          state.appActions.clearSampleTab();
+      },
+      setShowingOptionsDialog: (showing: boolean) => {
+        const state = get();
+        const isShowing = state.app.dialogs.options;
+        if (showing === isShowing) {
+          return;
         }
+        set((state) => {
+          state.app.dialogs.options = showing;
+        });
       },
       setWorkspaceTab: (tab: string) => {
         set((state) => {
@@ -208,6 +230,36 @@ export const createAppSlice = (
           };
         });
       },
+      getVisibleRange: (name: string) => {
+        const state = get();
+        if (Object.keys(state.app.visibleRanges).includes(name)) {
+          return state.app.visibleRanges[name];
+        } else {
+          return { startIndex: 0, endIndex: 0 };
+        }
+      },
+      setVisibleRange: (
+        name: string,
+        value: { startIndex: number; endIndex: number },
+      ) => {
+        set((state) => {
+          state.app.visibleRanges[name] = value;
+        });
+      },
+      clearVisibleRange: (name: string) => {
+        set((state) => {
+          // Remove the key
+          const newVisibleRanges = { ...state.app.visibleRanges };
+          delete newVisibleRanges[name];
+
+          return {
+            app: {
+              ...state.app,
+              visibleRanges: newVisibleRanges,
+            },
+          };
+        });
+      },
       getCollapsed: (name: string, defaultValue?: boolean) => {
         return getBoolRecord(get().app.collapsed, name, defaultValue);
       },
@@ -269,17 +321,14 @@ export const createAppSlice = (
           state.app.singleFileMode = singleFile;
         });
       },
-      setPagination: (
-        name: string,
-        pagination: { page: number; pageSize: number },
-      ) => {
+      setDisplayMode: (mode: "raw" | "rendered") => {
         set((state) => {
-          state.app.pagination[name] = pagination;
+          state.app.displayMode = mode;
         });
       },
-      clearPagination: (name: string) => {
+      setLogsSampleView: (logsSampleView: boolean) => {
         set((state) => {
-          delete state.app.pagination[name];
+          state.app.logsSampleView = logsSampleView;
         });
       },
     },

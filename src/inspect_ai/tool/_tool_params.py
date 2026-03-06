@@ -1,5 +1,6 @@
 from typing import (
     Literal,
+    Optional,
     TypeAlias,
 )
 
@@ -23,5 +24,5 @@ class ToolParams(BaseModel):
     required: list[str] = Field(default_factory=list)
     """List of required fields."""
 
-    additionalProperties: bool = Field(default=False)
-    """Are additional object properties allowed? (always `False`)"""
+    additionalProperties: Optional[JSONSchema] | bool = Field(default=False)
+    """Are additional object properties allowed?"""

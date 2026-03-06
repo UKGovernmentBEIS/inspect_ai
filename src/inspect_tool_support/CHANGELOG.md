@@ -1,3 +1,17 @@
+v1.2.0 (2025-08-11)
+
+### minor
+
+- Converted `inspect_tool_support` to use a Unix socket rather than a tcp port for intra-container RPC.
+
+
+v1.1.2 (2025-07-09)
+
+### patch
+
+- Do not start server until it is needed
+
+
 ## v1.1.1 (2025-06-09)
 
 -   Fixed https://github.com/UKGovernmentBEIS/inspect_ai/issues/1964 by including current value in combobox accessibility tree info.

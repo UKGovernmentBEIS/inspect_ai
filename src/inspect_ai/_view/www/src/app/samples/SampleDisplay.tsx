@@ -5,6 +5,7 @@ import { isVscode } from "../../utils/vscode";
 
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { ToolButton } from "../../components/ToolButton";
+import { ToolDropdownButton } from "../../components/ToolDropdownButton";
 import { ApplicationIcons } from "../appearance/icons";
 
 import clsx from "clsx";
@@ -14,8 +15,10 @@ import {
   MouseEvent,
   RefObject,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
@@ -31,44 +34,59 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../../constants";
-import { useFilteredSamples, useSampleData } from "../../state/hooks";
+import {
+  useDocumentTitle,
+  useSampleData,
+  useSelectedSampleSummary,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { formatTime } from "../../utils/format";
+import { formatDateTime, formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
-import { sampleUrl, useLogRouteParams } from "../routing/url";
+import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
+import { messagesToStr } from "../shared/messages";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleScoresView } from "./scores/SampleScoresView";
+import { useTranscriptFilter } from "./transcript/hooks";
+import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
 
 interface SampleDisplayProps {
   id: string;
   scrollRef: RefObject<HTMLDivElement | null>;
+  focusOnLoad?: boolean;
 }
 
 /**
  * Component to display a sample with relevant context and visibility control.
  */
-export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
+export const SampleDisplay: FC<SampleDisplayProps> = ({
+  id,
+  scrollRef,
+  focusOnLoad,
+}) => {
   // Tab ids
-  const baseId = `sample-dialog`;
-  const filteredSamples = useFilteredSamples();
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
+  const baseId = `sample-display`;
 
   const sampleData = useSampleData();
   const sample = useMemo(() => {
     return sampleData.getSelectedSample();
-  }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
+  }, [sampleData]);
+  const eventsCleared = sampleData.eventsCleared;
 
   const runningSampleData = sampleData.running;
+
+  const evalSpec = useStore((state) => state.log.selectedLogDetails?.eval);
+  const { setDocumentTitle } = useDocumentTitle();
+  useEffect(() => {
+    setDocumentTitle({ evalSpec, sample });
+  }, [setDocumentTitle, sample, evalSpec]);
 
   // Selected tab handling
   const selectedTab = useStore((state) => state.app.tabs.sample);
@@ -83,19 +101,24 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Navigation hook for URL updates
   const navigate = useNavigate();
 
-  // Ref for samples tabs (used to meaure for offset)
+  // Ref for samples tabs (used to measure for offset)
   const tabsRef: RefObject<HTMLUListElement | null> = useRef(null);
-  const tabsHeight = useMemo(() => {
-    if (tabsRef.current) {
-      const height = tabsRef.current.getBoundingClientRect().height;
-      return height;
-    }
-    return -1;
-  }, [tabsRef.current]);
+  const [tabsHeight, setTabsHeight] = useState(-1);
 
-  const sampleSummary = useMemo(() => {
-    return filteredSamples[selectedSampleIndex];
-  }, [filteredSamples, selectedSampleIndex]);
+  useEffect(() => {
+    const updateHeight = () => {
+      if (tabsRef.current) {
+        const height = tabsRef.current.getBoundingClientRect().height;
+        setTabsHeight(height);
+      }
+    };
+    updateHeight();
+
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
+
+  const selectedSampleSummary = useSelectedSampleSummary();
 
   // Consolidate the events and messages into the proper list
   // whether running or not
@@ -113,11 +136,21 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Get all URL parameters at component level
   const {
     logPath: urlLogPath,
-    sampleId: urlSampleId,
+    id: urlSampleId,
     epoch: urlEpoch,
-  } = useLogRouteParams();
+  } = useLogOrSampleRouteParams();
+
+  // Focus the panel when it loads
+  useEffect(() => {
+    setTimeout(() => {
+      if (focusOnLoad) {
+        scrollRef.current?.focus();
+      }
+    }, 10);
+  }, [focusOnLoad, scrollRef]);
 
   // Tab selection
+  const sampleUrlBuilder = useSampleUrlBuilder();
   const onSelectedTab = useCallback(
     (e: MouseEvent<HTMLElement>) => {
       const el = e.currentTarget as HTMLElement;
@@ -126,11 +159,19 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
 
       // Use navigation hook to update URL with tab
       if (id !== sampleTabId && urlLogPath) {
-        const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, id);
+        const url = sampleUrlBuilder(urlLogPath, urlSampleId, urlEpoch, id);
         navigate(url);
       }
     },
-    [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab],
+    [
+      setSelectedTab,
+      sampleTabId,
+      urlLogPath,
+      sampleUrlBuilder,
+      urlSampleId,
+      urlEpoch,
+      navigate,
+    ],
   );
 
   const sampleMetadatas = metadataViewsForSample(
@@ -142,11 +183,145 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
 
+  const isShowing = useStore((state) => state.app.dialogs.transcriptFilter);
+  const setShowing = useStore(
+    (state) => state.appActions.setShowingTranscriptFilterDialog,
+  );
+
+  const displayMode = useStore((state) => state.app.displayMode);
+  const setDisplayMode = useStore((state) => state.appActions.setDisplayMode);
+
+  const filterRef = useRef<HTMLButtonElement | null>(null);
+  const optionsRef = useRef<HTMLButtonElement | null>(null);
+
   const handlePrintClick = useCallback(() => {
     printSample(id, targetId);
-  }, [printSample, id, targetId]);
+  }, [id, targetId]);
+
+  const toggleFilter = useCallback(() => {
+    setShowing(!isShowing);
+  }, [setShowing, isShowing]);
+
+  const toggleDisplayMode = useCallback(() => {
+    setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
+  }, [displayMode, setDisplayMode]);
+
+  const collapsedMode = useStore((state) => state.sample.collapsedMode);
+  const setCollapsedMode = useStore(
+    (state) => state.sampleActions.setCollapsedMode,
+  );
+
+  const isCollapsed = (mode: "collapsed" | "expanded" | null) => {
+    return mode === "collapsed"; //null is expanded
+  };
+
+  const toggleCollapsedMode = useCallback(() => {
+    setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
+  }, [collapsedMode, setCollapsedMode]);
+
+  const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
+
+  const api = useStore((state) => state.api);
+  const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
 
   const tools = [];
+  const [icon, setIcon] = useState(ApplicationIcons.copy);
+
+  tools.push(
+    <ToolDropdownButton
+      key="sample-copy"
+      label="Copy"
+      icon={icon}
+      items={{
+        UUID: () => {
+          if (sample?.uuid) {
+            navigator.clipboard.writeText(sample.uuid);
+            setIcon(ApplicationIcons.confirm);
+            setTimeout(() => {
+              setIcon(ApplicationIcons.copy);
+            }, 1250);
+          }
+        },
+        Transcript: () => {
+          if (sample?.messages) {
+            navigator.clipboard.writeText(messagesToStr(sample.messages));
+            setIcon(ApplicationIcons.confirm);
+            setTimeout(() => {
+              setIcon(ApplicationIcons.copy);
+            }, 1250);
+          }
+        },
+      }}
+    />,
+  );
+
+  if (downloadFiles && sample && api?.download_file) {
+    const sampleId = sample.id ?? "sample";
+    tools.push(
+      <ToolDropdownButton
+        key="sample-download"
+        label="Download"
+        icon={ApplicationIcons.downloadLog}
+        items={{
+          "Sample JSON": () => {
+            api.download_file(
+              `${sampleId}.json`,
+              JSON.stringify(sample, null, 2),
+            );
+          },
+          Transcript: () => {
+            api.download_file(
+              `${sampleId}-transcript.txt`,
+              messagesToStr(sample.messages ?? []),
+            );
+          },
+        }}
+      />,
+    );
+  }
+
+  if (selectedTab === kSampleTranscriptTabId) {
+    const label = isDebugFilter
+      ? "Debug"
+      : isDefaultFilter
+        ? "Default"
+        : "Custom";
+
+    tools.push(
+      <ToolButton
+        key="sample-filter-transcript"
+        label={`Events: ${label}`}
+        icon={ApplicationIcons.filter}
+        onClick={toggleFilter}
+        ref={filterRef}
+      />,
+    );
+
+    tools.push(
+      <ToolButton
+        key="sample-collapse-transcript"
+        label={isCollapsed(collapsedMode) ? "Expand" : "Collapse"}
+        icon={
+          isCollapsed(collapsedMode)
+            ? ApplicationIcons.expand.all
+            : ApplicationIcons.collapse.all
+        }
+        onClick={toggleCollapsedMode}
+      />,
+    );
+  }
+
+  tools.push(
+    <ToolButton
+      key="options-button"
+      label={"Raw"}
+      icon={ApplicationIcons.display}
+      onClick={toggleDisplayMode}
+      ref={optionsRef}
+      latched={displayMode === "raw"}
+    />,
+  );
+
   if (!isVscode()) {
     tools.push(
       <ToolButton
@@ -160,15 +335,16 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
 
   // Is the sample running?
   const running = useMemo(() => {
-    return isRunning(sampleSummary, runningSampleData);
-  }, [sampleSummary, runningSampleData]);
+    return isRunning(selectedSampleSummary, runningSampleData);
+  }, [selectedSampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
+  const displaySample = sample || selectedSampleSummary;
 
   return (
     <Fragment>
-      {sample || sampleSummary ? (
-        <SampleSummaryView parent_id={id} sample={sample || sampleSummary} />
+      {displaySample ? (
+        <SampleSummaryView parent_id={id} sample={displaySample} />
       ) : undefined}
       <TabSet
         id={tabsetId}
@@ -181,7 +357,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         <TabPanel
           key={kSampleTranscriptTabId}
           id={kSampleTranscriptTabId}
-          className={clsx("sample-tab", styles.transcriptContainer)}
+          className={clsx(
+            "sample-tab",
+            styles.transcriptContainer,
+            styles.overflowVisible,
+          )}
           title="Transcript"
           onSelected={onSelectedTab}
           selected={
@@ -190,10 +370,17 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           }
           scrollable={false}
         >
+          <TranscriptFilterPopover
+            showing={isShowing}
+            setShowing={setShowing}
+            positionEl={filterRef.current}
+          />
+
           <TranscriptPanel
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
+            eventsCleared={eventsCleared}
             initialEventId={sampleDetailNavigation.event}
             topOffset={tabsHeight}
             running={running}
@@ -203,7 +390,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         <TabPanel
           key={kSampleMessagesTabId}
           id={kSampleMessagesTabId}
-          className={clsx("sample-tab", styles.fullWidth, styles.chat)}
+          className={clsx(
+            "sample-tab",
+            styles.fullWidth,
+            styles.chat,
+            styles.overflowVisible,
+          )}
           title="Messages"
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleMessagesTabId}
@@ -219,6 +411,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             scrollRef={scrollRef}
             toolCallStyle="complete"
             running={running}
+            className={styles.fullWidth}
           />
         </TabPanel>
         <TabPanel
@@ -304,7 +497,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         >
           {!sample ? (
             <NoContentsPanel text="JSON not available" />
-          ) : estimateSize(sample.events) > 250000 ? (
+          ) : estimateSize(sample.events) > 25 * 1024 * 1024 ? (
             <NoContentsPanel text="JSON too large to display" />
           ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
@@ -330,6 +523,50 @@ const metadataViewsForSample = (
     return [];
   }
   const sampleMetadatas = [];
+
+  // Show invalidation details prominently if sample is invalidated
+  if (sample.invalidation) {
+    const formatTimestamp = (timestamp: string) => {
+      try {
+        return formatDateTime(new Date(timestamp));
+      } catch {
+        return timestamp;
+      }
+    };
+
+    const invalidationRecord: Record<string, unknown> = {};
+    if (sample.invalidation.author) {
+      invalidationRecord["Author"] = sample.invalidation.author;
+    }
+    if (sample.invalidation.timestamp) {
+      invalidationRecord["Timestamp"] = formatTimestamp(
+        sample.invalidation.timestamp,
+      );
+    }
+    if (sample.invalidation.reason) {
+      invalidationRecord["Reason"] = sample.invalidation.reason;
+    }
+    if (
+      sample.invalidation.metadata &&
+      Object.keys(sample.invalidation.metadata).length > 0
+    ) {
+      invalidationRecord["Metadata"] = sample.invalidation.metadata;
+    }
+
+    sampleMetadatas.push(
+      <Card key={`sample-invalidation-${id}`}>
+        <CardHeader label="Invalidation" />
+        <CardBody padded={false}>
+          <RecordTree
+            id={`task-sample-invalidation-${id}`}
+            record={invalidationRecord}
+            className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
+          />
+        </CardBody>
+      </Card>,
+    );
+  }
 
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(

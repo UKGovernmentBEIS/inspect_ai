@@ -34,6 +34,7 @@ export const TitleView: FC<TitleViewProps> = ({
   runningMetrics,
 }) => {
   const totalSampleCount = useTotalSampleCount();
+
   return (
     <nav className={clsx("navbar", "sticky-top", styles.navbarWrapper)}>
       <PrimaryBar

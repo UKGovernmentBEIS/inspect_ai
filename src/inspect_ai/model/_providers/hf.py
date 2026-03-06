@@ -30,11 +30,13 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import (
     ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentText,
     ContentVideo,
 )
 from inspect_ai._util.trace import trace_action
+from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -91,10 +93,12 @@ class HuggingFaceAPI(ModelAPI):
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
+        self.use_chat_template = collect_model_arg("use_chat_template")
         self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
         self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
+        self.hidden_states = collect_model_arg("hidden_states")
 
         # device
         if device:
@@ -108,7 +112,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model: Any = AutoModelForCausalLM.from_pretrained(
                 model_path, device_map=self.device, token=self.api_key, **model_args
             )
         else:
@@ -118,14 +122,14 @@ class HuggingFaceAPI(ModelAPI):
 
         # tokenizer
         if tokenizer:
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)  # type: ignore[no-untyped-call]
         elif model_path:
             if tokenizer_path:
-                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)  # type: ignore[no-untyped-call]
             else:
-                self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path)  # type: ignore[no-untyped-call]
         else:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)  # type: ignore[no-untyped-call]
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
@@ -172,6 +176,8 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["top_k"] = config.top_k
         if config.logprobs is not None:
             kwargs["output_logits"] = config.logprobs
+        if self.hidden_states is not None:
+            kwargs["output_hidden_states"] = self.hidden_states
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         if config.stop_seqs is not None:
@@ -240,6 +246,7 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
+            metadata={"hidden_states": response.hidden_states},
         )
 
     @override
@@ -259,7 +266,7 @@ class HuggingFaceAPI(ModelAPI):
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
         tools_list = []
-        hf_messages = copy.deepcopy(messages)
+        hf_messages = copy.deepcopy(emulate_reasoning_history(messages))
         if len(tools) > 0:
             tools_list = [
                 json.loads(tool.model_dump_json(exclude_none=True, indent=2))
@@ -272,21 +279,73 @@ class HuggingFaceAPI(ModelAPI):
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)
+        chat_template = (
+            self.chat_template
+            if isinstance(self.chat_template, str)
+            else self.tokenizer.chat_template
+        )
+        if self.use_chat_template is False:
+            chat_template = None
+
         # apply chat template
-        if self.tokenizer.chat_template is not None:
-            chat = self.tokenizer.apply_chat_template(
-                hf_messages,
-                add_generation_prompt=True,
-                tokenize=False,
-                tools=tools_list if len(tools_list) > 0 else None,
-                enable_thinking=self.enable_thinking,  # not all models use this, check if it is supported
+        if chat_template is not None:
+            chat = self._apply_chat_template(
+                hf_messages=hf_messages,
+                tools_list=tools_list,
+                chat_template=chat_template,
             )
         else:
             chat = ""
             for message in hf_messages:
                 chat += f"{message.role}: {message.content}\n"
         # return
-        return cast(str, chat)
+        return chat
+
+    def _apply_chat_template(
+        self,
+        hf_messages: list[ChatMessage],
+        tools_list: list[dict[str, Any]],
+        chat_template: str | None,
+    ) -> str:
+        template_args: dict[str, Any] = dict(
+            add_generation_prompt=True,
+            tokenize=False,
+            tools=tools_list if len(tools_list) > 0 else None,
+            enable_thinking=self.enable_thinking,
+        )
+
+        if chat_template is not None:
+            try:
+                return cast(
+                    str,
+                    self.tokenizer.apply_chat_template(
+                        hf_messages,
+                        chat_template=chat_template,
+                        **template_args,
+                    ),
+                )
+            except TypeError:
+                # Back-compat for tokenizers that don't accept `chat_template=` kwarg.
+                original_template = self.tokenizer.chat_template
+                try:
+                    self.tokenizer.chat_template = chat_template
+                    return cast(
+                        str,
+                        self.tokenizer.apply_chat_template(
+                            hf_messages,
+                            **template_args,
+                        ),
+                    )
+                finally:
+                    self.tokenizer.chat_template = original_template
+
+        return cast(
+            str,
+            self.tokenizer.apply_chat_template(
+                hf_messages,
+                **template_args,
+            ),
+        )
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
@@ -294,7 +353,9 @@ def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
     for message in messages:
         if isinstance(message.content, list):
             is_multimodal = any(
-                isinstance(item, ContentAudio | ContentImage | ContentVideo)
+                isinstance(
+                    item, ContentAudio | ContentImage | ContentVideo | ContentDocument
+                )
                 for item in message.content
             )
             if is_multimodal:
@@ -377,13 +438,14 @@ def set_random_seeds(seed: int | None = None) -> None:
     # python hash seed
     os.environ["PYTHONHASHSEED"] = str(seed)
     # transformers seed
-    set_seed(seed)
+    set_seed(seed)  # type: ignore
 
 
 # return value from generate as a result of specifying return_dict_in_generate
 class ModelGenerateOutput:
     sequences: Tensor
     logits: tuple[Tensor]
+    hidden_states: tuple[tuple[Tensor]] | None
 
 
 class Tokenizer(Protocol):
@@ -417,6 +479,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
+    hidden_states: tuple[tuple[torch.Tensor]] | None
     time: float
 
 
@@ -495,6 +558,7 @@ def process_batches() -> None:
                 )
                 generate_ids = generation_outputs.sequences
                 logits = generation_outputs.logits
+                hidden_states = generation_outputs.hidden_states
 
             # get logprobs from logits
             logprobs = None
@@ -525,6 +589,9 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
+                        hidden_states=hidden_states
+                        if hidden_states is not None
+                        else None,
                         time=total_time,
                     )
                 )

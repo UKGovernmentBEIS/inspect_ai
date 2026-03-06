@@ -18,6 +18,7 @@ export const MATH_FUNCTIONS: [string, string][] = [
 ];
 
 export const SAMPLE_VARIABLES: [string, string][] = [
+  ["epoch", "The epoch (run) number of the sample"],
   ["has_error", "Checks if the sample has an error"],
   ["has_retries", "Checks if the sample has been retried"],
   [kSampleIdVariable, "The unique identifier of the sample"],

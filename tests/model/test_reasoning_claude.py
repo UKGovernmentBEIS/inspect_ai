@@ -5,6 +5,8 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.dataset import Sample
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.tool._tool import tool
+from inspect_ai.tool._tool_choice import ToolFunction
 
 from .test_reasoning_content import check_reasoning_content
 
@@ -12,15 +14,34 @@ from .test_reasoning_content import check_reasoning_content
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude():
-    await check_reasoning_content("anthropic/claude-3-7-sonnet-20250219")
+    await check_reasoning_content("anthropic/claude-sonnet-4-6")
 
 
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude_ignore_unsupported():
+    @tool
+    def addition():
+        async def execute(x: int, y: int):
+            """
+            Add two numbers.
+
+            Args:
+                x (int): First number to add.
+                y (int): Second number to add.
+
+            Returns:
+                The sum of the two numbers.
+            """
+            return x + y
+
+        return execute
+
     await check_reasoning_content(
-        "anthropic/claude-3-7-sonnet-20250219",
+        "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(temperature=0.9, top_p=3, top_k=3),
+        tools=[addition()],
+        tool_choice=ToolFunction("addition"),
     )
 
 
@@ -28,7 +49,7 @@ async def test_reasoning_claude_ignore_unsupported():
 @skip_if_no_anthropic
 async def test_reasoning_claude_force_history():
     await check_reasoning_content(
-        "anthropic/claude-3-7-sonnet-20250219",
+        "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(reasoning_history="none"),
     )
 
@@ -38,7 +59,7 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     log = eval(
         task,
         log_format="json",
-        model="anthropic/claude-3-7-sonnet-20250219",
+        model="anthropic/claude-sonnet-4-5",
         max_tokens=max_tokens,
         reasoning_tokens=reasoning_tokens,
     )[0]
@@ -47,7 +68,7 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     assert log.status == "success"
 
 
-DEFAULT_MAX_TOKENS = 4096
+DEFAULT_MAX_TOKENS = 32000
 
 
 @skip_if_no_anthropic
@@ -59,7 +80,7 @@ def test_reasoning_claude_max_tokens():
 
 @skip_if_no_anthropic
 def test_reasoning_claude_streaming():
-    reasoning_tokens = 32 * 1024
+    reasoning_tokens = 16 * 1024
     check_max_tokens(None, reasoning_tokens, DEFAULT_MAX_TOKENS + reasoning_tokens)
 
 
@@ -74,7 +95,7 @@ def test_reasoning_claude_redacted():
     )
     log = eval(
         task,
-        model="anthropic/claude-3-7-sonnet-20250219",
+        model="anthropic/claude-sonnet-4-6",
         reasoning_tokens=1024,
     )[0]
 
@@ -91,7 +112,7 @@ def test_reasoning_claude_token_count():
     task = Task(dataset=[Sample(input="Please say 'hello, world'")])
     log = eval(
         task,
-        model="anthropic/claude-3-7-sonnet-20250219",
+        model="anthropic/claude-sonnet-4-6",
         reasoning_tokens=1024,
     )[0]
 

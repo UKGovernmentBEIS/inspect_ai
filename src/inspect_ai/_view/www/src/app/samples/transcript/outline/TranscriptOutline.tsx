@@ -8,32 +8,24 @@ import {
   useRef,
 } from "react";
 
-import { EventNode } from "../types";
+import { EventNode, kTranscriptOutlineCollapseScope } from "../types";
 
 import clsx from "clsx";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { useScrollTrack, useVirtuosoState } from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
-import { flatTree } from "../transform/treeify";
 
 import { useSampleDetailNavigation } from "../../../routing/sampleNavigation";
-import { kSandboxSignalName } from "../transform/fixups";
+import { flatTree } from "../transform/flatten";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
-import {
-  collapseScoring,
-  collapseTurns,
-  makeTurns,
-  noScorerChildren,
-  removeNodeVisitor,
-  removeStepSpanNameVisitor,
-} from "./tree-visitors";
+import { collapseScoring, collapseTurns, makeTurns } from "./tree-visitors";
 
-const kCollapseScope = "transcript-outline";
 const kFramesToStabilize = 10;
 
 interface TranscriptOutlineProps {
   eventNodes: EventNode[];
+  filteredNodes: EventNode[];
   defaultCollapsedIds: Record<string, boolean>;
   running?: boolean;
   className?: string | string[];
@@ -54,6 +46,8 @@ const EventPaddingNode: EventNode = {
     pending: false,
     working_start: 0,
     span_id: null,
+    uuid: null,
+    metadata: null,
   },
   depth: 0,
   children: [],
@@ -61,6 +55,7 @@ const EventPaddingNode: EventNode = {
 
 export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   eventNodes,
+  filteredNodes,
   defaultCollapsedIds,
   running,
   className,
@@ -131,31 +126,9 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   }, [sampleDetailNavigation.event, setSelectedOutlineId, scrollRef]);
 
   const outlineNodeList = useMemo(() => {
-    // flattten the event tree
-    const nodeList = flatTree(
-      eventNodes,
-      (collapsedEvents ? collapsedEvents[kCollapseScope] : undefined) ||
-        defaultCollapsedIds,
-      [
-        // Strip specific nodes
-        removeNodeVisitor("logger"),
-        removeNodeVisitor("info"),
-        removeNodeVisitor("state"),
-        removeNodeVisitor("store"),
-        removeNodeVisitor("approval"),
-        removeNodeVisitor("input"),
-        removeNodeVisitor("sandbox"),
-
-        // Strip the sandbox wrapper (and children)
-        removeStepSpanNameVisitor(kSandboxSignalName),
-
-        // Remove child events for scorers
-        noScorerChildren(),
-      ],
-    );
-
-    return collapseScoring(collapseTurns(makeTurns(nodeList)));
-  }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+    // Apply outline-specific transformations to the pre-filtered nodes
+    return collapseScoring(collapseTurns(makeTurns(filteredNodes)));
+  }, [filteredNodes]);
 
   // Event node, for scroll tracking
   const allNodesList = useMemo(() => {
@@ -203,7 +176,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   useEffect(() => {
     // Only initialize collapsedEvents if it's empty
     if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-      setCollapsedEvents(kCollapseScope, defaultCollapsedIds);
+      setCollapsedEvents(kTranscriptOutlineCollapseScope, defaultCollapsedIds);
     }
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
@@ -212,7 +185,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       if (node === EventPaddingNode) {
         return (
           <div
-            className={styles.eventPadding}
+            className={clsx(styles.eventPadding)}
             key={node.id}
             style={{ height: "2em" }}
           ></div>
@@ -220,7 +193,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       } else {
         return (
           <OutlineRow
-            collapseScope={kCollapseScope}
+            collapseScope={kTranscriptOutlineCollapseScope}
             node={node}
             key={node.id}
             running={running && index === outlineNodeList.length - 1}

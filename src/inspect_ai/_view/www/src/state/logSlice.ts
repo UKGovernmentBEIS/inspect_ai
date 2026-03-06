@@ -1,9 +1,11 @@
+import { sampleHandlesEqual } from "../app/shared/sample";
 import { FilterError, LogState, ScoreLabel } from "../app/types";
-import { EvalSummary, PendingSamples } from "../client/api/types";
-import { kDefaultSort, kLogViewInfoTabId } from "../constants";
+import { LogDetails, PendingSamples } from "../client/api/types";
+import { toLogPreview } from "../client/utils/type-utils";
+import { kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
+import { isUri, join } from "../utils/uri";
 import { createLogPolling } from "./logPolling";
-import { ScorerInfo } from "./scoring";
 import { StoreState } from "./store";
 
 const log = createLogger("logSlice");
@@ -11,16 +13,22 @@ const log = createLogger("logSlice");
 export interface LogSlice {
   log: LogState;
   logActions: {
-    selectSample: (index: number) => void;
+    selectSample: (
+      sampleId: string | number,
+      epoch: number,
+      logFile: string,
+    ) => void;
+    clearSelectedSample: () => void;
 
     // Set the selected log summary
-    setSelectedLogSummary: (summary: EvalSummary) => void;
+    setSelectedLogDetails: (details: LogDetails) => void;
 
     // Clear the selected log summary
-    clearSelectedLogSummary: () => void;
+    clearSelectedLogDetails: () => void;
 
     // Update pending sample information
     setPendingSampleSummaries: (samples: PendingSamples) => void;
+    clearPendingSampleSummaries: () => void;
 
     // Set filter criteria
     setFilter: (filter: string) => void;
@@ -31,23 +39,17 @@ export interface LogSlice {
     // Clear the filter error
     clearFilterError: () => void;
 
-    // Set epoch filter
-    setEpoch: (epoch: string) => void;
-
-    // Set sort order and update groupBy
-    setSort: (sort: string) => void;
-
-    // Set score label
-    setScore: (score: ScoreLabel) => void;
+    // Set score labels
+    setSelectedScores: (scores: ScoreLabel[]) => void;
 
     // Set available scores
-    setScores: (scores: ScorerInfo[]) => void;
+    setScores: (scores: ScoreLabel[]) => void;
 
     // Reset filter state to defaults
     resetFiltering: () => void;
 
     // Load log
-    loadLog: (logFileName: string) => Promise<void>;
+    syncLog: (logFileName: string) => Promise<void>;
 
     // Refresh the current log
     refreshLog: () => Promise<void>;
@@ -57,14 +59,18 @@ export interface LogSlice {
 
     // Clear the currently loaded log
     clearLog: () => void;
+
+    setFilteredSampleCount: (count: number) => void;
+    clearFilteredSampleCount: () => void;
   };
 }
 
 // Initial state
 const initialState = {
   // Log state
-  selectedSampleIndex: -1,
-  selectedLogSummary: undefined,
+  selectedSampleId: undefined,
+  selectedSampleEpoch: undefined,
+  selectedLogDetails: undefined,
   pendingSampleSummaries: undefined,
   loadedLog: undefined,
 
@@ -72,9 +78,7 @@ const initialState = {
   filter: "",
   filterError: undefined,
 
-  epoch: "all",
-  sort: kDefaultSort,
-  score: undefined,
+  selectedScores: undefined,
   scores: undefined,
 };
 
@@ -92,35 +96,62 @@ export const createLogSlice = (
 
     // Actions
     logActions: {
-      selectSample: (index: number) =>
-        set((state) => {
-          state.log.selectedSampleIndex = index;
-        }),
+      selectSample: (
+        sampleId: string | number,
+        epoch: number,
+        logFile: string,
+      ) => {
+        // Ignore if already selected
+        const currentSample = get().log.selectedSampleHandle;
+        if (
+          sampleHandlesEqual(currentSample, {
+            id: sampleId,
+            epoch,
+            logFile,
+          })
+        ) {
+          return;
+        }
 
-      setSelectedLogSummary: (selectedLogSummary: EvalSummary) => {
         set((state) => {
-          state.log.selectedLogSummary = selectedLogSummary;
+          state.log.selectedSampleHandle = { id: sampleId, epoch, logFile };
+        });
+      },
+      clearSelectedSample: () => {
+        set((state) => {
+          state.log.selectedSampleHandle = undefined;
+        });
+      },
+      setSelectedLogDetails: (details: LogDetails) => {
+        set((state) => {
+          state.log.selectedScores = undefined;
+          state.log.selectedLogDetails = details;
         });
 
         if (
-          selectedLogSummary.status !== "started" &&
-          selectedLogSummary.sampleSummaries.length === 0
+          details.status !== "started" &&
+          details.sampleSummaries.length === 0
         ) {
           // If there are no samples, use the workspace tab id by default
           get().appActions.setWorkspaceTab(kLogViewInfoTabId);
         }
       },
 
-      clearSelectedLogSummary: () => {
+      clearSelectedLogDetails: () => {
         set((state) => {
-          state.log.selectedLogSummary = undefined;
+          state.log.selectedLogDetails = undefined;
         });
       },
-      setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) =>
+      setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) => {
         set((state) => {
           state.log.pendingSampleSummaries = pendingSampleSummaries;
-        }),
-
+        });
+      },
+      clearPendingSampleSummaries: () => {
+        set((state) => {
+          state.log.pendingSampleSummaries = undefined;
+        });
+      },
       setFilter: (filter: string) =>
         set((state) => {
           state.log.filter = filter;
@@ -134,19 +165,11 @@ export const createLogSlice = (
           state.log.filterError = undefined;
         });
       },
-      setEpoch: (epoch: string) =>
+      setSelectedScores: (scores: ScoreLabel[]) =>
         set((state) => {
-          state.log.epoch = epoch;
+          state.log.selectedScores = scores;
         }),
-      setSort: (sort: string) =>
-        set((state) => {
-          state.log.sort = sort;
-        }),
-      setScore: (score: ScoreLabel) =>
-        set((state) => {
-          state.log.score = score;
-        }),
-      setScores: (scores: ScorerInfo[]) =>
+      setScores: (scores: ScoreLabel[]) =>
         set((state) => {
           state.log.scores = scores;
         }),
@@ -154,45 +177,89 @@ export const createLogSlice = (
         set((state) => {
           state.log.filter = "";
           state.log.filterError = undefined;
-          state.log.epoch = "all";
-          state.log.sort = kDefaultSort;
-          state.log.score = undefined;
+          state.log.selectedScores = state.log.scores?.slice(0, 1);
         }),
 
-      loadLog: async (logFileName: string) => {
+      syncLog: async (logFileName: string) => {
         const state = get();
         const api = state.api;
+
+        // Ensure there is a log dir
+        let logDir = state.logs.logDir;
+        if (state.logs.logDir === undefined) {
+          logDir = await state.logsActions.initLogDir();
+        }
+
+        const logAbsPath = !isUri(logFileName)
+          ? join(logFileName, logDir)
+          : logFileName;
 
         if (!api) {
           console.error("API not initialized in Store");
           return;
         }
 
-        log.debug(`Load log: ${logFileName}`);
+        log.debug(`Load log: ${logAbsPath}`);
+
+        // Try reading the data in the database first
+        const dbService = state.databaseService;
+        if (dbService && dbService.opened()) {
+          try {
+            const cachedInfo =
+              await dbService.readLogDetailsForFile(logAbsPath);
+            if (cachedInfo) {
+              log.debug(`Using cached log info for: ${logAbsPath}`);
+              state.logActions.setSelectedLogDetails(cachedInfo);
+              // Still fetch fresh data in background to update cache
+              api.get_log_details(logAbsPath).then((logDetails) => {
+                state.logActions.setSelectedLogDetails(logDetails);
+                dbService.writeLogDetail(logAbsPath, logDetails).catch(() => {
+                  // Silently ignore cache errors
+                });
+              });
+              // Continue with rest of the function using cached data
+              const header = {
+                [logFileName]: toLogPreview(cachedInfo),
+              };
+              state.logsActions.updateLogPreviews(header);
+              set((state) => {
+                state.log.loadedLog = logFileName;
+              });
+
+              state.logActions.clearPendingSampleSummaries();
+              logPolling.startPolling(logFileName);
+              return;
+            }
+          } catch (e) {
+            // Cache read failed, continue with normal flow
+          }
+        }
+
         try {
-          const logContents = await api.get_log_summary(logFileName);
-          state.logActions.setSelectedLogSummary(logContents);
+          const logDetails = await api.get_log_details(logFileName);
+          state.logActions.setSelectedLogDetails(logDetails);
+
+          // OPTIONAL: Cache log info (completely non-blocking)
+          if (dbService) {
+            setTimeout(() => {
+              dbService.writeLogDetail(logFileName, logDetails).catch(() => {
+                // Silently ignore cache errors
+              });
+            }, 0);
+          }
 
           // Push the updated header information up
           const header = {
-            [logFileName]: {
-              version: logContents.version,
-              status: logContents.status,
-              eval: logContents.eval,
-              plan: logContents.plan,
-              results:
-                logContents.results !== null ? logContents.results : undefined,
-              stats: logContents.stats,
-              error: logContents.error !== null ? logContents.error : undefined,
-            },
+            [logFileName]: toLogPreview(logDetails),
           };
 
-          state.logsActions.updateLogHeaders(header);
+          state.logsActions.updateLogPreviews(header);
           set((state) => {
             state.log.loadedLog = logFileName;
           });
 
           // Start polling for pending samples
+          state.logActions.clearPendingSampleSummaries();
           logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
@@ -224,12 +291,22 @@ export const createLogSlice = (
 
         log.debug(`refresh: ${selectedLogFile}`);
         try {
-          const logContents = await api.get_log_summary(selectedLogFile);
-          state.logActions.setSelectedLogSummary(logContents);
+          const logDetails = await api.get_log_details(selectedLogFile);
+          state.logActions.setSelectedLogDetails(logDetails);
         } catch (error) {
           log.error("Error refreshing log:", error);
           throw error;
         }
+      },
+      setFilteredSampleCount: (count: number) => {
+        set((state) => {
+          state.log.filteredSampleCount = count;
+        });
+      },
+      clearFilteredSampleCount: () => {
+        set((state) => {
+          state.log.filteredSampleCount = undefined;
+        });
       },
     },
   } as const;

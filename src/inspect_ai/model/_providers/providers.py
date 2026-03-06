@@ -1,5 +1,3 @@
-import os
-
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
@@ -57,18 +55,8 @@ def openai_api() -> type[ModelAPI]:
 
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
-    FEATURE = "Anthropic API"
-    PACKAGE = "anthropic"
-    MIN_VERSION = "0.52.0"
-
-    # verify we have the package
-    try:
-        import anthropic  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    # validate
+    validate_anthropic_client("Anthropic API")
 
     # in the clear
     from .anthropic import AnthropicAPI
@@ -76,45 +64,10 @@ def anthropic() -> type[ModelAPI]:
     return AnthropicAPI
 
 
-@modelapi(name="vertex")
-def vertex() -> type[ModelAPI]:
-    FEATURE = "Google Vertex API"
-    PACKAGE = "google-cloud-aiplatform"
-    MIN_VERSION = "1.73.0"
-
-    # workaround log spam
-    # https://github.com/ray-project/ray/issues/24917
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
-
-    # verify we have the package
-    try:
-        import vertexai  # type: ignore  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-    # in the clear
-    from .vertex import VertexAPI  # type: ignore
-
-    return VertexAPI  # type: ignore
-
-
 @modelapi(name="google")
 def google() -> type[ModelAPI]:
-    FEATURE = "Google API"
-    PACKAGE = "google-genai"
-    MIN_VERSION = "1.16.1"
-
-    # verify we have the package
-    try:
-        import google.genai  # type: ignore  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    # validate
+    validate_google_client("Google API")
 
     # in the clear
     from .google import GoogleGenAIAPI
@@ -157,7 +110,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.1"
+    MIN_VERSION = "1.9.11"
 
     # verify we have the package
     try:
@@ -176,8 +129,18 @@ def mistral() -> type[ModelAPI]:
 
 @modelapi(name="grok")
 def grok() -> type[ModelAPI]:
-    # validate
-    validate_openai_client("Grok API")
+    FEATURE = "Grok API"
+    PACKAGE = "xai_sdk"
+    MIN_VERSION = "1.7.0"
+
+    # verify we have the package
+    try:
+        import xai_sdk  # type: ignore[import-untyped] # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
     # in the clear
     from .grok import GrokAPI
@@ -194,6 +157,22 @@ def together() -> type[ModelAPI]:
     from .together import TogetherAIAPI
 
     return TogetherAIAPI
+
+
+@modelapi(name="fireworks")
+def fireworks() -> type[ModelAPI]:
+    validate_openai_client("FireworksAI API")
+    from .fireworks import FireworksAIAPI
+
+    return FireworksAIAPI
+
+
+@modelapi(name="sambanova")
+def sambanova() -> type[ModelAPI]:
+    validate_openai_client("SambaNova API")
+    from .sambanova import SambaNovaAPI
+
+    return SambaNovaAPI
 
 
 @modelapi(name="ollama")
@@ -270,6 +249,13 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi(name="sagemaker")
+def sagemaker() -> type[ModelAPI]:
+    from .sagemaker import SagemakerAPI
+
+    return SagemakerAPI
+
+
 @modelapi(name="sglang")
 def sglang() -> type[ModelAPI]:
     # Only validate OpenAI compatibility (needed for the API interface)
@@ -282,6 +268,40 @@ def sglang() -> type[ModelAPI]:
     return SGLangAPI
 
 
+@modelapi(name="transformer_lens")
+def transformer_lens() -> type[ModelAPI]:
+    FEATURE = "TransformerLens API"
+    PACKAGE = "transformer_lens"
+
+    # verify we have the package
+    try:
+        import transformer_lens  # type: ignore # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # in the clear
+    from .transformer_lens import TransformerLensAPI
+
+    return TransformerLensAPI
+
+
+@modelapi(name="nnterp")
+def nnterp() -> type[ModelAPI]:
+    FEATURE = "NNterp API"
+    PACKAGE = "nnterp"
+
+    # verify we have the package
+    try:
+        import nnterp  # type: ignore # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # in the clear
+    from .nnterp import NNterpAPI
+
+    return NNterpAPI
+
+
 @modelapi(name="none")
 def none() -> type[ModelAPI]:
     from .none import NoModel
@@ -289,10 +309,21 @@ def none() -> type[ModelAPI]:
     return NoModel
 
 
+@modelapi(name="hf-inference-providers")
+def hf_inference_providers() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("HF Inference Providers API")
+
+    # in the clear
+    from .hf_inference_providers import HFInferenceProvidersAPI
+
+    return HFInferenceProvidersAPI
+
+
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.78.0"
+    MIN_VERSION = "2.26.0"
 
     # verify we have the package
     try:
@@ -302,3 +333,31 @@ def validate_openai_client(feature: str) -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+def validate_anthropic_client(feature: str) -> None:
+    PACKAGE = "anthropic"
+    MIN_VERSION = "0.80.0"
+
+    # verify we have the package
+    try:
+        import anthropic  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(feature, [PACKAGE])
+
+    # verify version
+    verify_required_version(feature, PACKAGE, MIN_VERSION)
+
+
+def validate_google_client(feature: str) -> None:
+    PACKAGE = "google-genai"
+    MIN_VERSION = "1.56.0"
+
+    # verify we have the package
+    try:
+        import google.genai  # type: ignore  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(feature, [PACKAGE])
+
+    # verify version
+    verify_required_version(feature, PACKAGE, MIN_VERSION)

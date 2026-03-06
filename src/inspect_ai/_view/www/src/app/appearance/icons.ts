@@ -8,6 +8,16 @@ const loggingIcons: Record<string, string> = {
   critical: "bi bi-fire",
 };
 
+export const iconForMimeType = (mimeType: string): string => {
+  if (mimeType === "application/pdf") {
+    return "bi bi-file-pdf";
+  } else if (mimeType.startsWith("image/")) {
+    return "bi bi-file-image";
+  } else {
+    return "bi bi-file-earmark";
+  }
+};
+
 export const ApplicationIcons = {
   agent: "bi bi-grid", // bi bi-x-diamond
   approve: "bi bi-shield",
@@ -33,6 +43,10 @@ export const ApplicationIcons = {
     remove: "bi bi-dash",
     replace: "bi bi-plus-slash-minus",
   },
+  checkbox: {
+    checked: "bi bi-check-circle",
+    unchecked: "bi bi-circle",
+  },
   chevron: {
     right: "bi bi-chevron-right",
     down: "bi bi-chevron-down",
@@ -46,17 +60,24 @@ export const ApplicationIcons = {
   config: "bi bi-gear",
   confirm: "bi bi-check",
   copy: "bi bi-copy",
+  display: "bi bi-card-text",
+  downloadLog: "bi bi-download",
   epoch: (epoch: string) => {
     return `bi bi-${epoch}-circle`;
   },
-  error: "bi bi-exclamation-circle",
+  edit: "bi bi-pencil-square",
+  error: "bi bi-exclamation-circle-fill",
   eval: "bi bi-info-circle-fill",
-  "expand-all": "bi bi-arrows-expand",
-  "expand-down": "bi bi-chevron-down",
+  "eval-set": "bi bi-list-task",
+  expand: {
+    all: "bi bi-arrows-expand",
+    down: "bi bi-chevron-down",
+  },
   file: "bi bi-file-code",
   filter: "bi bi-funnel",
   folder: "bi bi-folder",
   fork: "bi bi-signpost-split",
+  flow: "ii inspect-flow",
   home: "bi bi-house",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
@@ -70,8 +91,10 @@ export const ApplicationIcons = {
     tokens: "bi bi-list",
     time: "bi bi-clock",
     execution: "bi bi-stopwatch",
+    cost: "bi bi-currency-dollar",
   },
   link: "bi bi-link-45deg",
+  loading: "bi bi-arrow-clockwise",
   logging: loggingIcons,
   menu: "bi bi-list",
   messages: "bi bi-chat-right-text",
@@ -86,10 +109,13 @@ export const ApplicationIcons = {
     back: "ii inspect-icon-back",
     forward: "ii inspect-icon-forward",
     inspectLogo: "ii inspect-icon-16",
+    tasks: "ii inspect-icon-tasks",
   },
 
   next: "bi bi-chevron-right",
   noSamples: "bi bi-ban",
+  options: "bi bi-gear",
+  pendingTask: "bi bi-clock",
   play: "bi bi-play-fill",
   previous: "bi bi-chevron-left",
   refresh: "bi bi-arrow-clockwise",
@@ -118,7 +144,12 @@ export const ApplicationIcons = {
   },
   step: "bi bi-fast-forward-btn",
   subtask: "bi bi-subtract",
-  success: "bi bi-check-circle",
+  success: "bi bi-check-circle-fill",
+  toggle: {
+    // combination of toggle-on and toggle2-off looked best for our default button font size
+    on: "bi bi-toggle-on",
+    off: "bi bi-toggle2-off",
+  },
   transcript: "bi bi-list-columns-reverse",
   tree: {
     open: "bi bi-caret-down-fill",

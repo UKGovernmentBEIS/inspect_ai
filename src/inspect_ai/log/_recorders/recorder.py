@@ -1,6 +1,7 @@
 import abc
-from typing import Literal
+from typing import IO
 
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
 from inspect_ai.log._log import (
     EvalLog,
@@ -11,6 +12,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 
 
@@ -19,8 +21,12 @@ class Recorder(abc.ABC):
     @abc.abstractmethod
     def handles_location(cls, location: str) -> bool: ...
 
+    @classmethod
     @abc.abstractmethod
-    def default_log_buffer(self) -> int: ...
+    def handles_bytes(cls, first_bytes: bytes) -> bool: ...
+
+    @abc.abstractmethod
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int: ...
 
     @abc.abstractmethod
     def is_writeable(self) -> bool: ...
@@ -41,22 +47,39 @@ class Recorder(abc.ABC):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
         header_only: bool = False,
+        invalidated: bool = False,
     ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+    ) -> EvalLog: ...
+
+    @classmethod
+    @abc.abstractmethod
+    async def read_log_bytes(
+        cls, log_bytes: IO[bytes], header_only: bool = False
+    ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample: ...
 
     @classmethod
@@ -66,5 +89,20 @@ class Recorder(abc.ABC):
     ) -> list[EvalSampleSummary]: ...
 
     @classmethod
+    async def read_log_sample_ids(cls, location: str) -> list[tuple[str | int, int]]:
+        return sorted(
+            (
+                (sample_summary.id, sample_summary.epoch)
+                for sample_summary in await cls.read_log_sample_summaries(location)
+            ),
+            key=lambda x: (
+                x[1],
+                (x[0] if isinstance(x[0], str) else str(x[0]).zfill(20)),
+            ),
+        )
+
+    @classmethod
     @abc.abstractmethod
-    async def write_log(cls, location: str, log: EvalLog) -> None: ...
+    async def write_log(
+        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+    ) -> None: ...

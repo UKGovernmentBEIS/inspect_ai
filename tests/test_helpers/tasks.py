@@ -1,6 +1,6 @@
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
+from inspect_ai.dataset import FieldSpec, Sample, example_dataset
+from inspect_ai.scorer import includes, match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import Tool
 
@@ -30,4 +30,22 @@ def minimal_task_for_tool_use(tool: Tool) -> Task:
         metadata={"task_idx": 1},
         message_limit=3,
         sandbox="docker",
+    )
+
+
+@task
+def popularity():
+    dataset = example_dataset(
+        name="popularity",
+        sample_fields=FieldSpec(
+            input="question",
+            target="answer_matching_behavior",
+            metadata=["label_confidence"],
+        ),
+    )
+
+    return Task(
+        dataset=dataset,
+        solver=[generate()],
+        scorer=[match()],
     )

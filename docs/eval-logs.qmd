@@ -22,6 +22,20 @@ $ inspect view
 
 This section won't cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer) section for details on interactively exploring logs.
 
+## Log Analysis
+
+This article will focus primarily on configuring Inspect's logging behavior (location, format, content, etc). Beyond that, there are a variety of tools available for analyzing data in log files:
+
+1. [Log File API](#log-file-api) --- API for accessing all data recorded in the log.
+
+2. [Log Dataframes](dataframe.qmd) --- API for extracting data frames from log files.
+
+3. [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) ---  Transcript analysis tool that can work directly with Inspect logs.
+
+3. [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) --- Data visualization framework built to work with Inspect logs.
+
+4. [CJE](https://github.com/cimo-labs/cje) --- Calibrate model-graded scorer accuracy against oracle labels using causal inference.
+
 ## Log Location
 
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
@@ -52,6 +66,7 @@ If you are running in VS Code, then you should restart terminals and notebooks u
 :::
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
+See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 
 ## Log Format {#sec-log-format}
 
@@ -100,6 +115,25 @@ inspect eval images.py --log-format=json --no-log-images
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
+## Refusal Logging
+
+If you are concerned with proactively detecting when model refusals are occurring, you can specify the `--log-refusals` flag (or `log_refusals` option to `eval()`) to log refusals as warnings. For example:
+
+``` bash
+inspect eval ctf.py --log-refusals
+```
+
+Note that in all cases a counter of refusals during the eval or eval set is provided at the bottom right of the task display.
+
+## Model API Logging
+
+If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the `ModelEvent`). For example:
+
+``` bash
+inspect eval ctf.py --log-model-api
+```
+
+Note that model api requests that result in an error are always logged.
 
 ## Log File API {#sec-log-file-api}
 
@@ -171,11 +205,11 @@ You can enumerate, read, and write `EvalLog` objects using the following helper 
 | Function | Description |
 |----------------------|--------------------------------------------------|
 | `list_eval_logs` | List all of the eval logs at a given location. |
-| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
+| `read_eval_log` | Read an `EvalLog` from a log file path or `IO[bytes]` (pass `header_only` to not read samples). |
 | `read_eval_log_sample` | Read a single `EvalSample` from a log file |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
 | `read_eval_log_sample_summaries` | Read a summary of all samples (including scoring for each sample). |
-| `write_eval_log` | Write an `EvalLog` to a log file path. |
+| `write_eval_log` | Write an `EvalLog` to a log file path (pass `if_match_etag` for S3 conditional writes). |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling `list_eval_logs()` to analyse the results when all the work is done:
 
@@ -201,7 +235,7 @@ Eval log files can get quite large (multiple GB) so it is often useful to read o
 log_header = read_eval_log(log_file, header_only=True)
 ```
 
-The log header is a standard `EvalLog` object without the `samples` and `reductions` fields.
+The log header is a standard `EvalLog` object without the `samples` fields. The `reductions` field is included for `eval` log files and not for `json` log files.
 
 ### Summaries
 
@@ -262,7 +296,7 @@ for sample in read_eval_log_samples(log_file, all_samples_required=False):
 
 ### Attachments
 
-Sample logs often include large pieces of content (e.g. images) that are duplicated in multiple places in the log file (input, message history, events, etc.). To keep the size of log files manageable, images and other large blocks of content are de-duplicated and stored as attachments.
+Sample logs often include large pieces of content that are duplicated in multiple places in the log file (input, message history, events, etc.). To keep the size of log files manageable, images and other large blocks of content are de-duplicated and stored as attachments.
 
 When reading log files, you may want to resolve the attachments so you can get access to the underlying content. You can do this for an `EvalSample` using the `resolve_sample_attachments()` function:
 
@@ -287,6 +321,88 @@ Note you will most typically *not* want to resolve attachments. The two cases th
 We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
 
 
+## Editing Logs {#sec-eval-log-modification}
+
+After running an evaluation, you may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails.
+
+### Score Editing
+
+Use the `edit_score()` function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:
+
+``` python
+from inspect_ai.log import read_eval_log, write_eval_log, edit_score
+from inspect_ai.scorer import ScoreEdit, ProvenanceData
+
+# Read the log file
+log = read_eval_log("my_eval.json")
+
+# Create a score edit with provenance tracking
+edit = ScoreEdit(
+    value=0.95,  # New score value
+    explanation="Corrected model grader bug",  # Optional new explanation
+    provenance=ProvenanceData(
+        author="anthony",
+        reason="there was a bug in the model grader",
+    )
+)
+
+# Edit the score (automatically recomputes metrics)
+edit_score(
+    log=log,
+    sample_id=log.samples[0].id,  # Can be string or int
+    score_name="accuracy",
+    edit=edit
+)
+
+# Write back to the log file
+write_eval_log(log)
+```
+
+Note that using `edit_score` modifies the log loaded into memory but doesn't modify the written log file. Be sure to use `write_eval_log` to save the changes to the eval file (or a copy).
+
+
+### Score History
+
+Each score maintains a complete edit history. The original score and all subsequent edits are preserved:
+
+``` python
+# Access the edit history
+score = log.samples[0].scores["accuracy"]
+print(f"Original value: {score.history[0].value}")
+print(f"Current value: {score.value}")
+print(f"Was edited: {len(score.history) > 1}")
+print(f"Number of edits: {len(score.history)}")
+
+# Iterate through all edits
+for i, edit in enumerate(score.history):
+    provenance = edit.provenance
+    author = provenance.author if provenance else "original"
+    print(f"Edit {i}: value={edit.value}, author={author}")
+```
+
+### Recomputing Metrics
+
+The `edit_score()` function automatically recomputes aggregate metrics by default. You can disable this and manually recompute later if you're making multiple edits:
+
+``` python
+from inspect_ai.log import recompute_metrics
+
+# Make edits without recomputing metrics each time
+edit_score(log, sample_id_1, "accuracy", edit1, recompute_metrics=False)
+edit_score(log, sample_id_2, "accuracy", edit2, recompute_metrics=False)
+
+# Recompute metrics once after all edits
+recompute_metrics(log)
+
+# Write back to the log file
+write_eval_log(log)
+```
+
+### Score Edit Events
+
+When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
+
+
 ## Amazon S3 {#sec-amazon-s3}
 
 Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the `inspect eval` command has a `--log-dir` argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the `INSPECT_LOG_DIR` environment variable to the `.env` file (potentially alongside your S3 credentials). For example:
@@ -300,6 +416,58 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
+### Azure Blob Storage {#sec-azure}
+
+You can store evaluation logs in Azure Blob Storage using any Azure-compatible fsspec scheme (`az://`, `abfs://`, or `abfss://`). Inspect relies on `fsspec` + `adlfs`, so no code changes are needed beyond installing the Azure dependency.
+
+```
+pip install "adlfs>=2025.8.0"
+```
+
+**Recommended (Managed Identity / Workload Identity)**
+
+If running in Azure (App Service, Container Apps, VM, ASK) with a managed identity assigned and granted *Storage Blob Data Contributor* (or Reader for read‑only), do **not** set any secret environment variables. The absence of explicit secrets allows `adlfs` to fall back to `DefaultAzureCredential` and use the managed identity securely.
+
+Set only the log directory (and optionally the account name for short `az://` URIs):
+
+```
+AZURE_STORAGE_ACCOUNT_NAME=myaccount   # optional for abfs*/fully-qualified URIs
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs
+```
+
+Explicitly set `AZURE_STORAGE_ANON=false`. When left unset the default `None` is interpreted as anonymous access (`true`), which skips your managed identity or SAS credentials and causes authorization failures.
+
+Or with a fully-qualified Data Lake (hierarchical namespace) URI:
+
+```
+INSPECT_LOG_DIR=abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs
+```
+
+**Fallback Credential Options (when managed identity is unavailable)**
+
+Order of precedence: *SAS Token* > *Account Key* > *Connection String*.
+
+```
+AZURE_STORAGE_ACCOUNT_NAME=myaccount
+# SAS token (scoped, time-bound; omit leading '?')
+AZURE_STORAGE_SAS_TOKEN=sv=2024-...&ss=bfqt&srt=...
+# Account key (broad permissions; avoid in production)
+# AZURE_STORAGE_ACCOUNT_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+# Connection string (legacy, broad)
+# AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=...;AccountKey=...;
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs
+```
+
+Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to anonymous mode and `adlfs` will ignore the credential above.
+
+**Running Evaluations & Viewer**
+
+```
+inspect eval popularity.py --model openai/gpt-4
+inspect view  # streams directly from Azure
+```
+
+For web deployment (App Service / Container Apps), just replicate the same environment variable setup; managed identity remains the most secure pattern.
 
 ## Log File Name
 

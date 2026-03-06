@@ -10,6 +10,7 @@ import {
   SampleLimitEvent,
   SandboxEvent,
   ScoreEvent,
+  ScoreEditEvent,
   SpanBeginEvent,
   SpanEndEvent,
   StateEvent,
@@ -17,7 +18,10 @@ import {
   StoreEvent,
   SubtaskEvent,
   ToolEvent,
+  CompactionEvent,
 } from "../../../@types/log";
+
+import { STEP, SPAN_BEGIN, TYPE_TOOL, TYPE_SUBTASK } from "./transform/utils";
 
 export interface StateManager {
   scope: string;
@@ -27,6 +31,14 @@ export interface StateManager {
 }
 
 export const kTranscriptCollapseScope = "transcript-collapse";
+export const kTranscriptOutlineCollapseScope = "transcript-outline";
+
+export const kCollapsibleEventTypes = [
+  STEP,
+  SPAN_BEGIN,
+  TYPE_TOOL,
+  TYPE_SUBTASK,
+];
 
 export type EventType =
   | SampleInitEvent
@@ -35,10 +47,12 @@ export type EventType =
   | StoreEvent
   | ModelEvent
   | LoggerEvent
+  | CompactionEvent
   | InfoEvent
   | StepEvent
   | SubtaskEvent
   | ScoreEvent
+  | ScoreEditEvent
   | ToolEvent
   | InputEvent
   | ErrorEvent

@@ -9,7 +9,7 @@ def conversation_panel(
     title: str,
     *,
     subtitle: str | None = None,
-    content: RenderableType | list[RenderableType] = [],
+    content: RenderableType | list[RenderableType] | None = None,
 ) -> None:
     """Trace content into a standard trace panel display.
 

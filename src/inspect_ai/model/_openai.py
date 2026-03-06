@@ -1,13 +1,15 @@
+import functools
 import json
 import re
-import socket
 from copy import copy
-from typing import Any, Literal
+from dataclasses import dataclass
+from typing import Any, Callable, Literal, TypeAlias, cast
 
 import httpx
 from openai import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_TIMEOUT,
+    APIConnectionError,
     APIStatusError,
     APITimeoutError,
     OpenAIError,
@@ -22,10 +24,13 @@ from openai.types.chat import (
     ChatCompletionContentPartRefusalParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
+    ChatCompletionFunctionToolParam,
     ChatCompletionMessage,
+    ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageFunctionToolCallParam,
     ChatCompletionMessageParam,
-    ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
+    ChatCompletionMessageToolCallUnion,
     ChatCompletionNamedToolChoiceParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionToolChoiceOptionParam,
@@ -34,7 +39,8 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
-from openai.types.chat.chat_completion_message_tool_call import Function
+from openai.types.chat.chat_completion_content_part_param import File, FileFile
+from openai.types.chat.chat_completion_message_function_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
@@ -52,8 +58,16 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+)
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
-from inspect_ai.model._reasoning import parse_content_with_reasoning
+from inspect_ai.model._reasoning import (
+    parse_content_with_reasoning,
+    reasoning_to_think_tag,
+)
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ._chat_message import (
@@ -75,39 +89,25 @@ class OpenAIResponseError(OpenAIError):
         return f"{self.code}: {self.message}"
 
 
-def is_o_series(name: str) -> bool:
+# is_o_series etc. have been moved to the OpenAIAPI class
+# in _providers/openai.py to enable proper overriding by subclasses
+def is_gpt_5_model(model_name: str) -> bool:
+    return "gpt-5" in model_name.lower()
+
+
+def is_o_series_model(model_name: str) -> bool:
+    name = model_name.lower()
     if bool(re.match(r"^o\d+", name)):
         return True
-    else:
-        return not is_gpt(name) and bool(re.search(r"o\d+", name))
+    return "gpt" not in name and bool(re.search(r"o\d+", name))
 
 
-def is_o1(name: str) -> bool:
-    return "o1" in name and not is_o1_early(name)
+def needs_max_completion_tokens(model_name: str) -> bool:
+    return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 
 
-def is_o1_early(name: str) -> bool:
-    return "o1-mini" in name or "o1-preview" in name
-
-
-def is_o3_mini(name: str) -> bool:
-    return "o3-mini" in name
-
-
-def is_computer_use_preview(name: str) -> bool:
-    return "computer-use-preview" in name
-
-
-def is_codex(name: str) -> bool:
-    return "codex" in name
-
-
-def is_gpt(name: str) -> bool:
-    return "gpt" in name
-
-
-def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
-    return ChatCompletionMessageToolCall(
+def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
+    return ChatCompletionMessageFunctionToolCall(
         type="function",
         id=tool_call.id,
         function=Function(
@@ -119,7 +119,7 @@ def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
 def openai_chat_tool_call_param(
     tool_call: ToolCall,
 ) -> ChatCompletionMessageToolCallParam:
-    return ChatCompletionMessageToolCallParam(
+    return ChatCompletionMessageFunctionToolCallParam(
         id=tool_call.id,
         function=dict(
             name=tool_call.function, arguments=json.dumps(tool_call.arguments)
@@ -144,7 +144,9 @@ async def openai_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     elif content.type == "audio":
         audio_data_uri = await file_as_data_uri(content.audio)
@@ -153,7 +155,13 @@ async def openai_chat_completion_part(
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
+    elif content.type == "document":
+        document_data_uri = await file_as_data_uri(content.document)
 
+        return File(
+            type="file",
+            file=FileFile(file_data=document_data_uri, filename=content.filename),
+        )
     else:
         raise RuntimeError(
             "Video content is not currently supported by Open AI chat models."
@@ -161,7 +169,10 @@ async def openai_chat_completion_part(
 
 
 async def openai_chat_message(
-    message: ChatMessage, system_role: Literal["user", "system", "developer"] = "system"
+    message: ChatMessage,
+    system_role: Literal["user", "system", "developer"] = "system",
+    reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
+    | None = None,
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
         match system_role:
@@ -188,18 +199,29 @@ async def openai_chat_message(
             ),
         )
     elif message.role == "assistant":
+        # create param
+        content, extra_body = openai_assistant_content(message, reasoning_handler)
         if message.tool_calls:
-            return ChatCompletionAssistantMessageParam(
+            assistant_param = ChatCompletionAssistantMessageParam(
                 role=message.role,
-                content=openai_assistant_content(message),
+                content=content,
                 tool_calls=[
                     openai_chat_tool_call_param(call) for call in message.tool_calls
                 ],
             )
         else:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role, content=openai_assistant_content(message)
+            assistant_param = ChatCompletionAssistantMessageParam(
+                role=message.role, content=content
             )
+
+        # apply extra_body
+        if extra_body:
+            assistant_param = cast(
+                ChatCompletionAssistantMessageParam, assistant_param | extra_body
+            )
+
+        # return param
+        return assistant_param
     elif message.role == "tool":
         return ChatCompletionToolMessageParam(
             role=message.role,
@@ -212,10 +234,16 @@ async def openai_chat_message(
         raise ValueError(f"Unexpected message role {message.role}")
 
 
-async def openai_chat_messages(
+async def messages_to_openai(
     messages: list[ChatMessage],
     system_role: Literal["user", "system", "developer"] = "system",
 ) -> list[ChatCompletionMessageParam]:
+    """Convert messages to OpenAI Completions API compatible messages.
+
+    Args:
+       messages: List of messages to convert
+       system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
+    """
     return [await openai_chat_message(message, system_role) for message in messages]
 
 
@@ -260,34 +288,70 @@ def openai_completion_params(
             ),
         )
     if config.extra_body:
+        # never supported for completions as requires 'store'
+        config.extra_body.pop("metadata", None)
         params["extra_body"] = config.extra_body
 
     return params
 
 
-def openai_assistant_content(message: ChatMessageAssistant) -> str:
+def openai_assistant_content(
+    message: ChatMessageAssistant,
+    reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
+    | None = None,
+) -> tuple[str, dict[str, JsonValue]]:
+    # In agent bridge scenarios, we could encounter concepts such as reasoning and
+    # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
+    # choices API. This code smuggles that data into the plain text so that it
+    # survives multi-turn round trips.
+
+    # resolve reasoning handler -- sometimes reasoning should be represented by
+    # extra_body (e.g. reasoning_details for openrouter). the reasoning_handler
+    # provides a hook for this
+    reasoning_handler = reasoning_handler or default_reasoning_handler
+
     if isinstance(message.content, str):
-        content = message.content
+        return message.content, {}
     else:
         content = ""
+        extra_body: dict[str, JsonValue] = {}
         for c in message.content:
             if c.type == "reasoning":
-                attribs = ""
-                if c.signature is not None:
-                    attribs = f'{attribs} signature="{c.signature}"'
-                if c.redacted:
-                    attribs = f'{attribs} redacted="true"'
-                content = f"{content}\n<think{attribs}>\n{c.reasoning}\n</think>\n"
+                c_reasoning = reasoning_handler(c)
+                if isinstance(c_reasoning, dict):
+                    extra_body = extra_body | c_reasoning
+                else:
+                    content = f"{content}\n{c_reasoning}\n"
+
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
-    return content
+                if c.internal is not None:
+                    content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
+
+    return content, extra_body
+
+
+def default_reasoning_handler(
+    reasoning: ContentReasoning,
+) -> dict[str, JsonValue] | str:
+    # check for an internal field with a source
+    if str(reasoning.internal) in [
+        "reasoning",
+        "reasoning_content",
+        "reasoning_details",
+    ]:
+        extra_body: dict[str, JsonValue] = {}
+        extra_body[str(reasoning.internal)] = reasoning.reasoning
+        return extra_body
+    else:
+        return reasoning_to_think_tag(reasoning)
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
     oai_choices: list[Choice] = []
 
     for index, choice in enumerate(choices):
-        content = openai_assistant_content(choice.message)
+        content, _ = openai_assistant_content(choice.message)
         if choice.message.tool_calls:
             tool_calls = [openai_chat_tool_call(tc) for tc in choice.message.tool_calls]
         else:
@@ -335,7 +399,7 @@ def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
     )
-    return ChatCompletionToolParam(type="function", function=function)
+    return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
 def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
@@ -363,15 +427,26 @@ def chat_tool_calls_from_openai(
         return [
             parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
             for call in message.tool_calls
+            # TODO: For now, we don't yet support "custom" tool calls
+            if call.type == "function"
         ]
     else:
         return None
 
 
-def chat_messages_from_openai(
-    model: str,
+async def messages_from_openai(
     messages: list[ChatCompletionMessageParam],
+    model: str | None = None,
 ) -> list[ChatMessage]:
+    """Convert OpenAI Completions API messages into Inspect messages.
+
+    Args:
+        messages: OpenAI Completions API Messages
+        model: Optional model name to tag assistant messages with.
+    """
+    # some cleanup operations to compensate for various scaffolds
+    messages = functools.reduce(openai_assistant_message_reducer, messages, [])
+
     # track tool names by id
     tool_names: dict[str, str] = {}
 
@@ -402,15 +477,21 @@ def chat_messages_from_openai(
             refusal: Literal[True] | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
-                result = parse_content_with_reasoning(asst_content)
-                if result is not None:
+                asst_content, smuggled_reasoning = parse_content_with_reasoning(
+                    asst_content
+                )
+                asst_content, content_internal = parse_content_with_internal(
+                    asst_content, CONTENT_INTERNAL_TAG
+                )
+                if smuggled_reasoning:
                     content = [
                         ContentReasoning(
-                            reasoning=result.reasoning,
-                            signature=result.signature,
-                            redacted=result.redacted,
+                            reasoning=smuggled_reasoning.reasoning,
+                            signature=smuggled_reasoning.signature,
+                            redacted=smuggled_reasoning.redacted,
+                            summary=smuggled_reasoning.summary,
                         ),
-                        ContentText(text=result.content),
+                        ContentText(text=asst_content, internal=content_internal),
                     ]
                 else:
                     content = asst_content
@@ -425,21 +506,32 @@ def chat_messages_from_openai(
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
-            reasoning = message.get("reasoning_content", None) or message.get(
-                "reasoning", None
-            )
+            # note that we already handled <think> tags so we only care about the
+            # other sources
+            parse_result = parse_reasoning_content(message)
+            if parse_result is not None:
+                reasoning: ContentReasoning | None = ContentReasoning(
+                    internal=parse_result[0].source,
+                    reasoning=str(parse_result[0].reasoning),
+                )
+            else:
+                reasoning = None
+
             if reasoning is not None:
                 # normalize content to an array
                 if isinstance(content, str):
                     content = [ContentText(text=content, refusal=refusal)]
 
                 # insert reasoning
-                content.insert(0, ContentReasoning(reasoning=str(reasoning)))
+                content.insert(0, reasoning)
 
             # return message
             if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
                 for call in message["tool_calls"]:
+                    # TODO: For now, we don't yet support "custom" tool calls
+                    if call["type"] != "function":
+                        continue
                     tool_calls.append(tool_call_from_openai(call))
                     tool_names[call["id"]] = call["function"]["name"]
 
@@ -457,7 +549,12 @@ def chat_messages_from_openai(
         elif message["role"] == "tool":
             tool_content = message.get("content", None) or ""
             if isinstance(tool_content, str):
-                content = tool_content
+                # If tool_content is a simple str, it could be the result of some
+                # sub-agent tool call that has <think> or <internal> smuggled inside
+                # of it to support agent bridge scenarios. We have to strip that
+                # data. To be clear, if it's <think>, we'll strip the <think> tag,
+                # but the reasoning summary itself will remain in the content.
+                content, _ = parse_content_with_reasoning(tool_content)
             else:
                 content = []
                 for tc in tool_content:
@@ -475,7 +572,43 @@ def chat_messages_from_openai(
     return chat_messages
 
 
+def openai_assistant_message_reducer(
+    messages: list[ChatCompletionMessageParam], message: ChatCompletionMessageParam
+) -> list[ChatCompletionMessageParam]:
+    # some scaffolds (e.g. codex cli) split assistant messages with
+    # content and tool calls into:
+    #
+    #    assistant[tool_calls] -> tool -> assistant[content].
+    #
+    # unfortunately for the case of assistant messages that have
+    # reasoning embedded w/ <think> this breaks GPT-5 (which always
+    # wants the reasoning before tool calls). fix this up as required.
+    if (
+        # dealing with at least 2 existing messages
+        len(messages) >= 2
+        # new message is an assistant message w/ content and no tool calls
+        and message["role"] == "assistant"
+        and "tool_calls" not in message
+        and "content" in message
+        # last existing message is a tool result
+        and messages[-1]["role"] == "tool"
+        # second to last existing message is an assistant message w/ tool
+        # calls and no content
+        and messages[-2]["role"] == "assistant"
+        and "tool_calls" in messages[-2]
+        and messages[-2].get("content", None) is None
+    ):
+        # move content from new assistant message (which is not appended)
+        # to previous assistant message
+        messages[-2]["content"] = message["content"]
+    else:
+        messages.append(message)
+
+    return messages
+
+
 def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> ToolCall:
+    assert tool_call["type"] == "function", '"custom" tool calls are not supported'
     return parse_tool_call(
         tool_call["id"],
         tool_call["function"]["name"],
@@ -492,27 +625,31 @@ def content_from_openai(
         content["type"] = list(content.keys())[0]  # type: ignore[arg-type]
     if content["type"] == "text":
         text = content["text"]
+        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
         if parse_reasoning:
-            result = parse_content_with_reasoning(text)
-            if result:
+            content_text, reasoning = parse_content_with_reasoning(text)
+            if reasoning:
                 return [
                     ContentReasoning(
-                        reasoning=result.reasoning,
-                        signature=result.signature,
-                        redacted=result.redacted,
+                        internal=reasoning.internal,
+                        reasoning=reasoning.reasoning,
+                        summary=reasoning.summary,
+                        signature=reasoning.signature,
+                        redacted=reasoning.redacted,
                     ),
-                    ContentText(text=result.content),
+                    ContentText(text=content_text, internal=content_internal),
                 ]
             else:
-                return [ContentText(text=text)]
+                return [ContentText(text=text, internal=content_internal)]
         else:
-            return [ContentText(text=text)]
+            return [ContentText(text=text, internal=content_internal)]
     elif content["type"] == "reasoning":  # type: ignore[comparison-overlap]
         return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":
         return [
             ContentImage(
-                image=content["image_url"]["url"], detail=content["image_url"]["detail"]
+                image=content["image_url"]["url"],
+                detail=content["image_url"].get("detail", "auto"),
             )
         ]
     elif content["type"] == "input_audio":
@@ -529,20 +666,52 @@ def content_from_openai(
         raise ValueError(f"Unexpected content type '{content_type}' in message.")
 
 
-def chat_message_assistant_from_openai(
-    model: str, message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> ChatMessageAssistant:
-    refusal = getattr(message, "refusal", None)
-    reasoning = getattr(message, "reasoning_content", None) or getattr(
-        message, "reasoning", None
-    )
+CompletionsReasoningSource: TypeAlias = Literal[
+    "think", "reasoning", "reasoning_content", "reasoning_details"
+]
 
-    msg_content = refusal or message.content or ""
-    if reasoning is not None:
+
+@dataclass
+class CompletionsReasoningContent:
+    source: CompletionsReasoningSource
+    reasoning: JsonValue
+
+
+ReasoningExtractor: TypeAlias = Callable[
+    [CompletionsReasoningContent], ContentReasoning | None
+]
+
+
+def chat_message_assistant_from_openai(
+    model: str,
+    message: ChatCompletionMessage,
+    tools: list[ToolInfo],
+    reasoning_extractor: ReasoningExtractor | None = None,
+) -> ChatMessageAssistant:
+    # determine message content (might be refusal)
+    refusal = getattr(message, "refusal", None)
+    msg_content = str(refusal or message.content or "")
+
+    # look for reasoning
+    parse_result = parse_reasoning_content(message)
+    if parse_result is not None:
+        reasoning_content, remaining_content = parse_result
+        reasoning: ContentReasoning | None = None
+        if reasoning_extractor is not None:
+            reasoning = reasoning_extractor(reasoning_content)
+        if reasoning is None:
+            reasoning = ContentReasoning(
+                reasoning=str(reasoning_content.reasoning),
+                internal=reasoning_content.source,
+            )
+
         content: str | list[Content] = [
-            ContentReasoning(reasoning=str(reasoning)),
-            ContentText(text=msg_content, refusal=True if refusal else None),
+            reasoning,
+            ContentText(
+                text=remaining_content or msg_content, refusal=True if refusal else None
+            ),
         ]
+
     elif refusal is not None:
         content = [ContentText(text=msg_content, refusal=True)]
     else:
@@ -556,6 +725,34 @@ def chat_message_assistant_from_openai(
     )
 
 
+def parse_reasoning_content(
+    message: ChatCompletionMessage | ChatCompletionAssistantMessageParam,
+) -> tuple[CompletionsReasoningContent, str | None] | None:
+    # look in various fields where reasoning lives
+    for source in cast(
+        list[CompletionsReasoningSource],
+        ["reasoning_details", "reasoning_content", "reasoning"],
+    ):
+        reasoning = getattr(message, source, None)
+        if reasoning:
+            return CompletionsReasoningContent(source=source, reasoning=reasoning), None
+
+    # not found, look for <think> tag
+    content = (
+        message.content
+        if isinstance(message, ChatCompletionMessage)
+        else str(message["content"] or "")
+    )
+    content_text, reasoning = parse_content_with_reasoning(content or "")
+    if reasoning:
+        return CompletionsReasoningContent(
+            source="think", reasoning=reasoning.reasoning
+        ), content_text
+
+    # no reasoning found
+    return None
+
+
 def model_output_from_openai(
     completion: ChatCompletion,
     choices: list[ChatCompletionChoice],
@@ -565,7 +762,13 @@ def model_output_from_openai(
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens,
+                input_tokens=completion.usage.prompt_tokens
+                - (
+                    completion.usage.prompt_tokens_details.cached_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    and completion.usage.prompt_tokens_details.cached_tokens is not None
+                    else 0
+                ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
@@ -586,14 +789,16 @@ def model_output_from_openai(
 
 
 def chat_choices_from_openai(
-    response: ChatCompletion, tools: list[ToolInfo]
+    response: ChatCompletion,
+    tools: list[ToolInfo],
+    reasoning_extractor: ReasoningExtractor | None = None,
 ) -> list[ChatCompletionChoice]:
     choices = list(response.choices)
     choices.sort(key=lambda c: c.index)
     return [
         ChatCompletionChoice(
             message=chat_message_assistant_from_openai(
-                response.model, choice.message, tools
+                response.model, choice.message, tools, reasoning_extractor
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=(
@@ -606,14 +811,14 @@ def chat_choices_from_openai(
     ]
 
 
-def openai_should_retry(ex: Exception) -> bool:
+def openai_should_retry(ex: BaseException) -> bool:
     if isinstance(ex, RateLimitError):
         return True
     elif isinstance(ex, APIStatusError):
         return is_retryable_http_status(ex.status_code)
     elif isinstance(ex, OpenAIResponseError):
         return ex.code in ["rate_limit_exceeded", "server_error"]
-    elif isinstance(ex, APITimeoutError):
+    elif isinstance(ex, APIConnectionError | APITimeoutError):
         return True
     else:
         return False
@@ -636,6 +841,7 @@ def openai_handle_bad_request(
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
 
@@ -652,6 +858,10 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     if key == "output" and isinstance(value, dict) and "image_url" in value:
         value = copy(value)
         value.update(image_url=BASE_64_DATA_REMOVED)
+    if key == "output" and isinstance(value, list):
+        for v in value:
+            if isinstance(v, dict) and "image_url" in v:
+                v.update(image_url=BASE_64_DATA_REMOVED)
     if key == "image_url" and isinstance(value, dict) and "url" in value:
         url = str(value.get("url"))
         if url.startswith("data:"):
@@ -664,36 +874,19 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that deals better with long running Async requests.
+    """Custom async client that uses OpenAI's default settings.
 
-    Based on Anthropic DefaultAsyncHttpClient implementation that they
-    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
+    This ensures proper proxy support and follows OpenAI's recommended configuration.
+    OpenAI has already incorporated timeout improvements for reasoning models in their
+    default transport, so we don't need custom socket options.
 
     """
 
     def __init__(self, **kwargs: Any) -> None:
-        # This is based on the openai DefaultAsyncHttpxClient:
+        # Use OpenAI's default settings which handle proxies correctly
         # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
         kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
         kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
         kwargs.setdefault("follow_redirects", True)
-
-        # This is based on the anthrpopic changes for claude 3.7:
-        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
-
-        # set socket options to deal with long running reasoning requests
-        socket_options = [
-            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
-        ]
-        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
-        if TCP_KEEPIDLE is not None:
-            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
-
-        kwargs["transport"] = httpx.AsyncHTTPTransport(
-            limits=DEFAULT_CONNECTION_LIMITS,
-            socket_options=socket_options,
-        )
 
         super().__init__(**kwargs)

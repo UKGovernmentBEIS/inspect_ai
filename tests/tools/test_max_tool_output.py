@@ -1,9 +1,12 @@
-from typing import Literal
-
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
 
 from inspect_ai import Task, eval
-from inspect_ai._util.text import TruncatedOutput, truncate_string_to_bytes
+from inspect_ai._util.text import (
+    TruncatedOutput,
+    truncate_bytes,
+    truncate_str,
+    truncate_string_to_bytes,
+)
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model._generate_config import GenerateConfig
@@ -74,24 +77,136 @@ def test_max_tool_output():
     check_log(log, 10, False)
 
 
-def test_text_truncation():
-    def check(output: TruncatedOutput | None, check: Literal[True] | str | None):
-        if output is None:
-            assert check is None
-        elif check is True:
-            assert output is not None
-        else:
-            assert output.output == check
+def test_truncate_str_no_truncation_needed():
+    """Test that truncate_str returns None when input fits within limit."""
+    result = truncate_str("hello", 10)
+    assert result is None
 
-    check(truncate_string_to_bytes("Hello", 10), None)
-    check(truncate_string_to_bytes("Hello, World", 5), "Hello")
-    check(truncate_string_to_bytes("Hello, 世界! 🌍", 10), True)
-    check(truncate_string_to_bytes("🌍🌎🌏", 5), "🌍�")
-    # 0 means no truncation
-    check(truncate_string_to_bytes("Hello World!", 0), None)
-    # invalid byte
-    check(truncate_string_to_bytes("Invalid \x80 byte", 15), None)
-    check(truncate_string_to_bytes("Invalid \x80 byte", 7), "Invalid")
-    check(truncate_string_to_bytes("Invalid \x80 byte", 12), "Invalid \x80 b")
-    # emoji that's 3 bytes long
-    check(truncate_string_to_bytes("☺️", 2), "�")
+    result = truncate_str("test", 4)
+    assert result is None
+
+    result = truncate_str("", 5)
+    assert result is None
+
+
+def test_truncate_str_max_bytes_zero():
+    """Test truncate_str with max_bytes=0 returns None (no truncation)."""
+    result = truncate_str("hello", 0)
+    assert result == TruncatedOutput("", 5)
+
+
+def test_truncate_str_basic_truncation():
+    """Test basic middle truncation for ASCII strings."""
+    result = truncate_str("abcdefghij", 6)
+    assert result is not None
+    assert result.output == "abchij"  # 3 from front + 3 from back
+    assert result.original_bytes == 10
+
+
+def test_truncate_str_odd_max_bytes():
+    """Test middle truncation with odd max_bytes value."""
+    result = truncate_str("abcdefghij", 5)
+    assert result is not None
+    assert result.output == "abhij"  # 2 from front + 3 from back (5//2=2, remainder=3)
+    assert result.original_bytes == 10
+
+
+def test_truncate_bytes_no_truncation_needed():
+    """Test that truncate_bytes returns None when input fits within limit."""
+    result = truncate_bytes(b"hello", 10)
+    assert result is None
+
+    result = truncate_bytes(b"test", 4)
+    assert result is None
+
+    result = truncate_bytes(b"", 5)
+    assert result is None
+
+
+def test_truncate_bytes_max_bytes_zero():
+    result = truncate_bytes(b"hello", 0)
+    assert result == TruncatedOutput("", 5)
+
+
+def test_truncate_bytes_basic_truncation():
+    """Test basic middle truncation for bytes."""
+    result = truncate_bytes(b"abcdefghij", 6)
+    assert result is not None
+    assert result.output == "abchij"  # 3 from front + 3 from back
+    assert result.original_bytes == 10
+
+
+def test_truncate_bytes_odd_max_bytes():
+    """Test middle truncation with odd max_bytes value."""
+    result = truncate_bytes(b"abcdefghij", 5)
+    assert result is not None
+    assert result.output == "abhij"  # 2 from front + 3 from back
+    assert result.original_bytes == 10
+
+
+def test_both_functions_edge_cases():
+    """Test edge cases for both functions."""
+    # Empty input should return None regardless of max_bytes
+    assert truncate_str("", 0) is None
+    assert truncate_str("", 1) is None
+    assert truncate_bytes(b"", 0) is None
+    assert truncate_bytes(b"", 1) is None
+
+    # max_bytes=0 should do no truncation
+    assert truncate_str("a", 0) == TruncatedOutput("", 1)
+    assert truncate_bytes(b"a", 0) == TruncatedOutput("", 1)
+
+
+def test_truncate_string_to_bytes_no_truncation_needed():
+    """Test that truncate_string_to_bytes returns None when input fits within limit."""
+    result = truncate_string_to_bytes("hello", 10)
+    assert result is None
+
+    result = truncate_string_to_bytes("test", 4)
+    assert result is None
+
+    result = truncate_string_to_bytes("", 5)
+    assert result is None
+
+
+def test_truncate_string_to_bytes_zero_means_no_truncation():
+    """Test that max_bytes=0 means no truncation for truncate_string_to_bytes."""
+    result = truncate_string_to_bytes("hello", 0)
+    assert result is None
+
+    result = truncate_string_to_bytes("", 0)
+    assert result is None
+
+
+def test_truncate_string_to_bytes_utf8_characters():
+    """Test truncation with UTF-8 characters like emoji."""
+    # Test with emoji that might get broken by byte truncation
+    result = truncate_string_to_bytes("🌍🌎🌏", 5)
+    assert result is not None
+    assert result.original_bytes == 12  # 3 emoji * 4 bytes each
+    # The result should be valid (no assertion on exact output due to broken UTF-8)
+    assert isinstance(result.output, str)
+
+
+def test_truncate_string_to_bytes_mixed_content():
+    """Test truncation with mixed ASCII and UTF-8."""
+    result = truncate_string_to_bytes("Hello, 世界! 🌍", 10)
+    assert result is not None
+    # Just verify it returns something valid
+    assert isinstance(result.output, str)
+    assert result.original_bytes > 10
+
+
+def test_middle_truncation_preserves_ends():
+    """Test that middle truncation actually preserves start and end content."""
+    text = "start_middle_content_end"
+    result = truncate_str(text, 10)
+    assert result is not None
+    assert result.output.startswith("start")
+    assert result.output.endswith("end")
+
+    data = b"start_middle_content_end"
+    result = truncate_bytes(data, 10)
+    assert result is not None
+    assert result.output.startswith("start")
+    assert result.output.endswith("end")

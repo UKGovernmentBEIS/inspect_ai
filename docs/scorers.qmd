@@ -57,6 +57,10 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Specialised scorer that is used with the `multiple_choice()` solver.
 
+-   `math()`
+    
+    Scorer for evaluating mathematical expressions and answers. Extracts answers from model output (supporting both `\boxed{}` LaTeX notation and plain text), normalizes mathematical expressions, and uses SymPy to check for mathematical equivalence. Handles various mathematical formats including LaTeX, fractions, roots, percentages, and algebraic expressions. **Note:** Requires the optional `sympy` dependency—install with `pip install sympy`.
+
 Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in `Task` definitions. For example:
 
 ``` python
@@ -94,19 +98,29 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     ...
 ```
 
-The default model graded QA scorer is tuned to grade answers to open ended questions. The default `template` and `instructions` ask the model to produce a grade in the format `GRADE: C` or `GRADE: I`, and this grade is extracted using the default `grade_pattern` regular expression. The grading is by default done with the model currently being evaluated. There are a few ways you can customise the default behaviour:
+The default model graded QA scorer is tuned to grade answers to open ended questions. The default `template` and `instructions` ask the model to produce a grade in the format `GRADE: C` or `GRADE: I`, and this grade is extracted using the default `grade_pattern` regular expression.
+
+Model selection follows this precedence:
+
+1. If `model` is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).
+2. Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used.
+3. Else the model currently being evaluated is used.
+
+There are a few ways you can customise the default behaviour:
 
 1.  Provide alternate `instructions`—the default instructions ask the model to use chain of thought reasoning and provide grades in the format `GRADE: C` or `GRADE: I`. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the `grade_pattern`.
 2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). You may optionally instead pass a function that enables customising the presentation of the chat history.
 3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
-4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading).
-5.  Specify a different `template`—note that templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
+4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
+5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](models.qmd#model-roles) for details.
+6.  Specify a different `template`—note that templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
 
-The `model_graded_fact()` scorer works identically to `model_graded_qa()`, and simply provides an alternate `template` oriented around judging whether a fact is included in the model output.
+The `model_graded_fact()` scorer works identically to `model_graded_qa()` (including model selection precedence and multi-model voting), and simply provides an alternate `template` oriented around judging whether a fact is included in the model output.
 
 If you want to understand how the default templates for `model_graded_qa()` and `model_graded_fact()` work, see their [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/scorer/_model.py).
 
@@ -117,7 +131,7 @@ The built-in model graded scorers also support using multiple grader models (whe
 ``` python
 model_graded_qa(
     model = [
-        "google/gemini-1.5-pro",
+        "google/gemini-2.5-pro",
         "anthropic/claude-3-opus-20240229" 
         "together/meta-llama/Llama-3-70b-chat-hf",
     ]
@@ -178,8 +192,8 @@ If you are extracting an answer from within a completion (e.g. looking for text 
 ``` python
 Value = Union[
     str | int | float | bool,
-    list[str | int | float | bool],
-    dict[str, str | int | float | bool],
+    Sequence[str | int | float | bool],
+    Mapping[str, str | int | float | bool],
 ]
 ```
 
@@ -196,14 +210,14 @@ You'll often want to use models in the implementation of scorers. Use the `get_m
 grader_model = get_model() 
 
 # use another model for grading
-grader_model = get_model("google/gemini-1.5-pro")
+grader_model = get_model("google/gemini-2.5-pro")
 ```
 
 Use the `config` parameter of `get_model()` to override default generation options:
 
 ``` python
 grader_model = get_model(
-    "google/gemini-1.5-pro", 
+    "google/gemini-2.5-pro", 
     config = GenerateConfig(temperature = 0.9, max_connections = 10)
 )
 ```
@@ -318,7 +332,7 @@ Task(
     ],
     scorer=[
         model_graded_qa(model="openai/gpt-4"), 
-        model_graded_qa(model="google/gemini-1.5-pro")
+        model_graded_qa(model="google/gemini-2.5-pro")
     ],
 )
 ```
@@ -535,7 +549,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 ### Metric Grouping
 
-The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samplesor groups. Each sample must have a value for whatever key is used for grouping.
+The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.
 
 For example, let's say you wanted to create a separate accuracy metric for each distinct "category" variable defined in `Sample` metadata:
 
@@ -560,6 +574,14 @@ Note that the `"all"` metric by default takes the selected metric over all of th
 ```python
 grouped(accuracy(), "category", all="groups")
 ```
+
+You can customize the metric names using the `name_template` parameter. The template uses `{group_name}` as a placeholder for the group value:
+
+``` python
+grouped(accuracy(), "category", name_template="category_{group_name}")
+```
+
+This would produce metrics named `category_physics`, `category_chemistry`, etc. instead of just `physics`, `chemistry`. It does not affect the "all" metric, so that can be named separately.
 
 ### Clustered Stderr
 
@@ -748,7 +770,13 @@ When rescoring a previously scored log file you have two options:
 1)  Append Mode (Default): The new scores will be added alongside the existing scores in the log file, keeping both the old and new results.
 2)  Overwrite Mode: The new scores will replace the existing scores in the log file, removing the old results.
 
-You can choose which mode to use based on whether you want to preserve or discard the previous scoring data. To control this, use the `--action` arg:
+You can choose which mode to use based on whether you want to preserve or discard the previous scoring data.
+
+::: {.callout-note appearance="simple"}
+When using append mode, the new scorer uses its own metrics independently—the original eval's metric configuration is not applied to the appended scorer. This means append works even when the original eval used metrics from packages that are not available in the current environment.
+:::
+
+To control this, use the `--action` arg:
 
 ``` bash
 # append scores from custom scorer
@@ -768,7 +796,7 @@ log = eval(popularity, model="openai/gpt-4")[0]
 grader_models = [
     "openai/gpt-4",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro",
+    "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
 
@@ -788,7 +816,7 @@ log = read_eval_log(input_log_path)
 grader_models = [
     "openai/gpt-4",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro",
+    "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
 
@@ -802,3 +830,7 @@ for model, scored_log in zip(grader_models, scoring_logs):
     output_file = f"{base}_{model.replace('/', '_')}{ext}"
     write_eval_log(scored_log, output_file)
 ```
+
+### Editing Scores
+
+You may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](eval-logs.qmd#sec-eval-log-modification)

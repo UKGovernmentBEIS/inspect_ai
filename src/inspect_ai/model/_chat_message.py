@@ -1,15 +1,18 @@
+import hashlib
+import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
+from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
-from inspect_ai._util.constants import DESERIALIZING
-from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
+from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
-
-from ._reasoning import parse_content_with_reasoning
 
 logger = getLogger(__name__)
 
@@ -29,8 +32,19 @@ class ChatMessageBase(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional message metadata."""
 
-    internal: JsonValue | None = Field(default=None)
-    """Model provider specific payload - typically used to aid transformation back to model types."""
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Metadata as a Pydantic model.
+
+        Args:
+           metadata_cls: BaseModel derived class.
+
+        Returns:
+           BaseModel: Instance of metadata_cls.
+        """
+        if self.metadata is None:
+            raise ValueError("ChatMessage does not have metadata")
+
+        return metadata_as(self.metadata, metadata_cls)
 
     def model_post_init(self, __context: Any) -> None:
         # check if deserializing
@@ -41,6 +55,39 @@ class ChatMessageBase(BaseModel):
         # Generate ID if needed and not deserializing
         if self.id is None and not is_deserializing:
             self.id = uuid()
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _wrap(
+        cls,
+        data: dict[str, Any],
+        handler: ModelWrapValidatorHandler["ChatMessageBase"],
+        info: ValidationInfo,
+    ) -> "ChatMessageBase":
+        # Some parts of the eval log can be very repetitive. A sequence of model events will often
+        # duplicate the same ChatMessage many times. When the log is initially generated, this is not
+        # an issue, since the data structure will just contain a reference to the same object.
+        # When deserializing, however, we want to avoid creating a new ChatMessage object for each
+        # instance of the same message.
+        if info.context is None:
+            return handler(data)
+        cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
+        try:
+            cache_key: bytes = hashlib.sha256(
+                json.dumps(data, sort_keys=True).encode()
+            ).digest()
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Failed to dump object with json ({ex}). Falling back to repr which is slower",
+            )
+            cache_key = hashlib.sha256(repr(data).encode()).digest()
+        hit = cache.get(cache_key)
+        if hit is not None:
+            return hit
+        res = handler(data)
+        cache[cache_key] = res
+        return res
 
     @property
     def text(self) -> str:
@@ -84,6 +131,14 @@ class ChatMessageBase(BaseModel):
             all_other = [content for content in self.content if content.type != "text"]
             self.content = all_other + [ContentText(text=text)]
 
+    @property
+    def content_list(self) -> list[Content]:
+        """Message content as a list of Content objects."""
+        if isinstance(self.content, list):
+            return self.content
+        else:
+            return [ContentText(text=self.content)]
+
 
 class ChatMessageSystem(ChatMessageBase):
     """System chat message."""
@@ -113,46 +168,6 @@ class ChatMessageAssistant(ChatMessageBase):
 
     model: str | None = Field(default=None)
     """Model used to generate assistant message."""
-
-    # Some OpenAI compatible REST endpoints include reasoning as a field alongside
-    # content, however since this field doesn't exist in the OpenAI interface,
-    # hosting providers (so far we've seen this with Together and Groq) may
-    # include the reasoning in a <think></think> tag before the main response.
-    # We expect this pattern to be repeated elsewhere, so include this hook to
-    # automatically extract the reasoning content when the response is prefaced
-    # with a <think> block. If this ends up being an overeach we can fall back
-    # to each provider manually parsing out <think> using a helper function.
-    # The implementation isn't important here, the critical thing to establish
-    # is that Inspect makes reasoning content available separately.
-    @model_validator(mode="before")
-    @classmethod
-    def extract_reasoning(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            # cleave apart <think> blocks
-            content = data.get("content", None)
-            if isinstance(content, str):
-                parsed = parse_content_with_reasoning(content)
-                if parsed:
-                    data["content"] = [
-                        ContentReasoning(reasoning=parsed.reasoning),
-                        ContentText(text=parsed.content),
-                    ]
-            # migrate messages that has explicit 'reasoning' field
-            # (which was our original representation of reasoning)
-            reasoning = data.get("reasoning", None)
-            if isinstance(reasoning, str):
-                # ensure that content is a list
-                content = data.get("content", None)
-                if content is None:
-                    data["content"] = []
-                elif isinstance(content, str):
-                    data["content"] = [ContentText(text=content)]
-                elif not isinstance(content, list):
-                    data["content"] = []
-                data["content"].insert(0, ContentReasoning(reasoning=reasoning))
-
-                del data["reasoning"]
-        return data
 
 
 class ChatMessageTool(ChatMessageBase):
@@ -186,9 +201,9 @@ class ChatMessageTool(ChatMessageBase):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_tool_error_to_error(
-        cls: Type["ChatMessageTool"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def convert_tool_error_to_error(cls: Type["ChatMessageTool"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         tool_error = values.get("tool_error", None)
         if tool_error:
             values["error"] = ToolCallError("unknown", tool_error)

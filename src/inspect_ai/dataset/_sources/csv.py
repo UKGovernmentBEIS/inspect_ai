@@ -4,6 +4,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
+from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.file import file
 from inspect_ai.dataset._sources.util import resolve_sample_files
 
@@ -28,7 +29,7 @@ def csv_dataset(
     dialect: str = "unix",
     encoding: str = "utf-8",
     name: str | None = None,
-    fs_options: dict[str, Any] = {},
+    fs_options: dict[str, Any] | None = None,
     fieldnames: list[str] | None = None,
     delimiter: str = ",",
 ) -> Dataset:
@@ -66,8 +67,12 @@ def csv_dataset(
     # resolve data_to_sample function
     data_to_sample = record_to_sample_fn(sample_fields)
 
+    # use readahead cache by default for s3
+    if fs_options is None and is_s3_filename(csv_file):
+        fs_options = dict(default_fill_cache=True, default_cache_type="readahead")
+
     # read and convert samples
-    with file(csv_file, "r", encoding=encoding, fs_options=fs_options) as f:
+    with file(csv_file, "r", encoding=encoding, fs_options=fs_options or {}) as f:
         # filter out rows with empty values
         valid_data = [
             data

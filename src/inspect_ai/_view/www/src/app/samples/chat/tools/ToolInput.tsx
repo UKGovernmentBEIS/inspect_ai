@@ -1,45 +1,93 @@
 import clsx from "clsx";
-import { FC } from "react";
-import { MarkdownDiv } from "../../../../components/MarkdownDiv";
+import { FC, Ref, useRef } from "react";
 
-import { usePrismHighlight } from "../../../../state/hooks";
+import { ToolCallContent } from "../../../../@types/log";
+import { usePrismHighlight } from "../../../../components/prism";
+import { RenderedText } from "../../../content/RenderedText";
 import styles from "./ToolInput.module.css";
+import { kToolTodoContentType } from "./tool";
+import { TodoWriteInput } from "./tool-input/TodoWriteInput";
 
 interface ToolInputProps {
-  highlightLanguage?: string;
-  contents?: string | object;
-  toolCallView?: { content: string };
+  contentType?: string;
+  contents?: unknown | object;
+  toolCallView?: ToolCallContent;
+  className?: string | string[];
 }
 export const ToolInput: FC<ToolInputProps> = (props) => {
-  const { highlightLanguage, contents, toolCallView } = props;
+  const { contentType, contents, toolCallView, className } = props;
 
-  const prismParentRef = usePrismHighlight(toolCallView?.content);
+  const sourceCodeRef = useRef<HTMLDivElement | null>(null);
+  const useToolView = toolCallView && isValidView(toolCallView);
 
-  if (!contents && !toolCallView?.content) return null;
+  const sourceCodeLength = useToolView
+    ? toolCallView.content.length
+    : contents
+      ? typeof contents === "string"
+        ? contents.length
+        : JSON.stringify(contents).length
+      : 0;
+  usePrismHighlight(sourceCodeRef, sourceCodeLength);
 
-  if (toolCallView) {
+  if (!contents && !useToolView) {
+    return null;
+  }
+
+  if (useToolView) {
     return (
-      <MarkdownDiv
+      <RenderedText
         markdown={toolCallView.content}
-        ref={prismParentRef}
-        className={clsx("tool-output", styles.toolView)}
+        ref={sourceCodeRef}
+        className={clsx("tool-output", styles.toolView, className)}
       />
     );
+  } else {
+    return (
+      <RenderTool
+        contents={contents!}
+        contentType={contentType || ""}
+        parentRef={sourceCodeRef}
+        className={className}
+      />
+    );
+  }
+};
+
+interface RenderToolProps {
+  contents: string | object;
+  contentType: string;
+  parentRef: Ref<HTMLDivElement>;
+  className?: string | string[];
+}
+
+const RenderTool: FC<RenderToolProps> = ({
+  contents,
+  contentType,
+  parentRef,
+  className,
+}) => {
+  if (contentType === kToolTodoContentType) {
+    return <TodoWriteInput contents={contents} parentRef={parentRef} />;
   }
 
   const formattedContent =
     typeof contents === "object" ? JSON.stringify(contents) : contents;
 
   return (
-    <div ref={prismParentRef}>
+    <div ref={parentRef}>
       <pre
-        className={clsx("tool-output", styles.outputPre, styles.bottomMargin)}
+        className={clsx(
+          "tool-output",
+          styles.outputPre,
+          styles.bottomMargin,
+          className,
+        )}
       >
         <code
           className={clsx(
             "source-code",
             "sourceCode",
-            highlightLanguage ? `language-${highlightLanguage}` : undefined,
+            contentType ? `language-${contentType}` : undefined,
             styles.outputCode,
           )}
         >
@@ -48,4 +96,13 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
       </pre>
     </div>
   );
+};
+
+// This is a hack to enable a specific user scenario where a large
+// number of log files were generated with an invalid tool view for specific commands.
+const isValidView = (view: ToolCallContent): boolean => {
+  if (view.content === "```bash\nbash\n```\n") {
+    return false;
+  }
+  return true;
 };

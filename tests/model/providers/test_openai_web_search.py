@@ -57,7 +57,7 @@ class TestOpenAIWebSearch:
                 description="A web search tool",
                 options={"openai": {"key": "value"}},
             ),
-        ) == {"type": "web_search_preview", "key": "value"}
+        ) == {"type": "web_search", "key": "value"}
 
     def test_web_search_tool_raises_type_error(self):
         with pytest.raises(TypeError) as excinfo:
@@ -73,24 +73,22 @@ class TestOpenAIWebSearch:
         ) as mock_validate:
             mock_tool = MagicMock()
             mock_tool.model_dump.return_value = {
-                "type": "web_search_preview",
+                "type": "web_search",
                 **options,
             }
             mock_validate.return_value = mock_tool
 
             result = _web_search_tool(options)
 
-            mock_validate.assert_called_once_with(
-                {"type": "web_search_preview", **options}
-            )
+            mock_validate.assert_called_once_with({"type": "web_search", **options})
             assert result == {
-                "type": "web_search_preview",
+                "type": "web_search",
                 "key1": "value1",
                 "key2": "value2",
             }
 
     def test_web_search_tool_with_empty_options(self):
-        assert _web_search_tool({}) == {"type": "web_search_preview"}
+        assert _web_search_tool({}) == {"type": "web_search"}
 
     def test_web_search_tool_with_none(self):
-        assert _web_search_tool(None) == {"type": "web_search_preview"}
+        assert _web_search_tool(None) == {"type": "web_search"}

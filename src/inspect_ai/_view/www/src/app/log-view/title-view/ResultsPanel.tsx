@@ -3,13 +3,17 @@ import { FC } from "react";
 import { RunningMetric } from "../../../client/api/types";
 import { LinkButton } from "../../../components/LinkButton";
 import { Modal } from "../../../components/Modal";
-import { metricDisplayName } from "../../../scoring/metrics";
+import {
+  expandGroupedMetrics,
+  metricDisplayName,
+} from "../../../scoring/metrics";
 import { groupScorers } from "../../../scoring/scores";
 import { MetricSummary, ScoreSummary } from "../../../scoring/types";
 import { useProperty } from "../../../state/hooks";
 import { formatPrettyDecimal } from "../../../utils/format";
 import styles from "./ResultsPanel.module.css";
 import { ScoreGrid } from "./ScoreGrid";
+import { UnscoredSamples } from "./UnscoredSamplesView";
 
 const kMaxPrimaryScoreRows = 4;
 
@@ -32,6 +36,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
         scorers[key].metrics.push({
           name: metric.name,
           value: metric.value,
+          params: metric.params,
         });
       } else {
         scorers[key] = {
@@ -41,6 +46,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
             {
               name: metric.name,
               value: metric.value,
+              params: metric.params,
             },
           ],
         };
@@ -48,7 +54,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
     }
   });
 
-  return Object.values(scorers);
+  return expandGroupedMetrics(Object.values(scorers));
 };
 
 interface ResultsPanelProps {
@@ -68,31 +74,49 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     return undefined;
   }
 
+  const expandedScorers = expandGroupedMetrics(scorers);
+
   // Get the display scorers
-  if (scorers.length === 1) {
-    const showReducer = !!scorers[0].reducer;
-    const metrics = scorers[0].metrics;
+  if (expandedScorers.length === 1) {
+    const showReducer = !!expandedScorers[0].reducer;
+    const metrics = expandedScorers[0].metrics;
+    const unscoredSamples = expandedScorers[0].unscoredSamples || 0;
+    const scoredSamples = expandedScorers[0].scoredSamples || 0;
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
           return (
             <VerticalMetric
               key={`simple-metric-${i}`}
-              reducer={scorers[0].reducer}
+              reducer={expandedScorers[0].reducer}
               metric={metric}
               isFirst={i === 0}
               showReducer={showReducer}
+              unscoredSamples={unscoredSamples}
+              scoredSamples={scoredSamples}
             />
           );
         })}
       </div>
     );
   } else {
-    const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
-    const grouped = groupScorers(scorers);
+    const showReducer =
+      expandedScorers.findIndex((score) => !!score.reducer) !== -1;
+    const grouped = groupScorers(expandedScorers);
+
+    // If grouping produced an empty array, no results to show
+    if (grouped.length < 1) {
+      return undefined;
+    }
 
     // Try to select metrics with a group size 5 or less, if possible
     let primaryResults = grouped[0];
+
+    // If there are no primary results, nothing to show here
+    if (!primaryResults) {
+      return undefined;
+    }
+
     let showMore = grouped.length > 1;
     if (primaryResults.length > kMaxPrimaryScoreRows) {
       const shorterResults = grouped.find((g) => {
@@ -120,6 +144,7 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
               showing={showing}
               setShowing={setShowing}
               title={"Scoring Detail"}
+              overflow="scroll"
             >
               <ScoreGrid
                 scoreGroups={grouped}
@@ -147,6 +172,8 @@ interface VerticalMetricProps {
   reducer?: string;
   isFirst: boolean;
   showReducer: boolean;
+  unscoredSamples: number;
+  scoredSamples: number;
 }
 
 /** Renders a Vertical Metric
@@ -156,6 +183,8 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
   reducer,
   isFirst,
   showReducer,
+  scoredSamples,
+  unscoredSamples,
 }) => {
   return (
     <div style={{ paddingLeft: isFirst ? "0" : "1em" }}>
@@ -168,6 +197,10 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
         )}
       >
         {metricDisplayName(metric)}
+        <UnscoredSamples
+          scoredSamples={scoredSamples}
+          unscoredSamples={unscoredSamples}
+        />
       </div>
       {showReducer ? (
         <div

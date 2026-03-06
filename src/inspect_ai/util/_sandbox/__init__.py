@@ -1,5 +1,14 @@
 # note: unused imports are still required to ensure that our built-in sandbox environments are registered
 
+from .compose import (
+    ComposeBuild,
+    ComposeConfig,
+    ComposeHealthcheck,
+    ComposeService,
+    is_compose_yaml,
+    is_dockerfile,
+    parse_compose_yaml,
+)
 from .context import sandbox, sandbox_default, sandbox_with
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
@@ -10,13 +19,36 @@ from .environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
 )
+from .exec_remote import (
+    ExecCompleted,
+    ExecOutput,
+    ExecRemoteAwaitableOptions,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
+    ExecStderr,
+    ExecStdout,
+)
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .local import LocalSandboxEnvironment  # noqa: F401
 from .registry import sandboxenv
 from .service import sandbox_service
 
 __all__ = [
+    "ComposeBuild",
+    "ComposeConfig",
+    "ComposeHealthcheck",
+    "ComposeService",
+    "ExecCompleted",
+    "ExecOutput",
+    "ExecRemoteAwaitableOptions",
+    "ExecRemoteProcess",
+    "ExecRemoteStreamingOptions",
+    "ExecStderr",
+    "ExecStdout",
+    "is_compose_yaml",
+    "is_dockerfile",
     "OutputLimitExceededError",
+    "parse_compose_yaml",
     "SandboxEnvironment",
     "SandboxEnvironmentConfigType",
     "SandboxEnvironmentLimits",

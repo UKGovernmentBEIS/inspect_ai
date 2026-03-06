@@ -1,17 +1,21 @@
 import json
+import traceback
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
 from typing import (
     Awaitable,
     Callable,
+    Literal,
     cast,
+    overload,
 )
 
 import anyio
 from pydantic import JsonValue
 
 from inspect_ai._util._async import coro_log_exceptions
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
@@ -35,13 +39,48 @@ POLLING_INTERVAL = 0.1
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
 
+@overload
+async def sandbox_service(
+    name: str,
+    methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
+    until: Callable[[], bool],
+    sandbox: SandboxEnvironment,
+    user: str | None = ...,
+    instance: str | None = ...,
+    polling_interval: float | None = ...,
+    started: anyio.Event | None = ...,
+    requires_python: bool = ...,
+    handle_requests: Literal[True] = ...,
+) -> None: ...
+
+
+@overload
+async def sandbox_service(
+    name: str,
+    methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
+    until: Callable[[], bool],
+    sandbox: SandboxEnvironment,
+    user: str | None = ...,
+    instance: str | None = ...,
+    polling_interval: float | None = ...,
+    started: anyio.Event | None = ...,
+    requires_python: bool = ...,
+    handle_requests: Literal[False] = ...,
+) -> Callable[[], Awaitable[None]]: ...
+
+
 async def sandbox_service(
     name: str,
     methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
     until: Callable[[], bool],
     sandbox: SandboxEnvironment,
     user: str | None = None,
-) -> None:
+    instance: str | None = None,
+    polling_interval: float | None = None,
+    started: anyio.Event | None = None,
+    requires_python: bool = True,
+    handle_requests: bool = True,
+) -> None | Callable[[], Awaitable[None]]:
     """Run a service that is callable from within a sandbox.
 
     The service makes available a set of methods to a sandbox
@@ -73,19 +112,49 @@ async def sandbox_service(
         until: Function used to check whether the service should stop.
         sandbox: Sandbox to publish service to.
         user: User to login as. Defaults to the sandbox environment's default user.
+        instance: If you want multiple instances of a service in a single sandbox
+            then use the `instance` param.
+        polling_interval: Polling interval for request checking. If not specified uses
+            sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
+        started: Event to set when service has been started
+        requires_python: Does the sandbox service require Python? Note that ALL sandbox services require Python unless they've injected an alternate implementation of the sandbox service client code.
+        handle_requests: If `True` (the default), handle requests immediately -- will run so long as until() returns `True`. If `False`, returns an async function which can be called to handle requests.
     """
+    # validate python in sandbox
+    if requires_python:
+        await validate_sandbox_python(name, sandbox, user)
+
+    # sort out polling interval
+    default_polling_interval = sandbox.default_polling_interval()
+    if polling_interval is None:
+        polling_interval = default_polling_interval
+    else:
+        # use the default as a limit which you can't go beneath
+        polling_interval = max(polling_interval, default_polling_interval)
+
     # setup and start service
-    service = SandboxService(name, sandbox, user)
+    service = SandboxService(name, sandbox, user, instance, started)
     if isinstance(methods, list):
         methods = {v.__name__: v for v in methods}
     for name, method in methods.items():
         service.add_method(name, method)
     await service.start()
 
+    # function to handle requests catching errors and logging a warning
+    async def safe_handle_requests() -> None:
+        try:
+            await service.handle_requests()
+        except RuntimeError as ex:
+            logger.warning(f"Error waiting for sandbox rpc: {ex}")
+
     # wait for and process methods
-    while not until():
-        await anyio.sleep(POLLING_INTERVAL)
-        await service.handle_requests()
+    if handle_requests:
+        while not until():
+            await anyio.sleep(polling_interval)
+            await safe_handle_requests()
+        return None
+    else:
+        return safe_handle_requests
 
 
 class SandboxService:
@@ -113,10 +182,24 @@ class SandboxService:
     foo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(foo)
     ```
+
+    If you are using an `instance`, then include that in the
+    path after the service name:
+
+    ```python
+    spec = importlib.util.spec_from_file_location(
+        "foo", "/var/tmp/sandbox-services/foo/<instance>/foo.py"
+    )
+    ```
     """
 
     def __init__(
-        self, name: str, sandbox: SandboxEnvironment, user: str | None = None
+        self,
+        name: str,
+        sandbox: SandboxEnvironment,
+        user: str | None = None,
+        instance: str | None = None,
+        started: anyio.Event | None = None,
     ) -> None:
         """Create a SandboxService.
 
@@ -125,11 +208,18 @@ class SandboxService:
             sandbox (SandboxEnvironment): Sandbox to publish service to.
             user (str | None): User to login as. Defaults to the sandbox environment's
               default user.
+            instance: Unique identifier for an instance of this named service
+               (should be a valid posix filename)
+            started: Event to set when service has been started
         """
         self._name = name
         self._sandbox = sandbox
         self._user = user
+        self._started = started
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
+        self._root_service_dir = self._service_dir
+        if instance is not None:
+            self._service_dir = self._service_dir / instance
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
         self._responses_dir: str = ""
@@ -160,6 +250,10 @@ class SandboxService:
         client_code = self._generate_client()
         await self._write_text_file(client_script, client_code)
         self._client_script = client_script
+
+        # set started event if provided
+        if self._started:
+            self._started.set()
 
     async def handle_requests(self) -> None:
         """Handle all pending service requests."""
@@ -254,12 +348,26 @@ class SandboxService:
 
         # all clear, call the method
         else:
+            from inspect_ai.log._samples import sample_active
+            from inspect_ai.util._limit import LimitExceededError
+
             try:
                 params = cast(dict[str, JsonValue], request_data.get(PARAMS))
-                method = self._methods[method_name]
-                await write_response(await method(**params))
+                try:
+                    method = self._methods[method_name]
+                    await write_response(await method(**params))
+                except LimitExceededError as ex:
+                    active = sample_active()
+                    if active is not None:
+                        active.limit_exceeded(ex)
+                    await write_error_response(
+                        f"Limit exceeded calling method {method_name}: {ex.message}"
+                    )
             except Exception as err:
-                await write_error_response(f"Error calling method {method_name}: {err}")
+                err_traceback = traceback.format_exc()
+                await write_error_response(
+                    f"Error calling method {method_name}: {err}: {err_traceback}"
+                )
 
     async def _create_rpc_dir(self, name: str) -> str:
         rpc_dir = PurePosixPath(self._service_dir, name).as_posix()
@@ -280,13 +388,19 @@ class SandboxService:
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
             return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=30
+                cmd, user=self._user, input=input, timeout=120, concurrency=False
             )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out executing command {' '.join(cmd)} in sandbox"
             )
 
+    # NOTE: A snapshot of the generated code for the bridge_model_service lives
+    # within the bridge model proxy implementation. If you change this method you
+    # should therefore re-generate this source code and sync it to the proxy:
+    #   sandbox_service_script('bridge_model_service')
+    # in point of fact we don't expect this code to ever change which is why
+    # we haven't invested in an automated code syncing regimen.
     def _generate_client(self) -> str:
         return dedent(f"""
         from typing import Any
@@ -296,7 +410,7 @@ class SandboxService:
             request_id = _write_{self._name}_request(method, **params)
             while True:
                 sleep({POLLING_INTERVAL})
-                success, result = _read_{self._name}_response(request_id)
+                success, result = _read_{self._name}_response(request_id, method)
                 if success:
                     return result
 
@@ -305,16 +419,15 @@ class SandboxService:
             request_id = _write_{self._name}_request(method, **params)
             while True:
                 await sleep({POLLING_INTERVAL})
-                success, result = _read_{self._name}_response(request_id)
+                success, result = _read_{self._name}_response(request_id, method)
                 if success:
                     return result
 
         def _write_{self._name}_request(method: str, **params: Any) -> str:
             from json import dump
-            from pathlib import Path
             from uuid import uuid4
 
-            requests_dir = Path("{SERVICES_DIR}", "{self._name}", "{REQUESTS_DIR}")
+            requests_dir = _{self._name}_service_dir("{REQUESTS_DIR}")
             request_id = str(uuid4())
             request_data = dict({ID}=request_id, {METHOD}=method, {PARAMS}=params)
             request_path = requests_dir / (request_id + ".json")
@@ -322,11 +435,10 @@ class SandboxService:
                 dump(request_data, f)
             return request_id
 
-        def _read_{self._name}_response(request_id: str) -> tuple[bool, Any]:
+        def _read_{self._name}_response(request_id: str, method: str) -> tuple[bool, Any]:
             from json import JSONDecodeError, load
-            from pathlib import Path
 
-            responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
+            responses_dir = _{self._name}_service_dir("{RESPONSES_DIR}")
             response_path = responses_dir / (request_id + ".json")
             if response_path.exists():
                 # read and remove the file
@@ -354,4 +466,30 @@ class SandboxService:
                     )
             else:
                 return False, None
+
+        def _{self._name}_service_dir(subdir: str) -> Any:
+            import os
+            from pathlib import Path
+            service_dir = Path("{self._root_service_dir}")
+            instance = os.environ.get("{self._name.upper()}_INSTANCE", None)
+            if instance is not None:
+                service_dir = service_dir / instance
+            return service_dir / subdir
         """)
+
+
+def sandbox_service_script(name: str) -> str:
+    # create a service just to generate the script (pass no sandbox)
+    service = SandboxService(name, None)  # type: ignore[arg-type]
+    return service._generate_client()
+
+
+async def validate_sandbox_python(
+    service_name: str, sandbox: SandboxEnvironment, user: str | None = None
+) -> None:
+    # validate python in sandbox
+    result = await sandbox.exec(["which", "python3"], user=user, concurrency=False)
+    if not result.success:
+        raise PrerequisiteError(
+            f"The {service_name} requires that Python be installed in the sandbox."
+        )

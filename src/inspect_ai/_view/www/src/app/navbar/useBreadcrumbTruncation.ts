@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, RefObject } from "react";
+import { RefObject, useCallback, useEffect, useState } from "react";
 
 interface BreadcrumbSegment {
   text: string;
@@ -122,7 +122,7 @@ export const useBreadcrumbTruncation = (
     return () => {
       resizeObserver.disconnect();
     };
-  }, [measureAndTruncate]);
+  }, [containerRef, measureAndTruncate]);
 
   return truncatedData;
 };

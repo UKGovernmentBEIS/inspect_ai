@@ -1,8 +1,10 @@
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
     Callable,
+    Literal,
     ParamSpec,
     Protocol,
     Type,
@@ -14,6 +16,7 @@ from typing import (
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -24,7 +27,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
-from inspect_ai.dataset._dataset import MT, metadata_as
+from inspect_ai.log._edit import ProvenanceData
 
 logger = getLogger(__name__)
 
@@ -43,14 +46,36 @@ NOANSWER = "N"
 
 Value = Union[
     str | int | float | bool,
-    list[str | int | float | bool],
-    dict[str, str | int | float | bool | None],
+    Sequence[str | int | float | bool],
+    Mapping[str, str | int | float | bool | None],
 ]
 """Value provided by a score.
 
 Use the methods of `Score` to easily treat
 the `Value` as a simple scalar of various types.
 """
+
+UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
+"""Sentinel value to indicate an unchanged field in score edits."""
+
+
+class ScoreEdit(BaseModel):
+    """A single edit to a score."""
+
+    value: Value | Literal["UNCHANGED"] = "UNCHANGED"
+    """New value for the score, or UNCHANGED to keep current value."""
+
+    answer: str | None | Literal["UNCHANGED"] = "UNCHANGED"
+    """New answer for the score, or UNCHANGED to keep current answer."""
+
+    explanation: str | None | Literal["UNCHANGED"] = "UNCHANGED"
+    """New explanation for the score, or UNCHANGED to keep current explanation."""
+
+    metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
+    """New metadata for the score, or UNCHANGED to keep current metadata."""
+
+    provenance: ProvenanceData | None = None
+    """Provenance data for this edit. None indicates this is the original score."""
 
 
 class Score(BaseModel):
@@ -67,6 +92,9 @@ class Score(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata related to the score"""
+
+    history: list[ScoreEdit] = Field(default_factory=list)
+    """Edit history - users can access intermediate states."""
 
     @property
     def text(self) -> str:
@@ -188,7 +216,7 @@ def value_to_float(
                 return 1.0
             elif value in ["no", "false"]:
                 return 0.0
-            elif value.replace(".", "").isnumeric():
+            elif is_number(value):
                 return float(value)
 
         # couldn't extract a value
@@ -196,6 +224,14 @@ def value_to_float(
         return 0.0
 
     return to_float
+
+
+def is_number(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 
 
 @runtime_checkable
@@ -284,10 +320,23 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
 
 
 def to_metric_specs(
-    metrics: list[Metric] | dict[str, list[Metric]],
-) -> list[MetricSpec] | dict[str, list[MetricSpec]]:
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+) -> list[MetricSpec | dict[str, list[MetricSpec]]] | dict[str, list[MetricSpec]]:
     if isinstance(metrics, list):
-        return [as_metric_spec(m) for m in metrics]
+        result: list[MetricSpec | dict[str, list[MetricSpec]]] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, dict):
+                # It's a dict of metric groups
+                result.append(
+                    {
+                        k: [as_metric_spec(v) for v in metric_list]
+                        for k, metric_list in metric_item.items()
+                    }
+                )
+            else:
+                # It's a direct metric
+                result.append(as_metric_spec(metric_item))
+        return result
     else:
         return {
             k: [as_metric_spec(v) for v in metric_list]

@@ -1,4 +1,4 @@
-import { RefObject, useCallback, useEffect, useRef } from "react";
+import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { StateCallback, StateSnapshot, VirtuosoHandle } from "react-virtuoso";
 import { createLogger } from "../utils/logger";
 import { debounce } from "../utils/sync";
@@ -22,13 +22,14 @@ export function useStatefulScrollPosition<
   );
 
   // Create debounced scroll handler
-  const handleScroll = useCallback(
-    debounce((e: Event) => {
-      const target = e.target as HTMLElement;
-      const position = target.scrollTop;
-      log.debug(`Storing scroll position`, elementKey, position);
-      setScrollPosition(elementKey, position);
-    }, delay),
+  const handleScroll = useMemo(
+    () =>
+      debounce((e: Event) => {
+        const target = e.target as HTMLElement;
+        const position = target.scrollTop;
+        log.debug(`Storing scroll position`, elementKey, position);
+        setScrollPosition(elementKey, position);
+      }, delay),
     [elementKey, setScrollPosition, delay],
   );
 
@@ -118,7 +119,7 @@ export function useStatefulScrollPosition<
         log.warn("Element has no way to remove event listener", element);
       }
     };
-  }, [elementKey, elementRef, handleScroll]);
+  }, [elementKey, elementRef, getScrollPosition, handleScroll, scrollable]);
 
   return { restoreScrollPosition };
 }
@@ -198,7 +199,28 @@ export const useVirtuosoState = (
 
   const getRestoreState = useCallback(() => stateRef.current, []);
 
-  return { getRestoreState, isScrolling };
+  const setVisibleRangeRaw = useStore(
+    (state) => state.appActions.setVisibleRange,
+  );
+
+  const setVisibleRange = useCallback(
+    (value: { startIndex: number; endIndex: number }) => {
+      setVisibleRangeRaw(elementKey, value);
+    },
+    [setVisibleRangeRaw, elementKey],
+  );
+
+  const visibleRanges = useStore((state) => state.app.visibleRanges);
+  const visibleRange = useMemo(() => {
+    return (
+      visibleRanges[elementKey] || {
+        startIndex: 0,
+        endIndex: 0,
+      }
+    );
+  }, [visibleRanges, elementKey]);
+
+  return { getRestoreState, isScrolling, visibleRange, setVisibleRange };
 };
 
 export function useRafThrottle<T extends (...args: any[]) => any>(
@@ -211,6 +233,7 @@ export function useRafThrottle<T extends (...args: any[]) => any>(
   // Update the callback ref when the callback changes
   useEffect(() => {
     callbackRef.current = callback;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callback, ...dependencies]);
 
   const throttledCallback = useCallback((...args: Parameters<T>) => {

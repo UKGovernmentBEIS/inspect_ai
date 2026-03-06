@@ -1,0 +1,14 @@
+.container {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+.panel {
+  margin: 0.5rem;
+  overflow-y: scroll;
+}
+
+.code {
+  background: transparent !important;
+}

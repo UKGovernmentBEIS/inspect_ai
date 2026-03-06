@@ -18,6 +18,7 @@ import {
 
 import { FC, useEffect, useMemo } from "react";
 import { useStore } from "../../../../state/store";
+import { formatTitle } from "../event/utils";
 import { EventNode, kTranscriptCollapseScope } from "../types";
 import styles from "./StateEventView.module.css";
 
@@ -59,7 +60,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
   const changePreview = useMemo(() => {
     const isStore = eventNode.event.event === "store";
     return generatePreview(event.changes, structuredClone(after), isStore);
-  }, [event.changes, after]);
+  }, [eventNode.event.event, event.changes, after]);
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
@@ -68,13 +69,13 @@ export const StateEventView: FC<StateEventViewProps> = ({
     if (changePreview === undefined) {
       collapseEvent(kTranscriptCollapseScope, eventNode.id, true);
     }
-  }, [changePreview, collapseEvent]);
+  }, [changePreview, collapseEvent, eventNode.id]);
 
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={title}
+      title={formatTitle(title, undefined, event.working_start)}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={!changePreview ? summary : undefined}

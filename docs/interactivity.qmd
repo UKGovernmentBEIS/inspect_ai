@@ -107,7 +107,7 @@ You can also use the [Layout](#sec-layout) primitives (columns, panels, and tabl
 
 ## Formatting
 
-The `console.print()` method supports [formatting]((https://rich.readthedocs.io/en/stable/console.html)) using simple markup. For example:
+The `console.print()` method supports [formatting](https://rich.readthedocs.io/en/stable/console.html) using simple markup. For example:
 
 ``` python
 with input_screen() as console:

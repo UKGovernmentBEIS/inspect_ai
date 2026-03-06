@@ -12,6 +12,8 @@ from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._view.view import view
 from inspect_ai.agent._human.agent import human_cli
+from inspect_ai.log._metric import recompute_metrics
+from inspect_ai.log._score import edit_score
 from inspect_ai.solver._human_agent import human_agent
 
 __version__ = importlib_version(PKG_NAME)
@@ -27,6 +29,8 @@ __all__ = [
     "list_tasks",
     "score",
     "score_async",
+    "edit_score",
+    "recompute_metrics",
     "Epochs",
     "Task",
     "Tasks",

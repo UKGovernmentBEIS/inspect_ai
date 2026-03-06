@@ -1,5 +1,8 @@
 import sys
 
+import pytest
+import sniffio
+
 from inspect_ai.tool._tool import ToolError
 from inspect_ai.util._anyio import _flatten_exception
 
@@ -135,3 +138,13 @@ def test_self_referencing_exception():
     assert len(flattened) == 1
     assert isinstance(flattened[0], RuntimeError)
     assert str(flattened[0]) == "self-referencing exception"
+
+
+@pytest.mark.anyio
+async def test_anyio_backend_matches_variant(request: pytest.FixtureRequest):
+    """The actual async backend should match the anyio test variant."""
+    expected = "trio" if "[trio]" in request.node.nodeid else "asyncio"
+    actual = sniffio.current_async_library()
+    assert actual == expected, (
+        f"Variant says {expected} but actually running under {actual}"
+    )

@@ -6,7 +6,11 @@ from inspect_ai._util.constants import PKG_NAME
 
 
 def inspect_data_dir(subdir: str | None) -> Path:
-    data_dir = user_data_path(PKG_NAME)
+    return package_data_dir(PKG_NAME, subdir)
+
+
+def package_data_dir(package_name: str, subdir: str | None) -> Path:
+    data_dir = user_data_path(package_name)
     if subdir:
         data_dir = data_dir / subdir
     data_dir.mkdir(parents=True, exist_ok=True)

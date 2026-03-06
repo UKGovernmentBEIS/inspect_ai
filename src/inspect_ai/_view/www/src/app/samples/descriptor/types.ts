@@ -32,6 +32,7 @@ export interface ScoreDescriptor {
   categories?: Array<Object>;
   min?: number;
   max?: number;
+  filterable?: boolean;
   compare: (a: SelectedScore, b: SelectedScore) => number;
   render: (score: Value2) => ReactNode;
 }
@@ -42,16 +43,11 @@ export interface SelectedScore {
 }
 
 export interface MessageShape {
-  raw: MessageShapeData;
-  normalized: MessageShapeData;
-}
-
-export interface MessageShapeData {
-  id: number;
-  input: number;
-  target: number;
-  answer: number;
-  limit: number;
-  retries: number;
-  score: number;
+  idSize: number; /* Clamped 2–10 for column width in em */
+  inputSize: number;
+  targetSize: number;
+  answerSize: number;
+  limitSize: number;
+  retriesSize: number;
+  errorSize: number;
 }

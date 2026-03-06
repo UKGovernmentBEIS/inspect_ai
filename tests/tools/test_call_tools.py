@@ -1,10 +1,9 @@
 import datetime
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
 
-import pytest
 from pydantic import BaseModel
 
 from inspect_ai.model._call_tools import execute_tools
@@ -145,9 +144,6 @@ def complex_tool():
 
 
 # --- Positive tests -------------------------------------------------------
-
-
-@pytest.mark.asyncio
 async def test_incr_simple_positive():
     """Calling incr(0) should return 1."""
     tool_def = ToolDef(incr())
@@ -161,7 +157,6 @@ async def test_incr_simple_positive():
     assert messages[-1].content == "1"
 
 
-@pytest.mark.asyncio
 async def test_complex_tool_all_params():
     """Exercise every parameter type in one call."""
     args = {
@@ -222,7 +217,9 @@ async def test_complex_tool_all_params():
     assert result["pm"] == {"name": "test", "id": 42}
 
     # date/time/any
-    assert result["timestamp"] == datetime.datetime(2025, 4, 17, 12, 0, 0)
+    assert result["timestamp"] == datetime.datetime(
+        2025, 4, 17, 12, 0, 0, 0, timezone.utc
+    )
     assert result["the_date"] == date(2025, 4, 17)
     assert result["the_time"] == time(12, 0, 0)
     assert result["anything"] == {"complex": ["structure", 123]}

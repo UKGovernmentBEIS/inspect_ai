@@ -20,8 +20,9 @@ import { ToolTitle } from "./ToolTitle";
 interface ToolCallViewProps {
   id: string;
   functionCall: string;
-  input?: string;
-  highlightLanguage?: string;
+  input?: unknown;
+  description?: string;
+  contentType?: string;
   view?: ToolCallContent;
   output:
     | string
@@ -44,6 +45,7 @@ interface ToolCallViewProps {
         | ContentData
       )[];
   mode?: "compact";
+  collapsible?: boolean;
 }
 
 /**
@@ -53,10 +55,12 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   id,
   functionCall,
   input,
-  highlightLanguage,
+  description,
+  contentType,
   view,
   output,
   mode,
+  collapsible = true,
 }) => {
   // don't collapse if output includes an image
   function isContentImage(
@@ -110,22 +114,25 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   });
 
   const contents = mode !== "compact" ? input : input || functionCall;
-  const context = defaultContext();
+  const context = defaultContext("tool");
   return (
     <div className={clsx(styles.toolCallView)}>
       <div>
         {mode !== "compact" && (!view || view.title) ? (
-          <ToolTitle title={view?.title || functionCall} />
+          <ToolTitle
+            title={view?.title || functionCall}
+            description={description}
+          />
         ) : (
           ""
         )}
         <ToolInput
-          highlightLanguage={highlightLanguage}
+          contentType={contentType}
           contents={contents}
           toolCallView={view}
         />
       </div>
-      {hasContent ? (
+      {hasContent && collapsible ? (
         <ExpandablePanel
           id={`${id}-tool-input`}
           collapse={collapse}
@@ -135,7 +142,9 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
         >
           <MessageContent contents={normalizedContent} context={context} />
         </ExpandablePanel>
-      ) : undefined}
+      ) : (
+        <MessageContent contents={normalizedContent} context={context} />
+      )}
     </div>
   );
 };

@@ -10,6 +10,7 @@ import { EventSection } from "./event/EventSection";
 
 import clsx from "clsx";
 import { FC } from "react";
+import { eventTitle, formatTitle } from "./event/utils";
 import styles from "./SampleInitEventView.module.css";
 import { EventNode } from "./types";
 
@@ -59,12 +60,15 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
       className={className}
-      title="Sample"
+      title={formatTitle(eventTitle(event), undefined, event.working_start)}
       icon={ApplicationIcons.sample}
       subTitle={formatDateTime(new Date(event.timestamp))}
     >
       <div data-name="Sample" className={styles.sample}>
-        <ChatView messages={stateObj["messages"] as Messages} />
+        <ChatView
+          messages={stateObj["messages"] as Messages}
+          allowLinking={false}
+        />
         <div>
           {event.sample.choices
             ? event.sample.choices.map((choice, index) => {

@@ -1,12 +1,14 @@
 from typing import Any
 
+from shortuuid import uuid as shortuuid
+
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_info,
     registry_unqualified_name,
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
-from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool import Tool, ToolResult, tool, tool_result_content
 from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
@@ -57,18 +59,24 @@ def as_tool(
         # prepare state
         state = AgentState(messages=[ChatMessageUser(content=input, source="input")])
 
+        # pre-generate span ID so call_tool can read it after execution
+        agent_span_id = shortuuid()
+
         # run the agent with limits
         with apply_limits(limits):
-            async with span(name=tool_info.name, type="agent"):
+            async with span(name=tool_info.name, type="agent", id=agent_span_id):
                 state = await agent(state, *args, **(agent_kwargs | kwargs))
+
+        # Store span ID so call_tool can read it after execution
+        execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
 
         # find assistant message to read content from (prefer output)
         if not state.output.empty:
-            return state.output.message.content
+            return tool_result_content(state.output.message.content)
         elif len(state.messages) > 0 and isinstance(
             state.messages[-1], ChatMessageAssistant
         ):
-            return state.messages[-1].content
+            return tool_result_content(state.messages[-1].content)
         else:
             return ""
 

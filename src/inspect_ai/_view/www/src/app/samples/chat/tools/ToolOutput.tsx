@@ -1,16 +1,21 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { ContentImage, ContentText } from "../../../../@types/log";
+import { ANSIDisplay } from "../../../../components/AnsiDisplay";
+import { isAnsiOutput } from "../../../../utils/ansi";
+import { isJson } from "../../../../utils/json";
+import { JsonMessageContent } from "../JsonMessageContent";
 import styles from "./ToolOutput.module.css";
 
 interface ToolOutputProps {
   output: string | number | boolean | (ContentText | ContentImage)[];
+  className?: string | string[];
 }
 
 /**
  * Renders the ToolOutput component.
  */
-export const ToolOutput: FC<ToolOutputProps> = ({ output }) => {
+export const ToolOutput: FC<ToolOutputProps> = ({ output, className }) => {
   // If there is no output, don't show the tool
   if (!output) {
     return null;
@@ -42,7 +47,7 @@ export const ToolOutput: FC<ToolOutputProps> = ({ output }) => {
       <ToolTextOutput text={String(output)} key={"tool-output-single"} />,
     );
   }
-  return <div className={clsx(styles.output)}>{outputs}</div>;
+  return <div className={clsx(styles.output, className)}>{outputs}</div>;
 };
 
 interface ToolTextOutputProps {
@@ -53,6 +58,23 @@ interface ToolTextOutputProps {
  * Renders the ToolTextOutput component.
  */
 const ToolTextOutput: FC<ToolTextOutputProps> = ({ text }) => {
+  // Try rendering JSON
+  if (isJson(text)) {
+    const obj = JSON.parse(text);
+    return <JsonMessageContent id={`1-json`} json={obj} />;
+  }
+
+  // It could have ANSI codes
+  if (isAnsiOutput(text)) {
+    return (
+      <ANSIDisplay
+        className={styles.ansiOutput}
+        output={text}
+        style={{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" }}
+      />
+    );
+  }
+
   return (
     <pre className={clsx(styles.textOutput, "tool-output")}>
       <code className={clsx("sourceCode", styles.textCode)}>{text.trim()}</code>

@@ -1,7 +1,6 @@
 import pytest
 from test_helpers.utils import (
     skip_if_github_action,
-    skip_if_no_grok,
     skip_if_no_openai,
     skip_if_no_together,
     skip_if_no_vllm,
@@ -29,15 +28,10 @@ async def test_openai_num_choices() -> None:
     await check_num_choices("openai/gpt-3.5-turbo")
 
 
-@skip_if_no_grok
-async def test_grok_num_choices() -> None:
-    await check_num_choices("grok/grok-beta")
-
-
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_num_choices() -> None:
-    await check_num_choices("together/google/gemma-2b-it")
+    await check_num_choices("together/MiniMaxAI/MiniMax-M2.5")
 
 
 @pytest.mark.anyio

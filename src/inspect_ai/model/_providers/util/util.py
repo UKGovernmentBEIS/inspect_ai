@@ -1,7 +1,15 @@
 import os
 from logging import getLogger
+from typing import Tuple
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 
 logger = getLogger(__name__)
 
@@ -41,3 +49,34 @@ def environment_prerequisite_error(
     return PrerequisiteError(
         f"ERROR: Unable to initialise {client} client\n\nNo {env_vars_list} defined in the environment."
     )
+
+
+def split_system_messages(
+    input: list[ChatMessage],
+) -> Tuple[
+    list[ChatMessageSystem],
+    list[ChatMessageUser | ChatMessageAssistant | ChatMessageTool],
+]:
+    # split messages
+    system_messages = [m for m in input if isinstance(m, ChatMessageSystem)]
+    messages = [m for m in input if not isinstance(m, ChatMessageSystem)]
+
+    # return
+    return system_messages, messages
+
+
+def resolve_api_key(api_key_env_vars: list[str]) -> str | None:
+    """
+    Resolve API key from environment variables.
+
+    Args:
+        api_key_env_vars: List of environment variable names to check for API key.
+
+    Returns:
+        The API key if found, None otherwise.
+    """
+    for env_var in api_key_env_vars:
+        api_key = os.environ.get(env_var)
+        if api_key:
+            return api_key
+    return None

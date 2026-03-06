@@ -27,87 +27,6 @@ As you explore multi-agent architectures, it's important to remember that they o
 The Anthropic blog post on [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) and the follow up video on [How We Build Effective Agents](https://www.youtube.com/watch?v=D7_ipDqhtwk) underscore these points and are good sources of additional intuition for agent development methodology.
 
 
-## Handoffs {#handoffs}
-
-Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.
-
-Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.
-
-Create handoffs by enclosing an agent with the `handoff()` function. These agents in turn are often simple `react()` agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that we can handoff to:
-
-``` python
-from inspect_ai.agent react
-from inspect_ai.tool import web_browser
-
-web_surfer = react(
-    name="web_surfer",
-    description="Web research assistant",
-    prompt="You are a tenacious web researcher that is expert "
-           + "at using a web browser to answer questions.",
-    tools=web_browser()   
-)
-```
-
-::: {.callout-note appearance="simple"}
-When we call the `react()` function to create the `web_surfer` agent we pass `name` and `description` parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).
-:::
-
-We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard `react()` agent however other approaches to supervision are possible.
-
-``` python
-from inspect_ai.agent import handoff
-from inspect_ai.dataset import Sample
-from math_tools import addition
-
-supervisor = react(
-    prompt="You are an agent that can answer addition " 
-            + "problems and do web research.",
-    tools=[addition(), handoff(web_surfer)]
-)
-
-task = Task(
-    dataset=[
-        Sample(input="Please add 1+1 then tell me what " 
-                     + "movies were popular in 2020")
-    ],
-    solver=supervisor,
-    sandbox="docker",
-)
-```
-
-The `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to `handoff()` to the `web_surfer` agent. The web surfer in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
-
-### Handoff Filters
-
-By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. The one exception to this is system messages, which are removed from the input and output respectively (as system messages for agents can easily confuse other agents, especially if they refer to tools or objectives that are not applicable across contexts).
-
-You can do additional filtering using handoff filters. For example, you can use the built-in `remove_tools` input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
-
-``` python
-from inspect_ai.agent import remove_tools
-
-handoff(web_surfer, input_filter=remove_tools)
-```
-
-You can also use the built-in `last_message` output filter to only append the last message of the agent's history to the global conversation:
-
-``` python
-from inspect_ai.agent import last_message
-
-handoff(web_surfer, output_filter=last_message)
-```
-
-You aren't confined to the built in filters—you can pass a function as either the `input_filter` or `output_filter`, for example:
-
-``` python
-async def my_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
-    # filter messages however you need to...
-    return messages
-
-handoff(web_surfer, output_filter=my_filter)
-```
-
-
 ## Workflows
 
 Using handoffs and tools for multi-agent architectures takes maximum advantage of model intelligence to plan and route agent activity. Sometimes though its preferable to explicitly orchestrate agent operations. For example, many deep research agents are implemented with explicit steps for planning, search, and writing.
@@ -155,18 +74,111 @@ Note that the `run()` method makes a copy of the input so is suitable for runnin
 
 ## Tools
 
-As an alternative to allowing an agent to participate fully in the conversation (i.e. seeing the full history and being able to append to it) you can instead make an agent available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.
+You can make agents available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.
 
-For example, here we revise supervisor agent to make the `web_surfer` available as a tool rather than as a conversation participant:
+For example, here we create a supervisor agent that makes the `web_surfer` agent available as a tool:
 
 ``` python
-from inspect_ai.agent import as_tool
+from inspect_ai.agent import as_tool, react
 from inspect_ai.dataset import Sample
+from inspect_ai.tool import web_search
 from math_tools import addition
+
+web_surfer = react(
+    name="web_surfer",
+    description="Web research assistant",
+    prompt="You are a tenacious web researcher that is expert "
+           + "at using a web browser to answer questions.",
+    tools=[web_search()]   
+)
 
 supervisor = react(
     prompt="You are an agent that can answer addition " 
             + "problems and do web research.",
     tools=[addition(), as_tool(web_surfer)]
 )
+```
+
+## Handoffs {#handoffs}
+
+Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off agent both visibility into the conversation history and the ability to append messages to it.
+
+Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.
+
+Create handoffs by enclosing an agent with the `handoff()` function. These agents in turn are often simple `react()` agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that we can handoff to:
+
+``` python
+from inspect_ai.agent react
+from inspect_ai.tool import web_search
+
+web_surfer = react(
+    name="web_surfer",
+    description="Web research assistant",
+    prompt="You are a tenacious web researcher that is expert "
+           + "at using a web browser to answer questions.",
+    tools=[web_search()]
+)
+```
+
+::: {.callout-note appearance="simple"}
+When we call the `react()` function to create the `web_surfer` agent we pass `name` and `description` parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).
+:::
+
+We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard `react()` agent however other approaches to supervision are possible.
+
+``` python
+from inspect_ai.agent import handoff
+from inspect_ai.dataset import Sample
+from math_tools import addition
+
+supervisor = react(
+    prompt="You are an agent that can answer addition " 
+            + "problems and do web research.",
+    tools=[addition(), handoff(web_surfer)]
+)
+
+task = Task(
+    dataset=[
+        Sample(input="Please add 1+1 then tell me what " 
+                     + "movies were popular in 2020")
+    ],
+    solver=supervisor,
+    sandbox="docker",
+)
+```
+
+The `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to `handoff()` to the `web_surfer` agent. The web surfer in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
+
+### Handoff Filters
+
+By default when a handoff occurs:
+
+1. The target agent sees the global message history (except for system messages).
+
+2. The messages generated by the handoff are processed using the `content_only()` filter, which removes system messages and reasoning traces as well as converts tool calls to text (this is so that the parent model is not confounded by seeing content, e.g. reasoning or tool calls, that it doesn't understand the origin of.
+
+You can do custom filtering by passing another built-in handoff filter or writing your own filter. For example, you can use the built-in `remove_tools` input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
+
+``` python
+from inspect_ai.agent import remove_tools
+
+handoff(web_surfer, input_filter=remove_tools)
+```
+
+You can also use the built-in `last_message` output filter to only append the last message of the agent's history to the global conversation:
+
+``` python
+from inspect_ai.agent import last_message
+
+handoff(web_surfer, output_filter=last_message)
+```
+
+You aren't confined to the built in filters—you can pass a function as either the `input_filter` or `output_filter`, for example:
+
+``` python
+async def my_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
+    # filter messages however you need to...
+    return messages
+
+handoff(web_surfer, output_filter=my_filter)
 ```

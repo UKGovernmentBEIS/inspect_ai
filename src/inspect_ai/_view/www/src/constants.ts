@@ -7,6 +7,7 @@ export const kLogViewJsonTabId = "json";
 export const kLogViewInfoTabId = "info";
 export const kLogViewModelsTabId = "models";
 export const kLogViewTaskTabId = "task";
+export const kLogViewErrorTabId = "error";
 
 export const kWorkspaceTabs = [
   kLogViewSamplesTabId,
@@ -14,6 +15,7 @@ export const kWorkspaceTabs = [
   kLogViewInfoTabId,
   kLogViewModelsTabId,
   kLogViewTaskTabId,
+  kLogViewErrorTabId,
 ];
 
 // Sample tab constants
@@ -42,12 +44,4 @@ export const kScoreTypeNumeric = "numeric";
 export const kScoreTypeOther = "other";
 export const kScoreTypeObject = "object";
 export const kScoreTypeBoolean = "boolean";
-
-// Sorting constants
-export const kSampleAscVal = "sample-asc";
-export const kSampleDescVal = "sample-desc";
-export const kEpochAscVal = "epoch-asc";
-export const kEpochDescVal = "epoch-desc";
-export const kScoreAscVal = "score-asc";
-export const kScoreDescVal = "score-desc";
-export const kDefaultSort = kSampleAscVal;
+export const kScoreTypeList = "list";

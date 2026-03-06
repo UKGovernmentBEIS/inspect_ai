@@ -1,4 +1,4 @@
-import { AsyncInflateOptions, decompress } from "fflate";
+import { decompressData } from "./decompression";
 
 export interface ZipFileEntry {
   versionNeeded: number;
@@ -171,44 +171,49 @@ export const openRemoteZipFile = async (
 
       // Parse and decompress the entry
       const zipFileEntry = await parseZipFileEntry(file, fileData);
-      if (zipFileEntry.compressionMethod === 0) {
-        // No compression
-        return zipFileEntry.data;
-      } else if (zipFileEntry.compressionMethod === 8) {
-        // Deflate compression
-        const results = await decompressAsync(zipFileEntry.data, {
-          size: zipFileEntry.uncompressedSize,
-        });
-        return results;
-      } else {
-        throw new Error(`Unsupported compression method for file ${file}`);
-      }
+      return decompressData(
+        zipFileEntry.data,
+        zipFileEntry.compressionMethod,
+        zipFileEntry.uncompressedSize,
+        file,
+      );
     },
   };
 };
 
 export const fetchSize = async (url: string): Promise<number> => {
-  // First try HEAD request to get Content-Length
-  const headResponse = await fetch(`${url}`, { method: "HEAD" });
-  const contentLength = headResponse.headers.get("Content-Length");
+  // Make a HEAD request to find whether the server supports range requests
+  const acceptResponse = await fetch(url, { method: "HEAD" });
+  const acceptsRanges = acceptResponse.headers.get("Accept-Ranges");
+  if (acceptsRanges === "bytes") {
+    // attempt a range request to get the content length
+    // Range requests are preferred since they bypass compression.
+    // HEAD requests may return compressed content-length which doesn't
+    // match the actual file size needed for downstream operations.
+    const getResponse = await fetch(`${url}`, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+    });
 
+    const contentRange = getResponse.headers.get("Content-Range");
+    if (contentRange !== null) {
+      const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+      if (rangeMatch !== null) {
+        await getResponse.arrayBuffer();
+        return Number(rangeMatch[3]);
+      }
+    }
+    // Consume the response body (even if unused) to avoid resource leaks
+    await getResponse.arrayBuffer();
+  }
+
+  //  use the HEAD request to get Content-Length
+  const contentLength = acceptResponse.headers.get("Content-Length");
   if (contentLength !== null) {
     return Number(contentLength);
   }
 
-  // If Content-Length is not present, use a GET with an 1 byte range request:
-  const getResponse = await fetch(`${url}`, {
-    method: "GET",
-    headers: { Range: "bytes=0-0" },
-  });
-  const contentRange = getResponse.headers.get("Content-Range");
-  if (contentRange !== null) {
-    const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
-    if (rangeMatch !== null) {
-      return Number(rangeMatch[3]);
-    }
-  }
-  throw new Error("Could not determine content length");
+  throw new Error(`Could not determine content length for ${url}`);
 };
 
 /**
@@ -224,24 +229,6 @@ export const fetchRange = async (
   });
   const arrayBuffer = await response.arrayBuffer();
   return new Uint8Array(arrayBuffer);
-};
-
-/**
- * Asynchronously decompresses the provided data using the specified options.
- */
-const decompressAsync = async (
-  data: Uint8Array,
-  opts: AsyncInflateOptions,
-): Promise<Uint8Array> => {
-  return new Promise((resolve, reject) => {
-    decompress(data, opts, (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
 };
 
 /**

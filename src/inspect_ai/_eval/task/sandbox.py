@@ -1,5 +1,6 @@
 import base64
 import contextlib
+import os
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
@@ -15,13 +16,17 @@ from tenacity import (
 
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
-from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.file import FileSystem, file, filesystem
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
 from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._sandbox.compose import (
+    is_docker_compatible_config,
+    is_docker_compatible_sandbox_type,
+)
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
@@ -76,7 +81,8 @@ async def sandboxenv_context(
         # read files from sample
         files: dict[str, bytes] = {}
         if sample.files:
-            for path, contents in sample.files.items():
+            resolved_files = resolve_sample_files(sample.files)
+            for path, contents in resolved_files.items():
                 files[path] = await read_sandboxenv_file(contents)
 
         # read setup script from sample (add bash shebang if necessary)
@@ -111,13 +117,36 @@ async def sandboxenv_context(
         finally:
             # cleanup sandbox environment
             if environments and cleanup:
-                await cleanup_sandbox_environments_sample(
-                    type=sandbox.type,
-                    task_name=task_name,
-                    config=sandbox.config,
-                    environments=environments,
-                    interrupted=interrupted,
-                )
+                with anyio.CancelScope(shield=interrupted):
+                    await cleanup_sandbox_environments_sample(
+                        type=sandbox.type,
+                        task_name=task_name,
+                        config=sandbox.config,
+                        environments=environments,
+                        interrupted=interrupted,
+                    )
+
+
+def resolve_sample_files(files: dict[str, str]) -> dict[str, str]:
+    # if the source path is a directory then add its files recursively
+    resolved_files: dict[str, str] = dict()
+    for key, contents in files.items():
+        fs = filesystem_for_file(contents)
+        if (
+            fs is not None
+            and fs.exists(contents)
+            and fs.info(contents).type == "directory"
+        ):
+            root_uri = fs.path_as_uri(contents)
+            for file in fs.ls(contents, recursive=True):
+                if file.type == "file":
+                    file_uri = fs.path_as_uri(file.name)
+                    file_relative = file_uri.removeprefix(root_uri)[1:]
+                    resolved_files[os.path.join(key, file_relative)] = file.name
+        else:
+            resolved_files[key] = contents
+
+    return resolved_files
 
 
 async def read_sandboxenv_file(contents: str) -> bytes:
@@ -140,6 +169,18 @@ async def read_sandboxenv_file(contents: str) -> bytes:
             file_bytes = contents.encode("utf-8")
 
     return file_bytes
+
+
+def filesystem_for_file(contents: str) -> FileSystem | None:
+    if is_data_uri(contents):
+        return None
+    elif is_http_url(contents):
+        return None
+    else:
+        try:
+            return filesystem(contents)
+        except Exception:
+            return None
 
 
 class TaskSandboxEnvironment(NamedTuple):
@@ -176,23 +217,35 @@ async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
 ) -> SandboxEnvironmentSpec | None:
+    # resolved sandbox
+    resolved_sandbox: SandboxEnvironmentSpec | None = None
+
     # resolve sandbox (task type overrides sample type, but sample config
-    # file overrides task config file if they have the same type)
+    # file overrides task config file if they have the same type or if
+    # the sample has a docker compatible config)
     task_sandbox = sandbox
     if task_sandbox is not None:
         if (
             sample.sandbox
-            and sample.sandbox.type == task_sandbox.type
             and sample.sandbox.config is not None
+            and (
+                # share the same type
+                (sample.sandbox.type == task_sandbox.type)
+                # have a docker compatible config => docker compatible sandbox type
+                or (
+                    is_docker_compatible_config(sample.sandbox.config)
+                    and is_docker_compatible_sandbox_type(task_sandbox.type)
+                )
+            )
         ):
             sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
-        return SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
+        resolved_sandbox = SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
     elif sample.sandbox is not None:
-        return sample.sandbox
-    else:
-        return None
+        resolved_sandbox = sample.sandbox
+
+    return resolved_sandbox
 
 
 async def _retrying_httpx_get(

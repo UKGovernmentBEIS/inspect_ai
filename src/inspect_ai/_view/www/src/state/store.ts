@@ -3,6 +3,7 @@ import { create, StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { Capabilities, ClientAPI, ClientStorage } from "../client/api/types";
+import { createDatabaseService, DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { debounce } from "../utils/sync";
 import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
@@ -15,12 +16,19 @@ import {
   SampleSlice,
 } from "./sampleSlice";
 import { filterState } from "./store_filter";
+import { ReplicationService } from "./sync/replicationService";
 
 const log = createLogger("store");
 
 export interface StoreState extends AppSlice, LogsSlice, LogSlice, SampleSlice {
   // The shared api
   api?: ClientAPI | null;
+
+  // The shared database service
+  databaseService?: DatabaseService | null;
+
+  // The shared replication service
+  replicationService?: ReplicationService | null;
 
   // Global actions
   initialize: (api: ClientAPI, capabilities: Capabilities) => void;
@@ -63,7 +71,12 @@ export const initializeStore = (
     },
     setItem: debounce(<T>(name: string, value: T): void => {
       if (storage) {
-        storage.setItem(name, value);
+        const wrapper = value as { state: PersistedState; version: number };
+        const filtered = {
+          state: filterState(wrapper.state),
+          version: wrapper.version,
+        };
+        storage.setItem(name, filtered);
       }
     }, 1000),
     removeItem: (name: string): void => {
@@ -99,14 +112,24 @@ export const initializeStore = (
             store,
           );
 
+          // Create a shared database service instance
+          const databaseService = createDatabaseService();
+
+          // The replication service
+          const replicationService = new ReplicationService();
+
           return {
             // Shared state
             api: null,
+            databaseService,
+            replicationService,
 
             // Initialize
             initialize: (api, capabilities) => {
               set((state) => {
                 state.api = api;
+                state.databaseService = databaseService;
+                state.replicationService = replicationService;
               });
 
               // Initialize application slices
@@ -131,9 +154,12 @@ export const initializeStore = (
             ...logSlice,
             ...sampleSlice,
 
-            cleanup: () => {
+            cleanup: async () => {
+              // Close database before cleaning up slices
+              await databaseService.closeDatabase();
+
               appCleanup();
-              logsCleanup();
+              await logsCleanup();
               logCleanup();
               sampleCleanup();
             },
@@ -142,16 +168,13 @@ export const initializeStore = (
         {
           name: "app-storage",
           storage: storageImplementation,
-          partialize: (state) => {
-            const persisted: PersistedState = filterState({
+          partialize: (state) =>
+            ({
               app: { ...state.app, rehydrated: true },
               log: state.log,
               logs: state.logs,
               sample: state.sample,
-            });
-            log.debug("PARTIALIZED STATE", persisted);
-            return persisted as unknown as StoreState;
-          },
+            }) as unknown as StoreState,
           version: 1,
           onRehydrateStorage: (state: StoreState) => {
             return (hydrationState, error) => {

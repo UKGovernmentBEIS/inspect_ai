@@ -1,7 +1,25 @@
+from collections.abc import Iterable
+
 from openai.types.responses import (
     ComputerToolParam,
     ResponseComputerToolCall,
     ResponseComputerToolCallOutputScreenshotParam,
+)
+from openai.types.responses.response_computer_tool_call import (
+    Action,
+    ActionClick,
+    ActionDoubleClick,
+    ActionDrag,
+    ActionDragPath,
+    ActionKeypress,
+    ActionMove,
+    ActionScreenshot,
+    ActionScroll,
+    ActionType,
+    ActionWait,
+)
+from openai.types.responses.response_computer_tool_call_param import (
+    PendingSafetyCheck,
 )
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 
@@ -18,15 +36,16 @@ def tool_call_from_openai_computer_tool_call(
         id=output.call_id,
         function="computer",
         arguments=_parse_computer_tool_call_arguments(output),
-        internal=output.model_dump(),
     )
 
 
-def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
-    # check for compatible 'computer' tool
+def maybe_computer_use_preview_tool(
+    model_name: str, tool: ToolInfo
+) -> ComputerToolParam | None:
+    # computer_use_preview only supported by models with "computer-use-preview" in name
     return (
         ComputerToolParam(
-            type="computer_use_preview",
+            type="computer_use_preview",  # type: ignore[typeddict-item]
             # The OpenAI model is ahead of the sdk — "ubuntu" -> "linux"
             environment="linux",  # type: ignore
             # Note: The dimensions passed here for display_width and display_height should
@@ -38,45 +57,180 @@ def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
             display_width=1366,
             display_height=768,
         )
-        if tool.name == "computer"
-        and (
-            sorted(tool.parameters.properties.keys())
-            == sorted(
-                [
-                    "action",
-                    "coordinate",
-                    "duration",
-                    "scroll_amount",
-                    "scroll_direction",
-                    "start_coordinate",
-                    "text",
-                ]
-            )
-        )
+        if "computer-use-preview" in model_name
+        and tool.name == "computer"
+        and (sorted(tool.parameters.properties.keys()) == sorted(computer_parameters()))
         else None
     )
 
 
+def computer_parameters() -> list[str]:
+    return [
+        "action",
+        "coordinate",
+        "duration",
+        "region",
+        "scroll_amount",
+        "scroll_direction",
+        "start_coordinate",
+        "text",
+    ]
+
+
 def computer_call_output(
     message: ChatMessageTool,
-    # internal is passed in despite being within message to avoid an extra
-    # validation step
-    internal: ResponseComputerToolCall,
+    computer_call_id: str,
+    pending_safety_checks: Iterable[PendingSafetyCheck] | None = None,
 ) -> ComputerCallOutput:
     return ComputerCallOutput(
-        call_id=internal.call_id,
+        call_id=computer_call_id,
         type="computer_call_output",
         output=ResponseComputerToolCallOutputScreenshotParam(
             type="computer_screenshot",
             image_url=_content_image(message.content),
         ),
+        # PendingSafetyCheck and ComputerCallOutputAcknowledgedSafetyCheck are structurally
+        # identical TypedDicts, so this assignment is type-safe.
+        acknowledged_safety_checks=pending_safety_checks,
     )
+
+
+def tool_call_arguments_to_action(
+    arguments: dict[str, object],
+) -> Action:
+    action_type = str(arguments.get("action", ""))
+    action: Action
+
+    if action_type in [
+        "left_click",
+        "right_click",
+        "middle_click",
+        "back_click",
+        "forward_click",
+    ]:
+        coordinate = arguments.get("coordinate", [0, 0])
+        button_map = {
+            "left_click": "left",
+            "right_click": "right",
+            "middle_click": "wheel",
+            "back_click": "back",
+            "forward_click": "forward",
+        }
+        action = ActionClick(
+            type="click",
+            button=button_map[action_type],  # type: ignore
+            x=coordinate[0],  # type: ignore
+            y=coordinate[1],  # type: ignore
+        )
+    elif action_type == "double_click":
+        coordinate = arguments.get("coordinate", [0, 0])
+        action = ActionDoubleClick(
+            type="double_click",
+            x=coordinate[0],  # type: ignore
+            y=coordinate[1],  # type: ignore
+        )
+    elif action_type == "triple_click":
+        # Triple click doesn't exist in OpenAI's spec, map to double click
+        coordinate = arguments.get("coordinate", [0, 0])
+        action = ActionDoubleClick(
+            type="double_click",
+            x=coordinate[0],  # type: ignore
+            y=coordinate[1],  # type: ignore
+        )
+    elif action_type == "left_click_drag":
+        start_coordinate = arguments.get("start_coordinate", [0, 0])
+        end_coordinate = arguments.get("coordinate", [0, 0])
+        action = ActionDrag(
+            type="drag",
+            path=[
+                ActionDragPath(x=start_coordinate[0], y=start_coordinate[1]),  # type: ignore
+                ActionDragPath(x=end_coordinate[0], y=end_coordinate[1]),  # type: ignore
+            ],
+        )
+    elif action_type in ["key", "hold_key"]:
+        text = str(arguments.get("text", ""))
+        # Reverse the mapping from _parse_computer_tool_call_arguments
+        reverse_mapping = {
+            "Return": "ENTER",
+            "Left": "LEFT",
+            "Right": "RIGHT",
+            "Up": "UP",
+            "Down": "DOWN",
+            "Escape": "ESC",
+            "space": "SPACE",
+            "BackSpace": "BACKSPACE",
+            "Tab": "TAB",
+        }
+        keys = []
+        for key in text.split("+"):
+            mapped_key = reverse_mapping.get(key, key)
+            keys.append(mapped_key)
+        action = ActionKeypress(
+            type="keypress",
+            keys=keys,
+        )
+    elif action_type in ["mouse_move", "cursor_position"]:
+        coordinate = arguments.get("coordinate", [0, 0])
+        action = ActionMove(
+            type="move",
+            x=coordinate[0],  # type: ignore
+            y=coordinate[1],  # type: ignore
+        )
+    elif action_type == "screenshot":
+        action = ActionScreenshot(type="screenshot")
+    elif action_type == "scroll":
+        coordinate = arguments.get("coordinate", [0, 0])
+        scroll_direction = str(arguments.get("scroll_direction", "down"))
+        scroll_amount = int(str(arguments.get("scroll_amount", 1)))
+
+        scroll_x = 0
+        scroll_y = 0
+        if scroll_direction == "up":
+            scroll_y = -scroll_amount
+        elif scroll_direction == "down":
+            scroll_y = scroll_amount
+        elif scroll_direction == "left":
+            scroll_x = -scroll_amount
+        elif scroll_direction == "right":
+            scroll_x = scroll_amount
+
+        action = ActionScroll(
+            type="scroll",
+            x=coordinate[0],  # type: ignore
+            y=coordinate[1],  # type: ignore
+            scroll_x=scroll_x,
+            scroll_y=scroll_y,
+        )
+    elif action_type == "type":
+        text = str(arguments.get("text", ""))
+        action = ActionType(
+            type="type",
+            text=text,
+        )
+    elif action_type == "wait":
+        # OpenAI's wait doesn't support duration parameter
+        action = ActionWait(type="wait")
+    elif action_type in ["left_mouse_down", "left_mouse_up"]:
+        # These don't have direct equivalents in OpenAI's spec
+        # Map to a move for now (could potentially be ignored)
+        coordinate = arguments.get("coordinate", [0, 0])
+        action = ActionMove(
+            type="move",
+            x=coordinate[0],  # type: ignore
+            y=coordinate[1],  # type: ignore
+        )
+    else:
+        # Default to screenshot if action type is unknown
+        action = ActionScreenshot(type="screenshot")
+
+    return action
 
 
 def _parse_computer_tool_call_arguments(
     output: ResponseComputerToolCall,
 ) -> dict[str, object]:
     action = output.action
+    assert action
 
     if action.type == "click":
         coordinate = [action.x, action.y]

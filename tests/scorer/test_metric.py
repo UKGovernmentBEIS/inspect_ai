@@ -511,6 +511,28 @@ def test_custom_all():
     assert result["custom_all"] == 4.0
 
 
+def test_custom_name_template():
+    metric = grouped(
+        mean(),
+        group_key="group",
+        name_template="mean_{group_name}",
+        all_label="mean_all",
+    )
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+        ]
+    )
+    assert result["mean_A"] == 2.0
+    assert result["mean_B"] == 6.0
+    assert result["mean_all"] == 4.0
+
+
 class Metadata(BaseModel, frozen=True):
     name: str
     age: int

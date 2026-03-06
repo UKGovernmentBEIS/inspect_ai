@@ -37,8 +37,10 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -60,7 +62,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._openai import openai_media_filter
+from .._openai import needs_max_completion_tokens, openai_media_filter
 from .util import (
     environment_prerequisite_error,
     model_base_url,
@@ -72,6 +74,7 @@ AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
+AZUREAI_AUDIENCE = "AZUREAI_AUDIENCE"
 
 # legacy vars for migration
 AZURE_API_KEY = "AZURE_API_KEY"
@@ -108,14 +111,39 @@ class AzureAIAPI(ModelAPI):
             not not emulate_tools if emulate_tools is not None else None
         )
 
-        # resolve api_key
+        # resolve api_key or managed identity (for Azure)
+        self.token_provider = None
+        self.api_key = os.environ.get(
+            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
+        )
         if not self.api_key:
-            self.api_key = os.environ.get(
-                AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
-            )
-            if not self.api_key:
-                raise environment_prerequisite_error("AzureAI", AZURE_API_KEY)
+            # try managed identity (Microsoft Entra ID)
+            try:
+                from azure.identity import (
+                    DefaultAzureCredential,
+                    get_bearer_token_provider,
+                )
 
+                self.token_provider = get_bearer_token_provider(
+                    DefaultAzureCredential(),
+                    os.environ.get(
+                        AZUREAI_AUDIENCE,
+                        "https://cognitiveservices.azure.com/.default",
+                    ),
+                )
+            except ImportError:
+                raise PrerequisiteError(
+                    "ERROR: The AzureAI provider requires the `azure-identity` package for managed identity support."
+                )
+        if not self.api_key and not self.token_provider:
+            raise environment_prerequisite_error(
+                "AzureAI",
+                [
+                    AZURE_API_KEY,
+                    AZUREAI_API_KEY,
+                    "or managed identity (Entra ID)",
+                ],
+            )
         # resolve base url
         endpoint_url = model_base_url(
             base_url,
@@ -165,30 +193,38 @@ class AzureAIAPI(ModelAPI):
         # create client (note the client needs to be created and closed
         # with each call so it can be cleaned up and not end up on another
         # event loop in a subsequent pass of eval)
-        assert self.api_key
+        if self.api_key is not None:
+            credential = AzureKeyCredential(self.api_key)
+        elif self.token_provider is not None:
+            credential = AzureKeyCredential(self.token_provider())
+        else:
+            raise PrerequisiteError(
+                "Azure AI must have either an API key or token provider."
+            )
         client = ChatCompletionsClient(
             endpoint=self.endpoint_url,
-            credential=AzureKeyCredential(self.api_key),
+            credential=credential,
             model=self.model_name,
             model_extras=self.model_args,
         )
 
-        def model_call(response: ChatCompletions | None = None) -> ModelCall:
-            return ModelCall.create(
-                request=request
-                | dict(
-                    messages=[message.as_dict() for message in request["messages"]],
-                    tools=[tool.as_dict() for tool in request["tools"]]
-                    if request.get("tools", None) is not None
-                    else None,
-                ),
-                response=response.as_dict() if response else {},
-                filter=openai_media_filter,
-            )
+        model_call = set_active_model_event_call(
+            request=request
+            | dict(
+                messages=[message.as_dict() for message in request["messages"]],
+                tools=[tool.as_dict() for tool in request["tools"]]
+                if request.get("tools", None) is not None
+                else None,
+            ),
+            filter=openai_media_filter,
+        )
 
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
+
+            model_call.set_response(response.as_dict())
+
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(
@@ -199,10 +235,11 @@ class AzureAIAPI(ModelAPI):
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
-            ), model_call(response)
+            ), model_call
 
         except AzureError as ex:
-            return self.handle_azure_error(ex), model_call()
+            model_call.set_error({"error": {"message": str(ex.message)}})
+            return self.handle_azure_error(ex), model_call
         finally:
             await client.close()
 
@@ -217,7 +254,10 @@ class AzureAIAPI(ModelAPI):
         if config.top_p is not None:
             params["top_p"] = config.top_p
         if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
+            if needs_max_completion_tokens(self.model_name.lower()):
+                params["max_completion_tokens"] = config.max_tokens
+            else:
+                params["max_tokens"] = config.max_tokens
         if config.stop_seqs is not None:
             params["stop"] = config.stop_seqs
         if config.seed is not None:
@@ -249,6 +289,12 @@ class AzureAIAPI(ModelAPI):
             return False
 
     @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, HttpResponseError):
+            return ex.status_code == 401
+        return False
+
+    @override
     def collapse_user_messages(self) -> bool:
         return True
 
@@ -264,6 +310,30 @@ class AzureAIAPI(ModelAPI):
 
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
+
+    def is_openai_model(self) -> bool:
+        """Check if this is an OpenAI model (gpt-*, o1, o3, o4, etc.)."""
+        name = self.model_name.lower()
+        return (
+            name.startswith("gpt-")
+            or name.startswith("o1")
+            or name.startswith("o3")
+            or name.startswith("o4")
+        )
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Maps AzureAI model names to their organization's canonical format.
+        For example, "gpt-4o" → "openai/gpt-4o".
+        """
+        if self.is_openai_model():
+            return f"openai/{self.model_name}"
+        elif self.is_mistral():
+            return f"mistral/{self.model_name}"
+        # For other models (e.g., Llama), return as-is and rely on fuzzy matching
+        return self.model_name
 
     def handle_azure_error(self, ex: AzureError) -> ModelOutput | Exception:
         if isinstance(ex, HttpResponseError):

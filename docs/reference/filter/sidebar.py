@@ -21,6 +21,7 @@ reference_docs = ["reference/inspect_ai.qmd"] + [
         "approval.qmd",
         "log.qmd",
         "analysis.qmd",
+        "event.qmd",
         "util.qmd",
         "hooks.qmd"
     ]

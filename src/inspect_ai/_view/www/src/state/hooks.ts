@@ -1,19 +1,14 @@
-import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Events } from "../@types/log";
+import { EvalSample, EvalSpec, Events, Status } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "../app/samples/descriptor/samplesDescriptor";
 import { filterSamples } from "../app/samples/sample-tools/filters";
-import {
-  byEpoch,
-  bySample,
-  sortSamples,
-} from "../app/samples/sample-tools/SortFilter";
-import { LogFile, SampleSummary } from "../client/api/types";
-import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
+import { sampleIdsEqual } from "../app/shared/sample";
+import { LogHandle, SampleSummary } from "../client/api/types";
 import { createLogger } from "../utils/logger";
+import { prettyDirUri } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
@@ -21,45 +16,45 @@ import { mergeSampleSummaries } from "./utils";
 const log = createLogger("hooks");
 
 export const useEvalSpec = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-  return selectedLogSummary?.eval;
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
+  return selectedLogDetails?.eval;
 };
 
 export const useRefreshLog = () => {
-  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
 
   return useCallback(() => {
     try {
-      setAppStatus({ loading: true, error: undefined });
+      setLoading(true);
 
       refreshLog();
       resetFiltering();
 
-      setAppStatus({ loading: false, error: undefined });
+      setLoading(false);
     } catch (e) {
       // Show an error
       console.log(e);
-      setAppStatus({ loading: false, error: e as Error });
+      setLoading(false, e as Error);
     }
-  }, [refreshLog, resetFiltering, setAppStatus]);
+  }, [refreshLog, resetFiltering, setLoading]);
 };
 
 // Fetches all samples summaries (both completed and incomplete)
 // without applying any filtering
 export const useSampleSummaries = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const pendingSampleSummaries = useStore(
     (state) => state.log.pendingSampleSummaries,
   );
 
   return useMemo(() => {
     return mergeSampleSummaries(
-      selectedLogSummary?.sampleSummaries || [],
+      selectedLogDetails?.sampleSummaries || [],
       pendingSampleSummaries?.samples || [],
     );
-  }, [selectedLogSummary, pendingSampleSummaries]);
+  }, [selectedLogDetails, pendingSampleSummaries]);
 };
 
 // Counts the total number of unfiltered sample summaries (both complete and incomplete)
@@ -70,39 +65,44 @@ export const useTotalSampleCount = () => {
   }, [sampleSummaries]);
 };
 
-// Provides the currently selected score for this eval, providing a default
+// Provides the currently selected score(s) for this eval, providing a default
 // based upon the configuration (eval + summaries) if no scorer has been
 // selected
-export const useScore = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+export const useSelectedScores = () => {
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const sampleSummaries = useSampleSummaries();
-  const score = useStore((state) => state.log.score);
+  const selected = useStore((state) => state.log.selectedScores);
   return useMemo(() => {
-    if (score) {
-      return score;
-    } else if (selectedLogSummary) {
-      return getDefaultScorer(selectedLogSummary, sampleSummaries);
-    } else {
-      return undefined;
+    if (selected !== undefined) {
+      return selected;
+    } else if (selectedLogDetails) {
+      const defaultScorer = getDefaultScorer(
+        selectedLogDetails,
+        sampleSummaries,
+      );
+      if (defaultScorer) {
+        return [defaultScorer];
+      }
     }
-  }, [selectedLogSummary, sampleSummaries, score]);
+    return [];
+  }, [selectedLogDetails, sampleSummaries, selected]);
 };
 
 // Provides the list of available scorers. Will inspect the eval or samples
 // to determine scores (even for in progress evals that don't yet have final
 // metrics)
 export const useScores = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const sampleSummaries = useSampleSummaries();
   return useMemo(() => {
-    if (!selectedLogSummary) {
+    if (!selectedLogDetails) {
       return [];
     }
 
     const result =
-      getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+      getAvailableScorers(selectedLogDetails, sampleSummaries) || [];
     return result;
-  }, [selectedLogSummary, sampleSummaries]);
+  }, [selectedLogDetails, sampleSummaries]);
 };
 
 // Provides the eval descriptor
@@ -114,20 +114,18 @@ export const useEvalDescriptor = () => {
   }, [scores, sampleSummaries]);
 };
 
-// Provides the sampls descriptor
 export const useSampleDescriptor = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
-  const score = useScore();
+  const selectedScores = useSelectedScores();
   return useMemo(() => {
     return evalDescriptor
-      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score)
+      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, selectedScores)
       : undefined;
-  }, [evalDescriptor, sampleSummaries, score]);
+  }, [evalDescriptor, sampleSummaries, selectedScores]);
 };
 
-// Provides the list of filtered samples
-// (applying sorting, grouping, and filtering)
+// Provides the list of filtered and sorted samples
 export const useFilteredSamples = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
@@ -137,13 +135,8 @@ export const useFilteredSamples = () => {
     (state) => state.logActions.clearFilterError,
   );
 
-  const epoch = useStore((state) => state.log.epoch);
-  const sort = useStore((state) => state.log.sort);
-  const samplesDescriptor = useSampleDescriptor();
-  const score = useScore();
-
   return useMemo(() => {
-    // Apply filters
+    // Apply text filter
     const { result, error, allErrors } =
       evalDescriptor && filter
         ? filterSamples(evalDescriptor, sampleSummaries, filter)
@@ -155,72 +148,49 @@ export const useFilteredSamples = () => {
       clearFilterError();
     }
 
-    const prefiltered =
+    const filtered =
       error === undefined || !allErrors ? result : sampleSummaries;
 
-    // Filter epochs
-    const filtered =
-      epoch && epoch !== "all"
-        ? prefiltered.filter((sample) => epoch === String(sample.epoch))
-        : prefiltered;
+    // Sort samples by sample ID (asc) then epoch (asc)
+    const sorted = [...filtered].sort((a, b) => {
+      // Compare by ID first
+      let idCompare: number;
+      if (typeof a.id === "number" && typeof b.id === "number") {
+        idCompare = a.id - b.id;
+      } else {
+        idCompare = String(a.id).localeCompare(String(b.id));
+      }
+      if (idCompare !== 0) return idCompare;
+      // Then by epoch
+      return a.epoch - b.epoch;
+    });
 
-    // Sort samples
-    const sorted = samplesDescriptor
-      ? sortSamples(sort, filtered, samplesDescriptor, score)
-      : filtered;
-
-    return [...sorted];
+    return sorted;
   }, [
     evalDescriptor,
     sampleSummaries,
     filter,
     setFilterError,
     clearFilterError,
-    epoch,
-    sort,
-    samplesDescriptor,
-    score,
   ]);
-};
-
-// Computes the group by to use given a particular sort
-export const useGroupBy = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-  const sort = useStore((state) => state.log.sort);
-  const epoch = useStore((state) => state.log.epoch);
-  return useMemo(() => {
-    const epochs = selectedLogSummary?.eval?.config?.epochs || 1;
-    if (epochs > 1) {
-      if (byEpoch(sort) || epoch !== "all") {
-        return "epoch";
-      } else if (bySample(sort)) {
-        return "sample";
-      }
-    }
-
-    return "none";
-  }, [selectedLogSummary, sort, epoch]);
-};
-
-// Computes the ordering for groups based upon the sort
-export const useGroupByOrder = () => {
-  const sort = useStore((state) => state.log.sort);
-  return useMemo(() => {
-    return sort === kSampleAscVal ||
-      sort === kEpochAscVal ||
-      sort === kScoreAscVal
-      ? "asc"
-      : "desc";
-  }, [sort]);
 };
 
 // Provides the currently selected sample summary
 export const useSelectedSampleSummary = (): SampleSummary | undefined => {
-  const filteredSamples = useFilteredSamples();
-  const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
+  const sampleSummaries = useSampleSummaries();
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
   return useMemo(() => {
-    return filteredSamples[selectedIndex];
-  }, [filteredSamples, selectedIndex]);
+    const selectedSampleSummary = sampleSummaries.find((sample) => {
+      return (
+        sampleIdsEqual(sample.id, selectedSampleHandle?.id) &&
+        sample.epoch === selectedSampleHandle?.epoch
+      );
+    });
+
+    return selectedSampleSummary;
+  }, [selectedSampleHandle, sampleSummaries]);
 };
 
 export const useSampleData = () => {
@@ -233,6 +203,7 @@ export const useSampleData = () => {
     (state) => state.sample.sample_identifier,
   );
   const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
+  const eventsCleared = useStore((state) => state.sample.eventsCleared);
   const runningEvents = useStore(
     (state) => state.sample.runningEvents,
   ) as Events;
@@ -243,6 +214,7 @@ export const useSampleData = () => {
       sampleNeedsReload,
       error: sampleError,
       getSelectedSample,
+      eventsCleared,
       running: runningEvents,
     };
   }, [
@@ -251,8 +223,22 @@ export const useSampleData = () => {
     getSelectedSample,
     selectedSampleIdentifier,
     sampleNeedsReload,
+    eventsCleared,
     runningEvents,
   ]);
+};
+
+// Returns the invalidation data for the currently selected sample, if any.
+// Returns a tuple of [invalidation, sampleIdentifier]
+export const useSampleInvalidation = () => {
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
+  const sampleIdentifier = useStore((state) => state.sample.sample_identifier);
+  return useMemo(() => {
+    const sample = getSelectedSample();
+    return [sample?.invalidation || null, sampleIdentifier] as const;
+  }, [getSelectedSample, sampleIdentifier]);
 };
 
 export const useLogSelection = () => {
@@ -266,7 +252,7 @@ export const useLogSelection = () => {
       loadedLog: loadedLog,
       sample: selectedSampleSummary,
     };
-  }, [selectedLogFile, selectedSampleSummary]);
+  }, [loadedLog, selectedLogFile, selectedSampleSummary]);
 };
 
 export const useCollapseSampleEvent = (
@@ -283,7 +269,7 @@ export const useCollapseSampleEvent = (
       collapseEvent(scope, id, value);
     };
     return [isCollapsed, set];
-  }, [collapsed, collapseEvent, id]);
+  }, [collapsed, scope, id, collapseEvent]);
 };
 
 export const useCollapsibleIds = (
@@ -302,7 +288,7 @@ export const useCollapsibleIds = (
     (id: string, value: boolean) => {
       setCollapsed(key, id, value);
     },
-    [setCollapsed],
+    [setCollapsed, key],
   );
 
   const clearCollapsedIds = useStore(
@@ -334,7 +320,7 @@ export const useCollapsedState = (
       setCollapsed(stateId, value);
     };
     return [collapsed, set];
-  }, [collapsed, setCollapsed]);
+  }, [collapsed, id, scope, setCollapsed, stateId]);
 };
 
 export const useMessageVisibility = (
@@ -366,9 +352,10 @@ export const useMessageVisibility = (
   }, [selectedLogFile, clearVisible, id]);
 
   // Maybe reset state if sample changes
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
   );
+
   useEffect(() => {
     // Skip the first effect run for sample changes too
     if (isFirstRender.current) {
@@ -379,7 +366,7 @@ export const useMessageVisibility = (
       log.debug("clear message (sample)", id);
       clearVisible(id);
     }
-  }, [selectedSampleIndex, clearVisible, id, scope]);
+  }, [selectedSampleHandle, clearVisible, id, scope]);
 
   return useMemo(() => {
     log.debug("visibility", id, visible);
@@ -436,7 +423,7 @@ export function useProperty<T>(
         removePropertyValue(id, propertyName);
       }
     };
-  }, [id, propertyName, removePropertyValue]);
+  }, [id, options.cleanup, propertyName, removePropertyValue]);
 
   return [propertyValue, setValue, removeValue];
 }
@@ -451,57 +438,34 @@ export const usePrevious = <T>(value: T) => {
   return ref.current;
 };
 
-// Syntax highlighting strings larger than this is too slow
-const kPrismRenderMaxSize = 250000;
-
-export const usePrismHighlight = (toolCallContent?: string) => {
-  const toolViewRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (
-      toolCallContent &&
-      toolViewRef.current &&
-      toolCallContent.length <= kPrismRenderMaxSize
-    ) {
-      requestAnimationFrame(() => {
-        const codeBlocks = toolViewRef.current?.querySelectorAll("pre code");
-        codeBlocks?.forEach((block) => {
-          if (block.className.includes("language-")) {
-            block.classList.add("sourceCode");
-            highlightElement(block as HTMLElement);
-          }
-        });
-      });
-    }
-  }, [toolCallContent]);
-
-  return toolViewRef;
-};
-
 export const useSetSelectedLogIndex = () => {
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
   );
   const clearSelectedSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
   );
-  const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+  const clearSelectedLogDetails = useStore(
+    (state) => state.logActions.clearSelectedLogDetails,
   );
   const clearCollapsedEvents = useStore(
     (state) => state.sampleActions.clearCollapsedEvents,
   );
+  const allLogFiles = useStore((state) => state.logs.logs);
 
   return useCallback(
     (index: number) => {
       clearCollapsedEvents();
       clearSelectedSample();
-      clearSelectedLogSummary();
-      setSelectedLogIndex(index);
+      clearSelectedLogDetails();
+
+      const logHandle = allLogFiles[index];
+      setSelectedLogFile(logHandle.name);
     },
     [
-      setSelectedLogIndex,
-      clearSelectedLogSummary,
+      allLogFiles,
+      setSelectedLogFile,
+      clearSelectedLogDetails,
       clearSelectedSample,
       clearCollapsedEvents,
     ],
@@ -553,123 +517,182 @@ export const useSamplePopover = (id: string) => {
   return {
     show,
     hide,
+    setShowing: (shouldShow: boolean) => {
+      if (shouldShow) {
+        show();
+      } else {
+        hide();
+      }
+    },
     isShowing,
   };
 };
 
 export const useLogs = () => {
-  // Loading logs
-  const load = useStore((state) => state.logsActions.loadLogs);
-  const setLogs = useStore((state) => state.logsActions.setLogs);
-  const setStatus = useStore((state) => state.appActions.setStatus);
+  // Loading logs and eval set info
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const syncEvalSetInfo = useStore(
+    (state) => state.logsActions.syncEvalSetInfo,
+  );
+  const setLoading = useStore((state) => state.appActions.setLoading);
 
-  const loadLogs = useCallback(async () => {
-    const exec = async () => {
-      setStatus({ loading: true, error: undefined });
-      const logs = await load();
-      setLogs(logs);
-      setStatus({ loading: false, error: undefined });
-    };
-    exec().catch((e) => {
-      log.error("Error loading logs", e);
-      setStatus({ loading: false, error: e });
-    });
-  }, [load, setLogs, setStatus]);
-
-  // Loading headers
-  const storeLoadHeaders = useStore((state) => state.logsActions.loadHeaders);
-  const existingHeaders = useStore((state) => state.logs.logHeaders);
-  const allLogFiles = useStore((state) => state.logs.logs.files);
-
-  const loadHeaders = useCallback(
-    async (logFiles: LogFile[] = allLogFiles) => {
-      await storeLoadHeaders(logFiles);
+  const loadLogs = useCallback(
+    async (logPath?: string) => {
+      // load in parallel to display Show Retried Logs button as soon as we know current directory is an eval set without awaiting all logs
+      await Promise.all([syncEvalSetInfo(logPath), syncLogs()]).catch((e) => {
+        log.error("Error loading logs", e);
+        setLoading(false, e as Error);
+      });
     },
-    [storeLoadHeaders, allLogFiles],
+    [syncLogs, setLoading, syncEvalSetInfo],
   );
 
-  const loadAllHeaders = useCallback(async () => {
+  // Loading overviews
+  const syncLogPreviews = useStore(
+    (state) => state.logsActions.syncLogPreviews,
+  );
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+  const allLogFiles = useStore((state) => state.logs.logs);
+
+  const loadLogOverviews = useCallback(
+    async (logs: LogHandle[] = allLogFiles) => {
+      await syncLogPreviews(logs);
+    },
+    [syncLogPreviews, allLogFiles],
+  );
+
+  const loadAllLogOverviews = useCallback(async () => {
     const logsToLoad = allLogFiles.filter((logFile) => {
-      const existingHeader = existingHeaders[logFile.name];
+      const existingHeader = logPreviews[logFile.name];
       return !existingHeader || existingHeader.status === "started";
     });
 
     if (logsToLoad.length > 0) {
-      await storeLoadHeaders(logsToLoad);
+      await loadLogOverviews(logsToLoad);
     }
-  }, [storeLoadHeaders, allLogFiles, existingHeaders]);
+  }, [loadLogOverviews, allLogFiles, logPreviews]);
 
-  return { loadLogs, loadHeaders, loadAllHeaders };
-};
-
-export const usePagination = (name: string, defaultPageSize: number) => {
-  const page = useStore((state) => state.app.pagination[name]?.page || 0);
-  const itemsPerPage = useStore(
-    (state) => state.app.pagination[name]?.pageSize || defaultPageSize,
-  );
-  const setPagination = useStore((state) => state.appActions.setPagination);
-
-  const setPage = useCallback(
-    (newPage: number) => {
-      setPagination(name, { page: newPage, pageSize: itemsPerPage });
-    },
-    [name, setPagination, itemsPerPage],
-  );
-
-  const setPageSize = useCallback(
-    (newPageSize: number) => {
-      setPagination(name, { page, pageSize: newPageSize });
-    },
-    [name, setPagination, page],
-  );
-
-  return {
-    page,
-    itemsPerPage,
-    setPage,
-    setPageSize,
-  };
+  return { loadLogs, loadLogOverviews, loadAllLogOverviews };
 };
 
 export const useLogsListing = () => {
-  const sorting = useStore((state) => state.logs.listing.sorting);
-  const setSorting = useStore((state) => state.logsActions.setSorting);
-
-  const filtering = useStore((state) => state.logs.listing.filtering);
-  const setFiltering = useStore((state) => state.logsActions.setFiltering);
-
-  const globalFilter = useStore((state) => state.logs.listing.globalFilter);
-  const setGlobalFilter = useStore(
-    (state) => state.logsActions.setGlobalFilter,
-  );
-
-  const columnResizeMode = useStore(
-    (state) => state.logs.listing.columnResizeMode,
-  );
-  const setColumnResizeMode = useStore(
-    (state) => state.logsActions.setColumnResizeMode,
-  );
-
-  const columnSizes = useStore((state) => state.logs.listing.columnSizes);
-  const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
-
   const filteredCount = useStore((state) => state.logs.listing.filteredCount);
   const setFilteredCount = useStore(
     (state) => state.logsActions.setFilteredCount,
   );
 
+  const gridState = useStore((state) => state.logs.listing.gridState);
+  const setGridState = useStore((state) => state.logsActions.setLogsGridState);
+  const clearGridState = useStore(
+    (state) => state.logsActions.clearLogsGridState,
+  );
+  const previousLogPath = useStore(
+    (state) => state.logs.listing.previousLogPath,
+  );
+  const setPreviousLogPath = useStore(
+    (state) => state.logsActions.setPreviousLogsPath,
+  );
+
   return {
-    sorting,
-    setSorting,
-    filtering,
-    setFiltering,
-    globalFilter,
-    setGlobalFilter,
-    columnResizeMode,
-    setColumnResizeMode,
-    columnSizes,
-    setColumnSize,
     filteredCount,
     setFilteredCount,
+    gridState,
+    setGridState,
+    clearGridState,
+    previousLogPath,
+    setPreviousLogPath,
   };
+};
+
+export interface TitleContext {
+  logDir?: string;
+  evalSpec?: EvalSpec;
+  sample?: EvalSample;
+}
+
+export const useDocumentTitle = () => {
+  const setDocumentTitle = (context: TitleContext) => {
+    const title: string[] = [];
+
+    if (context.sample) {
+      title.push(`${context.sample.id}_${context.sample.epoch}`);
+    }
+
+    if (context.evalSpec) {
+      title.push(`${context.evalSpec.model} - ${context.evalSpec.task}`);
+    }
+
+    if (context.logDir) {
+      title.push(prettyDirUri(context.logDir));
+    }
+
+    if (title.length === 0) {
+      title.push("Inspect View");
+    }
+
+    document.title = title.join(" - ");
+  };
+  return { setDocumentTitle };
+};
+
+const simplifiedStatusForDeduplication = (status: Status | undefined) =>
+  status === "started" || status === "success" ? status : "_other_";
+
+export type LogHandleWithretried = LogHandle & { retried?: boolean };
+export const useLogsWithretried = (): LogHandleWithretried[] => {
+  const logs = useStore((state) => state.logs.logs);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+
+  const logsWithEvalSetRetry = useMemo(() => {
+    const logsByTaskId = logs.reduce(
+      (acc: Record<string, LogHandleWithretried[]>, log) => {
+        const taskId = log.task_id;
+        if (taskId) {
+          if (!(taskId in acc)) acc[taskId] = [];
+          acc[taskId].push(log);
+        }
+        return acc;
+      },
+      {},
+    );
+    // For each task_id, select the best item (prefer running/complete over error)
+    // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
+    // If same priority, take the latest one
+    const bestByName: Record<string, LogHandleWithretried> = {};
+    for (const items of Object.values(logsByTaskId)) {
+      items.sort((a, b) => {
+        const as = simplifiedStatusForDeduplication(
+          logPreviews[a.name]?.status,
+        );
+        const bs = simplifiedStatusForDeduplication(
+          logPreviews[b.name]?.status,
+        );
+        const am = a.mtime ?? 0;
+        const bm = b.mtime ?? 0;
+
+        if (as === bs) return bm - am; // newest on top
+        if (as === "started") return -1;
+        if (bs === "started") return 1;
+        if (as === "success") return -1;
+        if (bs === "success") return 1;
+
+        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+        return 0;
+      });
+      const { name } = items[0];
+      bestByName[name] = { ...items[0], retried: false };
+    }
+
+    // Rebuild logs maintaining order, marking duplicates as skippable
+    return logs.map(
+      (log) =>
+        bestByName[log.name] ?? {
+          ...log,
+          // task_id is optional for backward compatibility, only new logs files can be skippable
+          retried: log.task_id ? true : undefined,
+        },
+    );
+  }, [logs, logPreviews]);
+
+  return logsWithEvalSetRetry;
 };

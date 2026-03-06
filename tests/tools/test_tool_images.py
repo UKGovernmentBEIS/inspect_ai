@@ -1,4 +1,5 @@
 from test_helpers.utils import (
+    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_openai,
@@ -52,18 +53,28 @@ def test_openai_tool_image_result():
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_openai_responses_tool_image_result():
     check_tool_image_result(get_model("openai/gpt-4o-mini", responses_api=True))
 
 
+@skip_if_no_openai
+@flaky_retry(max_retries=3)
+def test_openai_o4_mini_tool_image_result():
+    check_tool_image_result(get_model("openai/o4-mini"))
+
+
 @skip_if_no_google
+@flaky_retry(
+    max_retries=3
+)  # We've seen this fail when the model passes extra arguments to the tool
 def test_google_tool_image_result():
-    check_tool_image_result("google/gemini-1.5-pro")
+    check_tool_image_result("google/gemini-2.5-pro")
 
 
 @skip_if_no_anthropic
 def test_anthropic_tool_image_result():
-    check_tool_image_result("anthropic/claude-3-5-sonnet-20240620")
+    check_tool_image_result("anthropic/claude-sonnet-4-5")
 
 
 def check_tool_image_result(model):

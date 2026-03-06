@@ -4,7 +4,7 @@ from openai.types.responses import WebSearchTool, WebSearchToolParam
 
 from inspect_ai.tool._tool_info import ToolInfo
 
-COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini"]
+COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
 
 
 def maybe_web_search_tool(model_name: str, tool: ToolInfo) -> WebSearchToolParam | None:
@@ -28,11 +28,9 @@ def _web_search_tool(maybe_openai_options: object) -> WebSearchToolParam:
             f"Expected a dictionary for openai_options, got {type(maybe_openai_options)}"
         )
     openai_options = (
-        WebSearchTool.model_validate(
-            {"type": "web_search_preview", **maybe_openai_options}
-        )
+        WebSearchTool.model_validate({"type": "web_search", **maybe_openai_options})
         if maybe_openai_options
-        else WebSearchTool(type="web_search_preview")
+        else WebSearchTool(type="web_search")
     )
 
     return cast(WebSearchToolParam, openai_options.model_dump(exclude_none=True))

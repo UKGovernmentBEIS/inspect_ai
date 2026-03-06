@@ -69,11 +69,14 @@ def set_transcript_markdown_options(markdown: Markdown) -> None:
 def transcript_panel(
     title: str,
     subtitle: str | None = None,
-    content: RenderableType | list[RenderableType] = [],
+    content: RenderableType | list[RenderableType] | None = None,
     level: int = 1,
 ) -> Panel:
     # resolve content to list
-    content = content if isinstance(content, list) else [content]
+    if content is None:
+        content = []
+    elif not isinstance(content, list):
+        content = [content]
 
     # no padding if there is no content
     padding = (0, 1) if content else (0, 0)
@@ -116,9 +119,9 @@ def transcript_panel(
 def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
     content: list[RenderableType] = []
     text = (
-        reasoning.reasoning
+        (reasoning.reasoning or reasoning.summary or "")
         if not reasoning.redacted
-        else "Reasoning encrypted by model provider."
+        else (reasoning.summary or "Reasoning encrypted by model provider.")
     ).strip()
 
     if len(text) > 0:

@@ -1,6 +1,7 @@
 from pathlib import Path
 from textwrap import dedent
 
+import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
@@ -13,10 +14,13 @@ from inspect_ai.util._sandbox.service import sandbox_service
 
 @pytest.mark.slow
 @skip_if_no_docker
-@pytest.mark.parametrize("user", ["root", "nonroot", None])
-def test_sandbox_service(user: str | None):
+@pytest.mark.parametrize(
+    "user, handle_requests",
+    [("root", True), ("nonroot", True), (None, True), (None, False)],
+)
+def test_sandbox_service(user: str | None, handle_requests: bool):
     log = eval(
-        Task(solver=math_service(user)),
+        Task(solver=math_service(user, handle_requests)),
         model="mockllm/model",
         sandbox=(
             "docker",
@@ -30,7 +34,7 @@ def test_sandbox_service(user: str | None):
 
 
 @solver
-def math_service(user: str | None) -> Solver:
+def math_service(user: str | None, handle_requests: bool) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # generate a script that will exercise the service and copy it to the sandbox
         run_script = "run.py"
@@ -76,7 +80,9 @@ def math_service(user: str | None) -> Solver:
     return solve
 
 
-async def run_math_service(state: TaskState, user: str | None) -> None:
+async def run_math_service(
+    state: TaskState, user: str | None, handle_requests: bool = True
+) -> None:
     finished = False
 
     async def add(x: int, y: int) -> int:
@@ -90,10 +96,23 @@ async def run_math_service(state: TaskState, user: str | None) -> None:
         finished = True
         state.store.set("result", result)
 
-    await sandbox_service(
-        name="math_service",
-        methods=[add, subtract, finish],
-        until=lambda: finished,
-        sandbox=sandbox(),
-        user=user,
-    )
+    if handle_requests:
+        await sandbox_service(
+            name="math_service",
+            methods=[add, subtract, finish],
+            until=lambda: finished,
+            sandbox=sandbox(),
+            user=user,
+        )
+    else:
+        handle_service_requests = await sandbox_service(
+            name="math_service",
+            methods=[add, subtract, finish],
+            until=lambda: finished,
+            sandbox=sandbox(),
+            user=user,
+            handle_requests=False,
+        )
+        while not finished:
+            await handle_service_requests()
+            await anyio.sleep(0.1)

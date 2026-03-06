@@ -1,0 +1,16 @@
+---
+title: "Inspect Extensions"
+aliases:
+  - /integrations/index.html
+execute:
+  enabled: true
+---
+
+
+
+```{python}
+#| output: asis
+#| echo: false
+exec(open("generate.py").read())
+print(open("_extensions_content.md").read())
+```

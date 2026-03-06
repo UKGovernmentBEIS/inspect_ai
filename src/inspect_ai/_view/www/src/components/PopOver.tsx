@@ -13,6 +13,7 @@ import { usePopper } from "react-popper";
 interface PopOverProps {
   id: string;
   isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
   positionEl: HTMLElement | null;
   placement?: Placement;
   showArrow?: boolean;
@@ -24,6 +25,7 @@ interface PopOverProps {
   arrowClassName?: string | string[];
 
   children: ReactNode;
+  styles?: CSSProperties;
 }
 
 /**
@@ -32,6 +34,7 @@ interface PopOverProps {
 export const PopOver: React.FC<PopOverProps> = ({
   id,
   isOpen,
+  setIsOpen,
   positionEl,
   children,
   placement = "bottom",
@@ -41,6 +44,7 @@ export const PopOver: React.FC<PopOverProps> = ({
   arrowClassName = "",
   usePortal = true,
   hoverDelay = 250,
+  styles = {},
 }) => {
   const popperRef = useRef<HTMLDivElement | null>(null);
   const arrowRef = useRef<HTMLDivElement | null>(null);
@@ -55,11 +59,6 @@ export const PopOver: React.FC<PopOverProps> = ({
 
   // Setup hover timer and mouse movement detection
   useEffect(() => {
-    if (!isOpen || hoverDelay <= 0) {
-      setShouldShowPopover(isOpen);
-      return;
-    }
-
     const handleMouseMove = () => {
       isMouseMovingRef.current = true;
 
@@ -85,22 +84,48 @@ export const PopOver: React.FC<PopOverProps> = ({
       setShouldShowPopover(false);
     };
 
-    const handleMouseDown = () => {
-      // Cancel popover on any mouse down
-      if (hoverTimerRef.current !== null) {
-        window.clearTimeout(hoverTimerRef.current);
+    const handleMouseDown = (event: MouseEvent) => {
+      // Only cancel popover on mouse down outside the popover content
+      if (
+        popperRef.current &&
+        !popperRef.current.contains(event.target as Node)
+      ) {
+        if (hoverTimerRef.current !== null) {
+          window.clearTimeout(hoverTimerRef.current);
+        }
+        setShouldShowPopover(false);
+        setIsOpen(false);
       }
-      setShouldShowPopover(false);
     };
+
+    if (!isOpen || hoverDelay <= 0) {
+      setShouldShowPopover(isOpen);
+      const listener = (event: MouseEvent) => {
+        // Only close if clicking outside the popover content,
+        // prevent default actions "in the background" when using click to close the popover
+        if (
+          popperRef.current &&
+          !popperRef.current.contains(event.target as Node)
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          setIsOpen(false);
+        }
+      };
+      document.addEventListener("click", listener, true);
+
+      return () => {
+        document.removeEventListener("click", listener, true);
+      };
+    }
 
     // Add event listeners to the positionEl (the trigger element)
     if (positionEl && isOpen) {
       positionEl.addEventListener("mousemove", handleMouseMove);
       positionEl.addEventListener("mouseleave", handleMouseLeave);
 
-      // Add document-wide mousedown listener to dismiss on interaction
+      // Add document-wide mousedown listener to dismiss on interaction outside popover
       document.addEventListener("mousedown", handleMouseDown);
-      document.addEventListener("click", handleMouseDown);
 
       // Initial mouse move to start the timer
       handleMouseMove();
@@ -117,13 +142,11 @@ export const PopOver: React.FC<PopOverProps> = ({
       // Clean up the document mousedown listener
       document.removeEventListener("mousedown", handleMouseDown);
 
-      document.removeEventListener("click", handleMouseDown);
-
       if (hoverTimerRef.current !== null) {
         window.clearTimeout(hoverTimerRef.current);
       }
     };
-  }, [isOpen, positionEl, hoverDelay]);
+  }, [isOpen, positionEl, hoverDelay, setIsOpen]);
 
   // Effect to create portal container when needed
   useEffect(() => {
@@ -188,15 +211,16 @@ export const PopOver: React.FC<PopOverProps> = ({
   ];
 
   // Use popper hook with modifiers
-  const { styles, attributes, state, update } = usePopper(
-    positionEl,
-    popperRef.current,
-    {
-      placement,
-      strategy: "fixed",
-      modifiers,
-    },
-  );
+  const {
+    styles: popperStyles,
+    attributes,
+    state,
+    update,
+  } = usePopper(positionEl, popperRef.current, {
+    placement,
+    strategy: "fixed",
+    modifiers,
+  });
 
   // Force update when needed refs change
   useEffect(() => {
@@ -207,7 +231,7 @@ export const PopOver: React.FC<PopOverProps> = ({
       }, 10);
       return () => clearTimeout(timer);
     }
-  }, [update, isOpen, shouldShowPopover, showArrow, arrowRef.current]);
+  }, [update, isOpen, shouldShowPopover, showArrow]);
 
   // Define arrow data-* attribute based on placement
   const getArrowDataPlacement = () => {
@@ -227,7 +251,7 @@ export const PopOver: React.FC<PopOverProps> = ({
     padding: "12px",
     borderRadius: "4px",
     boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-    border: "1px solid #eee",
+    border: "solid 1px var(--bs-border-color)",
     zIndex: 1200,
     position: "relative",
     // Apply opacity transition to smooth the appearance
@@ -244,11 +268,11 @@ export const PopOver: React.FC<PopOverProps> = ({
   const positionedStyle =
     state && state.styles && state.styles.popper
       ? {
-          ...styles.popper,
+          ...popperStyles.popper,
           opacity: 1,
         }
       : {
-          ...styles.popper,
+          ...popperStyles.popper,
           opacity: 0,
           // Position offscreen initially to prevent flicker
           position: "fixed" as const,
@@ -260,7 +284,7 @@ export const PopOver: React.FC<PopOverProps> = ({
   const popperContent = (
     <div
       ref={popperRef}
-      style={{ ...defaultPopperStyles, ...positionedStyle }}
+      style={{ ...defaultPopperStyles, ...positionedStyle, ...styles }}
       className={clsx(className)}
       {...attributes.popper}
     >
@@ -279,7 +303,7 @@ export const PopOver: React.FC<PopOverProps> = ({
           <div
             className={clsx("popper-arrow-container", arrowClassName)}
             style={{
-              ...styles.arrow,
+              ...popperStyles.arrow,
               position: "absolute",
               zIndex: 1,
               // Size and positioning based on placement - smaller arrow

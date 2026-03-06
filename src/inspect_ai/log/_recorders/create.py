@@ -1,4 +1,4 @@
-from typing import Any, Callable, Literal, cast
+from typing import IO, Any, Callable, Literal, cast
 
 from .eval import EvalRecorder
 from .json import JSONRecorder
@@ -33,3 +33,14 @@ def recorder_type_for_location(location: str) -> type[Recorder]:
             return recorder
 
     raise ValueError(f"No recorder for location: {location}")
+
+
+def recorder_type_for_bytes(log_bytes: IO[bytes]) -> type[Recorder]:
+    first_bytes = log_bytes.read(4)
+    log_bytes.seek(0)
+
+    for recorder in _recorders.values():
+        if recorder.handles_bytes(first_bytes):
+            return recorder
+
+    raise ValueError(f"No recorder for bytes: {first_bytes!r}")

@@ -5,6 +5,7 @@ import pytest
 
 from inspect_ai import Epochs, Task, eval, eval_async
 from inspect_ai._util._async import tg_collect
+from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 
@@ -51,3 +52,19 @@ def test_eval_config_override():
     assert log.eval.config.epochs == 5
     assert log.eval.config.epochs_reducer == ["at_least_3"]
     assert log.eval.config.fail_on_error == 0.5
+
+
+def test_eval_approval_override():
+    eval_approval = ApprovalPolicyConfig(
+        approvers=[
+            ApproverPolicyConfig(name="human", tools="human_tool"),
+            ApproverPolicyConfig(name="auto", tools="auto_tool"),
+        ]
+    )
+    task = Task(dataset=[Sample(input="Say Hello", target="Hello")], approval="auto")
+    log = eval(
+        deepcopy(task),
+        model="mockllm/model",
+        approval=eval_approval,
+    )[0]
+    assert log.eval.config.approval == eval_approval

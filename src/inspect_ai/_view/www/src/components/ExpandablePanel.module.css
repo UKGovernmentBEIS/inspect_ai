@@ -22,9 +22,6 @@
 .moreToggle {
   display: flex;
   margin-top: 0;
-  position: absolute;
-  bottom: 0.25em;
-  right: 0.25em;
   height: 20px;
   background-color: var(--bs-body-bg);
   border-radius: 5px;
@@ -46,4 +43,16 @@
   height: 1px;
   background-color: var(--bs-light-border-subtle);
   margin-top: -1px;
+}
+
+.moreToggle.inlineRight {
+  position: absolute;
+  bottom: 0.25em;
+  right: 0.25em;
+}
+
+.moreToggle.blockLeft {
+  width: fit-content;
+  margin-top: 0.2em;
+  margin-bottom: 0.5em;
 }

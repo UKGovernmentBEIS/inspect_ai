@@ -1,5 +1,6 @@
 from typing import Literal
 
+from inspect_ai._util.notgiven import NotGiven
 from inspect_ai.model import CachePolicy, GenerateConfig, Model
 from inspect_ai.model._cache import epoch
 from inspect_ai.model._call_tools import execute_tools
@@ -11,7 +12,7 @@ async def task_generate(
     model: Model,
     state: TaskState,
     tool_calls: Literal["loop", "single", "none"],
-    cache: bool | CachePolicy,
+    cache: bool | CachePolicy | NotGiven,
     config: GenerateConfig,
 ) -> TaskState:
     # track tool_choice (revert to "auto" after first forced call of a tool)

@@ -3,10 +3,10 @@ import inspect
 import os
 import sys
 from logging import Logger
-from typing import Any, Awaitable, Callable, Coroutine, Literal, TypeVar, cast
+from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
 
 import anyio
-import nest_asyncio  # type: ignore
+import nest_asyncio2 as nest_asyncio  # type: ignore
 import sniffio
 
 if sys.version_info >= (3, 11):
@@ -22,8 +22,12 @@ PosArgsT = TypeVarTuple("PosArgsT")
 def is_callable_coroutine(func_or_cls: Any) -> bool:
     if inspect.iscoroutinefunction(func_or_cls):
         return True
+    elif inspect.isasyncgenfunction(func_or_cls):
+        return True
     elif callable(func_or_cls):
-        return inspect.iscoroutinefunction(func_or_cls.__call__)
+        return inspect.iscoroutinefunction(
+            func_or_cls.__call__
+        ) or inspect.isasyncgenfunction(func_or_cls.__call__)
     return False
 
 
@@ -31,14 +35,14 @@ T = TypeVar("T")
 
 
 async def tg_collect(
-    funcs: list[Callable[[], Awaitable[T]]], exception_group: bool = False
+    funcs: Iterable[Callable[[], Awaitable[T]]], exception_group: bool = False
 ) -> list[T]:
-    """Runs all of the pased async functions and collects their results.
+    """Runs all of the passed async functions and collects their results.
 
     The results will be returned in the same order as the input `funcs`.
 
     Args:
-       funcs: List of async functions.
+       funcs: Iterable of async functions.
        exception_group: `True` to raise an ExceptionGroup or
           `False` (the default) to raise only the first exception.
 
@@ -56,12 +60,12 @@ async def tg_collect(
 
         async with anyio.create_task_group() as tg:
 
-            async def run_task(index: int) -> None:
-                result = await funcs[index]()
+            async def run_task(func: Callable[[], Awaitable[T]], index: int) -> None:
+                result = await func()
                 results.append((index, result))
 
-            for i in range(0, len(funcs)):
-                tg.start_soon(run_task, i)
+            for index, func in enumerate(funcs):
+                tg.start_soon(run_task, func, index)
 
         # sort results by original index and return just the values
         return [r for _, r in sorted(results)]
@@ -106,26 +110,35 @@ def init_nest_asyncio() -> None:
 
 
 def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
     from inspect_ai._util.platform import running_in_notebook
 
     if current_async_backend() == "trio":
         raise RuntimeError("run_coroutine cannot be used with trio")
 
+    async def _run_with_async_filesystem() -> T:
+        async with AsyncFilesystem():
+            return await coroutine
+
     if running_in_notebook():
         init_nest_asyncio()
-        return asyncio.run(coroutine)
+        result = asyncio.run(_run_with_async_filesystem())
+        return result
     else:
         try:
             # this will throw if there is no running loop
             asyncio.get_running_loop()
 
-            # initialiase nest_asyncio then we are clear to run
+            # initialize nest_asyncio then we are clear to run
             init_nest_asyncio()
-            return asyncio.run(coroutine)
 
         except RuntimeError:
-            # No running event loop so we are clear to run
-            return asyncio.run(coroutine)
+            # No running event loop so we are clear to run. Exit the exception handler
+            # and run it.
+            pass
+
+        result = asyncio.run(_run_with_async_filesystem())
+        return result
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:

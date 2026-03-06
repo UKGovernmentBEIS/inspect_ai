@@ -2,7 +2,7 @@ import logging
 import re
 from enum import Enum
 from random import Random
-from typing import Match, TypedDict
+from typing import TypedDict
 
 from typing_extensions import Unpack
 
@@ -80,7 +80,7 @@ def prompt(question: str, choices: Choices, template: str) -> str:
     )
 
 
-def parse_answers(state: TaskState) -> Match[str] | None:
+def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     """
     Convenience function for extracting answers from the state output.
 
@@ -93,9 +93,9 @@ def parse_answers(state: TaskState) -> Match[str] | None:
     """
     # First check whether the string strictly ends with the expected answer
     # In this case, we're looking for a single line which contains the expected
-    # ANSWER: B,C string with only whitespace after it
+    # ANSWER: <answer> string with only whitespace or a period/full stop at the end.
     match = re.search(
-        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n)",
+        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)",
         state.output.completion,
         flags=re.MULTILINE,
     )
@@ -103,14 +103,52 @@ def parse_answers(state: TaskState) -> Match[str] | None:
     # If we couldn't match the strict version, we can try the less strict
     # version for backward compatibility
     if match is None:
-        return re.search(
-            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$)", state.output.completion
+        match = re.search(
+            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)",
+            state.output.completion,
         )
+
+    if match is None:
+        return set()
+
+    matched = match.group(1)
+
+    # Strip trailing period / full stop
+    matched = matched.strip()
+    matched = matched.rstrip(".")
+
+    allowed_options = set(answer_character(i) for i in range(len(state.choices)))
+
+    if multiple_correct:
+        # Match must contain only the allowed choices
+        # (may be separated by commas, spaces, the word 'and', or nothing at all)
+
+        matched = matched.replace(" and ", "")
+
+        matched = matched.replace(" ", "")
+
+        split_comma = set(matched.split(","))
+        if split_comma.issubset(allowed_options):
+            answers = split_comma
+            return answers
+
+        split_nothing = set(matched)
+        if split_nothing.issubset(allowed_options):
+            answers = split_nothing
+            return answers
+
     else:
-        return match
+        # Match must contain a single letter in the allowed choices
+        if matched in allowed_options:
+            answers = {matched}
+            return answers
+
+    return set()
 
 
-def set_choices_based_on_generated_response(state: TaskState, answers: str) -> None:
+def set_choices_based_on_generated_response(
+    state: TaskState, answers: set[str]
+) -> None:
     true_answers = [answer_index(letter) for letter in answers]
 
     for i in range(len(state.choices)):
@@ -287,13 +325,13 @@ def multiple_choice(
 
         state = await generate(state, max_tokens=max_tokens)
 
-        answers = parse_answers(state)
-        if answers and answers.group(1):
+        answers = parse_answers(state, multiple_correct)
+        if answers:
             # If we've found answers, update the state appropriately
             set_choices_based_on_generated_response(
-                state=state, answers=answers.group(1)
+                state=state,
+                answers=answers,
             )
-
             if shuffle:
                 pretend_we_didnt_shuffle(
                     state=state,

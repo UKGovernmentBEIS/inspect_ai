@@ -2,10 +2,11 @@ import clsx from "clsx";
 import { FC } from "react";
 import { InfoEvent } from "../../../@types/log";
 import { JSONPanel } from "../../../components/JsonPanel";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
+import { RenderedText } from "../../content/RenderedText";
 import { EventPanel } from "./event/EventPanel";
+import { eventTitle, formatTitle } from "./event/utils";
 import styles from "./InfoEventView.module.css";
 import { EventNode } from "./types";
 
@@ -25,9 +26,10 @@ export const InfoEventView: FC<InfoEventViewProps> = ({
   const panels = [];
   if (typeof event.data === "string") {
     panels.push(
-      <MarkdownDiv
+      <RenderedText
         markdown={event.data}
         className={clsx(styles.panel, "text-size-base")}
+        omitMath={true}
       />,
     );
   } else {
@@ -38,7 +40,7 @@ export const InfoEventView: FC<InfoEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={"Info" + (event.source ? ": " + event.source : "")}
+      title={formatTitle(eventTitle(event), undefined, event.working_start)}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.info}

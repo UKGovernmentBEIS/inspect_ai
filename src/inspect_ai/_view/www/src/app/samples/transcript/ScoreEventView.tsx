@@ -1,12 +1,14 @@
 import { FC, Fragment } from "react";
 import { ScoreEvent, Value1 } from "../../../@types/log";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";
 
 import clsx from "clsx";
+import { RecordTree } from "../../content/RecordTree";
+import { RenderedText } from "../../content/RenderedText";
+import { eventTitle, formatTitle } from "./event/utils";
 import styles from "./ScoreEventView.module.css";
 import { EventNode } from "./types";
 
@@ -33,7 +35,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={(event.intermediate ? "Intermediate " : "") + "Score"}
+      title={formatTitle(eventTitle(event), undefined, event.working_start)}
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}
@@ -45,7 +47,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
             <div className={clsx(styles.separator)}></div>
             <div className={"text-style-label"}>Target</div>
             <div>
-              <MarkdownDiv markdown={resolvedTarget || ""} />
+              <RenderedText markdown={resolvedTarget || ""} />
             </div>
           </Fragment>
         ) : (
@@ -53,13 +55,13 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
         )}
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Answer</div>
-        <div>
-          <MarkdownDiv markdown={event.score.answer || ""} />
+        <div className={clsx(styles.wrappingContent)}>
+          <RenderedText markdown={event.score.answer || ""} />
         </div>
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Explanation</div>
-        <div>
-          <MarkdownDiv markdown={event.score.explanation || ""} />
+        <div className={clsx(styles.wrappingContent)}>
+          <RenderedText markdown={event.score.explanation || ""} />
         </div>
         <div className={clsx(styles.separator)}></div>
         <div className={"text-style-label"}>Score</div>
@@ -68,9 +70,11 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
       </div>
       {event.score.metadata ? (
         <div data-name="Metadata">
-          <MetaDataGrid
-            entries={event.score.metadata}
-            className={styles.metadata}
+          <RecordTree
+            id={`${eventNode.id}-score-metadata`}
+            record={event.score.metadata}
+            className={styles.metadataTree}
+            defaultExpandLevel={0}
           />
         </div>
       ) : undefined}
@@ -78,7 +82,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
   );
 };
 
-const renderScore = (value: Value1) => {
+export const renderScore = (value: Value1) => {
   if (Array.isArray(value)) {
     return value.join(" ");
   } else if (typeof value === "object") {

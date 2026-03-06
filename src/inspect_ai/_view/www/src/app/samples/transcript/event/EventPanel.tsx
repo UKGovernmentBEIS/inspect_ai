@@ -18,6 +18,7 @@ import {
   useSampleEventUrl,
 } from "../../../routing/url";
 import { kTranscriptCollapseScope } from "../types";
+import { useStickyObserver } from "../useStickyObserver";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -32,6 +33,7 @@ interface EventPanelProps {
   childIds?: string[];
   collapsibleContent?: boolean;
   collapseControl?: "top" | "bottom";
+  turnLabel?: string;
 }
 
 interface ChildProps {
@@ -53,6 +55,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   childIds,
   collapsibleContent,
   collapseControl = "top",
+  turnLabel,
 }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(
     kTranscriptCollapseScope,
@@ -86,6 +89,8 @@ export const EventPanel: FC<EventPanelProps> = ({
     },
   );
 
+  const stickyRef = useStickyObserver<HTMLDivElement>();
+
   const gridColumns = [];
 
   // chevron
@@ -110,7 +115,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const toggleCollapse = useCallback(() => {
     setCollapsed(!collapsed);
-  }, [setCollapsed, collapsed, childIds]);
+  }, [setCollapsed, collapsed]);
 
   const [mouseOver, setMouseOver] = useState(false);
 
@@ -118,7 +123,12 @@ export const EventPanel: FC<EventPanelProps> = ({
     title || icon || filteredArrChildren.length > 1 ? (
       <div
         title={subTitle}
-        className={clsx("text-size-small", mouseOver ? styles.hover : "")}
+        className={clsx(
+          "text-size-small",
+          mouseOver ? styles.hover : "",
+          turnLabel ? styles.stickyWrapper : "",
+        )}
+        ref={turnLabel ? stickyRef : null}
         style={{
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
@@ -196,6 +206,9 @@ export const EventPanel: FC<EventPanelProps> = ({
           ) : (
             ""
           )}
+          {turnLabel && (
+            <span className={clsx(styles.turnLabel)}>{turnLabel}</span>
+          )}
         </div>
       </div>
     ) : (
@@ -224,6 +237,9 @@ export const EventPanel: FC<EventPanelProps> = ({
         {filteredArrChildren?.map((child, index) => {
           const id = pillId(index);
           const isSelected = id === selectedNav;
+          if (!isSelected) {
+            return null;
+          }
 
           return (
             <div

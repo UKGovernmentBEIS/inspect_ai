@@ -2,6 +2,7 @@
   --bs-border-radius: 3px;
   --bs-border-radius-lg: 4px;
   --bs-popover-max-width: 50%;
+  --bs-code-color: #8b0000;
   --inspect-find-background: var(--bs-body-bg);
   --inspect-find-foreground: var(--bs-body-color);
   --inspect-input-background: var(--bs-body-bg);
@@ -32,16 +33,36 @@
   --inspect-font-size-small: 0.8rem;
   --inspect-font-size-smaller: 0.8rem;
   --inspect-font-size-smallest: 0.7rem;
+  --inspect-font-size-smallestest: 0.6rem;
 
   /* Inspect Glass */
   --inspect-glass-color: #000000;
   --inspect-glass-opacity: 0.3;
+
+  --inspect-event-panel-sticky-top: 30px;
+  --inspect-event-panel-sticky-margin: -5px -10px -5px 0;
+  --inspect-event-panel-sticky-stuck-margin-left: -22px;
+  --inspect-event-panel-sticky-stuck-margin-right: -10px;
 }
 
 body:not([class^="vscode-"]) button {
   --bs-nav-pills-link-active-bg: #e3eaf1;
   --bs-nav-pills-link-active-color: black;
   --bs-nav-link-color: black;
+}
+
+/* AG Grid Theming */
+body {
+  --ag-background-color: var(--bs-body-bg);
+  --ag-foreground-color: var(--bs-body-color);
+  --ag-header-background-color: var(--bs-light-bg);
+  --ag-header-font-size: var(--inspect-font-size-small);
+  --ag-header-font-weight: 500;
+  --ag-header-text-color: var(--bs-secondary);
+  --ag-font-family: var(--bs-body-font-family);
+  --ag-wrapper-border: none;
+  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
+  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
 }
 
 #app {
@@ -53,7 +74,7 @@ body:not([class^="vscode-"]) button {
   display: grid;
   height: 100vh;
   overflow-y: hidden;
-  grid-template-rows: max-content max-content max-content 1fr;
+  grid-template-rows: max-content max-content 1fr;
 }
 
 a {
@@ -65,7 +86,7 @@ a:hover {
 }
 
 .modal {
-  --bs-modal-margin: 0.5rem;
+  --bs-modal-margin: 0.25rem;
 }
 
 .modal-backdrop {
@@ -126,6 +147,10 @@ a:hover {
   font-size: var(--inspect-font-size-smallest) !important;
 }
 
+.text-size-smallestest {
+  font-size: var(--inspect-font-size-smallestest) !important;
+}
+
 .text-truncate {
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -137,6 +162,7 @@ a:hover {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  max-height: calc(3em * var(--bs-body-line-height));
 }
 
 body[class^="vscode-"] {
@@ -147,7 +173,7 @@ body[class^="vscode-"] {
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
   --bs-light-bg-subtle: var(--vscode-sideBar-background);
-  --bs-light-border-subtle: var(--vscode-sideBarSectionHeader-border);
+  --bs-light-border-subtle: var(--vscode-editorHoverWidget-border);
   --bs-body-color: var(--vscode-editor-foreground);
   --bs-table-color: var(--vscode-editor-foreground);
   --bs-accordion-btn-color: var(--vscode-editor-foreground);
@@ -177,6 +203,10 @@ body[class^="vscode-"] {
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
   --inspect-glass-color: var(--vscode-editor-foreground);
   --inspect-glass-opacity: 0.15;
+  --inspect-event-panel-sticky-top: 25px;
+  --inspect-event-panel-sticky-margin: 0px -10px -5px 0;
+  --inspect-event-panel-sticky-stuck-margin-left: -19px;
+  --inspect-event-panel-sticky-stuck-margin-right: -10px;
 }
 
 html.vscode {
@@ -204,6 +234,21 @@ body[class^="vscode-"] .modal-dialog {
 
 body[class^="vscode-"] .popover-arrow::before {
   border-left-color: var(--bs-border-color) !important;
+}
+
+body[class^="vscode-"]
+  [data-popper-placement^="bottom"]
+  > .popper-arrow-container
+  > div,
+body[class^="vscode-"]
+  [data-popper-placement^="left"]
+  > .popper-arrow-container
+  > div,
+body[class^="vscode-"]
+  [data-popper-placement^="right"]
+  > .popper-arrow-container
+  > div {
+  border-color: transparent transparent var(--bs-card-border-color) !important;
 }
 
 body[class^="vscode-"] .modal-content {
@@ -291,20 +336,20 @@ body[class^="vscode-"] .card {
 }
 
 body[class^="vscode-"] .nav-pills {
-  --bs-nav-pills-link-active-bg: var(--vscode-list-inactiveSelectionBackground);
-  --bs-nav-pills-link-active-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-pills-link-active-bg: var(--vscode-notifications-background);
+  --bs-nav-pills-link-active-color: var(--vscode-notifications-foreground);
 }
 
 body[class^="vscode-"] .nav-link {
-  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
-  --bs-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-color: var(--vscode-notificationLink-foreground);
+  --bs-link-hover-color: var(--vscode-notificationLink-foreground);
 }
 
 body[class^="vscode-"] .nav-link:hover {
-  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
-  --bs-nav-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-color: var(--vscode-notificationLink-foreground);
+  --bs-nav-link-hover-color: var(--vscode-notificationLink-foreground);
   --bs-nav-tabs-link-hover-border-color: var(
-    --vscode-editor-selectionForeground
+    --vscode-notificationLink-foreground
   );
 }
 
@@ -510,7 +555,7 @@ body {
   padding-top: 10em;
 }
 
-code:not(.sourceCode):not(.source-code) {
+code:not(.sourceCode):not(.source-code):not([class^="language-"]) {
   color: var(--bs-code-color);
 }
 
@@ -625,10 +670,10 @@ pre[class*="language-"] {
 .markdown-content h4,
 .markdown-content h5,
 .markdown-content h6 {
-  font-size: 1.3em;
+  font-size: 0.9em;
   font-weight: 600;
   margin-top: 0.25em;
-  margin-bottom: 0.75em;
+  margin-bottom: 0.25em;
 }
 
 .sample-answer .markdown-content h1,
@@ -1158,6 +1203,10 @@ pre[class*="language-"] {
 /* END PrismJS */
 
 /* SVG Icon styles - following Bootstrap Icons pattern */
+.ii:before {
+  background-color: var(--bs-body-color);
+}
+
 .inspect-icon-16::before {
   content: "";
   width: 1em;
@@ -1206,4 +1255,36 @@ pre[class*="language-"] {
   vertical-align: middle;
   mask: url("../img/inspect-home.svg") no-repeat center / contain;
   -webkit-mask: url("../img/inspect-home.svg") no-repeat center / contain;
+}
+
+.inspect-icon-tasks::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: -2px;
+  mask: url("../img/tasks.svg") no-repeat center / contain;
+  -webkit-mask: url("../img/tasks.svg") no-repeat center / contain;
+}
+
+.inspect-flow::before {
+  content: "";
+  margin-top: -4px;
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: middle;
+  mask: url("../img/inspect-flow.svg") no-repeat center / contain;
+  -webkit-mask: url("../img/inspect-flow.svg") no-repeat center / contain;
+}
+
+/* Use this very carefully, find relies upon checking the 
+document selection to determine if it should skip a find match
+so disabling selection can break that functionality */
+.hideSelection {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }

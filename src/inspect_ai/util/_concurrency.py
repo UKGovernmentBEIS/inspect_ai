@@ -1,18 +1,71 @@
 import contextlib
-import time
-from dataclasses import dataclass
-from typing import AsyncIterator
+from collections.abc import Iterable
+from typing import Any, AsyncIterator, Protocol
 
 import anyio
 
-from inspect_ai._util.working import report_sample_waiting_time
+from inspect_ai._util.working import sample_waiting_for
+
+
+class ConcurrencySemaphore(Protocol):
+    """Protocol for concurrency semaphores."""
+
+    name: str
+    concurrency: int
+    semaphore: contextlib.AbstractAsyncContextManager[Any]
+    visible: bool
+
+    @property
+    def value(self) -> int:
+        """Return the number of available tokens in the semaphore."""
+        ...
+
+
+class ConcurrencySemaphoreRegistry(Protocol):
+    """Protocol for managing a registry of concurrency semaphores.
+
+    This abstraction allows plugging in different storage strategies
+    (e.g., local dict vs cross-process shared storage).
+    """
+
+    async def get_or_create(
+        self,
+        name: str,
+        concurrency: int,
+        key: str | None,
+        visible: bool,
+    ) -> ConcurrencySemaphore:
+        """Get existing semaphore or create a new one.
+
+        Args:
+            name: Display name for the semaphore
+            concurrency: Maximum concurrent holders
+            key: Unique key for storage (defaults to name if None)
+            visible: Whether visible in status display
+
+        Returns:
+            The semaphore instance
+        """
+        ...
+
+    def values(self) -> Iterable[ConcurrencySemaphore]:
+        """Return all registered semaphores for status display."""
+        ...
+
+
+async def get_or_create_semaphore(
+    name: str, concurrency: int, key: str | None, visible: bool
+) -> ConcurrencySemaphore:
+    """Get or create a concurrency semaphore.
+
+    Delegates to the global _concurrency_registry.
+    """
+    return await _concurrency_registry.get_or_create(name, concurrency, key, visible)
 
 
 @contextlib.asynccontextmanager
 async def concurrency(
-    name: str,
-    concurrency: int,
-    key: str | None = None,
+    name: str, concurrency: int, key: str | None = None, visible: bool = True
 ) -> AsyncIterator[None]:
     """Concurrency context manager.
 
@@ -39,27 +92,29 @@ async def concurrency(
          Used if the unique key isn't human readable -- e.g. includes
          api tokens or account ids so that the more readable `name`
          can be presented to users e.g in console UI>
+      visible: Should context utilization be visible in the status bar.
     """
     # sort out key
     key = key if key else name
 
     # do we have an existing semaphore? if not create one and store it
-    semaphore = _concurrency_semaphores.get(key, None)
-    if semaphore is None:
-        semaphore = ConcurencySempahore(name, concurrency, anyio.Semaphore(concurrency))
-        _concurrency_semaphores[key] = semaphore
+    semaphore = await get_or_create_semaphore(name, concurrency, key, visible)
 
-    # wait and yield to protected code
-    start_wait = time.monotonic()
-    async with semaphore.semaphore:
-        report_sample_waiting_time(time.monotonic() - start_wait)
+    # wait and yield to protected code (sample_waiting_for tracks concurrent waits
+    # to avoid double-counting overlapping wait times within a sample)
+    async with sample_waiting_for(semaphore.semaphore):
         yield
 
 
 def concurrency_status_display() -> dict[str, tuple[int, int]]:
     status: dict[str, tuple[int, int]] = {}
-    names = [c.name for c in _concurrency_semaphores.values()]
-    for c in _concurrency_semaphores.values():
+    semaphores = list(_concurrency_registry.values())
+    names = [c.name for c in semaphores]
+    for c in semaphores:
+        # respect visibility
+        if not c.visible:
+            continue
+
         # compute name for status display. some resources (e.g. models) use
         # a / prefix. if there are no duplicates of a given prefix then shorten
         # it to be only the prefix (e.g. 'openai' rather than 'openai/gpt-4o')
@@ -71,20 +126,67 @@ def concurrency_status_display() -> dict[str, tuple[int, int]]:
             name = c.name
 
         # status display entry
-        status[name] = (c.concurrency - c.semaphore.value, c.concurrency)
+        status[name] = (c.concurrency - c.value, c.concurrency)
 
     return status
 
 
-def init_concurrency() -> None:
-    _concurrency_semaphores.clear()
+def init_concurrency(
+    registry: ConcurrencySemaphoreRegistry | None = None,
+) -> None:
+    """Initialize the concurrency system with a custom registry.
+
+    Args:
+        registry: A ConcurrencySemaphoreRegistry instance, or None for default local registry.
+    """
+    global _concurrency_registry
+    _concurrency_registry = _AnyIOSemaphoreRegistry() if registry is None else registry
 
 
-@dataclass
-class ConcurencySempahore:
-    name: str
-    concurrency: int
-    semaphore: anyio.Semaphore
+class _AnyIOSemaphoreRegistry:
+    """Default local semaphore registry using anyio.Semaphore."""
+
+    def __init__(self) -> None:
+        self._semaphores: dict[str, ConcurrencySemaphore] = {}
+
+    async def get_or_create(
+        self,
+        name: str,
+        concurrency: int,
+        key: str | None,
+        visible: bool,
+    ) -> ConcurrencySemaphore:
+        k = key if key else name
+        if k in self._semaphores:
+            return self._semaphores[k]
+
+        sem = _create_anyio_semaphore(name, concurrency, visible)
+        self._semaphores[k] = sem
+        return sem
+
+    def values(self) -> Iterable[ConcurrencySemaphore]:
+        return self._semaphores.values()
 
 
-_concurrency_semaphores: dict[str, ConcurencySempahore] = {}
+def _create_anyio_semaphore(
+    name: str, concurrency: int, visible: bool
+) -> ConcurrencySemaphore:
+    """Create a local ConcurrencySemaphore using anyio.Semaphore."""
+
+    class _ConcurrencySemaphore(ConcurrencySemaphore):
+        def __init__(self, name: str, concurrency: int, visible: bool) -> None:
+            self.name = name
+            self.concurrency = concurrency
+            self.visible = visible
+            self._sem = anyio.Semaphore(concurrency)
+            self.semaphore: contextlib.AbstractAsyncContextManager[Any] = self._sem
+
+        @property
+        def value(self) -> int:
+            return self._sem.value
+
+    return _ConcurrencySemaphore(name, concurrency, visible)
+
+
+# Global registry instance
+_concurrency_registry: ConcurrencySemaphoreRegistry = _AnyIOSemaphoreRegistry()

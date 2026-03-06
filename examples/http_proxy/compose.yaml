@@ -1,0 +1,15 @@
+services:
+  default:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    command: tail -f /dev/null
+    environment:
+      # Route all HTTP/HTTPS traffic through the local mitmproxy
+      - HTTP_PROXY=http://localhost:8080
+      - HTTPS_PROXY=http://localhost:8080
+      # Don't proxy localhost (used by sandbox_agent_bridge on port 13131)
+      - NO_PROXY=localhost,127.0.0.1
+    volumes:
+      - ./remap.py:/remap.py:ro

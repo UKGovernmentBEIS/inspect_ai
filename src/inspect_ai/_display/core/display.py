@@ -110,6 +110,7 @@ class TaskDisplayMetric(BaseModel):
     name: str
     value: float | int | None = Field(default=None)
     reducer: str | None = Field(default=None)
+    params: dict[str, Any] | None = Field(default=None)
 
     @field_validator("value", mode="before")
     @classmethod

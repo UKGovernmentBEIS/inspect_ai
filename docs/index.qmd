@@ -16,17 +16,18 @@ Welcome to Inspect, a framework for large language model evaluations created by 
 
 Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
 
-
-::: {.welcome-bullets}
-- A set of straightforward interfaces for implementing evaluations and re-using components across evaluations.
-- Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
-- Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
-- Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents, and agent observability in Inspect View.
-- A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Proxmox, and other systems via an extension API.
+::: welcome-bullets
+-   A set of straightforward interfaces for implementing evaluations and re-using components across evaluations.
+-   A collection of over 100 pre-built evaluations ready to run on any model.
+-   Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
+-   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
+-   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
+-   A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, and other systems via an extension API.
 :::
 
-
 We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Datasets](datasets.qmd), [Solvers](solvers.qmd), [Scorers](scorers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) to learn how to create more advanced evaluations.
+
+If you are primarily interested in running evaluations rather than developing new evaluations, [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) provides implementations for a large collection of popular benchmarks.
 
 ## Getting Started
 
@@ -58,7 +59,7 @@ inspect eval arc.py --model openai/gpt-4o
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
 #### Google
@@ -66,7 +67,7 @@ inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 ``` bash
 pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
-inspect eval arc.py --model google/gemini-1.5-pro
+inspect eval arc.py --model google/gemini-2.5-pro
 ```
 
 #### Grok
@@ -74,7 +75,7 @@ inspect eval arc.py --model google/gemini-1.5-pro
 ``` bash
 pip install openai
 export GROK_API_KEY=your-grok-api-key
-inspect eval arc.py --model grok/grok-beta
+inspect eval arc.py --model grok/grok-3-mini
 ```
 
 #### Mistral
@@ -92,10 +93,9 @@ pip install torch transformers
 export HF_TOKEN=your-hf-token
 inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
-
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama or llama-cpp-python. See the documentation on [Model Providers](providers.qmd) for additional details.
+In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama, llama-cpp-python, TransformerLens, and nnterp. See the documentation on [Model Providers](providers.qmd) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 
@@ -141,7 +141,7 @@ def theory_of_mind():
 
 2.  In this example we are chaining together three standard solver components. It's also possible to create a more complex custom solver that manages state and interactions internally.
 
-3.  Since the output is likely to have pretty involved language, we use a model for scoring.
+3.  Since the output is likely to have natural, nuanced language, we use a model for scoring.
 
 Note that you can provide a *single* solver or multiple solvers chained together as we did here.
 
@@ -153,14 +153,13 @@ inspect eval theory.py --model openai/gpt-4
 
 ![](images/running-theory.png){fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."}
 
-
 ## Evaluation Logs
 
 By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
 
 If you are using VS Code, we recommend installing the [Inspect VS Code Extension](vscode.qmd) and using its integrated log browsing and viewing.
 
-For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically updated when new evals are run):
+For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically update when new evals are run):
 
 ``` bash
 inspect view
@@ -169,7 +168,6 @@ inspect view
 ![](images/inspect-view-home.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."}
 
 See the [Log Viewer](log-viewer.qmd) section for additional details on using Inspect View.
-
 
 ## Eval from Python
 
@@ -198,7 +196,7 @@ Next, review these articles which cover basic workflow, more sophisticated examp
 
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 
--   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.
+-   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.
 
 -   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 
@@ -208,18 +206,17 @@ These sections provide a more in depth treatment of the various components used 
 
 These sections cover defining custom tools as well as Inspect's standard built-in tools:
 
-- [Tool Basics](tools.qmd): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
+-   [Tool Basics](tools.qmd): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
 
-- [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
+-   [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
-- [MCP Tools](tools-mcp.qmd) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+-   [MCP Tools](tools-mcp.qmd) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
-- [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
+-   [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 
-- [Sandboxing](sandboxing.qmd) enables you to isolate code generated by models as well as set up more complex computing environments for tasks. 
+-   [Sandboxing](sandboxing.qmd) enables you to isolate code generated by models as well as set up more complex computing environments for tasks.
 
-- [Tool Approval](approval.qmd) enables you to create fine-grained policies for approving tool calls made by models.
-
+-   [Tool Approval](approval.qmd) enables you to create fine-grained policies for approving tool calls made by models.
 
 These sections cover how to use various language models with Inspect:
 
@@ -229,24 +226,27 @@ These sections cover how to use various language models with Inspect:
 
 -   [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
 
+-   [Compaction](compaction.qmd) covers compacting message histories for long-running agents that exceed the context window.
+
 -   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
- 
--   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
 
+-   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
+
+-   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
 
 These sections describe how to create agent evaluations with Inspect:
 
 -   [Agents](agents.qmd) combine planning, memory, and tool usage to pursue more complex, longer horizon tasks. This articles covers the basics of using agents in evaluations.
 
--   [ReAct Agent](react-agent.qmd) provides details on using and customizing the built-in ReAct agent.  
+-   [ReAct Agent](react-agent.qmd) provides details on using and customizing the built-in ReAct agent.
 
 -   [Multi Agent](multi-agent.qmd) covers various ways to compose agents together in multi-agent architectures.
 
 -   [Custom Agents](agent-custom.qmd) describes advanced Inspect APIs available for creating custom agents.
 
--   [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.
+-   [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI with Inspect.
 
 -   [Human Agent](human-agent.qmd) is a solver that enables human baselining on computing tasks.
 
@@ -258,12 +258,9 @@ These sections outline how to analyze data generated from evaluations:
 
 These sections discuss more advanced features and workflows. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
-
 -   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
 -   [Errors and Limits](errors-and-limits.qmd) covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
-
--   [Multimodal](multimodal.qmd) documents the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 
@@ -274,5 +271,7 @@ These sections discuss more advanced features and workflows. You don't need to r
 -   [Parallelism](parallelism.qmd) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
 
 -   [Interactivity](interactivity.qmd) covers various ways to introduce user interaction into the implementation of tasks (for example, prompting the model dynamically based on the trajectory of the evaluation).
+
+-   [Early Stopping](early-stopping.qmd) describes the early stopping API for ending tasks early based on previously scored samples.
 
 -   [Extensions](extensions.qmd) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).

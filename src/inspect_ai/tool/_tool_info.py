@@ -49,7 +49,7 @@ class ToolInfo(BaseModel):
     """Short description of tool."""
     parameters: ToolParams = Field(default_factory=ToolParams)
     """JSON Schema of tool parameters object."""
-    options: dict[str, object] | None = Field(default=None)
+    options: dict[str, Any] | None = Field(default=None)
     """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
 
 
@@ -67,12 +67,21 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             parameters=description.parameters,
         )
 
+    # get_type_hints requires a function, method, module, or class
+    # For callable instances (objects with __call__),
+    # resolve type hints from the __call__ method instead.
+    if inspect.isfunction(func) or inspect.ismethod(func):
+        type_hints = get_type_hints(func)
+        func_name = func.__name__
+    else:
+        type_hints = get_type_hints(type(func).__call__)
+        func_name = type(func).__name__
+
     signature = inspect.signature(func)
-    type_hints = get_type_hints(func)
     docstring = inspect.getdoc(func)
     parsed_docstring: Docstring | None = parse(docstring) if docstring else None
 
-    info = ToolInfo(name=func.__name__, description="")
+    info = ToolInfo(name=func_name, description="")
 
     for param_name, param in signature.parameters.items():
         tool_param = ToolParam()

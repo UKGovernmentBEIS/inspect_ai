@@ -8,8 +8,11 @@ title: "inspect_ai.model"
 ### Model
 ### GenerateConfig
 ### GenerateConfigArgs
+### GenerateFilter
+### BatchConfig
 ### ResponseSchema
 ### ModelOutput
+### ModelConfig
 ### ModelCall
 ### ModelConversation
 ### ModelUsage
@@ -25,6 +28,8 @@ title: "inspect_ai.model"
 ### ChatMessageAssistant
 ### ChatMessageTool
 ### trim_messages
+### user_prompt
+### stable_message_ids
 
 ## Content
 
@@ -34,7 +39,9 @@ title: "inspect_ai.model"
 ### ContentImage
 ### ContentAudio
 ### ContentVideo
+### ContentDocument
 ### ContentData
+### ContentToolUse
 
 ## Citation
 
@@ -48,6 +55,26 @@ title: "inspect_ai.model"
 
 ### execute_tools
 ### ExecuteToolsResult
+
+## Compaction
+
+### compaction
+### Compact
+### CompactionStrategy
+### CompactionAuto
+### CompactionNative
+### CompactionEdit
+### CompactionSummary
+### CompactionTrim
+
+
+## Model Info
+
+### get_model_info
+### set_model_info
+### set_model_cost
+### ModelInfo
+### ModelCost
 
 ## Logprobs
 
@@ -63,6 +90,18 @@ title: "inspect_ai.model"
 ### cache_list_expired
 ### cache_prune
 ### cache_path
+
+## Conversion
+
+### messages_from_openai
+### messages_from_openai_responses
+### messages_from_anthropic
+### messages_from_google
+### model_output_from_openai
+### model_output_from_openai_responses
+### model_output_from_anthropic
+### model_output_from_google
+### messages_to_openai
 
 ## Provider
 

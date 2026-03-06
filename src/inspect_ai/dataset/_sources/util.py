@@ -1,6 +1,12 @@
 from typing import Callable
 
-from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentVideo
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentVideo,
+)
 from inspect_ai._util.file import filesystem
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -87,5 +93,7 @@ def chat_content_with_resolved_content(
         return ContentAudio(audio=resolver(content.audio), format=content.format)
     elif isinstance(content, ContentVideo):
         return ContentVideo(video=resolver(content.video), format=content.format)
+    elif isinstance(content, ContentDocument):
+        return content.model_copy(update=dict(document=resolver(content.document)))
     else:
         return content

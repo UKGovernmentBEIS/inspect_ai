@@ -2,7 +2,7 @@ from argparse import Namespace
 from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -15,8 +15,11 @@ from .command import HumanAgentCommand, call_human_agent
 
 
 class InstructionsCommand(HumanAgentCommand):
-    def __init__(self, commands: list[HumanAgentCommand]) -> None:
+    def __init__(
+        self, commands: list[HumanAgentCommand], instructions: str | None
+    ) -> None:
         self._commands = commands.copy() + [self]
+        self._instructions = instructions
 
     @property
     def name(self) -> str:
@@ -51,8 +54,12 @@ class InstructionsCommand(HumanAgentCommand):
             for i in range(1, 4):
                 add_command_group(i)
 
+            header_content: list[RenderableType] = [intro, commands_table]
+            if self._instructions:
+                header_content.extend(["", self._instructions])
+
             header_panel = Panel(
-                Group(intro, commands_table),
+                Group(*header_content),
                 title=Text.from_markup("[bold]Human Agent Task[/bold]"),
                 box=DOUBLE_LINE,
                 padding=(0, 0),

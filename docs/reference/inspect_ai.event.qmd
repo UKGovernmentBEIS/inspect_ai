@@ -1,0 +1,54 @@
+---
+title: "inspect_ai.event"
+---
+
+## Core Events
+
+### ModelEvent
+### ToolEvent
+### CompactionEvent
+### ApprovalEvent
+### SandboxEvent
+### InfoEvent
+### ScoreEvent
+### LoggerEvent
+### ErrorEvent
+### SpanBeginEvent
+### SpanEndEvent
+
+## Event Tree
+
+### event_tree
+### event_sequence
+### EventTree
+### EventTreeSpan
+### EventTreeNode
+
+## Timeline
+
+### timeline_build
+### timeline_dump
+### timeline_filter
+### timeline_load
+### Timeline
+### TimelineBranch
+### TimelineEvent
+### TimelineSpan
+### Outline
+### OutlineNode
+
+## Eval Events
+
+### SampleInitEvent
+### SampleLimitEvent
+### StateEvent
+### StoreEvent
+### InputEvent
+
+### ScoreEditEvent
+
+## Types
+
+### LoggingLevel
+### LoggingMessage
+

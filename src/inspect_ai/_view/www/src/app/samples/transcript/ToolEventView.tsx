@@ -1,6 +1,9 @@
 import { ApprovalEvent, ModelEvent, ToolEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
-import { resolveToolInput } from "../chat/tools/tool";
+import {
+  resolveToolInput,
+  substituteToolCallContent,
+} from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
@@ -9,7 +12,8 @@ import clsx from "clsx";
 import { FC, useMemo } from "react";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { ChatView } from "../chat/ChatView";
-import { formatTiming, formatTitle } from "./event/utils";
+import { EventNodeContext } from "./TranscriptVirtualList";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 import { EventNode, EventType } from "./types";
 
@@ -17,6 +21,7 @@ interface ToolEventViewProps {
   eventNode: EventNode<ToolEvent>;
   children: EventNode<EventType>[];
   className?: string | string[];
+  context?: EventNodeContext;
 }
 
 /**
@@ -26,11 +31,16 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   eventNode,
   children,
   className,
+  context,
 }) => {
   const event = eventNode.event;
 
+  const turnLabel = context?.turnInfo
+    ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
+    : undefined;
+
   // Extract tool input
-  const { input, functionCall, highlightLanguage } = useMemo(
+  const { input, description, functionCall, contentType } = useMemo(
     () => resolveToolInput(event.function, event.arguments),
     [event.function, event.arguments],
   );
@@ -50,29 +60,37 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       approvalNode: approvalNode as EventNode<ApprovalEvent> | undefined,
       lastModelNode: lastModelNode as EventNode<ModelEvent> | undefined,
     };
-  }, [event.events]);
+  }, [children]);
 
-  const title = `Tool: ${event.view?.title || event.function}`;
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={formatTitle(title, undefined, event.working_time)}
+      title={formatTitle(eventTitle(event), undefined, event.working_time)}
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
       childIds={children.map((child) => child.id)}
       collapseControl="bottom"
+      turnLabel={turnLabel}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
           id={`${eventNode.id}-tool-call`}
           functionCall={functionCall}
           input={input}
-          highlightLanguage={highlightLanguage}
+          description={description}
+          contentType={contentType}
           output={event.error?.message || event.result}
           mode="compact"
-          view={event.view ? event.view : undefined}
+          view={
+            event.view
+              ? substituteToolCallContent(
+                  event.view,
+                  event.arguments as Record<string, unknown>,
+                )
+              : undefined
+          }
         />
 
         {lastModelNode ? (
@@ -81,6 +99,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
             messages={lastModelNode.event.output.choices.map((m) => m.message)}
             numbered={false}
             toolCallStyle="compact"
+            allowLinking={false}
           />
         ) : undefined}
 

@@ -14,7 +14,8 @@ from typing_extensions import override
 from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.platform import running_in_notebook
-from inspect_ai.log._transcript import InputEvent, transcript
+from inspect_ai.event._input import InputEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.util._display import display_type
 from inspect_ai.util._throttle import throttle
 

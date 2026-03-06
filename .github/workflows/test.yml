@@ -1,0 +1,87 @@
+# This workflow must exist on the default branch to enable GitHub's Web UI and API
+# to trigger workflow runs. The typical development process is to edit this file on
+# a feature branch, then use the Web UI/API to target and test the branch version.
+name: File Management Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Select mode'
+        required: true
+        default: 'create'
+        type: choice
+        options:
+          - create
+          - upload
+      file_name:
+        description: 'File name (for create mode)'
+        required: false
+        type: string
+      action_run_id:
+        description: 'Action run ID (for upload mode)'
+        required: false
+        type: string
+
+jobs:
+  create-and-store:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.mode == 'create' }}
+
+    steps:
+      - name: Create file
+        run: |
+          echo "hello there" > "${{ inputs.file_name }}"
+          echo "Created file: ${{ inputs.file_name }}"
+          cat "${{ inputs.file_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: created-file
+          path: ${{ inputs.file_name }}
+
+  retrieve-and-upload:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.mode == 'upload' }}
+
+    steps:
+      - name: Download artifact from run
+        uses: actions/download-artifact@v5
+        with:
+          name: created-file
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.action_run_id }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Upload to S3 with public read access
+        run: |
+          for file in *; do
+            if [ -f "$file" ]; then
+              aws s3 cp "$file" s3://inspect-tool-support/"$file" --acl public-read
+              echo "File uploaded to: s3://inspect-tool-support/$file"
+            fi
+          done
+
+      - name: Verify upload
+        run: |
+          for file in *; do
+            if [ -f "$file" ]; then
+              aws s3 cp s3://inspect-tool-support/"$file" "downloaded_$file"
+              echo "Downloaded file contents for $file:"
+              cat "downloaded_$file"
+              echo "Verifying file contents match expected..."
+              if [ "$(cat "downloaded_$file")" = "hello there" ]; then
+                echo "✓ File contents verified successfully for $file"
+              else
+                echo "✗ File contents do not match expected for $file"
+                exit 1
+              fi
+            fi
+          done

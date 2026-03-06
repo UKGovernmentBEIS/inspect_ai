@@ -21,6 +21,7 @@ def failing_solver(fail: Callable[[TaskState], bool] = lambda state: True):
 def create_failing_task(
     samples: int,
     fail_on_error: bool | float | None,
+    continue_on_fail: bool | None = None,
     fail: Callable[[TaskState], bool] = lambda s: True,
 ):
     dataset: list[Sample] = []
@@ -31,15 +32,17 @@ def create_failing_task(
         dataset=dataset,
         solver=[failing_solver(fail), generate()],
         fail_on_error=fail_on_error,
+        continue_on_fail=continue_on_fail,
     )
 
 
 def eval_failing_task(
     samples: int,
     fail_on_error: bool | float | None,
+    continue_on_fail: bool | None = None,
     fail: Callable[[TaskState], bool] = lambda s: True,
 ):
-    task = create_failing_task(samples, fail_on_error, fail)
+    task = create_failing_task(samples, fail_on_error, continue_on_fail, fail)
     return eval(task, model="mockllm/model")[0]
 
 
@@ -53,6 +56,14 @@ def test_no_fail_on_error():
     assert log.status == "success"
 
 
+def test_continue_on_fail():
+    log = eval_failing_task(
+        2, True, continue_on_fail=True, fail=lambda state: state.sample_id == 1
+    )
+    assert log.status == "error"
+    assert log.results.completed_samples == 1
+
+
 def test_fail_on_num_errors():
     log = eval_failing_task(
         samples=10, fail_on_error=4, fail=lambda state: state.sample_id < 5
@@ -60,6 +71,25 @@ def test_fail_on_num_errors():
     assert log.status == "error"
     log = eval_failing_task(
         samples=10, fail_on_error=4, fail=lambda state: state.sample_id < 3
+    )
+    assert log.results.completed_samples == 8
+    assert log.status == "success"
+
+
+def test_fail_on_num_errors_continue_on_fail():
+    log = eval_failing_task(
+        samples=10,
+        fail_on_error=4,
+        continue_on_fail=True,
+        fail=lambda state: state.sample_id < 5,
+    )
+    assert log.results.completed_samples == 6
+    assert log.status == "error"
+    log = eval_failing_task(
+        samples=10,
+        fail_on_error=4,
+        continue_on_fail=True,
+        fail=lambda state: state.sample_id < 3,
     )
     assert log.results.completed_samples == 8
     assert log.status == "success"
@@ -77,11 +107,39 @@ def test_fail_on_pct_errors():
     assert log.status == "success"
 
 
+def test_fail_on_pct_errors_continue_on_fail():
+    log = eval_failing_task(
+        samples=10,
+        fail_on_error=0.35,
+        continue_on_fail=True,
+        fail=lambda state: state.sample_id < 5,
+    )
+    assert log.results.completed_samples == 6
+    assert log.status == "error"
+    log = eval_failing_task(
+        samples=10,
+        fail_on_error=0.7,
+        continue_on_fail=True,
+        fail=lambda state: state.sample_id < 7,
+    )
+    assert log.results.completed_samples == 4
+    assert log.status == "success"
+
+
 def test_fail_on_error_override():
     task = create_failing_task(
         samples=10, fail_on_error=0.7, fail=lambda state: state.sample_id < 7
     )
     log = eval(task, fail_on_error=0.6, model="mockllm/model")[0]
+    assert log.status == "error"
+
+
+def test_continue_on_fail_override():
+    task = create_failing_task(
+        samples=10, fail_on_error=True, fail=lambda state: state.sample_id < 7
+    )
+    log = eval(task, continue_on_fail=True, model="mockllm/model")[0]
+    assert log.results.completed_samples == 4
     assert log.status == "error"
 
 

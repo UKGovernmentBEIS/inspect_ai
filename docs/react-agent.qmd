@@ -12,6 +12,8 @@ The `react()` agent provides the following built-in capabilities:
 
 2.  It optionally supports multiple `attempts` by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).
 
+3. It can take advantage of message history [compaction](compaction.qmd) for long-running tasks that overflow the context window.
+
 You can customise the `react()` agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a "best of n" multi-generation strategy).
 
 ### Example
@@ -21,7 +23,7 @@ For example, here is a simple `ctf_agent()`:
 ``` python
 from textwrap import dedent
 from inspect_ai.agent import Agent, agent, react
-from inspect_ai.tool import bash_session, text_editor
+from inspect_ai.tool import bash, text_editor
 
 @agent
 def ctf_agent(attempts=3) -> Agent:
@@ -35,7 +37,7 @@ def ctf_agent(attempts=3) -> Agent:
     return react(
         description="Expert at completing cybersecurity challenges.",
         prompt=PROMPT,
-        tools=[bash_session(), text_editor()],
+        tools=[bash(), text_editor()],
         attempts=attempts,
     )
 ```
@@ -58,7 +60,7 @@ task = Task(
 eval(task, model="openai/gpt-4o")
 ```
 
-### Prompt
+## Prompt
 
 In the examples above we provide a `prompt` to the agent. This prompt is layered with other default prompt(s) to compose the final system prompt. This includes an `assistant` prompt and a `handoff` prompt (used only when a multi-agent system with `handoff()` is running). Here is the default `assistant` prompt:
 
@@ -83,14 +85,30 @@ react(
     description="Expert at completing cybersecurity challenges.",
     prompt=AgentPrompt(
         instructions=PROMPT,
-        assistant="<custom assistant prompt>"
+        assistant_prompt="<custom assistant prompt>"
     ),
-    tools=[bash_session(), text_editor()],
+    tools=[bash(), text_editor()],
     attempts=attempts,
 )
 ```
 
-### Attempts
+Note that if you want to provide the entire prompt (suppressing all default prompts) then pass an instance of `AgentPrompt` with `instructions` and the other parts of the default prompt you want to exclude set to `None`. For example:
+
+``` python
+react(
+    description="Expert at completing cybersecurity challenges.",
+    prompt=AgentPrompt(
+        instructions=PROMPT,
+        handoff_prompt=None,
+        assistant_prompt=None,
+        submit_prompt=None
+    ),
+    tools=[bash(), text_editor()],
+    attempts=attempts,
+)
+```
+
+## Attempts
 
 When using a `submit()` tool, the `react()` agent is allowed a single attempt by default. If you want to give it multiple attempts, pass another value to `attempts`:
 
@@ -103,7 +121,47 @@ react(
 
 Submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. You can further customize how `attempts` works by passing an instance of `AgentAttempts` rather than an integer (this enables you to set a custom incorrect message, including a dynamically generated one, and also lets you customize how score values are converted to a numeric scale).
 
-### Continuation
+## Compaction
+
+[Compaction](compaction.qmd) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the `compaction()` function along with a compaction strategy to incorporate compaction into a react agent. For example:
+
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit, CompactionSummary
+from inspect_ai.tool import bash, text_editor
+
+# edit compaction
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionEdit(keep_tool_uses=3)
+)
+
+# summary compaction
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionSummary(threshold=0.8)
+)
+```
+
+One important thing to note about compaction is that it affects only the input that the model sees---the core history with all messages is still retained by agents when using compaction.
+
+There are various configurable compaction strategies available---see the [Compaction](compaction.qmd) documentation for details.
+
+## Refusals
+
+In some cases models refuse requests and simply retrying will result in a successful completion (this might be the case if requests are near the decision boundary of a filter). To provide some resilience against this you can specify the `retry_refusals` option. For example:
+
+``` python
+react(
+    ...
+    retry_refusals=3,
+)
+```
+
+Retries will be triggered when `ModelOutput` has a `stop_reason` of "content_filter".
+
+## Continuation
 
 In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the `submit()` tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call `submit()` or alternatively continue if they haven't yet completed the task.
 
@@ -125,9 +183,10 @@ You can pass a different continuation message, or alternatively pass an `AgentCo
   - `True`: Agent loop continues with no messages appended.
   - `False`: Agent loop is exited early.
   - `str`: Agent loop continues and the returned user message will be appended regardless of whether a tool call was made in the previous assistant message. If your custom function only wants to append a message when there are no tool calls made then you should check `state.output.message.tool_calls` explicitly (returning `True` rather than `str` when you want no message appended).
+  - `AgentState`: Agent loop continues and the agent state is updated to the returned value.
 
 
-### Submit Tool
+## Submit Tool
 
 As described above, the `react()` agent uses a special `submit()` tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a `submit()` tool has a couple of benefits:
 
@@ -146,7 +205,7 @@ react(
 
 By default, disabling the submit tool will result in the agent terminating when it stops calling tools. Alternatively, you can manually control termination by providing a custom [on_continue](#continuation) handler. 
 
-### Truncation
+## Truncation
 
 If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.
 
@@ -161,7 +220,7 @@ The default `"auto"` truncation scheme calls the `trim_messages()` function with
 
 Note that if you enable truncation then a [message limit](errors-and-limits.qmd#message-limit) may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a [time limit](errors-and-limits.qmd#time-limit) and/or [token limit](errors-and-limits.qmd#token-limit).
 
-### Model
+## Model
 
 The `model` parameter to `react()` agent lets you specify an alternate model to use for the agent loop (if not specified then the default model for the evaluation is used). In some cases you might want to do something fancier than just call a model (e.g. do a "best of n" sampling an pick the best response). Pass a `Agent` as the `model` parameter to implement this type of custom scheme. For example:
 

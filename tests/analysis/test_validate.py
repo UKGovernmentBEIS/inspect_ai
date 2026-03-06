@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from jsonpath_ng.ext import parse  # type: ignore
 
-from inspect_ai.analysis.beta._dataframe.validate import (
+from inspect_ai.analysis._dataframe.validate import (
     Schema,
     jsonpath_in_schema,
     resolved_schema,

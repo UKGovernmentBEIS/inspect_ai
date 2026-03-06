@@ -10,12 +10,19 @@ import {
 import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
+import {
+  ExtendedFindFn,
+  ExtendedCountFn,
+  useExtendedFind,
+} from "./ExtendedFindContext";
 import { PulsingDots } from "./PulsingDots";
 
 import styles from "./LiveVirtualList.module.css";
 
 interface LiveVirtualListProps<T> {
   id: string;
+  listHandle: RefObject<VirtuosoHandle | null>;
+
   className?: string | string[];
 
   // The scroll ref to use for the virtual list
@@ -40,6 +47,11 @@ interface LiveVirtualListProps<T> {
   offsetTop?: number;
 
   components?: Components<T>;
+
+  // Optional function to extract searchable text from data items
+  // If not provided, will use JSON.stringify as fallback
+  // Return a string or array of strings to search within
+  itemSearchText?: (item: T) => string | string[];
 }
 
 /**
@@ -47,6 +59,7 @@ interface LiveVirtualListProps<T> {
  */
 export const LiveVirtualList = <T,>({
   id,
+  listHandle,
   className,
   data,
   renderRow,
@@ -56,13 +69,15 @@ export const LiveVirtualList = <T,>({
   initialTopMostItemIndex,
   offsetTop,
   components,
+  itemSearchText,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
-  const listHandle = useRef<VirtuosoHandle>(null);
-  const { getRestoreState, isScrolling } = useVirtuosoState(
-    listHandle,
-    `live-virtual-list-${id}`,
-  );
+  const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
+    useVirtuosoState(listHandle, `live-virtual-list-${id}`);
+
+  const { registerVirtualList, registerMatchCounter } = useExtendedFind();
+  const pendingSearchCallback = useRef<(() => void) | null>(null);
+  const [isCurrentlyScrolling, setIsCurrentlyScrolling] = useState(false);
 
   // Track whether we're following output
   const [followOutput, setFollowOutput] = useProperty<boolean | null>(
@@ -80,7 +95,7 @@ export const LiveVirtualList = <T,>({
     if (followOutput === null) {
       setFollowOutput(!!live);
     }
-  }, []);
+  }, [followOutput, live, setFollowOutput]);
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -96,7 +111,7 @@ export const LiveVirtualList = <T,>({
         }
       }, 100);
     }
-  }, [live, followOutput]);
+  }, [live, followOutput, prevLive, scrollRef, setFollowOutput]);
 
   const handleScroll = useRafThrottle(() => {
     // Skip processing if auto-scrolling is in progress
@@ -131,8 +146,10 @@ export const LiveVirtualList = <T,>({
         }
       });
     },
-    [scrollRef, followOutput, live],
+    [followOutput, live, scrollRef, listHandle],
   );
+
+  const forceUpdate = useCallback(() => forceRender({}), []);
 
   useEffect(() => {
     // Force a re-render after initial mount
@@ -144,10 +161,155 @@ export const LiveVirtualList = <T,>({
       forceUpdate();
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [forceUpdate]);
 
   const [, forceRender] = useState({});
-  const forceUpdate = useCallback(() => forceRender({}), []);
+
+  // Default function to extract searchable text using JSON.stringify
+  const defaultItemSearchText = useCallback((item: T): string => {
+    try {
+      return JSON.stringify(item);
+    } catch {
+      return "";
+    }
+  }, []);
+
+  // Search within a single text string
+  const searchInText = useCallback(
+    (text: string, searchTerm: string): boolean => {
+      const lowerText = text.toLowerCase();
+      const prepared = prepareSearchTerm(searchTerm);
+
+      // Simple search
+      if (lowerText.includes(prepared.simple)) {
+        return true;
+      }
+
+      // Check variations
+      if (prepared.unquoted && lowerText.includes(prepared.unquoted)) {
+        return true;
+      }
+
+      if (prepared.jsonEscaped && lowerText.includes(prepared.jsonEscaped)) {
+        return true;
+      }
+
+      return false;
+    },
+    [],
+  );
+
+  // Search within an item using itemSearchText
+  const searchInItem = useCallback(
+    (item: T, searchTerm: string): boolean => {
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+      const texts = getSearchText(item);
+      const textArray = Array.isArray(texts) ? texts : [texts];
+
+      return textArray.some((text) => searchInText(text, searchTerm));
+    },
+    [itemSearchText, defaultItemSearchText, searchInText],
+  );
+
+  const scrollToMatch = useCallback(
+    (index: number, onContentReady: () => void) => {
+      pendingSearchCallback.current = onContentReady;
+
+      listHandle.current?.scrollToIndex({
+        index,
+        behavior: "auto",
+        align: "center",
+      });
+
+      setTimeout(() => {
+        if (pendingSearchCallback.current === onContentReady) {
+          pendingSearchCallback.current = null;
+          onContentReady();
+        }
+      }, 200);
+    },
+    [listHandle],
+  );
+
+  const searchInData: ExtendedFindFn = useCallback(
+    async (
+      term: string,
+      direction: "forward" | "backward",
+      onContentReady: () => void,
+    ) => {
+      if (!data.length || !term) return false;
+
+      const isForward = direction === "forward";
+      const currentIndex = isForward
+        ? visibleRange.endIndex
+        : visibleRange.startIndex;
+
+      // Search from current position to end, then wrap from beginning to current position
+      const len = data.length;
+      for (let offset = 1; offset < len; offset++) {
+        const i = isForward
+          ? (currentIndex + offset) % len
+          : (currentIndex - offset + len) % len;
+
+        // Skip items already in the visible range (window.find already checked them)
+        if (i >= visibleRange.startIndex && i <= visibleRange.endIndex)
+          continue;
+
+        if (searchInItem(data[i], term)) {
+          scrollToMatch(i, onContentReady);
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [
+      data,
+      searchInItem,
+      visibleRange.endIndex,
+      visibleRange.startIndex,
+      scrollToMatch,
+    ],
+  );
+
+  const countMatchesInData: ExtendedCountFn = useCallback(
+    (term: string): number => {
+      if (!term || !data.length) return 0;
+      const lower = term.toLowerCase();
+      let total = 0;
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+
+      for (const item of data) {
+        const texts = getSearchText(item);
+        const textArray = Array.isArray(texts) ? texts : [texts];
+        for (const text of textArray) {
+          const lowerText = text.toLowerCase();
+          let pos = 0;
+          while ((pos = lowerText.indexOf(lower, pos)) !== -1) {
+            total++;
+            pos += lower.length;
+          }
+        }
+      }
+      return total;
+    },
+    [data, itemSearchText, defaultItemSearchText],
+  );
+
+  useEffect(() => {
+    const unregisterSearch = registerVirtualList(id, searchInData);
+    const unregisterCount = registerMatchCounter(id, countMatchesInData);
+    return () => {
+      unregisterSearch();
+      unregisterCount();
+    };
+  }, [
+    id,
+    registerVirtualList,
+    registerMatchCounter,
+    searchInData,
+    countMatchesInData,
+  ]);
 
   const Footer = () => {
     return showProgress ? (
@@ -167,6 +329,7 @@ export const LiveVirtualList = <T,>({
   }, [scrollRef, handleScroll]);
 
   // Scroll to index when component mounts or targetIndex changes
+  const hasScrolled = useRef(false);
   useEffect(() => {
     if (initialTopMostItemIndex !== undefined && listHandle.current) {
       // If there is an initial index, scroll to it after a short delay
@@ -174,14 +337,36 @@ export const LiveVirtualList = <T,>({
         listHandle.current?.scrollToIndex({
           index: initialTopMostItemIndex,
           align: "start",
-          behavior: "smooth",
+          behavior: !hasScrolled.current ? "auto" : "smooth",
           offset: offsetTop ? -offsetTop : undefined,
         });
+        hasScrolled.current = true;
       }, 50);
-
       return () => clearTimeout(timer);
     }
-  }, [initialTopMostItemIndex]);
+  }, [initialTopMostItemIndex, listHandle, offsetTop]);
+
+  // Watch for scrolling to stop and trigger pending search callback
+  useEffect(() => {
+    if (!isCurrentlyScrolling && pendingSearchCallback.current) {
+      // Add a delay to ensure DOM is fully updated after scrolling stops
+      setTimeout(() => {
+        const callback = pendingSearchCallback.current;
+        pendingSearchCallback.current = null;
+        callback?.();
+      }, 100);
+    }
+  }, [isCurrentlyScrolling]);
+
+  // Custom scrolling state callback
+  const handleScrollingChange = useCallback(
+    (scrolling: boolean) => {
+      setIsCurrentlyScrolling(scrolling);
+      // Also call the original isScrolling callback from useVirtuosoState
+      isScrolling(scrolling);
+    },
+    [isScrolling],
+  );
 
   return (
     <Virtuoso
@@ -189,12 +374,16 @@ export const LiveVirtualList = <T,>({
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       style={{ height: "100%", width: "100%" }}
       data={data}
-      defaultItemHeight={250}
+      defaultItemHeight={500}
       itemContent={renderRow}
       increaseViewportBy={{ top: 1000, bottom: 1000 }}
-      overscan={{ main: 2, reverse: 2 }}
+      overscan={{ main: 5, reverse: 5 }}
       className={clsx("transcript", className)}
-      isScrolling={isScrolling}
+      isScrolling={handleScrollingChange}
+      rangeChanged={(range) => {
+        setVisibleRange(range);
+      }}
+      skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
       totalListHeightChanged={heightChanged}
       components={{
@@ -203,4 +392,28 @@ export const LiveVirtualList = <T,>({
       }}
     />
   );
+};
+
+type PreparedSearchTerms = {
+  simple: string;
+  unquoted?: string;
+  jsonEscaped?: string;
+};
+
+const prepareSearchTerm = (term: string): PreparedSearchTerms => {
+  const lower = term.toLowerCase();
+
+  // No special characters that need JSON handling
+  if (!term.includes('"') && !term.includes(":")) {
+    return { simple: lower };
+  }
+
+  // Generate variations for JSON-like syntax
+  return {
+    simple: lower,
+    // Remove quotes
+    unquoted: lower.replace(/"/g, ""),
+    // Escape quotes for JSON
+    jsonEscaped: lower.replace(/"/g, '\\"'),
+  };
 };

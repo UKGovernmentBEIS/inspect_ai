@@ -16,6 +16,7 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
 from inspect_ai._view.server import view_server
 
+from .fastapi_prereqs import verify_fastapi_prerequisites
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -51,28 +52,41 @@ def view(
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # acquire the requested port
-    view_acquire_port(port)
+    view_acquire_port(view_data_dir(), port)
 
     # run server
-    view_server(
-        log_dir=log_dir,
-        recursive=recursive,
-        host=host,
-        port=port,
-        authorization=authorization,
-        fs_options=fs_options,
-    )
+    if os.getenv("INSPECT_VIEW_FASTAPI_SERVER"):
+        verify_fastapi_prerequisites()
+        from .fastapi_server import view_server as fastapi_view_server
+
+        fastapi_view_server(
+            log_dir=log_dir,
+            recursive=recursive,
+            host=host,
+            port=port,
+            authorization=authorization,
+            fs_options=fs_options,
+        )
+    else:
+        view_server(
+            log_dir=log_dir,
+            recursive=recursive,
+            host=host,
+            port=port,
+            authorization=authorization,
+            fs_options=fs_options,
+        )
 
 
-def view_port_pid_file(port: int) -> Path:
-    ports_dir = view_data_dir() / "ports"
+def view_port_pid_file(app_dir: Path, port: int) -> Path:
+    ports_dir = app_dir / "ports"
     ports_dir.mkdir(parents=True, exist_ok=True)
     return ports_dir / str(port)
 
 
-def view_acquire_port(port: int) -> None:
+def view_acquire_port(app_dir: Path, port: int) -> None:
     # pid file name
-    pid_file = view_port_pid_file(port)
+    pid_file = view_port_pid_file(app_dir, port)
 
     # does it already exist? if so terminate that process
     if pid_file.exists():
@@ -82,9 +96,7 @@ def view_acquire_port(port: int) -> None:
         try:
             p = psutil.Process(pid)
             p.terminate()
-            display().print(
-                f"Terminating existing inspect view command using port {port}"
-            )
+            display().print(f"Terminating existing view command using port {port}")
             p.wait(WAIT_SECONDS)
 
         except psutil.NoSuchProcess:

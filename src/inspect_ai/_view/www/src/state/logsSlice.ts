@@ -1,58 +1,91 @@
+import { GridState } from "ag-grid-community";
+import { EvalSet } from "../@types/log";
+import { DisplayedSample, LogsState } from "../app/types";
 import {
-  ColumnFiltersState,
-  ColumnResizeMode,
-  SortingState,
-} from "@tanstack/react-table";
-import { EvalLog } from "../@types/log";
-import { LogsState } from "../app/types";
-import { EvalLogHeader, LogFile, LogFiles } from "../client/api/types";
+  EvalHeader,
+  LogDetails,
+  LogHandle,
+  LogPreview,
+} from "../client/api/types";
+import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
+import { isUri, join } from "../utils/uri";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
-
-const kEmptyLogs: LogFiles = {
-  log_dir: "",
-  files: [],
-};
 
 export interface LogsSlice {
   logs: LogsState;
   logsActions: {
     // Update State
-    setLogs: (logs: LogFiles) => void;
-    setLogHeaders: (headers: Record<string, EvalLogHeader>) => void;
-    loadHeaders: (logs: LogFile[]) => Promise<EvalLog[]>;
-    setHeadersLoading: (loading: boolean) => void;
-    setSelectedLogIndex: (index: number) => void;
-    setSelectedLogFile: (logUrl: string) => void;
-    updateLogHeaders: (headers: Record<string, EvalLogHeader>) => void;
+    setLogDir: (logDir?: string) => void;
+    setLogHandles: (logHandles: LogHandle[]) => void;
+
+    updateLogPreviews: (previews: Record<string, LogPreview>) => void;
+    syncLogPreviews: (logs: LogHandle[]) => Promise<void>;
+
+    updateLogDetails: (details: Record<string, LogDetails>) => void;
 
     // Fetch or update logs
-    refreshLogs: () => Promise<void>;
-    selectLogFile: (logUrl: string) => Promise<void>;
-    loadLogs: () => Promise<LogFiles>;
+    initLogDir: () => Promise<string | undefined>;
+    ensureReplication: () => Promise<void>;
+    syncLogs: () => Promise<LogHandle[]>;
 
-    setSorting: (sorting: SortingState) => void;
-    setFiltering: (filtering: ColumnFiltersState) => void;
-    setGlobalFilter: (globalFilter: string) => void;
-    setColumnResizeMode: (mode: ColumnResizeMode) => void;
-    setColumnSize: (columnId: string, size: number) => void;
+    setSelectedLogFile: (logFile: string) => void;
+    clearSelectedLogFile: () => void;
+
+    // Cross-file sample operations
+    getAllCachedSamples: () => Promise<any[]>;
+    queryCachedSamples: (filter?: {
+      completed?: boolean;
+      hasError?: boolean;
+      scoreRange?: { min: number; max: number; scoreName?: string };
+    }) => Promise<any[]>;
+
+    // Try to fetch an eval-set
+    syncEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
+
+    updateFlowData: (flowPath: string, flowData?: string) => void;
+
     setFilteredCount: (count: number) => void;
-    setWatchedLogs: (logs: LogFile[]) => void;
+    setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
+    setSelectedRowIndex: (index: number | null) => void;
+
+    setLogsGridState: (gridState: GridState | undefined) => void;
+    clearLogsGridState: () => void;
+    setPreviousLogsPath: (path: string | undefined) => void;
+    setLogsColumnVisibility: (visibility: Record<string, boolean>) => void;
+
+    setGridState: (gridState: GridState) => void;
+    clearGridState: () => void;
+    setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
+    clearDisplayedSamples: () => void;
+    setSamplesColumnVisibility: (visibility: Record<string, boolean>) => void;
+    setPreviousSamplesPath: (path: string | undefined) => void;
+    setShowRetriedLogs: (showRetriedLogs: boolean) => void;
   };
 }
 
 const initialState: LogsState = {
-  logs: kEmptyLogs,
-  logHeaders: {},
-  headersLoading: false,
-  selectedLogIndex: -1,
+  logDir: undefined,
+  logs: [],
+  logPreviews: {},
+  logDetails: {},
   selectedLogFile: undefined as string | undefined,
-  listing: {},
-  loadingFiles: new Set<string>(),
-  pendingRequests: new Map<string, Promise<EvalLogHeader | null>>(),
+  listing: {
+    columnVisibility: {},
+  },
+  pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
+  dbStats: {
+    logCount: 0,
+    previewCount: 0,
+    detailsCount: 0,
+  },
+  samplesListState: {
+    columnVisibility: {},
+  },
+  showRetriedLogs: false,
 };
 
 export const createLogsSlice = (
@@ -66,232 +99,284 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogs: (logs: LogFiles) => {
+      setLogDir: (logDir?: string) => {
         set((state) => {
-          state.logs.logs = logs;
-          state.logs.selectedLogFile =
-            state.logs.selectedLogIndex > -1
-              ? logs.files[state.logs.selectedLogIndex]?.name
-              : undefined;
+          if (logDir !== state.logs.logDir) {
+            state.logs.logDir = logDir;
+            state.logs.samplesListState.gridState = undefined;
+            state.logs.listing.gridState = undefined;
+            state.logs.listing.previousLogPath = undefined;
+          }
         });
       },
-      setLogHeaders: (headers: Record<string, EvalLogHeader>) =>
+      setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
-          state.logs.logHeaders = headers;
+          state.logs.logs = logs;
         }),
-      loadHeaders: async (logs: LogFile[]) => {
+      syncLogPreviews: async (logs: LogHandle[]) => {
         const state = get();
         const api = state.api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return [];
+          return;
         }
 
-        // Filter out files that are already loaded or currently loading
-        // reload headers with "started" status as they may have changed
-        const filesToLoad = logs.filter((logFile) => {
-          const existing = state.logs.logHeaders[logFile.name];
-          const isLoading = state.logs.loadingFiles.has(logFile.name);
-
-          // Always load if no existing header
-          if (!existing) {
-            return !isLoading;
-          }
-
-          // Reload if header status is "started" or "error" (but not if already loading)
-          if (existing.status === "started" || existing.status === "error") {
-            return !isLoading;
-          }
-
-          // Skip if already loaded with final status
-          return false;
-        });
-
-        if (filesToLoad.length === 0) {
-          return [];
+        if (!state.replicationService) {
+          console.error("Replication service not initialized in LogsStore");
+          return;
         }
-
-        // Mark files as loading
-        set((state) => {
-          filesToLoad.forEach((logFile) => {
-            state.logs.loadingFiles.add(logFile.name);
-          });
-        });
-
-        // Set global loading state if this is the first batch
-        const wasLoading = get().logs.headersLoading;
-        if (!wasLoading) {
-          set((state) => {
-            state.logs.headersLoading = true;
-          });
-        }
-
         try {
-          log.debug(`LOADING LOG HEADERS for ${filesToLoad.length} files`);
-          const headers = await api.get_log_headers(
-            filesToLoad.map((log) => log.name),
-          );
-
-          // Process results and update store
-          const headerMap: Record<string, EvalLogHeader> = {};
-          for (let i = 0; i < filesToLoad.length; i++) {
-            const logFile = filesToLoad[i];
-            const header = headers[i];
-            if (header) {
-              headerMap[logFile.name] = header as EvalLogHeader;
-            }
-          }
-
-          // Update headers in store
-          set((state) => {
-            state.logs.logHeaders = { ...state.logs.logHeaders, ...headerMap };
-            // Remove from loading state
-            filesToLoad.forEach((logFile) => {
-              state.logs.loadingFiles.delete(logFile.name);
-            });
-            // Update global loading state if no more files are loading
-            if (state.logs.loadingFiles.size === 0) {
-              state.logs.headersLoading = false;
-            }
-          });
-
-          return headers;
-        } catch (error) {
-          log.error("Error loading log headers", error);
-
-          // Clear loading state on error
-          set((state) => {
-            filesToLoad.forEach((logFile) => {
-              state.logs.loadingFiles.delete(logFile.name);
-            });
-            if (state.logs.loadingFiles.size === 0) {
-              state.logs.headersLoading = false;
-            }
-          });
-
-          // Don't throw - just return empty array like the old implementation
-          return [];
+          await state.replicationService?.loadLogPreviews({ logs });
+        } catch (e) {
+          console.error("Failed to sync log previews", e);
         }
       },
-      setHeadersLoading: (loading: boolean) =>
+      updateLogPreviews: (previews: Record<string, LogPreview>) =>
         set((state) => {
-          state.logs.headersLoading = loading;
+          state.logs.logPreviews = {
+            ...get().logs.logPreviews,
+            ...previews,
+          };
         }),
-      setSelectedLogIndex: (selectedLogIndex: number) => {
+
+      updateLogDetails: (details: Record<string, LogDetails>) =>
         set((state) => {
-          state.logs.selectedLogIndex = selectedLogIndex;
-          const file = state.logs.logs.files[selectedLogIndex];
-          state.logs.selectedLogFile = file ? file.name : undefined;
+          state.logs.logDetails = {
+            ...get().logs.logDetails,
+            ...details,
+          };
+        }),
+      setGridState: (gridState: GridState | undefined) => {
+        set((state) => {
+          state.logs.samplesListState.gridState = gridState;
         });
       },
-      updateLogHeaders: (headers: Record<string, EvalLogHeader>) =>
+      clearGridState: () => {
         set((state) => {
-          state.logs.logHeaders = { ...get().logs.logHeaders, ...headers };
-        }),
-
-      setSelectedLogFile: (logUrl: string) => {
-        const state = get();
-        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
-          logUrl.endsWith(val.name),
-        );
-
-        if (index > -1) {
-          state.logsActions.setSelectedLogIndex(index);
-          state.logs.selectedLogFile =
-            state.logs.logs.files[index]?.name ?? undefined;
-        }
+          state.logs.samplesListState.gridState = undefined;
+        });
       },
-
-      // Helper function to load logs
-      loadLogs: async () => {
+      setDisplayedSamples: (samples: Array<DisplayedSample>) => {
+        const currentDisplaySamples =
+          get().logs.samplesListState.displayedSamples;
+        set((state) => {
+          if (!displaySamplesEqual(currentDisplaySamples, samples)) {
+            state.logs.samplesListState.displayedSamples = samples;
+          }
+        });
+      },
+      clearDisplayedSamples: () => {
+        set((state) => {
+          state.logs.samplesListState.displayedSamples = undefined;
+        });
+      },
+      setSamplesColumnVisibility: (visibility: Record<string, boolean>) => {
+        set((state) => {
+          state.logs.samplesListState.columnVisibility = visibility;
+        });
+      },
+      setPreviousSamplesPath: (path: string | undefined) => {
+        set((state) => {
+          state.logs.samplesListState.previousSamplesPath = path;
+        });
+      },
+      initLogDir: async () => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return kEmptyLogs;
+          return undefined;
         }
 
-        try {
-          log.debug("LOADING LOG FILES");
-          return await api.get_log_paths();
-        } catch (e) {
-          console.log(e);
-          get().appActions.setStatus({ loading: false, error: e as Error });
-          return kEmptyLogs;
+        // Determine the log directory
+        const loadLogDir = async () => {
+          try {
+            return await api.get_log_dir();
+          } catch (e) {
+            console.log(e);
+            get().appActions.setLoading(false, e as Error);
+            return undefined;
+          }
+        };
+        const logDir = await loadLogDir();
+        if (get().logs.logDir !== logDir) {
+          get().logsActions.setLogDir(logDir);
+        }
+        return logDir;
+      },
+      ensureReplication: async () => {
+        const state = get();
+        if (state.logs.logDir) {
+          await state.logsActions.syncLogs();
         }
       },
-      refreshLogs: async () => {
-        log.debug("REFRESH LOGS");
-        const state = get();
-        const refreshedLogs = await state.logsActions.loadLogs();
-
-        // Preserve the selected log even if new logs appear
-        const currentLog =
-          state.logs.logs.files[
-            state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0
-          ];
-
-        // Set the logs first
-        state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
-
-        if (currentLog) {
-          const newIndex = refreshedLogs?.files.findIndex((file) =>
-            currentLog.name.endsWith(file.name),
-          );
-
-          if (newIndex !== undefined && newIndex !== -1) {
-            state.logsActions.setSelectedLogIndex(newIndex);
-          }
+      syncLogs: async () => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return [];
         }
+
+        const databaseService = get().databaseService;
+        const useProgress = !!databaseService?.getDatabaseHandle();
+        if (useProgress) {
+          get().appActions.setLoading(true);
+        }
+
+        // Determine the log directory
+        const logDir = await get().logsActions.initLogDir();
+        const databaseHandle = api.get_log_dir_handle(logDir);
+
+        // Setup up the database service
+        const initDatabase =
+          !databaseService ||
+          databaseService.getDatabaseHandle() !== databaseHandle;
+
+        if (initDatabase) {
+          // Initialize the database
+          const initializeDatabase = async (
+            logDir?: string,
+          ): Promise<DatabaseService | undefined> => {
+            if (!logDir) {
+              // No database service available
+              return undefined;
+            }
+
+            try {
+              const databaseService = get().databaseService;
+              if (!databaseService) {
+                return undefined;
+              }
+              await databaseService.openDatabase(databaseHandle);
+              return databaseService;
+            } catch (e) {
+              console.log(e);
+              if (useProgress) {
+                get().appActions.setLoading(false, e as Error);
+              }
+              return;
+            }
+          };
+
+          // Don't enable syncing if there is no log directory
+          if (!logDir || get().app.singleFileMode) {
+            if (useProgress) {
+              get().appActions.setLoading(false);
+            }
+            return [];
+          }
+
+          // Activate the database for this log directory
+          const databaseService = await initializeDatabase(logDir);
+          if (!databaseService) {
+            // No database service available
+            throw new Error("Database service not available");
+          }
+
+          // Activate replication for this database
+          await get().replicationService?.startReplication(
+            databaseService,
+            api,
+            {
+              setLogHandles: (logs: LogHandle[]) => {
+                const state = get();
+                state.logsActions.setLogHandles(logs);
+              },
+              getSelectedLog: () => {
+                const state = get();
+                if (!state.logs.selectedLogFile) {
+                  return undefined;
+                }
+                return state.logs.logs.find((handle) => {
+                  return handle.name.endsWith(state.logs.selectedLogFile!);
+                });
+              },
+              setSelectedLogFile: (logFile: string) => {
+                const state = get();
+                state.logsActions.setSelectedLogFile(logFile);
+              },
+              updateLogPreviews: (previews: Record<string, LogPreview>) => {
+                const state = get();
+                state.logsActions.updateLogPreviews(previews);
+              },
+              updateLogDetails: (details: Record<string, LogDetails>) => {
+                const state = get();
+                state.logsActions.updateLogDetails(details);
+              },
+              setLoading(loading: boolean) {
+                const state = get();
+                state.appActions.setLoading(loading);
+              },
+              setBackgroundSyncing(syncing: boolean) {
+                set((state) => {
+                  state.app.status.syncing = syncing;
+                });
+              },
+              setDbStats(stats: {
+                logCount: number;
+                previewCount: number;
+                detailsCount: number;
+              }) {
+                set((state) => {
+                  state.logs.dbStats = stats;
+                });
+              },
+            },
+          );
+        }
+
+        if (useProgress) {
+          get().appActions.setLoading(false);
+        }
+
+        // Sync
+        return (await get().replicationService?.sync(initDatabase)) || [];
+      },
+      syncEvalSetInfo: async (logPath?: string) => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return undefined;
+        }
+        const info = await api.get_eval_set(logPath);
+        set((state) => {
+          state.logs.evalSet = info;
+        });
+      },
+      updateFlowData: (flowPath: string, flowData?: string) => {
+        set((state) => {
+          state.logs.flowDir = flowPath;
+          state.logs.flow = flowData;
+        });
       },
       // Select a specific log file
-      selectLogFile: async (logUrl: string) => {
+      setSelectedLogFile: async (logFile: string) => {
         const state = get();
-        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
-          val.name.endsWith(logUrl),
-        );
+        const isInFileList =
+          state.logs.logs.findIndex((val: { name: string }) =>
+            val.name.endsWith(logFile),
+          ) !== -1;
 
-        // It is already loaded
-        if (index > -1) {
-          state.logsActions.setSelectedLogIndex(index);
-        } else {
-          // It isn't yet loaded, so refresh the logs and try to load it from there
-          const result = await state.logsActions.loadLogs();
-          const idx = result?.files.findIndex((file) =>
-            file.name.endsWith(logUrl),
-          );
-
-          state.logsActions.setLogs(result || kEmptyLogs);
-          state.logsActions.setSelectedLogIndex(
-            idx !== undefined && idx > -1 ? idx : 0,
-          );
-        }
-      },
-      setSorting: (sorting: SortingState) => {
-        set((state) => {
-          state.logs.listing.sorting = sorting;
-        });
-      },
-      setFiltering: (filtering: ColumnFiltersState) => {
-        set((state) => {
-          state.logs.listing.filtering = filtering;
-        });
-      },
-      setGlobalFilter: (globalFilter: string) => {
-        set((state) => {
-          state.logs.listing.globalFilter = globalFilter;
-        });
-      },
-      setColumnResizeMode: (mode: ColumnResizeMode) => {
-        set((state) => {
-          state.logs.listing.columnResizeMode = mode;
-        });
-      },
-      setColumnSize: (columnId: string, size: number) => {
-        set((state) => {
-          if (!state.logs.listing.columnSizes) {
-            state.logs.listing.columnSizes = {};
+        if (!isInFileList) {
+          if (
+            state.replicationService?.isReplicating() &&
+            !state.app.singleFileMode
+          ) {
+            await state.logsActions.syncLogs();
+            const logHandle = get().logs.logs.find((val: { name: string }) =>
+              val.name.endsWith(logFile),
+            );
+            if (!logHandle) {
+              throw new Error(`Log file not found: ${logFile}`);
+            }
+          } else {
+            state.logsActions.setLogHandles([{ name: logFile }]);
           }
-          state.logs.listing.columnSizes[columnId] = size;
+        }
+        set((state) => {
+          const absoluteLogfile = isUri(logFile)
+            ? logFile
+            : join(logFile, state.logs.logDir);
+          state.logs.selectedLogFile = absoluteLogfile;
         });
       },
       setFilteredCount: (count: number) => {
@@ -299,7 +384,7 @@ export const createLogsSlice = (
           state.logs.listing.filteredCount = count;
         });
       },
-      setWatchedLogs: (logs: LogFile[]) => {
+      setWatchedLogs: (logs: LogHandle[]) => {
         set((state) => {
           state.logs.listing.watchedLogs = logs;
         });
@@ -309,10 +394,84 @@ export const createLogsSlice = (
           state.logs.listing.watchedLogs = undefined;
         });
       },
+      setSelectedRowIndex: (index: number | null) => {
+        set((state) => {
+          state.logs.listing.selectedRowIndex = index;
+        });
+      },
+      setLogsGridState: (gridState: GridState | undefined) => {
+        set((state) => {
+          state.logs.listing.gridState = gridState;
+        });
+      },
+      clearLogsGridState: () => {
+        set((state) => {
+          state.logs.listing.gridState = undefined;
+        });
+      },
+      setPreviousLogsPath: (path: string | undefined) => {
+        set((state) => {
+          state.logs.listing.previousLogPath = path;
+        });
+      },
+      setLogsColumnVisibility: (visibility: Record<string, boolean>) => {
+        set((state) => {
+          state.logs.listing.columnVisibility = visibility;
+        });
+      },
+      clearSelectedLogFile: () => {
+        set((state) => {
+          state.logs.selectedLogFile = undefined;
+        });
+      },
+
+      // Cross-file sample operations
+      getAllCachedSamples: async () => {
+        try {
+          log.debug("LOADING ALL CACHED SAMPLES");
+          const dbService = get().databaseService;
+          if (!dbService) {
+            throw new Error("Database service not initialized");
+          }
+          const samples = await dbService.readAllSampleSummaries();
+          log.debug(`Retrieved ${samples.length} cached samples`);
+          return samples;
+        } catch (e) {
+          log.debug("No cached samples available");
+          return [];
+        }
+      },
+
+      queryCachedSamples: async (filter?: {
+        completed?: boolean;
+        hasError?: boolean;
+        scoreRange?: { min: number; max: number; scoreName?: string };
+      }) => {
+        try {
+          log.debug("QUERYING CACHED SAMPLES", filter);
+          const dbService = get().databaseService;
+          if (!dbService) {
+            throw new Error("Database service not initialized");
+          }
+          const samples = await dbService.querySampleSummaries(filter);
+          log.debug(`Query returned ${samples.length} samples`);
+          return samples;
+        } catch (e) {
+          log.debug("Sample query failed, returning empty results");
+          return [];
+        }
+      },
+      setShowRetriedLogs: (showRetriedLogs: boolean) => {
+        set((state) => {
+          state.logs.showRetriedLogs = showRetriedLogs;
+        });
+      },
     },
   } as const;
 
-  const cleanup = () => {};
+  const cleanup = () => {
+    // Database cleanup is handled in the main store cleanup
+  };
 
   return [slice, cleanup];
 };
@@ -325,4 +484,24 @@ export const initializeLogsSlice = <T extends LogsSlice>(
       state.logs = initialState;
     }
   });
+};
+
+const displaySamplesEqual = (
+  a: DisplayedSample[] | undefined,
+  b: DisplayedSample[] | undefined,
+): boolean => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].logFile !== b[i].logFile ||
+      a[i].sampleId !== b[i].sampleId ||
+      a[i].epoch !== b[i].epoch
+    ) {
+      return false;
+    }
+  }
+  return true;
 };

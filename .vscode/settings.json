@@ -1,6 +1,14 @@
 {
   "editor.formatOnSave": true,
   "mypy-type-checker.importStrategy": "fromEnvironment",
+  "prettier.configPath": "src/inspect_ai/_view/www/.prettierrc.js",
+  "prettier.prettierPath": "src/inspect_ai/_view/www/node_modules/prettier",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "[json]": {
     "editor.wordWrap": "on"
   },
@@ -13,6 +21,9 @@
   "[html]": {
     "editor.formatOnSave": false
   },
+  "[yaml]": {
+    "editor.formatOnSave": false
+  },
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
@@ -21,7 +32,7 @@
   },
   "mypy-type-checker.ignorePatterns": [
     "**/_resources/*.py",
-    "${workspaceFolder}/examples/bridge/*.py",
+    "${workspaceFolder}/examples/bridge/*.py"
   ],
   "mypy-type-checker.args": [
     "--config-file",
@@ -31,9 +42,15 @@
     "reportMissingImports": "none"
   },
   "python.testing.pytestArgs": [
-    "tests"
+    "tests",
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "quarto.render.renderOnSave": true
+  "quarto.render.renderOnSave": true,
+  "cSpell.words": [
+    "backpressure",
+    "scandef",
+    "scanjob",
+    "scanspec"
+  ]
 }

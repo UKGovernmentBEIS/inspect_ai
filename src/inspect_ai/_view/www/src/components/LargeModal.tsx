@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { ProgressBar } from "./ProgressBar";
+import { ActivityBar } from "./ActivityBar";
 
 import { FC, ReactNode, RefObject, useEffect, useRef } from "react";
 import styles from "./LargeModal.module.css";
+import { StickyScrollProvider } from "./StickyScrollContext";
 
 export interface ModalTool {
   label: string;
@@ -130,9 +131,14 @@ export const LargeModal: FC<LargeModalProps> = ({
               <HtmlEntity html={"&times;"} />
             </button>
           </div>
-          <ProgressBar animating={showProgress} />
-          <div className={clsx("modal-body", classNames?.body)} ref={scrollRef}>
-            {children}
+          <ActivityBar animating={showProgress} />
+          <div
+            className={clsx("modal-body", styles.scrollBody, classNames?.body)}
+            ref={scrollRef}
+          >
+            <StickyScrollProvider value={scrollRef}>
+              {children}
+            </StickyScrollProvider>
           </div>
           {modalFooter}
         </div>

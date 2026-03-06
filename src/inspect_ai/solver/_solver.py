@@ -16,9 +16,9 @@ from typing import (
 from typing_extensions import Unpack
 
 from inspect_ai._util._async import is_callable_coroutine
-from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.registry import (
     RegistryInfo,
+    extract_named_params,
     registry_add,
     registry_create,
     registry_name,
@@ -26,7 +26,8 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.model import CachePolicy, GenerateConfigArgs
+from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 
 from ._task_state import TaskState, set_sample_state
 
@@ -37,7 +38,6 @@ class Generate(Protocol):
         self,
         state: TaskState,
         tool_calls: Literal["loop", "single", "none"] = "loop",
-        cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState:
         """Generate using the model and add the assistant message to the task state.
@@ -52,7 +52,6 @@ class Generate(Protocol):
                 - `"single"` resolves at most a single set of tool calls and then returns.
                 - `"none"` does not resolve tool calls at all (in this
                     case you will need to invoke `call_tools()` directly).
-            cache: Caching behaviour for generate responses (defaults to no caching).
             **kwargs: Optional generation config arguments.
 
         Returns:
@@ -70,6 +69,9 @@ class SolverSpec:
 
     args: dict[str, Any] = field(default_factory=dict)
     """Solver arguments."""
+
+    args_passed: dict[str, Any] = field(default_factory=dict)
+    """Solver arguments passed for invocation."""
 
 
 @runtime_checkable
@@ -211,7 +213,6 @@ def solver(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
                     state = await original_call(state, generate)
-                    check_sample_interrupt()
                     set_sample_state(state)
                     return state
 
@@ -227,7 +228,6 @@ def solver(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
                     state = await solver(state, generate)
-                    check_sample_interrupt()
                     set_sample_state(state)
                     return state
 
@@ -238,6 +238,9 @@ def solver(
                 *args,
                 **kwargs,
             )
+
+            named_params = extract_named_params(solver_type, True, *args, **kwargs)
+            setattr(registered_solver, SOLVER_ALL_PARAMS_ATTR, named_params)
 
             return registered_solver
 
@@ -264,7 +267,6 @@ def solver(
 @solver
 def generate(
     tool_calls: Literal["loop", "single", "none"] = "loop",
-    cache: bool | CachePolicy = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> Solver:
     r"""Generate output from the model and append it to task message history.
@@ -281,15 +283,12 @@ def generate(
         - `"none"` does not resolve tool calls at all (in this
             case you will need to invoke `call_tools()` directly).
 
-      cache: (bool | CachePolicy):
-        Caching behaviour for generate responses (defaults to no caching).
-
       **kwargs: Optional generation config arguments.
     """
 
     # call generate on the tasks
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        return await generate(state, tool_calls=tool_calls, cache=cache, **kwargs)
+        return await generate(state, tool_calls=tool_calls, **kwargs)
 
     # return solve
     return solve

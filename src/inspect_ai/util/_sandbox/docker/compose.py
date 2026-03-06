@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import shlex
@@ -10,7 +11,7 @@ from pydantic import BaseModel
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
-from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._concurrency import concurrency as concurrency_manager
 from inspect_ai.util._display import display_type, display_type_plain
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
@@ -19,7 +20,7 @@ from .prereqs import (
     validate_docker_compose,
 )
 from .service import ComposeService, services_healthcheck_time
-from .util import ComposeProject, is_inspect_project
+from .util import TRACE_DOCKER, ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
@@ -38,7 +39,9 @@ async def compose_up(
     healthcheck_time = services_healthcheck_time(services)
     if healthcheck_time > 0:
         timeout: int = healthcheck_time
-        trace_message(logger, "Docker", "Docker services heathcheck timeout: {timeout}")
+        trace_message(
+            logger, TRACE_DOCKER, f"Docker services healthcheck timeout: {timeout}"
+        )
     else:
         timeout = COMPOSE_WAIT
 
@@ -188,6 +191,7 @@ async def compose_exec(
     project: ComposeProject,
     timeout: int | None,
     timeout_retry: bool = True,
+    concurrency: bool = True,
     input: str | bytes | None = None,
     output_limit: int | None = None,
 ) -> ExecResult[str]:
@@ -199,6 +203,7 @@ async def compose_exec(
         input=input,
         forward_env=False,
         output_limit=output_limit,
+        concurrency=concurrency,
     )
 
 
@@ -271,6 +276,7 @@ async def compose_command(
     project: ComposeProject,
     timeout: int | None,
     timeout_retry: bool = True,
+    concurrency: bool = True,
     input: str | bytes | None = None,
     cwd: str | Path | None = None,
     forward_env: bool = True,
@@ -313,7 +319,12 @@ async def compose_command(
 
     # function to run command (wrapped in concurrency limiter)
     async def run_command(command_timeout: int | None) -> ExecResult[str]:
-        async with concurrency("docker-cli", docker_cli_concurrency):
+        concurrency_ctx = (
+            concurrency_manager("docker-cli", docker_cli_concurrency, visible=False)
+            if concurrency
+            else contextlib.nullcontext()
+        )
+        async with concurrency_ctx:
             result = await subprocess(
                 compose_command,
                 input=input,
@@ -322,6 +333,7 @@ async def compose_command(
                 timeout=command_timeout,
                 capture_output=capture_output,
                 output_limit=output_limit,
+                concurrency=concurrency,
             )
             return result
 
@@ -344,14 +356,16 @@ async def compose_command(
                     timeout if retries == 0 else (min(timeout, 60) // retries), 1
                 )
                 return await run_command(command_timeout)
-            except TimeoutError:
+            except TimeoutError as e:
                 retries += 1
                 if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
                         f"Retrying docker compose command: {shlex.join(compose_command)}"
                     )
                 else:
-                    raise
+                    raise TimeoutError(
+                        f"Docker compose command '{command}' timed out after {timeout} seconds"
+                    ) from e
 
     else:
         return await run_command(timeout)

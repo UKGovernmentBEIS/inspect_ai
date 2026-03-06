@@ -2,18 +2,18 @@ import { useCallback } from "react";
 import { useStore } from "./store";
 
 export const useUnloadLog = () => {
-  const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+  const clearSelectedLogDetails = useStore(
+    (state) => state.logActions.clearSelectedLogDetails,
   );
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const clearSelectedLogFile = useStore(
+    (state) => state.logsActions.clearSelectedLogFile,
   );
   const clearLog = useStore((state) => state.logActions.clearLog);
 
   const unloadLog = useCallback(() => {
-    clearSelectedLogSummary();
-    setSelectedLogIndex(-1);
+    clearSelectedLogDetails();
+    clearSelectedLogFile();
     clearLog();
-  }, [clearLog, clearSelectedLogSummary, setSelectedLogIndex]);
+  }, [clearLog, clearSelectedLogDetails, clearSelectedLogFile]);
   return { unloadLog };
 };

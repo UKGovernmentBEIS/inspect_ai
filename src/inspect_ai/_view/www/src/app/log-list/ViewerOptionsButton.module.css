@@ -1,0 +1,9 @@
+.button {
+  border: none;
+  padding: 0;
+  background-color: inherit;
+}
+
+.viewerOptions {
+  color: var(--bs-body-color);
+}

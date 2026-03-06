@@ -5,6 +5,7 @@ from typing import Awaitable, Callable, Literal
 from pydantic import JsonValue
 
 from inspect_ai._util.ansi import render_text
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._score import score
 
@@ -62,8 +63,13 @@ class ScoreCommand(HumanAgentCommand):
             state.scorings.append(IntermediateScoring(time=state.time, scores=result))
 
             # notify user
+            result_score = (
+                result[0].value
+                if isinstance(result[0].value, str)
+                else to_json_str_safe(result[0].value)
+            )
             return render_text(
-                f"[bold]Answer:[/bold] {result[0].answer}, [bold]Score:[/bold] {result[0].as_str()}"
+                f"[bold]Answer:[/bold] {result[0].answer}, [bold]Score:[/bold] {result_score}"
             )
 
         return score_task

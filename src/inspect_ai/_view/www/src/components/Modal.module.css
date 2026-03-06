@@ -36,3 +36,19 @@
 
   z-index: 1040;
 }
+
+.overflowVisible {
+  overflow: visible;
+}
+
+.overflowHidden {
+  overflow: hidden;
+}
+
+.overflowScroll {
+  overflow: scroll;
+}
+
+.overflowAuto {
+  overflow: auto;
+}

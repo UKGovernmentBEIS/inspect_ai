@@ -6,11 +6,18 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend
-from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS, NO_CONTENT
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -24,7 +31,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
@@ -49,6 +56,11 @@ ConverseStopReason = Literal[
     "stop_sequence",
     "guardrail_intervened",
     "content_filtered",
+    "malformed_model_output",
+    "malformed_tool_use",
+    "invalid_query",
+    "max_tool_invocations",
+    "model_context_window_exceeded",
 ]
 ConverseGuardContentQualifier = Literal["grounding_source", "query", "guard_content"]
 ConverseFilterType = Literal[
@@ -107,6 +119,14 @@ class ConverseGuardContent(BaseModel):
     text: ConverseGuardContentText
 
 
+class ConverseReasoningText(BaseModel):
+    text: str
+
+
+class ConverseReasoningContent(BaseModel):
+    reasoningText: ConverseReasoningText
+
+
 class ConverseMessageContent(BaseModel):
     text: str | None = None
     image: ConverseImage | None = None
@@ -114,6 +134,7 @@ class ConverseMessageContent(BaseModel):
     toolUse: ConverseToolUse | None = None
     toolResult: ConverseToolResult | None = None
     guardContent: ConverseGuardContent | None = None
+    reasoningContent: ConverseReasoningContent | None = None
 
 
 class ConverseMessage(BaseModel):
@@ -317,6 +338,53 @@ class BedrockAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Bedrock model names use the format: provider.model-name-version:variant
+        e.g., anthropic.claude-3-5-sonnet-20241022-v2:0
+
+        Returns the canonical format: provider/model-name
+        e.g., anthropic/claude-3-5-sonnet-20241022
+        """
+        name = self.model_name
+        provider: str | None = None
+
+        # Extract provider prefix (e.g., "anthropic." or "meta.")
+        if "." in name:
+            provider, name = name.split(".", 1)
+
+        # Strip variant suffix (e.g., ":0")
+        if ":" in name:
+            name = name.split(":")[0]
+
+        # Strip version suffix like -v1, -v2
+        if name.endswith(("-v1", "-v2", "-v3")):
+            name = name[:-3]
+
+        # Return with provider prefix for database lookup
+        return f"{provider}/{name}" if provider else name
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        from botocore.exceptions import ClientError
+
+        if isinstance(ex, ClientError):
+            error_code = ex.response.get("Error", {}).get("Code", "")
+            return error_code in [
+                "UnrecognizedClientException",
+                "ExpiredTokenException",
+                "InvalidSignatureException",
+            ]
+        return False
+
+    def is_gpt_oss(self) -> bool:
+        return "gpt-oss" in self.model_name
+
+    def is_claude(self) -> bool:
+        return "claude" in self.model_name
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -348,7 +416,17 @@ class BedrockAPI(ModelAPI):
                 )
 
             # Resolve the input messages into converse messages
-            system, messages = await converse_messages(input)
+            system, messages = await converse_messages(
+                input, emulate_reasoning=self.is_claude()
+            )
+
+            # additional model request fields
+            additionalModelRequestFields: dict[str, Any] = {}
+            if config.top_k:
+                additionalModelRequestFields["top_k"] = config.top_k
+            additionalModelRequestFields = (
+                additionalModelRequestFields | self.reasoning_config(config)
+            )
 
             # Make the request
             request = ConverseClientConverseRequest(
@@ -361,21 +439,15 @@ class BedrockAPI(ModelAPI):
                     topP=config.top_p,
                     stopSequences=config.stop_seqs,
                 ),
-                additionalModelRequestFields={
-                    "top_k": config.top_k,
-                    **config.model_config,
-                },
+                additionalModelRequestFields=additionalModelRequestFields,
                 toolConfig=tool_config,
             )
 
-            def model_call(response: dict[str, Any] = {}) -> ModelCall:
-                return ModelCall.create(
-                    request=replace_bytes_with_placeholder(
-                        request.model_dump(exclude_none=True)
-                    ),
-                    response=response,
-                    time=self._http_hooks.end_request(request_id),
-                )
+            model_call = set_active_model_event_call(
+                request=replace_bytes_with_placeholder(
+                    request.model_dump(exclude_none=True)
+                ),
+            )
 
             try:
                 # Process the reponse
@@ -384,18 +456,29 @@ class BedrockAPI(ModelAPI):
                 )
                 converse_response = ConverseResponse(**response)
 
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
+                )
+
             except ClientError as ex:
+                model_call.set_error(
+                    as_error_response(ex.response),
+                    self._http_hooks.end_request(request_id),
+                )
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
-                    response = ex.response["Error"]["Message"]
-                    if "too many input tokens" in response.lower():
-                        return ModelOutput.from_content(
-                            model=self.model_name,
-                            content=response,
-                            stop_reason="model_length",
+                    response = ex.response["Error"]["Message"].lower()
+                    if "too many input tokens" in response or "is too long" in response:
+                        return (
+                            ModelOutput.from_content(
+                                model=self.model_name,
+                                content=response,
+                                stop_reason="model_length",
+                            ),
+                            model_call,
                         )
                     else:
-                        return ex, model_call()
+                        return ex, model_call
                 else:
                     raise ex
 
@@ -403,11 +486,26 @@ class BedrockAPI(ModelAPI):
         output = model_output_from_response(self.model_name, converse_response, tools)
 
         # return
-        return output, model_call(response)
+        return output, model_call
+
+    def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
+        if self.is_gpt_oss():
+            if config.reasoning_effort is not None:
+                return {"reasoning_effort": config.reasoning_effort}
+        elif self.is_claude():
+            if config.reasoning_tokens is not None:
+                return {
+                    "reasoning_config": {
+                        "type": "enabled",
+                        "budget_tokens": config.reasoning_tokens,
+                    }
+                }
+
+        return {}
 
 
 async def converse_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> Tuple[list[ConverseSystemContent] | None, list[ConverseMessage]]:
     # Split up system messages and input messages
     system_messages: list[ChatMessage] = []
@@ -420,7 +518,7 @@ async def converse_messages(
 
     # input messages
     non_system: list[ConverseMessage] = await as_converse_chat_messages(
-        non_system_messages
+        non_system_messages, emulate_reasoning
     )
 
     # system messages
@@ -453,6 +551,10 @@ def model_output_from_response(
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )
             )
+        elif c.reasoningContent is not None:
+            # Handle reasoning content
+            reasoning_text = c.reasoningContent.reasoningText.text
+            content.append(ContentReasoning(reasoning=reasoning_text))
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
 
@@ -497,6 +599,16 @@ def message_stop_reason(
             return "content_filter"
         case "guardrail_intervened":
             return "content_filter"
+        case "model_context_window_exceeded":
+            return "model_length"
+        # these are basically server errors which we don't have a way to encode right now
+        case (
+            "malformed_model_output"
+            | "malformed_tool_use"
+            | "invalid_query"
+            | "max_tool_invocations"
+        ):
+            return "unknown"
         case _:
             return "unknown"
 
@@ -510,18 +622,18 @@ def as_converse_system_messages(
 
 
 async def as_converse_chat_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> list[ConverseMessage]:
     result: list[ConverseMessage] = []
     for message in messages:
-        converse_message = await converse_chat_message(message)
+        converse_message = await converse_chat_message(message, emulate_reasoning)
         if converse_message is not None:
             result.extend(converse_message)
     return collapse_consecutive_messages(result)
 
 
 async def converse_chat_message(
-    message: ChatMessage,
+    message: ChatMessage, emulate_reasoning: bool = False
 ) -> list[ConverseMessage] | None:
     if isinstance(message, ChatMessageSystem):
         raise ValueError("System messages should be processed separately for Converse")
@@ -551,7 +663,8 @@ async def converse_chat_message(
             # Simple assistant message
             return [
                 ConverseMessage(
-                    role="assistant", content=await converse_contents(message.content)
+                    role="assistant",
+                    content=await converse_contents(message.content, emulate_reasoning),
                 )
             ]
     elif isinstance(message, ChatMessageTool):
@@ -610,7 +723,7 @@ async def converse_chat_message(
 
 
 async def converse_contents(
-    content: list[Content] | str,
+    content: list[Content] | str, emulate_reasoning: bool = False
 ) -> list[ConverseMessageContent]:
     if isinstance(content, str):
         return [ConverseMessageContent(text=content)]
@@ -629,8 +742,28 @@ async def converse_contents(
                 )
             elif c.type == "text":
                 result.append(ConverseMessageContent(text=c.text))
+            elif c.type == "reasoning":
+                # claude needs emulation because signatures aren't propagated
+                if emulate_reasoning:
+                    result.append(
+                        ConverseMessageContent(text=reasoning_to_think_tag(c))
+                    )
+                else:
+                    result.append(
+                        ConverseMessageContent(
+                            reasoningContent=ConverseReasoningContent(
+                                reasoningText=ConverseReasoningText(text=c.reasoning)
+                            )
+                        )
+                    )
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
+
+        # if result is empty converse will reject the api call so insert
+        # a dummy 'no content' as required
+        if len(result) == 0:
+            result = [ConverseMessageContent(text=NO_CONTENT)]
+
         return result
 
 

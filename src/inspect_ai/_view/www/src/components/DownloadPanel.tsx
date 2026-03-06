@@ -6,7 +6,7 @@ interface DownloadPanelProps {
   message: string;
   buttonLabel: string;
   fileName: string;
-  fileContents: string | Blob | ArrayBuffer | ArrayBufferView;
+  fileContents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>;
 }
 
 export const DownloadPanel: FC<DownloadPanelProps> = ({

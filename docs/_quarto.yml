@@ -3,7 +3,7 @@ project:
    resources: 
       - CNAME
       - llms.txt
-   pre-render: 
+   pre-render:
       - reference/filter/sidebar.py
    post-render: 
       - scripts/post-render.sh
@@ -17,6 +17,13 @@ filters:
  
 website:
    title: "Inspect"
+   favicon: favicon.svg
+   announcement: 
+      icon: megaphone
+      dismissable: true
+      content: "**Announcing Inspect Scout**, a tool for in-depth analysis of AI agent transcripts. [Learn more](https://meridianlabs-ai.github.io/inspect_scout/)"
+      type: secondary
+      position: below-navbar
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
@@ -35,15 +42,14 @@ website:
       title: "Inspect AI"
       background: light
       search: true
-      logo: images/aisi-logo.svg
-      logo-href: https://www.aisi.gov.uk/     
+      logo: images/aisi-logo.svg  
       left:      
           - text: "User Guide"
             href: index.qmd
           - text: "Reference"
             href: reference/index.qmd
-          - text: "Integrations"
-            href: integrations/index.qmd
+          - text: "Extensions"
+            href: extensions/index.qmd
           - text: "Evals"
             href: evals/index.qmd
       right: 
@@ -79,6 +85,8 @@ website:
                - text: "Providers"
                  href: providers.qmd
                - caching.qmd
+               - models-batch.qmd
+               - compaction.qmd
                - multimodal.qmd
                - reasoning.qmd
                - structured.qmd
@@ -116,6 +124,7 @@ website:
                - tracing.qmd
                - parallelism.qmd
                - interactivity.qmd
+               - early-stopping.qmd
                - extensions.qmd
 
    page-footer: 

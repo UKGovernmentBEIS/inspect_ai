@@ -89,15 +89,16 @@
 }
 
 .moreButton {
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
+  margin-top: 0.25em;
   padding-right: 0;
+  padding-bottom: 0;
 }
 
 .metricsSummary {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  margin-bottom: 0.35em;
 }
 
 .modalScores {

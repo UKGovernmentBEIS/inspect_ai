@@ -9,6 +9,7 @@ from inspect_ai.util import SandboxEnvironmentSpec
 
 @dataclass(frozen=True)
 class ResolvedTask:
+    id: str
     task: Task
     task_args: dict[str, Any]
     task_file: str | None
@@ -16,7 +17,6 @@ class ResolvedTask:
     model_roles: dict[str, Model] | None
     sandbox: SandboxEnvironmentSpec | None
     sequence: int
-    id: str | None = field(default=None)
     sample_source: EvalSampleSource | None = field(default=None)
 
     @property

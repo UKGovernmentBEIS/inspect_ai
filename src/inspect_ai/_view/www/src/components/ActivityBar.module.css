@@ -1,0 +1,38 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 0;
+  overflow-y: visible;
+  overflow-x: visible;
+  text-align: center;
+}
+
+.container {
+  width: 100%;
+  height: 1px;
+  background-color: transparent;
+  position: sticky;
+  overflow: hidden;
+  z-index: 1200;
+}
+
+.animate {
+  width: 5%;
+  height: 1px;
+  animation: leftToRight 2s linear infinite;
+  background-color: #3b82f6;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+@keyframes leftToRight {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(2000%);
+  }
+}
