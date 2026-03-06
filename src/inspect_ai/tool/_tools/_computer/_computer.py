@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable, Literal, TypeVar
+from typing import Awaitable, Callable, Literal, TypeVar, cast
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
@@ -50,7 +50,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
     """
 
     async def execute(
-        action: Action,
+        action: Action | None = None,
         coordinate: list[int] | None = None,
         duration: int | None = None,
         region: list[int] | None = None,
@@ -58,6 +58,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None = None,
         start_coordinate: list[int] | None = None,
         text: str | None = None,
+        actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
         """
         Use this tool to interact with a computer.
@@ -105,10 +106,49 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=scroll`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
+          actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
         Returns:
           The output of the command. Many commands will include a screenshot reflecting the result of the command in their output.
         """
+        # Multi-action path: execute each action sequentially, return final result
+        if actions is not None:
+            result: ToolResult = "OK"
+            for action_args in actions:
+                result = await _execute_single_action(action_args, timeout)
+            return result
+
+        # Single-action path (non-OpenAI providers)
+        assert action is not None, "Either 'action' or 'actions' must be provided"
+        return await _execute_single_action(
+            _build_action_args(
+                action,
+                coordinate,
+                duration,
+                region,
+                scroll_amount,
+                scroll_direction,
+                start_coordinate,
+                text,
+            ),
+            timeout,
+        )
+
+    async def _execute_single_action(
+        args: dict[str, object], timeout: int | None
+    ) -> ToolResult:
+        action = str(args.get("action", ""))
+        coordinate = cast(list[int] | None, args.get("coordinate"))
+        text = cast(str | None, args.get("text"))
+        duration = cast(int | None, args.get("duration"))
+        scroll_amount = cast(int | None, args.get("scroll_amount"))
+        scroll_direction = cast(
+            Literal["up", "down", "left", "right"] | None,
+            args.get("scroll_direction"),
+        )
+        start_coordinate = cast(list[int] | None, args.get("start_coordinate"))
+        region = cast(list[int] | None, args.get("region"))
+
         match action:
             case "key":
                 return await common.press_key(not_none(text, "text"), timeout=timeout)
@@ -181,6 +221,33 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 return await common.zoom(not_none(region, "region"), timeout=timeout)
 
         raise ToolParsingError(f"Invalid action: {action}")
+
+    def _build_action_args(
+        action: Action,
+        coordinate: list[int] | None,
+        duration: int | None,
+        region: list[int] | None,
+        scroll_amount: int | None,
+        scroll_direction: Literal["up", "down", "left", "right"] | None,
+        start_coordinate: list[int] | None,
+        text: str | None,
+    ) -> dict[str, object]:
+        args: dict[str, object] = {"action": action}
+        if coordinate is not None:
+            args["coordinate"] = coordinate
+        if duration is not None:
+            args["duration"] = duration
+        if region is not None:
+            args["region"] = region
+        if scroll_amount is not None:
+            args["scroll_amount"] = scroll_amount
+        if scroll_direction is not None:
+            args["scroll_direction"] = scroll_direction
+        if start_coordinate is not None:
+            args["start_coordinate"] = start_coordinate
+        if text is not None:
+            args["text"] = text
+        return args
 
     # if max_screenshots is specified then polk model input into where @tool can find it
     if max_screenshots is not None:

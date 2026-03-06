@@ -266,8 +266,6 @@ def completion_params_responses(
     tools: bool,
     tool_params: list[ToolParam],
 ) -> dict[str, Any]:
-    # TODO: we'll need a computer_use_preview bool for the 'include'
-    # and 'reasoning' parameters
     def unsupported_warning(param: str) -> None:
         warn_once(
             logger,
@@ -283,7 +281,7 @@ def completion_params_responses(
         params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if model_info.is_computer_use_preview():
+    if model_info.has_reasoning_options():
         params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
@@ -293,7 +291,7 @@ def completion_params_responses(
 
     if responses_store is not True:
         params["store"] = False
-        if model_info.has_reasoning_options() or model_info.is_computer_use_preview():
+        if model_info.has_reasoning_options():
             params["include"].append("reasoning.encrypted_content")
 
     if config.max_tokens is not None:

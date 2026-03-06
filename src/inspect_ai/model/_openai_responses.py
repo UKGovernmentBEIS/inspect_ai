@@ -6,7 +6,7 @@ from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
     CompactedResponse,
-    ComputerToolParam,
+    ComputerUseToolParam,
     CustomToolParam,
     EasyInputMessageParam,
     FunctionToolParam,
@@ -158,7 +158,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from ._providers._openai_computer_use import (
     computer_call_output,
-    maybe_computer_use_preview_tool,
+    maybe_computer_use_tool,
     tool_call_from_openai_computer_tool_call,
 )
 from ._providers._openai_web_search import maybe_web_search_tool
@@ -179,7 +179,6 @@ class ResponsesModelInfo(Protocol):
     def is_o1_early(self) -> bool: ...
     def is_o3_mini(self) -> bool: ...
     def is_deep_research(self) -> bool: ...
-    def is_computer_use_preview(self) -> bool: ...
     def is_codex(self) -> bool: ...
 
 
@@ -413,9 +412,9 @@ def openai_responses_tool_choice(
             return "required"
         case _:
             return (
-                ToolChoiceTypesParam(type="computer_use_preview")
+                ToolChoiceTypesParam(type="computer")
                 if tool_choice.name == "computer"
-                and any(tool["type"] == "computer_use_preview" for tool in tools)
+                and any(tool["type"] == "computer" for tool in tools)
                 else ToolChoiceTypesParam(type="web_search_preview")
                 if tool_choice.name == "web_search"
                 and any(tool["type"] == "web_search" for tool in tools)
@@ -1156,7 +1155,7 @@ def _maybe_native_tool_param(
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_preview_tool(model_name, tool)
+            maybe_computer_use_tool(model_name, tool)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
             or maybe_code_interpreter_tool(model_name, tool)
@@ -1478,8 +1477,8 @@ def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
     return tool_param.get("type") == "mcp"
 
 
-def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam]:
-    return tool_param.get("type") == "computer_use_preview"
+def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerUseToolParam]:
+    return tool_param.get("type") == "computer"
 
 
 def is_custom_tool_param(tool_param: ToolParam) -> TypeGuard[CustomToolParam]:

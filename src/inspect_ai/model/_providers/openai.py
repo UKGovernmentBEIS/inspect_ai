@@ -144,10 +144,8 @@ class OpenAIAPI(ModelAPI):
         ) and config.num_choices is None
 
         # resolve whether we are forcing the responses api
-        self.responses_api = (
-            background
-            or self.is_computer_use_preview()
-            or (responses_api if responses_api is not None else responses_preferred)
+        self.responses_api = background or (
+            responses_api if responses_api is not None else responses_preferred
         )
 
         # resolve whether we are using the responses store
@@ -366,10 +364,6 @@ class OpenAIAPI(ModelAPI):
         name = self.service_model_name()
         return "o3-mini" in name
 
-    def is_computer_use_preview(self) -> bool:
-        name = self.service_model_name()
-        return "computer-use-preview" in name
-
     def is_codex(self) -> bool:
         name = self.service_model_name()
         return "codex" in name
@@ -388,8 +382,7 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # computer_use_preview supports tool calls returning images
-        if self.is_computer_use_preview() or self.responses_api:
+        if self.responses_api:
             return True
         else:
             return False

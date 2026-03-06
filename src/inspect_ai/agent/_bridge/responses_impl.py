@@ -132,7 +132,7 @@ from inspect_ai.model._openai_responses import (
     web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
-    tool_call_arguments_to_action,
+    tool_call_arguments_to_actions,
     tool_call_from_openai_computer_tool_call,
 )
 from inspect_ai.model._reasoning import (
@@ -899,7 +899,7 @@ def responses_output_items_from_assistant_message(
                 ResponseComputerToolCall(
                     id=uuid(),
                     type="computer_call",
-                    action=tool_call_arguments_to_action(tool_call.arguments),
+                    actions=tool_call_arguments_to_actions(tool_call.arguments),
                     call_id=tool_call.id,
                     pending_safety_checks=[],
                     status="completed",
