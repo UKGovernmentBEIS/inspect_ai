@@ -1097,6 +1097,9 @@ async def task_run_sample(
 
         # complete the sample if there is no error or if there is no retry_on_error in play
         with anyio.CancelScope(shield=cancelled_error is not None):
+            # drain sample events for both completion and retry paths
+            await drain_sample_events()
+
             if not error or (retry_on_error == 0) or (cancelled_error is not None):
                 progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
@@ -1124,7 +1127,6 @@ async def task_run_sample(
                     await log_sample(
                         eval_sample=eval_sample, logger=logger, log_images=log_images
                     )
-                await drain_sample_events()
                 await emit_sample_end(
                     eval_set_id, run_id, task_id, state.uuid, eval_sample
                 )
@@ -1133,7 +1135,6 @@ async def task_run_sample(
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
     if error and retry_on_error > 0 and cancelled_error is None:
-        await drain_sample_events()
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
