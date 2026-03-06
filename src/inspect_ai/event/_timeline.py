@@ -1111,21 +1111,25 @@ def _extract_agent_results(parent: TimelineSpan) -> None:
                     item.agent_result = result_text
                 break
 
-        # Flow 2: next model event's input has ChatMessageTool with matching function
-        if item.agent_result is None:
+        # Flow 2: next model event's input has ChatMessageTool with matching tool_call_id
+        # The span ID follows the pattern "agent-{tool_call_id}" in bridge flow.
+        tool_call_id = item.id[6:] if item.id.startswith("agent-") else None
+
+        if item.agent_result is None and tool_call_id:
             for j in range(i + 1, len(content)):
                 next_item = content[j]
                 if not isinstance(next_item, TimelineEvent):
-                    break
+                    continue
                 if isinstance(next_item.event, ModelEvent):
                     for msg in next_item.event.input:
                         if (
                             isinstance(msg, ChatMessageTool)
-                            and msg.function == item.name
+                            and msg.tool_call_id == tool_call_id
                         ):
                             if msg.text:
                                 item.agent_result = msg.text
-                    break
+                    if item.agent_result is not None:
+                        break
 
         # Recurse into child spans
         _extract_agent_results(item)
