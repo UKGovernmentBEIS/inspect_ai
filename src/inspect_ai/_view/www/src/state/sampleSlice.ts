@@ -85,6 +85,7 @@ const initialState: SampleState = {
   sampleInState: false,
   sampleStatus: "ok",
   sampleError: undefined,
+  eventsCleared: false,
 
   visiblePopover: undefined,
 
@@ -115,6 +116,12 @@ export const createSampleSlice = (
       setSelectedSample: (sample: EvalSample, logFile: string) => {
         const isLarge = isLargeSample(sample);
 
+        // Detect if events were cleared by the preprocessor:
+        // a sample with messages but no events indicates the events array
+        // was stripped to reduce memory usage.
+        const eventsCleared =
+          sample.events.length === 0 && (sample.messages?.length ?? 0) > 0;
+
         // Update state based on sample size
         set((state) => {
           state.sample.sample_identifier = {
@@ -123,6 +130,7 @@ export const createSampleSlice = (
             logFile: logFile,
           };
           state.sample.sampleInState = !isLarge;
+          state.sample.eventsCleared = eventsCleared;
 
           // Only store in state if it's small
           if (!isLarge) {

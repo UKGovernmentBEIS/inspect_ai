@@ -1,4 +1,5 @@
 import pytest
+from pydantic import BaseModel
 
 from inspect_ai.model._model_call import as_error_response
 
@@ -65,3 +66,15 @@ from inspect_ai.model._model_call import as_error_response
 )
 def test_as_error_response(body: object, expected: dict) -> None:
     assert as_error_response(body) == expected
+
+
+class _ErrorObject(BaseModel):
+    message: str
+    code: int
+
+
+def test_as_error_response_basemodel() -> None:
+    """BaseModel bodies (e.g. OpenAI ErrorObject) should be handled via model_dump."""
+    error = _ErrorObject(message="rate limit exceeded", code=429)
+    result = as_error_response(error)
+    assert result == {"message": "rate limit exceeded", "code": 429}

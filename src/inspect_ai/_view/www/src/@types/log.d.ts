@@ -290,7 +290,7 @@ export type Signature = string | null;
 export type Redacted = boolean;
 export type Type9 = "image";
 export type Image = string;
-export type Detail = "auto" | "low" | "high";
+export type Detail = "auto" | "low" | "high" | "original";
 export type Type10 = "audio";
 export type Audio = string;
 export type Format1 = "wav" | "mp3";
@@ -836,6 +836,7 @@ export type Content7 = (TimelineEvent | TimelineSpan)[];
 export type Branches = TimelineBranch[];
 export type Description4 = string | null;
 export type Utility = boolean;
+export type AgentResult = string | null;
 export type Event20 = string;
 export type Children = OutlineNode[];
 export type Nodes = OutlineNode[];
@@ -2068,6 +2069,7 @@ export interface TimelineSpan {
   branches: Branches;
   description: Description4;
   utility: Utility;
+  agent_result: AgentResult;
   outline: Outline | null;
 }
 /**
