@@ -607,9 +607,7 @@ async def drain_sample_events() -> None:
             try:
                 while True:
                     data = active.event_receive.receive_nowait()
-                    await _emit_to_all(
-                        lambda hook, d=data: hook.on_sample_event(d)
-                    )
+                    await _emit_to_all(lambda hook, d=data: hook.on_sample_event(d))
             except (anyio.WouldBlock, anyio.EndOfStream, anyio.ClosedResourceError):
                 pass
     except Exception as ex:
