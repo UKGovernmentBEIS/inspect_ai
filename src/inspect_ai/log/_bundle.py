@@ -375,5 +375,5 @@ def embed_log_dir(
         move_output(working_dir, viewer_dir, lambda _: None, fs_options)
 
     if log_fs.is_local():
-        display().print(f"Run: python -m http.server -d '{log_dir}'")
+        display().print(f"Run: cd '{log_dir}' && python -m RangeHTTPServer")
         display().print("View: http://localhost:8000/viewer/index.html")
