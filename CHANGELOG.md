@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Timelines: Detect `agent_result` for timeline spans.
+- Add support for an optional list of metrics when rescoring a log.
 - Inspect View: Display proper message when transcript events are remove to reduce eval log size.
 
 ## 0.3.188 (05 March 2026)
