@@ -146,7 +146,7 @@ class TestGoogleSearchRendering:
             result = await search("test\x01query")
             assert result is not None
 
-    async def test_search_url_encodes_special_characters(self):
+    async def test_search_url_encodes_special_characters(self) -> None:
         """Test that queries with special characters don't corrupt the URL structure."""
         captured_urls: list[str] = []
         inner_transport = create_mock_transport()

@@ -92,25 +92,29 @@ export const fetchLogFile = async (
 export const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
+  const parseListing = async (text: string): Promise<LogFilesFetchResponse> => {
+    const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
+    return { raw: text, parsed };
+  };
+  const handle404 = (response: Response): boolean => {
+    return response.status === 404;
+  };
+
+  // Try log_dir first, then fall back to ./listing.json (for embedded viewers
+  // where listing.json is placed alongside the viewer assets)
   const logs = await fetchFile<LogFilesFetchResponse>(
     log_dir + "/listing.json",
-    async (text) => {
-      const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
-      return {
-        raw: text,
-        parsed,
-      };
-    },
-    (response) => {
-      if (response.status === 404) {
-        // Couldn't find a header file
-        return true;
-      } else {
-        return false;
-      }
-    },
+    parseListing,
+    handle404,
   );
-  return logs;
+  if (logs) {
+    return logs;
+  }
+  return await fetchFile<LogFilesFetchResponse>(
+    "./listing.json",
+    parseListing,
+    handle404,
+  );
 };
 
 /**

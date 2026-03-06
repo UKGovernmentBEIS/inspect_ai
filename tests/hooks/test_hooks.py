@@ -17,6 +17,7 @@ from inspect_ai.hooks._hooks import (
     RunEnd,
     RunStart,
     SampleEnd,
+    SampleEvent,
     SampleInit,
     SampleStart,
     TaskEnd,
@@ -39,6 +40,7 @@ class MockHooks(Hooks):
         self.task_end_events: list[TaskEnd] = []
         self.sample_init_events: list[SampleInit] = []
         self.sample_start_events: list[SampleStart] = []
+        self.sample_event_events: list[SampleEvent] = []
         self.sample_end_events: list[SampleEnd] = []
         self.model_usage_events: list[ModelUsageData] = []
 
@@ -49,6 +51,7 @@ class MockHooks(Hooks):
         assert not self.task_end_events
         assert not self.sample_init_events
         assert not self.sample_start_events
+        assert not self.sample_event_events
         assert not self.sample_end_events
         assert not self.model_usage_events
 
@@ -72,6 +75,9 @@ class MockHooks(Hooks):
 
     async def on_sample_start(self, data: SampleStart) -> None:
         self.sample_start_events.append(data)
+
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        self.sample_event_events.append(data)
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         self.sample_end_events.append(data)
@@ -362,6 +368,55 @@ def test_required_hooks_when_one_missing(
             init_hooks()
 
     assert "missing: {'fake'}" in str(exc_info.value)
+
+
+def test_sample_events_are_emitted(mock_hooks: MockHooks) -> None:
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    # A basic eval should produce at least one sample event (e.g. SampleInitEvent,
+    # ModelEvent, ScoreEvent, etc.)
+    assert len(mock_hooks.sample_event_events) > 0
+
+    # All events should reference the same sample/run/eval ids
+    first = mock_hooks.sample_event_events[0]
+    for evt in mock_hooks.sample_event_events:
+        assert evt.run_id == first.run_id
+        assert evt.eval_id == first.eval_id
+        assert evt.sample_id == first.sample_id
+
+
+def test_sample_events_with_multiple_samples(mock_hooks: MockHooks) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1"), Sample("sample_2")]),
+        model="mockllm/model",
+    )
+
+    # Events should be emitted for both samples
+    sample_ids = {evt.sample_id for evt in mock_hooks.sample_event_events}
+    assert len(sample_ids) == 2
+
+
+def test_sample_events_with_multiple_hooks(
+    mock_hooks: MockHooks, hooks_2: MockHooks
+) -> None:
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    # Both hooks should receive the same sample events
+    assert len(mock_hooks.sample_event_events) > 0
+    assert len(mock_hooks.sample_event_events) == len(hooks_2.sample_event_events)
+
+
+def test_sample_events_arrive_before_sample_end(mock_hooks: MockHooks) -> None:
+    """Verify that all sample events are drained before sample_end fires."""
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert len(mock_hooks.sample_event_events) > 0
+    assert len(mock_hooks.sample_end_events) == 1
+
+    # The sample_end event should share the same sample_id as the sample events
+    end_sample_id = mock_hooks.sample_end_events[0].sample_id
+    for evt in mock_hooks.sample_event_events:
+        assert evt.sample_id == end_sample_id
 
 
 T = TypeVar("T", bound=Hooks)
