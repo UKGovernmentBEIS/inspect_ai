@@ -8,6 +8,14 @@ from inspect_ai._util.json import jsonable_python
 
 def as_error_response(body: object | None) -> dict[str, JsonValue]:
     """Convert an exception body to a safe response dict for ModelCall."""
+    if isinstance(body, BaseModel):
+        try:
+            return cast(dict[str, JsonValue], body.model_dump(warnings=False))
+        except Exception:
+            return cast(
+                dict[str, JsonValue],
+                json.loads(body.model_dump_json(warnings=False)),
+            )
     if isinstance(body, dict):
         return cast(dict[str, JsonValue], jsonable_python(body))
     if isinstance(body, str):

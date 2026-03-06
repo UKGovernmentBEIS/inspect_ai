@@ -637,7 +637,8 @@ def _process_response_output_items(
                 has_tool_calls = True
                 if output.id is not None:
                     assistant_internal().tool_calls[output.call_id] = cast(
-                        ResponseFunctionToolCallParam, output.model_dump()
+                        ResponseFunctionToolCallParam,
+                        output.model_dump(exclude_none=True),
                     )
 
                 tool_calls.append(
