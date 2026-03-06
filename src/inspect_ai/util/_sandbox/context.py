@@ -124,6 +124,8 @@ async def _is_file_readable(environment: SandboxEnvironment, file: str) -> bool:
         if result.success:
             return True
     except Exception:
+        # Catch broadly because sandbox providers may raise a variety of
+        # provider-specific exceptions that we can't predict here.
         pass
 
     # Fallback: read the file. Cross-platform but transfers full contents.
