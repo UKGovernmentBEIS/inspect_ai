@@ -3574,6 +3574,21 @@
           "default": null,
           "title": "Metadata"
         },
+        "environment": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Environment"
+        },
         "scorers": {
           "anyOf": [
             {
@@ -3656,6 +3671,7 @@
         "revision",
         "packages",
         "metadata",
+        "environment",
         "scorers",
         "metrics"
       ],
