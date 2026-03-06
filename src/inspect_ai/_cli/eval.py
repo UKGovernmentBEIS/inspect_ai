@@ -51,6 +51,7 @@ MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
 MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
+DISK_BACKED_HELP = "Use disk-backed storage for sample data to reduce memory usage during large evaluations. Requires the 'rocksdict' package (pip install 'inspect_ai[disk-backed]')."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
@@ -268,6 +269,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=MAX_SANDBOXES_HELP,
         envvar="INSPECT_EVAL_MAX_SANDBOXES",
+    )
+    @click.option(
+        "--disk-backed",
+        type=bool,
+        is_flag=True,
+        help=DISK_BACKED_HELP,
+        envvar="INSPECT_EVAL_DISK_BACKED",
     )
     @click.option(
         "--message-limit",
@@ -673,6 +681,7 @@ def eval_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    disk_backed: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
@@ -736,6 +745,7 @@ def eval_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
+        disk_backed=disk_backed,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
@@ -887,6 +897,7 @@ def eval_set_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    disk_backed: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
@@ -958,6 +969,7 @@ def eval_set_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
+        disk_backed=disk_backed,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
@@ -1027,6 +1039,7 @@ def eval_exec(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    disk_backed: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
@@ -1110,6 +1123,9 @@ def eval_exec(
     score = False if no_score else True
     score_display = False if no_score_display else None
 
+    # resolve positive flag
+    resolved_disk_backed = True if disk_backed else None
+
     # build params
     params: dict[str, Any] = (
         dict(
@@ -1148,6 +1164,7 @@ def eval_exec(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
+            disk_backed=resolved_disk_backed,
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
@@ -1281,6 +1298,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=int,
     help=MAX_SANDBOXES_HELP,
     envvar="INSPECT_EVAL_MAX_SANDBOXES",
+)
+@click.option(
+    "--disk-backed",
+    type=bool,
+    is_flag=True,
+    help=DISK_BACKED_HELP,
+    envvar="INSPECT_EVAL_DISK_BACKED",
 )
 @click.option(
     "--no-sandbox-cleanup",
@@ -1426,6 +1450,7 @@ def eval_retry_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
+    disk_backed: bool | None,
     no_sandbox_cleanup: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
@@ -1462,6 +1487,9 @@ def eval_retry_command(
     score = False if no_score else True
     score_display = False if no_score_display else None
 
+    # resolve positive flag
+    resolved_disk_backed = True if disk_backed else None
+
     # resolve fail_on_error
     if no_fail_on_error is True:
         fail_on_error = False
@@ -1487,6 +1515,7 @@ def eval_retry_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
+        disk_backed=resolved_disk_backed,
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
         fail_on_error=fail_on_error,

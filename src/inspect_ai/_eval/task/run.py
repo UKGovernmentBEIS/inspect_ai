@@ -8,7 +8,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Awaitable, Callable, Literal
+from typing import TYPE_CHECKING, Awaitable, Callable, Literal
+
+if TYPE_CHECKING:
+    from inspect_ai._util._disk_backed import DiskBackedList
 
 import anyio
 from anyio.abc import TaskGroup
@@ -246,6 +249,19 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         cost_limit=config.cost_limit,
     )
 
+    # optionally use disk-backed storage for samples and states
+    disk_backed = config.disk_backed is True
+    disk_samples: "DiskBackedList[Sample] | None" = None
+    disk_states: "DiskBackedList[TaskState] | None" = None
+    total_samples = len(samples)
+    if disk_backed:
+        from inspect_ai._util._disk_backed import DiskBackedList
+
+        disk_samples = DiskBackedList(samples)
+        disk_states = DiskBackedList(states)
+        samples = []  # release in-memory copies
+        states = []
+
     # resolve the plan (unroll chains)
     solver = solver or task.solver
     plan = resolve_plan(task, solver)
@@ -272,8 +288,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         model=model_name,
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
-        samples=len(samples),
-        steps=len(samples) * SAMPLE_TOTAL_PROGRESS_UNITS,
+        samples=total_samples,
+        steps=total_samples * SAMPLE_TOTAL_PROGRESS_UNITS,
         eval_config=config,
         task_args=logger.eval.task_args_passed,
         generate_config=generate_config,
@@ -300,7 +316,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
                 # slice off just 1 instance of the samples
-                unique_samples = samples[0 : (len(samples) // epochs)]
+                if disk_backed and disk_samples is not None:
+                    unique_samples = disk_samples[0 : (total_samples // epochs)]
+                else:
+                    unique_samples = samples[0 : (total_samples // epochs)]
                 stopping_manager = await options.task.early_stopping.start_task(
                     logger.eval, samples=unique_samples, epochs=epochs
                 )
@@ -354,7 +373,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # Increment the segment progress
                     td.sample_complete(
-                        complete=len(progress_results), total=len(samples)
+                        complete=len(progress_results), total=total_samples
                     )
 
                     # Update metrics
@@ -373,7 +392,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         )
 
                 # initial progress
-                td.sample_complete(complete=0, total=len(samples))
+                td.sample_complete(complete=0, total=total_samples)
 
                 # Update metrics to empty state
                 update_metrics_display(
@@ -403,6 +422,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         logger=logger if log_samples else None,
                         log_images=log_images,
                         log_model_api=log_model_api,
+                        disk_backed=disk_backed,
                         sample_source=sample_source,
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
@@ -421,15 +441,31 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task_id=logger.eval.eval_id,
                     )
 
-                sample_results = await tg_collect(
-                    [
-                        functools.partial(run_sample, sample, state)
-                        for (sample, state) in zip(
-                            samples,
-                            states,
-                        )
-                    ]
-                )
+                async def run_sample_disk(
+                    index: int,
+                ) -> dict[str, SampleScore] | EarlyStop | None:
+                    assert disk_samples is not None and disk_states is not None
+                    sample = disk_samples.pop(index)
+                    state = disk_states.pop(index)
+                    return await run_sample(sample, state)
+
+                if disk_backed and disk_samples is not None:
+                    sample_results = await tg_collect(
+                        [
+                            functools.partial(run_sample_disk, i)
+                            for i in range(total_samples)
+                        ]
+                    )
+                else:
+                    sample_results = await tg_collect(
+                        [
+                            functools.partial(run_sample, sample, state)
+                            for (sample, state) in zip(
+                                samples,
+                                states,
+                            )
+                        ]
+                    )
 
             # compute and record metrics if we have scores
             completed_scores = [
@@ -527,6 +563,12 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
+
+    # cleanup disk-backed storage
+    if disk_samples is not None:
+        disk_samples.close()
+    if disk_states is not None:
+        disk_states.close()
 
     try:
         # Log file locations are emitted to the "new" hooks via the "task end" event,
@@ -628,6 +670,7 @@ async def task_run_sample(
     logger: TaskLogger | None,
     log_images: bool,
     log_model_api: bool,
+    disk_backed: bool = False,
     sample_source: EvalSampleSource | None,
     sample_error: SampleErrorHandler,
     sample_complete: Callable[
@@ -710,7 +753,7 @@ async def task_run_sample(
     init_sample_model_usage()
     init_sample_role_usage()
     set_sample_state(state)
-    sample_transcript = Transcript(log_model_api=log_model_api)
+    sample_transcript = Transcript(log_model_api=log_model_api, disk_backed=disk_backed)
     init_transcript(sample_transcript)
     init_subtask_store(state.store)
     sample_transcript._subscribe(on_sample_event)
@@ -1131,6 +1174,9 @@ async def task_run_sample(
                     eval_set_id, run_id, task_id, state.uuid, eval_sample
                 )
 
+                # cleanup disk-backed transcript
+                sample_transcript.close()
+
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
@@ -1157,6 +1203,7 @@ async def task_run_sample(
             logger=logger,
             log_images=log_images,
             log_model_api=log_model_api,
+            disk_backed=disk_backed,
             sample_source=sample_source,
             sample_error=sample_error,
             sample_complete=sample_complete,

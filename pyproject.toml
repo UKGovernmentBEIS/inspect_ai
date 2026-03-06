@@ -183,6 +183,7 @@ dev = [
   "pytest-watcher",
   "pytest-xdist",
   "ruff==0.9.6",            # match version specified in .pre-commit-config.yaml
+  "rocksdict>=0.3.29",
   "together>=2.0.0",
   "textual-dev>=0.86.2",
   "trio",
@@ -206,6 +207,7 @@ dev = [
   # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
   "zipfile-zstd>=0.0.4; python_version < '3.14'",
 ]
+disk-backed = ["rocksdict>=0.3.29"]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = [
   "quarto-cli==1.7.32",

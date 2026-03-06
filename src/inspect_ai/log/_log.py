@@ -143,6 +143,9 @@ class EvalConfig(BaseModel):
     max_sandboxes: int | None = Field(default=None)
     """Maximum number of sandboxes to run concurrently."""
 
+    disk_backed: bool | None = Field(default=None)
+    """Use disk-backed storage for sample data to reduce memory usage."""
+
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
 

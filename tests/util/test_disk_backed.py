@@ -1,0 +1,235 @@
+"""Tests for DiskBackedList and DiskBackedDict utilities."""
+
+import os
+import tempfile
+
+from pydantic import BaseModel
+
+from inspect_ai._util._disk_backed import DiskBackedDict, DiskBackedList
+
+
+class SampleModel(BaseModel):
+    """Simple Pydantic model for testing pickling."""
+
+    id: int
+    name: str
+    data: dict[str, int]
+
+
+# -- DiskBackedList tests -----------------------------------------------------
+
+
+def test_disk_backed_list_basic() -> None:
+    with DiskBackedList([1, 2, 3]) as dbl:
+        assert len(dbl) == 3
+        assert dbl[0] == 1
+        assert dbl[1] == 2
+        assert dbl[2] == 3
+
+
+def test_disk_backed_list_append() -> None:
+    with DiskBackedList() as dbl:
+        dbl.append("a")
+        dbl.append("b")
+        assert len(dbl) == 2
+        assert dbl[0] == "a"
+        assert dbl[1] == "b"
+
+
+def test_disk_backed_list_extend() -> None:
+    with DiskBackedList() as dbl:
+        dbl.extend([10, 20, 30])
+        assert len(dbl) == 3
+        assert list(dbl) == [10, 20, 30]
+
+
+def test_disk_backed_list_setitem() -> None:
+    with DiskBackedList([1, 2, 3]) as dbl:
+        dbl[1] = 99
+        assert dbl[1] == 99
+
+
+def test_disk_backed_list_delitem() -> None:
+    with DiskBackedList([1, 2, 3]) as dbl:
+        del dbl[1]
+        # item at index 1 is now deleted; iteration skips it
+        items = list(dbl)
+        assert 2 not in items
+        assert 1 in items
+        assert 3 in items
+
+
+def test_disk_backed_list_pop() -> None:
+    with DiskBackedList(["a", "b", "c"]) as dbl:
+        val = dbl.pop(1)
+        assert val == "b"
+        items = list(dbl)
+        assert "b" not in items
+
+
+def test_disk_backed_list_negative_index() -> None:
+    with DiskBackedList([10, 20, 30]) as dbl:
+        assert dbl[-1] == 30
+        assert dbl[-2] == 20
+
+
+def test_disk_backed_list_slice() -> None:
+    with DiskBackedList([10, 20, 30, 40]) as dbl:
+        assert dbl[1:3] == [20, 30]
+
+
+def test_disk_backed_list_contains() -> None:
+    with DiskBackedList([1, 2, 3]) as dbl:
+        assert 2 in dbl
+        assert 99 not in dbl
+
+
+def test_disk_backed_list_iteration() -> None:
+    items = [1, 2, 3, 4, 5]
+    with DiskBackedList(items) as dbl:
+        assert list(dbl) == items
+
+
+def test_disk_backed_list_pydantic_model() -> None:
+    models = [
+        SampleModel(id=1, name="one", data={"a": 1}),
+        SampleModel(id=2, name="two", data={"b": 2}),
+    ]
+    with DiskBackedList(models) as dbl:
+        assert len(dbl) == 2
+        retrieved = dbl[0]
+        assert isinstance(retrieved, SampleModel)
+        assert retrieved.id == 1
+        assert retrieved.name == "one"
+        assert retrieved.data == {"a": 1}
+
+
+def test_disk_backed_list_cleanup() -> None:
+    tmpdir: str = ""
+    with DiskBackedList([1]) as dbl:
+        tmpdir = dbl._tmpdir
+        assert os.path.exists(tmpdir)
+    # After context exit, the temp directory should be cleaned up
+    assert not os.path.exists(tmpdir)
+
+
+def test_disk_backed_list_custom_path() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "test_db")
+        dbl = DiskBackedList([1, 2], path=path)
+        assert dbl[0] == 1
+        dbl.close()
+
+
+def test_disk_backed_list_index_error() -> None:
+    with DiskBackedList([1]) as dbl:
+        try:
+            _ = dbl[5]
+            assert False, "Should have raised IndexError"
+        except IndexError:
+            pass
+
+
+# -- DiskBackedDict tests ----------------------------------------------------
+
+
+def test_disk_backed_dict_basic() -> None:
+    with DiskBackedDict() as dbd:
+        dbd["key1"] = "value1"
+        dbd["key2"] = 42
+        assert dbd["key1"] == "value1"
+        assert dbd["key2"] == 42
+        assert len(dbd) == 2
+
+
+def test_disk_backed_dict_contains() -> None:
+    with DiskBackedDict() as dbd:
+        dbd["x"] = 1
+        assert "x" in dbd
+        assert "y" not in dbd
+
+
+def test_disk_backed_dict_delete() -> None:
+    with DiskBackedDict() as dbd:
+        dbd["a"] = 1
+        dbd["b"] = 2
+        del dbd["a"]
+        assert "a" not in dbd
+        assert len(dbd) == 1
+
+
+def test_disk_backed_dict_get() -> None:
+    with DiskBackedDict() as dbd:
+        dbd["x"] = 42
+        assert dbd.get("x") == 42
+        assert dbd.get("missing") is None
+        assert dbd.get("missing", "default") == "default"
+
+
+def test_disk_backed_dict_keys_values_items() -> None:
+    with DiskBackedDict() as dbd:
+        dbd["a"] = 1
+        dbd["b"] = 2
+        assert dbd.keys() == {"a", "b"}
+        assert set(dbd.values()) == {1, 2}
+        assert set(dbd.items()) == {("a", 1), ("b", 2)}
+
+
+def test_disk_backed_dict_iteration() -> None:
+    with DiskBackedDict() as dbd:
+        dbd["x"] = 1
+        dbd["y"] = 2
+        keys = list(dbd)
+        assert set(keys) == {"x", "y"}
+
+
+def test_disk_backed_dict_pydantic_model() -> None:
+    model = SampleModel(id=1, name="test", data={"key": 42})
+    with DiskBackedDict() as dbd:
+        dbd["model"] = model
+        retrieved = dbd["model"]
+        assert isinstance(retrieved, SampleModel)
+        assert retrieved.id == 1
+        assert retrieved.name == "test"
+
+
+def test_disk_backed_dict_cleanup() -> None:
+    tmpdir: str = ""
+    with DiskBackedDict() as dbd:
+        dbd["x"] = 1
+        tmpdir = dbd._tmpdir
+        assert os.path.exists(tmpdir)
+    assert not os.path.exists(tmpdir)
+
+
+def test_disk_backed_dict_key_error() -> None:
+    with DiskBackedDict() as dbd:
+        try:
+            _ = dbd["nonexistent"]
+            assert False, "Should have raised KeyError"
+        except KeyError:
+            pass
+
+
+# -- Complex data types -------------------------------------------------------
+
+
+def test_disk_backed_list_nested_structures() -> None:
+    data = [
+        {"messages": [{"role": "user", "content": "hello"}], "score": 0.95},
+        {"messages": [{"role": "assistant", "content": "hi"}], "score": 0.8},
+    ]
+    with DiskBackedList(data) as dbl:
+        assert len(dbl) == 2
+        item = dbl[0]
+        assert item["messages"][0]["content"] == "hello"
+        assert item["score"] == 0.95
+
+
+def test_disk_backed_dict_large_values() -> None:
+    large_list = list(range(10000))
+    with DiskBackedDict() as dbd:
+        dbd["large"] = large_list
+        retrieved = dbd["large"]
+        assert len(retrieved) == 10000
+        assert retrieved[9999] == 9999
