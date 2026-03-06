@@ -50,7 +50,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
-from inspect_ai.model._model_config import model_roles_to_model_roles_config
+from inspect_ai.model._model_config import (
+    model_args_for_log,
+    model_roles_to_model_roles_config,
+)
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
@@ -873,7 +876,7 @@ def task_identifier(
             plan, task.task.config.merge(eval_set_args.config)
         )
         additional_hash_fields = AdditionalHashFields(
-            model_args=task.model.model_args,
+            model_args=model_args_for_log(task.model.model_args),
             version=task.task.version,
             message_limit=task.task.message_limit
             if eval_set_args.message_limit is None
