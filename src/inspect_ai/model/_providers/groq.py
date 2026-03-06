@@ -369,7 +369,9 @@ async def as_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     else:
         raise RuntimeError("Groq models do not support audio or video inputs.")

@@ -26,6 +26,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
+    ChatMessageUser,
 )
 
 from ._event import Event
@@ -227,6 +228,7 @@ class TimelineSpan(BaseModel):
     branches: list["TimelineBranch"] = Field(default_factory=list)
     description: str | None = None
     utility: bool = False
+    agent_result: str | None = None
     outline: "Outline | None" = None
 
     @model_validator(mode="after")
@@ -543,6 +545,7 @@ def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
     _wrap_utility_events(root)
     _classify_utility_agents(root)
     _classify_branches(root, has_explicit_branches)
+    _extract_agent_results(root)
 
 
 def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
@@ -740,11 +743,13 @@ def _event_to_node(event: Event) -> TimelineEvent | TimelineSpan:
             nested_content: list[TimelineEvent | TimelineSpan] = [
                 _event_to_node(e) for e in nested_events
             ]
+            agent_result = _extract_tool_event_result(event.result)
             return TimelineSpan(
                 id=f"tool-agent-{event.id}",
                 name=agent_name,
                 span_type="agent",
                 content=nested_content,
+                agent_result=agent_result,
             )
     return TimelineEvent(event=event)
 
@@ -1053,6 +1058,80 @@ def _classify_branches(
 
 
 # =============================================================================
+# Agent Result Extraction
+# =============================================================================
+
+
+def _extract_tool_event_result(result: Any) -> str | None:
+    """Extract a string result from a ToolEvent result field."""
+    if isinstance(result, str) and result:
+        return result
+    if isinstance(result, list):
+        parts: list[str] = []
+        for item in result:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(item["text"])
+            elif hasattr(item, "text"):
+                parts.append(item.text)
+        return "\n".join(parts) if parts else None
+    return None
+
+
+def _extract_agent_results(parent: TimelineSpan) -> None:
+    """Extract agent_result for each agent sub-span.
+
+    Three sources (checked in order):
+    1. Tool-spawned agents: result already set during _event_to_node
+    2. Span-based agents (static flow): sibling ToolEvent with agent_span_id == span.id
+    3. Bridge flow: next ModelEvent's input has ChatMessageTool with function == span.name
+    """
+    content = parent.content
+    for i, item in enumerate(content):
+        if not isinstance(item, TimelineSpan):
+            continue
+        if item.span_type != "agent":
+            # Recurse into non-agent spans
+            _extract_agent_results(item)
+            continue
+
+        # Skip if already set (e.g. from tool-spawned agent construction)
+        if item.agent_result is not None:
+            _extract_agent_results(item)
+            continue
+
+        # Flow 1: sibling ToolEvent with agent_span_id matching this span
+        for sibling in content:
+            if (
+                isinstance(sibling, TimelineEvent)
+                and isinstance(sibling.event, ToolEvent)
+                and sibling.event.agent_span_id == item.id
+            ):
+                result_text = _extract_tool_event_result(sibling.event.result)
+                if result_text:
+                    item.agent_result = result_text
+                break
+
+        # Flow 2: next model event's input has ChatMessageTool with matching function
+        if item.agent_result is None:
+            for j in range(i + 1, len(content)):
+                next_item = content[j]
+                if not isinstance(next_item, TimelineEvent):
+                    break
+                if isinstance(next_item.event, ModelEvent):
+                    for msg in next_item.event.input:
+                        if (
+                            isinstance(msg, ChatMessageTool)
+                            and msg.function == item.name
+                        ):
+                            if msg.text:
+                                item.agent_result = msg.text
+                    break
+
+        # Recurse into child spans
+        _extract_agent_results(item)
+
+
+# =============================================================================
 # Utility Event Wrapping (bridge-based agents)
 # =============================================================================
 
@@ -1154,6 +1233,18 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     new_content: list[TimelineEvent | TimelineSpan] = []
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
+            # Warmup/cache-priming call (max_tokens=1)
+            if _is_warmup_call(item.event):
+                wrapper = TimelineSpan(
+                    id=f"utility-{item.event.uuid or id(item)}",
+                    name="utility",
+                    span_type="agent",
+                    content=[item],
+                )
+                wrapper.utility = True
+                new_content.append(wrapper)
+                continue
+
             evt_prompt = _get_system_prompt_for_event(item.event)
             if (
                 evt_prompt is not None
@@ -1182,6 +1273,19 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _wrap_utility_events(item)
+
+
+def _is_warmup_call(event: ModelEvent) -> bool:
+    """Detect cache-priming warmup calls (max_tokens=1, single-word user prompt)."""
+    if event.config.max_tokens is None or event.config.max_tokens > 1:
+        return False
+    # Check that the last user message is a single word
+    for msg in reversed(event.input):
+        if isinstance(msg, ChatMessageUser):
+            if isinstance(msg.content, str):
+                return len(msg.content.split()) <= 1
+            return False
+    return False
 
 
 # =============================================================================

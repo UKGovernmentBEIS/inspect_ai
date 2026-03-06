@@ -114,6 +114,81 @@ def test_handle_bad_request(
         assert isinstance(response, APIStatusError)
 
 
+@pytest.mark.parametrize(
+    ("body", "expected_stop_reason"),
+    [
+        pytest.param(
+            {
+                "message": "blocked",
+                "code": "invalid_prompt",
+                "type": "invalid_request_error",
+            },
+            "content_filter",
+            id="invalid_prompt",
+        ),
+        pytest.param(
+            {
+                "message": "content issue",
+                "code": "content_policy_violation",
+                "type": "invalid_request_error",
+            },
+            "content_filter",
+            id="content_policy_violation",
+        ),
+        pytest.param(
+            {
+                "message": "filtered",
+                "code": "content_filter",
+                "type": "server_error",
+            },
+            "content_filter",
+            id="content_filter_azure",
+        ),
+        pytest.param(
+            {
+                "message": "Your request was blocked by safety",
+                "code": "some_other_code",
+                "type": "invalid_request_error",
+            },
+            "content_filter",
+            id="invalid_request_blocked_message",
+        ),
+        pytest.param(
+            {
+                "message": "Something else entirely",
+                "code": "some_other_code",
+                "type": "invalid_request_error",
+            },
+            None,
+            id="invalid_request_not_blocked",
+        ),
+    ],
+)
+def test_handle_bad_request_content_filter(
+    body: dict[str, str], expected_stop_reason: StopReason | None
+) -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+    )
+    error = APIStatusError(
+        message=body["message"],
+        response=httpx.Response(
+            request=httpx.Request(method="POST", url="https://example.com"),
+            status_code=400,
+            json=body,
+        ),
+        body=body,
+    )
+    response = api.handle_bad_request(error)
+    if expected_stop_reason:
+        assert isinstance(response, ModelOutput)
+        assert response.stop_reason == expected_stop_reason
+    else:
+        assert isinstance(response, APIStatusError)
+
+
 async def test_initialize_recreates_closed_http_client() -> None:
     api = OpenAICompatibleAPI(
         model_name="openai-api/openai/gpt-5",
