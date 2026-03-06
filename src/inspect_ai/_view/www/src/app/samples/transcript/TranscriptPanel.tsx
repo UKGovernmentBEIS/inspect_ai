@@ -239,19 +239,11 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
       }
     };
 
-    const scrollElement = scrollRef.current;
-    if (scrollElement) {
-      scrollElement.addEventListener("keydown", handleKeyDown);
-      // Make the element focusable so it can receive keyboard events
-      if (!scrollElement.hasAttribute("tabIndex")) {
-        scrollElement.setAttribute("tabIndex", "0");
-      }
-
-      return () => {
-        scrollElement.removeEventListener("keydown", handleKeyDown);
-      };
-    }
-  }, [scrollRef, flattenedNodes]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [flattenedNodes]);
 
   if (sampleStatus === "loading" && flattenedNodes.length === 0) {
     return undefined;
