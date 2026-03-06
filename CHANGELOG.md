@@ -2,6 +2,7 @@
 
 - Timelines: Detect `agent_result` for timeline spans.
 - Inspect View: Display proper message when transcript events are remove to reduce eval log size.
+- Inspect View: Properly compute nested span parents when rendering the event tree.
 
 ## 0.3.188 (05 March 2026)
 
