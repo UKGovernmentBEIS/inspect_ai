@@ -1,9 +1,11 @@
+import json
+
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import GenerateConfig, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
     MESSAGE_ID,
@@ -144,6 +146,71 @@ def test_mixed_reasoning_blocks_filtering():
     assert len(reasoning_items) == 5
     ids = {item["id"] for item in reasoning_items}
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
+
+
+async def test_responses_api_invalid_prompt_content_filter():
+    """Test that invalid_prompt error in responses API returns content_filter."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+    from openai.types.responses import Response, ResponseError
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    # Create a mock Response with an invalid_prompt error
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        error=ResponseError(
+            code="invalid_prompt",
+            message="Prompt was blocked by content filter",
+        ),
+        status="failed",
+    )
+
+    # Mock the client
+    client = MagicMock()
+    client.responses = MagicMock()
+    client.responses.create = AsyncMock(return_value=mock_response)
+
+    # Mock http_hooks
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    # Mock model_info
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_o1_early.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[],
+        tools=[],
+        tool_choice=None,
+        config=GenerateConfig(),
+        background=None,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        model_info=model_info,
+        batcher=None,
+    )
+    output, model_call = result
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert "blocked by content filter" in output.completion
 
 
 def test_fix_function_tool_parameters_string_to_dict():
@@ -689,3 +756,24 @@ def test_phase_round_trip_mixed():
 
     # Second message: has phase
     assert message_items[1]["phase"] == "commentary"
+
+
+def test_web_search_to_tool_use_handles_missing_action() -> None:
+    """Ensure missing web search action does not break tool-use conversion."""
+    from openai.types.responses import ResponseFunctionWebSearch
+
+    from inspect_ai.model._openai_responses import web_search_to_tool_use
+
+    web_search = ResponseFunctionWebSearch.model_construct(
+        type="web_search_call",
+        id="ws_missing_action",
+        action=None,
+        status="completed",
+    )
+
+    content = web_search_to_tool_use(web_search)
+
+    assert content.tool_type == "web_search"
+    assert content.id == "ws_missing_action"
+    assert content.name == "search"
+    assert json.loads(content.arguments) == {"type": "search", "query": ""}

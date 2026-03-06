@@ -23,6 +23,7 @@ from .service import SERVICES_DIR
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
+        super().__init__()
         self._sandbox = sandbox
         self._events = True
 

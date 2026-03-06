@@ -117,7 +117,7 @@ function findArrayEnd(data: Uint8Array, arrayStart: number): number {
 }
 
 /**
- * Clears events array at the byte level if it exceeds 100MB.
+ * Clears events array at the byte level if it exceeds the size limits.
  * Replaces the entire events array with an empty array.
  * This allows handling gigabyte-sized files without running out of memory.
  */
@@ -146,7 +146,6 @@ export function clearLargeEventsArray(data: Uint8Array): Uint8Array {
   const before = data.slice(0, arrayStart + 1); // Up to and including [
   const after = data.slice(arrayEnd); // From ] onwards
 
-  // Combine: before + ] + after (just close the bracket immediately)
   const result = new Uint8Array(before.length + after.length);
 
   let offset = 0;

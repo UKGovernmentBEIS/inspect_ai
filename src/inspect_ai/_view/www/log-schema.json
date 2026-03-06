@@ -1200,7 +1200,8 @@
           "enum": [
             "auto",
             "low",
-            "high"
+            "high",
+            "original"
           ],
           "title": "Detail",
           "type": "string"
@@ -7380,6 +7381,18 @@
           "title": "Utility",
           "type": "boolean"
         },
+        "agent_result": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Result"
+        },
         "outline": {
           "anyOf": [
             {
@@ -7401,6 +7414,7 @@
         "branches",
         "description",
         "utility",
+        "agent_result",
         "outline"
       ],
       "title": "TimelineSpan",

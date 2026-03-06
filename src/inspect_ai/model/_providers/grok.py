@@ -691,7 +691,7 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
                 detail = "DETAIL_AUTO"
             case "low":
                 detail = "DETAIL_LOW"
-            case "high":
+            case "high" | "original":
                 detail = "DETAIL_HIGH"
             case _:
                 detail = "DETAIL_AUTO"
