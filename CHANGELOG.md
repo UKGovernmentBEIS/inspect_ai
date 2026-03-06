@@ -5,7 +5,7 @@
 - Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
 - Web Search: Add query parameter encoding for Google provider.
 - AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
-- - Add support for an optional list of metrics when rescoring a log.
+- Add support for an optional list of metrics when rescoring a log.
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
 
