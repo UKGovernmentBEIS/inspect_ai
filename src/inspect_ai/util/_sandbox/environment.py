@@ -16,6 +16,7 @@ from typing import (
     overload,
 )
 
+import anyio
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.logger import warn_once
@@ -94,6 +95,10 @@ class SandboxEnvironment(abc.ABC):
     Sandbox environments provide both an execution environment as well as a per-sample
     filesystem context to copy samples files into and resolve relative paths to.
     """
+
+    def __init__(self) -> None:
+        self._tools_injected = False
+        self._inject_lock = anyio.Lock()
 
     @abc.abstractmethod
     async def exec(
@@ -299,6 +304,20 @@ class SandboxEnvironment(abc.ABC):
         Raises:
             TimeoutError: If `timeout` is specified in ExecRemoteAwaitableOptions and the command exceeds it (only applicable when `stream=False`).
         """
+        from inspect_ai.tool._sandbox_tools_utils.sandbox import (
+            sandbox_with_injected_tools,
+        )
+
+        # belt and suspenders in case subclasses forget to call __init__
+        if not hasattr(self, "_inject_lock"):
+            self._inject_lock = anyio.Lock()
+            self._tools_injected = False
+
+        async with self._inject_lock:
+            if not self._tools_injected:
+                await sandbox_with_injected_tools(sandbox=self)
+                self._tools_injected = True
+
         return await (exec_remote_streaming if stream else exec_remote_awaitable)(
             self, cmd, self.default_polling_interval(), options
         )

@@ -434,8 +434,17 @@ class AnthropicAPI(ModelAPI):
             if _request_has_edit_compaction(request):
                 betas.append("compact-2026-01-12")
 
-            # resolve betas and extra headers
+            # resolve betas and extra headers — preserve any client default
+            # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
+                client_beta = getattr(self.client, "_custom_headers", {}).get(
+                    "anthropic-beta", ""
+                )
+                if client_beta:
+                    for b in client_beta.split(","):
+                        b = b.strip()
+                        if b and b not in betas:
+                            betas.insert(0, b)
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
             request["extra_headers"] = extra_headers
