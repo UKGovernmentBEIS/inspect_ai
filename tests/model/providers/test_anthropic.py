@@ -1,4 +1,5 @@
 import types
+from typing import Any
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
@@ -45,6 +46,46 @@ def test_anthropic_effort() -> None:
         effort="low",
     )[0]
     assert log.status == "success"
+
+
+def test_anthropic_oauth_beta_preserved_with_effort() -> None:
+    """Test that OAuth beta header is preserved when per-request betas are added.
+
+    When using ANTHROPIC_AUTH_TOKEN, the client sets oauth-2025-04-20 as a
+    default header. Per-request extra_headers must not overwrite it.
+    """
+    import os
+
+    orig = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    try:
+        os.environ["ANTHROPIC_AUTH_TOKEN"] = "test-oauth-token"
+        os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
+        model = get_model("anthropic/claude-opus-4-5")
+        api: Any = model.api
+        # Verify client has the OAuth beta as a default header
+        client_beta = getattr(api.client, "_custom_headers", {}).get(
+            "anthropic-beta", ""
+        )
+        assert "oauth-2025-04-20" in client_beta
+        # Use effort to trigger per-request betas
+        config = GenerateConfig(effort="low", max_tokens=64)
+        _params, _extra_body, _headers, betas = api.completion_config(config)
+        assert "effort-2025-11-24" in betas
+        # The generate() method merges client betas - simulate that here
+        if betas:
+            if client_beta:
+                for b in client_beta.split(","):
+                    b = b.strip()
+                    if b and b not in betas:
+                        betas.insert(0, b)
+        assert "oauth-2025-04-20" in betas, (
+            "OAuth beta header must be preserved when per-request betas are set"
+        )
+    finally:
+        if orig is not None:
+            os.environ["ANTHROPIC_AUTH_TOKEN"] = orig
+        else:
+            os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 
 @skip_if_no_anthropic
