@@ -40,6 +40,9 @@ class ModelUsage(BaseModel):
     total_cost: float | None = Field(default=None)
     """Total cost in dollars for this usage."""
 
+    speed: str | None = Field(default=None)
+    """Speed mode used for this response ('fast' or 'standard'). Anthropic Opus 4.6 only."""
+
     def __add__(self, other: "ModelUsage") -> "ModelUsage":
         def optional_sum(a: _T | None, b: _T | None) -> _T | None:
             if a is not None and b is not None:

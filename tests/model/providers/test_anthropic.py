@@ -1,4 +1,5 @@
 import types
+from typing import Any
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
@@ -45,6 +46,47 @@ def test_anthropic_effort() -> None:
         effort="low",
     )[0]
     assert log.status == "success"
+
+
+def test_anthropic_fast_mode_config_opus_4_6() -> None:
+    """Test that speed='fast' produces correct request params for Opus 4.6."""
+    import os
+
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
+    model = get_model("anthropic/claude-opus-4-6")
+    api: Any = model.api
+    config = GenerateConfig(speed="fast", max_tokens=64)
+    params, extra_body, _headers, betas = api.completion_config(config)
+    assert extra_body.get("speed") == "fast"
+    assert "fast-mode-2026-02-01" in betas
+
+
+def test_anthropic_fast_mode_config_non_4_6_ignored() -> None:
+    """Test that speed='fast' is silently ignored on non-4.6 models."""
+    import os
+
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
+    model = get_model("anthropic/claude-sonnet-4-5")
+    api: Any = model.api
+    config = GenerateConfig(speed="fast", max_tokens=64)
+    params, extra_body, _headers, betas = api.completion_config(config)
+    assert "speed" not in extra_body
+    assert "fast-mode-2026-02-01" not in betas
+
+
+def test_anthropic_fast_mode_with_effort() -> None:
+    """Test that speed='fast' and effort='low' coexist correctly."""
+    import os
+
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
+    model = get_model("anthropic/claude-opus-4-6")
+    api: Any = model.api
+    config = GenerateConfig(speed="fast", effort="low", max_tokens=64)
+    params, extra_body, _headers, betas = api.completion_config(config)
+    assert extra_body.get("speed") == "fast"
+    assert "fast-mode-2026-02-01" in betas
+    assert "effort-2025-11-24" in betas
+    assert params.get("output_config") == {"effort": "low"}
 
 
 @skip_if_no_anthropic

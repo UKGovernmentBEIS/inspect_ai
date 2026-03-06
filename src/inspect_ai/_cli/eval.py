@@ -533,6 +533,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_EFFORT",
     )
     @click.option(
+        "--speed",
+        type=click.Choice(["fast"]),
+        help="Enable fast mode for higher output token generation speed at premium pricing (6x standard rates). Anthropic Claude Opus 4.6 only (research preview).",
+        envvar="INSPECT_EVAL_SPEED",
+    )
+    @click.option(
         "--reasoning-effort",
         type=click.Choice(["none", "minimal", "low", "medium", "high", "xhigh"]),
         help="Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).",
@@ -656,6 +662,7 @@ def eval_command(
     cache_prompt: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high"] | None,
+    speed: Literal["fast"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -864,6 +871,7 @@ def eval_set_command(
     cache_prompt: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high"] | None,
+    speed: Literal["fast"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,

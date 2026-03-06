@@ -2422,6 +2422,7 @@
             "cache_prompt": null,
             "verbosity": null,
             "effort": null,
+            "speed": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
             "reasoning_summary": null,
@@ -4027,6 +4028,19 @@
           "default": null,
           "title": "Effort"
         },
+        "speed": {
+          "anyOf": [
+            {
+              "const": "fast",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed"
+        },
         "reasoning_effort": {
           "anyOf": [
             {
@@ -4195,6 +4209,7 @@
         "cache_prompt",
         "verbosity",
         "effort",
+        "speed",
         "reasoning_effort",
         "reasoning_tokens",
         "reasoning_summary",
@@ -5343,6 +5358,18 @@
           ],
           "default": null,
           "title": "Total Cost"
+        },
+        "speed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed"
         }
       },
       "title": "ModelUsage",
@@ -5354,7 +5381,8 @@
         "input_tokens_cache_write",
         "input_tokens_cache_read",
         "reasoning_tokens",
-        "total_cost"
+        "total_cost",
+        "speed"
       ],
       "additionalProperties": false
     },
@@ -7355,6 +7383,18 @@
           "title": "Utility",
           "type": "boolean"
         },
+        "agent_result": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Result"
+        },
         "outline": {
           "anyOf": [
             {
@@ -7376,6 +7416,7 @@
         "branches",
         "description",
         "utility",
+        "agent_result",
         "outline"
       ],
       "title": "TimelineSpan",

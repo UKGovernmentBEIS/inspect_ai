@@ -58,6 +58,7 @@ export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type Verbosity = ("low" | "medium" | "high") | null;
 export type Effort = ("low" | "medium" | "high" | "max") | null;
+export type Speed = "fast" | null;
 export type ReasoningEffort =
   | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
   | null;
@@ -227,6 +228,7 @@ export type InputTokensCacheWrite = number | null;
 export type InputTokensCacheRead = number | null;
 export type ReasoningTokens1 = number | null;
 export type TotalCost = number | null;
+export type Speed1 = string | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
@@ -836,6 +838,7 @@ export type Content7 = (TimelineEvent | TimelineSpan)[];
 export type Branches = TimelineBranch[];
 export type Description4 = string | null;
 export type Utility = boolean;
+export type AgentResult = string | null;
 export type Event20 = string;
 export type Children = OutlineNode[];
 export type Nodes = OutlineNode[];
@@ -997,6 +1000,7 @@ export interface GenerateConfig {
   cache_prompt: CachePrompt;
   verbosity: Verbosity;
   effort: Effort;
+  speed: Speed;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
   reasoning_summary: ReasoningSummary;
@@ -1202,6 +1206,7 @@ export interface GenerateConfig1 {
   cache_prompt: CachePrompt;
   verbosity: Verbosity;
   effort: Effort;
+  speed: Speed;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
   reasoning_summary: ReasoningSummary;
@@ -1296,6 +1301,7 @@ export interface ModelUsage1 {
   input_tokens_cache_read: InputTokensCacheRead;
   reasoning_tokens: ReasoningTokens1;
   total_cost: TotalCost;
+  speed: Speed1;
 }
 export interface RoleUsage {
   [k: string]: ModelUsage1;
@@ -2068,6 +2074,7 @@ export interface TimelineSpan {
   branches: Branches;
   description: Description4;
   utility: Utility;
+  agent_result: AgentResult;
   outline: Outline | null;
 }
 /**

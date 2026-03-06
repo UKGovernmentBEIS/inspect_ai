@@ -434,8 +434,17 @@ class AnthropicAPI(ModelAPI):
             if _request_has_edit_compaction(request):
                 betas.append("compact-2026-01-12")
 
-            # resolve betas and extra headers
+            # resolve betas and extra headers — preserve any client default
+            # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
+                client_beta = getattr(self.client, "_custom_headers", {}).get(
+                    "anthropic-beta", ""
+                )
+                if client_beta:
+                    for b in client_beta.split(","):
+                        b = b.strip()
+                        if b and b not in betas:
+                            betas.insert(0, b)
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
             request["extra_headers"] = extra_headers
@@ -739,6 +748,17 @@ class AnthropicAPI(ModelAPI):
             if effort == "max" and not self.is_claude_4_6():
                 effort = "high"
             params["output_config"] = OutputConfigParam(effort=effort)
+
+        # fast mode (research preview) — Opus 4.6 only
+        if config.speed == "fast":
+            if not self.is_claude_4_6():
+                warn_once(
+                    logger,
+                    "Fast mode is only supported on Claude Opus 4.6. Ignoring speed='fast'.",
+                )
+            else:
+                betas.append("fast-mode-2026-02-01")
+                extra_body["speed"] = "fast"
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
@@ -1963,6 +1983,7 @@ async def model_output_from_message(
                 input_tokens_cache_write=input_tokens_cache_write,
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+                speed=usage.get("speed", None),
             ),
         ),
         pause_turn,
@@ -2938,4 +2959,4 @@ def is_image_type(media_type: str) -> bool:
 
 
 def anthropic_extra_body_fields() -> list[str]:
-    return ["metadata", "service_tier"]
+    return ["metadata", "service_tier", "speed"]

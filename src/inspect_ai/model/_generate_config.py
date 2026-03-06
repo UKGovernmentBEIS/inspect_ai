@@ -128,6 +128,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     effort: Literal["low", "medium", "high", "max"] | None
     """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
 
+    speed: Literal["fast"] | None
+    """Enable fast mode for higher output token generation speed at premium pricing. Anthropic Claude Opus 4.6 only (research preview)."""
+
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
     )
@@ -232,6 +235,9 @@ class GenerateConfig(BaseModel):
 
     effort: Literal["low", "medium", "high", "max"] | None = Field(default=None)
     """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
+
+    speed: Literal["fast"] | None = Field(default=None)
+    """Enable fast mode for higher output token generation speed at premium pricing. Anthropic Claude Opus 4.6 only (research preview)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
