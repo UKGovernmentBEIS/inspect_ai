@@ -117,6 +117,7 @@ from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._sandbox.limits import reset_sandbox_limits, set_sandbox_limits
 from inspect_ai.util._span import span
 from inspect_ai.util._store import init_subtask_store
 
@@ -279,6 +280,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         generate_config=generate_config,
         tags=tags,
         log_location=log_location,
+    )
+
+    limit_tokens = set_sandbox_limits(
+        max_read_file_size=config.max_read_file_size,
+        max_exec_output_size=config.max_exec_output_size,
     )
 
     with display().task(
@@ -539,6 +545,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             await send_telemetry_legacy("eval_log", eval_log_json_str(eval_log))
     except Exception as ex:
         py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
+
+    # restore sandbox limits
+    reset_sandbox_limits(limit_tokens)
 
     # return eval log
     return eval_log
