@@ -458,12 +458,16 @@ def test_task_identifier_with_redacted_model_args():
     model1 = get_model(
         "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
     )
+    model2 = get_model(
+        "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value2"
+    )
 
     def create_resolved_tasks() -> list[ResolvedTask]:
         task1 = hello_world()
         task_with(
             task1,
             model=model1,
+            model_roles={"my_role": model2},
         )
         return resolve_tasks([task1], {}, model1, None, None, None)
 
