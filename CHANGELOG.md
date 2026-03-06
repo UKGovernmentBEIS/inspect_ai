@@ -1,5 +1,16 @@
 ## Unreleased
 
+- Timelines: Detect `agent_result` for timeline spans.
+- Inspect View: Display proper message when transcript events are removed to reduce eval log size.
+- Inspect View: Properly compute nested span parents when rendering the event tree.
+
+## 0.3.188 (05 March 2026)
+
+- OpenAI: Fix mypy issues with OpenAI SDK 2.26 (now required).
+- Improve error serialization for model call objects.
+
+## 0.3.187 (05 March 2026)
+
 - OpenAI: Detect some additional "content_filter" stop reason conditions.
 - OpenAI: Handle `web_search_call` response witgh no `action` field.
 - OpenAI: Support for OpenAI SDK 2.25 (GPT 5.4, image detail "original").
