@@ -9,6 +9,7 @@
 - File Utils: Strip trailing separators from S3 paths in `absolute_file_path` (matches local fs behavior).
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
+- Bugfix: Eval set task_identifier is now computed using redacted model_args
 
 ## 0.3.188 (05 March 2026)
 
