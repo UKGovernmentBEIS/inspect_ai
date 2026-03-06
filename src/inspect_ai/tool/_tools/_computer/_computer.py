@@ -111,28 +111,18 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         Returns:
           The output of the command. Many commands will include a screenshot reflecting the result of the command in their output.
         """
-        # Multi-action path: execute each action sequentially, return final result
-        if actions is not None:
-            result: ToolResult = "OK"
-            for action_args in actions:
-                result = await _execute_single_action(action_args, timeout)
-            return result
-
-        # Single-action path (non-OpenAI providers)
-        assert action is not None, "Either 'action' or 'actions' must be provided"
-        return await _execute_single_action(
+        action_list = actions if actions is not None else [
             _build_action_args(
-                action,
-                coordinate,
-                duration,
-                region,
-                scroll_amount,
-                scroll_direction,
-                start_coordinate,
-                text,
-            ),
-            timeout,
-        )
+                action, coordinate, duration, region,
+                scroll_amount, scroll_direction, start_coordinate, text,
+            )
+        ] if action is not None else None
+        assert action_list, "Either 'action' or 'actions' must be provided"
+
+        result: ToolResult = "OK"
+        for action_args in action_list:
+            result = await _execute_single_action(action_args, timeout)
+        return result
 
     async def _execute_single_action(
         args: dict[str, object], timeout: int | None
