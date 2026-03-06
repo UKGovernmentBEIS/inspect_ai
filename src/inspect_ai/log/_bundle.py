@@ -321,3 +321,59 @@ def progress_adapter(
             ticks = ticks - tick_value
 
     yield tick
+
+
+def embed_log_dir(
+    log_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    r"""Embed a log viewer into a log_dir.
+
+    Creates a 'viewer' subdirectory inside the log_dir containing the
+    viewer JS/HTML, and writes listing.json to the log_dir. The viewer
+    is configured with log_dir=".." to read logs from the parent directory.
+    Requires an HTTP server to function (file:// won't work due to CORS).
+
+    Args:
+        log_dir: (str | None): The log_dir to embed the viewer in.
+        fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+            to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    from inspect_ai._display import display
+
+    # resolve the log directory
+    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+
+    # resolve paths
+    log_dir = absolute_file_path(log_dir)
+    log_fs = filesystem(log_dir, fs_options)
+    viewer_dir = f"{log_dir.rstrip(log_fs.sep)}{log_fs.sep}viewer"
+
+    # check that log_dir exists
+    if not log_fs.exists(log_dir):
+        raise PrerequisiteError(f"The log directory '{log_dir}' doesn't exist.")
+
+    display().print(f"Embedding viewer in '{log_dir}'")
+
+    # remove existing viewer dir
+    if log_fs.exists(viewer_dir):
+        log_fs.rm(viewer_dir, recursive=True)
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
+        # copy dist files to temp dir
+        copy_dir_contents(DIST_DIR, working_dir)
+
+        # inject log_dir as ".." so the viewer reads logs from the parent dir
+        inject_configuration(os.path.join(working_dir, "index.html"), log_dir="..")
+        write_robots_txt(working_dir)
+
+        # write listing.json to the viewer dir (the viewer falls back to
+        # ./listing.json when {log_dir}/listing.json is not found)
+        write_log_listing(log_dir, output_dir=working_dir)
+
+        # move viewer files to the viewer dir
+        move_output(working_dir, viewer_dir, lambda _: None, fs_options)
+
+    if log_fs.is_local():
+        display().print(f"Run: cd '{log_dir}' && python -m RangeHTTPServer")
+        display().print("View: http://localhost:8000/viewer/index.html")

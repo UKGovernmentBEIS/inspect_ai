@@ -27,8 +27,8 @@
 - Timelines: Detect k/v warmup calls as utility agents.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
+- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
-- Testing: Fix intermittent `test_thinking_compaction_openai` failure caused by unhandled tool calls in follow-up model response.
 
 ## 0.3.186 (03 March 2026)
 
