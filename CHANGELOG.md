@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Timelines: Detect `agent_result` for timeline spans.
+- Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
 
@@ -20,7 +21,6 @@
 - Eval: Add `--generate-config` CLI option for specifying config via YAML or JSON file.
 - Eval Logs: Add `exclude_fields` parameter to `read_eval_log_samples()`.
 - Sandboxes: Longer default timeout (120) for sandbox RPC polling.
-- Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
 - Timelines: Detect k/v warmup calls as utility agents.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
