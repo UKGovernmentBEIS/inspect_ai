@@ -233,3 +233,119 @@ def test_disk_backed_dict_large_values() -> None:
         retrieved = dbd["large"]
         assert len(retrieved) == 10000
         assert retrieved[9999] == 9999
+
+
+# -- Integration tests with eval() -------------------------------------------
+
+
+def test_eval_disk_backed_basic() -> None:
+    """Verify eval() completes successfully with disk_backed=True."""
+    from copy import deepcopy
+
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[
+            Sample(input="Say Hello", target="Hello"),
+            Sample(input="Say World", target="World"),
+            Sample(input="Say Foo", target="Foo"),
+        ],
+        scorer=match(),
+    )
+
+    log = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
+    assert log.status == "success"
+    assert len(log.samples) == 3
+
+
+def test_eval_disk_backed_config_recorded() -> None:
+    """Verify log.eval.config.disk_backed is True when enabled."""
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        scorer=match(),
+    )
+
+    log_disk = eval(task, model="mockllm/model", disk_backed=True)[0]
+    assert log_disk.eval.config.disk_backed is True
+
+
+def test_eval_disk_backed_default_is_none() -> None:
+    """Verify disk_backed defaults to None when not set."""
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        scorer=match(),
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+    assert log.eval.config.disk_backed is None
+
+
+def test_eval_disk_backed_matches_in_memory() -> None:
+    """Verify disk-backed eval produces identical results to in-memory."""
+    from copy import deepcopy
+
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.scorer import match
+
+    samples = [
+        Sample(input="Say Hello", target="Hello"),
+        Sample(input="Say World", target="World"),
+        Sample(input="Say Foo", target="Foo"),
+        Sample(input="Say Bar", target="Bar"),
+        Sample(input="Say Baz", target="Baz"),
+    ]
+    task = Task(dataset=samples, scorer=match())
+
+    log_mem = eval(deepcopy(task), model="mockllm/model")[0]
+    log_disk = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
+
+    assert log_mem.status == log_disk.status == "success"
+    assert len(log_mem.samples) == len(log_disk.samples)
+
+    # Both should have the same sample IDs
+    mem_ids = sorted(s.id for s in log_mem.samples)
+    disk_ids = sorted(s.id for s in log_disk.samples)
+    assert mem_ids == disk_ids
+
+    # Both should have the same number of events per sample
+    for s_mem, s_disk in zip(
+        sorted(log_mem.samples, key=lambda s: s.id),
+        sorted(log_disk.samples, key=lambda s: s.id),
+    ):
+        assert len(s_mem.messages) == len(s_disk.messages)
+        assert len(s_mem.events) == len(s_disk.events)
+
+
+def test_eval_disk_backed_multi_epoch() -> None:
+    """Verify multi-epoch evaluations work with disk-backed storage."""
+    from copy import deepcopy
+
+    from inspect_ai import Epochs, Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[
+            Sample(input="Say Hello", target="Hello"),
+            Sample(input="Say World", target="World"),
+        ],
+        scorer=match(),
+        epochs=Epochs(2, "mean"),
+    )
+
+    log = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
+    assert log.status == "success"
+    # 2 samples * 2 epochs = 4 total
+    assert len(log.samples) == 4
+    assert log.eval.config.epochs == 2
