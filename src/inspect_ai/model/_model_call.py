@@ -53,6 +53,12 @@ class ModelCall(BaseModel):
     time: float | None = Field(default=None)
     """Time taken for underlying model call."""
 
+    call_refs: list[tuple[int, int]] | None = Field(default=None)
+    """Call pool references. Each element is a (start, end_exclusive) range."""
+
+    call_key: str | None = Field(default=None)
+    """Key under which messages lived in call.request ('messages' or 'contents')."""
+
     _filter: ModelCallFilter | None = PrivateAttr(default=None)
 
     @staticmethod

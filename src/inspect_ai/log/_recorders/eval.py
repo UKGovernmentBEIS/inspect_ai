@@ -14,7 +14,10 @@ from typing_extensions import override
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
+from inspect_ai._util.constants import (
+    get_deserializing_context,
+    log_schema_version,
+)
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
@@ -34,6 +37,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
+from .._pool import resolve_sample_message_pool
 from .file import FileRecorder
 
 logger = getLogger(__name__)
@@ -122,7 +126,7 @@ class EvalRecorder(FileRecorder):
     @override
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
-        start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
+        start = LogStart(version=log_schema_version(), eval=eval, plan=plan)
         await log.start(start)
 
     @override
@@ -671,7 +675,7 @@ def _read_log_from_bytes(
                             ),
                         )
             sort_samples(samples_list)
-            eval_log.samples = samples_list
+            eval_log.samples = [resolve_sample_message_pool(s) for s in samples_list]
         return eval_log
 
 
