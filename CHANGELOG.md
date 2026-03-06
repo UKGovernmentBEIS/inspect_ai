@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Preserve OAuth beta header when per-request betas are set.
 - Timelines: Detect `agent_result` for timeline spans.
 - Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
 - AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
