@@ -644,11 +644,15 @@ async def task_run_sample(
     run_id: str,
     task_id: str,
 ) -> dict[str, SampleScore] | EarlyStop | None:
+    from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
+        drain_sample_events,
         emit_sample_end,
+        emit_sample_event,
         emit_sample_init,
         emit_sample_scoring,
         emit_sample_start,
+        start_sample_event_emitter,
     )
 
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -691,6 +695,17 @@ async def task_run_sample(
     if sample_id is None:
         raise ValueError("sample must have id to run")
 
+    def on_sample_event(event: Event) -> None:
+        if logger:
+            logger.log_sample_event(sample_id, state.epoch, event)
+        emit_sample_event(
+            eval_set_id=eval_set_id,
+            run_id=run_id,
+            eval_id=task_id,
+            sample_id=state.uuid,
+            event=event,
+        )
+
     # initialise subtask and scoring context
     init_sample_model_usage()
     init_sample_role_usage()
@@ -698,10 +713,7 @@ async def task_run_sample(
     sample_transcript = Transcript(log_model_api=log_model_api)
     init_transcript(sample_transcript)
     init_subtask_store(state.store)
-    if logger:
-        sample_transcript._subscribe(
-            lambda event: logger.log_sample_event(sample_id, state.epoch, event)
-        )
+    sample_transcript._subscribe(on_sample_event)
     if scorers:
         init_scoring_context(scorers, Target(sample.target))
     init_sample_assistant_internal()
@@ -837,6 +849,9 @@ async def task_run_sample(
 
                                 # monitor working limit in the background
                                 monitor_working_limit()
+
+                                # start background sample event emitter
+                                start_sample_event_emitter()
 
                                 # set progress for plan then run it
                                 async with span("solvers"):
@@ -1109,6 +1124,7 @@ async def task_run_sample(
                     await log_sample(
                         eval_sample=eval_sample, logger=logger, log_images=log_images
                     )
+                await drain_sample_events()
                 await emit_sample_end(
                     eval_set_id, run_id, task_id, state.uuid, eval_sample
                 )
@@ -1117,6 +1133,7 @@ async def task_run_sample(
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
     if error and retry_on_error > 0 and cancelled_error is None:
+        await drain_sample_events()
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)

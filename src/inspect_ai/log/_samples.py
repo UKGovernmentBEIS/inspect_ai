@@ -4,8 +4,12 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
 
 if TYPE_CHECKING:
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+
+    from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
+import anyio
 from anyio.abc import TaskGroup
 from shortuuid import uuid
 
@@ -58,6 +62,9 @@ class ActiveSample:
         self.sandboxes = sandboxes
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
+        self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
+        self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
+        self.event_done: anyio.Event | None = None
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()
