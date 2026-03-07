@@ -2705,6 +2705,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#sampleevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.hooks.html#taskend" class="sidebar-item-text sidebar-link">
  <span class="menu-text">TaskEnd</span></a>
   </div>
@@ -2808,6 +2814,7 @@ ul.task-list li input[type="checkbox"] {
   <ul>
   <li><a href="#inspect-view-start" id="toc-inspect-view-start" class="nav-link active" data-scroll-target="#inspect-view-start">inspect view start</a></li>
   <li><a href="#inspect-view-bundle" id="toc-inspect-view-bundle" class="nav-link" data-scroll-target="#inspect-view-bundle">inspect view bundle</a></li>
+  <li><a href="#inspect-view-embed" id="toc-inspect-view-embed" class="nav-link" data-scroll-target="#inspect-view-embed">inspect view embed</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -2856,6 +2863,10 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><a href="#inspect-view-bundle">bundle</a></td>
 <td>Bundle evaluation logs</td>
+</tr>
+<tr class="odd">
+<td><a href="#inspect-view-embed">embed</a></td>
+<td>Embed a lightweight viewer into a log directory.</td>
 </tr>
 </tbody>
 </table>
@@ -3044,6 +3055,89 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--overwrite</code></td>
 <td>boolean</td>
 <td>Overwrite files in the output directory.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="inspect-view-embed" class="level2" data-toc-label="embed">
+<h2 data-toc-label="embed" class="anchored" data-anchor-id="inspect-view-embed">inspect view embed</h2>
+<p>Embed a lightweight viewer into a log directory.</p>
+<section id="usage-3" class="level4">
+<h4 class="anchored" data-anchor-id="usage-3">Usage</h4>
+<pre class="text"><code>inspect view embed [OPTIONS]</code></pre>
+</section>
+<section id="options-2" class="level4">
+<h4 class="anchored" data-anchor-id="options-2">Options</h4>
+<table class="table-sm table-borderless small caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 15%">
+<col style="width: 50%">
+<col style="width: 10%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--log-level</code></td>
+<td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
+<td>Set the log level (defaults to ‘warning’)</td>
+<td><code>warning</code></td>
+</tr>
+<tr class="even">
+<td><code>--log-dir</code></td>
+<td>text</td>
+<td>Directory for log files.</td>
+<td><code>./logs</code></td>
+</tr>
+<tr class="odd">
+<td><code>--display</code></td>
+<td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
+<td>Set the display type (defaults to ‘full’)</td>
+<td><code>full</code></td>
+</tr>
+<tr class="even">
+<td><code>--traceback-locals</code></td>
+<td>boolean</td>
+<td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--env</code></td>
+<td>text</td>
+<td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--debug</code></td>
+<td>boolean</td>
+<td>Wait to attach debugger</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--debug-port</code></td>
+<td>integer</td>
+<td>Port number for debugger</td>
+<td><code>5678</code></td>
+</tr>
+<tr class="even">
+<td><code>--debug-errors</code></td>
+<td>boolean</td>
+<td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
 <tr class="odd">

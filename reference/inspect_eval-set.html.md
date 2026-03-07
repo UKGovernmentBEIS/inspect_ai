@@ -22,6 +22,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--no-retry-cleanup` | boolean | Do not cleanup failed log files after retries | `False` |
 | `--bundle-dir` | text | Bundle viewer and logs into output directory | None |
 | `--bundle-overwrite` | text | Overwrite existing bundle dir. | `False` |
+| `--embed-viewer` | boolean | Embed a log viewer into the log directory. | `False` |
 | `--log-dir-allow-dirty` | boolean | Do not fail if the log-dir contains files that are not part of the eval set. | `False` |
 | `--id` | text | ID for the eval set. If not specified, a unique ID will be generated. | None |
 | `--model` | text | Model used to evaluate tasks. | None |

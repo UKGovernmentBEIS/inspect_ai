@@ -813,10 +813,11 @@ class WBHooks(Hooks):
           })
 ```
 
-For a more complete example of creating hooks to integrate with Weights
-& Biases Weave, see the
+For a more complete example of creating hooks see the
 [wandb_weave.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/wandb_weave.py)
-example.
+and
+[mlflow_tracking.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py)
+examples.
 
 See the `Hooks` class for more documentation and the full list of
 available hook events.
