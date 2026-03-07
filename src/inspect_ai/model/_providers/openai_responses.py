@@ -30,6 +30,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tools._computer._computer import is_builtin_computer_tool
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -125,6 +126,7 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
+            has_computer_tool=any(is_builtin_computer_tool(t) for t in tools),
         ),
     )
     if isinstance(background, bool):
@@ -265,6 +267,7 @@ def completion_params_responses(
     responses_store: bool | None,
     tools: bool,
     tool_params: list[ToolParam],
+    has_computer_tool: bool,
 ) -> dict[str, Any]:
     def unsupported_warning(param: str) -> None:
         warn_once(
@@ -290,6 +293,8 @@ def completion_params_responses(
         responses_store = config.extra_body["store"]
 
     if responses_store is not True:
+        if has_computer_tool:
+            raise RuntimeError("OpenAI computer use tool requires responses store=True")
         params["store"] = False
         if model_info.has_reasoning_options():
             params["include"].append("reasoning.encrypted_content")

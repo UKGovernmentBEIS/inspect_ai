@@ -777,3 +777,74 @@ def test_web_search_to_tool_use_handles_missing_action() -> None:
     assert content.id == "ws_missing_action"
     assert content.name == "search"
     assert json.loads(content.arguments) == {"type": "search", "query": ""}
+
+
+def _make_mock_model_info():
+    from unittest.mock import MagicMock
+
+    model_info = MagicMock()
+    model_info.has_reasoning_options.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+    model_info.is_gpt_5_plus.return_value = False
+    model_info.is_gpt_5_pro.return_value = False
+    model_info.is_gpt_5_chat.return_value = False
+    model_info.is_o_series.return_value = False
+    model_info.is_o1.return_value = False
+    model_info.is_o1_early.return_value = False
+    model_info.is_o3_mini.return_value = False
+    model_info.is_deep_research.return_value = False
+    model_info.is_codex.return_value = False
+    return model_info
+
+
+def test_completion_params_raises_when_computer_tool_and_store_not_true():
+    import pytest
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    with pytest.raises(
+        RuntimeError, match="computer use tool requires responses store=True"
+    ):
+        completion_params_responses(
+            "gpt-4o",
+            model_info=_make_mock_model_info(),
+            config=GenerateConfig(),
+            service_tier=None,
+            prompt_cache_key=NOT_GIVEN,
+            prompt_cache_retention=NOT_GIVEN,
+            safety_identifier=NOT_GIVEN,
+            responses_store=None,
+            tools=True,
+            tool_params=[],
+            has_computer_tool=True,
+        )
+
+
+def test_completion_params_no_error_when_computer_tool_and_store_true():
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    # Should not raise
+    params = completion_params_responses(
+        "gpt-4o",
+        model_info=_make_mock_model_info(),
+        config=GenerateConfig(),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=True,
+        tools=True,
+        tool_params=[],
+        has_computer_tool=True,
+    )
+    assert "store" not in params or params["store"] is not False
