@@ -11,7 +11,7 @@ from pathlib import PurePath
 from typing import TYPE_CHECKING, Awaitable, Callable, Literal
 
 if TYPE_CHECKING:
-    from inspect_ai._util._disk_backed import DiskBackedList
+    from inspect_ai._util._disk_backed import DiskBackedList, DiskBackedStore
 
 import anyio
 from anyio.abc import TaskGroup
@@ -241,10 +241,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     disk_backed = config.disk_backed is True
     disk_samples: "DiskBackedList[Sample] | None" = None
     disk_states: "DiskBackedList[TaskState] | None" = None
+    disk_store: "DiskBackedStore | None" = None
 
     if disk_backed:
         # stream samples/states directly to disk — never hold full lists in memory
-        _, disk_samples, disk_states, total_samples = (
+        _, disk_samples, disk_states, disk_store, total_samples = (
             await resolve_dataset_disk_backed(
                 dataset=task.dataset,
                 model_name=model_name,
@@ -574,11 +575,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
 
-    # cleanup disk-backed storage
-    if disk_samples is not None:
-        disk_samples.close()
-    if disk_states is not None:
-        disk_states.close()
+    # cleanup disk-backed storage (single shared store owns the database)
+    if disk_store is not None:
+        disk_store.close()
 
     try:
         # Log file locations are emitted to the "new" hooks via the "task end" event,
@@ -1366,24 +1365,34 @@ async def resolve_dataset_disk_backed(
     message_limit: int | None,
     token_limit: int | None,
     cost_limit: float | None,
-) -> tuple[Dataset, "DiskBackedList[Sample]", "DiskBackedList[TaskState]", int]:
+) -> tuple[
+    Dataset,
+    "DiskBackedList[Sample]",
+    "DiskBackedList[TaskState]",
+    "DiskBackedStore",
+    int,
+]:
     """Resolve dataset directly into disk-backed storage.
 
     Unlike ``resolve_dataset``, this never accumulates the full samples or
     states lists in memory.  Each sample/state is deepcopied, optionally
     image-resolved, and immediately written to a ``DiskBackedList``.
 
+    Both lists share a single ``DiskBackedStore`` (one RocksDB database on
+    disk).  The caller must close the store when done.
+
     Returns:
         Tuple of (sliced dataset, disk-backed samples, disk-backed states,
-        total sample count).
+        shared store, total sample count).
     """
-    from inspect_ai._util._disk_backed import DiskBackedList
+    from inspect_ai._util._disk_backed import DiskBackedList, DiskBackedStore
 
     dataset = slice_dataset(dataset, limit, sample_id)
     dataset_len = len(dataset)
 
-    disk_samples: DiskBackedList[Sample] = DiskBackedList()
-    disk_states: DiskBackedList[TaskState] = DiskBackedList()
+    store = DiskBackedStore()
+    disk_samples: DiskBackedList[Sample] = DiskBackedList(prefix="s:", _store=store)
+    disk_states: DiskBackedList[TaskState] = DiskBackedList(prefix="t:", _store=store)
 
     for epoch_num in range(1, epochs + 1):
         for sample in dataset:
@@ -1412,7 +1421,7 @@ async def resolve_dataset_disk_backed(
             del s, state  # release immediately
 
     total = dataset_len * epochs
-    return (dataset, disk_samples, disk_states, total)
+    return (dataset, disk_samples, disk_states, store, total)
 
 
 # we can reuse samples from a previous eval_log if and only if:

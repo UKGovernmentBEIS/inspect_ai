@@ -123,6 +123,30 @@ def test_disk_backed_list_drain() -> None:
     dbl.close()
 
 
+def test_disk_backed_list_shared_store() -> None:
+    """Verify multiple DiskBackedLists can share a single DiskBackedStore."""
+    from inspect_ai._util._disk_backed import DiskBackedStore
+
+    with DiskBackedStore() as store:
+        list_a: DiskBackedList[int] = DiskBackedList(prefix="a:", _store=store)
+        list_b: DiskBackedList[str] = DiskBackedList(prefix="b:", _store=store)
+
+        list_a.append(1)
+        list_a.append(2)
+        list_b.append("x")
+        list_b.append("y")
+        list_b.append("z")
+
+        assert len(list_a) == 2
+        assert len(list_b) == 3
+        assert list(list_a) == [1, 2]
+        assert list(list_b) == ["x", "y", "z"]
+
+        # pop from one doesn't affect the other
+        assert list_a.pop(0) == 1
+        assert list(list_b) == ["x", "y", "z"]
+
+
 def test_disk_backed_list_custom_path() -> None:
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "test_db")

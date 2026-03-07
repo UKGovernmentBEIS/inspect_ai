@@ -51,15 +51,34 @@ class DiskBackedList(Generic[T]):
         with DiskBackedList(items) as dbl:
             item = dbl[0]
             ...
+
+    Multiple lists can share a single database by passing a ``prefix``::
+
+        db = DiskBackedStore()
+        samples = DiskBackedList(prefix="s", _store=db)
+        states  = DiskBackedList(prefix="t", _store=db)
     """
 
     def __init__(
-        self, items: list[T] | None = None, *, path: str | None = None
+        self,
+        items: list[T] | None = None,
+        *,
+        path: str | None = None,
+        prefix: str = "",
+        _store: "DiskBackedStore | None" = None,
     ) -> None:
-        Rdict = _require_rocksdict()
-        self._tmpdir = path or tempfile.mkdtemp(prefix="inspect_dbl_")
-        self._owns_tmpdir = path is None
-        self._db = Rdict(self._tmpdir)  # type: ignore[no-untyped-call]
+        self._prefix = prefix
+        if _store is not None:
+            self._store: DiskBackedStore | None = _store
+            self._db = _store._db
+            self._owns_db = False
+        else:
+            self._store = None
+            Rdict = _require_rocksdict()
+            self._tmpdir = path or tempfile.mkdtemp(prefix="inspect_dbl_")
+            self._owns_tmpdir = path is None
+            self._db = Rdict(self._tmpdir)  # type: ignore[no-untyped-call]
+            self._owns_db = True
         self._length: int = 0
         self._closed = False
         if items:
@@ -82,6 +101,9 @@ class DiskBackedList(Generic[T]):
         items.clear()
         return dbl
 
+    def _key(self, index: int) -> str:
+        return f"{self._prefix}{index}"
+
     # -- sequence interface ---------------------------------------------------
 
     def __len__(self) -> int:
@@ -96,31 +118,31 @@ class DiskBackedList(Generic[T]):
     def __getitem__(self, index: int | slice) -> T | list[T]:
         if isinstance(index, slice):
             indices = range(*index.indices(self._length))
-            return [self._db[str(i)] for i in indices]
+            return [self._db[self._key(i)] for i in indices]
         if index < 0:
             index += self._length
         if index < 0 or index >= self._length:
             raise IndexError(f"DiskBackedList index {index} out of range")
-        return self._db[str(index)]  # type: ignore[no-any-return]
+        return self._db[self._key(index)]  # type: ignore[no-any-return]
 
     def __setitem__(self, index: int, value: T) -> None:
         if index < 0:
             index += self._length
         if index < 0 or index >= self._length:
             raise IndexError(f"DiskBackedList index {index} out of range")
-        self._db[str(index)] = value
+        self._db[self._key(index)] = value
 
     def __delitem__(self, index: int) -> None:
         if index < 0:
             index += self._length
         if index < 0 or index >= self._length:
             raise IndexError(f"DiskBackedList index {index} out of range")
-        del self._db[str(index)]
+        del self._db[self._key(index)]
 
     def __iter__(self) -> Iterator[T]:
         for i in range(self._length):
             try:
-                yield self._db[str(i)]
+                yield self._db[self._key(i)]
             except KeyError:
                 continue
 
@@ -132,7 +154,7 @@ class DiskBackedList(Generic[T]):
 
     def append(self, item: T) -> None:
         """Append *item* to the end of the list."""
-        self._db[str(self._length)] = item
+        self._db[self._key(self._length)] = item
         self._length += 1
 
     def extend(self, items: list[T]) -> None:
@@ -148,10 +170,53 @@ class DiskBackedList(Generic[T]):
         remaining items is not required.
         """
         value: T = self[index]
-        del self._db[str(index if index >= 0 else index + self._length)]
+        del self._db[self._key(index if index >= 0 else index + self._length)]
         return value
 
     # -- lifecycle ------------------------------------------------------------
+
+    def close(self) -> None:
+        """Close the database and remove temporary files.
+
+        If this list shares a database via ``DiskBackedStore``, the underlying
+        database is **not** closed (the store owns it).
+        """
+        if self._closed:
+            return
+        self._closed = True
+        if self._owns_db:
+            self._db.close()
+            if self._owns_tmpdir:
+                _destroy_rdict(self._tmpdir)
+
+    def __enter__(self) -> "DiskBackedList[T]":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        self.close()
+
+
+class DiskBackedStore:
+    """A single RocksDB database shared by multiple ``DiskBackedList`` instances.
+
+    Create the store, then pass it to each list via ``_store``::
+
+        store = DiskBackedStore()
+        samples = DiskBackedList(prefix="s:", _store=store)
+        states  = DiskBackedList(prefix="t:", _store=store)
+        # ... use samples and states ...
+        store.close()   # closes DB and removes temp files
+    """
+
+    def __init__(self, *, path: str | None = None) -> None:
+        Rdict = _require_rocksdict()
+        self._tmpdir = path or tempfile.mkdtemp(prefix="inspect_dbl_")
+        self._owns_tmpdir = path is None
+        self._db = Rdict(self._tmpdir)  # type: ignore[no-untyped-call]
+        self._closed = False
 
     def close(self) -> None:
         """Close the database and remove temporary files."""
@@ -162,7 +227,7 @@ class DiskBackedList(Generic[T]):
         if self._owns_tmpdir:
             _destroy_rdict(self._tmpdir)
 
-    def __enter__(self) -> "DiskBackedList[T]":
+    def __enter__(self) -> "DiskBackedStore":
         return self
 
     def __exit__(self, *args: object) -> None:
