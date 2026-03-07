@@ -9,14 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Ensure a mock 'mlflow' module exists so the example can be imported
-# without mlflow actually installed.
-if "mlflow" not in sys.modules:
-    _mock = MagicMock()
-    _mock.__spec__ = None
-    sys.modules["mlflow"] = _mock
-
-from inspect_ai.hooks._hooks import (
+from inspect_ai.hooks._hooks import (  # noqa: E402
     ModelUsageData,
     RunEnd,
     RunStart,
@@ -39,6 +32,14 @@ from inspect_ai.log._log import (
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
 
+# Ensure a mock 'mlflow' module exists so the example can be imported
+# without mlflow actually installed.
+_mlflow_was_mocked = "mlflow" not in sys.modules
+if _mlflow_was_mocked:
+    _mock = MagicMock()
+    _mock.__spec__ = None
+    sys.modules["mlflow"] = _mock
+
 
 def _load_mlflow_tracking():
     """Load the mlflow_tracking module from examples/hooks/."""
@@ -55,6 +56,21 @@ def _load_mlflow_tracking():
 _mlflow_mod = _load_mlflow_tracking()
 MlflowTrackingHooks = _mlflow_mod.MlflowTrackingHooks
 _score_to_numeric = _mlflow_mod._score_to_numeric
+
+# Clean up mock so it doesn't pollute other tests
+if _mlflow_was_mocked:
+    del sys.modules["mlflow"]
+
+
+@pytest.fixture(autouse=True)
+def _mock_mlflow_in_sys_modules():
+    """Ensure mock mlflow is in sys.modules during tests, clean up after."""
+    installed = "mlflow" not in sys.modules
+    if installed:
+        sys.modules["mlflow"] = MagicMock()
+    yield
+    if installed:
+        sys.modules.pop("mlflow", None)
 
 
 def _make_eval_spec(
