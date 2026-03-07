@@ -1,6 +1,9 @@
+import glob
 import os
+import tempfile
 from typing import TYPE_CHECKING
 
+import pytest
 from pydantic import JsonValue
 
 from inspect_ai import Task, eval
@@ -47,6 +50,17 @@ def test_disk_sample_store_roundtrip() -> None:
 
     # Backing file removed after close
     assert not os.path.exists(store._path)
+
+
+def test_disk_sample_store_constructor_failure_cleans_up() -> None:
+    """If pickling fails in __init__, the temp file must not be leaked."""
+    bad_sample = Sample(input="ok", metadata={"fn": lambda: None})
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.pkl")))
+    with pytest.raises(Exception):
+        DiskSampleStore([bad_sample])
+    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.pkl")))
+    leaked = after - before
+    assert not leaked, f"Temp file leaked: {leaked}"
 
 
 def test_disk_sample_store_close_is_defensive() -> None:

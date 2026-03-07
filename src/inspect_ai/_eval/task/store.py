@@ -23,6 +23,10 @@ class DiskSampleStore:
                     pickle.dump(sample, f)
         except Exception:
             try:
+                os.close(fd)
+            except OSError:
+                pass
+            try:
                 os.unlink(self._path)
             except OSError:
                 pass
