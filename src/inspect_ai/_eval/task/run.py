@@ -128,6 +128,7 @@ from ..task import Task
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
+    sample_with_base64_content,
     sample_without_base64_content,
     samples_with_base64_content,
     state_without_base64_content,
@@ -237,28 +238,40 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     log_samples = config.log_samples is not False
 
     # resolve dataset
-    _, samples, states = await resolve_dataset(
-        dataset=task.dataset,
-        model_name=model_name,
-        limit=config.limit,
-        sample_id=config.sample_id,
-        epochs=epochs,
-        log_images=log_images,
-        message_limit=config.message_limit,
-        token_limit=config.token_limit,
-        cost_limit=config.cost_limit,
-    )
-
-    # optionally use disk-backed storage for samples and states
     disk_backed = config.disk_backed is True
     disk_samples: "DiskBackedList[Sample] | None" = None
     disk_states: "DiskBackedList[TaskState] | None" = None
-    total_samples = len(samples)
-    if disk_backed:
-        from inspect_ai._util._disk_backed import DiskBackedList
 
-        disk_samples = DiskBackedList.drain(samples)
-        disk_states = DiskBackedList.drain(states)
+    if disk_backed:
+        # stream samples/states directly to disk — never hold full lists in memory
+        _, disk_samples, disk_states, total_samples = (
+            await resolve_dataset_disk_backed(
+                dataset=task.dataset,
+                model_name=model_name,
+                limit=config.limit,
+                sample_id=config.sample_id,
+                epochs=epochs,
+                log_images=log_images,
+                message_limit=config.message_limit,
+                token_limit=config.token_limit,
+                cost_limit=config.cost_limit,
+            )
+        )
+        samples: list[Sample] = []
+        states: list[TaskState] = []
+    else:
+        _, samples, states = await resolve_dataset(
+            dataset=task.dataset,
+            model_name=model_name,
+            limit=config.limit,
+            sample_id=config.sample_id,
+            epochs=epochs,
+            log_images=log_images,
+            message_limit=config.message_limit,
+            token_limit=config.token_limit,
+            cost_limit=config.cost_limit,
+        )
+        total_samples = len(samples)
 
     # resolve the plan (unroll chains)
     solver = solver or task.solver
@@ -1341,6 +1354,65 @@ async def resolve_dataset(
     ]
 
     return (dataset, samples, states)
+
+
+async def resolve_dataset_disk_backed(
+    dataset: Dataset,
+    model_name: ModelName,
+    limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+    epochs: int,
+    log_images: bool,
+    message_limit: int | None,
+    token_limit: int | None,
+    cost_limit: float | None,
+) -> tuple[Dataset, "DiskBackedList[Sample]", "DiskBackedList[TaskState]", int]:
+    """Resolve dataset directly into disk-backed storage.
+
+    Unlike ``resolve_dataset``, this never accumulates the full samples or
+    states lists in memory.  Each sample/state is deepcopied, optionally
+    image-resolved, and immediately written to a ``DiskBackedList``.
+
+    Returns:
+        Tuple of (sliced dataset, disk-backed samples, disk-backed states,
+        total sample count).
+    """
+    from inspect_ai._util._disk_backed import DiskBackedList
+
+    dataset = slice_dataset(dataset, limit, sample_id)
+    dataset_len = len(dataset)
+
+    disk_samples: DiskBackedList[Sample] = DiskBackedList()
+    disk_states: DiskBackedList[TaskState] = DiskBackedList()
+
+    for epoch_num in range(1, epochs + 1):
+        for sample in dataset:
+            s = deepcopy(sample)
+            if log_images:
+                s = await sample_with_base64_content(s)
+            disk_samples.append(s)
+
+            state = deepcopy(
+                TaskState(
+                    sample_id=s.id or 0,
+                    epoch=epoch_num,
+                    model=model_name,
+                    input=s.input,
+                    target=Target(s.target),
+                    choices=s.choices,
+                    messages=sample_messages(s),
+                    message_limit=message_limit,
+                    token_limit=token_limit,
+                    cost_limit=cost_limit,
+                    completed=False,
+                    metadata=s.metadata if s.metadata else {},
+                )
+            )
+            disk_states.append(state)
+            del s, state  # release immediately
+
+    total = dataset_len * epochs
+    return (dataset, disk_samples, disk_states, total)
 
 
 # we can reuse samples from a previous eval_log if and only if:
