@@ -282,6 +282,8 @@ class ExecRemoteProcess:
 
     async def _start(self) -> None:
         """Submit the job to the sandbox."""
+        from .limits import SandboxEnvironmentLimits
+
         # Build params, converting bytes input to string if needed
         params: dict[str, object] = {"command": shlex.join(self._cmd)}
         if self._options.input is not None:
@@ -298,6 +300,7 @@ class ExecRemoteProcess:
             params["env"] = self._options.env
         if self._options.cwd:
             params["cwd"] = self._options.cwd
+        params["output_limit"] = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid
