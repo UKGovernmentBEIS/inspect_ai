@@ -1,3 +1,7 @@
+## Unreleased
+
+- Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
+
 ## 0.3.189 (07 March 2026)
 
 - Anthropic: Preserve OAuth beta header when per-request betas are set.

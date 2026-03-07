@@ -233,6 +233,68 @@ def test_hooks_with_sample_retries(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
 
+    # UUID should be consistent across init/start/end
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_across_multiple_retries(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(5)),
+        model="mockllm/model",
+        retry_on_error=10,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 1
+    assert len(mock_hooks.sample_end_events) == 1
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+    # All mid-sample events also carry the same UUID
+    for evt in mock_hooks.sample_event_events:
+        assert evt.sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_on_retry_then_fail(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(10)),
+        model="mockllm/model",
+        retry_on_error=3,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 1
+    assert len(mock_hooks.sample_end_events) == 1
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_multiple_samples_with_retries(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(
+            dataset=[Sample("s1"), Sample("s2")],
+            solver=_fail_n_times_solver(2),
+        ),
+        model="mockllm/model",
+        retry_on_error=5,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 2
+    assert len(mock_hooks.sample_end_events) == 2
+    # The two samples have different UUIDs
+    init_ids = {evt.sample_id for evt in mock_hooks.sample_init_events}
+    assert len(init_ids) == 2
+    # Each init UUID appears in the end events
+    end_ids = {evt.sample_id for evt in mock_hooks.sample_end_events}
+    assert init_ids == end_ids
+
 
 def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
     eval(
