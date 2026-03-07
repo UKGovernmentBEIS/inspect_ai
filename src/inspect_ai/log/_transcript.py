@@ -172,6 +172,9 @@ class Transcript:
             self._events_disk.close()
             self._events_disk = None
 
+    def __del__(self) -> None:
+        self.close()
+
 
 def transcript() -> Transcript:
     """Get the current `Transcript`."""

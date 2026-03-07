@@ -1174,8 +1174,8 @@ async def task_run_sample(
                     eval_set_id, run_id, task_id, state.uuid, eval_sample
                 )
 
-                # cleanup disk-backed transcript
-                sample_transcript.close()
+    # always cleanup disk-backed transcript (success, error, or pre-retry)
+    sample_transcript.close()
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back

@@ -349,3 +349,42 @@ def test_eval_disk_backed_multi_epoch() -> None:
     # 2 samples * 2 epochs = 4 total
     assert len(log.samples) == 4
     assert log.eval.config.epochs == 2
+
+
+def test_eval_disk_backed_no_leaked_temp_files() -> None:
+    """Verify no inspect_dbl_/inspect_dbd_ temp dirs are left after eval."""
+    import glob
+    import tempfile
+    from copy import deepcopy
+
+    from inspect_ai import Task, eval
+    from inspect_ai.dataset import Sample
+    from inspect_ai.scorer import match
+
+    tmpdir = tempfile.gettempdir()
+
+    # snapshot existing temp dirs before eval
+    before = set(glob.glob(os.path.join(tmpdir, "inspect_dbl_*"))) | set(
+        glob.glob(os.path.join(tmpdir, "inspect_dbd_*"))
+    )
+
+    task = Task(
+        dataset=[
+            Sample(input="Say Hello", target="Hello"),
+            Sample(input="Say World", target="World"),
+            Sample(input="Say Foo", target="Foo"),
+            Sample(input="Say Bar", target="Bar"),
+            Sample(input="Say Baz", target="Baz"),
+        ],
+        scorer=match(),
+    )
+
+    log = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
+    assert log.status == "success"
+
+    # check no new temp dirs remain
+    after = set(glob.glob(os.path.join(tmpdir, "inspect_dbl_*"))) | set(
+        glob.glob(os.path.join(tmpdir, "inspect_dbd_*"))
+    )
+    leaked = after - before
+    assert len(leaked) == 0, f"Leaked disk-backed temp dirs: {leaked}"
