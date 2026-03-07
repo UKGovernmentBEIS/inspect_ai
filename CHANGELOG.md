@@ -1,10 +1,13 @@
+## Unreleased
+
+- Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
+
 ## 0.3.189 (07 March 2026)
 
 - Anthropic: Preserve OAuth beta header when per-request betas are set.
 - Timelines: Detect `agent_result` for timeline spans.
 - Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
 - Web Search: Add query parameter encoding for Google provider.
-- Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
 - Hooks: Add `on_sample_event()` hook.
 - Hooks: Add ML Flow tracking example hook.
 - AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
