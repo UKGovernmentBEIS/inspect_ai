@@ -134,6 +134,10 @@ class EvalConfig(BaseModel):
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
 
+    max_dataset_memory: int | None = Field(default=None)
+    """Maximum MB of dataset sample data to hold in memory per task.
+    When exceeded, samples are paged to a temporary file on disk."""
+
     max_tasks: int | None = Field(default=None)
     """Maximum number of tasks to run in parallel."""
 

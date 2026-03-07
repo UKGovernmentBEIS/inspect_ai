@@ -133,6 +133,7 @@ from .images import (
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
+from .store import DiskSampleStore, maybe_page_to_disk
 from .util import sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
@@ -239,6 +240,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
     total_samples = len(dataset) * epochs
 
+    # optionally page dataset to disk if it exceeds the memory budget
+    sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
+
     # resolve the plan (unroll chains)
     solver = solver or task.solver
     plan = resolve_plan(task, solver)
@@ -293,8 +297,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
                 stopping_manager = await options.task.early_stopping.start_task(
-                    logger.eval, samples=[deepcopy(s) for s in dataset], epochs=epochs
+                    logger.eval,
+                    samples=[deepcopy(s) for s in dataset],
+                    epochs=epochs,
                 )
+
+            # now safe to release in-memory samples
+            if sample_store is not dataset:
+                del dataset
 
             with td.progress() as p:
                 # forward progress
@@ -380,7 +390,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 ) -> dict[str, SampleScore] | EarlyStop | None:
                     # check for cached result from previous eval (before
                     # materialization to avoid unnecessary deepcopy + image I/O)
-                    sample_id = dataset[sample_index].id
+                    sample_id = sample_store[sample_index].id
                     if sample_source and sample_id is not None:
                         previous_sample = await sample_source(sample_id, epoch)
                         if previous_sample:
@@ -409,7 +419,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     async def create_sample_state(
                         sample_uuid: str | None = None,
                     ) -> tuple[Sample, TaskState]:
-                        sample = deepcopy(dataset[sample_index])
+                        sample = deepcopy(sample_store[sample_index])
                         if log_images:
                             sample = await sample_with_base64_content(sample)
                         state = deepcopy(
@@ -467,7 +477,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     [
                         functools.partial(run_sample, sample_index, epoch)
                         for epoch in range(1, epochs + 1)
-                        for sample_index in range(len(dataset))
+                        for sample_index in range(len(sample_store))
                     ]
                 )
 
@@ -563,6 +573,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
+
+    # cleanup disk sample store if used
+    if isinstance(sample_store, DiskSampleStore):
+        sample_store.close()
 
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)

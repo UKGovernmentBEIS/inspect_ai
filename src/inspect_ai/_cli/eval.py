@@ -255,6 +255,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_SAMPLES",
     )
     @click.option(
+        "--max-dataset-memory",
+        type=int,
+        help="Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.",
+        envvar="INSPECT_EVAL_MAX_DATASET_MEMORY",
+    )
+    @click.option(
         "--max-tasks", type=int, help=MAX_TASKS_HELP, envvar="INSPECT_EVAL_MAX_TASKS"
     )
     @click.option(
@@ -670,6 +676,7 @@ def eval_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -733,6 +740,7 @@ def eval_command(
         cost_limit=cost_limit,
         model_cost_config=model_cost_config,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -884,6 +892,7 @@ def eval_set_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -955,6 +964,7 @@ def eval_set_command(
         time_limit=time_limit,
         working_limit=working_limit,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -1024,6 +1034,7 @@ def eval_exec(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -1145,6 +1156,7 @@ def eval_exec(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
