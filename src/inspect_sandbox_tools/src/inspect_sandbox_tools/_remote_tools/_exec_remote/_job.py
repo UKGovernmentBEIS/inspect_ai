@@ -61,7 +61,12 @@ class Job:
             cwd=cwd,
         )
 
-        job = cls(process, output_limit=output_limit or _DEFAULT_OUTPUT_LIMIT)
+        job = cls(
+            process,
+            output_limit=(
+                output_limit if output_limit is not None else _DEFAULT_OUTPUT_LIMIT
+            ),
+        )
 
         # Write initial input if provided
         if input is not None and process.stdin is not None:
