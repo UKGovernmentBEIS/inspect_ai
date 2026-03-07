@@ -27,6 +27,7 @@ from inspect_ai._util.content import Content, ContentImage
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tools._computer import is_builtin_computer_tool
 
 # Canonical mappings — inverses are derived programmatically.
 _BUTTON_TO_ACTION: dict[str, str] = {
@@ -53,19 +54,6 @@ _XDOTOOL_TO_OPENAI_KEY: dict[str, str] = {
     v: k for k, v in _OPENAI_KEY_TO_XDOTOOL.items()
 }
 
-_COMPUTER_PARAMETERS = frozenset(
-    [
-        "action",
-        "coordinate",
-        "duration",
-        "region",
-        "scroll_amount",
-        "scroll_direction",
-        "start_coordinate",
-        "text",
-    ]
-)
-
 
 def tool_call_from_openai_computer_tool_call(
     output: ResponseComputerToolCall,
@@ -82,9 +70,7 @@ def maybe_computer_use_tool(
 ) -> ComputerToolParam | None:
     return (
         ComputerToolParam(type="computer")
-        if "gpt-5.4" in model_name
-        and tool.name == "computer"
-        and tool.parameters.properties.keys() == _COMPUTER_PARAMETERS
+        if "gpt-5.4" in model_name and is_builtin_computer_tool(tool)
         else None
     )
 

@@ -1,4 +1,9 @@
-from typing import Awaitable, Callable, Literal, TypeVar, cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Awaitable, Callable, Literal, TypeVar, cast
+
+if TYPE_CHECKING:
+    from inspect_ai.tool._tool_info import ToolInfo
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
@@ -34,6 +39,33 @@ Action = Literal[
 
 
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
+
+_COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
+    [
+        "action",
+        "coordinate",
+        "duration",
+        "region",
+        "scroll_amount",
+        "scroll_direction",
+        "start_coordinate",
+        "text",
+        "actions",
+    ]
+)
+
+
+def is_builtin_computer_tool(tool: ToolInfo) -> bool:
+    """Check whether a ToolInfo is inspect's built-in computer() tool - this tool.
+
+    Model providers use this to decide whether to substitute their native
+    computer-use support. Comparing just the name is insufficient because a
+    third-party tool could share the name "computer".
+    """
+    return (
+        tool.name == "computer"
+        and tool.parameters.properties.keys() == _COMPUTER_TOOL_PARAMETERS
+    )
 
 
 @tool
