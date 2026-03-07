@@ -12,7 +12,9 @@ import pytest
 # Ensure a mock 'mlflow' module exists so the example can be imported
 # without mlflow actually installed.
 if "mlflow" not in sys.modules:
-    sys.modules["mlflow"] = MagicMock()
+    _mock = MagicMock()
+    _mock.__spec__ = None
+    sys.modules["mlflow"] = _mock
 
 from inspect_ai.hooks._hooks import (
     ModelUsageData,
