@@ -40,36 +40,20 @@ class Transcript:
     _context: WalkContext
 
     @overload
-    def __init__(
-        self, *, log_model_api: bool = False, disk_backed: bool = False
-    ) -> None: ...
+    def __init__(self, *, log_model_api: bool = False) -> None: ...
 
     @overload
-    def __init__(
-        self,
-        events: list[Event],
-        log_model_api: bool = False,
-        disk_backed: bool = False,
-    ) -> None: ...
+    def __init__(self, events: list[Event], log_model_api: bool = False) -> None: ...
 
     def __init__(
         self,
         events: list[Event] | None = None,
         log_model_api: bool = False,
-        disk_backed: bool = False,
     ) -> None:
         self._event_logger = None
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
-        self._disk_backed = disk_backed
-        if disk_backed:
-            from inspect_ai._util._disk_backed import DiskBackedList
-
-            self._events_disk: DiskBackedList[Event] | None = DiskBackedList(events)
-            self._events: list[Event] = []
-        else:
-            self._events_disk = None
-            self._events = events if events is not None else []
+        self._events: list[Event] = events if events is not None else []
         self._attachments: dict[str, str] = {}
         self._timelines: list[Timeline] = []
 
@@ -103,8 +87,6 @@ class Transcript:
 
     @property
     def events(self) -> Sequence[Event]:
-        if self._disk_backed and self._events_disk is not None:
-            return list(self._events_disk)
         return self._events
 
     @property
@@ -133,10 +115,7 @@ class Transcript:
 
     def _event(self, event: Event) -> None:
         self._process_event(event)
-        if self._disk_backed and self._events_disk is not None:
-            self._events_disk.append(event)
-        else:
-            self._events.append(event)
+        self._events.append(event)
 
     def _event_updated(self, event: Event) -> None:
         self._process_event(event)
@@ -165,15 +144,6 @@ class Transcript:
 
     def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
         self._event_logger = event_logger
-
-    def close(self) -> None:
-        """Close disk-backed resources if any."""
-        if self._events_disk is not None:
-            self._events_disk.close()
-            self._events_disk = None
-
-    def __del__(self) -> None:
-        self.close()
 
 
 def transcript() -> Transcript:
