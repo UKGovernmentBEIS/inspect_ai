@@ -263,7 +263,7 @@ export const FindBand: FC<FindBandProps> = () => {
         await handleSearch(false);
         // Mark for cursor restore on next keypress (keeps find highlight visible)
         needsCursorRestoreRef.current = true;
-      }, 300),
+      }, 100),
     [handleSearch],
   );
 

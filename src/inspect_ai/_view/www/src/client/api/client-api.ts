@@ -239,6 +239,25 @@ export const clientApi = (
   const get_log_summaries = async (
     log_files: string[],
   ): Promise<LogPreview[]> => {
+    if (log_files.length === 0) {
+      return [];
+    }
+
+    try {
+      const summaries = await api.get_log_summaries(log_files);
+      if (summaries.length === log_files.length) {
+        return summaries;
+      }
+      console.warn(
+        `Summary count mismatch (${summaries.length}/${log_files.length}); falling back to per-type summary loading.`,
+      );
+    } catch (error) {
+      console.warn(
+        "Bulk summary fetch failed; falling back to per-type summary loading.",
+        error,
+      );
+    }
+
     const eval_files: Record<string, number> = {};
     const json_files: Record<string, number> = {};
     let index = 0;
