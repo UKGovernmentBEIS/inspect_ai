@@ -450,3 +450,56 @@ Using `cost_limit()` requires model cost data to be configured via `set_model_co
 ## Agent Limits {#agent-limits}
 
 {{< include _agent_limits.md >}}
+
+## Disk-Backed Storage {#disk-backed-storage}
+
+By default, Inspect loads all sample data and evaluation state into memory at the start of a task. For large datasets or multi-epoch evaluations, this can consume significant memory — particularly when thousands of samples are multiplied across epochs and held in memory for the entire evaluation duration.
+
+The `--disk-backed` option moves sample and state data to a temporary on-disk database (powered by [RocksDB](https://rocksdb.org/) via [RocksDict](https://github.com/rocksdict/RocksDict)), so that only the actively-running samples (controlled by `--max-samples`) reside in memory at any given time:
+
+``` bash
+$ inspect eval task.py --model openai/gpt-4o --disk-backed
+```
+
+Or equivalently via the Python API:
+
+``` python
+log = eval(task, model="openai/gpt-4o", disk_backed=True)
+```
+
+You can also set this via environment variable:
+
+``` makefile
+INSPECT_EVAL_DISK_BACKED=true
+```
+
+### When to Use
+
+Use `--disk-backed` when your evaluation involves:
+
+- **Large datasets** (thousands or tens of thousands of samples)
+- **Multiple epochs** that multiply the effective dataset size
+- **Long-running evaluations** where memory pressure builds over time
+- **Memory-constrained environments** where available RAM is limited
+
+For small evaluations (hundreds of samples or fewer), the default in-memory behaviour is generally preferable as it avoids the I/O overhead of disk storage.
+
+### Trade-offs
+
+Disk-backed storage reduces peak memory usage from O(total samples × epochs) to O(concurrent samples), but introduces disk I/O for each sample load:
+
+- **Read/write latency**: Each sample is serialized (via pickle) when stored and deserialized when loaded. For large samples with extensive message histories or tool outputs, this adds a small per-sample overhead.
+- **Disk space**: A temporary RocksDB database is created in your system's temp directory (`/tmp` on Linux/macOS). The database is automatically cleaned up when the evaluation completes. Disk usage scales with dataset size.
+- **Startup time**: When `--disk-backed` is enabled, samples are written to disk during initialization rather than held in memory. This adds a brief setup phase proportional to dataset size.
+
+In practice, the I/O overhead is negligible compared to model API call latency, so evaluations that are bottlenecked on model generation (the common case) will see minimal performance difference.
+
+### Installation
+
+The `--disk-backed` option requires the `rocksdict` package, which is available as an optional dependency:
+
+``` bash
+pip install 'inspect_ai[disk-backed]'
+```
+
+Pre-built wheels are available for Linux (x86_64, aarch64), macOS (x86_64, arm64), and Windows (x86_64). Using `--disk-backed` without `rocksdict` installed will produce a clear error message with installation instructions.
