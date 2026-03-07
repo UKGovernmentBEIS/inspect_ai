@@ -113,6 +113,16 @@ def test_disk_backed_list_cleanup() -> None:
     assert not os.path.exists(tmpdir)
 
 
+def test_disk_backed_list_drain() -> None:
+    """Verify drain() empties the source list and preserves all items on disk."""
+    source = [10, 20, 30, 40, 50]
+    dbl = DiskBackedList.drain(source)
+    assert source == [], "Source list should be empty after drain"
+    assert len(dbl) == 5
+    assert list(dbl) == [10, 20, 30, 40, 50]
+    dbl.close()
+
+
 def test_disk_backed_list_custom_path() -> None:
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "test_db")

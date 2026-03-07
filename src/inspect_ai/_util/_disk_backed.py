@@ -66,6 +66,22 @@ class DiskBackedList(Generic[T]):
             for item in items:
                 self.append(item)
 
+    @classmethod
+    def drain(cls, items: list[T], *, path: str | None = None) -> "DiskBackedList[T]":
+        """Create a DiskBackedList by draining *items*, releasing each from memory.
+
+        Unlike ``DiskBackedList(items)``, this replaces each element with
+        ``None`` as it is written to disk so that the garbage collector can
+        reclaim individual items before the entire list has been transferred.
+        The source list is cleared at the end.
+        """
+        dbl: DiskBackedList[T] = cls(path=path)
+        for i in range(len(items)):
+            dbl.append(items[i])
+            items[i] = None  # type: ignore[assignment]
+        items.clear()
+        return dbl
+
     # -- sequence interface ---------------------------------------------------
 
     def __len__(self) -> int:

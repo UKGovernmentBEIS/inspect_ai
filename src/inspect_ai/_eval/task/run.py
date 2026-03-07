@@ -257,10 +257,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     if disk_backed:
         from inspect_ai._util._disk_backed import DiskBackedList
 
-        disk_samples = DiskBackedList(samples)
-        disk_states = DiskBackedList(states)
-        samples = []  # release in-memory copies
-        states = []
+        disk_samples = DiskBackedList.drain(samples)
+        disk_states = DiskBackedList.drain(states)
 
     # resolve the plan (unroll chains)
     solver = solver or task.solver
