@@ -14,11 +14,31 @@ from aiobotocore.config import AioConfig
 from aiobotocore.response import StreamingBody
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
+from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.file import FileInfo, file, filesystem
+
+# boto3 S3 multipart upload configuration for streaming writes.
+# Values are the boto3.s3.transfer.TransferConfig library defaults
+# as of 2026-03-07.
+# - multipart_threshold: use multipart upload for files larger than this
+# - multipart_chunksize: size of each part in a multipart upload
+# - max_concurrency: maximum threads for concurrent part uploads
+_S3_TRANSFER_CONFIG = TransferConfig(
+    multipart_threshold=8 * 1024 * 1024,  # 8 MB
+    multipart_chunksize=8 * 1024 * 1024,  # 8 MB
+    max_concurrency=10,
+)
+
+# fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).
+# Value is the fsspec AbstractFileSystem.blocksize library default
+# as of 2026-03-07. When the in-memory write buffer reaches this size,
+# it is flushed as a multipart upload part. Individual backends may
+# override this class attribute with a different default.
+_FSSPEC_WRITE_BLOCK_SIZE = 4 * 1024 * 1024  # 4 MB
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -270,14 +290,16 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             with file(filename, "wb") as f:
                 f.write(content)
 
+    # Size of chunks read from the source stream per iteration when
+    # copying to local or fsspec-backed files via shutil.copyfileobj.
     _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
 
     async def write_file_streaming(self, filename: str, source: BinaryIO) -> None:
         """Write a file from a binary stream without reading it all into memory.
 
         Uses the appropriate backend for streaming writes:
-        - S3: native upload_fileobj (streaming multipart upload)
-        - Local/other: chunked copy via fsspec
+        - S3: native upload_fileobj with TransferConfig for multipart chunking
+        - Local/other: chunked copy via fsspec with explicit block_size
 
         Args:
             filename: Destination file path or URL.
@@ -287,7 +309,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
                 client = await self.s3_client_async()
-                await client.upload_fileobj(Fileobj=source, Bucket=bucket, Key=key)
+                await client.upload_fileobj(
+                    Fileobj=source,
+                    Bucket=bucket,
+                    Key=key,
+                    Config=_S3_TRANSFER_CONFIG,
+                )
             else:
                 await anyio.to_thread.run_sync(
                     s3_write_file_streaming,
@@ -297,7 +324,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     source,
                 )
         else:
-            with file(filename, "wb") as f:
+            with file(
+                filename, "wb", fs_options={"block_size": _FSSPEC_WRITE_BLOCK_SIZE}
+            ) as f:
                 shutil.copyfileobj(source, f, length=self._STREAMING_COPY_BUFSIZE)
 
     @override
@@ -415,7 +444,9 @@ def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
 
 def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) -> None:
     """Upload a file-like stream to S3 using multipart upload."""
-    s3.upload_fileobj(Fileobj=source, Bucket=bucket, Key=key)
+    s3.upload_fileobj(
+        Fileobj=source, Bucket=bucket, Key=key, Config=_S3_TRANSFER_CONFIG
+    )
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
