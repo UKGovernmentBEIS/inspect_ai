@@ -3,7 +3,7 @@ import re
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Any, Callable, Generator, Literal, cast
+from typing import IO, Any, BinaryIO, Callable, Generator, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -666,7 +666,7 @@ def log_files_from_ls(
         for file in (
             sorted(
                 ls,
-                key=lambda file: (file.mtime if file.mtime else 0),
+                key=lambda file: file.mtime if file.mtime else 0,
                 reverse=descending,
             )
             if sort
@@ -727,6 +727,54 @@ def eval_log_json(log: EvalLog) -> bytes:
     # pass around 'live' objects -- this is fine to do and we
     # don't want to prevent it at the serialization level
     return to_json_safe(log)
+
+
+def eval_log_json_streaming(log: EvalLog, output: BinaryIO) -> None:
+    """Stream EvalLog as JSON to a file, serializing samples individually.
+
+    Unlike eval_log_json() which materializes the entire log as a single
+    in-memory bytes object, this function writes samples one at a time.
+    This significantly reduces peak memory usage for large evaluations
+    with many samples (especially those containing image data).
+
+    Args:
+        log: The EvalLog to serialize.
+        output: A writable binary file-like object.
+    """
+    samples = log.samples
+    reductions = log.reductions
+
+    if not samples:
+        # No samples — just write normally (small payload)
+        output.write(to_json_safe(log))
+        return
+
+    # Serialize header (everything except samples/reductions).
+    # model_copy is a shallow copy so only the EvalLog shell is new;
+    # all other field values are shared references.
+    header = log.model_copy(update={"samples": None, "reductions": None})
+    header_bytes = to_json_safe(header)
+
+    # Remove the closing '}' so we can append samples/reductions
+    last_brace = header_bytes.rfind(b"}")
+    output.write(header_bytes[:last_brace].rstrip())
+
+    # Stream samples array, one sample at a time
+    output.write(b',\n  "samples": [\n')
+    for i, sample in enumerate(samples):
+        if i > 0:
+            output.write(b",\n")
+        sample_bytes = to_json_safe(sample)
+        output.write(sample_bytes)
+        del sample_bytes
+    output.write(b"\n  ]")
+
+    # Write reductions if present
+    if reductions:
+        output.write(b',\n  "reductions": ')
+        output.write(to_json_safe(reductions))
+
+    output.write(b"\n}\n")
 
 
 def eval_log_json_str(log: EvalLog) -> str:

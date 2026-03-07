@@ -16,7 +16,7 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
-from inspect_ai._util.file import FileSystem, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, dirname, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
@@ -558,14 +558,14 @@ class ZipLogFile:
             if self._zip:
                 self._zip.close()
 
-            # read the temp_file (leaves pointer at end for subsequent appends)
+            # Stream temp file to output using the appropriate backend
+            # (native S3 multipart upload, or chunked copy via fsspec)
             self._temp_file.seek(0)
-            log_bytes = self._temp_file.read()
 
             with trace_action(logger, "Log Write", self._file):
                 try:
-                    with file(self._file, "wb") as f:
-                        f.write(log_bytes)
+                    async with AsyncFilesystem() as async_fs:
+                        await async_fs.write_file_streaming(self._file, self._temp_file)
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
