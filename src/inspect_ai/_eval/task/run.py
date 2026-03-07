@@ -293,7 +293,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
                 stopping_manager = await options.task.early_stopping.start_task(
-                    logger.eval, samples=list(dataset), epochs=epochs
+                    logger.eval, samples=[deepcopy(s) for s in dataset], epochs=epochs
                 )
 
             with td.progress() as p:
