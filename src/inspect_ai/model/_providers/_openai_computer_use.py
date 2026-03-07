@@ -41,7 +41,11 @@ _ACTION_TO_BUTTON: dict[str, str] = {v: k for k, v in _BUTTON_TO_ACTION.items()}
 
 # Approximate pixels per scroll wheel click. Used to convert between OpenAI's
 # pixel-based scroll_x/scroll_y and the sandbox's click-based scroll_amount.
-_PIXELS_PER_SCROLL_CLICK = 50
+# Unfortunately, there's no constant multiplier — it depends on the application
+# receiving the event. Since OpenAI seems trained primarily on Playwright/browser
+# mode, we'll use Chromium's kWheelDelta = 120px per click from here:
+# https://source.chromium.org/chromium/chromium/src/+/main:ui/events/event.cc;l=637?q=kwheelde&ss=chromium%2Fchromium%2Fsrc
+_PIXELS_PER_SCROLL_CLICK = 120
 
 _OPENAI_KEY_TO_XDOTOOL: dict[str, str] = {
     "ENTER": "Return",
