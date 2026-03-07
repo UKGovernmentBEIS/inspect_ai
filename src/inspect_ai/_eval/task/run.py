@@ -422,7 +422,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         logger=logger if log_samples else None,
                         log_images=log_images,
                         log_model_api=log_model_api,
-                        disk_backed=disk_backed,
                         sample_source=sample_source,
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
@@ -670,7 +669,6 @@ async def task_run_sample(
     logger: TaskLogger | None,
     log_images: bool,
     log_model_api: bool,
-    disk_backed: bool = False,
     sample_source: EvalSampleSource | None,
     sample_error: SampleErrorHandler,
     sample_complete: Callable[
@@ -753,7 +751,7 @@ async def task_run_sample(
     init_sample_model_usage()
     init_sample_role_usage()
     set_sample_state(state)
-    sample_transcript = Transcript(log_model_api=log_model_api, disk_backed=disk_backed)
+    sample_transcript = Transcript(log_model_api=log_model_api)
     init_transcript(sample_transcript)
     init_subtask_store(state.store)
     sample_transcript._subscribe(on_sample_event)
@@ -1174,9 +1172,6 @@ async def task_run_sample(
                     eval_set_id, run_id, task_id, state.uuid, eval_sample
                 )
 
-    # always cleanup disk-backed transcript (success, error, or pre-retry)
-    sample_transcript.close()
-
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
@@ -1203,7 +1198,6 @@ async def task_run_sample(
             logger=logger,
             log_images=log_images,
             log_model_api=log_model_api,
-            disk_backed=disk_backed,
             sample_source=sample_source,
             sample_error=sample_error,
             sample_complete=sample_complete,
