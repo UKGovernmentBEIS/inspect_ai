@@ -15,11 +15,18 @@ class DiskSampleStore:
     def __init__(self, samples: Sequence[Sample]) -> None:
         self._len = len(samples)
         fd, self._path = tempfile.mkstemp(suffix=".pkl")
-        with os.fdopen(fd, "wb") as f:
-            self._offsets: list[int] = []
-            for sample in samples:
-                self._offsets.append(f.tell())
-                pickle.dump(sample, f)
+        try:
+            with os.fdopen(fd, "wb") as f:
+                self._offsets: list[int] = []
+                for sample in samples:
+                    self._offsets.append(f.tell())
+                    pickle.dump(sample, f)
+        except Exception:
+            try:
+                os.unlink(self._path)
+            except OSError:
+                pass
+            raise
         self._reader: BinaryIO | None = None
 
     def __len__(self) -> int:

@@ -1,4 +1,7 @@
 import os
+from typing import TYPE_CHECKING
+
+from pydantic import JsonValue
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.task.store import (
@@ -10,6 +13,11 @@ from inspect_ai.dataset import Sample
 from inspect_ai.dataset._dataset import MemoryDataset
 from inspect_ai.scorer import match
 from inspect_ai.solver._solver import generate
+from inspect_ai.util._early_stopping import EarlyStop
+
+if TYPE_CHECKING:
+    from inspect_ai.log._log import EvalSpec
+    from inspect_ai.scorer._metric import SampleScore
 
 
 def _make_samples(n: int = 5) -> list[Sample]:
@@ -103,6 +111,47 @@ def test_eval_with_max_dataset_memory() -> None:
         dataset=samples,
         solver=[generate()],
         scorer=match(),
+    )
+    log = eval(task, model="mockllm/model", max_dataset_memory=0)[0]
+
+    assert log.status == "success"
+    assert log.samples is not None
+    assert len(log.samples) == 3
+
+
+# -- Part 5: Early stopping + disk paging integration test --
+
+
+class _NoopEarlyStopping:
+    """Minimal early stopping that never stops anything."""
+
+    async def start_task(
+        self, task: "EvalSpec", samples: list[Sample], epochs: int
+    ) -> str:
+        return "noop"
+
+    async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
+        return None
+
+    async def complete_sample(
+        self,
+        id: str | int,
+        epoch: int,
+        scores: dict[str, "SampleScore"],
+    ) -> None:
+        pass
+
+    async def complete_task(self) -> dict[str, JsonValue]:
+        return {}
+
+
+def test_eval_with_max_dataset_memory_and_early_stopping() -> None:
+    samples = [Sample(input=f"Say {i}", target=str(i)) for i in range(3)]
+    task = Task(
+        dataset=samples,
+        solver=[generate()],
+        scorer=match(),
+        early_stopping=_NoopEarlyStopping(),
     )
     log = eval(task, model="mockllm/model", max_dataset_memory=0)[0]
 

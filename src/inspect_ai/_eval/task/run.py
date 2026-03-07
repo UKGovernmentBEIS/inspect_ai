@@ -243,6 +243,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
 
+    # release in-memory samples now that they're paged to disk
+    if sample_store is not dataset:
+        del dataset
+
     # resolve the plan (unroll chains)
     solver = solver or task.solver
     plan = resolve_plan(task, solver)
@@ -298,13 +302,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             if options.task.early_stopping is not None:
                 stopping_manager = await options.task.early_stopping.start_task(
                     logger.eval,
-                    samples=[deepcopy(s) for s in dataset],
+                    samples=[
+                        deepcopy(sample_store[i]) for i in range(len(sample_store))
+                    ],
                     epochs=epochs,
                 )
-
-            # now safe to release in-memory samples
-            if sample_store is not dataset:
-                del dataset
 
             with td.progress() as p:
                 # forward progress

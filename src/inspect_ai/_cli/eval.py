@@ -256,7 +256,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--max-dataset-memory",
-        type=int,
+        type=click.IntRange(min=0),
         help="Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.",
         envvar="INSPECT_EVAL_MAX_DATASET_MEMORY",
     )
