@@ -196,6 +196,38 @@ describe("eventSearchText", () => {
     expect(texts).toContain("search");
   });
 
+  test("tool: extracts searchable text from structured result content", () => {
+    const texts = eventSearchText(
+      makeNode({
+        event: "tool",
+        function: "browser",
+        view: { title: "Browser" },
+        arguments: { action: "get_page_text" },
+        result: [
+          { type: "text", text: "Revenue Recognition in policy docs" },
+          {
+            type: "tool",
+            content: [
+              { type: "text", text: "Revenue Recognition in extracted page" },
+            ],
+          },
+          { type: "image", image: "data:image/png;base64,abc123" },
+        ],
+        error: null,
+        timestamp: "2024-01-01T00:00:00Z",
+      }),
+    );
+
+    expect(texts).toContain('{"action":"get_page_text"}');
+    expect(texts).toContain("Revenue Recognition in policy docs");
+    expect(texts).toContain("Revenue Recognition in extracted page");
+    expect(texts.join("\n")).not.toContain("data:image/png;base64");
+
+    const revenueCount = (texts.join("\n").match(/Revenue Recognition/g) || [])
+      .length;
+    expect(revenueCount).toBe(2);
+  });
+
   test("error: includes 'Error' title", () => {
     const texts = eventSearchText(
       makeNode({

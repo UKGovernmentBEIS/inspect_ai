@@ -58,3 +58,17 @@
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
 }
+
+/* CSS Custom Highlight for find-in-page matches.
+   Two-tier: all visible matches (yellow) + current match (orange).
+   find-match-current declared after find-match-all so it wins when ranges overlap. */
+::highlight(find-match-all) {
+  background-color: #ffff00;
+  color: #000;
+}
+
+/* Current (navigation target) match — orange, higher priority */
+::highlight(find-match-current) {
+  background-color: #f97316;
+  color: #000;
+}
