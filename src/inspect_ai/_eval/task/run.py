@@ -245,18 +245,22 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     if disk_backed:
         # stream samples/states directly to disk — never hold full lists in memory
-        _, disk_samples, disk_states, disk_store, total_samples = (
-            await resolve_dataset_disk_backed(
-                dataset=task.dataset,
-                model_name=model_name,
-                limit=config.limit,
-                sample_id=config.sample_id,
-                epochs=epochs,
-                log_images=log_images,
-                message_limit=config.message_limit,
-                token_limit=config.token_limit,
-                cost_limit=config.cost_limit,
-            )
+        (
+            _,
+            disk_samples,
+            disk_states,
+            disk_store,
+            total_samples,
+        ) = await resolve_dataset_disk_backed(
+            dataset=task.dataset,
+            model_name=model_name,
+            limit=config.limit,
+            sample_id=config.sample_id,
+            epochs=epochs,
+            log_images=log_images,
+            message_limit=config.message_limit,
+            token_limit=config.token_limit,
+            cost_limit=config.cost_limit,
         )
         samples: list[Sample] = []
         states: list[TaskState] = []
