@@ -210,12 +210,8 @@ async def test_task_lifecycle(mlflow_env):
         mock_mlflow.log_metric.assert_any_call("accuracy/accuracy", 0.85)
         mock_mlflow.log_metric.assert_any_call("total_samples", 10)
         mock_mlflow.log_metric.assert_any_call("completed_samples", 10)
-        mock_mlflow.log_metric.assert_any_call(
-            "usage/openai/gpt-4/input_tokens", 5000
-        )
-        mock_mlflow.log_metric.assert_any_call(
-            "usage/openai/gpt-4/output_tokens", 1000
-        )
+        mock_mlflow.log_metric.assert_any_call("usage/openai/gpt-4/input_tokens", 5000)
+        mock_mlflow.log_metric.assert_any_call("usage/openai/gpt-4/output_tokens", 1000)
         mock_mlflow.end_run.assert_called_with(status="FINISHED")
 
 
@@ -233,9 +229,7 @@ async def test_sample_scores_logged_as_step_metrics(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         sample_0 = _make_sample(
@@ -337,11 +331,11 @@ async def test_sample_without_active_task_is_ignored():
 
 @pytest.mark.anyio
 async def test_sample_event_model_call(mlflow_env):
+    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
+
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model_output import ModelOutput, ModelUsage
-
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
 
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
@@ -353,9 +347,7 @@ async def test_sample_event_model_call(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         model_event = ModelEvent(
@@ -365,9 +357,7 @@ async def test_sample_event_model_call(mlflow_env):
             tool_choice="auto",
             config=GenerateConfig(),
             output=ModelOutput(
-                usage=ModelUsage(
-                    input_tokens=150, output_tokens=50, total_tokens=200
-                )
+                usage=ModelUsage(input_tokens=150, output_tokens=50, total_tokens=200)
             ),
             working_time=0.8,
         )
@@ -392,9 +382,9 @@ async def test_sample_event_model_call(mlflow_env):
 
 @pytest.mark.anyio
 async def test_sample_event_tool_call(mlflow_env):
-    from inspect_ai.event._tool import ToolEvent
-
     from examples.hooks.mlflow_tracking import MlflowTrackingHooks
+
+    from inspect_ai.event._tool import ToolEvent
 
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
@@ -406,9 +396,7 @@ async def test_sample_event_tool_call(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         tool_event = ToolEvent(
@@ -437,11 +425,11 @@ async def test_sample_event_tool_call(mlflow_env):
 
 @pytest.mark.anyio
 async def test_sample_event_without_active_task_is_ignored():
+    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
+
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model_output import ModelOutput
-
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
 
     hook = MlflowTrackingHooks()
 
@@ -470,12 +458,12 @@ async def test_sample_event_without_active_task_is_ignored():
 
 @pytest.mark.anyio
 async def test_event_counts_logged_on_task_end(mlflow_env):
+    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
+
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model_output import ModelOutput
-
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
 
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
@@ -487,9 +475,7 @@ async def test_event_counts_logged_on_task_end(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         # Send 2 model events and 1 tool event
