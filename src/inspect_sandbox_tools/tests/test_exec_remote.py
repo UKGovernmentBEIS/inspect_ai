@@ -1061,3 +1061,90 @@ class TestWriteStdinAndCloseStdin:
             DEFAULT_RPC_TIMEOUT,
         )
         assert "error" in response
+
+
+class TestOutputLimit:
+    """Tests for server-side output buffering limits."""
+
+    def test_output_exceeding_limit_is_truncated(self, rpc_client: RpcClient) -> None:
+        """Output beyond the limit is discarded; process still completes."""
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {
+                    "command": "python3 -c \"print('A' * 200)\"",
+                    "output_limit": 100,
+                },
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        assert "result" in response, f"Start failed: {response}"
+        pid = response["result"]["pid"]
+
+        result = poll_until_complete(rpc_client, pid)
+        assert result["state"] == "completed"
+        assert result["exit_code"] == 0
+        assert len(result["stdout"]) <= 100
+
+    def test_output_within_limit_is_preserved(self, rpc_client: RpcClient) -> None:
+        """Output within the limit is fully preserved."""
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {
+                    "command": "echo hello",
+                    "output_limit": 1000,
+                },
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        assert "result" in response, f"Start failed: {response}"
+        pid = response["result"]["pid"]
+
+        result = poll_until_complete(rpc_client, pid)
+        assert result["state"] == "completed"
+        assert result["exit_code"] == 0
+        assert result["stdout"].strip() == "hello"
+
+    def test_no_output_limit_uses_default(self, rpc_client: RpcClient) -> None:
+        """When output_limit is not provided, a generous default is used."""
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "echo works"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        assert "result" in response, f"Start failed: {response}"
+        pid = response["result"]["pid"]
+
+        result = poll_until_complete(rpc_client, pid)
+        assert result["state"] == "completed"
+        assert result["stdout"].strip() == "works"
+
+    def test_process_not_blocked_by_full_buffer(self, rpc_client: RpcClient) -> None:
+        """Process completes even when output far exceeds the limit."""
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {
+                    "command": "dd if=/dev/zero bs=1024 count=1024 2>/dev/null; echo done",
+                    "output_limit": 1024,
+                },
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        assert "result" in response, f"Start failed: {response}"
+        pid = response["result"]["pid"]
+
+        result = poll_until_complete(rpc_client, pid, timeout=10)
+        assert result["state"] == "completed"
+        assert result["exit_code"] == 0

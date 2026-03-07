@@ -8,6 +8,8 @@ from inspect_sandbox_tools._util.common_types import ToolException
 
 from .tool_types import PollResult
 
+_DEFAULT_OUTPUT_LIMIT = 100 * 1024 * 1024  # 100 MiB
+
 
 class Job:
     """Manages an async subprocess with separate stdout/stderr streams.
@@ -26,6 +28,7 @@ class Job:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        output_limit: int | None = None,
     ) -> "Job":
         """Create and start a new Job for the given command.
 
@@ -40,6 +43,7 @@ class Job:
                 for later write_stdin()/close_stdin() calls.
             env: Additional environment variables (merged with current env).
             cwd: Working directory for command execution.
+            output_limit: Max bytes to buffer per stream. None uses server default.
         """
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
@@ -57,7 +61,7 @@ class Job:
             cwd=cwd,
         )
 
-        job = cls(process)
+        job = cls(process, output_limit=output_limit or _DEFAULT_OUTPUT_LIMIT)
 
         # Write initial input if provided
         if input is not None and process.stdin is not None:
@@ -71,8 +75,9 @@ class Job:
 
         return job
 
-    def __init__(self, process: AsyncIOProcess) -> None:
+    def __init__(self, process: AsyncIOProcess, output_limit: int) -> None:
         self._process = process
+        self._output_limit = output_limit
         self._stdout_buffer: list[str] = []
         self._stderr_buffer: list[str] = []
         self._state: Literal["running", "completed", "killed"] = "running"
@@ -217,15 +222,19 @@ class Job:
     async def _read_stream(
         self, stream: asyncio.StreamReader | None, buffer: list[str]
     ) -> None:
-        """Read from a stream and append to buffer."""
+        """Read from a stream and append to buffer up to the output limit."""
         if stream is None:
             return
 
+        total_bytes = 0
         try:
             while True:
                 data = await stream.read(4096)
                 if not data:
                     break
-                buffer.append(data.decode("utf-8", errors="replace"))
+                if total_bytes < self._output_limit:
+                    remaining = self._output_limit - total_bytes
+                    buffer.append(data[:remaining].decode("utf-8", errors="replace"))
+                total_bytes += len(data)
         except asyncio.CancelledError:
             pass
