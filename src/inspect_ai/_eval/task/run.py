@@ -125,8 +125,8 @@ from ..task import Task
 from .error import SampleErrorHandler, _should_eval_fail
 from .generate import task_generate
 from .images import (
+    sample_with_base64_content,
     sample_without_base64_content,
-    samples_with_base64_content,
     state_without_base64_content,
     states_with_base64_content,
 )
@@ -233,18 +233,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     log_model_api = config.log_model_api is True
     log_samples = config.log_samples is not False
 
-    # resolve dataset
-    _, samples, states = await resolve_dataset(
-        dataset=task.dataset,
-        model_name=model_name,
-        limit=config.limit,
-        sample_id=config.sample_id,
-        epochs=epochs,
-        log_images=log_images,
-        message_limit=config.message_limit,
-        token_limit=config.token_limit,
-        cost_limit=config.cost_limit,
-    )
+    # slice dataset (but don't materialize all sample+state pairs upfront --
+    # they are created lazily inside run_sample to keep memory at
+    # O(concurrent_samples) instead of O(total_samples * epochs))
+    dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
+    total_samples = len(dataset) * epochs
 
     # resolve the plan (unroll chains)
     solver = solver or task.solver
@@ -272,8 +265,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         model=model_name,
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
-        samples=len(samples),
-        steps=len(samples) * SAMPLE_TOTAL_PROGRESS_UNITS,
+        samples=total_samples,
+        steps=total_samples * SAMPLE_TOTAL_PROGRESS_UNITS,
         eval_config=config,
         task_args=logger.eval.task_args_passed,
         generate_config=generate_config,
@@ -299,10 +292,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # call early stopping if we have it
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
-                # slice off just 1 instance of the samples
-                unique_samples = samples[0 : (len(samples) // epochs)]
                 stopping_manager = await options.task.early_stopping.start_task(
-                    logger.eval, samples=unique_samples, epochs=epochs
+                    logger.eval, samples=list(dataset), epochs=epochs
                 )
 
             with td.progress() as p:
@@ -354,7 +345,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # Increment the segment progress
                     td.sample_complete(
-                        complete=len(progress_results), total=len(samples)
+                        complete=len(progress_results), total=total_samples
                     )
 
                     # Update metrics
@@ -373,7 +364,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         )
 
                 # initial progress
-                td.sample_complete(complete=0, total=len(samples))
+                td.sample_complete(complete=0, total=total_samples)
 
                 # Update metrics to empty state
                 update_metrics_display(
@@ -385,8 +376,29 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 )
 
                 async def run_sample(
-                    sample: Sample, state: TaskState
+                    sample_index: int, epoch: int
                 ) -> dict[str, SampleScore] | EarlyStop | None:
+                    # create sample+state on-demand so only concurrently
+                    # executing samples consume memory
+                    sample = deepcopy(dataset[sample_index])
+                    if log_images:
+                        sample = await sample_with_base64_content(sample)
+                    state = deepcopy(
+                        TaskState(
+                            sample_id=sample.id or 0,
+                            epoch=epoch,
+                            model=model_name,
+                            input=sample.input,
+                            target=Target(sample.target),
+                            choices=sample.choices,
+                            messages=sample_messages(sample),
+                            message_limit=config.message_limit,
+                            token_limit=config.token_limit,
+                            cost_limit=config.cost_limit,
+                            completed=False,
+                            metadata=sample.metadata if sample.metadata else {},
+                        )
+                    )
                     return await task_run_sample(
                         task_name=task.name,
                         log_location=profile.log_location,
@@ -423,11 +435,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                 sample_results = await tg_collect(
                     [
-                        functools.partial(run_sample, sample, state)
-                        for (sample, state) in zip(
-                            samples,
-                            states,
-                        )
+                        functools.partial(run_sample, sample_index, epoch)
+                        for epoch in range(1, epochs + 1)
+                        for sample_index in range(len(dataset))
                     ]
                 )
 
@@ -1252,56 +1262,6 @@ async def log_sample(
     eval_sample: EvalSample, logger: TaskLogger, log_images: bool
 ) -> None:
     await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
-
-
-async def resolve_dataset(
-    dataset: Dataset,
-    model_name: ModelName,
-    limit: int | tuple[int, int] | None,
-    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
-    epochs: int,
-    log_images: bool,
-    message_limit: int | None,
-    token_limit: int | None,
-    cost_limit: float | None,
-) -> tuple[Dataset, list[Sample], list[TaskState]]:
-    # slice dataset
-    dataset = slice_dataset(dataset, limit, sample_id)
-
-    # apply epochs (deepcopy the samples so they remain independent)
-    samples: list[Sample] = []
-    for _ in range(0, epochs):
-        samples.extend([deepcopy(sample) for sample in dataset])
-
-    # if we are logging images then resolve sample images here
-    if log_images:
-        samples = await samples_with_base64_content(samples)
-
-    # prime the eval tasks (deep copy so they share no state w/ sample)
-    sample_epochs: list[int] = []
-    for e in range(0, epochs):
-        sample_epochs.extend([e + 1] * len(dataset))
-    states = [
-        deepcopy(
-            TaskState(
-                sample_id=sample.id or 0,
-                epoch=epoch,
-                model=model_name,
-                input=sample.input,
-                target=Target(sample.target),
-                choices=sample.choices,
-                messages=sample_messages(sample),
-                message_limit=message_limit,
-                token_limit=token_limit,
-                cost_limit=cost_limit,
-                completed=False,
-                metadata=sample.metadata if sample.metadata else {},
-            )
-        )
-        for epoch, sample in zip(sample_epochs, samples)
-    ]
-
-    return (dataset, samples, states)
 
 
 # we can reuse samples from a previous eval_log if and only if:
