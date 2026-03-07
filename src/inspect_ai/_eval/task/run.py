@@ -406,7 +406,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
-                    async def create_sample_state() -> tuple[Sample, TaskState]:
+                    async def create_sample_state(
+                        sample_uuid: str | None = None,
+                    ) -> tuple[Sample, TaskState]:
                         sample = deepcopy(dataset[sample_index])
                         if log_images:
                             sample = await sample_with_base64_content(sample)
@@ -424,6 +426,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 cost_limit=config.cost_limit,
                                 completed=False,
                                 metadata=sample.metadata if sample.metadata else {},
+                                sample_uuid=sample_uuid,
                             )
                         )
                         return sample, state
@@ -652,7 +655,7 @@ async def task_run_sample(
     *,
     task_name: str,
     log_location: str,
-    create_sample_state: Callable[[], Awaitable[tuple[Sample, TaskState]]],
+    create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
     sandbox: SandboxEnvironmentSpec | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
@@ -678,6 +681,7 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
+    sample_uuid: str | None = None,
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
@@ -693,7 +697,7 @@ async def task_run_sample(
     # execute under sample semaphore
     async with semaphore:
         # materialize sample+state lazily (deferred until semaphore acquired)
-        sample, state = await create_sample_state()
+        sample, state = await create_sample_state(sample_uuid)
 
         # validate that we have sample_id (mostly for the typechecker)
         sample_id = sample.id
@@ -1181,6 +1185,7 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
+            sample_uuid=state.uuid,
         )
 
     # re-raise cancellation after logging to preserve structured concurrency
