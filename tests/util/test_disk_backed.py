@@ -28,7 +28,7 @@ def test_disk_backed_list_basic() -> None:
 
 
 def test_disk_backed_list_append() -> None:
-    with DiskBackedList() as dbl:
+    with DiskBackedList[str]() as dbl:
         dbl.append("a")
         dbl.append("b")
         assert len(dbl) == 2
@@ -37,7 +37,7 @@ def test_disk_backed_list_append() -> None:
 
 
 def test_disk_backed_list_extend() -> None:
-    with DiskBackedList() as dbl:
+    with DiskBackedList[int]() as dbl:
         dbl.extend([10, 20, 30])
         assert len(dbl) == 3
         assert list(dbl) == [10, 20, 30]
@@ -168,7 +168,7 @@ def test_disk_backed_list_index_error() -> None:
 
 
 def test_disk_backed_dict_basic() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["key1"] = "value1"
         dbd["key2"] = 42
         assert dbd["key1"] == "value1"
@@ -177,14 +177,14 @@ def test_disk_backed_dict_basic() -> None:
 
 
 def test_disk_backed_dict_contains() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["x"] = 1
         assert "x" in dbd
         assert "y" not in dbd
 
 
 def test_disk_backed_dict_delete() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["a"] = 1
         dbd["b"] = 2
         del dbd["a"]
@@ -193,7 +193,7 @@ def test_disk_backed_dict_delete() -> None:
 
 
 def test_disk_backed_dict_get() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["x"] = 42
         assert dbd.get("x") == 42
         assert dbd.get("missing") is None
@@ -201,7 +201,7 @@ def test_disk_backed_dict_get() -> None:
 
 
 def test_disk_backed_dict_keys_values_items() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["a"] = 1
         dbd["b"] = 2
         assert dbd.keys() == {"a", "b"}
@@ -210,7 +210,7 @@ def test_disk_backed_dict_keys_values_items() -> None:
 
 
 def test_disk_backed_dict_iteration() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["x"] = 1
         dbd["y"] = 2
         keys = list(dbd)
@@ -219,7 +219,7 @@ def test_disk_backed_dict_iteration() -> None:
 
 def test_disk_backed_dict_pydantic_model() -> None:
     model = SampleModel(id=1, name="test", data={"key": 42})
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["model"] = model
         retrieved = dbd["model"]
         assert isinstance(retrieved, SampleModel)
@@ -229,7 +229,7 @@ def test_disk_backed_dict_pydantic_model() -> None:
 
 def test_disk_backed_dict_cleanup() -> None:
     tmpdir: str = ""
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         dbd["x"] = 1
         tmpdir = dbd._tmpdir
         assert os.path.exists(tmpdir)
@@ -237,7 +237,7 @@ def test_disk_backed_dict_cleanup() -> None:
 
 
 def test_disk_backed_dict_key_error() -> None:
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, object]() as dbd:
         try:
             _ = dbd["nonexistent"]
             assert False, "Should have raised KeyError"
@@ -249,20 +249,23 @@ def test_disk_backed_dict_key_error() -> None:
 
 
 def test_disk_backed_list_nested_structures() -> None:
-    data = [
+    data: list[dict[str, object]] = [
         {"messages": [{"role": "user", "content": "hello"}], "score": 0.95},
         {"messages": [{"role": "assistant", "content": "hi"}], "score": 0.8},
     ]
     with DiskBackedList(data) as dbl:
         assert len(dbl) == 2
         item = dbl[0]
-        assert item["messages"][0]["content"] == "hello"
+        assert isinstance(item, dict)
+        msgs = item["messages"]
+        assert isinstance(msgs, list)
+        assert msgs[0]["content"] == "hello"
         assert item["score"] == 0.95
 
 
 def test_disk_backed_dict_large_values() -> None:
     large_list = list(range(10000))
-    with DiskBackedDict() as dbd:
+    with DiskBackedDict[str, list[int]]() as dbd:
         dbd["large"] = large_list
         retrieved = dbd["large"]
         assert len(retrieved) == 10000
@@ -291,6 +294,7 @@ def test_eval_disk_backed_basic() -> None:
 
     log = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
     assert log.status == "success"
+    assert log.samples is not None
     assert len(log.samples) == 3
 
 
@@ -345,6 +349,8 @@ def test_eval_disk_backed_matches_in_memory() -> None:
     log_disk = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
 
     assert log_mem.status == log_disk.status == "success"
+    assert log_mem.samples is not None
+    assert log_disk.samples is not None
     assert len(log_mem.samples) == len(log_disk.samples)
 
     # Both should have the same sample IDs
@@ -380,6 +386,7 @@ def test_eval_disk_backed_multi_epoch() -> None:
 
     log = eval(deepcopy(task), model="mockllm/model", disk_backed=True)[0]
     assert log.status == "success"
+    assert log.samples is not None
     # 2 samples * 2 epochs = 4 total
     assert len(log.samples) == 4
     assert log.eval.config.epochs == 2
