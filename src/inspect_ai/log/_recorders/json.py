@@ -196,7 +196,7 @@ class JSONRecorder(FileRecorder):
     async def write_log(
         cls, location: str, log: EvalLog, if_match_etag: str | None = None
     ) -> None:
-        from inspect_ai.log._file import eval_log_json
+        from inspect_ai.log._file import eval_log_json_streaming
 
         # sort samples before writing as they can come in out of order
         if log.samples:
@@ -207,13 +207,11 @@ class JSONRecorder(FileRecorder):
             # Use S3 conditional write
             await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
-            # Standard write
-            # get log as bytes
-            log_bytes = eval_log_json(log)
-
+            # Stream log to file, serializing samples one at a time
+            # to avoid materializing the entire log in memory
             with trace_action(logger, "Log Write", location):
                 with file(location, "wb") as f:
-                    f.write(log_bytes)
+                    eval_log_json_streaming(log, f)
 
     @classmethod
     async def _write_log_s3_conditional(

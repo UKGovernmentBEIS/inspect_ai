@@ -1,9 +1,10 @@
 import io
+import shutil
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Callable, Coroutine, TypeVar, cast
+from typing import Any, BinaryIO, Callable, Coroutine, TypeVar, cast
 from urllib.parse import urlparse
 
 import anyio
@@ -269,6 +270,36 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             with file(filename, "wb") as f:
                 f.write(content)
 
+    _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
+
+    async def write_file_streaming(self, filename: str, source: BinaryIO) -> None:
+        """Write a file from a binary stream without reading it all into memory.
+
+        Uses the appropriate backend for streaming writes:
+        - S3: native upload_fileobj (streaming multipart upload)
+        - Local/other: chunked copy via fsspec
+
+        Args:
+            filename: Destination file path or URL.
+            source: A readable binary file-like object.
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.upload_fileobj(Fileobj=source, Bucket=bucket, Key=key)
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_write_file_streaming,
+                    self.s3_client(),
+                    bucket,
+                    key,
+                    source,
+                )
+        else:
+            with file(filename, "wb") as f:
+                shutil.copyfileobj(source, f, length=self._STREAMING_COPY_BUFSIZE)
+
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
         existing = _current_async_fs.get()
@@ -380,6 +411,11 @@ def s3_read_file_suffix(
 
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
     s3.upload_fileobj(Fileobj=io.BytesIO(content), Bucket=bucket, Key=key)
+
+
+def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) -> None:
+    """Upload a file-like stream to S3 using multipart upload."""
+    s3.upload_fileobj(Fileobj=source, Bucket=bucket, Key=key)
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
