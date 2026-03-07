@@ -135,6 +135,7 @@ export type TimeLimit = number | null;
 export type WorkingLimit = number | null;
 export type CostLimit = number | null;
 export type MaxSamples = number | null;
+export type MaxDatasetMemory = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
 export type MaxSandboxes = number | null;
@@ -1091,6 +1092,7 @@ export interface EvalConfig {
   working_limit: WorkingLimit;
   cost_limit: CostLimit;
   max_samples: MaxSamples;
+  max_dataset_memory: MaxDatasetMemory;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
   max_sandboxes: MaxSandboxes;

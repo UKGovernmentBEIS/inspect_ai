@@ -2006,6 +2006,18 @@
           "default": null,
           "title": "Max Samples"
         },
+        "max_dataset_memory": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Dataset Memory"
+        },
         "max_tasks": {
           "anyOf": [
             {
@@ -2157,6 +2169,7 @@
         "working_limit",
         "cost_limit",
         "max_samples",
+        "max_dataset_memory",
         "max_tasks",
         "max_subprocesses",
         "max_sandboxes",
