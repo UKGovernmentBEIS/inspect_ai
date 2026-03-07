@@ -292,9 +292,14 @@ def completion_params_responses(
     if responses_store is None and config.extra_body and "store" in config.extra_body:
         responses_store = config.extra_body["store"]
 
+    if has_computer_tool and responses_store is not True:
+        warn_once(
+            logger,
+            "OpenAI computer use tool requires store=True; overriding store setting.",
+        )
+        responses_store = True
+
     if responses_store is not True:
-        if has_computer_tool:
-            raise RuntimeError("OpenAI computer use tool requires responses store=True")
         params["store"] = False
         if model_info.has_reasoning_options():
             params["include"].append("reasoning.encrypted_content")

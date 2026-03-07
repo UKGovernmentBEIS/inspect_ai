@@ -798,8 +798,7 @@ def _make_mock_model_info():
     return model_info
 
 
-def test_completion_params_raises_when_computer_tool_and_store_not_true():
-    import pytest
+def test_completion_params_overrides_store_when_computer_tool_and_store_not_true():
     from openai._types import NOT_GIVEN
 
     from inspect_ai.model._generate_config import GenerateConfig
@@ -807,22 +806,20 @@ def test_completion_params_raises_when_computer_tool_and_store_not_true():
         completion_params_responses,
     )
 
-    with pytest.raises(
-        RuntimeError, match="computer use tool requires responses store=True"
-    ):
-        completion_params_responses(
-            "gpt-4o",
-            model_info=_make_mock_model_info(),
-            config=GenerateConfig(),
-            service_tier=None,
-            prompt_cache_key=NOT_GIVEN,
-            prompt_cache_retention=NOT_GIVEN,
-            safety_identifier=NOT_GIVEN,
-            responses_store=None,
-            tools=True,
-            tool_params=[],
-            has_computer_tool=True,
-        )
+    params = completion_params_responses(
+        "gpt-4o",
+        model_info=_make_mock_model_info(),
+        config=GenerateConfig(),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=True,
+        tool_params=[],
+        has_computer_tool=True,
+    )
+    assert "store" not in params or params["store"] is not False
 
 
 def test_completion_params_no_error_when_computer_tool_and_store_true():
