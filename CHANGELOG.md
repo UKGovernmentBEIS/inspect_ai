@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.189 (07 March 2026)
 
 - Anthropic: Preserve OAuth beta header when per-request betas are set.
 - Timelines: Detect `agent_result` for timeline spans.
