@@ -39,6 +39,10 @@ _BUTTON_TO_ACTION: dict[str, str] = {
 }
 _ACTION_TO_BUTTON: dict[str, str] = {v: k for k, v in _BUTTON_TO_ACTION.items()}
 
+# Approximate pixels per scroll wheel click. Used to convert between OpenAI's
+# pixel-based scroll_x/scroll_y and the sandbox's click-based scroll_amount.
+_PIXELS_PER_SCROLL_CLICK = 50
+
 _OPENAI_KEY_TO_XDOTOOL: dict[str, str] = {
     "ENTER": "Return",
     "LEFT": "Left",
@@ -148,18 +152,19 @@ def _single_arg_to_action(arguments: dict[str, object]) -> ComputerAction:
     elif action_type == "scroll":
         x, y = _get_coordinate(arguments)
         scroll_direction = str(arguments.get("scroll_direction", "down"))
-        scroll_amount = int(str(arguments.get("scroll_amount", 1)))
+        clicks = int(str(arguments.get("scroll_amount", 1)))
+        pixels = clicks * _PIXELS_PER_SCROLL_CLICK
 
         scroll_x = 0
         scroll_y = 0
         if scroll_direction == "up":
-            scroll_y = -scroll_amount
+            scroll_y = -pixels
         elif scroll_direction == "down":
-            scroll_y = scroll_amount
+            scroll_y = pixels
         elif scroll_direction == "left":
-            scroll_x = -scroll_amount
+            scroll_x = -pixels
         elif scroll_direction == "right":
-            scroll_x = scroll_amount
+            scroll_x = pixels
 
         return Scroll(type="scroll", x=x, y=y, scroll_x=scroll_x, scroll_y=scroll_y)
     elif action_type == "type":
@@ -212,21 +217,20 @@ def _parse_single_action(action: ComputerAction) -> dict[str, object]:
     elif isinstance(action, Screenshot):
         return {"action": "screenshot"}
     elif isinstance(action, Scroll):
-        # TODO: OpenAI spec's with x/y distances. Their example code treats the
-        # unit of measurement as a "click" of the scroll wheel. Since it's not
-        # really a thing to scroll both horizontally and vertically at the same
-        # time, we'll just pick one of the potentially two directions and
-        # scroll along that dimension.
-        (scroll_direction, scroll_amount) = (
+        # OpenAI uses pixel distances; the sandbox uses scroll-wheel clicks.
+        # Since it's not really a thing to scroll both horizontally and
+        # vertically at the same time, pick the dominant axis.
+        (scroll_direction, pixels) = (
             ("right" if action.scroll_x > 0 else "left", abs(action.scroll_x))
             if action.scroll_x
             else ("down" if action.scroll_y > 0 else "up", abs(action.scroll_y))
         )
+        clicks = max(1, round(pixels / _PIXELS_PER_SCROLL_CLICK))
         return {
             "action": "scroll",
             "coordinate": [action.x, action.y],
             "scroll_direction": scroll_direction,
-            "scroll_amount": scroll_amount,
+            "scroll_amount": clicks,
         }
     elif isinstance(action, TypeAction):
         return {"action": "type", "text": action.text}

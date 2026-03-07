@@ -203,7 +203,7 @@ def test_scroll_down():
     assert action.x == 200
     assert action.y == 300
     assert action.scroll_x == 0
-    assert action.scroll_y == 5
+    assert action.scroll_y == 250  # 5 clicks * 50 pixels/click
 
 
 def test_scroll_up():
@@ -217,7 +217,7 @@ def test_scroll_up():
 
     assert isinstance(action, Scroll)
     assert action.scroll_x == 0
-    assert action.scroll_y == -3
+    assert action.scroll_y == -150  # 3 clicks * 50 pixels/click
 
 
 def test_scroll_left():
@@ -230,7 +230,7 @@ def test_scroll_left():
     action = tool_call_arguments_to_actions({"actions": [args]})[0]
 
     assert isinstance(action, Scroll)
-    assert action.scroll_x == -2
+    assert action.scroll_x == -100  # 2 clicks * 50 pixels/click
     assert action.scroll_y == 0
 
 
@@ -244,7 +244,7 @@ def test_scroll_right():
     action = tool_call_arguments_to_actions({"actions": [args]})[0]
 
     assert isinstance(action, Scroll)
-    assert action.scroll_x == 4
+    assert action.scroll_x == 200  # 4 clicks * 50 pixels/click
     assert action.scroll_y == 0
 
 
