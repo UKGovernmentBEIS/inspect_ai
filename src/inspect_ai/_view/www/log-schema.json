@@ -2042,6 +2042,18 @@
           "default": null,
           "title": "Max Sandboxes"
         },
+        "disk_backed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disk Backed"
+        },
         "sandbox_cleanup": {
           "anyOf": [
             {
@@ -2160,6 +2172,7 @@
         "max_tasks",
         "max_subprocesses",
         "max_sandboxes",
+        "disk_backed",
         "sandbox_cleanup",
         "log_samples",
         "log_realtime",

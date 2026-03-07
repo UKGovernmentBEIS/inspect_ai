@@ -138,6 +138,7 @@ export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
 export type MaxSandboxes = number | null;
+export type DiskBacked = boolean | null;
 export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogRealtime = boolean | null;
@@ -1094,6 +1095,7 @@ export interface EvalConfig {
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
   max_sandboxes: MaxSandboxes;
+  disk_backed: DiskBacked;
   sandbox_cleanup: SandboxCleanup;
   log_samples: LogSamples;
   log_realtime: LogRealtime;
