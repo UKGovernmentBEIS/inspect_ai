@@ -843,6 +843,8 @@ website:
           href: reference/inspect_ai.hooks.qmd#sampleinit
         - text: SampleStart
           href: reference/inspect_ai.hooks.qmd#samplestart
+        - text: SampleEvent
+          href: reference/inspect_ai.hooks.qmd#sampleevent
         - text: TaskEnd
           href: reference/inspect_ai.hooks.qmd#taskend
         - text: TaskStart
