@@ -131,6 +131,7 @@ def eval_set(
     cost_limit: float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
@@ -220,6 +221,9 @@ def eval_set(
         model_cost_config: YAML or JSON file with model prices for cost tracking.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 4 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
@@ -296,6 +300,7 @@ def eval_set(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
