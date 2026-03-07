@@ -142,6 +142,7 @@ from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._tools._computer import is_builtin_computer_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
@@ -1140,22 +1141,7 @@ class AnthropicAPI(ModelAPI):
     def computer_use_tool_param(
         self, tool: ToolInfo
     ) -> BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param | None:
-        # check for compatible 'computer' tool
-        if tool.name == "computer" and (
-            sorted(tool.parameters.properties.keys())
-            == sorted(
-                [
-                    "action",
-                    "coordinate",
-                    "duration",
-                    "region",
-                    "scroll_amount",
-                    "scroll_direction",
-                    "start_coordinate",
-                    "text",
-                ]
-            )
-        ):
+        if is_builtin_computer_tool(tool):
             if self.is_claude_3_5():
                 warn_once(
                     logger,
