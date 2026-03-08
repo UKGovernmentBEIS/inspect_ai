@@ -7,10 +7,11 @@ from typing import Literal
 
 import pytest
 from pydantic_core import PydanticSerializationError
+from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
 from inspect_ai import Task, eval
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sandbox import SandboxEvent
@@ -22,6 +23,7 @@ from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._file import (
     ReadEvalLogsProgress,
     list_eval_logs,
+    log_files_from_ls,
     read_eval_log_headers,
     read_eval_log_sample,
     write_eval_log,
@@ -494,3 +496,106 @@ def test_read_eval_log_sample_trio():
         assert sample.epoch == 1
 
     anyio.run(main, backend="trio")
+
+
+# =============================================================================
+# Tests for ZipLogFile flush cycles
+# =============================================================================
+
+
+@skip_if_trio
+async def test_zip_log_file_flush_cycles() -> None:
+    """Test that multiple flush cycles produce a valid .eval file."""
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+    from inspect_ai.model._model_output import ModelOutput
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="test_task",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=6),
+            config=EvalConfig(),
+        )
+        plan = EvalPlan()
+        log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        # Write samples in 3 batches with flush between each
+        all_sample_ids: list[int] = []
+        for batch in range(3):
+            for i in range(2):
+                sample_id = batch * 2 + i + 1
+                all_sample_ids.append(sample_id)
+                sample = EvalSample(
+                    id=sample_id,
+                    epoch=1,
+                    input=f"input {sample_id}",
+                    target=f"target {sample_id}",
+                    output=ModelOutput.from_content(
+                        model="mockllm/model",
+                        content=f"output {sample_id}",
+                    ),
+                    messages=[],
+                )
+                await zip_log.buffer_sample(sample)
+            await zip_log.write_buffered_samples()
+            await zip_log.flush()
+
+        await zip_log.close(header_only=False)
+
+        # Read back and verify
+        log = read_eval_log(eval_path)
+        assert log.eval.task == "test_task"
+        assert log.samples is not None
+        assert len(log.samples) == 6
+        read_ids = sorted([s.id for s in log.samples])
+        assert read_ids == all_sample_ids
+
+
+# =============================================================================
+# Tests for log_files_from_ls sort key
+# =============================================================================
+
+
+def test_log_files_from_ls_sort_order():
+    """Test sort order with mixed and None mtime values."""
+    files = [
+        FileInfo(name="2024-01-01T00:00:00.eval", type="file", size=100, mtime=300.0),
+        FileInfo(name="2024-01-02T00:00:00.eval", type="file", size=100, mtime=100.0),
+        FileInfo(name="2024-01-03T00:00:00.eval", type="file", size=100, mtime=None),
+        FileInfo(name="2024-01-04T00:00:00.eval", type="file", size=100, mtime=200.0),
+    ]
+
+    # Descending: highest mtime first, None (treated as 0) last
+    desc = log_files_from_ls(files, descending=True)
+    desc_mtimes = [
+        300.0,  # mtime=300
+        200.0,  # mtime=200
+        100.0,  # mtime=100
+        None,  # mtime=None (sorts as 0)
+    ]
+    assert [f.mtime for f in desc] == desc_mtimes
+
+    # Ascending: None (treated as 0) first, then lowest mtime
+    asc = log_files_from_ls(files, descending=False)
+    asc_mtimes = [
+        None,  # mtime=None (sorts as 0)
+        100.0,  # mtime=100
+        200.0,  # mtime=200
+        300.0,  # mtime=300
+    ]
+    assert [f.mtime for f in asc] == asc_mtimes
