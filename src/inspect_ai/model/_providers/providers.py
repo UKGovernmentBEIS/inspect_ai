@@ -197,6 +197,17 @@ def openrouter() -> type[ModelAPI]:
     return OpenRouterAPI
 
 
+@modelapi(name="forge")
+def forge() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Forge API")
+
+    # in the clear
+    from .forge import ForgeAPI
+
+    return ForgeAPI
+
+
 @modelapi(name="perplexity")
 def perplexity() -> type[ModelAPI]:
     # validate

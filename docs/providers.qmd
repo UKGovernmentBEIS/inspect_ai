@@ -1085,6 +1085,25 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
 
+## Forge
+
+To use the [Forge](https://forge.tensorblock.co) provider, install the `openai` package (which Forge provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export FORGE_API_KEY=your-forge-api-key
+inspect eval arc.py --model forge/OpenAI/gpt-4o-mini
+```
+
+Forge models use the `Provider/model-name` format (for example `OpenAI/gpt-4o-mini`) and are fully OpenAI compatible.
+
+The following environment variables are supported by the Forge provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `FORGE_API_KEY` | API key credentials (required). |
+| `FORGE_API_BASE` | Base URL for requests (optional, defaults to `https://api.forge.tensorblock.co/v1`). |
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the `openai` package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
