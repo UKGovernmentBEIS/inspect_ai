@@ -678,7 +678,7 @@ async def test_lazy_list_defers_loading() -> None:
         )
 
         assert isinstance(log2.samples, LazyList)
-        assert not log2.samples._lazy_data.loaded  # type: ignore[union-attr]
+        assert not log2.samples._lazy_data.loaded
         # Reductions should also be a LazyList even though none were written
         assert isinstance(log2.reductions, LazyList)
         # model_dump() should be the first and only trigger for lazy load
