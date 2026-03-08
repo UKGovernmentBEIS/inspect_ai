@@ -139,6 +139,8 @@ class SampleStart:
 
 @dataclass(frozen=True)
 class SampleEvent:
+    """Sample event hook event data."""
+
     eval_set_id: str | None
     """The globally unique identifier for the eval set (if any)."""
     run_id: str

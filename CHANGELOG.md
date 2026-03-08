@@ -1,5 +1,13 @@
 ## Unreleased
 
+- Eval Logs: Use async S3 interface when flushing log buffer.
+- Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
+- Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
+- Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
+- Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
+
+## 0.3.189 (07 March 2026)
+
 - Anthropic: Preserve OAuth beta header when per-request betas are set.
 - Timelines: Detect `agent_result` for timeline spans.
 - Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
