@@ -679,14 +679,12 @@ async def test_lazy_list_defers_loading() -> None:
 
         assert isinstance(log2.samples, LazyList)
         assert not log2.samples._lazy_data.loaded
-        # Reductions should also be a LazyList even though none were written
-        assert isinstance(log2.reductions, LazyList)
+        # Reductions should be None since none were written
+        assert log2.reductions is None
         # model_dump() should be the first and only trigger for lazy load
         dumped = log2.model_dump()
         assert dumped["samples"] is not None
         assert len(dumped["samples"]) == 4
-        # Reductions lazy list should be empty since none were written
-        assert len(log2.reductions) == 0
 
 
 @skip_if_trio
@@ -755,6 +753,67 @@ async def test_lazy_list_with_reductions() -> None:
         assert len(log.samples) == 2
         # Reductions should also be loaded now (shared loader)
         assert len(log.reductions) == 1
+
+
+@skip_if_trio
+async def test_lazy_list_eq_triggers_load() -> None:
+    """Test that __eq__ on an unloaded LazyList triggers loading."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalResults,
+        EvalSample,
+        EvalSpec,
+        EvalStats,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder, LazyList
+    from inspect_ai.model._model_output import ModelOutput
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="lazy_eq_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=2),
+            config=EvalConfig(),
+        )
+
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(eval_spec, clean=True)
+        await recorder.log_start(eval_spec, EvalPlan())
+
+        for i in range(1, 3):
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"output {i}",
+                ),
+                messages=[],
+            )
+            await recorder.log_sample(eval_spec, sample)
+
+        log = await recorder.log_finish(
+            eval_spec,
+            status="success",
+            stats=EvalStats(),
+            results=EvalResults(),
+            reductions=None,
+        )
+
+        assert isinstance(log.samples, LazyList)
+        lazy_data = log.samples._lazy_data
+        assert lazy_data is not None
+        assert not lazy_data.loaded
+
+        # Comparing with an empty list should trigger loading
+        result = log.samples == []
+        assert result is False
+        assert lazy_data.loaded
 
 
 @skip_if_trio

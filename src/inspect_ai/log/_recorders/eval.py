@@ -596,11 +596,18 @@ class ZipLogFile:
                     samples_lazy: LazyList[EvalSample] = LazyList(lazy_data)
                     lazy_data.samples_list = samples_lazy
                     eval_log.samples = samples_lazy  # type: ignore[assignment]
-                    reductions_lazy: LazyList[EvalSampleReductions] = LazyList(
-                        lazy_data
+
+                    # Only attach lazy reductions if reductions were actually written
+                    has_reductions = (
+                        self._zip is not None
+                        and REDUCTIONS_JSON in self._zip.namelist()
                     )
-                    lazy_data.reductions_list = reductions_lazy
-                    eval_log.reductions = reductions_lazy  # type: ignore[assignment]
+                    if has_reductions:
+                        reductions_lazy: LazyList[EvalSampleReductions] = LazyList(
+                            lazy_data
+                        )
+                        lazy_data.reductions_list = reductions_lazy
+                        eval_log.reductions = reductions_lazy  # type: ignore[assignment]
                 return eval_log
             finally:
                 self._temp_file.close()
@@ -830,7 +837,6 @@ class _LazyLogData:
     def load(self) -> None:
         if self.loaded:
             return
-        self.loaded = True
         from .._file import read_eval_log
 
         log = read_eval_log(self.location, header_only=False)
@@ -838,6 +844,7 @@ class _LazyLogData:
             list.extend(self.samples_list, log.samples or [])
         if self.reductions_list is not None:
             list.extend(self.reductions_list, log.reductions or [])
+        self.loaded = True
 
 
 class LazyList(list[T], Generic[T]):
@@ -888,6 +895,18 @@ class LazyList(list[T], Generic[T]):
     def __deepcopy__(self, memo: dict[int, Any]) -> list[T]:
         self._ensure_loaded()
         return copy.deepcopy(list(self), memo)
+
+    def __eq__(self, other: object) -> bool:
+        self._ensure_loaded()
+        return super().__eq__(other)
+
+    def __add__(self, other: list[Any]) -> list[Any]:
+        self._ensure_loaded()
+        return super().__add__(other)
+
+    def __copy__(self) -> list[T]:
+        self._ensure_loaded()
+        return list(self)
 
     def __repr__(self) -> str:
         self._ensure_loaded()
