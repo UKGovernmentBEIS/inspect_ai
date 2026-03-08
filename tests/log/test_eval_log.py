@@ -567,6 +567,403 @@ async def test_zip_log_file_flush_cycles() -> None:
 
 
 # =============================================================================
+# Tests for LazyList / lazy sample loading
+# =============================================================================
+
+
+@skip_if_trio
+async def test_lazy_list_defers_loading() -> None:
+    """Test that close(header_only=False) returns LazyList and defers loading."""
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LazyList, LogStart, ZipLogFile
+    from inspect_ai.model._model_output import ModelOutput
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="lazy_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=4),
+            config=EvalConfig(),
+        )
+        plan = EvalPlan()
+        log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        for i in range(1, 5):
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"output {i}",
+                ),
+                messages=[],
+            )
+            await zip_log.buffer_sample(sample)
+        await zip_log.write_buffered_samples()
+        await zip_log.flush()
+
+        log = await zip_log.close(header_only=False)
+
+        # Should be a LazyList instance (and also a list)
+        assert isinstance(log.samples, LazyList)
+        assert isinstance(log.samples, list)
+
+        # The lazy data should not have been loaded yet
+        lazy_data = log.samples._lazy_data
+        assert lazy_data is not None
+        assert not lazy_data.loaded
+
+        # Accessing samples triggers loading
+        assert len(log.samples) == 4
+        assert lazy_data.loaded
+
+        # Verify correct data
+        sample_ids = sorted([s.id for s in log.samples])
+        assert sample_ids == [1, 2, 3, 4]
+
+    # Separate test block: model_dump() as the first access triggering lazy load
+    with tempfile.TemporaryDirectory() as temp_dir2:
+        from inspect_ai.log._recorders.eval import EvalRecorder
+
+        eval_spec2 = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="lazy_dump_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=4),
+            config=EvalConfig(),
+        )
+
+        recorder = EvalRecorder(temp_dir2)
+        await recorder.log_init(eval_spec2, clean=True)
+        await recorder.log_start(eval_spec2, EvalPlan())
+
+        for i in range(1, 5):
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"output {i}",
+                ),
+                messages=[],
+            )
+            await recorder.log_sample(eval_spec2, sample)
+
+        from inspect_ai.log._log import EvalResults, EvalStats
+
+        log2 = await recorder.log_finish(
+            eval_spec2,
+            status="success",
+            stats=EvalStats(),
+            results=EvalResults(),
+            reductions=None,
+        )
+
+        assert isinstance(log2.samples, LazyList)
+        assert not log2.samples._lazy_data.loaded
+        # Reductions should be None since none were written
+        assert log2.reductions is None
+        # model_dump() should be the first and only trigger for lazy load
+        dumped = log2.model_dump()
+        assert dumped["samples"] is not None
+        assert len(dumped["samples"]) == 4
+
+
+@skip_if_trio
+async def test_lazy_list_with_reductions() -> None:
+    """Test that reductions are also lazily loaded."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalResults,
+        EvalSample,
+        EvalSampleReductions,
+        EvalSpec,
+        EvalStats,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder, LazyList
+    from inspect_ai.model._model_output import ModelOutput
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="lazy_reductions_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=2),
+            config=EvalConfig(),
+        )
+
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(eval_spec, clean=True)
+        await recorder.log_start(eval_spec, EvalPlan())
+
+        for i in range(1, 3):
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"output {i}",
+                ),
+                messages=[],
+            )
+            await recorder.log_sample(eval_spec, sample)
+
+        reductions = [
+            EvalSampleReductions(
+                scorer="test_scorer",
+                samples=[],
+            )
+        ]
+
+        log = await recorder.log_finish(
+            eval_spec,
+            status="success",
+            stats=EvalStats(),
+            results=EvalResults(),
+            reductions=reductions,
+        )
+
+        # Both should be LazyList
+        assert isinstance(log.samples, LazyList)
+        assert isinstance(log.reductions, LazyList)
+
+        # Access samples to trigger load
+        assert len(log.samples) == 2
+        # Reductions should also be loaded now (shared loader)
+        assert len(log.reductions) == 1
+
+
+@skip_if_trio
+async def test_lazy_list_eq_triggers_load() -> None:
+    """Test that __eq__ on an unloaded LazyList triggers loading."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalResults,
+        EvalSample,
+        EvalSpec,
+        EvalStats,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder, LazyList
+    from inspect_ai.model._model_output import ModelOutput
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="lazy_eq_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=2),
+            config=EvalConfig(),
+        )
+
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(eval_spec, clean=True)
+        await recorder.log_start(eval_spec, EvalPlan())
+
+        for i in range(1, 3):
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"output {i}",
+                ),
+                messages=[],
+            )
+            await recorder.log_sample(eval_spec, sample)
+
+        log = await recorder.log_finish(
+            eval_spec,
+            status="success",
+            stats=EvalStats(),
+            results=EvalResults(),
+            reductions=None,
+        )
+
+        assert isinstance(log.samples, LazyList)
+        lazy_data = log.samples._lazy_data
+        assert lazy_data is not None
+        assert not lazy_data.loaded
+
+        # Comparing with an empty list should trigger loading
+        result = log.samples == []
+        assert result is False
+        assert lazy_data.loaded
+
+
+@skip_if_trio
+async def test_lazy_list_lazy_vs_lazy() -> None:
+    """Test that __eq__ and __add__ between two LazyLists loads both sides."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalResults,
+        EvalSample,
+        EvalSpec,
+        EvalStats,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder, LazyList
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def _make_lazy_log(
+        temp_dir: str, task_name: str, sample_ids: list[int]
+    ) -> EvalLog:
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task=task_name,
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=len(sample_ids)),
+            config=EvalConfig(),
+        )
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(eval_spec, clean=True)
+        await recorder.log_start(eval_spec, EvalPlan())
+        for i in sample_ids:
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model", content=f"output {i}"
+                ),
+                messages=[],
+            )
+            await recorder.log_sample(eval_spec, sample)
+        return await recorder.log_finish(
+            eval_spec,
+            status="success",
+            stats=EvalStats(),
+            results=EvalResults(),
+            reductions=None,
+        )
+
+    with tempfile.TemporaryDirectory() as dir_a, tempfile.TemporaryDirectory() as dir_b:
+        log_a = await _make_lazy_log(dir_a, "task_a", [1, 2])
+        log_b = await _make_lazy_log(dir_b, "task_b", [1, 2])
+
+        assert isinstance(log_a.samples, LazyList)
+        assert isinstance(log_b.samples, LazyList)
+
+        # Neither should be loaded yet
+        lazy_a = log_a.samples._lazy_data
+        lazy_b = log_b.samples._lazy_data
+        assert lazy_a is not None and not lazy_a.loaded
+        assert lazy_b is not None and not lazy_b.loaded
+
+        # __eq__ should trigger loading on both sides (content differs, but
+        # the important thing is that both sides get loaded)
+        _ = log_a.samples == log_b.samples
+        assert lazy_a.loaded
+        assert lazy_b.loaded
+
+    # Test __add__ with two fresh lazy lists
+    with tempfile.TemporaryDirectory() as dir_c, tempfile.TemporaryDirectory() as dir_d:
+        log_c = await _make_lazy_log(dir_c, "task_c", [1, 2])
+        log_d = await _make_lazy_log(dir_d, "task_d", [3, 4])
+
+        lazy_c = log_c.samples._lazy_data
+        lazy_d = log_d.samples._lazy_data
+
+        combined = log_c.samples + log_d.samples
+        assert lazy_c.loaded
+        assert lazy_d.loaded
+        assert len(combined) == 4
+        combined_ids = sorted([s.id for s in combined])
+        assert combined_ids == [1, 2, 3, 4]
+
+    # Test __radd__: regular_list + lazy_list
+    with tempfile.TemporaryDirectory() as dir_e:
+        log_e = await _make_lazy_log(dir_e, "task_e", [5, 6])
+        lazy_e = log_e.samples._lazy_data
+        assert not lazy_e.loaded
+
+        result = [1, 2, 3] + log_e.samples
+        assert lazy_e.loaded
+        assert len(result) == 5
+
+
+@skip_if_trio
+async def test_lazy_list_header_only_no_lazy() -> None:
+    """Test that close(header_only=True) does NOT use LazyList."""
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LazyList, LogStart, ZipLogFile
+    from inspect_ai.model._model_output import ModelOutput
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="header_only_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=2),
+            config=EvalConfig(),
+        )
+        plan = EvalPlan()
+        log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        for i in range(1, 3):
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model",
+                    content=f"output {i}",
+                ),
+                messages=[],
+            )
+            await zip_log.buffer_sample(sample)
+        await zip_log.write_buffered_samples()
+        await zip_log.flush()
+
+        log = await zip_log.close(header_only=True)
+
+        # header_only should have samples=None, not a LazyList
+        assert log.samples is None
+        assert not isinstance(log.samples, LazyList)
+
+
+# =============================================================================
 # Tests for log_files_from_ls sort key
 # =============================================================================
 
