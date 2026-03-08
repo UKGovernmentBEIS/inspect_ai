@@ -898,11 +898,19 @@ class LazyList(list[T], Generic[T]):
 
     def __eq__(self, other: object) -> bool:
         self._ensure_loaded()
+        if isinstance(other, LazyList):
+            other._ensure_loaded()
         return super().__eq__(other)
 
     def __add__(self, other: list[Any]) -> list[Any]:
         self._ensure_loaded()
+        if isinstance(other, LazyList):
+            other._ensure_loaded()
         return super().__add__(other)
+
+    def __radd__(self, other: list[Any]) -> list[Any]:
+        self._ensure_loaded()
+        return other.__add__(list(self))
 
     def __copy__(self) -> list[T]:
         self._ensure_loaded()

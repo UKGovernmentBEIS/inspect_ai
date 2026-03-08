@@ -817,6 +817,99 @@ async def test_lazy_list_eq_triggers_load() -> None:
 
 
 @skip_if_trio
+async def test_lazy_list_lazy_vs_lazy() -> None:
+    """Test that __eq__ and __add__ between two LazyLists loads both sides."""
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalResults,
+        EvalSample,
+        EvalSpec,
+        EvalStats,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder, LazyList
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def _make_lazy_log(
+        temp_dir: str, task_name: str, sample_ids: list[int]
+    ) -> EvalLog:
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task=task_name,
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=len(sample_ids)),
+            config=EvalConfig(),
+        )
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(eval_spec, clean=True)
+        await recorder.log_start(eval_spec, EvalPlan())
+        for i in sample_ids:
+            sample = EvalSample(
+                id=i,
+                epoch=1,
+                input=f"input {i}",
+                target=f"target {i}",
+                output=ModelOutput.from_content(
+                    model="mockllm/model", content=f"output {i}"
+                ),
+                messages=[],
+            )
+            await recorder.log_sample(eval_spec, sample)
+        return await recorder.log_finish(
+            eval_spec,
+            status="success",
+            stats=EvalStats(),
+            results=EvalResults(),
+            reductions=None,
+        )
+
+    with tempfile.TemporaryDirectory() as dir_a, tempfile.TemporaryDirectory() as dir_b:
+        log_a = await _make_lazy_log(dir_a, "task_a", [1, 2])
+        log_b = await _make_lazy_log(dir_b, "task_b", [1, 2])
+
+        assert isinstance(log_a.samples, LazyList)
+        assert isinstance(log_b.samples, LazyList)
+
+        # Neither should be loaded yet
+        lazy_a = log_a.samples._lazy_data
+        lazy_b = log_b.samples._lazy_data
+        assert lazy_a is not None and not lazy_a.loaded
+        assert lazy_b is not None and not lazy_b.loaded
+
+        # __eq__ should trigger loading on both sides (content differs, but
+        # the important thing is that both sides get loaded)
+        _ = log_a.samples == log_b.samples
+        assert lazy_a.loaded
+        assert lazy_b.loaded
+
+    # Test __add__ with two fresh lazy lists
+    with tempfile.TemporaryDirectory() as dir_c, tempfile.TemporaryDirectory() as dir_d:
+        log_c = await _make_lazy_log(dir_c, "task_c", [1, 2])
+        log_d = await _make_lazy_log(dir_d, "task_d", [3, 4])
+
+        lazy_c = log_c.samples._lazy_data
+        lazy_d = log_d.samples._lazy_data
+
+        combined = log_c.samples + log_d.samples
+        assert lazy_c.loaded
+        assert lazy_d.loaded
+        assert len(combined) == 4
+        combined_ids = sorted([s.id for s in combined])
+        assert combined_ids == [1, 2, 3, 4]
+
+    # Test __radd__: regular_list + lazy_list
+    with tempfile.TemporaryDirectory() as dir_e:
+        log_e = await _make_lazy_log(dir_e, "task_e", [5, 6])
+        lazy_e = log_e.samples._lazy_data
+        assert not lazy_e.loaded
+
+        result = [1, 2, 3] + log_e.samples
+        assert lazy_e.loaded
+        assert len(result) == 5
+
+
+@skip_if_trio
 async def test_lazy_list_header_only_no_lazy() -> None:
     """Test that close(header_only=True) does NOT use LazyList."""
     from inspect_ai._util.constants import LOG_SCHEMA_VERSION
