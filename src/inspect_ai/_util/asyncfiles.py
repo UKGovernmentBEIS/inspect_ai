@@ -21,25 +21,6 @@ from typing_extensions import override
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.file import FileInfo, file, filesystem
 
-# boto3 S3 multipart upload configuration for streaming writes.
-# Values are the boto3.s3.transfer.TransferConfig library defaults
-# as of 2026-03-07.
-# - multipart_threshold: use multipart upload for files larger than this
-# - multipart_chunksize: size of each part in a multipart upload
-# - max_concurrency: maximum threads for concurrent part uploads
-_S3_TRANSFER_CONFIG = TransferConfig(
-    multipart_threshold=8 * 1024 * 1024,  # 8 MB
-    multipart_chunksize=8 * 1024 * 1024,  # 8 MB
-    max_concurrency=10,
-)
-
-# fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).
-# Value is the fsspec AbstractFileSystem.blocksize library default
-# as of 2026-03-07. When the in-memory write buffer reaches this size,
-# it is flushed as a multipart upload part. Individual backends may
-# override this class attribute with a different default.
-_FSSPEC_WRITE_BLOCK_SIZE = 4 * 1024 * 1024  # 4 MB
-
 
 class _BytesByteReceiveStream(ByteReceiveStream):
     """
@@ -290,10 +271,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             with file(filename, "wb") as f:
                 f.write(content)
 
-    # Size of chunks read from the source stream per iteration when
-    # copying to local or fsspec-backed files via shutil.copyfileobj.
-    _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
-
     async def write_file_streaming(self, filename: str, source: BinaryIO) -> None:
         """Write a file from a binary stream without reading it all into memory.
 
@@ -327,7 +304,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             with file(
                 filename, "wb", fs_options={"block_size": _FSSPEC_WRITE_BLOCK_SIZE}
             ) as f:
-                shutil.copyfileobj(source, f, length=self._STREAMING_COPY_BUFSIZE)
+                shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
 
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
@@ -501,3 +478,28 @@ def get_async_filesystem() -> AsyncFilesystem:
             "Use 'async with AsyncFilesystem()' to establish one."
         )
     return fs
+
+
+# boto3 S3 multipart upload configuration for streaming writes.
+# Values are the boto3.s3.transfer.TransferConfig library defaults
+# as of 2026-03-07.
+# - multipart_threshold: use multipart upload for files larger than this
+# - multipart_chunksize: size of each part in a multipart upload
+# - max_concurrency: maximum threads for concurrent part uploads
+_S3_TRANSFER_CONFIG = TransferConfig(
+    multipart_threshold=8 * 1024 * 1024,  # 8 MB
+    multipart_chunksize=8 * 1024 * 1024,  # 8 MB
+    max_concurrency=10,
+)
+
+# fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).
+# 4MB is the fsspec AbstractFileSystem.blocksize library default
+# as of 2026-03-07. We set to 8 MB to match boto3 values above.
+# When the in-memory write buffer reaches this size, it is flushed as
+# a multipart upload part. Individual backends may override this class
+# attribute with a different default.
+_FSSPEC_WRITE_BLOCK_SIZE = 8 * 1024 * 1024  # 8 MB
+
+# Size of chunks read from the source stream per iteration when
+# copying to local or fsspec-backed files via shutil.copyfileobj.
+_STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
