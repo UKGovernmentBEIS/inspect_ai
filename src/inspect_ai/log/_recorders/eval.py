@@ -1,10 +1,21 @@
+import copy
 import json
 import logging
 import math
 import os
 import tempfile
 from logging import getLogger
-from typing import IO, Any, BinaryIO, cast
+from typing import (
+    IO,
+    Any,
+    BinaryIO,
+    Generic,
+    Iterator,
+    SupportsIndex,
+    TypeVar,
+    cast,
+    overload,
+)
 from zipfile import ZipFile
 
 import anyio
@@ -572,12 +583,25 @@ class ZipLogFile:
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
-            # read the log from the temp file then close it
             try:
                 self._temp_file.seek(0)
-                return _read_log_from_bytes(
-                    self._temp_file, self._file, header_only=header_only
+                # Always read header only from temp file (fast path)
+                eval_log = _read_log_from_bytes(
+                    self._temp_file, self._file, header_only=True
                 )
+                if not header_only:
+                    # Attach lazy lists that load samples/reductions on first access.
+                    # The lazy load inspects zip contents and only populates what exists.
+                    lazy_data = _LazyLogData(self._file)
+                    samples_lazy: LazyList[EvalSample] = LazyList(lazy_data)
+                    lazy_data.samples_list = samples_lazy
+                    eval_log.samples = samples_lazy  # type: ignore[assignment]
+                    reductions_lazy: LazyList[EvalSampleReductions] = LazyList(
+                        lazy_data
+                    )
+                    lazy_data.reductions_list = reductions_lazy
+                    eval_log.reductions = reductions_lazy  # type: ignore[assignment]
+                return eval_log
             finally:
                 self._temp_file.close()
                 if self._zip:
@@ -789,3 +813,82 @@ def _journal_summary_path(file: str | None = None) -> str:
 
 def _journal_summary_file(index: int) -> str:
     return f"{index}.json"
+
+
+T = TypeVar("T")
+
+
+class _LazyLogData:
+    """Shared state for coordinated lazy loading of samples and reductions."""
+
+    def __init__(self, location: str) -> None:
+        self.location = location
+        self.loaded = False
+        self.samples_list: LazyList[EvalSample] | None = None
+        self.reductions_list: LazyList[EvalSampleReductions] | None = None
+
+    def load(self) -> None:
+        if self.loaded:
+            return
+        self.loaded = True
+        from .._file import read_eval_log
+
+        log = read_eval_log(self.location, header_only=False)
+        if self.samples_list is not None:
+            list.extend(self.samples_list, log.samples or [])
+        if self.reductions_list is not None:
+            list.extend(self.reductions_list, log.reductions or [])
+
+
+class LazyList(list[T], Generic[T]):
+    """A list subclass that defers loading until first access.
+
+    Used by ZipLogFile.close() to avoid deserializing all samples into memory
+    when the caller doesn't actually need them (which is the common case after
+    eval() returns).
+    """
+
+    def __init__(self, lazy_data: _LazyLogData) -> None:
+        super().__init__()
+        self._lazy_data: _LazyLogData | None = lazy_data
+
+    def _ensure_loaded(self) -> None:
+        if self._lazy_data is not None and not self._lazy_data.loaded:
+            self._lazy_data.load()
+            self._lazy_data = None
+
+    def __len__(self) -> int:
+        self._ensure_loaded()
+        return super().__len__()
+
+    def __iter__(self) -> Iterator[T]:
+        self._ensure_loaded()
+        return super().__iter__()
+
+    @overload
+    def __getitem__(self, index: SupportsIndex) -> T: ...
+    @overload
+    def __getitem__(self, index: slice) -> list[T]: ...
+    def __getitem__(self, index: SupportsIndex | slice) -> T | list[T]:
+        self._ensure_loaded()
+        return super().__getitem__(index)
+
+    def __contains__(self, item: object) -> bool:
+        self._ensure_loaded()
+        return super().__contains__(item)
+
+    def __reversed__(self) -> Iterator[T]:
+        self._ensure_loaded()
+        return super().__reversed__()
+
+    def __bool__(self) -> bool:
+        self._ensure_loaded()
+        return len(self) > 0
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> list[T]:
+        self._ensure_loaded()
+        return copy.deepcopy(list(self), memo)
+
+    def __repr__(self) -> str:
+        self._ensure_loaded()
+        return super().__repr__()
