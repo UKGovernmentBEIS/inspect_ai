@@ -5,7 +5,13 @@ import pytest
 
 from inspect_ai.event import ModelEvent, SampleInitEvent
 from inspect_ai.log._convert import convert_eval_logs
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._edit import (
+    MetadataEdit,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+)
+from inspect_ai.log._file import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalLog
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
@@ -69,3 +75,42 @@ def test_convert_eval_logs(
         assert model_event_call_message_content.startswith("Hey there, hipster!")
     else:
         assert model_event_call_message_content.startswith("attachment:")
+
+
+@pytest.mark.parametrize("stream", [True, 3], ids=["stream", "stream-3"])
+@pytest.mark.parametrize("to", ["eval", "json"])
+def test_stream_convert_preserves_log_updates(
+    tmp_path: pathlib.Path,
+    stream: bool | int,
+    to: Literal["eval", "json"],
+) -> None:
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+    edited_input = tmp_path / input_file.name
+
+    log = read_eval_log(str(input_file))
+    log = edit_eval_log(
+        log,
+        [
+            TagsEdit(tags_add=["qa_reviewed"]),
+            MetadataEdit(metadata_set={"reviewer": "alice"}),
+        ],
+        ProvenanceData(author="alice", reason="qa"),
+    )
+    write_eval_log(log, str(edited_input))
+
+    convert_eval_logs(
+        str(edited_input),
+        to,
+        str(tmp_path),
+        overwrite=True,
+        stream=stream,
+    )
+
+    output_file = (tmp_path / edited_input.name).with_suffix(f".{to}")
+    converted = read_eval_log(str(output_file))
+    assert converted.log_updates == log.log_updates
+    assert converted.tags == log.tags
+    assert converted.metadata == log.metadata

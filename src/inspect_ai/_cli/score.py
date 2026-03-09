@@ -181,6 +181,7 @@ async def score(
             eval_log.reductions,
             eval_log.error,
             invalidated=eval_log.invalidated,
+            log_updates=eval_log.log_updates,
         )
     else:
         await recorder.write_log(output_file, eval_log)
