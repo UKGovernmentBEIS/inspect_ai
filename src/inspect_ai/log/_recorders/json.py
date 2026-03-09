@@ -15,6 +15,7 @@ from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._edit import LogUpdate
 from .._log import (
     EvalLog,
     EvalPlan,
@@ -115,12 +116,14 @@ class JSONRecorder(FileRecorder):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
         log.data.results = results
         log.data.invalidated = invalidated
+        log.data.log_updates = log_updates
         if error:
             log.data.error = error
         if reductions:
@@ -295,6 +298,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         version: int | None = None
         has_results = False
         has_error = False
+        has_log_updates = False
 
         for prefix, event, value in ijson.parse(f):
             if (prefix, event) == ("version", "number"):
@@ -303,6 +307,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 has_results = True
             elif (prefix, event) == ("error", "start_map"):
                 has_error = True
+            elif (prefix, event) == ("log_updates", "start_array"):
+                has_log_updates = True
             elif prefix == "samples":
                 # Break as soon as we hit samples as that can be very large
                 break
@@ -324,6 +330,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         results: EvalResults | None = None
         stats: EvalStats | None = None
         error: EvalError | None = None
+        log_updates: list[LogUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(EvalStatus)
@@ -338,11 +345,15 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 results = EvalResults(**v)
             elif k == "stats":
                 stats = EvalStats(**v)
-                if not has_error:
+                if not has_error and not has_log_updates:
                     # Exit before parsing samples
                     break
             elif k == "error":
                 error = EvalError(**v)
+                if not has_log_updates:
+                    break
+            elif k == "log_updates":
+                log_updates = [LogUpdate.model_validate(u) for u in v]
                 break
 
     assert status, "Must encounter a 'status'"
@@ -357,6 +368,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         stats=stats,
         status=status,
         invalidated=invalidated,
+        log_updates=log_updates,
         version=version,
         error=error if has_error else None,
         location=log_file,

@@ -33,6 +33,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
+from .._edit import LogUpdate
 from .._log import (
     EvalLog,
     EvalPlan,
@@ -163,6 +164,7 @@ class EvalRecorder(FileRecorder):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
@@ -191,6 +193,7 @@ class EvalRecorder(FileRecorder):
         eval_header = EvalLog(
             version=log_start.version,
             invalidated=invalidated,
+            log_updates=log_updates,
             eval=log_start.eval,
             plan=log_start.plan,
             results=log_results.results,
@@ -424,6 +427,7 @@ async def _write_eval_log_with_recorder(
         log.reductions,
         log.error,
         invalidated=log.invalidated,
+        log_updates=log.log_updates,
     )
 
 

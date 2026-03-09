@@ -1,5 +1,9 @@
+import json
+import zipfile
+
 import pytest
 
+from inspect_ai.log import read_eval_log, write_eval_log
 from inspect_ai.log._edit import (
     MetadataEdit,
     ProvenanceData,
@@ -200,7 +204,7 @@ class TestEvalSpecUnchanged:
 class TestSerialization:
     """Test that log_updates survives serialization round-trip."""
 
-    def test_round_trip(self) -> None:
+    def test_model_round_trip(self) -> None:
         log = _make_log(tags=["a"])
         log = edit_eval_log(
             log,
@@ -212,4 +216,124 @@ class TestSerialization:
         assert restored.tags == ["a", "b"]
         assert restored.metadata == {"k": "v"}
         assert len(restored.log_updates or []) == 1
+        assert restored.log_updates[0].provenance.author == "alice"
+
+
+def _edited_log() -> EvalLog:
+    """Create a log with multiple edits applied."""
+    log = _make_log(tags=["original"], metadata={"orig_key": "orig_val"})
+    log = edit_eval_log(
+        log,
+        [
+            TagsEdit(tags_add=["added"], tags_remove=["original"]),
+            MetadataEdit(
+                metadata_set={"new_key": "new_val"}, metadata_remove=["orig_key"]
+            ),
+        ],
+        _provenance(author="alice", reason="first edit"),
+    )
+    log = edit_eval_log(
+        log,
+        [TagsEdit(tags_add=["second"])],
+        _provenance(author="bob", reason="second edit"),
+    )
+    return log
+
+
+class TestDiskRoundTrip:
+    """Test log_updates round-tripping through JSON and eval (zip) formats."""
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_round_trip_preserves_edits(self, tmp_path, format) -> None:
+        log = _edited_log()
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        restored = read_eval_log(path, format=format)
+        assert restored.tags == ["added", "second"]
+        assert restored.metadata == {"new_key": "new_val"}
+        assert len(restored.log_updates) == 2
+        assert restored.log_updates[0].provenance.author == "alice"
+        assert restored.log_updates[1].provenance.author == "bob"
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_round_trip_eval_spec_unchanged(self, tmp_path, format) -> None:
+        log = _edited_log()
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        restored = read_eval_log(path, format=format)
+        assert restored.eval.tags == ["original"]
+        assert restored.eval.metadata == {"orig_key": "orig_val"}
+
+    def test_cross_format_round_trip(self, tmp_path) -> None:
+        log = _edited_log()
+        json_path = (tmp_path / "log.json").as_posix()
+        eval_path = (tmp_path / "log.eval").as_posix()
+        json2_path = (tmp_path / "log2.json").as_posix()
+
+        write_eval_log(log, json_path, format="json")
+        log = read_eval_log(json_path, format="json")
+
+        write_eval_log(log, eval_path, format="eval")
+        log = read_eval_log(eval_path, format="eval")
+
+        write_eval_log(log, json2_path, format="json")
+        restored = read_eval_log(json2_path, format="json")
+
+        assert restored.tags == ["added", "second"]
+        assert restored.metadata == {"new_key": "new_val"}
+        assert len(restored.log_updates) == 2
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_header_only_read_includes_log_updates(self, tmp_path, format) -> None:
+        log = _edited_log()
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        header = read_eval_log(path, format=format, header_only=True)
+        assert header.log_updates is not None
+        assert len(header.log_updates) == 2
+        assert header.tags == ["added", "second"]
+        assert header.metadata == {"new_key": "new_val"}
+
+    def test_eval_zip_header_contains_log_updates(self, tmp_path) -> None:
+        log = _edited_log()
+        path = (tmp_path / "log.eval").as_posix()
+        write_eval_log(log, path, format="eval")
+
+        with zipfile.ZipFile(path, "r") as zf:
+            with zf.open("header.json") as f:
+                header_data = json.load(f)
+
+        assert "log_updates" in header_data
+        assert len(header_data["log_updates"]) == 2
+        assert header_data["log_updates"][0]["provenance"]["author"] == "alice"
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_no_edits_round_trip(self, tmp_path, format) -> None:
+        log = _make_log(tags=["a"], metadata={"k": "v"})
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        restored = read_eval_log(path, format=format)
+        assert restored.log_updates is None
+        assert restored.tags == ["a"]
+        assert restored.metadata == {"k": "v"}
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_edit_after_read_round_trip(self, tmp_path, format) -> None:
+        log = _make_log(tags=["a"])
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        log = read_eval_log(path, format=format)
+        log = edit_eval_log(
+            log, [TagsEdit(tags_add=["b"])], _provenance(author="alice")
+        )
+        write_eval_log(log, path, format=format)
+
+        restored = read_eval_log(path, format=format)
+        assert restored.tags == ["a", "b"]
+        assert len(restored.log_updates) == 1
         assert restored.log_updates[0].provenance.author == "alice"
