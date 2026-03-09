@@ -4634,6 +4634,13 @@
       "properties": {
         "edits": {
           "items": {
+            "discriminator": {
+              "mapping": {
+                "metadata": "#/$defs/MetadataEdit",
+                "tags": "#/$defs/TagsEdit"
+              },
+              "propertyName": "type"
+            },
             "oneOf": [
               {
                 "$ref": "#/$defs/TagsEdit"
