@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Sequence
 
-from pydantic import BaseModel, Discriminator, Field, Tag
+from pydantic import BaseModel, Field
 
 from inspect_ai._util.dateutil import UtcDatetime, datetime_now_utc
 
@@ -57,16 +57,7 @@ class MetadataEdit(LogEdit):
     """Metadata keys to remove."""
 
 
-def _log_edit_discriminator(v: Any) -> str:
-    if isinstance(v, dict):
-        return str(v.get("type", ""))
-    return str(getattr(v, "type", ""))
-
-
-LogEditType = Annotated[
-    Annotated[TagsEdit, Tag("tags")] | Annotated[MetadataEdit, Tag("metadata")],
-    Discriminator(_log_edit_discriminator),
-]
+LogEditType = Annotated[TagsEdit | MetadataEdit, Field(discriminator="type")]
 
 
 class LogUpdate(BaseModel):
@@ -101,7 +92,7 @@ def edit_eval_log(
     # validate and filter noop edits, advancing state after each edit
     current_tags = set(log.tags)
     current_metadata = dict(log.metadata)
-    filtered: list[LogEdit] = []
+    filtered: list[LogEditType] = []
     for edit in edits:
         if isinstance(edit, TagsEdit):
             for tag in edit.tags_add + edit.tags_remove:

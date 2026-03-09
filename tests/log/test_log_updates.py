@@ -251,7 +251,8 @@ class TestMixedEdits:
         )
         assert log.tags == ["new"]
         assert log.metadata == {"new_key": "new_val"}
-        assert len(log.log_updates or []) == 1
+        assert log.log_updates is not None
+        assert len(log.log_updates) == 1
         assert log.log_updates[0].provenance.author == "alice"
         assert log.log_updates[0].provenance.reason == "cleanup"
 
@@ -262,7 +263,8 @@ class TestMixedEdits:
         )
         log = edit_eval_log(log, [TagsEdit(tags_add=["b"])], _provenance(author="bob"))
         assert log.tags == ["a", "b"]
-        assert len(log.log_updates or []) == 2
+        assert log.log_updates is not None
+        assert len(log.log_updates) == 2
         assert log.log_updates[0].provenance.author == "alice"
         assert log.log_updates[1].provenance.author == "bob"
 
@@ -305,7 +307,8 @@ class TestSerialization:
         restored = EvalLog.model_validate(data)
         assert restored.tags == ["a", "b"]
         assert restored.metadata == {"k": "v"}
-        assert len(restored.log_updates or []) == 1
+        assert restored.log_updates is not None
+        assert len(restored.log_updates) == 1
         assert restored.log_updates[0].provenance.author == "alice"
 
 
@@ -342,6 +345,7 @@ class TestDiskRoundTrip:
         restored = read_eval_log(path, format=format)
         assert restored.tags == ["added", "second"]
         assert restored.metadata == {"new_key": "new_val"}
+        assert restored.log_updates is not None
         assert len(restored.log_updates) == 2
         assert restored.log_updates[0].provenance.author == "alice"
         assert restored.log_updates[1].provenance.author == "bob"
@@ -373,6 +377,7 @@ class TestDiskRoundTrip:
 
         assert restored.tags == ["added", "second"]
         assert restored.metadata == {"new_key": "new_val"}
+        assert restored.log_updates is not None
         assert len(restored.log_updates) == 2
 
     @pytest.mark.parametrize("format", ["json", "eval"])
@@ -448,5 +453,6 @@ class TestDiskRoundTrip:
 
         restored = read_eval_log(path, format=format)
         assert restored.tags == ["a", "b"]
+        assert restored.log_updates is not None
         assert len(restored.log_updates) == 1
         assert restored.log_updates[0].provenance.author == "alice"

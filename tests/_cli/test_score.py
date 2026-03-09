@@ -140,7 +140,7 @@ async def test_score_stream_preserves_log_updates(
         score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
-    async def fake_score_async(*, log, scorers, action, copy, samples):
+    async def fake_score_async(*, log, scorers, metrics, action, copy, samples):
         assert samples is not None
         return log
 
@@ -155,6 +155,7 @@ async def test_score_stream_preserves_log_updates(
         overwrite=True,
         scorer="match",
         s=(),
+        metric=None,
         stream=True,
     )
 

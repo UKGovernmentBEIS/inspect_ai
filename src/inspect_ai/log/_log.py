@@ -995,7 +995,12 @@ class EvalLog(BaseModel):
     """ETag from S3 for conditional writes."""
 
     @model_validator(mode="after")
-    def recompute_tags_and_metadata(self) -> "EvalLog":
+    def _validate_tags_and_metadata(self) -> "EvalLog":
+        self.recompute_tags_and_metadata()
+        return self
+
+    def recompute_tags_and_metadata(self) -> None:
+        """Recompute tags and metadata from eval-time values + log_updates."""
         tags = set(self.eval.tags or [])
         metadata = dict(self.eval.metadata or {})
         for update in self.log_updates or []:
@@ -1009,7 +1014,6 @@ class EvalLog(BaseModel):
                     metadata.update(edit.metadata_set)
         self.tags = sorted(tags)
         self.metadata = metadata
-        return self
 
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":

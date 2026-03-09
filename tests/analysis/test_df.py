@@ -215,8 +215,8 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
         model="mockllm/model",
         log_dir=log_dir,
     )
-    log_path = list_eval_logs(log_dir)[0]
-    log = read_eval_log(log_path)
+    log_info = list_eval_logs(log_dir)[0]
+    log = read_eval_log(log_info)
     log = edit_eval_log(
         log,
         [
@@ -225,7 +225,7 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
         ],
         ProvenanceData(author="test"),
     )
-    write_eval_log(log, log_path)
+    write_eval_log(log, log.location)
 
     df = evals_df(log_dir)
     assert df["tags"].to_list() == ["added"]
