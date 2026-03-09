@@ -631,7 +631,7 @@ class ZipLogFile:
         assert self._zip
         self._zip.writestr(
             filename,
-            to_json_safe(data),
+            to_json_safe(data, indent=None),
         )
 
 
