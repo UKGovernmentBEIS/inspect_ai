@@ -6,7 +6,10 @@ from typing import Literal
 
 from inspect_sandbox_tools._util.common_types import ToolException
 
+from ._output_buffer import _OutputBuffer
 from .tool_types import PollResult
+
+_DEFAULT_OUTPUT_LIMIT = 100 * 1024 * 1024  # 100 MiB
 
 
 class Job:
@@ -26,6 +29,7 @@ class Job:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        output_limit: int | None = None,
     ) -> "Job":
         """Create and start a new Job for the given command.
 
@@ -40,6 +44,7 @@ class Job:
                 for later write_stdin()/close_stdin() calls.
             env: Additional environment variables (merged with current env).
             cwd: Working directory for command execution.
+            output_limit: Max bytes to buffer per stream. None uses server default.
         """
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
@@ -57,7 +62,7 @@ class Job:
             cwd=cwd,
         )
 
-        job = cls(process)
+        job = cls(process, output_limit=output_limit)
 
         # Write initial input if provided
         if input is not None and process.stdin is not None:
@@ -71,19 +76,23 @@ class Job:
 
         return job
 
-    def __init__(self, process: AsyncIOProcess) -> None:
+    def __init__(self, process: AsyncIOProcess, output_limit: int | None) -> None:
         self._process = process
-        self._stdout_buffer: list[str] = []
-        self._stderr_buffer: list[str] = []
+        if output_limit is not None:
+            self._stdout_buf = _OutputBuffer(output_limit, circular=True)
+            self._stderr_buf = _OutputBuffer(output_limit, circular=True)
+        else:
+            self._stdout_buf = _OutputBuffer(_DEFAULT_OUTPUT_LIMIT, circular=False)
+            self._stderr_buf = _OutputBuffer(_DEFAULT_OUTPUT_LIMIT, circular=False)
         self._state: Literal["running", "completed", "killed"] = "running"
         self._exit_code: int | None = None
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
-            self._read_stream(process.stdout, self._stdout_buffer)
+            self._read_stream(process.stdout, self._stdout_buf)
         )
         self._stderr_task = asyncio.create_task(
-            self._read_stream(process.stderr, self._stderr_buffer)
+            self._read_stream(process.stderr, self._stderr_buf)
         )
 
     @property
@@ -150,11 +159,7 @@ class Job:
         Returns:
             A tuple of (stdout, stderr) strings accumulated since the last drain.
         """
-        stdout = "".join(self._stdout_buffer)
-        stderr = "".join(self._stderr_buffer)
-        self._stdout_buffer.clear()
-        self._stderr_buffer.clear()
-        return (stdout, stderr)
+        return (self._stdout_buf.drain(), self._stderr_buf.drain())
 
     async def write_stdin(self, data: str) -> tuple[str, str]:
         """Write data to the process's stdin and return buffered output.
@@ -206,26 +211,32 @@ class Job:
 
     async def _wait_for_readers(self) -> None:
         """Wait for background read tasks to complete."""
+        self._stdout_buf.unblock()
+        self._stderr_buf.unblock()
         for task in [self._stdout_task, self._stderr_task]:
             if not task.done():
-                task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                    await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
 
     async def _read_stream(
-        self, stream: asyncio.StreamReader | None, buffer: list[str]
+        self, stream: asyncio.StreamReader | None, buffer: _OutputBuffer
     ) -> None:
-        """Read from a stream and append to buffer."""
+        """Read from a stream and append to buffer up to the output limit."""
         if stream is None:
             return
 
         try:
             while True:
+                await buffer.wait_for_space()
                 data = await stream.read(4096)
                 if not data:
                     break
-                buffer.append(data.decode("utf-8", errors="replace"))
+                buffer.write(data)
         except asyncio.CancelledError:
             pass
