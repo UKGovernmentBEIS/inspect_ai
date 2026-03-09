@@ -80,15 +80,17 @@ class TestTagsEdit:
         )
         assert log.tags == ["b", "c"]
 
-    def test_add_existing_tag_is_idempotent(self) -> None:
+    def test_add_existing_tag_is_noop(self) -> None:
         log = _make_log(tags=["a"])
         log = edit_eval_log(log, [TagsEdit(tags_add=["a"])], _provenance())
         assert log.tags == ["a"]
+        assert log.log_updates is None
 
-    def test_remove_nonexistent_tag(self) -> None:
+    def test_remove_nonexistent_tag_is_noop(self) -> None:
         log = _make_log(tags=["a"])
         log = edit_eval_log(log, [TagsEdit(tags_remove=["z"])], _provenance())
         assert log.tags == ["a"]
+        assert log.log_updates is None
 
     def test_readd_previously_removed_tag(self) -> None:
         log = _make_log(tags=["a", "b"])
@@ -126,10 +128,17 @@ class TestMetadataEdit:
         log = edit_eval_log(log, [MetadataEdit(metadata_remove=["a"])], _provenance())
         assert log.metadata == {"b": 2}
 
-    def test_remove_nonexistent_key(self) -> None:
+    def test_set_existing_value_is_noop(self) -> None:
+        log = _make_log(metadata={"a": 1})
+        log = edit_eval_log(log, [MetadataEdit(metadata_set={"a": 1})], _provenance())
+        assert log.metadata == {"a": 1}
+        assert log.log_updates is None
+
+    def test_remove_nonexistent_key_is_noop(self) -> None:
         log = _make_log(metadata={"a": 1})
         log = edit_eval_log(log, [MetadataEdit(metadata_remove=["z"])], _provenance())
         assert log.metadata == {"a": 1}
+        assert log.log_updates is None
 
     def test_empty_metadata_key_raises(self) -> None:
         log = _make_log()

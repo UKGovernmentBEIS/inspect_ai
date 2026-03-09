@@ -98,18 +98,41 @@ def edit_eval_log(
     Returns:
         Modified EvalLog with edits applied.
     """
-    # validate edits
+    # validate and filter noop edits
+    current_tags = set(log.tags)
+    current_metadata = log.metadata
+    filtered: list[LogEdit] = []
     for edit in edits:
         if isinstance(edit, TagsEdit):
             for tag in edit.tags_add + edit.tags_remove:
                 if not tag.strip():
                     raise ValueError("Tag must be a non-empty string.")
+            tags_add = [t for t in edit.tags_add if t not in current_tags]
+            tags_remove = [t for t in edit.tags_remove if t in current_tags]
+            if tags_add or tags_remove:
+                filtered.append(TagsEdit(tags_add=tags_add, tags_remove=tags_remove))
         elif isinstance(edit, MetadataEdit):
             for key in list(edit.metadata_set.keys()) + edit.metadata_remove:
                 if not key.strip():
                     raise ValueError("Metadata key must be a non-empty string.")
+            metadata_set = {
+                k: v
+                for k, v in edit.metadata_set.items()
+                if current_metadata.get(k) != v
+            }
+            metadata_remove = [k for k in edit.metadata_remove if k in current_metadata]
+            if metadata_set or metadata_remove:
+                filtered.append(
+                    MetadataEdit(
+                        metadata_set=metadata_set,
+                        metadata_remove=metadata_remove,
+                    )
+                )
 
-    update = LogUpdate(edits=edits, provenance=provenance)
+    if not filtered:
+        return log
+
+    update = LogUpdate(edits=filtered, provenance=provenance)
     log_updates = list(log.log_updates or [])
     log_updates.append(update)
     log = log.model_copy(update={"log_updates": log_updates})
