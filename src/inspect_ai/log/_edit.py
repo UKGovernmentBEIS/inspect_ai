@@ -113,8 +113,8 @@ def edit_eval_log(
     log_updates = list(log.log_updates or [])
     log_updates.append(update)
     log = log.model_copy(update={"log_updates": log_updates})
-    # recompute cached tags/metadata
-    log._compute_tags_and_metadata()
+    # recompute tags/metadata fields
+    log.recompute_tags_and_metadata()
     return log
 
 

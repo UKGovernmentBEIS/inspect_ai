@@ -81,52 +81,23 @@ Existing logs deserialize fine (`log_updates` defaults to `None`).
 
 ### Read API
 
-Access tags and metadata via read-only `@property` accessors on `EvalLog`:
+Access tags and metadata directly on `EvalLog`:
 
 ```python
 log.tags        # list[str] — eval-time tags + edits applied
 log.metadata    # dict[str, Any] — eval-time metadata + edits applied
 ```
 
-- `log.tags` / `log.metadata` — computed values (use these)
+- `log.tags` / `log.metadata` — current values with edits applied, persisted to disk (use these)
 - `log.eval.tags` / `log.eval.metadata` — eval-time values only (unchanged)
 
-Values are computed lazily on first access and cached in `_tags` and `_metadata`:
+These are regular Pydantic fields that are **persisted** to disk and **recomputed** from `eval` + `log_updates` on deserialization via a model validator. This means:
 
-```python
-class EvalLog(BaseModel):
-    ...
-    log_updates: list[LogUpdate] | None = Field(default=None)
+1. Simple consumers (JS, jq, View UI) read `tags` and `metadata` directly from JSON.
+2. Python consumers access them as normal fields.
+3. All writes go through `edit_eval_log()` — direct assignment should not be used.
 
-    def _compute_tags_and_metadata(self) -> None:
-        tags = set(self.eval.tags or [])
-        metadata = dict(self.eval.metadata or {})
-        for update in (self.log_updates or []):
-            for edit in update.edits:
-                if isinstance(edit, TagsEdit):
-                    tags -= set(edit.tags_remove)
-                    tags |= set(edit.tags_add)
-                elif isinstance(edit, MetadataEdit):
-                    for key in edit.metadata_remove:
-                        metadata.pop(key, None)
-                    metadata.update(edit.metadata_set)
-        self._tags = sorted(tags)
-        self._metadata = metadata
-
-    @property
-    def tags(self) -> list[str]:
-        """Tags with edits applied (read-only)."""
-        if self._tags is None:
-            self._compute_tags_and_metadata()
-        return self._tags
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        """Metadata with edits applied (read-only)."""
-        if self._metadata is None:
-            self._compute_tags_and_metadata()
-        return self._metadata
-```
+See `EvalLog.recompute_tags_and_metadata()` in [`_log.py`](../src/inspect_ai/log/_log.py). It runs automatically on construction/deserialization (via `@model_validator`) and is called explicitly by `edit_eval_log()` after appending a new `LogUpdate`.
 
 ### Write API
 

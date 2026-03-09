@@ -976,6 +976,12 @@ class EvalLog(BaseModel):
     log_updates: list[LogUpdate] | None = Field(default=None)
     """Post-eval edits to tags and metadata."""
 
+    tags: list[str] = Field(default_factory=list)
+    """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Current metadata (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
@@ -988,10 +994,8 @@ class EvalLog(BaseModel):
     etag: str | None = Field(default=None, exclude=True)
     """ETag from S3 for conditional writes."""
 
-    _tags: list[str] | None = PrivateAttr(default=None)
-    _metadata: dict[str, Any] | None = PrivateAttr(default=None)
-
-    def _compute_tags_and_metadata(self) -> None:
+    @model_validator(mode="after")
+    def recompute_tags_and_metadata(self) -> "EvalLog":
         tags = set(self.eval.tags or [])
         metadata = dict(self.eval.metadata or {})
         for update in self.log_updates or []:
@@ -1003,22 +1007,9 @@ class EvalLog(BaseModel):
                     for key in edit.metadata_remove:
                         metadata.pop(key, None)
                     metadata.update(edit.metadata_set)
-        self._tags = sorted(tags)
-        self._metadata = metadata
-
-    @property
-    def tags(self) -> list[str]:
-        """Tags with edits applied (read-only)."""
-        if self._tags is None:
-            self._compute_tags_and_metadata()
-        return self._tags  # type: ignore[return-value]
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        """Metadata with edits applied (read-only)."""
-        if self._metadata is None:
-            self._compute_tags_and_metadata()
-        return self._metadata  # type: ignore[return-value]
+        self.tags = sorted(tags)
+        self.metadata = metadata
+        return self
 
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":

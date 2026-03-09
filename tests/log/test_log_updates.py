@@ -57,12 +57,6 @@ class TestReadAPI:
         log = _make_log(tags=["c", "a", "b"])
         assert log.tags == ["a", "b", "c"]
 
-    def test_lazy_computation(self) -> None:
-        log = _make_log(tags=["a"])
-        assert log._tags is None
-        _ = log.tags
-        assert log._tags is not None
-
 
 class TestTagsEdit:
     """Test tag editing."""
