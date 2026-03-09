@@ -1,36 +1,11 @@
-"""Tests for xdotool key name normalization in _x11_client.py."""
-
-import importlib.util
-import sys
-import types
-from pathlib import Path
-from unittest.mock import MagicMock
+"""Tests for xdotool key name normalization in _common.py."""
 
 import pytest
 
-# Stub out container-only modules so we can import _x11_client in the test env.
-for _mod_name in ("_run", "_tool_result"):
-    if _mod_name not in sys.modules:
-        _stub = types.ModuleType(_mod_name)
-        if _mod_name == "_run":
-            _stub.run = MagicMock()  # type: ignore
-        elif _mod_name == "_tool_result":
-            _stub.ToolResult = type("ToolResult", (), {})  # type: ignore
-        sys.modules[_mod_name] = _stub
-
-# Import the module directly by file path to avoid circular import through the
-# inspect_ai package tree.
-_MODULE_PATH = Path(__file__).resolve().parents[2] / (
-    "src/inspect_ai/tool/_tools/_computer/_resources/tool/_x11_client.py"
+from inspect_ai.tool._tools._computer._common import (
+    _normalize_key_combo,
+    _normalize_key_text,
 )
-_spec = importlib.util.spec_from_file_location("_x11_client", _MODULE_PATH)
-assert _spec and _spec.loader
-_x11_client = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_x11_client)
-
-_normalize_key_combo = _x11_client._normalize_key_combo
-_key_arg_for_text = _x11_client._key_arg_for_text
-
 
 # -- Single key normalization (keysym casing + model-vocabulary aliases) --
 
@@ -238,7 +213,7 @@ def test_unknown_passthrough() -> None:
     assert _normalize_key_combo("ctrl+xyzzy123") == "ctrl+xyzzy123"
 
 
-# -- _key_arg_for_text (space-separated multi-key sequences) --
+# -- _normalize_key_text (space-separated multi-key sequences) --
 
 
 @pytest.mark.parametrize(
@@ -250,5 +225,5 @@ def test_unknown_passthrough() -> None:
         ("ctrl+L Return", "ctrl+l Return"),
     ],
 )
-def test_key_arg_for_text(input_text: str, expected: str) -> None:
-    assert _key_arg_for_text(input_text) == expected
+def test_normalize_key_text(input_text: str, expected: str) -> None:
+    assert _normalize_key_text(input_text) == expected

@@ -47,6 +47,14 @@ _ACTION_TO_BUTTON: dict[str, str] = {v: k for k, v in _BUTTON_TO_ACTION.items()}
 # https://source.chromium.org/chromium/chromium/src/+/main:ui/events/event.cc;l=637?q=kwheelde&ss=chromium%2Fchromium%2Fsrc
 _PIXELS_PER_SCROLL_CLICK = 120
 
+# 1x1 transparent PNG, base64-encoded. Used when the tool response has no
+# screenshot (e.g. error) but OpenAI's protocol requires one.
+_PLACEHOLDER_IMAGE = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB"
+    "Nl7BcQAAAABJRU5ErkJggg=="
+)
+
 
 def tool_call_from_openai_computer_tool_call(
     output: ResponseComputerToolCall,
@@ -73,12 +81,22 @@ def computer_call_output(
     computer_call_id: str,
     pending_safety_checks: Iterable[PendingSafetyCheck] | None = None,
 ) -> ComputerCallOutput:
+    # OpenAI's computer_call_output has no error/text field — the only payload is
+    # a screenshot.  When a tool call fails (e.g. bad key name), the error message
+    # cannot be communicated back to the model.  We still must return a screenshot,
+    # so use a 1x1 transparent PNG placeholder when the tool response has no image.
+    image_url = _content_image(message.content) or _PLACEHOLDER_IMAGE
     return ComputerCallOutput(
         call_id=computer_call_id,
         type="computer_call_output",
+        # "detail: original" preserves full screenshot resolution (up to 10.24M px)
+        # and improves click accuracy. Documented at
+        # developers.openai.com/api/docs/guides/tools-computer-use but not yet in
+        # the SDK's ResponseComputerToolCallOutputScreenshotParam TypedDict.
         output=ResponseComputerToolCallOutputScreenshotParam(
             type="computer_screenshot",
-            image_url=_content_image(message.content),
+            image_url=image_url,
+            detail="original",  # type: ignore[typeddict-unknown-key]
         ),
         # PendingSafetyCheck and ComputerCallOutputAcknowledgedSafetyCheck are structurally
         # identical TypedDicts, so this assignment is type-safe.
@@ -226,11 +244,9 @@ def _parse_single_action(action: ComputerAction) -> dict[str, object]:
     assert False, f"Unexpected action type: {type(action)}"
 
 
-def _content_image(input: str | list[Content]) -> str:
-    result = (
+def _content_image(input: str | list[Content]) -> str | None:
+    return (
         next((item.image for item in input if isinstance(item, ContentImage)), None)
         if isinstance(input, list)
         else None
     )
-    assert result, "Must find image in content"
-    return result
