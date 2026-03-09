@@ -311,6 +311,16 @@ class TestDiskRoundTrip:
         assert header_data["log_updates"][0]["provenance"]["author"] == "alice"
 
     @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_header_only_read_preserves_invalidated(self, tmp_path, format) -> None:
+        log = _make_log()
+        log.invalidated = True
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        header = read_eval_log(path, format=format, header_only=True)
+        assert header.invalidated is True
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
     def test_no_edits_round_trip(self, tmp_path, format) -> None:
         log = _make_log(tags=["a"], metadata={"k": "v"})
         path = (tmp_path / f"log.{format}").as_posix()

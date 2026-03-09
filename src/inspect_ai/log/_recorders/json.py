@@ -296,22 +296,16 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
         version: int | None = None
-        has_results = False
-        has_error = False
-        has_log_updates = False
+        last_header_field = "stats"
 
         for prefix, event, value in ijson.parse(f):
             if (prefix, event) == ("version", "number"):
                 version = value
-            elif (prefix, event) == ("results", "start_map"):
-                has_results = True
-            elif (prefix, event) == ("error", "start_map"):
-                has_error = True
-            elif (prefix, event) == ("log_updates", "start_array"):
-                has_log_updates = True
             elif prefix == "samples":
                 # Break as soon as we hit samples as that can be very large
                 break
+            elif event == "map_key" and prefix == "":
+                last_header_field = value
 
         if version is None:
             raise ValueError("Unable to read version of log format.")
@@ -322,7 +316,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
 
-        # Parse the log file, stopping before parsing samples
+        # Parse all header fields, stopping before samples
         invalidated = False
         status: EvalStatus | None = None
         eval: EvalSpec | None = None
@@ -337,7 +331,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 status = v
             elif k == "invalidated":
                 invalidated = v
-            if k == "eval":
+            elif k == "eval":
                 eval = EvalSpec(**v)
             elif k == "plan":
                 plan = EvalPlan(**v)
@@ -345,15 +339,11 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 results = EvalResults(**v)
             elif k == "stats":
                 stats = EvalStats(**v)
-                if not has_error and not has_log_updates:
-                    # Exit before parsing samples
-                    break
             elif k == "error":
                 error = EvalError(**v)
-                if not has_log_updates:
-                    break
             elif k == "log_updates":
                 log_updates = [LogUpdate.model_validate(u) for u in v]
+            if k == last_header_field:
                 break
 
     assert status, "Must encounter a 'status'"
@@ -364,12 +354,12 @@ def _read_header_streaming(log_file: str) -> EvalLog:
     return EvalLog(
         eval=eval,
         plan=plan,
-        results=results if has_results else None,
+        results=results,
         stats=stats,
         status=status,
         invalidated=invalidated,
         log_updates=log_updates,
         version=version,
-        error=error if has_error else None,
+        error=error,
         location=log_file,
     )
