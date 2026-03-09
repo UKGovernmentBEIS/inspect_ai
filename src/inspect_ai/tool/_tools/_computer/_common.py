@@ -137,12 +137,13 @@ async def scroll(
 
 
 async def press_key(key: str, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["key", "--text", key], timeout=timeout)
+    return await _send_cmd(["key", "--text", _normalize_key_text(key)], timeout=timeout)
 
 
 async def hold_key(key: str, duration: int, timeout: int | None = None) -> ToolResult:
     return await _send_cmd(
-        ["hold_key", "--text", key, "--duration", f"{duration}"], timeout=timeout
+        ["hold_key", "--text", _normalize_key_text(key), "--duration", f"{duration}"],
+        timeout=timeout,
     )
 
 
@@ -211,6 +212,130 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
         return [image]
 
     return "OK"
+
+
+# Translate model key names to xdotool keysyms.
+#
+# xdotool's XStringToKeysym is case-sensitive (e.g. "Return" not "return").
+# Anthropic's reference impl (anthropics/anthropic-quickstarts) passes key text
+# straight to xdotool with no normalization, implying Claude is trained to emit
+# xdotool keysyms — but this isn't formally documented.  OpenAI uses its own key
+# vocabulary (UPPERCASE), mapped upstream in _openai_computer_use.py.  Non-native
+# models see the tool docstring which lists xdotool examples.
+#
+# This table handles case normalization of keysyms plus common alternate names
+# (e.g. "Enter" -> "Return").  Unrecognized keys pass through to xdotool which
+# will error back to the model.  Modifiers (ctrl/alt/shift/super/meta) are
+# already case-insensitive in xdotool so they're excluded.  Single characters
+# are handled separately in _normalize_key_combo.
+_KEY_ALIASES: dict[str, str] = {}
+for _name in [
+    "Return",
+    "Escape",
+    "BackSpace",
+    "Tab",
+    "Delete",
+    "Insert",
+    "Home",
+    "End",
+    "Prior",
+    "Next",
+    "Left",
+    "Up",
+    "Right",
+    "Down",
+    "Pause",
+    "space",
+    "Scroll_Lock",
+    "Num_Lock",
+    "Caps_Lock",
+    "Shift_L",
+    "Shift_R",
+    "Control_L",
+    "Control_R",
+    "Alt_L",
+    "Alt_R",
+    "Super_L",
+    "Super_R",
+    "Meta_L",
+    "Meta_R",
+    *[f"F{i}" for i in range(1, 13)],
+    *[
+        f"KP_{s}"
+        for s in [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "Enter",
+            "Add",
+            "Subtract",
+            "Multiply",
+            "Divide",
+            "Decimal",
+            "Equal",
+            "Home",
+            "Up",
+            "Prior",
+            "Left",
+            "Begin",
+            "Right",
+            "End",
+            "Down",
+            "Next",
+            "Insert",
+            "Delete",
+        ]
+    ],
+]:
+    _KEY_ALIASES[_name.lower()] = _name
+
+# Common alternate names that models use but aren't xdotool keysyms.
+_KEY_ALIASES.update(
+    {
+        "enter": "Return",
+        "esc": "Escape",
+        "pageup": "Prior",
+        "pagedown": "Next",
+        "arrowleft": "Left",
+        "arrowup": "Up",
+        "arrowright": "Right",
+        "arrowdown": "Down",
+        # Modifier abbreviations — map to xdotool's built-in aliases
+        "ctl": "ctrl",
+        "control": "ctrl",
+        "cmd": "super",
+        "command": "super",
+        "win": "super",
+        "windows": "super",
+        "opt": "alt",
+        "option": "alt",
+    }
+)
+
+
+def _normalize_key_combo(combo: str) -> str:
+    """Normalize a single key combo (e.g. "ctrl+ENTER") for xdotool."""
+    parts = combo.split("+")
+    is_combo = len(parts) > 1
+    normalized = []
+    for part in parts:
+        if len(part) == 1 and part.isalpha():
+            normalized.append(part.lower() if is_combo else part)
+        else:
+            normalized.append(_KEY_ALIASES.get(part.lower(), part))
+    return "+".join(normalized)
+
+
+def _normalize_key_text(text: str) -> str:
+    """Normalize key text which may contain space-separated combos."""
+    return " ".join(_normalize_key_combo(part) for part in text.split())
 
 
 async def computer_sandbox() -> SandboxEnvironment:

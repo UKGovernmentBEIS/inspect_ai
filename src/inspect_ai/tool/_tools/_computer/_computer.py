@@ -1,4 +1,9 @@
-from typing import Awaitable, Callable, Literal, TypeVar
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Awaitable, Callable, Literal, TypeVar, cast
+
+if TYPE_CHECKING:
+    from inspect_ai.tool._tool_info import ToolInfo
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
@@ -38,9 +43,8 @@ Action = Literal[
 
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 
-
-def is_computer_tool_info(tool: ToolInfo) -> bool:
-    return tool.name == "computer" and set(tool.parameters.properties.keys()) == {
+_COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
+    [
         "action",
         "coordinate",
         "duration",
@@ -49,7 +53,22 @@ def is_computer_tool_info(tool: ToolInfo) -> bool:
         "scroll_direction",
         "start_coordinate",
         "text",
-    }
+        "actions",
+    ]
+)
+
+
+def is_computer_tool_info(tool: ToolInfo) -> bool:
+    """Check whether a ToolInfo is inspect's built-in computer() tool - this tool.
+
+    Model providers use this to decide whether to substitute their native
+    computer-use support. Comparing just the name is insufficient because a
+    third-party tool could share the name "computer".
+    """
+    return (
+        tool.name == "computer"
+        and tool.parameters.properties.keys() == _COMPUTER_TOOL_PARAMETERS
+    )
 
 
 @tool
@@ -65,8 +84,13 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         Defaults to 180 (set to `None` for no timeout).
     """
 
+    # NOTE: Models with native computer use (Anthropic, OpenAI) never see this
+    # docstring or parameter schema — they use provider-specific tool params
+    # (e.g. ComputerUseToolParam, BetaToolComputerUse*Param). This signature
+    # only matters for models without native support, where the added complexity
+    # of the `actions` parameter is acceptable.
     async def execute(
-        action: Action,
+        action: Action | None = None,
         coordinate: list[int] | None = None,
         duration: int | None = None,
         region: list[int] | None = None,
@@ -74,6 +98,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None = None,
         start_coordinate: list[int] | None = None,
         text: str | None = None,
+        actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
         """
         Use this tool to interact with a computer.
@@ -124,10 +149,51 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=scroll`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
+          actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
         Returns:
           The output of the command. Many commands will include a screenshot reflecting the result of the command in their output.
         """
+        action_list = (
+            actions
+            if actions is not None
+            else [
+                _build_action_args(
+                    action,
+                    coordinate,
+                    duration,
+                    region,
+                    scroll_amount,
+                    scroll_direction,
+                    start_coordinate,
+                    text,
+                )
+            ]
+            if action is not None
+            else None
+        )
+        assert action_list, "Either 'action' or 'actions' must be provided"
+
+        result: ToolResult = "OK"
+        for action_args in action_list:
+            result = await _execute_single_action(action_args, timeout)
+        return result
+
+    async def _execute_single_action(
+        args: dict[str, object], timeout: int | None
+    ) -> ToolResult:
+        action = str(args.get("action", ""))
+        coordinate = cast(list[int] | None, args.get("coordinate"))
+        text = cast(str | None, args.get("text"))
+        duration = cast(int | None, args.get("duration"))
+        scroll_amount = cast(int | None, args.get("scroll_amount"))
+        scroll_direction = cast(
+            Literal["up", "down", "left", "right"] | None,
+            args.get("scroll_direction"),
+        )
+        start_coordinate = cast(list[int] | None, args.get("start_coordinate"))
+        region = cast(list[int] | None, args.get("region"))
+
         match action:
             case "key":
                 return await common.press_key(not_none(text, "text"), timeout=timeout)
@@ -206,6 +272,31 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 return await common.navigate(not_none(text, "text"), timeout=timeout)
 
         raise ToolParsingError(f"Invalid action: {action}")
+
+    def _build_action_args(
+        action: Action,
+        coordinate: list[int] | None,
+        duration: int | None,
+        region: list[int] | None,
+        scroll_amount: int | None,
+        scroll_direction: Literal["up", "down", "left", "right"] | None,
+        start_coordinate: list[int] | None,
+        text: str | None,
+    ) -> dict[str, object]:
+        return {
+            k: v
+            for k, v in dict(
+                action=action,
+                coordinate=coordinate,
+                duration=duration,
+                region=region,
+                scroll_amount=scroll_amount,
+                scroll_direction=scroll_direction,
+                start_coordinate=start_coordinate,
+                text=text,
+            ).items()
+            if v is not None
+        }
 
     # if max_screenshots is specified then polk model input into where @tool can find it
     if max_screenshots is not None:
