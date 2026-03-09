@@ -177,6 +177,7 @@ async def get_log_info(
         if fs.is_s3():
             try:
                 connection = async_connection(log_file)
+                # _url is the async variant of url() (fsspec convention)
                 url: str = await connection._url(log_file, expires=3600)
                 result["direct_url"] = url
             except Exception:

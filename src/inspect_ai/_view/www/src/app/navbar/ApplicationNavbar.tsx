@@ -48,9 +48,9 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
     if (
       sampleStatus === "loading" &&
       downloadProgress &&
-      downloadProgress.bytesTotal > 0
+      downloadProgress.total > 0
     ) {
-      return downloadProgress.bytesLoaded / downloadProgress.bytesTotal;
+      return downloadProgress.complete / downloadProgress.total;
     }
     return undefined;
   }, [sampleStatus, downloadProgress]);
