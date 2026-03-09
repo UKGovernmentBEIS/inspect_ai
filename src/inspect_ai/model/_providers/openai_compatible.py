@@ -410,8 +410,5 @@ class ModelInfo(ResponsesModelInfo):
     def is_deep_research(self) -> bool:
         return False
 
-    def is_computer_use_preview(self) -> bool:
-        return False
-
     def is_codex(self) -> bool:
         return False
