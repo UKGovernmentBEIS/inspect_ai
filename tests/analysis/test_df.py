@@ -208,25 +208,25 @@ def test_events_df_multiple_eval_logs():
     assert len(df) == 124
 
 
-def test_evals_df_reflects_edited_tags_and_metadata():
-    with tempfile.TemporaryDirectory() as log_dir:
-        eval(
-            Task(tags=["original"], metadata={"key": "original"}),
-            model="mockllm/model",
-            log_dir=log_dir,
-        )
-        log_path = list_eval_logs(log_dir)[0]
-        log = read_eval_log(log_path)
-        log = edit_eval_log(
-            log,
-            [
-                TagsEdit(tags_add=["added"], tags_remove=["original"]),
-                MetadataEdit(metadata_set={"key": "edited"}),
-            ],
-            ProvenanceData(author="test"),
-        )
-        write_eval_log(log, log_path)
+def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
+    log_dir = str(tmp_path)
+    eval(
+        Task(tags=["original"], metadata={"key": "original"}),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )
+    log_path = list_eval_logs(log_dir)[0]
+    log = read_eval_log(log_path)
+    log = edit_eval_log(
+        log,
+        [
+            TagsEdit(tags_add=["added"], tags_remove=["original"]),
+            MetadataEdit(metadata_set={"key": "edited"}),
+        ],
+        ProvenanceData(author="test"),
+    )
+    write_eval_log(log, log_path)
 
-        df = evals_df(log_dir)
-        assert df["tags"].to_list() == ["added"]
-        assert df["metadata"].to_list() == ['{"key": "edited"}']
+    df = evals_df(log_dir)
+    assert df["tags"].to_list() == ["added"]
+    assert df["metadata"].to_list() == ['{"key": "edited"}']
