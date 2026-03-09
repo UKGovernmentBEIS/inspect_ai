@@ -275,6 +275,37 @@ def test_get_active_container_selects_longest_match():
     assert rel_path is None
 
 
+def test_json_changes_dict_with_numeric_keys():
+    """Test that dicts with numeric string keys don't crash json_changes.
+
+    JSON Patch uses the same /container/0 syntax for both list indices and
+    dict keys. The shadow state tracker must handle dicts gracefully —
+    _apply_fast_list_op should be skipped for dict containers since dicts
+    don't have index-shift issues.
+    """
+    before = {"tasks": {"0": {"status": "pending"}, "1": {"status": "pending"}}}
+    after = {
+        "tasks": {
+            "0": {"status": "done"},
+            "1": {"status": "pending"},
+            "2": {"status": "new"},
+        }
+    }
+
+    changes = json_changes(before, after)
+    assert changes is not None
+
+    ops = {c.path: c for c in changes}
+    # Replace: /tasks/0/status pending -> done
+    assert "/tasks/0/status" in ops
+    assert ops["/tasks/0/status"].op == "replace"
+    assert ops["/tasks/0/status"].replaced == "pending"
+    assert ops["/tasks/0/status"].value == "done"
+    # Add: /tasks/2
+    assert "/tasks/2" in ops
+    assert ops["/tasks/2"].op == "add"
+
+
 def test_jsonlines_reader_kwargs(tmp_path):
     jsonl_content = '{"a": NaN}\n{"b": 123}\n'
     json_file = tmp_path / "test.jsonl"
