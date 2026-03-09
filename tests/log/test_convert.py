@@ -1,4 +1,6 @@
+import json
 import pathlib
+import zipfile
 from typing import Literal
 
 import pytest
@@ -110,7 +112,18 @@ def test_stream_convert_preserves_log_updates(
     )
 
     output_file = (tmp_path / edited_input.name).with_suffix(f".{to}")
-    converted = read_eval_log(str(output_file))
-    assert converted.log_updates == log.log_updates
-    assert converted.tags == log.tags
-    assert converted.metadata == log.metadata
+
+    # Check raw JSON on disk rather than read_eval_log, because the model
+    # validator recomputes tags/metadata from log_updates and would mask
+    # bugs where log_finish fails to persist the computed values.
+    if to == "json":
+        with open(output_file) as f:
+            raw = json.load(f)
+    else:
+        with zipfile.ZipFile(output_file, "r") as zf:
+            with zf.open("header.json") as f:
+                raw = json.load(f)
+
+    assert "qa_reviewed" in raw.get("tags", [])
+    assert raw.get("metadata", {}).get("reviewer") == "alice"
+    assert len(raw.get("log_updates", [])) == 1

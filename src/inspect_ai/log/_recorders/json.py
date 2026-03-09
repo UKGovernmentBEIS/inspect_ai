@@ -124,6 +124,7 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
         log.data.invalidated = invalidated
         log.data.log_updates = log_updates
+        log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
         if reductions:
