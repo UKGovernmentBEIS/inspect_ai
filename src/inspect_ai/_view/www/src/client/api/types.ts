@@ -45,6 +45,8 @@ export interface LogDetails {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
   sampleSummaries: SampleSummary[];
 }
 
@@ -266,6 +268,8 @@ export interface EvalHeader {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface LogPreview {
