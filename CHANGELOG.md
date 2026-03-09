@@ -18,6 +18,7 @@
 - Hooks: Add ML Flow tracking example hook.
 - AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
 - File Utils: Strip trailing separators from S3 paths in `absolute_file_path` (matches local fs behavior).
+- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
 - Bugfix: Eval set task_identifier is now computed using redacted model_args
@@ -41,7 +42,6 @@
 - Timelines: Detect k/v warmup calls as utility agents.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
-- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
 
 ## 0.3.186 (03 March 2026)
