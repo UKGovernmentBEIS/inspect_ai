@@ -289,6 +289,19 @@ class TestDiskRoundTrip:
         assert len(restored.log_updates) == 2
 
     @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_header_only_eval_id_matches_full_read(self, tmp_path, format) -> None:
+        log = _make_log(tags=["a"])
+        # Clear eval_id so it gets generated from the hash on read
+        log.eval.eval_id = ""
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        full = read_eval_log(path, format=format)
+        header = read_eval_log(path, format=format, header_only=True)
+        assert full.eval.eval_id != ""
+        assert header.eval.eval_id == full.eval.eval_id
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
     def test_header_only_read_includes_log_updates(self, tmp_path, format) -> None:
         log = _edited_log()
         path = (tmp_path / f"log.{format}").as_posix()

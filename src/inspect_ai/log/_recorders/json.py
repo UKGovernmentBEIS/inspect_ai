@@ -332,15 +332,15 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             elif k == "invalidated":
                 invalidated = v
             elif k == "eval":
-                eval = EvalSpec(**v)
+                eval = EvalSpec.model_validate(v, context=get_deserializing_context())
             elif k == "plan":
-                plan = EvalPlan(**v)
+                plan = EvalPlan.model_validate(v)
             elif k == "results":
-                results = EvalResults(**v)
+                results = EvalResults.model_validate(v)
             elif k == "stats":
-                stats = EvalStats(**v)
+                stats = EvalStats.model_validate(v)
             elif k == "error":
-                error = EvalError(**v)
+                error = EvalError.model_validate(v)
             elif k == "log_updates":
                 log_updates = [LogUpdate.model_validate(u) for u in v]
             if k == last_header_field:
