@@ -1,13 +1,28 @@
 ## Unreleased
 
+- Computer Tool: Support for use of the native Gemini computer use tool.
+- Eval Logs: Use async S3 interface when flushing log buffer.
+- Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
+- Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
+- Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
+- Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
+- Inspect Score: Add support for an optional list of metrics when rescoring a log.
+- Bugfix: Handle dicts with numeric keys in json_changes.
+
+## 0.3.189 (07 March 2026)
+
 - Anthropic: Preserve OAuth beta header when per-request betas are set.
 - Timelines: Detect `agent_result` for timeline spans.
 - Sandboxes: `exec_remote()` now auto-injects sandbox tools CLI if needed.
 - Web Search: Add query parameter encoding for Google provider.
+- Hooks: Add `on_sample_event()` hook.
+- Hooks: Add ML Flow tracking example hook.
 - AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
-- Add support for an optional list of metrics when rescoring a log.
+- File Utils: Strip trailing separators from S3 paths in `absolute_file_path` (matches local fs behavior).
+- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
+- Bugfix: Eval set task_identifier is now computed using redacted model_args
 
 ## 0.3.188 (05 March 2026)
 
@@ -29,7 +44,6 @@
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
-- Testing: Fix intermittent `test_thinking_compaction_openai` failure caused by unhandled tool calls in follow-up model response.
 
 ## 0.3.186 (03 March 2026)
 

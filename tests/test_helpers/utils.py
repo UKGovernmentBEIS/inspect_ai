@@ -464,7 +464,7 @@ def identity_solver(arg: int = 0):
 def ensure_test_package_installed():
     try:
         clear_entry_points_state()
-        import inspect_package  # type: ignore # noqa: F401
+        import inspect_package  # type: ignore[import-not-found] # noqa: F401
     except ImportError:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]

@@ -255,6 +255,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_SAMPLES",
     )
     @click.option(
+        "--max-dataset-memory",
+        type=click.IntRange(min=0),
+        help="Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.",
+        envvar="INSPECT_EVAL_MAX_DATASET_MEMORY",
+    )
+    @click.option(
         "--max-tasks", type=int, help=MAX_TASKS_HELP, envvar="INSPECT_EVAL_MAX_TASKS"
     )
     @click.option(
@@ -670,6 +676,7 @@ def eval_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -733,6 +740,7 @@ def eval_command(
         cost_limit=cost_limit,
         model_cost_config=model_cost_config,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -795,6 +803,12 @@ def eval_command(
     type=str,
     is_flag=True,
     help="Overwrite existing bundle dir.",
+)
+@click.option(
+    "--embed-viewer",
+    type=bool,
+    is_flag=True,
+    help="Embed a log viewer into the log directory.",
 )
 @click.option(
     "--log-dir-allow-dirty",
@@ -878,6 +892,7 @@ def eval_set_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -896,6 +911,7 @@ def eval_set_command(
     no_score_display: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
+    embed_viewer: bool | None,
     log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
@@ -948,6 +964,7 @@ def eval_set_command(
         time_limit=time_limit,
         working_limit=working_limit,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -972,6 +989,7 @@ def eval_set_command(
         retry_cleanup=not no_retry_cleanup,
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
+        embed_viewer=True if embed_viewer else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
         eval_set_id=eval_set_id,
         **config,
@@ -1016,6 +1034,7 @@ def eval_exec(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -1040,6 +1059,7 @@ def eval_exec(
     retry_cleanup: bool | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
+    embed_viewer: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -1136,6 +1156,7 @@ def eval_exec(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -1160,6 +1181,7 @@ def eval_exec(
         params["retry_cleanup"] = retry_cleanup
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
+        params["embed_viewer"] = embed_viewer
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
         params["eval_set_id"] = eval_set_id
         success, _ = eval_set(**params)

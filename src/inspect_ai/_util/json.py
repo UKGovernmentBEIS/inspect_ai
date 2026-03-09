@@ -289,7 +289,8 @@ def json_changes(
         # Update shadow state if the structure changed due to an 'add' or 'remove' op
         if container and op["op"] in ("add", "remove"):
             assert rel_path is not None  # Shouldn't be since container is set
-            _apply_fast_list_op(shadow_state[container], op, rel_path)
+            if isinstance(shadow_state[container], list):
+                _apply_fast_list_op(shadow_state[container], op, rel_path)
 
         # Build Result
         change = JsonChange(**op)

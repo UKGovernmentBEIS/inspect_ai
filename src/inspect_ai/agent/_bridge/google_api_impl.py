@@ -23,6 +23,9 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._providers._google_computer_use import (
+    gemini_action_from_tool_call,
+)
 from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
     reasoning_to_think_tag,
@@ -36,6 +39,7 @@ from inspect_ai.tool._tools._code_execution import (
     CodeExecutionProviders,
     code_execution,
 )
+from inspect_ai.tool._tools._computer._computer import computer
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
@@ -175,6 +179,8 @@ def tools_from_google_tools(
         elif "googleSearchRetrieval" in google_tool:
             # Google Search Retrieval (grounding)
             tools.append(web_search(web_search_providers))
+        elif "computerUse" in google_tool:
+            tools.append(computer())
 
     return tools
 
@@ -513,17 +519,11 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
 
     if output.message.tool_calls:
         for idx, tc in enumerate(output.message.tool_calls):
-            if isinstance(tc.arguments, str):
-                try:
-                    args = json.loads(tc.arguments)
-                except json.JSONDecodeError:
-                    args = {"raw": tc.arguments}
+            if tc.function == "computer":
+                name, args = gemini_action_from_tool_call(tc)
+                fc_part: dict[str, Any] = {"functionCall": {"name": name, "args": args}}
             else:
-                args = tc.arguments
-
-            fc_part: dict[str, Any] = {
-                "functionCall": {"name": tc.function, "args": args}
-            }
+                fc_part = {"functionCall": {"name": tc.function, "args": tc.arguments}}
 
             if idx == 0 and working_reasoning_block is not None:
                 fc_part["thoughtSignature"] = working_reasoning_block.reasoning

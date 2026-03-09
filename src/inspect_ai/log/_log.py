@@ -7,6 +7,7 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    field_serializer,
     model_validator,
 )
 from shortuuid import uuid
@@ -133,6 +134,10 @@ class EvalConfig(BaseModel):
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
+
+    max_dataset_memory: int | None = Field(default=None)
+    """Maximum MB of dataset sample data to hold in memory per task.
+    When exceeded, samples are paged to a temporary file on disk."""
 
     max_tasks: int | None = Field(default=None)
     """Maximum number of tasks to run in parallel."""
@@ -990,6 +995,25 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
+
+    @field_serializer("samples", "reductions")
+    @classmethod
+    def _serialize_lazy_lists(cls, value: Any) -> Any:
+        """Ensure LazyList instances are materialized before Pydantic serializes.
+
+        Pydantic v2's Rust serializer accesses the C-level list array directly,
+        bypassing Python __len__/__iter__ overrides. For empty LazyList instances
+        (not yet loaded), this means Pydantic sees an empty list and never
+        triggers the lazy load. Calling _ensure_loaded() here populates the
+        underlying C array in-place — no copy needed.
+        """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
 
     @model_validator(mode="before")
     @classmethod
