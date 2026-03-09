@@ -135,6 +135,7 @@ export type TimeLimit = number | null;
 export type WorkingLimit = number | null;
 export type CostLimit = number | null;
 export type MaxSamples = number | null;
+export type MaxDatasetMemory = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
 export type MaxSandboxes = number | null;
@@ -290,7 +291,7 @@ export type Signature = string | null;
 export type Redacted = boolean;
 export type Type9 = "image";
 export type Image = string;
-export type Detail = "auto" | "low" | "high";
+export type Detail = "auto" | "low" | "high" | "original";
 export type Type10 = "audio";
 export type Audio = string;
 export type Format1 = "wav" | "mp3";
@@ -836,6 +837,7 @@ export type Content7 = (TimelineEvent | TimelineSpan)[];
 export type Branches = TimelineBranch[];
 export type Description4 = string | null;
 export type Utility = boolean;
+export type AgentResult = string | null;
 export type Event20 = string;
 export type Children = OutlineNode[];
 export type Nodes = OutlineNode[];
@@ -1090,6 +1092,7 @@ export interface EvalConfig {
   working_limit: WorkingLimit;
   cost_limit: CostLimit;
   max_samples: MaxSamples;
+  max_dataset_memory: MaxDatasetMemory;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
   max_sandboxes: MaxSandboxes;
@@ -2068,6 +2071,7 @@ export interface TimelineSpan {
   branches: Branches;
   description: Description4;
   utility: Utility;
+  agent_result: AgentResult;
   outline: Outline | null;
 }
 /**

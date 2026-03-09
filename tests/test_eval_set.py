@@ -454,6 +454,26 @@ def test_task_identifier_with_model_configs():
     run_eval_set(create_resolved_tasks)
 
 
+def test_task_identifier_with_redacted_model_args():
+    model1 = get_model(
+        "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
+    )
+    model2 = get_model(
+        "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value2"
+    )
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+            model_roles={"my_role": model2},
+        )
+        return resolve_tasks([task1], {}, model1, None, None, None)
+
+    run_eval_set(create_resolved_tasks)
+
+
 def test_task_identifier_with_model_roles_model_configs():
     # ensure that model roles with different configs produce different task identifiers
     model1 = get_model("mockllm/model")
@@ -1174,6 +1194,39 @@ def test_invalidation(tmp_path: Path):
     assert new_sample_uuids != old_sample_uuids
     reused_sample_uuids = old_sample_uuids.intersection(new_sample_uuids)
     assert reused_sample_uuids == old_sample_uuids - {invalidated_sample}
+
+
+def test_eval_set_retry_on_error_with_epochs():
+    """Verify sample_source cache reuse works with retry_on_error + epochs."""
+    task1 = hello_world()
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # First run: epochs=2, retry_on_error=1 (no actual failures with hello_world)
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=2,
+            retry_on_error=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
+        location = logs[0].location
+
+        # Second run: same params — should reuse cached samples via sample_source
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:01"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=2,
+                retry_on_error=1,
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=2)
+            # Same log file means samples were served from cache
+            assert basename(logs[0].location) == basename(location)
 
 
 def test_epochs_changed_same_reducer():

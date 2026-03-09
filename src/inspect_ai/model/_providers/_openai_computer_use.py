@@ -46,7 +46,7 @@ def maybe_computer_use_preview_tool(
     # computer_use_preview only supported by models with "computer-use-preview" in name
     return (
         ComputerToolParam(
-            type="computer_use_preview",
+            type="computer_use_preview",  # type: ignore[typeddict-item]
             # The OpenAI model is ahead of the sdk — "ubuntu" -> "linux"
             environment="linux",  # type: ignore
             # Note: The dimensions passed here for display_width and display_height should
@@ -216,6 +216,7 @@ def _parse_computer_tool_call_arguments(
     output: ResponseComputerToolCall,
 ) -> dict[str, object]:
     action = output.action
+    assert action
 
     if action.type == "click":
         coordinate = [action.x, action.y]

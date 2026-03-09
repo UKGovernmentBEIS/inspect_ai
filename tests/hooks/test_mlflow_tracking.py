@@ -1,0 +1,556 @@
+"""Tests for the MLflow tracking hook."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from inspect_ai.hooks._hooks import (  # noqa: E402
+    ModelUsageData,
+    RunEnd,
+    RunStart,
+    SampleEnd,
+    SampleEvent,
+    TaskEnd,
+    TaskStart,
+)
+from inspect_ai.log._log import (
+    EvalConfig,
+    EvalDataset,
+    EvalLog,
+    EvalMetric,
+    EvalResults,
+    EvalSample,
+    EvalScore,
+    EvalSpec,
+    EvalStats,
+)
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
+from inspect_ai.scorer._metric import Score
+
+# Ensure a mock 'mlflow' module exists so the example can be imported
+# without mlflow actually installed.
+_mlflow_was_mocked = "mlflow" not in sys.modules
+if _mlflow_was_mocked:
+    _mock = MagicMock()
+    _mock.__spec__ = None
+    sys.modules["mlflow"] = _mock
+
+
+def _load_mlflow_tracking():
+    """Load the mlflow_tracking module from examples/hooks/."""
+    module_path = (
+        Path(__file__).parents[2] / "examples" / "hooks" / "mlflow_tracking.py"
+    )
+    spec = importlib.util.spec_from_file_location("mlflow_tracking", module_path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_mlflow_mod = _load_mlflow_tracking()
+MlflowTrackingHooks = _mlflow_mod.MlflowTrackingHooks
+_score_to_numeric = _mlflow_mod._score_to_numeric
+
+# Clean up mock so it doesn't pollute other tests
+if _mlflow_was_mocked:
+    del sys.modules["mlflow"]
+
+
+@pytest.fixture(autouse=True)
+def _mock_mlflow_in_sys_modules():
+    """Ensure mock mlflow is in sys.modules during tests, clean up after."""
+    installed = "mlflow" not in sys.modules
+    if installed:
+        sys.modules["mlflow"] = MagicMock()
+    yield
+    if installed:
+        sys.modules.pop("mlflow", None)
+
+
+def _make_eval_spec(
+    task: str = "test_task",
+    model: str = "openai/gpt-4",
+    eval_id: str = "eval-001",
+    run_id: str = "run-001",
+) -> EvalSpec:
+    return EvalSpec(
+        eval_id=eval_id,
+        run_id=run_id,
+        created="2026-03-06T00:00:00Z",
+        task=task,
+        model=model,
+        dataset=EvalDataset(name="test_dataset", location="test.jsonl"),
+        config=EvalConfig(),
+    )
+
+
+def _make_sample(
+    sample_id: int = 1,
+    scores: dict[str, Score] | None = None,
+    total_time: float = 1.5,
+) -> EvalSample:
+    return EvalSample(
+        id=sample_id,
+        epoch=1,
+        input="What is 2+2?",
+        target="4",
+        output=ModelOutput(),
+        scores=scores,
+        total_time=total_time,
+    )
+
+
+@pytest.fixture
+def mlflow_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+    monkeypatch.setenv("MLFLOW_EXPERIMENT_NAME", "test-experiment")
+
+
+def test_enabled_requires_tracking_uri(monkeypatch: pytest.MonkeyPatch):
+    hook = MlflowTrackingHooks()
+
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    assert hook.enabled() is False
+
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+    assert hook.enabled() is True
+
+
+@pytest.mark.anyio
+async def test_run_lifecycle(mlflow_env):
+    hook = MlflowTrackingHooks()
+
+    mock_run = MagicMock()
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = mock_run
+
+        await hook.on_run_start(
+            RunStart(
+                eval_set_id=None,
+                run_id="run-abc123",
+                task_names=["task_a", "task_b"],
+            )
+        )
+
+        mock_mlflow.set_experiment.assert_called_once_with("test-experiment")
+        mock_mlflow.start_run.assert_called_once()
+        start_kwargs = mock_mlflow.start_run.call_args
+        assert "inspect-run-abc1" in start_kwargs.kwargs["run_name"]
+        assert start_kwargs.kwargs["tags"]["inspect.run_id"] == "run-abc123"
+
+        await hook.on_run_end(
+            RunEnd(
+                eval_set_id=None,
+                run_id="run-abc123",
+                exception=None,
+                logs=[],
+            )
+        )
+
+        mock_mlflow.end_run.assert_called_with(status="FINISHED")
+
+
+@pytest.mark.anyio
+async def test_run_end_with_exception(mlflow_env):
+    hook = MlflowTrackingHooks()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-fail", task_names=["task_a"])
+        )
+
+        await hook.on_run_end(
+            RunEnd(
+                eval_set_id=None,
+                run_id="run-fail",
+                exception=RuntimeError("boom"),
+                logs=[],
+            )
+        )
+
+        mock_mlflow.end_run.assert_called_with(status="FAILED")
+
+
+@pytest.mark.anyio
+async def test_task_lifecycle(mlflow_env):
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+
+        await hook.on_task_start(
+            TaskStart(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                spec=spec,
+            )
+        )
+
+        assert mock_mlflow.start_run.call_count == 2
+        nested_call = mock_mlflow.start_run.call_args_list[1]
+        assert nested_call.kwargs["nested"] is True
+        assert nested_call.kwargs["run_name"] == "test_task"
+
+        mock_mlflow.log_param.assert_any_call("task", "test_task")
+        mock_mlflow.log_param.assert_any_call("model", "openai/gpt-4")
+
+        results = EvalResults(
+            total_samples=10,
+            completed_samples=10,
+            scores=[
+                EvalScore(
+                    name="accuracy",
+                    scorer="accuracy",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.85)},
+                )
+            ],
+        )
+        log = EvalLog(
+            eval=spec,
+            status="success",
+            results=results,
+            stats=EvalStats(
+                started_at="2026-03-06T00:00:00Z",
+                completed_at="2026-03-06T00:01:00Z",
+                model_usage={
+                    "openai/gpt-4": ModelUsage(
+                        input_tokens=5000, output_tokens=1000, total_tokens=6000
+                    )
+                },
+            ),
+        )
+        await hook.on_task_end(
+            TaskEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                log=log,
+            )
+        )
+
+        mock_mlflow.log_metric.assert_any_call("accuracy/accuracy", 0.85)
+        mock_mlflow.log_metric.assert_any_call("total_samples", 10)
+        mock_mlflow.log_metric.assert_any_call("completed_samples", 10)
+        mock_mlflow.log_metric.assert_any_call("usage/openai/gpt-4/input_tokens", 5000)
+        mock_mlflow.log_metric.assert_any_call("usage/openai/gpt-4/output_tokens", 1000)
+        mock_mlflow.end_run.assert_called_with(status="FINISHED")
+
+
+@pytest.mark.anyio
+async def test_sample_scores_logged_as_step_metrics(mlflow_env):
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        sample_0 = _make_sample(
+            sample_id=1,
+            scores={"accuracy": Score(value=1.0)},
+            total_time=2.0,
+        )
+        await hook.on_sample_end(
+            SampleEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                sample=sample_0,
+            )
+        )
+
+        mock_mlflow.log_metric.assert_any_call("sample/accuracy", 1.0, step=0)
+        mock_mlflow.log_metric.assert_any_call("sample/total_time", 2.0, step=0)
+
+        sample_1 = _make_sample(
+            sample_id=2,
+            scores={"accuracy": Score(value=0.0)},
+            total_time=1.0,
+        )
+        await hook.on_sample_end(
+            SampleEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-1",
+                sample=sample_1,
+            )
+        )
+
+        mock_mlflow.log_metric.assert_any_call("sample/accuracy", 0.0, step=1)
+        mock_mlflow.log_metric.assert_any_call("sample/total_time", 1.0, step=1)
+
+
+def test_score_to_numeric_conversion():
+    assert _score_to_numeric(0.85) == 0.85
+    assert _score_to_numeric(1) == 1.0
+    assert _score_to_numeric("C") == 1.0
+    assert _score_to_numeric("I") == 0.0
+    assert _score_to_numeric("correct") == 1.0
+    assert _score_to_numeric("incorrect") == 0.0
+    assert _score_to_numeric("unknown_value") is None
+    assert _score_to_numeric(None) is None
+
+
+@pytest.mark.anyio
+async def test_model_usage_accumulation():
+    hook = MlflowTrackingHooks()
+
+    await hook.on_model_usage(
+        ModelUsageData(
+            model_name="gpt-4",
+            usage=ModelUsage(input_tokens=100, output_tokens=50, total_tokens=150),
+            call_duration=0.5,
+        )
+    )
+    await hook.on_model_usage(
+        ModelUsageData(
+            model_name="gpt-4",
+            usage=ModelUsage(input_tokens=200, output_tokens=100, total_tokens=300),
+            call_duration=1.0,
+        )
+    )
+
+    assert hook._model_usage["gpt-4"]["calls"] == 2
+    assert hook._model_usage["gpt-4"]["input_tokens"] == 300
+    assert hook._model_usage["gpt-4"]["output_tokens"] == 150
+    assert hook._model_usage["gpt-4"]["total_tokens"] == 450
+    assert hook._model_usage["gpt-4"]["total_duration"] == 1.5
+
+
+@pytest.mark.anyio
+async def test_sample_without_active_task_is_ignored():
+    hook = MlflowTrackingHooks()
+
+    sample = _make_sample(scores={"accuracy": Score(value=1.0)})
+
+    await hook.on_sample_end(
+        SampleEnd(
+            eval_set_id=None,
+            run_id="run-001",
+            eval_id="eval-999",
+            sample_id="sample-0",
+            sample=sample,
+        )
+    )
+
+
+@pytest.mark.anyio
+async def test_sample_event_model_call(mlflow_env):
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        model_event = ModelEvent(
+            model="openai/gpt-4",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(
+                usage=ModelUsage(input_tokens=150, output_tokens=50, total_tokens=200)
+            ),
+            working_time=0.8,
+        )
+
+        await hook.on_sample_event(
+            SampleEvent(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                event=model_event,
+            )
+        )
+
+        mock_mlflow.log_metric.assert_any_call("event/model_call", 0, step=0)
+        mock_mlflow.log_metric.assert_any_call("event/input_tokens", 150, step=0)
+        mock_mlflow.log_metric.assert_any_call("event/output_tokens", 50, step=0)
+        mock_mlflow.log_metric.assert_any_call("event/model_time", 0.8, step=0)
+
+        assert hook._event_counts["eval-001"]["model_calls"] == 1
+
+
+@pytest.mark.anyio
+async def test_sample_event_tool_call(mlflow_env):
+    from inspect_ai.event._tool import ToolEvent
+
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        tool_event = ToolEvent(
+            id="call-001",
+            function="web_search",
+            arguments={"query": "test"},
+            working_time=1.2,
+        )
+
+        await hook.on_sample_event(
+            SampleEvent(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                event=tool_event,
+            )
+        )
+
+        mock_mlflow.log_metric.assert_any_call("event/tool_call", 0, step=0)
+        mock_mlflow.log_param.assert_any_call("tool_call.0.function", "web_search")
+        mock_mlflow.log_metric.assert_any_call("event/tool_time", 1.2, step=0)
+
+        assert hook._event_counts["eval-001"]["tool_calls"] == 1
+
+
+@pytest.mark.anyio
+async def test_sample_event_without_active_task_is_ignored():
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model_output import ModelOutput
+
+    hook = MlflowTrackingHooks()
+
+    model_event = ModelEvent(
+        model="openai/gpt-4",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+    )
+
+    # Should not raise even with no active task
+    await hook.on_sample_event(
+        SampleEvent(
+            eval_set_id=None,
+            run_id="run-001",
+            eval_id="eval-999",
+            sample_id="sample-0",
+            event=model_event,
+        )
+    )
+
+    assert "eval-999" not in hook._event_counts
+
+
+@pytest.mark.anyio
+async def test_event_counts_logged_on_task_end(mlflow_env):
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model_output import ModelOutput
+
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        # Send 2 model events and 1 tool event
+        for _ in range(2):
+            await hook.on_sample_event(
+                SampleEvent(
+                    eval_set_id=None,
+                    run_id="run-001",
+                    eval_id="eval-001",
+                    sample_id="sample-0",
+                    event=ModelEvent(
+                        model="openai/gpt-4",
+                        input=[],
+                        tools=[],
+                        tool_choice="auto",
+                        config=GenerateConfig(),
+                        output=ModelOutput(),
+                    ),
+                )
+            )
+
+        await hook.on_sample_event(
+            SampleEvent(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                sample_id="sample-0",
+                event=ToolEvent(
+                    id="call-001",
+                    function="bash",
+                    arguments={"cmd": "ls"},
+                ),
+            )
+        )
+
+        log = EvalLog(
+            eval=spec,
+            status="success",
+            results=EvalResults(total_samples=1, completed_samples=1),
+            stats=EvalStats(
+                started_at="2026-03-06T00:00:00Z",
+                completed_at="2026-03-06T00:01:00Z",
+            ),
+        )
+
+        await hook.on_task_end(
+            TaskEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                log=log,
+            )
+        )
+
+        mock_mlflow.log_metric.assert_any_call("total_model_calls", 2)
+        mock_mlflow.log_metric.assert_any_call("total_tool_calls", 1)
+
+        # Event counts cleaned up after task end
+        assert "eval-001" not in hook._event_counts

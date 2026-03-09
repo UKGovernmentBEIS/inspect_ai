@@ -789,6 +789,7 @@ class Model:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import emit_model_cache_usage, emit_model_usage
         from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import track_active_model_event
 
         # default to 'auto' for tool_choice (same as underlying model apis)
@@ -1036,6 +1037,10 @@ class Model:
             report_sample_waiting_time(
                 total_time - reported_waiting_time - model_output.time
             )
+
+        # report refusal
+        if not model_output.empty and model_output.stop_reason == "content_filter":
+            report_refusal(model_output.completion)
 
         # return results
         return model_output, event

@@ -1,4 +1,5 @@
 import asyncio
+import io
 import tempfile
 from pathlib import Path
 
@@ -353,6 +354,52 @@ async def test_write_file_local():
 
 
 # =============================================================================
+# Tests for write_file_streaming
+# =============================================================================
+
+
+async def test_write_file_streaming_local():
+    """Test AsyncFilesystem.write_file_streaming with local files."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Small data
+        small_data = b"Hello streaming world!" * 100
+        small_path = str(Path(temp_dir) / "small.bin")
+        source = io.BytesIO(small_data)
+
+        async with AsyncFilesystem() as fs:
+            await fs.write_file_streaming(small_path, source)
+
+        with open(small_path, "rb") as f:
+            assert f.read() == small_data
+
+        # Large data exceeding _STREAMING_COPY_BUFSIZE (16MB)
+        large_data = b"\xab" * (20 * 1024 * 1024)  # 20MB
+        large_path = str(Path(temp_dir) / "large.bin")
+        source = io.BytesIO(large_data)
+
+        async with AsyncFilesystem() as fs:
+            await fs.write_file_streaming(large_path, source)
+
+        with open(large_path, "rb") as f:
+            assert f.read() == large_data
+
+
+def test_write_file_streaming_s3(mock_s3: None) -> None:
+    """Test AsyncFilesystem.write_file_streaming with mock S3."""
+    test_data = b"\xab" * (10 * 1024 * 1024)  # 10MB, exceeds 8MB multipart threshold
+    s3_path = f"{S3_BUCKET}/streaming_test/file.bin"
+
+    async def run() -> None:
+        source = io.BytesIO(test_data)
+        async with AsyncFilesystem() as fs:
+            await fs.write_file_streaming(s3_path, source)
+            result = await fs.read_file(s3_path)
+            assert result == test_data
+
+    asyncio.run(run())
+
+
+# =============================================================================
 # Tests for AsyncFilesystem sharing via ContextVar
 # =============================================================================
 
@@ -478,6 +525,20 @@ def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
 # =============================================================================
 # Tests for nest_asyncio with mock S3
 # =============================================================================
+
+
+@pytest.mark.skip(reason="Slow (allocates 5GB+) and requires real S3 credentials")
+async def test_write_file_s3_large_file() -> None:
+    """write_file fails for S3 files larger than 5GB because put_object has a 5GB limit.
+
+    S3 put_object API has a hard 5GB limit. Files larger than 5GB require
+    multipart upload, which write_file does not currently support.
+    """
+    size = 5 * 1024 * 1024 * 1024 + 1  # 5GB + 1 byte
+    large_data = b"\x00" * size
+
+    async with AsyncFilesystem() as fs:
+        await fs.write_file("s3://inspect-flow-test/large_test/big.bin", large_data)
 
 
 def test_nest_asyncio_with_s3_requests(mock_s3: None) -> None:

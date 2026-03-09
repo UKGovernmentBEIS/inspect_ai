@@ -2,6 +2,7 @@ import functools
 from typing import Any, Callable, Literal, cast
 
 import click
+from pydantic import TypeAdapter
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -17,12 +18,16 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_RETRY_ON_ERROR,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._generate_config import BatchConfig, ResponseSchema
+from inspect_ai.model._generate_config import (
+    BatchConfig,
+    ResponseSchema,
+)
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
@@ -59,6 +64,7 @@ LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
 LOG_MODEL_API_HELP = "Log raw model api requests and responses. Note that error requests/responses are always logged."
+LOG_REFUSALS_HELP = "Log warnings for model refusals."
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 LOG_SHARED_HELP = "Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds)."
 NO_SCORE_HELP = (
@@ -249,6 +255,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_SAMPLES",
     )
     @click.option(
+        "--max-dataset-memory",
+        type=click.IntRange(min=0),
+        help="Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.",
+        envvar="INSPECT_EVAL_MAX_DATASET_MEMORY",
+    )
+    @click.option(
         "--max-tasks", type=int, help=MAX_TASKS_HELP, envvar="INSPECT_EVAL_MAX_TASKS"
     )
     @click.option(
@@ -362,6 +374,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_LOG_MODEL_API",
     )
     @click.option(
+        "--log-refusals/--no-log-refusals",
+        type=bool,
+        default=False,
+        is_flag=True,
+        help=LOG_REFUSALS_HELP,
+        envvar="INSPECT_EVAL_LOG_REFUSALS",
+    )
+    @click.option(
         "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
     )
     @click.option(
@@ -386,6 +406,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SCORE_HELP,
         envvar="INSPECT_EVAL_SCORE_DISPLAY",
+    )
+    @click.option(
+        "--generate-config",
+        type=str,
+        envvar="INSPECT_EVAL_GENERATE_CONFIG",
+        help="YAML or JSON config file with GenerateConfig (alternatively, use the options for individual config values).",
     )
     @click.option(
         "--max-tokens",
@@ -611,6 +637,7 @@ def eval_command(
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
+    generate_config: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -649,6 +676,7 @@ def eval_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -660,6 +688,7 @@ def eval_command(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -711,6 +740,7 @@ def eval_command(
         cost_limit=cost_limit,
         model_cost_config=model_cost_config,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -723,6 +753,7 @@ def eval_command(
         no_log_realtime=no_log_realtime,
         log_images=log_images,
         log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         no_score=no_score,
@@ -774,6 +805,12 @@ def eval_command(
     help="Overwrite existing bundle dir.",
 )
 @click.option(
+    "--embed-viewer",
+    type=bool,
+    is_flag=True,
+    help="Embed a log viewer into the log directory.",
+)
+@click.option(
     "--log-dir-allow-dirty",
     type=bool,
     is_flag=True,
@@ -816,6 +853,7 @@ def eval_set_command(
     limit: str | None,
     sample_id: str | None,
     sample_shuffle: int | None,
+    generate_config: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -854,6 +892,7 @@ def eval_set_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -865,12 +904,14 @@ def eval_set_command(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
     no_score_display: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
+    embed_viewer: bool | None,
     log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
@@ -923,6 +964,7 @@ def eval_set_command(
         time_limit=time_limit,
         working_limit=working_limit,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -935,6 +977,7 @@ def eval_set_command(
         no_log_realtime=no_log_realtime,
         log_images=log_images,
         log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         no_score=no_score,
@@ -946,6 +989,7 @@ def eval_set_command(
         retry_cleanup=not no_retry_cleanup,
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
+        embed_viewer=True if embed_viewer else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
         eval_set_id=eval_set_id,
         **config,
@@ -990,6 +1034,7 @@ def eval_exec(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -1002,6 +1047,7 @@ def eval_exec(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -1013,6 +1059,7 @@ def eval_exec(
     retry_cleanup: bool | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
+    embed_viewer: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -1109,6 +1156,7 @@ def eval_exec(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -1116,6 +1164,7 @@ def eval_exec(
             log_realtime=log_realtime,
             log_images=log_images,
             log_model_api=log_model_api,
+            log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score=score,
@@ -1132,6 +1181,7 @@ def eval_exec(
         params["retry_cleanup"] = retry_cleanup
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
+        params["embed_viewer"] = embed_viewer
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
         params["eval_set_id"] = eval_set_id
         success, _ = eval_set(**params)
@@ -1143,9 +1193,28 @@ def eval_exec(
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
+    # start with config file if specified
+    adapter = TypeAdapter(GenerateConfigArgs)
+    generate_config_file = locals.pop("generate_config", None)
+    if generate_config_file:
+        # read file
+        generate_config = resolve_args(generate_config_file)
+
+        # validate all the fields are valid
+        extra_keys = generate_config.keys() - GenerateConfigArgs.__annotations__.keys()
+        if extra_keys:
+            raise PrerequisiteError(
+                f"Unexpected GenerateConfig fields in {generate_config_file}: {extra_keys}"
+            )
+
+        # create base config
+        base_config = adapter.validate_python(generate_config, strict=True)
+    else:
+        base_config = GenerateConfigArgs()
+
     # build generate config
     config_keys = list(GenerateConfigArgs.__mutable_keys__)  # type: ignore
-    config = GenerateConfigArgs()
+    config = GenerateConfigArgs(**base_config)
     for key, value in locals.items():
         if key in config_keys and value is not None:
             if key == "stop_seqs":
@@ -1303,6 +1372,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_LOG_MODEL_API",
 )
 @click.option(
+    "--log-refusals/--no-log-refusals",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help=LOG_REFUSALS_HELP,
+    envvar="INSPECT_EVAL_LOG_REFUSALS",
+)
+@click.option(
     "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
 )
 @click.option(
@@ -1371,6 +1448,7 @@ def eval_retry_command(
     no_log_realtime: bool | None,
     log_images: bool | None,
     log_model_api: bool | None,
+    log_refusals: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
     no_score: bool | None,
@@ -1392,6 +1470,7 @@ def eval_retry_command(
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
     log_model_api = True if log_model_api is True else None
+    log_refusals = True if log_refusals is True else None
     score = False if no_score else True
     score_display = False if no_score_display else None
 
@@ -1430,6 +1509,7 @@ def eval_retry_command(
         log_realtime=log_realtime,
         log_images=log_images,
         log_model_api=log_model_api,
+        log_refusals=log_refusals,
         log_buffer=log_buffer,
         log_shared=log_shared,
         score=score,
