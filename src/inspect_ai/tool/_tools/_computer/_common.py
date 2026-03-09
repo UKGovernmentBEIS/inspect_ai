@@ -137,9 +137,7 @@ async def scroll(
 
 
 async def press_key(key: str, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(
-        ["key", "--text", _normalize_key_text(key)], timeout=timeout
-    )
+    return await _send_cmd(["key", "--text", _normalize_key_text(key)], timeout=timeout)
 
 
 async def hold_key(key: str, duration: int, timeout: int | None = None) -> ToolResult:
