@@ -1373,3 +1373,6 @@ class EvalLogs(list[EvalLog]):
 
     def __repr__(self) -> str:
         return ""
+
+    def __str__(self) -> str:
+        return list.__repr__(self)
