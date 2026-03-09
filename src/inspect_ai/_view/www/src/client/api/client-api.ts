@@ -165,6 +165,7 @@ export const clientApi = (
         error: parsed.error,
         tags: parsed.tags,
         metadata: parsed.metadata,
+        log_updates: parsed.log_updates,
         sampleSummaries,
       };
     }

@@ -8,6 +8,7 @@ import {
   EvalResults,
   EvalSpec,
   EvalStats,
+  LogUpdate,
   Status,
 } from "../../../@types/log";
 import { DownloadPanel } from "../../../components/DownloadPanel";
@@ -29,12 +30,15 @@ export const useJsonTabConfig = (
   evalError: EvalError | undefined | null,
   evalResults: EvalResults | undefined | null,
   evalStats: EvalStats | undefined,
+  tags?: string[],
+  metadata?: Record<string, unknown>,
+  logUpdates?: LogUpdate[] | null,
 ) => {
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const selectedTab = useStore((state) => state.app.tabs.workspace);
 
   return useMemo(() => {
-    const evalHeader = {
+    const evalHeader: Record<string, unknown> = {
       version: evalVersion,
       status: evalStatus,
       eval: evalSpec,
@@ -43,6 +47,15 @@ export const useJsonTabConfig = (
       results: evalResults,
       stats: evalStats,
     };
+    if (tags && tags.length > 0) {
+      evalHeader.tags = tags;
+    }
+    if (metadata && Object.keys(metadata).length > 0) {
+      evalHeader.metadata = metadata;
+    }
+    if (logUpdates && logUpdates.length > 0) {
+      evalHeader.log_updates = logUpdates;
+    }
 
     return {
       id: kLogViewJsonTabId,
@@ -74,6 +87,9 @@ export const useJsonTabConfig = (
     evalError,
     evalResults,
     evalStats,
+    tags,
+    metadata,
+    logUpdates,
     selectedTab,
   ]);
 };

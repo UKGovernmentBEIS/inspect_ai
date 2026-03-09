@@ -14,6 +14,7 @@ import {
   EvalStats,
   InfoEvent,
   Input,
+  LogUpdate,
   LoggerEvent,
   Model,
   ModelEvent,
@@ -47,6 +48,7 @@ export interface LogDetails {
   error?: EvalError | null;
   tags?: string[];
   metadata?: Record<string, unknown>;
+  log_updates?: LogUpdate[] | null;
   sampleSummaries: SampleSummary[];
 }
 
@@ -270,6 +272,7 @@ export interface EvalHeader {
   error?: EvalError | null;
   tags?: string[];
   metadata?: Record<string, unknown>;
+  log_updates?: LogUpdate[] | null;
 }
 
 export interface LogPreview {

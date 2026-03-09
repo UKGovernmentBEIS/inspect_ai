@@ -278,6 +278,7 @@ export const openRemoteLogFile = async (
         error: header.error,
         tags: header.tags,
         metadata: header.metadata,
+        log_updates: header.log_updates,
         sampleSummaries,
       };
       return result;

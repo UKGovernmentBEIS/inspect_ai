@@ -73,6 +73,9 @@ export const LogView: FC = () => {
     selectedLogDetails?.error,
     selectedLogDetails?.results,
     selectedLogDetails?.stats,
+    selectedLogDetails?.tags,
+    selectedLogDetails?.metadata,
+    selectedLogDetails?.log_updates,
   );
 
   const tabs: Record<string, TabDescriptor<any>> = {
