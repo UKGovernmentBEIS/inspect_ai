@@ -13,7 +13,7 @@ from inspect_ai._util.images import file_as_data
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.tool._tools._computer import is_computer_tool_info
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 # Default display dimensions matching MAX_SCALING_TARGETS["FWXGA"] in _x11_client.py.
 # These should stay in sync with the dimensions used by the container.
