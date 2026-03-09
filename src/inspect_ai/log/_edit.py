@@ -98,23 +98,35 @@ def edit_eval_log(
     Returns:
         Modified EvalLog with edits applied.
     """
-    # validate and filter noop edits
+    # validate and filter noop edits, advancing state after each edit
     current_tags = set(log.tags)
-    current_metadata = log.metadata
+    current_metadata = dict(log.metadata)
     filtered: list[LogEdit] = []
     for edit in edits:
         if isinstance(edit, TagsEdit):
             for tag in edit.tags_add + edit.tags_remove:
                 if not tag.strip():
                     raise ValueError("Tag must be a non-empty string.")
+            overlap = set(edit.tags_add) & set(edit.tags_remove)
+            if overlap:
+                raise ValueError(
+                    f"Tag(s) {overlap} appear in both tags_add and tags_remove."
+                )
             tags_add = [t for t in edit.tags_add if t not in current_tags]
             tags_remove = [t for t in edit.tags_remove if t in current_tags]
             if tags_add or tags_remove:
                 filtered.append(TagsEdit(tags_add=tags_add, tags_remove=tags_remove))
+                current_tags -= set(tags_remove)
+                current_tags |= set(tags_add)
         elif isinstance(edit, MetadataEdit):
             for key in list(edit.metadata_set.keys()) + edit.metadata_remove:
                 if not key.strip():
                     raise ValueError("Metadata key must be a non-empty string.")
+            overlap = set(edit.metadata_set.keys()) & set(edit.metadata_remove)
+            if overlap:
+                raise ValueError(
+                    f"Metadata key(s) {overlap} appear in both metadata_set and metadata_remove."
+                )
             metadata_set = {
                 k: v
                 for k, v in edit.metadata_set.items()
@@ -128,6 +140,9 @@ def edit_eval_log(
                         metadata_remove=metadata_remove,
                     )
                 )
+                for k in metadata_remove:
+                    current_metadata.pop(k, None)
+                current_metadata.update(metadata_set)
 
     if not filtered:
         return log

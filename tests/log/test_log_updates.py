@@ -146,6 +146,93 @@ class TestMetadataEdit:
             edit_eval_log(log, [MetadataEdit(metadata_set={"": "val"})], _provenance())
 
 
+class TestBatchedEditStateAdvancement:
+    """Test that batched edits within a single edit_eval_log call advance state correctly.
+
+    The noop filter must track cumulative state across edits, not use a stale
+    snapshot from before the loop.
+    """
+
+    def test_add_then_remove_same_tag(self) -> None:
+        """Adding then removing a tag in the same batch should leave it absent."""
+        log = _make_log()
+        log = edit_eval_log(
+            log,
+            [TagsEdit(tags_add=["x"]), TagsEdit(tags_remove=["x"])],
+            _provenance(),
+        )
+        assert "x" not in log.tags
+
+    def test_remove_then_readd_tag(self) -> None:
+        """Removing then re-adding a tag in the same batch should leave it present."""
+        log = _make_log(tags=["x"])
+        log = edit_eval_log(
+            log,
+            [TagsEdit(tags_remove=["x"]), TagsEdit(tags_add=["x"])],
+            _provenance(),
+        )
+        assert "x" in log.tags
+
+    def test_set_then_remove_metadata(self) -> None:
+        """Setting then removing a metadata key in the same batch should leave it absent."""
+        log = _make_log()
+        log = edit_eval_log(
+            log,
+            [
+                MetadataEdit(metadata_set={"k": 1}),
+                MetadataEdit(metadata_remove=["k"]),
+            ],
+            _provenance(),
+        )
+        assert "k" not in log.metadata
+
+    def test_remove_then_reset_metadata(self) -> None:
+        """Removing then re-setting a metadata key in the same batch should leave it present."""
+        log = _make_log(metadata={"k": 1})
+        log = edit_eval_log(
+            log,
+            [
+                MetadataEdit(metadata_remove=["k"]),
+                MetadataEdit(metadata_set={"k": 2}),
+            ],
+            _provenance(),
+        )
+        assert log.metadata["k"] == 2
+
+    def test_set_then_overwrite_metadata(self) -> None:
+        """Setting a key then overwriting it in the same batch should keep the last value."""
+        log = _make_log()
+        log = edit_eval_log(
+            log,
+            [
+                MetadataEdit(metadata_set={"k": 1}),
+                MetadataEdit(metadata_set={"k": 2}),
+            ],
+            _provenance(),
+        )
+        assert log.metadata["k"] == 2
+
+    def test_tag_in_both_add_and_remove_raises(self) -> None:
+        """A single TagsEdit with the same tag in add and remove is a conflict."""
+        log = _make_log()
+        with pytest.raises(ValueError, match="tags_add and tags_remove"):
+            edit_eval_log(
+                log,
+                [TagsEdit(tags_add=["x"], tags_remove=["x"])],
+                _provenance(),
+            )
+
+    def test_metadata_key_in_both_set_and_remove_raises(self) -> None:
+        """A single MetadataEdit with the same key in set and remove is a conflict."""
+        log = _make_log()
+        with pytest.raises(ValueError, match="metadata_set and metadata_remove"):
+            edit_eval_log(
+                log,
+                [MetadataEdit(metadata_set={"k": 1}, metadata_remove=["k"])],
+                _provenance(),
+            )
+
+
 class TestMixedEdits:
     """Test combining tag and metadata edits."""
 
