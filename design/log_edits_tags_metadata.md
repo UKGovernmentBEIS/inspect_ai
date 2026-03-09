@@ -137,24 +137,6 @@ log.tags        # ["qa_passed"]
 log.metadata    # {"reviewer": "alice", ...}
 ```
 
-### list_eval_logs: tags filter
-
-Add a convenience `tags` parameter to `list_eval_logs`:
-
-```python
-def list_eval_logs(
-    log_dir: str = ...,
-    formats: list[Literal["eval", "json"]] | None = None,
-    filter: Callable[[EvalLog], bool] | None = None,
-    tags: list[str] | None = None,           # NEW
-    recursive: bool = True,
-    descending: bool = True,
-    fs_options: dict[str, Any] = {},
-) -> list[EvalLogInfo]:
-```
-
-When `tags` is provided, only logs where ALL specified tags are in `log.tags` are returned. Applied in addition to the existing `filter` parameter. Uses header-only reads (`log_updates` is in the header).
-
 ### Public Exports
 
 Add to `inspect_ai.log.__init__` exports:
@@ -177,7 +159,7 @@ Matches invalidation pattern:
 | `evals_df` tags column | Reads `eval.tags` path | Use `log.tags` property |
 | `evals_df` metadata column | Reads `eval.metadata` path | Use `log.metadata` property |
 | View UI TaskTab | `evalSpec.tags.join(", ")` | Use `EvalLog.tags` property |
-| `list_eval_logs` | No tag filter | Add `tags` param using `log.tags` |
+| `list_eval_logs` | No tag filter | Use existing `filter` param with `log.tags` |
 
 ### View UI
 
@@ -201,7 +183,7 @@ Matches invalidation pattern:
 | `src/inspect_ai/log/_log.py` | Add `log_updates` field, `tags` and `metadata` properties to `EvalLog` |
 | `src/inspect_ai/log/_edit.py` | Add `LogEdit`, `TagsEdit`, `MetadataEdit`, `LogUpdate`, `ProvenanceData`, `edit_eval_log` |
 | `src/inspect_ai/log/__init__.py` | Export new types and functions |
-| `src/inspect_ai/log/_file.py` | Add `tags` parameter to `list_eval_logs` |
+
 | `src/inspect_ai/_view/www/src/@types/log.d.ts` | Auto-regenerated |
 | `src/inspect_ai/_view/www/src/app/log-view/tabs/TaskTab.tsx` | Display effective tags/metadata |
 | `src/inspect_ai/analysis/_dataframe/evals/columns.py` | Use `log.tags` / `log.metadata` for DataFrame columns |
