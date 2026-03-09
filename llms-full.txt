@@ -28039,7 +28039,7 @@ Additional approver attributes.
 # inspect_ai.log
 
 
-## Eval Log Files
+## Eval Logs
 
 ### list_eval_logs
 
@@ -28461,6 +28461,44 @@ Task id.
 `suffix` str \| None  
 Log file suffix (e.g. “-scored”)
 
+## Log Editing
+
+### edit_eval_log
+
+Apply edits to a log.
+
+> [!NOTE]
+>
+> Support for `edit_eval_log()` is available only in the development
+> version of Inspect. Install the development version from GitHub with:
+>
+> ``` python
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
+> ```
+
+Creates a LogUpdate from the edits and provenance, appends it to
+log.log_updates, and recomputes cached tags/metadata. Returns modified
+log (not persisted). Use write_eval_log() to save.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L73)
+
+``` python
+def edit_eval_log(
+    log: EvalLog,
+    edits: list[LogEdit],
+    provenance: ProvenanceData,
+) -> EvalLog
+```
+
+`log` [EvalLog](inspect_ai.log.qmd#evallog)  
+Eval log to edit.
+
+`edits` list\[[LogEdit](inspect_ai.log.qmd#logedit)\]  
+List of edits to apply.
+
+`provenance` [ProvenanceData](inspect_ai.log.qmd#provenancedata)  
+Provenance data for the edits.
+
 ### edit_score
 
 Edit or add a score in-place.
@@ -28510,7 +28548,7 @@ The log with invalidated samples is returned but not persisted to
 storage. Use `write_eval_log()` to save the new log with invalidated
 samples.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L200)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L208)
 
 ``` python
 def invalidate_samples(
@@ -28541,7 +28579,7 @@ The log with uninvalidated samples is returned but not persisted to
 storage. Use `write_eval_log()` to save the new log with uninvalidated
 samples.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L227)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L235)
 
 ``` python
 def uninvalidate_samples(
@@ -28555,6 +28593,75 @@ Eval log
 `sample_uuids` Sequence\[str\] \| Literal\['all'\]  
 List of sample uuids to uninvalidate (or “all” to uninvalidate all
 samples).
+
+### LogUpdate
+
+A group of edits that share provenance.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L63)
+
+``` python
+class LogUpdate(BaseModel)
+```
+
+#### Attributes
+
+`edits` list\[LogEditType\]  
+List of edits in this update.
+
+`provenance` [ProvenanceData](inspect_ai.log.qmd#provenancedata)  
+Provenance for this update.
+
+### LogEdit
+
+A single edit action on log tags and/or metadata.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L29)
+
+``` python
+class LogEdit(BaseModel)
+```
+
+#### Attributes
+
+`type` str  
+Edit type discriminator.
+
+### MetadataEdit
+
+Edit action for metadata.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L48)
+
+``` python
+class MetadataEdit(LogEdit)
+```
+
+#### Attributes
+
+`metadata_set` dict\[str, Any\]  
+Metadata keys to set.
+
+`metadata_remove` list\[str\]  
+Metadata keys to remove.
+
+### TagsEdit
+
+Edit action for tags.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/c91f9fc849f0bc8e7f8ca12957025f0143771117/src/inspect_ai/log/_edit.py#L36)
+
+``` python
+class TagsEdit(LogEdit)
+```
+
+#### Attributes
+
+`tags_add` list\[str\]  
+Tags to add.
+
+`tags_remove` list\[str\]  
+Tags to remove.
 
 ### ProvenanceData
 
@@ -28628,7 +28735,7 @@ Error that halted eval (if status==“error”)
 `invalidated` bool  
 Whether any samples were invalidated.
 
-`log_updates` list\[LogUpdate\] \| None  
+`log_updates` list\[[LogUpdate](inspect_ai.log.qmd#logupdate)\] \| None  
 Post-eval edits to tags and metadata.
 
 `tags` list\[str\]  

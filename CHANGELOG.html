@@ -358,7 +358,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Eval Logs: Use async S3 interface when flushing log buffer.</li>
 <li>Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).</li>
 <li>Eval Logs: Materialize <code>samples</code> and <code>reductions</code> fields lazily in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> returned by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</li>
-<li>Eval Logs: Add post-eval editing of tags and metadata with provenance tracking via <code>edit_eval_log()</code>.</li>
+<li>Eval Logs: Add post-eval editing of tags and metadata with provenance tracking via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_eval_log">edit_eval_log()</a></span>.</li>
 <li>Eval Logs: Add <code>tags</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, merged with eval-level tags at eval time.</li>
 <li>Eval Logs: Remove JSON indentation inside .eval archives.</li>
 <li>Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).</li>
