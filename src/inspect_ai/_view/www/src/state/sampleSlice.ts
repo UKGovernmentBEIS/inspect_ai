@@ -1,6 +1,6 @@
 import { EvalSample } from "../@types/log";
 import {
-  DownloadProgress,
+  Progress,
   Event,
   SampleState,
   SampleStatus,
@@ -41,7 +41,7 @@ export interface SampleSlice {
 
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
-    setDownloadProgress: (progress: DownloadProgress | undefined) => void;
+    setDownloadProgress: (progress: Progress | undefined) => void;
 
     setCollapsedEvents: (
       scope: string,
@@ -200,7 +200,7 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
-      setDownloadProgress: (progress: DownloadProgress | undefined) =>
+      setDownloadProgress: (progress: Progress | undefined) =>
         set((state) => {
           state.sample.downloadProgress = progress;
         }),

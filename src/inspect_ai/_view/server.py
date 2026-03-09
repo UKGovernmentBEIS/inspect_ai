@@ -88,6 +88,13 @@ def view_server(
         header_only = request.query.get("header-only", None)
         return await log_file_response(file, header_only)
 
+    @routes.get("/api/log-size/{log}")
+    async def api_log_size(request: web.Request) -> web.Response:
+        file = normalize_uri(request.match_info["log"])
+        validate_log_file_request(file)
+        size = await get_log_size(file)
+        return web.json_response(size)
+
     @routes.get("/api/log-info/{log}")
     async def api_log_info(request: web.Request) -> web.Response:
         file = normalize_uri(request.match_info["log"])

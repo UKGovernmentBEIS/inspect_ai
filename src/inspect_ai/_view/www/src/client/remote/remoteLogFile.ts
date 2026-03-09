@@ -66,8 +66,6 @@ export const openRemoteLogFile = async (
   const queue = new AsyncQueue(concurrency);
 
   const logInfo = await api.get_log_info(url);
-  const fetchContentLength = async (_url: string) => logInfo.size;
-
   const directUrl = logInfo.direct_url;
   const fetchBytes = async (
     _url: string,
@@ -100,7 +98,7 @@ export const openRemoteLogFile = async (
     try {
       remoteZipFile = await openRemoteZipFile(
         url,
-        fetchContentLength,
+        logInfo.size,
         fetchBytes,
       );
     } catch {

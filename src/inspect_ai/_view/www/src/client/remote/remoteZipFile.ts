@@ -112,7 +112,7 @@ const fetchBytesParallel = async (
  */
 export const openRemoteZipFile = async (
   url: string,
-  fetchContentLength: (url: string) => Promise<number> = fetchSize,
+  contentLength?: number,
   fetchBytes: (
     url: string,
     start: number,
@@ -126,7 +126,7 @@ export const openRemoteZipFile = async (
     onProgress?: ProgressCallback,
   ) => Promise<Uint8Array>;
 }> => {
-  const contentLength = await fetchContentLength(url);
+  contentLength = contentLength ?? (await fetchSize(url));
 
   // Read the end of central directory record
   const eocdrBuffer = await fetchBytes(
