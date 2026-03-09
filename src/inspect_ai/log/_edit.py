@@ -77,6 +77,14 @@ def edit_eval_log(
 ) -> EvalLog:
     """Apply edits to a log.
 
+    ::: {.callout-note}
+    Support for `edit_eval_log()` is available only in the development version of Inspect. Install the development version from GitHub with:
+
+    ```python
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
+    ```
+    :::
+
     Creates a LogUpdate from the edits and provenance, appends it to
     log.log_updates, and recomputes cached tags/metadata.
     Returns modified log (not persisted). Use write_eval_log() to save.
