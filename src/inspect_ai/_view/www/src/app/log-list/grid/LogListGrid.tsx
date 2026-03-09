@@ -24,7 +24,10 @@ import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import "../../shared/agGrid";
 import styles from "../../shared/gridCells.module.css";
-import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import {
+  createGridAuxClickHandler,
+  createGridKeyboardHandler,
+} from "../../shared/gridKeyboardNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
 import { useLogListColumns } from "./columns/hooks";
@@ -211,16 +214,27 @@ export const LogListGrid: FC<LogListGridProps> = ({
     [gridRef, handleOpenRow],
   );
 
+  const handleAuxClick = useMemo(
+    () =>
+      createGridAuxClickHandler<LogListRow>({
+        gridRef,
+        onOpenRow: (data) => data.url && window.open(`#${data.url}`, "_blank"),
+      }),
+    [gridRef],
+  );
+
   useEffect(() => {
     const gridElement = gridContainerRef.current;
     if (!gridElement) return;
 
     gridElement.addEventListener("keydown", handleKeyDown);
+    gridElement.addEventListener("auxclick", handleAuxClick);
 
     return () => {
       gridElement.removeEventListener("keydown", handleKeyDown);
+      gridElement.removeEventListener("auxclick", handleAuxClick);
     };
-  }, [handleKeyDown]);
+  }, [handleKeyDown, handleAuxClick]);
 
   useEffect(() => {
     const loadHeaders = async () => {

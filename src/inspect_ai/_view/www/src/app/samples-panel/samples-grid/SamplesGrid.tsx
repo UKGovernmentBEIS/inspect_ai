@@ -14,7 +14,10 @@ import { useStore } from "../../../state/store";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
-import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import {
+  createGridAuxClickHandler,
+  createGridKeyboardHandler,
+} from "../../shared/gridKeyboardNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
@@ -64,7 +67,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   );
 
   const internalGridRef = useRef<AgGridReact<SampleRow>>(null);
-  const gridRef = externalGridRef || internalGridRef;
+  const gridRef = externalGridRef ?? internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Polling for updated log files
@@ -154,17 +157,28 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     [gridRef, handleOpenRow],
   );
 
-  // Set up keyboard event listener
+  const handleAuxClick = useMemo(
+    () =>
+      createGridAuxClickHandler<SampleRow>({
+        gridRef,
+        onOpenRow: (data) =>
+          navigateToSampleDetail(data.logFile, data.sampleId, data.epoch, true),
+      }),
+    [gridRef, navigateToSampleDetail],
+  );
+
   useEffect(() => {
     const gridElement = gridContainerRef.current;
     if (!gridElement) return;
 
     gridElement.addEventListener("keydown", handleKeyDown);
+    gridElement.addEventListener("auxclick", handleAuxClick);
 
     return () => {
       gridElement.removeEventListener("keydown", handleKeyDown);
+      gridElement.removeEventListener("auxclick", handleAuxClick);
     };
-  }, [handleKeyDown]);
+  }, [handleKeyDown, handleAuxClick]);
 
   const sampleRowId = (
     logFile: string,

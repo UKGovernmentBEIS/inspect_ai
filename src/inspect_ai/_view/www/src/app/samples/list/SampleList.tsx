@@ -28,7 +28,10 @@ import {
 import { useStore } from "../../../state/store";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
 import "../../shared/agGrid";
-import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import {
+  createGridAuxClickHandler,
+  createGridKeyboardHandler,
+} from "../../shared/gridKeyboardNavigation";
 import { buildColumnDefs } from "./columns";
 import { SampleFooter } from "./SampleFooter";
 import styles from "./SampleList.module.css";
@@ -160,6 +163,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   );
 
   const gridContainerRef = useRef<HTMLDivElement>(null);
+
   const handleKeyDown = useMemo(
     () =>
       createGridKeyboardHandler<SampleListItem>({
@@ -169,13 +173,33 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     [listHandle, handleOpenRow],
   );
 
+  const handleAuxClick = useMemo(
+    () =>
+      createGridAuxClickHandler<SampleListItem>({
+        gridRef: listHandle,
+        onOpenRow: (data) => {
+          const url = sampleNavigation.getSampleUrl(
+            data.data.id,
+            data.data.epoch,
+          );
+          if (url) window.open(url, "_blank");
+        },
+      }),
+    [listHandle, sampleNavigation],
+  );
+
   useEffect(() => {
     const el = gridContainerRef.current;
     if (!el) return;
-    const handler = handleKeyDown as (e: Event) => void;
-    el.addEventListener("keydown", handler);
-    return () => el.removeEventListener("keydown", handler);
-  }, [handleKeyDown]);
+
+    el.addEventListener("keydown", handleKeyDown);
+    el.addEventListener("auxclick", handleAuxClick);
+
+    return () => {
+      el.removeEventListener("keydown", handleKeyDown);
+      el.removeEventListener("auxclick", handleAuxClick);
+    };
+  }, [handleKeyDown, handleAuxClick]);
 
   const selectCurrentSample = useCallback(() => {
     if (!listHandle.current?.api || !selectedSampleHandle) {

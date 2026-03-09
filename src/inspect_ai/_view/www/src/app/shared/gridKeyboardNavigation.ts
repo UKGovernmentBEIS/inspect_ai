@@ -8,6 +8,35 @@ interface KeyboardNavOptions<T> {
   pageJump?: number;
 }
 
+interface AuxClickOptions<T> {
+  gridRef: RefObject<AgGridReact<T> | null>;
+  onOpenRow: (rowData: T) => void;
+}
+
+export const createGridAuxClickHandler = <T>({
+  gridRef,
+  onOpenRow,
+}: AuxClickOptions<T>) => {
+  return (e: MouseEvent) => {
+    if (e.button !== 1) return;
+
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const rowElement = target.closest("[row-id]");
+    if (!rowElement) return;
+
+    const rowId = rowElement.getAttribute("row-id");
+    if (!rowId || !gridRef.current?.api) return;
+
+    const rowNode = gridRef.current.api.getRowNode(rowId);
+    if (!rowNode?.data) return;
+
+    e.preventDefault();
+    onOpenRow(rowNode.data);
+  };
+};
+
 // Shared keyboard navigation handler for AG Grid lists.
 export const createGridKeyboardHandler = <T>({
   gridRef,
