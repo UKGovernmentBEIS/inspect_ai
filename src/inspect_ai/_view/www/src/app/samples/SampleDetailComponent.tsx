@@ -227,9 +227,11 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
           </div>
         </ApplicationNavbar>
 
-        {sampleStatus !== "loading" && sampleMatchesRequest && (
+        {sampleMatchesRequest && (
           <InlineSampleComponent
-            showActivity={false}
+            showActivity={
+              sampleStatus === "loading" || sampleStatus === "streaming"
+            }
             className={styles.panel}
           />
         )}

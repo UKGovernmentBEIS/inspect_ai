@@ -131,7 +131,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     return (
       <Fragment>
         {samplesDescriptor && totalSampleCount === 1 ? (
-          <InlineSampleDisplay showActivity={sampleStatus === "loading"} />
+          <InlineSampleDisplay
+            showActivity={
+              sampleStatus === "loading" || sampleStatus === "streaming"
+            }
+          />
         ) : undefined}
         {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList
