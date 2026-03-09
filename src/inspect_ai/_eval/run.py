@@ -216,7 +216,7 @@ async def eval_run(
                     eval_set_id=eval_set_id,
                     run_id=run_id,
                     solver=eval_solver_spec,
-                    tags=tags,
+                    tags=list(set(tags or []) | set(task.tags or [])) or None,
                     model=resolved_task.model,
                     model_roles=resolved_task.model_roles,
                     dataset=task.dataset,

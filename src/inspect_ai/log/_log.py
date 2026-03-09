@@ -22,7 +22,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
-from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -973,6 +973,9 @@ class EvalLog(BaseModel):
     invalidated: bool = Field(default=False)
     """Whether any samples were invalidated."""
 
+    log_updates: list[LogUpdate] | None = Field(default=None)
+    """Post-eval edits to tags and metadata."""
+
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
@@ -984,6 +987,38 @@ class EvalLog(BaseModel):
 
     etag: str | None = Field(default=None, exclude=True)
     """ETag from S3 for conditional writes."""
+
+    _tags: list[str] | None = PrivateAttr(default=None)
+    _metadata: dict[str, Any] | None = PrivateAttr(default=None)
+
+    def _compute_tags_and_metadata(self) -> None:
+        tags = set(self.eval.tags or [])
+        metadata = dict(self.eval.metadata or {})
+        for update in self.log_updates or []:
+            for edit in update.edits:
+                if isinstance(edit, TagsEdit):
+                    tags -= set(edit.tags_remove)
+                    tags |= set(edit.tags_add)
+                elif isinstance(edit, MetadataEdit):
+                    for key in edit.metadata_remove:
+                        metadata.pop(key, None)
+                    metadata.update(edit.metadata_set)
+        self._tags = sorted(tags)
+        self._metadata = metadata
+
+    @property
+    def tags(self) -> list[str]:
+        """Tags with edits applied (read-only)."""
+        if self._tags is None:
+            self._compute_tags_and_metadata()
+        return self._tags  # type: ignore[return-value]
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Metadata with edits applied (read-only)."""
+        if self._metadata is None:
+            self._compute_tags_and_metadata()
+        return self._metadata  # type: ignore[return-value]
 
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
