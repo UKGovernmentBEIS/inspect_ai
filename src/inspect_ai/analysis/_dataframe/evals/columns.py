@@ -64,11 +64,11 @@ EvalInfo: list[Column] = [
     EvalColumn("task_id", path="eval.task_id", required=True),
     *EvalLogPath,
     EvalColumn("created", path="eval.created", type=datetime, required=True),
-    EvalColumn("tags", path="eval.tags", default="", value=list_as_str),
+    EvalColumn("tags", path=lambda log: log.tags, default="", value=list_as_str),
     EvalColumn("git_origin", path="eval.revision.origin"),
     EvalColumn("git_commit", path="eval.revision.commit"),
     EvalColumn("packages", path="eval.packages"),
-    EvalColumn("metadata", path="eval.metadata"),
+    EvalColumn("metadata", path=lambda log: log.metadata),
 ]
 """Eval basic information columns."""
 

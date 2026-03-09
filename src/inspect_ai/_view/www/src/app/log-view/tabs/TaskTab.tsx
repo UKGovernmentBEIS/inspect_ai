@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC, useMemo } from "react";
-import { EarlyStoppingSummary, EvalSpec, EvalStats } from "../../../@types/log";
+import type { EarlyStoppingSummary, EvalStats } from "../../../@types/log";
+import type { LogDetails } from "../../../client/api/types";
 import { Card, CardBody, CardHeader } from "../../../components/Card";
 import { kLogViewTaskTabId } from "../../../constants";
 import {
@@ -17,7 +18,7 @@ import styles from "./TaskTab.module.css";
 
 // Individual hook for Info tab
 export const useTaskTabConfig = (
-  evalSpec: EvalSpec | undefined,
+  log: LogDetails | undefined,
   evalStats?: EvalStats,
   earlyStopping?: EarlyStoppingSummary | null,
 ) => {
@@ -28,34 +29,30 @@ export const useTaskTabConfig = (
       scrollable: true,
       component: TaskTab,
       componentProps: {
-        evalSpec,
+        log,
         evalStats,
         earlyStopping,
       },
     };
-  }, [evalSpec, evalStats, earlyStopping]);
+  }, [log, evalStats, earlyStopping]);
 };
 
 interface TaskTabProps {
-  evalSpec?: EvalSpec;
+  log?: LogDetails;
   evalStats?: EvalStats;
   earlyStopping?: EarlyStoppingSummary | null;
 }
 
 export const TaskTab: FC<TaskTabProps> = ({
-  evalSpec,
+  log,
   evalStats,
   earlyStopping,
 }) => {
-  const config: Record<string, unknown> = {};
-  Object.entries(evalSpec?.config || {}).forEach((entry) => {
-    const key = entry[0];
-    const value = entry[1];
-    config[key] = value;
-  });
-
+  const evalSpec = log?.eval;
   const revision = evalSpec?.revision;
   const packages = evalSpec?.packages;
+  const tags = log?.tags || [];
+  const metadata = (log?.metadata || {}) as Record<string, unknown>;
 
   const taskInformation: Record<string, unknown> = {
     ["Task ID"]: evalSpec?.task_id,
@@ -84,8 +81,8 @@ export const TaskTab: FC<TaskTabProps> = ({
       taskInformation["Inspect"] = names;
     }
   }
-  if (evalSpec?.tags) {
-    taskInformation["tags"] = evalSpec?.tags.join(", ");
+  if (tags.length > 0) {
+    taskInformation["tags"] = tags.join(", ");
   }
 
   if (evalSpec?.sandbox) {
@@ -158,6 +155,15 @@ export const TaskTab: FC<TaskTabProps> = ({
                 className={"text-size-small"}
                 entries={task_args as Record<string, unknown>}
               />
+            </CardBody>
+          </Card>
+        )}
+
+        {Object.keys(metadata).length > 0 && (
+          <Card>
+            <CardHeader label="Metadata" />
+            <CardBody>
+              <RecordTree id={`task-metadata`} record={metadata} />
             </CardBody>
           </Card>
         )}

@@ -7,6 +7,7 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    computed_field,
     field_serializer,
     model_validator,
 )
@@ -1006,6 +1007,7 @@ class EvalLog(BaseModel):
         self._tags = sorted(tags)
         self._metadata = metadata
 
+    @computed_field(return_type=list[str])
     @property
     def tags(self) -> list[str]:
         """Tags with edits applied (read-only)."""
@@ -1013,6 +1015,7 @@ class EvalLog(BaseModel):
             self._compute_tags_and_metadata()
         return self._tags  # type: ignore[return-value]
 
+    @computed_field(return_type=dict[str, Any])
     @property
     def metadata(self) -> dict[str, Any]:
         """Metadata with edits applied (read-only)."""

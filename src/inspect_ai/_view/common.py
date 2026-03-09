@@ -329,6 +329,7 @@ async def async_filesystem(
 async def list_eval_logs_async(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
+    tags: list[str] | None = None,
     recursive: bool = True,
     descending: bool = True,
     fs_options: dict[str, Any] = {},
@@ -342,6 +343,8 @@ async def list_eval_logs_async(
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
       formats (Literal["eval", "json"]): Formats to list (default
         to listing all formats)
+      tags (list[str] | None): Optional tags that must all be present in the
+         effective log tags (including post-eval edits).
       recursive (bool): List log files recursively (defaults to True).
       descending (bool): List in descending order.
       fs_options (dict[str, Any]): Optional. Additional arguments to pass through
@@ -382,13 +385,29 @@ async def list_eval_logs_async(
                     )
                 logs = [fs._file_info(file) for file in files]
                 # resolve to eval logs
-                return log_files_from_ls(logs, formats, descending)
+                listed_logs = log_files_from_ls(logs, formats, descending)
+                if not tags:
+                    return listed_logs
+
+                required_tags = set(tags)
+                headers = await asyncio.gather(
+                    *[
+                        read_eval_log_async(log.name, header_only=True)
+                        for log in listed_logs
+                    ]
+                )
+                return [
+                    log
+                    for log, header in zip(listed_logs, headers)
+                    if required_tags.issubset(set(header.tags))
+                ]
             else:
                 return []
     else:
         return list_eval_logs(
             log_dir=log_dir,
             formats=formats,
+            tags=tags,
             recursive=recursive,
             descending=descending,
             fs_options=fs_options,

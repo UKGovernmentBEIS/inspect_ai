@@ -232,6 +232,16 @@ export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
 export type Invalidated = boolean;
+export type LogUpdates = LogUpdate[] | null;
+export type Type3 = "tags";
+export type TagsAdd = string[];
+export type TagsRemove = string[];
+export type Type4 = "metadata";
+export type MetadataRemove = string[];
+export type Edits = (TagsEdit | MetadataEdit)[];
+export type Timestamp = string;
+export type Author = string;
+export type Reason1 = string | null;
 export type Samples1 = EvalSample[] | null;
 export type Id1 = number | string;
 export type Epoch1 = number;
@@ -256,7 +266,7 @@ export type Content =
       | ContentToolUse
       | ContentDocument
     )[];
-export type Type3 = "text";
+export type Type5 = "text";
 export type Text = string;
 export type Refusal = boolean | null;
 export type Citations =
@@ -267,14 +277,14 @@ export type Title = string | null;
 export type Internal = {
   [k: string]: JsonValue;
 } | null;
-export type Type4 = "content";
+export type Type6 = "content";
 export type CitedText1 = string | [number, number] | null;
 export type Title1 = string | null;
 export type Internal1 = {
   [k: string]: JsonValue;
 } | null;
-export type Type5 = "document";
-export type Type6 = "block" | "page" | "char";
+export type Type7 = "document";
+export type Type8 = "block" | "page" | "char";
 export type StartIndex = number;
 export type EndIndex = number;
 export type CitedText2 = string | [number, number] | null;
@@ -282,24 +292,24 @@ export type Title2 = string | null;
 export type Internal2 = {
   [k: string]: JsonValue;
 } | null;
-export type Type7 = "url";
+export type Type9 = "url";
 export type Url = string;
-export type Type8 = "reasoning";
+export type Type10 = "reasoning";
 export type Reasoning = string;
 export type Summary = string | null;
 export type Signature = string | null;
 export type Redacted = boolean;
-export type Type9 = "image";
+export type Type11 = "image";
 export type Image = string;
 export type Detail = "auto" | "low" | "high" | "original";
-export type Type10 = "audio";
+export type Type12 = "audio";
 export type Audio = string;
 export type Format1 = "wav" | "mp3";
-export type Type11 = "video";
+export type Type13 = "video";
 export type Video = string;
 export type Format2 = "mp4" | "mpeg" | "mov";
-export type Type12 = "data";
-export type Type13 = "tool_use";
+export type Type14 = "data";
+export type Type15 = "tool_use";
 export type ToolType = "web_search" | "mcp_call" | "code_execution";
 export type Id3 = string;
 export type Name8 = string;
@@ -307,12 +317,12 @@ export type Context = string | null;
 export type Arguments = string;
 export type Result = string;
 export type Error = string | null;
-export type Type14 = "document";
+export type Type16 = "document";
 export type Document = string;
 export type Filename = string;
 export type MimeType = string;
 export type Source = ("input" | "generate") | null;
-export type Metadata7 = {
+export type Metadata8 = {
   [k: string]: unknown;
 } | null;
 export type Role = "system";
@@ -330,7 +340,7 @@ export type Content1 =
       | ContentDocument
     )[];
 export type Source1 = ("input" | "generate") | null;
-export type Metadata8 = {
+export type Metadata9 = {
   [k: string]: unknown;
 } | null;
 export type Role1 = "user";
@@ -349,7 +359,7 @@ export type Content2 =
       | ContentDocument
     )[];
 export type Source2 = ("input" | "generate") | null;
-export type Metadata9 = {
+export type Metadata10 = {
   [k: string]: unknown;
 } | null;
 export type Role2 = "assistant";
@@ -360,7 +370,7 @@ export type ParseError = string | null;
 export type Title3 = string | null;
 export type Format3 = "text" | "markdown";
 export type Content3 = string;
-export type Type15 = "function" | "custom";
+export type Type17 = "function" | "custom";
 export type Model2 = string | null;
 export type Id7 = string | null;
 export type Content4 =
@@ -376,13 +386,13 @@ export type Content4 =
       | ContentDocument
     )[];
 export type Source3 = ("input" | "generate") | null;
-export type Metadata10 = {
+export type Metadata11 = {
   [k: string]: unknown;
 } | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type Type16 =
+export type Type18 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -423,7 +433,7 @@ export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
 export type Completion = string;
 export type Time = number | null;
-export type Metadata11 = {
+export type Metadata12 = {
   [k: string]: unknown;
 } | null;
 export type Error1 = string | null;
@@ -440,7 +450,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata12 = {
+export type Metadata13 = {
   [k: string]: unknown;
 } | null;
 export type Value2 =
@@ -454,14 +464,11 @@ export type Value2 =
   | "UNCHANGED";
 export type Answer1 = string | "UNCHANGED" | null;
 export type Explanation1 = string | "UNCHANGED" | null;
-export type Metadata13 =
+export type Metadata14 =
   | {
       [k: string]: unknown;
     }
   | "UNCHANGED";
-export type Timestamp = string;
-export type Author = string;
-export type Reason1 = string | null;
 export type History = ScoreEdit[];
 export type Uuid = string | null;
 export type SpanId = string | null;
@@ -499,7 +506,7 @@ export type Metadata18 = {
 } | null;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type17 =
+export type Type19 =
   | "message"
   | "time"
   | "working"
@@ -570,7 +577,7 @@ export type Input3 = (
 )[];
 export type Name9 = string;
 export type Description2 = string;
-export type Type18 = "object";
+export type Type20 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = JSONSchema | boolean | null;
 export type Options3 = {
@@ -600,7 +607,7 @@ export type Metadata23 = {
 } | null;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
-export type Type19 = "function";
+export type Type21 = "function";
 export type Id9 = string;
 export type Function2 = string;
 export type Result2 =
@@ -647,7 +654,7 @@ export type Metadata25 = {
 } | null;
 export type Pending8 = boolean | null;
 export type Event8 = "compaction";
-export type Type20 = "summary" | "edit" | "trim";
+export type Type22 = "summary" | "edit" | "trim";
 export type TokensBefore = number | null;
 export type TokensAfter = number | null;
 export type Source4 = string | null;
@@ -743,7 +750,7 @@ export type Pending15 = boolean | null;
 export type Event15 = "span_begin";
 export type Id10 = string;
 export type ParentId = string | null;
-export type Type21 = string | null;
+export type Type23 = string | null;
 export type Name12 = string;
 export type Uuid16 = string | null;
 export type SpanId16 = string | null;
@@ -765,7 +772,7 @@ export type Metadata34 = {
 export type Pending17 = boolean | null;
 export type Event17 = "step";
 export type Action1 = "begin" | "end";
-export type Type22 = string | null;
+export type Type24 = string | null;
 export type Name13 = string;
 export type Uuid18 = string | null;
 export type SpanId18 = string | null;
@@ -777,7 +784,7 @@ export type Metadata35 = {
 export type Pending18 = boolean | null;
 export type Event18 = "subtask";
 export type Name14 = string;
-export type Type23 = string | null;
+export type Type25 = string | null;
 export type Events2 = unknown[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
@@ -805,11 +812,11 @@ export type Events = (
 export type Timelines = Timeline[] | null;
 export type Name15 = string;
 export type Description3 = string;
-export type Type24 = "span";
+export type Type26 = "span";
 export type Id12 = string;
 export type Name16 = string;
 export type SpanType = string | null;
-export type Type25 = "event";
+export type Type27 = "event";
 export type Event19 =
   | SampleInitEvent
   | SampleLimitEvent
@@ -831,7 +838,7 @@ export type Event19 =
   | StepEvent
   | SubtaskEvent;
 export type Content6 = (TimelineEvent | TimelineSpan)[];
-export type Type26 = "branch";
+export type Type28 = "branch";
 export type ForkedAt = string;
 export type Content7 = (TimelineEvent | TimelineSpan)[];
 export type Branches = TimelineBranch[];
@@ -847,7 +854,7 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid19 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type27 =
+export type Type29 =
   | "context"
   | "time"
   | "working"
@@ -901,10 +908,15 @@ export interface EvalLog {
   stats?: EvalStats;
   error?: EvalError | null;
   invalidated?: Invalidated;
+  log_updates?: LogUpdates;
   samples?: Samples1;
   reductions?: Reductions;
   location?: Location1;
   etag?: Etag;
+  tags?: string[];
+  metadata?: {
+    [k: string]: unknown;
+  };
   eval_set_info?: EvalSet | null;
 }
 /**
@@ -1312,6 +1324,44 @@ export interface EvalError {
   traceback_ansi: TracebackAnsi;
 }
 /**
+ * A group of edits that share provenance.
+ */
+export interface LogUpdate {
+  edits: Edits;
+  provenance: ProvenanceData;
+}
+/**
+ * Edit action for tags.
+ */
+export interface TagsEdit {
+  type: Type3;
+  tags_add: TagsAdd;
+  tags_remove: TagsRemove;
+}
+/**
+ * Edit action for metadata.
+ */
+export interface MetadataEdit {
+  type: Type4;
+  metadata_set: MetadataSet;
+  metadata_remove: MetadataRemove;
+}
+export interface MetadataSet {
+  [k: string]: unknown;
+}
+/**
+ * Metadata about who made an edit and why.
+ */
+export interface ProvenanceData {
+  timestamp: Timestamp;
+  author: Author;
+  reason: Reason1;
+  metadata: Metadata7;
+}
+export interface Metadata7 {
+  [k: string]: unknown;
+}
+/**
  * Sample from evaluation task.
  */
 export interface EvalSample {
@@ -1350,7 +1400,7 @@ export interface ChatMessageSystem {
   id: Id2;
   content: Content;
   source: Source;
-  metadata: Metadata7;
+  metadata: Metadata8;
   role: Role;
 }
 /**
@@ -1358,7 +1408,7 @@ export interface ChatMessageSystem {
  */
 export interface ContentText {
   internal: unknown;
-  type: Type3;
+  type: Type5;
   text: Text;
   refusal: Refusal;
   citations: Citations;
@@ -1370,7 +1420,7 @@ export interface ContentCitation {
   cited_text: CitedText;
   title: Title;
   internal: Internal;
-  type: Type4;
+  type: Type6;
 }
 /**
  * A citation that refers to a page range in a document.
@@ -1379,14 +1429,14 @@ export interface DocumentCitation {
   cited_text: CitedText1;
   title: Title1;
   internal: Internal1;
-  type: Type5;
+  type: Type7;
   range: DocumentRange | null;
 }
 /**
  * A range specifying a section of a document.
  */
 export interface DocumentRange {
-  type: Type6;
+  type: Type8;
   start_index: StartIndex;
   end_index: EndIndex;
 }
@@ -1397,7 +1447,7 @@ export interface UrlCitation {
   cited_text: CitedText2;
   title: Title2;
   internal: Internal2;
-  type: Type7;
+  type: Type9;
   url: Url;
 }
 /**
@@ -1407,7 +1457,7 @@ export interface UrlCitation {
  */
 export interface ContentReasoning {
   internal: unknown;
-  type: Type8;
+  type: Type10;
   reasoning: Reasoning;
   summary: Summary;
   signature: Signature;
@@ -1418,7 +1468,7 @@ export interface ContentReasoning {
  */
 export interface ContentImage {
   internal: unknown;
-  type: Type9;
+  type: Type11;
   image: Image;
   detail: Detail;
 }
@@ -1427,7 +1477,7 @@ export interface ContentImage {
  */
 export interface ContentAudio {
   internal: unknown;
-  type: Type10;
+  type: Type12;
   audio: Audio;
   format: Format1;
 }
@@ -1436,7 +1486,7 @@ export interface ContentAudio {
  */
 export interface ContentVideo {
   internal: unknown;
-  type: Type11;
+  type: Type13;
   video: Video;
   format: Format2;
 }
@@ -1445,7 +1495,7 @@ export interface ContentVideo {
  */
 export interface ContentData {
   internal: unknown;
-  type: Type12;
+  type: Type14;
   data: Data;
 }
 export interface Data {
@@ -1456,7 +1506,7 @@ export interface Data {
  */
 export interface ContentToolUse {
   internal: unknown;
-  type: Type13;
+  type: Type15;
   tool_type: ToolType;
   id: Id3;
   name: Name8;
@@ -1470,7 +1520,7 @@ export interface ContentToolUse {
  */
 export interface ContentDocument {
   internal: unknown;
-  type: Type14;
+  type: Type16;
   document: Document;
   filename: Filename;
   mime_type: MimeType;
@@ -1482,7 +1532,7 @@ export interface ChatMessageUser {
   id: Id4;
   content: Content1;
   source: Source1;
-  metadata: Metadata8;
+  metadata: Metadata9;
   role: Role1;
   tool_call_id: ToolCallId;
 }
@@ -1493,7 +1543,7 @@ export interface ChatMessageAssistant {
   id: Id5;
   content: Content2;
   source: Source2;
-  metadata: Metadata9;
+  metadata: Metadata10;
   role: Role2;
   tool_calls: ToolCalls;
   model: Model2;
@@ -1504,7 +1554,7 @@ export interface ToolCall {
   arguments: Arguments1;
   parse_error: ParseError;
   view: ToolCallContent | null;
-  type: Type15;
+  type: Type17;
 }
 export interface Arguments1 {
   [k: string]: unknown;
@@ -1524,14 +1574,14 @@ export interface ChatMessageTool {
   id: Id7;
   content: Content4;
   source: Source3;
-  metadata: Metadata10;
+  metadata: Metadata11;
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type16;
+  type: Type18;
   message: Message1;
 }
 /**
@@ -1543,7 +1593,7 @@ export interface ModelOutput {
   completion: Completion;
   usage: ModelUsage1 | null;
   time: Time;
-  metadata: Metadata11;
+  metadata: Metadata12;
   error: Error1;
 }
 /**
@@ -1584,7 +1634,7 @@ export interface Score {
   value: Value1;
   answer: Answer;
   explanation: Explanation;
-  metadata: Metadata12;
+  metadata: Metadata13;
   history: History;
 }
 /**
@@ -1594,20 +1644,8 @@ export interface ScoreEdit {
   value: Value2;
   answer: Answer1;
   explanation: Explanation1;
-  metadata: Metadata13;
-  provenance: ProvenanceData | null;
-}
-/**
- * Metadata about who made an edit and why.
- */
-export interface ProvenanceData {
-  timestamp: Timestamp;
-  author: Author;
-  reason: Reason1;
   metadata: Metadata14;
-}
-export interface Metadata14 {
-  [k: string]: unknown;
+  provenance: ProvenanceData | null;
 }
 export interface Metadata15 {
   [k: string]: unknown;
@@ -1653,7 +1691,7 @@ export interface SampleLimitEvent {
   metadata: Metadata18;
   pending: Pending1;
   event: Event1;
-  type: Type17;
+  type: Type19;
   message: Message2;
   limit: Limit1;
 }
@@ -1780,7 +1818,7 @@ export interface ToolInfo {
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type18;
+  type: Type20;
   properties: Properties1;
   required: Required1;
   additionalProperties: Additionalproperties1;
@@ -1814,7 +1852,7 @@ export interface ToolEvent {
   metadata: Metadata23;
   pending: Pending6;
   event: Event6;
-  type: Type19;
+  type: Type21;
   id: Id9;
   function: Function2;
   arguments: Arguments2;
@@ -1873,7 +1911,7 @@ export interface CompactionEvent {
   metadata: Metadata25;
   pending: Pending8;
   event: Event8;
-  type: Type20;
+  type: Type22;
   tokens_before: TokensBefore;
   tokens_after: TokensAfter;
   source: Source4;
@@ -1991,7 +2029,7 @@ export interface SpanBeginEvent {
   event: Event15;
   id: Id10;
   parent_id: ParentId;
-  type: Type21;
+  type: Type23;
   name: Name12;
 }
 /**
@@ -2019,7 +2057,7 @@ export interface StepEvent {
   pending: Pending17;
   event: Event17;
   action: Action1;
-  type: Type22;
+  type: Type24;
   name: Name13;
 }
 /**
@@ -2034,7 +2072,7 @@ export interface SubtaskEvent {
   pending: Pending18;
   event: Event18;
   name: Name14;
-  type: Type23;
+  type: Type25;
   input: Input5;
   result: Result3;
   events: Events2;
@@ -2063,7 +2101,7 @@ export interface Timeline {
  * A span of execution — agent, scorer, tool, or root.
  */
 export interface TimelineSpan {
-  type: Type24;
+  type: Type26;
   id: Id12;
   name: Name16;
   span_type: SpanType;
@@ -2078,14 +2116,14 @@ export interface TimelineSpan {
  * Wraps a single Event.
  */
 export interface TimelineEvent {
-  type: Type25;
+  type: Type27;
   event: Event19;
 }
 /**
  * A discarded alternative path from a branch point.
  */
 export interface TimelineBranch {
-  type: Type26;
+  type: Type28;
   forked_at: ForkedAt;
   content: Content7;
 }
@@ -2115,7 +2153,7 @@ export interface Attachments {
  * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type27;
+  type: Type29;
   limit: Limit2;
 }
 /**

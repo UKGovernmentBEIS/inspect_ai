@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { SampleLimitEvent, Type17 } from "../../../@types/log";
+import type { SampleLimitEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
@@ -19,7 +19,7 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
   eventNode,
   className,
 }) => {
-  const resolve_icon = (type: Type17) => {
+  const resolve_icon = (type: SampleLimitEvent["type"]) => {
     switch (type) {
       case "custom":
         return ApplicationIcons.limits.custom;

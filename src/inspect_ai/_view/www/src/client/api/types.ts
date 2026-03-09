@@ -45,6 +45,15 @@ export interface LogDetails {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  invalidated?: EvalLog["invalidated"];
+  log_updates?: EvalLog["log_updates"];
+  tags?: EvalLog["tags"];
+  metadata?: EvalLog["metadata"];
+  samples?: EvalLog["samples"];
+  reductions?: EvalLog["reductions"];
+  location?: string;
+  etag?: string;
+  eval_set_info?: EvalLog["eval_set_info"];
   sampleSummaries: SampleSummary[];
 }
 
@@ -266,6 +275,10 @@ export interface EvalHeader {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  invalidated?: EvalLog["invalidated"];
+  log_updates?: EvalLog["log_updates"];
+  tags?: EvalLog["tags"];
+  metadata?: EvalLog["metadata"];
 }
 
 export interface LogPreview {

@@ -4,6 +4,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai.log import EvalLog
 
@@ -43,6 +45,8 @@ def sync_view_schema() -> None:
         # Add optional EvalSetInfo reference to root schema for TypeScript generation
         if "properties" not in schema:
             schema["properties"] = {}
+        schema["properties"]["tags"] = TypeAdapter(list[str]).json_schema()
+        schema["properties"]["metadata"] = TypeAdapter(dict[str, Any]).json_schema()
         schema["properties"]["eval_set_info"] = {
             "anyOf": [{"$ref": "#/$defs/EvalSetInfo"}, {"type": "null"}],
             "default": None,

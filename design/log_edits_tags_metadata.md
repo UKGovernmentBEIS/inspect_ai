@@ -81,7 +81,7 @@ Existing logs deserialize fine (`log_updates` defaults to `None`).
 
 ### Read API
 
-Access tags and metadata via read-only `@property` accessors on `EvalLog`:
+Access tags and metadata via read-only computed accessors on `EvalLog`:
 
 ```python
 log.tags        # list[str] — eval-time tags + edits applied
@@ -91,7 +91,9 @@ log.metadata    # dict[str, Any] — eval-time metadata + edits applied
 - `log.tags` / `log.metadata` — computed values (use these)
 - `log.eval.tags` / `log.eval.metadata` — eval-time values only (unchanged)
 
-Values are computed lazily on first access and cached in `_tags` and `_metadata`:
+Values are computed lazily on first access and cached in `_tags` and `_metadata`.
+They are also serialized as top-level `EvalLog` fields so simple clients
+(including the View UI) can consume effective values without replaying `log_updates`:
 
 ```python
 class EvalLog(BaseModel):
@@ -113,6 +115,7 @@ class EvalLog(BaseModel):
         self._tags = sorted(tags)
         self._metadata = metadata
 
+    @computed_field(return_type=list[str])
     @property
     def tags(self) -> list[str]:
         """Tags with edits applied (read-only)."""
@@ -120,6 +123,7 @@ class EvalLog(BaseModel):
             self._compute_tags_and_metadata()
         return self._tags
 
+    @computed_field(return_type=dict[str, Any])
     @property
     def metadata(self) -> dict[str, Any]:
         """Metadata with edits applied (read-only)."""
@@ -205,12 +209,13 @@ Matches invalidation pattern:
 |----------|---------|--------|
 | `evals_df` tags column | Reads `eval.tags` path | Use `log.tags` property |
 | `evals_df` metadata column | Reads `eval.metadata` path | Use `log.metadata` property |
-| View UI TaskTab | `evalSpec.tags.join(", ")` | Use `EvalLog.tags` property |
+| View UI TaskTab | `evalSpec.tags.join(", ")` | Use serialized `EvalLog.tags` / `EvalLog.metadata` |
 | `list_eval_logs` | No tag filter | Add `tags` param using `log.tags` |
 
 ### View UI
 
-- Display tags on the log header/info panel (from `EvalLog.tags`).
+- Display tags on the log header/info panel (from serialized `EvalLog.tags`).
+- Display metadata on the Task tab (from serialized `EvalLog.metadata`).
 - Show edit history (with provenance) in an expandable section, similar to invalidation cards.
 - Add tag filter to log list view.
 

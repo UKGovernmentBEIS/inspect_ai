@@ -270,12 +270,7 @@ export const openRemoteLogFile = async (
         readSampleSummaries(),
       ]);
       const result = {
-        status: header.status,
-        eval: header.eval,
-        plan: header.plan,
-        results: header.results,
-        stats: header.stats,
-        error: header.error,
+        ...header,
         sampleSummaries,
       };
       return result;
@@ -299,12 +294,7 @@ export const openRemoteLogFile = async (
       ]);
 
       return {
-        status: evalLog.status,
-        eval: evalLog.eval,
-        plan: evalLog.plan,
-        results: evalLog.results,
-        stats: evalLog.stats,
-        error: evalLog.error,
+        ...evalLog,
         samples,
       };
     },

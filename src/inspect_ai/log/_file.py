@@ -87,6 +87,7 @@ def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
     filter: Callable[[EvalLog], bool] | None = None,
+    tags: list[str] | None = None,
     recursive: bool = True,
     descending: bool = True,
     fs_options: dict[str, Any] = {},
@@ -100,6 +101,8 @@ def list_eval_logs(
       filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
          Note that the EvalLog instance passed to the filter has only
          the EvalLog header (i.e. does not have the samples or logging output).
+      tags (list[str] | None): Optional tags that must all be present in the
+         effective log tags (including post-eval edits).
       recursive (bool): List log files recursively (defaults to True).
       descending (bool): List in descending order.
       fs_options (dict[str, Any]): Optional. Additional arguments to pass through
@@ -120,15 +123,20 @@ def list_eval_logs(
     else:
         return []
 
-    # apply filter if requested
-    if filter:
-        return [
-            log
-            for log in eval_logs
-            if filter(read_eval_log(log.name, header_only=True))
-        ]
-    else:
+    if filter is None and tags is None:
         return eval_logs
+
+    required_tags = set(tags or [])
+    filtered_logs: list[EvalLogInfo] = []
+    for log in eval_logs:
+        header = read_eval_log(log.name, header_only=True)
+        if required_tags and not required_tags.issubset(set(header.tags)):
+            continue
+        if filter and not filter(header):
+            continue
+        filtered_logs.append(log)
+
+    return filtered_logs
 
 
 def write_eval_log(

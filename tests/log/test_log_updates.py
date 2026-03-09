@@ -311,6 +311,25 @@ class TestDiskRoundTrip:
         assert header_data["log_updates"][0]["provenance"]["author"] == "alice"
 
     @pytest.mark.parametrize("format", ["json", "eval"])
+    def test_serialized_log_contains_effective_tags_and_metadata(
+        self, tmp_path, format
+    ) -> None:
+        log = _edited_log()
+        path = (tmp_path / f"log.{format}").as_posix()
+        write_eval_log(log, path, format=format)
+
+        if format == "json":
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            with zipfile.ZipFile(path, "r") as zf:
+                with zf.open("header.json") as f:
+                    data = json.load(f)
+
+        assert data["tags"] == ["added", "second"]
+        assert data["metadata"] == {"new_key": "new_val"}
+
+    @pytest.mark.parametrize("format", ["json", "eval"])
     def test_header_only_read_preserves_invalidated(self, tmp_path, format) -> None:
         log = _make_log()
         log.invalidated = True

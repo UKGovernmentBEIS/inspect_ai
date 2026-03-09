@@ -163,6 +163,10 @@ export const clientApi = (
         results: parsed.results,
         stats: parsed.stats,
         error: parsed.error,
+        invalidated: parsed.invalidated,
+        log_updates: parsed.log_updates,
+        tags: parsed.tags,
+        metadata: parsed.metadata,
         sampleSummaries,
       };
     }

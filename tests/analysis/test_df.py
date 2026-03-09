@@ -21,9 +21,46 @@ from inspect_ai.analysis import (
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.log._edit import (
+    MetadataEdit,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+)
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalSpec
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
+
+
+def _edited_log() -> EvalLog:
+    log = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            eval_id="edited-eval",
+            run_id="edited-run",
+            created="2025-01-01T00:00:00Z",
+            task="edited_task",
+            task_id="edited-task-id",
+            dataset=EvalDataset(),
+            model="test_model",
+            config=EvalConfig(),
+            tags=["base"],
+            metadata={"phase": "draft"},
+        ),
+    )
+    return edit_eval_log(
+        log,
+        [
+            TagsEdit(tags_add=["qa_reviewed"]),
+            MetadataEdit(
+                metadata_set={"reviewer": "alice"},
+                metadata_remove=["phase"],
+            ),
+        ],
+        ProvenanceData(author="alice", reason="qa"),
+    )
 
 
 def test_evals_df():
@@ -164,6 +201,12 @@ def test_evals_df_eval_log():
     log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = evals_df(log)
     assert len(df) == 1
+
+
+def test_evals_df_uses_effective_tags_and_metadata():
+    df = evals_df(_edited_log())
+    assert df["tags"].to_list() == ["base,qa_reviewed"]
+    assert df["metadata"].to_list() == ['{"reviewer": "alice"}']
 
 
 def test_evals_df_multiple_eval_logs():
