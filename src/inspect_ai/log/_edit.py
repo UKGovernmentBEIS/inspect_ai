@@ -213,7 +213,7 @@ def invalidate_samples(
 ) -> EvalLog:
     """Invalidate samples in the log.
 
-    Additionally, sets `EvalLog.invalidated = False`. Logs with invalidated samples will be automatically retried when executing eval sets.
+    Additionally, sets `EvalLog.invalidated = True`. Logs with invalidated samples will be automatically retried when executing eval sets.
 
     The log with invalidated samples is returned but not persisted to storage. Use `write_eval_log()` to save the new log with invalidated samples.
 
@@ -238,7 +238,7 @@ def uninvalidate_samples(
 ) -> EvalLog:
     """Uninvalidate samples in the log.
 
-    Additionally, sets `EvalLog.invalidated = True` if there are no more invalidated samples.
+    Additionally, sets `EvalLog.invalidated = False` if there are no more invalidated samples.
 
     The log with uninvalidated samples is returned but not persisted to storage. Use `write_eval_log()` to save the new log with uninvalidated samples.
 

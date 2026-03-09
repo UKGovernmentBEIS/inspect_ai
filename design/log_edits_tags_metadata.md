@@ -173,7 +173,7 @@ Matches invalidation pattern:
 - **Removing a tag not in `log.tags`**: No-op.
 - **Re-adding a previously removed tag**: Appends a new edit (audit trail preserved).
 - **Empty tag string**: Reject with ValueError.
-- **Setting a metadata key to same value**: Appends edit (value may have changed semantically).
+- **Setting a metadata key to same value**: No-op.
 - **Removing a metadata key that doesn't exist**: No-op.
 
 ### Files to Modify
