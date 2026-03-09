@@ -1,3 +1,3 @@
-from ._computer import computer, is_builtin_computer_tool
+from ._computer import computer, is_computer_tool_info
 
-__all__ = ["computer", "is_builtin_computer_tool"]
+__all__ = ["computer", "is_computer_tool_info"]

@@ -30,7 +30,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
-from inspect_ai.tool._tools._computer._computer import is_builtin_computer_tool
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -126,7 +126,7 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
-            has_computer_tool=any(is_builtin_computer_tool(t) for t in tools),
+            has_computer_tool=any(is_computer_tool_info(t) for t in tools),
         ),
     )
     if isinstance(background, bool):

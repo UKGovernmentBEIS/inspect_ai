@@ -27,7 +27,7 @@ from inspect_ai._util.content import Content, ContentImage
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.tool._tools._computer import is_builtin_computer_tool
+from inspect_ai.tool._tools._computer import is_computer_tool_info
 
 # Canonical mappings — inverses are derived programmatically.
 _BUTTON_TO_ACTION: dict[str, str] = {
@@ -71,7 +71,7 @@ def maybe_computer_use_tool(
 ) -> ComputerToolParam | None:
     return (
         ComputerToolParam(type="computer")
-        if "gpt-5.4" in model_name and is_builtin_computer_tool(tool)
+        if "gpt-5.4" in model_name and is_computer_tool_info(tool)
         else None
     )
 

@@ -58,7 +58,7 @@ _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
 )
 
 
-def is_builtin_computer_tool(tool: ToolInfo) -> bool:
+def is_computer_tool_info(tool: ToolInfo) -> bool:
     """Check whether a ToolInfo is inspect's built-in computer() tool - this tool.
 
     Model providers use this to decide whether to substitute their native
