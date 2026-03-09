@@ -280,7 +280,7 @@ class ExecRemoteProcess:
             concurrency=self._options.concurrency,
         )
 
-    async def _start(self) -> None:
+    async def _start(self, output_limit: int | None = None) -> None:
         """Submit the job to the sandbox."""
         # Build params, converting bytes input to string if needed
         params: dict[str, object] = {"command": shlex.join(self._cmd)}
@@ -298,6 +298,8 @@ class ExecRemoteProcess:
             params["env"] = self._options.env
         if self._options.cwd:
             params["cwd"] = self._options.cwd
+        if output_limit is not None:
+            params["output_limit"] = output_limit
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid
@@ -508,6 +510,7 @@ async def exec_remote_streaming(
     cmd: list[str],
     sandbox_default_poll_interval: float,
     options: ExecRemoteStreamingOptions | ExecRemoteCommonOptions | None = None,
+    output_limit: int | None = None,
 ) -> ExecRemoteProcess:
     """Create and start an exec_remote process for streaming.
 
@@ -521,6 +524,9 @@ async def exec_remote_streaming(
         sandbox_default_poll_interval: Default poll interval in seconds,
             provided by the sandbox (e.g. from _default_poll_interval()).
         options: Execution options.
+        output_limit: If set, the server uses a circular buffer of this size
+            (in bytes) for stdout/stderr, keeping only the tail on overflow.
+            When None, the server uses backpressure (suitable for streaming).
 
     Returns:
         ExecRemoteProcess handle that can be iterated for events, or killed.
@@ -532,7 +538,7 @@ async def exec_remote_streaming(
         options or ExecRemoteCommonOptions(),
         sandbox_default_poll_interval,
     )
-    await proc._start()
+    await proc._start(output_limit=output_limit)
     return proc
 
 
@@ -569,7 +575,11 @@ async def exec_remote_awaitable(
 
     opts = options or ExecRemoteCommonOptions()
     proc = await exec_remote_streaming(
-        sandbox, cmd, sandbox_default_poll_interval, opts
+        sandbox,
+        cmd,
+        sandbox_default_poll_interval,
+        opts,
+        output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
     )
 
     # Accumulate output chunks with memory limiting
