@@ -15,6 +15,7 @@ from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._edit import LogUpdate
 from .._log import (
     EvalLog,
     EvalPlan,
@@ -115,12 +116,15 @@ class JSONRecorder(FileRecorder):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
         log.data.results = results
         log.data.invalidated = invalidated
+        log.data.log_updates = log_updates
+        log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
         if reductions:
@@ -293,19 +297,16 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
         version: int | None = None
-        has_results = False
-        has_error = False
+        last_header_field = "stats"
 
         for prefix, event, value in ijson.parse(f):
             if (prefix, event) == ("version", "number"):
                 version = value
-            elif (prefix, event) == ("results", "start_map"):
-                has_results = True
-            elif (prefix, event) == ("error", "start_map"):
-                has_error = True
             elif prefix == "samples":
                 # Break as soon as we hit samples as that can be very large
                 break
+            elif event == "map_key" and prefix == "":
+                last_header_field = value
 
         if version is None:
             raise ValueError("Unable to read version of log format.")
@@ -316,7 +317,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
 
-        # Parse the log file, stopping before parsing samples
+        # Parse all header fields, stopping before samples
         invalidated = False
         status: EvalStatus | None = None
         eval: EvalSpec | None = None
@@ -324,25 +325,26 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         results: EvalResults | None = None
         stats: EvalStats | None = None
         error: EvalError | None = None
+        log_updates: list[LogUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(EvalStatus)
                 status = v
             elif k == "invalidated":
                 invalidated = v
-            if k == "eval":
-                eval = EvalSpec(**v)
+            elif k == "eval":
+                eval = EvalSpec.model_validate(v, context=get_deserializing_context())
             elif k == "plan":
-                plan = EvalPlan(**v)
+                plan = EvalPlan.model_validate(v)
             elif k == "results":
-                results = EvalResults(**v)
+                results = EvalResults.model_validate(v)
             elif k == "stats":
-                stats = EvalStats(**v)
-                if not has_error:
-                    # Exit before parsing samples
-                    break
+                stats = EvalStats.model_validate(v)
             elif k == "error":
-                error = EvalError(**v)
+                error = EvalError.model_validate(v)
+            elif k == "log_updates":
+                log_updates = [LogUpdate.model_validate(u) for u in v]
+            if k == last_header_field:
                 break
 
     assert status, "Must encounter a 'status'"
@@ -353,11 +355,12 @@ def _read_header_streaming(log_file: str) -> EvalLog:
     return EvalLog(
         eval=eval,
         plan=plan,
-        results=results if has_results else None,
+        results=results,
         stats=stats,
         status=status,
         invalidated=invalidated,
+        log_updates=log_updates,
         version=version,
-        error=error if has_error else None,
+        error=error,
         location=log_file,
     )

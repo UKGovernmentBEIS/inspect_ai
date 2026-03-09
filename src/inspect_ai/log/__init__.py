@@ -7,7 +7,12 @@ from ._bundle import bundle_log_dir
 from ._condense import condense_sample, resolve_sample_attachments
 from ._convert import convert_eval_logs
 from ._edit import (
+    LogEdit,
+    LogUpdate,
+    MetadataEdit,
     ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
     invalidate_samples,
     uninvalidate_samples,
 )
@@ -90,6 +95,11 @@ __all__ = [
     "edit_score",
     "recompute_metrics",
     "ProvenanceData",
+    "LogEdit",
+    "LogUpdate",
+    "MetadataEdit",
+    "TagsEdit",
+    "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
 ]
