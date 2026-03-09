@@ -65,18 +65,7 @@ export const LogView: FC = () => {
     selectedLogDetails?.status,
   );
 
-  const jsonTabConfig = useJsonTabConfig(
-    selectedLogDetails?.version,
-    selectedLogDetails?.status,
-    evalSpec,
-    selectedLogDetails?.plan,
-    selectedLogDetails?.error,
-    selectedLogDetails?.results,
-    selectedLogDetails?.stats,
-    selectedLogDetails?.tags,
-    selectedLogDetails?.metadata,
-    selectedLogDetails?.log_updates,
-  );
+  const jsonTabConfig = useJsonTabConfig(selectedLogDetails);
 
   const tabs: Record<string, TabDescriptor<any>> = {
     ...(samplesTabConfig ? { samples: samplesTabConfig } : {}),
