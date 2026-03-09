@@ -9,7 +9,7 @@ from inspect_sandbox_tools._util.common_types import ToolException
 from ._output_buffer import _OutputBuffer
 from .tool_types import PollResult
 
-_DEFAULT_OUTPUT_LIMIT = 100 * 1024 * 1024  # 100 MiB
+_BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 
 
 class Job:
@@ -79,20 +79,24 @@ class Job:
     def __init__(self, process: AsyncIOProcess, output_limit: int | None) -> None:
         self._process = process
         if output_limit is not None:
-            self._stdout_buf = _OutputBuffer(output_limit, circular=True)
-            self._stderr_buf = _OutputBuffer(output_limit, circular=True)
+            self._stdout_buffer = _OutputBuffer(output_limit, circular=True)
+            self._stderr_buffer = _OutputBuffer(output_limit, circular=True)
         else:
-            self._stdout_buf = _OutputBuffer(_DEFAULT_OUTPUT_LIMIT, circular=False)
-            self._stderr_buf = _OutputBuffer(_DEFAULT_OUTPUT_LIMIT, circular=False)
+            self._stdout_buffer = _OutputBuffer(
+                _BACKPRESSURE_BUFFER_SIZE, circular=False
+            )
+            self._stderr_buffer = _OutputBuffer(
+                _BACKPRESSURE_BUFFER_SIZE, circular=False
+            )
         self._state: Literal["running", "completed", "killed"] = "running"
         self._exit_code: int | None = None
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
-            self._read_stream(process.stdout, self._stdout_buf)
+            self._read_stream(process.stdout, self._stdout_buffer)
         )
         self._stderr_task = asyncio.create_task(
-            self._read_stream(process.stderr, self._stderr_buf)
+            self._read_stream(process.stderr, self._stderr_buffer)
         )
 
     @property
@@ -159,7 +163,7 @@ class Job:
         Returns:
             A tuple of (stdout, stderr) strings accumulated since the last drain.
         """
-        return (self._stdout_buf.drain(), self._stderr_buf.drain())
+        return (self._stdout_buffer.drain(), self._stderr_buffer.drain())
 
     async def write_stdin(self, data: str) -> tuple[str, str]:
         """Write data to the process's stdin and return buffered output.
@@ -211,12 +215,12 @@ class Job:
 
     async def _wait_for_readers(self) -> None:
         """Wait for background read tasks to complete."""
-        self._stdout_buf.unblock()
-        self._stderr_buf.unblock()
+        self._stdout_buffer.unblock()
+        self._stderr_buffer.unblock()
         for task in [self._stdout_task, self._stderr_task]:
             if not task.done():
                 try:
-                    await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+                    await asyncio.wait_for(task, timeout=1.0)
                 except (asyncio.TimeoutError, asyncio.CancelledError):
                     task.cancel()
                     try:
