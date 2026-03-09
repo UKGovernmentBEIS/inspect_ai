@@ -8,6 +8,39 @@ Add the ability to edit tags and metadata on existing eval logs with provenance 
 
 Users need to annotate logs after evaluation for workflows like QA review, categorisation, and filtering. Currently tags and metadata can only be set at eval-time via `eval(tags=..., metadata=...)` or `--tags` / `--metadata`. Post-eval editing enables workflows like: tag as `"needs_qa"` at eval time -> teammate filters by tag -> reviews and removes/adds tags and metadata.
 
+## Task-Level Tags
+
+Add a `tags` parameter to `Task`, mirroring the existing `metadata` parameter. Task tags and eval tags are merged at eval time using union, matching how metadata works today:
+
+```python
+class Task:
+    def __init__(
+        self,
+        ...
+        tags: list[str] | None = None,    # NEW
+        metadata: dict[str, Any] | None = None,
+        ...
+    ) -> None:
+        ...
+        self.tags = tags
+```
+
+In `eval_run()`, merge eval-level and task-level tags (mirroring the metadata merge on line 233):
+
+```python
+tags=list(set(tags or []) | set(task.tags or [])) or None,
+```
+
+Both sources contribute; duplicates are eliminated.
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/inspect_ai/_eval/task/task.py` | Add `tags` parameter to `Task.__init__()` |
+| `src/inspect_ai/_eval/run.py` | Merge `tags` and `task.tags` (line 219) |
+| `tests/test_metadata.py` | Add tests for task-level tags and merge behavior |
+
 ## Design: Unified Edit Log Overlay
 
 `EvalSpec.tags` and `EvalSpec.metadata` stay unchanged (no breaking changes). Post-eval mutations are stored as an ordered list of edits on `EvalLog`.
@@ -206,4 +239,3 @@ Matches invalidation pattern:
 ### Not in Scope
 
 - CLI command for editing logs (future work, likely in inspect-flow)
-- Changing `EvalSpec.tags` or `EvalSpec.metadata` type or behavior
