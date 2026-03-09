@@ -393,14 +393,27 @@ native Claude tool definition.
 
 ## Computer
 
+> [!NOTE]
+>
+> Support for the OpenAI GPT 5.4 computer tool and Gemini computer tool
+> are available only in the development version of Inspect. Install the
+> development version from GitHub with:
+>
+> ``` python
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
+> ```
+
 The `computer()` tool provides models with a computer desktop
 environment along with the ability to view the screen and perform mouse
-and keyboard gestures.
+and keyboard gestures. The computer tool work better with models that
+have been trained for computer use. As of Q1 2026 the recommended models
+for computer use include:
 
-The computer tool works with any model that supports image input. It
-also binds directly to the internal computer tool definitions for
-Anthropic and OpenAI models tuned for computer use (currently
-`anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
+| Provider  | Models                                                     |
+|-----------|------------------------------------------------------------|
+| Anthropic | `claude-opus-4-6` , `claude-opus-4-5`, `claude-sonnet-4-6` |
+| Open AI   | `gpt-5.4`, `gpt-5.4-pro`                                   |
+| Google    | `gemini-3-pro-preview`, `gemini-3-flash-preview`           |
 
 ### Configuration
 
@@ -470,6 +483,7 @@ To evaluate the task with models tuned for computer use:
 ``` bash
 inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
 inspect eval computer.py --model openai/computer-use-preview
+inspect eval computer.py --model google/gemini-3-flash-preview
 ```
 
 #### Options
@@ -597,21 +611,11 @@ inspect eval computer.py --approval approval.yaml
 ### Tool Binding
 
 The computer tool’s schema is a superset of the standard
-[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool)
-and [Open
-AI](https://platform.openai.com/docs/guides/tools-computer-use) computer
-tool schemas. When using models tuned for computer use (currently
-`anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`)
-the computer tool will automatically bind to the native computer tool
-definitions (as this presumably provides improved performance).
-
-If you want to experiment with bypassing the native computer tool types
-and just register the computer tool as a normal function based tool then
-specify the `--no-internal-tools` generation option as follows:
-
-``` bash
-inspect eval computer.py --no-internal-tools
-```
+[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use),
+and [Google](https://ai.google.dev/gemini-api/docs/computer-use)
+computer tool schemas. When using models tuned for computer use, the
+computer tool will automatically bind to the native computer tool
+definitions.
 
 ## Code Execution
 

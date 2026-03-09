@@ -51,6 +51,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
 | `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
+| `--max-dataset-memory` | integer range (`0` and above) | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. | None |
 | `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set) | None |
 | `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |
 | `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | None |

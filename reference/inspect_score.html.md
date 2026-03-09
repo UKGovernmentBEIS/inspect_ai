@@ -15,6 +15,7 @@ inspect score [OPTIONS] LOG_FILE
 |----|----|----|----|
 | `--scorer` | text | Scorer to use for scoring | None |
 | `-S` | text | One or more scorer arguments (e.g. -S arg=value) | None |
+| `--metric` | text | Metric to use for scoring (overrides metrics in the log). | None |
 | `--action` | choice (`append` \| `overwrite`) | Whether to append or overwrite the existing scores. | None |
 | `--overwrite` | boolean | Overwrite log file with the scored version | `False` |
 | `--output-file` | file | Output file to write the scored log to. | None |

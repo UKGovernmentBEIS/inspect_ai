@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.32">
+<meta name="generator" content="quarto-1.8.27">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -35,14 +35,15 @@ ul.task-list li input[type="checkbox"] {
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-39d090da0106b0ca2b5dc0a7762175a2.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-6776297b1bcdc1ce3e71101c0074be7c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -94,7 +95,8 @@ ul.task-list li input[type="checkbox"] {
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
-    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo light-content">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -2870,78 +2872,84 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="odd">
+<td><code>--metric</code></td>
+<td>text</td>
+<td>Metric to use for scoring (overrides metrics in the log).</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--action</code></td>
 <td>choice (<code>append</code> | <code>overwrite</code>)</td>
 <td>Whether to append or overwrite the existing scores.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--overwrite</code></td>
 <td>boolean</td>
 <td>Overwrite log file with the scored version</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--output-file</code></td>
 <td>file</td>
 <td>Output file to write the scored log to.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--stream</code></td>
 <td>text</td>
 <td>Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--traceback-locals</code></td>
 <td>boolean</td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>
@@ -3003,13 +3011,14 @@ ul.task-list li input[type="checkbox"] {
       e.clearSelection();
     }
     const getTextToCopy = function(trigger) {
-        const codeEl = trigger.previousElementSibling.cloneNode(true);
-        for (const childEl of codeEl.children) {
-          if (isCodeAnnotation(childEl)) {
-            childEl.remove();
-          }
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
         }
-        return codeEl.innerText;
+      }
+      return codeEl.innerText;
     }
     const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
       text: getTextToCopy

@@ -146,6 +146,7 @@ example:
 |----|----|
 | `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
 | `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`) |
+| `--max-dataset-memory` | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. |
 | `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
 | `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
 | `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
