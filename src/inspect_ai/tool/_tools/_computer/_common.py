@@ -164,6 +164,14 @@ async def zoom(region: list[int], timeout: int | None = None) -> ToolResult:
     )
 
 
+async def open_web_browser(timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["open_web_browser"], timeout=timeout)
+
+
+async def navigate(text: str, timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["navigate", "--text", text], timeout=timeout)
+
+
 async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResult:
     from inspect_ai.log._samples import sample_active
 

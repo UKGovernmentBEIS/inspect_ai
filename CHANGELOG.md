@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Computer Tool: Support for use of the native Gemini computer use tool.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.

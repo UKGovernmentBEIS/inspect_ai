@@ -7,7 +7,7 @@ from copy import copy
 from io import BytesIO
 from logging import getLogger
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
@@ -98,6 +98,12 @@ from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
     get_candidate_citations,
 )
+from inspect_ai.model._providers._google_computer_use import (
+    computer_tool_result_parts,
+    gemini_action_from_tool_call,
+    maybe_computer_use_tool,
+    tool_call_from_gemini_computer_action,
+)
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
@@ -139,6 +145,13 @@ DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
         "threshold": HarmBlockThreshold.BLOCK_NONE,
     },
 ]
+
+
+class CategorizedTools(NamedTuple):
+    google_search: GoogleSearch | None
+    code_execution: ToolCodeExecution | None
+    computer_use: Tool | None
+    function_declarations: list[FunctionDeclaration]
 
 
 class GoogleGenAIAPI(ModelAPI):
@@ -393,9 +406,15 @@ class GoogleGenAIAPI(ModelAPI):
             model_call.set_response(response, http_hooks.end_request(request_id))
 
             model_name = response.model_version or self.service_model_name()
+            has_computer_use = gemini_tools is not None and any(
+                isinstance(tool, Tool) and tool.computer_use is not None
+                for tool in gemini_tools
+            )
             output = ModelOutput(
                 model=model_name,
-                choices=completion_choices_from_candidates(model_name, response),
+                choices=completion_choices_from_candidates(
+                    model_name, response, has_computer_use
+                ),
                 usage=usage_metadata_to_model_usage(response.usage_metadata),
             )
 
@@ -646,6 +665,10 @@ class GoogleGenAIAPI(ModelAPI):
         return str(self.api_key)
 
     @override
+    def tool_result_images(self) -> bool:
+        return True
+
+    @override
     def is_auth_failure(self, ex: Exception) -> bool:
         if isinstance(ex, APIError):
             return ex.code == 401
@@ -780,13 +803,9 @@ class GoogleGenAIAPI(ModelAPI):
 
     def _categorize_tool(
         self,
-        acc: tuple[
-            GoogleSearch | None, ToolCodeExecution | None, list[FunctionDeclaration]
-        ],
+        acc: CategorizedTools,
         tool: ToolInfo,
-    ) -> tuple[
-        GoogleSearch | None, ToolCodeExecution | None, list[FunctionDeclaration]
-    ]:
+    ) -> CategorizedTools:
         """Reducer function that categorizes tools into native search vs function declarations.
 
         Returns:
@@ -794,28 +813,29 @@ class GoogleGenAIAPI(ModelAPI):
             is True if any tool uses native search, and function_declarations contains
             all non-native-search tools converted to FunctionDeclaration objects.
         """
-        return (
-            (self._google_search_options(tool.options), acc[1], acc[2])
-            if tool.options and self._use_native_search(tool)
-            else (acc[0], ToolCodeExecution(), acc[2])
-            if tool.options and self._use_native_code_execution(tool)
-            else (
-                acc[0],
-                acc[1],
-                acc[2]
-                + [
-                    FunctionDeclaration(
-                        name=tool.name,
-                        description=tool.description,
-                        parameters_json_schema=tool.parameters.model_dump(
-                            exclude_none=True
+        if tool.options and self._use_native_search(tool):
+            return acc._replace(google_search=self._google_search_options(tool.options))
+        elif tool.options and self._use_native_code_execution(tool):
+            return acc._replace(code_execution=ToolCodeExecution())
+        else:
+            computer_use = maybe_computer_use_tool(self.model_name, tool)
+            if computer_use is not None:
+                return acc._replace(computer_use=computer_use)
+            else:
+                return acc._replace(
+                    function_declarations=acc.function_declarations
+                    + [
+                        FunctionDeclaration(
+                            name=tool.name,
+                            description=tool.description,
+                            parameters_json_schema=tool.parameters.model_dump(
+                                exclude_none=True
+                            )
+                            if len(tool.parameters.properties) > 0
+                            else None,
                         )
-                        if len(tool.parameters.properties) > 0
-                        else None,
-                    )
-                ],
-            )
-        )
+                    ],
+                )
 
     def _google_search_options(self, options: dict[str, Any]) -> GoogleSearch:
         gemini_options = options.get("gemini", None)
@@ -825,16 +845,21 @@ class GoogleGenAIAPI(ModelAPI):
             return GoogleSearch()
 
     def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
-        # cleave up tools (must use either native tools or client tools but not both)
-        search_seed: GoogleSearch | None = None
-        execution_seed: ToolCodeExecution | None = None
-        google_search, code_execution, function_declarations = functools.reduce(
-            self._categorize_tool,
-            tools,
-            (search_seed, execution_seed, list[FunctionDeclaration]()),
+        # categorize tools into native tools vs function declarations
+        google_search, code_execution, computer_use, function_declarations = (
+            functools.reduce(
+                self._categorize_tool,
+                tools,
+                CategorizedTools(
+                    google_search=None,
+                    code_execution=None,
+                    computer_use=None,
+                    function_declarations=[],
+                ),
+            )
         )
 
-        # native tools
+        # native search/code execution tools (cannot mix with function declarations)
         if google_search or code_execution:
             if function_declarations:
                 raise ValueError(
@@ -847,9 +872,15 @@ class GoogleGenAIAPI(ModelAPI):
                 native_tools.append(Tool(code_execution=code_execution))
             return (True, native_tools)
 
-        # client tools
-        else:
-            return (False, [Tool(function_declarations=function_declarations)])
+        # computer use (can coexist with function declarations)
+        if computer_use is not None:
+            native_tools = [computer_use]
+            if function_declarations:
+                native_tools.append(Tool(function_declarations=function_declarations))
+            return (True, native_tools)
+
+        # client tools only
+        return (False, [Tool(function_declarations=function_declarations)])
 
     def _resolve_batcher(
         self, config: GenerateConfig, http_options: HttpOptions
@@ -1060,11 +1091,20 @@ async def content(
             # The loop below applies the signature to the first tool call (when working_reasoning_block
             # is not None), then clears it so subsequent tool calls don't get it.
             for tool_call in message.tool_calls:
-                # extract the part
-                part = Part.from_function_call(
-                    name=tool_call.function,
-                    args=tool_call.arguments,
-                )
+                if tool_call.function == "computer":
+                    action_name = (
+                        tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
+                    )
+                    _, action_args = gemini_action_from_tool_call(tool_call)
+                    part = Part.from_function_call(
+                        name=action_name,
+                        args=action_args,
+                    )
+                else:
+                    part = Part.from_function_call(
+                        name=tool_call.function,
+                        args=tool_call.arguments,
+                    )
 
                 # handle reasoning block if available
                 if working_reasoning_block is not None:
@@ -1086,13 +1126,28 @@ async def content(
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
+        content_text = (
+            message.error.message if message.error is not None else message.text
+        )
+        response_dict: dict[str, object] = {
+            "content": content_text,
+            "safety_acknowledgement": "true",
+        }
+        if message.function == "computer":
+            response_dict["url"] = ""
+            response_name = (
+                message.tool_call_id.rsplit("_", 1)[0]
+                if message.tool_call_id
+                else "computer"
+            )
+            response_parts = await computer_tool_result_parts(message)
+        else:
+            response_name = message.function or ""
+            response_parts = None
         response = FunctionResponse(
-            name=message.function,
-            response={
-                "content": (
-                    message.error.message if message.error is not None else message.text
-                )
-            },
+            name=response_name,
+            response=response_dict,
+            parts=response_parts,
         )
         return Content(role="user", parts=[Part(function_response=response)])
 
@@ -1194,7 +1249,7 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
 
 
 def completion_choice_from_candidate(
-    model: str, candidate: Candidate
+    model: str, candidate: Candidate, computer_use: bool = False
 ) -> ChatCompletionChoice:
     # content we'll return
     content: list[
@@ -1316,13 +1371,34 @@ def completion_choice_from_candidate(
                         working_reasoning_block.redacted = True
                         working_reasoning_block = None
 
-                tool_calls.append(
-                    ToolCall(
-                        id=f"{part.function_call.name}_{uuid()}",
-                        function=part.function_call.name,
-                        arguments=part.function_call.args,
+                if computer_use and part.function_call.name in {
+                    "click_at",
+                    "type_text_at",
+                    "hover_at",
+                    "key_combination",
+                    "scroll_document",
+                    "scroll_at",
+                    "drag_and_drop",
+                    "navigate",
+                    "go_back",
+                    "go_forward",
+                    "open_web_browser",
+                    "search",
+                    "wait_5_seconds",
+                }:
+                    tool_calls.append(
+                        tool_call_from_gemini_computer_action(part.function_call)
                     )
-                )
+                else:
+                    if part.function_call.args:
+                        part.function_call.args.pop("safety_decision", None)
+                    tool_calls.append(
+                        ToolCall(
+                            id=f"{part.function_call.name}_{uuid()}",
+                            function=part.function_call.name,
+                            arguments=part.function_call.args,
+                        )
+                    )
 
     # stop reason
     stop_reason = finish_reason_to_stop_reason(
@@ -1384,12 +1460,13 @@ def completion_choice_from_candidate(
 def completion_choices_from_candidates(
     model: str,
     response: GenerateContentResponse,
+    computer_use: bool = False,
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index or 0)
         return [
-            completion_choice_from_candidate(model, candidate)
+            completion_choice_from_candidate(model, candidate, computer_use)
             for candidate in candidates_list
         ]
     elif response.prompt_feedback:

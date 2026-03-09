@@ -27,6 +27,7 @@ from inspect_ai._util.content import Content, ContentImage
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 
 def tool_call_from_openai_computer_tool_call(
@@ -57,24 +58,9 @@ def maybe_computer_use_preview_tool(
             display_width=1366,
             display_height=768,
         )
-        if "computer-use-preview" in model_name
-        and tool.name == "computer"
-        and (sorted(tool.parameters.properties.keys()) == sorted(computer_parameters()))
+        if "computer-use-preview" in model_name and is_computer_tool_info(tool)
         else None
     )
-
-
-def computer_parameters() -> list[str]:
-    return [
-        "action",
-        "coordinate",
-        "duration",
-        "region",
-        "scroll_amount",
-        "scroll_direction",
-        "start_coordinate",
-        "text",
-    ]
 
 
 def computer_call_output(
