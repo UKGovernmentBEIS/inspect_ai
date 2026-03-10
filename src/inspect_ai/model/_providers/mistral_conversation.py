@@ -2,9 +2,12 @@ import json
 from collections.abc import Callable
 from typing import Any, Literal, Sequence
 
-from mistralai import (
+from mistralai.client import Mistral
+from mistralai.client.errors import SDKError
+from mistralai.client.models import (
     CodeInterpreterTool,
     CompletionArgs,
+    ConversationRequestTool,
     ConversationResponse,
     DocumentURLChunk,
     Function,
@@ -14,23 +17,18 @@ from mistralai import (
     ImageURL,
     ImageURLChunk,
     InputEntries,
+    JSONSchema,
     MessageInputEntry,
     MessageOutputContentChunks,
     MessageOutputEntry,
-    Mistral,
+    ResponseFormat,
     TextChunk,
     ThinkChunk,
     ToolExecutionEntry,
     ToolReferenceChunk,
-    Tools,
     WebSearchTool,
 )
-from mistralai.models import (
-    JSONSchema,
-    ResponseFormat,
-    SDKError,
-)
-from mistralai.types import UNSET
+from mistralai.client.types import UNSET
 
 from inspect_ai._util.citation import Citation, UrlCitation
 from inspect_ai._util.constants import NO_CONTENT
@@ -174,8 +172,8 @@ def mistral_conversation_completion_args(
     return completion_args
 
 
-def mistral_conversation_tools(tools: list[ToolInfo]) -> list[Tools]:
-    conversation_tools: list[Tools] = []
+def mistral_conversation_tools(tools: list[ToolInfo]) -> list[ConversationRequestTool]:
+    conversation_tools: list[ConversationRequestTool] = []
     for tool in tools:
         if is_internal_web_search_tool(tool):
             conversation_tools.append(WebSearchTool(type="web_search"))
@@ -328,7 +326,12 @@ async def mistral_content_chunk(
     elif isinstance(content, ContentImage):
         # resolve image to url
         image_url = await file_as_data_uri(content.image)
-        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+        return ImageURLChunk(
+            image_url=ImageURL(
+                url=image_url,
+                detail="high" if content.detail == "original" else content.detail,
+            )
+        )
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):

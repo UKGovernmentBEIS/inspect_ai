@@ -40,7 +40,7 @@ def test_task_and_eval_tags():
     assert sorted(log.eval.tags) == ["tag1", "tag2", "tag3"]
 
 
-def test_task_tags_in_task_profile():
+def test_task_tags_in_task_profile() -> None:
     """Task-level tags should appear in the TaskProfile used for live display."""
     captured_profiles: list[TaskProfile] = []
     original_init = TaskProfile.__init__

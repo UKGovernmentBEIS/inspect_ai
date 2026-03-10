@@ -72,7 +72,8 @@ async def trim_messages(
                 # Some tool_calls were orphaned, update the message
                 msg = msg.model_copy(
                     update={
-                        "tool_calls": valid_tool_calls if valid_tool_calls else None
+                        "id": uuid(),
+                        "tool_calls": valid_tool_calls if valid_tool_calls else None,
                     }
                 )
         sanitized_messages.append(msg)

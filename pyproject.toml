@@ -165,7 +165,7 @@ dev = [
   "jsonpath-ng",
   "markdown",
   "mcp>=1.10.0",
-  "mistralai>=1.9.11",
+  "mistralai>=2.0.0",
   "moto[server]",
   "mypy>=1.17.0",
   "nbformat",

@@ -576,6 +576,7 @@ export type Input3 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
+export type InputRefs = [unknown, unknown][] | null;
 export type Name9 = string;
 export type Description2 = string;
 export type Type20 = "object";
@@ -597,6 +598,8 @@ export type Response = {
 } | null;
 export type Error3 = boolean | null;
 export type Time1 = number | null;
+export type CallRefs = [unknown, unknown][] | null;
+export type CallKey = string | null;
 export type Completed1 = string | null;
 export type WorkingTime = number | null;
 export type Uuid6 = string | null;
@@ -855,6 +858,13 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid19 = string | null;
 export type ErrorRetries = EvalError[] | null;
+export type MessagePool = (
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageAssistant
+  | ChatMessageTool
+)[];
+export type CallPool = JsonValue[];
 export type Type29 =
   | "context"
   | "time"
@@ -1393,6 +1403,8 @@ export interface EvalSample {
   error: EvalError | null;
   error_retries: ErrorRetries;
   attachments: Attachments;
+  message_pool: MessagePool;
+  call_pool: CallPool;
   limit: EvalSampleLimit | null;
 }
 /**
@@ -1771,6 +1783,7 @@ export interface ModelEvent {
   model: Model4;
   role: Role4;
   input: Input3;
+  input_refs: InputRefs;
   tools: Tools1;
   tool_choice: ToolChoice;
   config: GenerateConfig;
@@ -1839,6 +1852,8 @@ export interface ModelCall {
   response: Response;
   error: Error3;
   time: Time1;
+  call_refs: CallRefs;
+  call_key: CallKey;
 }
 export interface Request {
   [k: string]: JsonValue;

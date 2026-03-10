@@ -1140,16 +1140,24 @@ async def content(
                 if message.tool_call_id
                 else "computer"
             )
-            response_parts = await computer_tool_result_parts(message)
+            # Computer-use models support multimodal function responses.
+            fn_response_parts = await computer_tool_result_parts(message)
         else:
             response_name = message.function or ""
-            response_parts = None
+            fn_response_parts = None
         response = FunctionResponse(
             name=response_name,
             response=response_dict,
-            parts=response_parts,
+            parts=fn_response_parts,
         )
-        return Content(role="user", parts=[Part(function_response=response)])
+        parts: list[Part] = [Part(function_response=response)]
+        # For non-computer tools, include images as sibling content parts
+        # since most models don't support multimodal function responses.
+        if message.function != "computer" and isinstance(message.content, list):
+            for item in message.content:
+                if isinstance(item, ContentImage):
+                    parts.append(await content_part(client, item))
+        return Content(role="user", parts=parts)
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
