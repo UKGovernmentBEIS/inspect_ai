@@ -49,7 +49,8 @@ def test_convert_eval_logs(
 
     output_file = (tmp_path / input_file.name).with_suffix(f".{to}")
     assert output_file.exists()
-    log = read_eval_log(str(output_file))
+
+    log = read_eval_log(str(output_file), resolve_attachments=resolve_attachments)
     assert isinstance(
         log,
         EvalLog,
@@ -127,3 +128,43 @@ def test_stream_convert_preserves_log_updates(
     assert "qa_reviewed" in raw.get("tags", [])
     assert raw.get("metadata", {}).get("reviewer") == "alice"
     assert len(raw.get("log_updates", [])) == 1
+
+
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
+def test_convert_applies_message_pool_dedup(
+    tmp_path: pathlib.Path,
+    stream: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Converting a v2 .eval file should apply message pool dedup."""
+    monkeypatch.setenv("INSPECT_LOG_FORMAT_V3", "1")
+    input_file = (
+        _TESTS_DIR
+        / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    )
+
+    convert_eval_logs(
+        str(input_file),
+        "eval",
+        str(tmp_path),
+        overwrite=True,
+        stream=stream,
+    )
+
+    output_file = (tmp_path / input_file.name).with_suffix(".eval")
+    assert output_file.exists()
+
+    log = read_eval_log(str(output_file))
+    assert log.version == 3
+    assert log.samples
+
+    for sample in log.samples:
+        # read_eval_log resolves pools, so input_refs should be None
+        # and message_pool should be empty after round-trip
+        assert not sample.message_pool  # resolved to empty
+        model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+        assert any(len(me.input) > 0 for me in model_events), (
+            "At least one model event should have populated input"
+        )
+        for me in model_events:
+            assert me.input_refs is None
