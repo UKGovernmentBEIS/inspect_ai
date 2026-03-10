@@ -87,7 +87,10 @@ export function useLoadSample() {
 
           sampleActions.setDownloadProgress(undefined);
           const onProgress = (bytesLoaded: number, bytesTotal: number) => {
-            sampleActions.setDownloadProgress({ complete: bytesLoaded, total: bytesTotal });
+            sampleActions.setDownloadProgress({
+              complete: bytesLoaded,
+              total: bytesTotal,
+            });
           };
 
           // Fetch the sample from the API

@@ -96,11 +96,7 @@ export const openRemoteLogFile = async (
   let retryCount = 0;
   while (!remoteZipFile && retryCount < OPEN_RETRY_LIMIT) {
     try {
-      remoteZipFile = await openRemoteZipFile(
-        url,
-        logInfo.size,
-        fetchBytes,
-      );
+      remoteZipFile = await openRemoteZipFile(url, logInfo.size, fetchBytes);
     } catch {
       retryCount++;
       console.warn(
