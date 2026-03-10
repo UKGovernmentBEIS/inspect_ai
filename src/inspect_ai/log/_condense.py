@@ -213,9 +213,11 @@ def resolve_sample_attachments(
     resolved_pool: list[ChatMessage] = [
         walk_chat_message(v, content_fn, context) for v in sample.message_pool
     ]
-    resolved_call_pool: list[JsonValue] = [
-        walk_json_value(v, content_fn, context) for v in sample.call_pool
-    ]
+    resolved_call_pool: list[JsonValue] = (
+        sample.call_pool
+        if context.get("only_core")
+        else [walk_json_value(v, content_fn, context) for v in sample.call_pool]
+    )
 
     resolved_events = walk_events(sample.events, content_fn, context)
     resolved_events = resolve_model_event_inputs(resolved_events, resolved_pool)

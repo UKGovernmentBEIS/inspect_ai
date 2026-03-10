@@ -50,9 +50,7 @@ def test_convert_eval_logs(
     output_file = (tmp_path / input_file.name).with_suffix(f".{to}")
     assert output_file.exists()
 
-    # Read with resolve_attachments="full" to verify content is accessible after
-    # round-trip (convert always condenses on write, so raw content has attachment refs)
-    log = read_eval_log(str(output_file), resolve_attachments="full")
+    log = read_eval_log(str(output_file), resolve_attachments=resolve_attachments)
     assert isinstance(
         log,
         EvalLog,
@@ -62,8 +60,10 @@ def test_convert_eval_logs(
     sample_init_event = log.samples[0].events[0]
     assert isinstance(sample_init_event, SampleInitEvent)
     assert isinstance(sample_init_event.sample.input, str)
-    # We read with resolve_attachments="full" above, so content is always resolved
-    assert sample_init_event.sample.input.startswith("Hey there, hipster!")
+    if resolve_attachments is not False:
+        assert sample_init_event.sample.input.startswith("Hey there, hipster!")
+    else:
+        assert sample_init_event.sample.input.startswith("attachment:")
 
     model_event = log.samples[0].events[6]
     assert isinstance(model_event, ModelEvent)
