@@ -1,3 +1,7 @@
+## 0.3.191
+
+- Inspect View: Fix regression that prevented proper display of running samples.
+
 ## 0.3.190 (11 March 2026)
 
 - Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
