@@ -3,6 +3,7 @@
 - Computer Tool: Support for the updated OpenAI computer tool released with GPT 5.4.
 - Computer Tool: Support for the native Gemini computer tool.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
+- Mistral: Update to v2.0 of `mistralai` package.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
@@ -65,6 +66,7 @@
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
+- Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
 
 ## 0.3.185 (01 March 2026)
 
