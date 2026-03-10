@@ -14,7 +14,6 @@
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Google: Include images from tool results in API requests for non-computer-use models.
 - Bugfix: Handle dicts with numeric keys in json_changes.
-- Tests: Close AsyncOpenAI and AsyncAnthropic clients properly in bridge tests to prevent event loop errors.
 
 ## 0.3.189 (07 March 2026)
 
