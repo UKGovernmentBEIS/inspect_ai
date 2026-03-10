@@ -40,8 +40,7 @@ export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
     sampleData.status === "loading" &&
     sampleData.downloadProgress &&
     sampleData.downloadProgress.total > 0
-      ? sampleData.downloadProgress.complete /
-        sampleData.downloadProgress.total
+      ? sampleData.downloadProgress.complete / sampleData.downloadProgress.total
       : undefined;
 
   // Scroll ref

@@ -1,10 +1,5 @@
 import { EvalSample } from "../@types/log";
-import {
-  Progress,
-  Event,
-  SampleState,
-  SampleStatus,
-} from "../app/types";
+import { Progress, Event, SampleState, SampleStatus } from "../app/types";
 import { kSampleMessagesTabId } from "../constants";
 import {
   cleanupSamplePolling,
