@@ -12,13 +12,14 @@ import {
   SampleDataResponse,
 } from "../types";
 import {
+  kJsonRpcMethodNotFound,
   kMethodEvalLog,
   kMethodEvalLogBytes,
   kMethodEvalLogDir,
   kMethodEvalLogFiles,
   kMethodEvalLogHeaders,
   kMethodEvalLogs,
-  kMethodEvalLogSize,
+  kMethodEvalLogInfo,
   kMethodLogMessage,
   kMethodPendingSamples,
   kMethodSampleData,
@@ -104,8 +105,17 @@ async function get_log_contents(
   }
 }
 
-async function get_log_size(log_file: string) {
-  return await vscodeClient(kMethodEvalLogSize, [log_file]);
+async function get_log_info(log_file: string) {
+  try {
+    return await vscodeClient(kMethodEvalLogInfo, [log_file]);
+  } catch (e: any) {
+    if (e?.code === kJsonRpcMethodNotFound) {
+      // Extension predates eval_log_info — fall back to eval_log_size.
+      const size = await vscodeClient("eval_log_size", [log_file]);
+      return { size };
+    }
+    throw e;
+  }
 }
 
 async function get_log_bytes(log_file: string, start: number, end: number) {
@@ -207,7 +217,7 @@ const api: LogViewAPI = {
   get_eval_set,
   get_flow,
   get_log_contents,
-  get_log_size,
+  get_log_info,
   get_log_bytes,
   get_log_summaries,
   log_message,

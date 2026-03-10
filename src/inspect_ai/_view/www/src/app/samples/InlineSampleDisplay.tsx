@@ -3,6 +3,7 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { SampleDisplay } from "./SampleDisplay";
 
 import clsx from "clsx";
+import { ActivityBar } from "../../components/ActivityBar";
 import { StickyScrollProvider } from "../../components/StickyScrollContext";
 import { useSampleData } from "../../state/hooks";
 import { useLoadSample } from "../../state/useLoadSample";
@@ -35,10 +36,25 @@ export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
 }) => {
   const sampleData = useSampleData();
 
+  const sampleProgress =
+    sampleData.status === "loading" &&
+    sampleData.downloadProgress &&
+    sampleData.downloadProgress.total > 0
+      ? sampleData.downloadProgress.complete / sampleData.downloadProgress.total
+      : undefined;
+
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className={clsx(className, styles.container)}>
+      {showActivity && (
+        <ActivityBar
+          animating={
+            sampleData.status === "loading" || sampleData.status === "streaming"
+          }
+          progress={sampleProgress}
+        />
+      )}
       <div className={clsx(styles.scroller)} ref={scrollRef}>
         <StickyScrollProvider value={scrollRef}>
           <div className={styles.body}>
