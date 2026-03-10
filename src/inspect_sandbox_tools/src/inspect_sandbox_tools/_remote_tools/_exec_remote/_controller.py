@@ -21,6 +21,7 @@ class Controller:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        user: str | None = None,
     ) -> int:
         """Create a new job and return its PID.
 
@@ -30,9 +31,10 @@ class Controller:
             stdin_open: If True, keep stdin open for later writes.
             env: Additional environment variables (merged with current env).
             cwd: Working directory for command execution.
+            user: Target user to drop privileges to before exec.
         """
         job = await Job.create(
-            command, input=input, stdin_open=stdin_open, env=env, cwd=cwd
+            command, input=input, stdin_open=stdin_open, env=env, cwd=cwd, user=user
         )
         self._jobs[job.pid] = job
         return job.pid

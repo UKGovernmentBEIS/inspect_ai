@@ -99,6 +99,7 @@ class SandboxEnvironment(abc.ABC):
     def __init__(self) -> None:
         self._tools_injected = False
         self._inject_lock = anyio.Lock()
+        self._server_user: str | None = None
 
     @abc.abstractmethod
     async def exec(

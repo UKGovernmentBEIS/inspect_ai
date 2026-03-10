@@ -298,6 +298,8 @@ class ExecRemoteProcess:
             params["env"] = self._options.env
         if self._options.cwd:
             params["cwd"] = self._options.cwd
+        if self._options.user:
+            params["user"] = self._options.user
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid

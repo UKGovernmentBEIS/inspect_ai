@@ -15,6 +15,9 @@ class SubmitParams(BaseModel):
     """Additional environment variables (merged with the current environment)."""
     cwd: str | None = None
     """Working directory for command execution."""
+    user: str | None = None
+    """User to run the command as. When the server runs as root, it drops
+    privileges to this user before exec. Ignored when server is not root."""
     model_config = {"extra": "forbid"}
 
 

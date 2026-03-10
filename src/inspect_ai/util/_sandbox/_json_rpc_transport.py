@@ -57,11 +57,19 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
         Raises:
             RuntimeError: If the sandbox execution fails.
         """
+        original_user: str | None = transport_extra_args.get("user", None)
+        server_user = self.sandbox._server_user
+
+        # When server_user is set, run the CLI as that user (e.g. root) so the
+        # server process is protected from agent kills. Otherwise use the
+        # caller's user as before.
+        exec_user = server_user or original_user
+
         exec_result = await self.sandbox.exec(
             [self.cli, "exec"],
             input=create_json_rpc_request(method, params, is_notification),
             timeout=transport_extra_args.get("timeout", None),
-            user=transport_extra_args.get("user", None),
+            user=exec_user,
             concurrency=transport_extra_args.get("concurrency", True),
         )
 

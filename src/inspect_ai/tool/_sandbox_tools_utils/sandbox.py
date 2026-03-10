@@ -70,17 +70,22 @@ async def sandbox_with_injected_tools(
     *,
     sandbox_name: str | None = None,
     sandbox: SandboxEnvironment | None = None,
+    server_user: str | None = None,
 ) -> SandboxEnvironment:
     """Create a sandbox environment with sandbox tools injection.
 
     Args:
         sandbox_name: Optional name for the sandbox environment.
         sandbox: Optional sandbox instance to inject into directly.
+        server_user: User to run the CLI/server as. When set (e.g. "root"),
+            the transport executes CLI commands as this user, and the server
+            drops privileges to the original user for child processes.
+            When None, uses the default sandbox user (backward compatible).
 
     Returns:
         A sandbox environment with container tools injected.
     """
-    return await sandbox_with_injection(
+    result = await sandbox_with_injection(
         SandboxInjectable(
             sandbox_file_detector(SANDBOX_CLI),
             _inject_container_tools_code,
@@ -88,6 +93,9 @@ async def sandbox_with_injected_tools(
         name=sandbox_name,
         target=sandbox,
     )
+    if server_user is not None:
+        result._server_user = server_user
+    return result
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
