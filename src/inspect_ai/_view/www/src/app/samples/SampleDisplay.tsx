@@ -340,6 +340,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const running = useMemo(() => {
     return isRunning(selectedSampleSummary, runningSampleData);
   }, [selectedSampleSummary, runningSampleData]);
+  const hasStreamingEvents = runningSampleData.length > 0;
 
   const sampleDetailNavigation = useSampleDetailNavigation();
 
@@ -350,7 +351,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       ) : undefined}
       <ActivityBar animating={showActivity} />
 
-      {sample && (
+      {(sample || hasStreamingEvents) && (
         <TabSet
           id={tabsetId}
           tabsRef={tabsRef}

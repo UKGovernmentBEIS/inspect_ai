@@ -1,6 +1,7 @@
 import { StoreApi, UseBoundStore } from "zustand";
 
 import { Event } from "../app/types";
+import { ModelEvent } from "../@types/log";
 import {
   AttachmentData,
   ClientAPI,
@@ -11,7 +12,8 @@ import {
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
-import { resolveSample } from "./sampleUtils";
+import { sleep } from "../utils/sync";
+import { isModelEvent, resolveSample } from "./sampleUtils";
 import { StoreState } from "./store";
 
 const log = createLogger("samplePolling");
@@ -19,6 +21,7 @@ const log = createLogger("samplePolling");
 const kNoId = -1;
 const kPollingInterval = 2;
 const kPollingMaxRetries = 10;
+const kFinalizeSampleRetryDelayMs = 500;
 
 // Keeps the state for polling (the last ids for events
 // and attachments, the attachments and events, and
@@ -32,6 +35,7 @@ interface PollingState {
 
   eventMapping: Record<string, number>;
   events: Event[];
+  prevFullModelInput: unknown[];
 }
 
 export function createSamplePolling(
@@ -51,6 +55,7 @@ export function createSamplePolling(
     eventMapping: {},
     attachments: {},
     events: [],
+    prevFullModelInput: [],
   };
 
   // Function to start polling for a specific log file
@@ -119,7 +124,7 @@ export function createSamplePolling(
         // are available and we should retrieve the data from the
         // sample file itself.
 
-        // Stop polling since we now have the complete sample
+        // Stop polling since we now have the complete sample.
         stopPolling();
 
         // Also fetch a fresh sample and clear the runnning Events
@@ -129,11 +134,23 @@ export function createSamplePolling(
             log.debug(
               `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary.id}-${summary.epoch}`,
             );
-            const sample = await api.get_log_sample(
+            let sample = await api.get_log_sample(
               logFile,
               summary.id,
               summary.epoch,
             );
+
+            if (!sample) {
+              await sleep(kFinalizeSampleRetryDelayMs);
+              if (abortController.signal.aborted) {
+                return false;
+              }
+              sample = await api.get_log_sample(
+                logFile,
+                summary.id,
+                summary.epoch,
+              );
+            }
 
             if (sample) {
               const migratedSample = resolveSample(sample);
@@ -150,9 +167,43 @@ export function createSamplePolling(
               sampleActions.setRunningEvents([]);
             }
           } catch (e) {
-            sampleActions.setSampleError(e as Error);
-            sampleActions.setSampleStatus("error");
-            sampleActions.setRunningEvents([]);
+            if (isSampleNotFoundError(e)) {
+              // One short retry handles manifest lag without broader flow changes.
+              try {
+                await sleep(kFinalizeSampleRetryDelayMs);
+                if (abortController.signal.aborted) {
+                  return false;
+                }
+                const retriedSample = await api.get_log_sample(
+                  logFile,
+                  summary.id,
+                  summary.epoch,
+                );
+                if (retriedSample) {
+                  const migratedSample = resolveSample(retriedSample);
+                  sampleActions.setSelectedSample(migratedSample, logFile);
+                  sampleActions.setSampleStatus("ok");
+                  sampleActions.setRunningEvents([]);
+                } else {
+                  sampleActions.setSampleError(
+                    new Error(
+                      "Unable to load sample - an unknown error occurred",
+                    ),
+                  );
+                  sampleActions.setSampleStatus("error");
+                  sampleActions.setRunningEvents([]);
+                }
+              } catch (retryError) {
+                sampleActions.setSampleError(retryError as Error);
+                sampleActions.setSampleStatus("error");
+                sampleActions.setRunningEvents([]);
+              }
+            } else {
+              sampleActions.setSampleError(e as Error);
+              sampleActions.setSampleStatus("error");
+              sampleActions.setRunningEvents([]);
+            }
+            return false;
           }
         } else {
           if (state.sample.sampleStatus === "streaming") {
@@ -255,6 +306,7 @@ const resetPollingState = (state: PollingState) => {
   state.eventMapping = {};
   state.attachments = {};
   state.events = [];
+  state.prevFullModelInput = [];
 };
 
 function processAttachments(
@@ -305,7 +357,9 @@ function processEvents(
       },
     );
 
-    if (existingIndex) {
+    resolveInputDeltaEvent(pollingState, resolvedEvent);
+
+    if (existingIndex !== undefined) {
       // There is an existing event in the stream, replace it
       log.debug(`Replace event ${existingIndex}`);
       pollingState.events[existingIndex] = resolvedEvent;
@@ -320,6 +374,32 @@ function processEvents(
     }
   }
   return true;
+}
+
+function isSampleNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "SampleNotFoundError" ||
+      error.message.includes("it is not present in the manifest"))
+  );
+}
+
+function resolveInputDeltaEvent(
+  pollingState: PollingState,
+  event: Event,
+): void {
+  if (!isModelEvent(event)) {
+    return;
+  }
+
+  if (event.input_delta) {
+    event.input = [
+      ...pollingState.prevFullModelInput,
+      ...event.input,
+    ] as ModelEvent["input"];
+    event.input_delta = false;
+  }
+  pollingState.prevFullModelInput = event.input as unknown[];
 }
 
 const findMaxId = (

@@ -1,7 +1,10 @@
 from unittest.mock import patch
 
 from inspect_ai import Task, eval
-from inspect_ai._eval.task.log import resolve_external_registry_package_version
+from inspect_ai._eval.task.log import (
+    _is_high_throughput,
+    resolve_external_registry_package_version,
+)
 from inspect_ai._util.constants import PKG_NAME
 
 
@@ -85,3 +88,17 @@ class TestResolveExternalRegistryPackageVersion:
             )
 
         assert result is None
+
+
+def test_is_high_throughput_does_not_trigger_for_single_sample() -> None:
+    # A large provider default max_connections should not disable
+    # realtime logging for tiny runs.
+    assert _is_high_throughput(sample_count=1, effective_max_samples=1000) is False
+
+
+def test_is_high_throughput_triggers_for_large_sample_count() -> None:
+    assert _is_high_throughput(sample_count=1000, effective_max_samples=1) is True
+
+
+def test_is_high_throughput_triggers_when_both_thresholds_met() -> None:
+    assert _is_high_throughput(sample_count=100, effective_max_samples=100) is True

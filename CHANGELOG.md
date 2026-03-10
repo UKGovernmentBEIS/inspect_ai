@@ -12,6 +12,7 @@
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Bugfix: Handle dicts with numeric keys in json_changes.
+- Inspect View: Stream sample transcripts and deduplicate input (`input_delta` flag for the new append mode - faster rendering of SUMMARY tab, not even slower for ALL).
 
 ## 0.3.189 (07 March 2026)
 

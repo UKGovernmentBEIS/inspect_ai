@@ -1771,6 +1771,7 @@ export interface ModelEvent {
   model: Model4;
   role: Role4;
   input: Input3;
+  input_delta?: boolean;
   tools: Tools1;
   tool_choice: ToolChoice;
   config: GenerateConfig;

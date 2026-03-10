@@ -106,8 +106,16 @@ def _effective_max_samples(eval_config: EvalConfig, model: Model) -> int:
 
 
 def _is_high_throughput(sample_count: int, effective_max_samples: int) -> bool:
-    """Detect high-throughput runs that benefit from reduced logging overhead."""
-    return effective_max_samples >= 100 or sample_count >= 1000
+    """Detect high-throughput runs that benefit from reduced logging overhead.
+
+    We only treat a run as high-throughput when there is both substantial
+    sample volume and high concurrency potential. This avoids disabling
+    realtime logging for single-sample (or otherwise small) runs on providers
+    with large default connection limits.
+    """
+    return sample_count >= 1000 or (
+        effective_max_samples >= 100 and sample_count >= 100
+    )
 
 
 class TaskLogger:

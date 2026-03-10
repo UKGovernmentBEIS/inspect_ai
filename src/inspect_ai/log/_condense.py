@@ -52,6 +52,87 @@ class WalkContext(TypedDict):
     only_core: bool
 
 
+def delta_encode_model_inputs(events: list[Event]) -> list[Event]:
+    """Delta-encode ModelEvent inputs to reduce storage size.
+
+    For consecutive ModelEvents with shared input prefixes, store only the
+    new messages (delta) instead of the full input. The first ModelEvent
+    always keeps its full input.
+
+    Args:
+        events: List of events to delta-encode.
+
+    Returns:
+        List of events with ModelEvent inputs delta-encoded.
+    """
+    result = list(events)
+    prev_full_input: list[ChatMessage] | None = None
+
+    for i, event in enumerate(events):
+        if not isinstance(event, ModelEvent):
+            continue
+
+        if prev_full_input is not None:
+            shared = _count_shared_prefix(prev_full_input, event.input)
+            # Only delta-encode in the simple append-only case:
+            # the previous input must be the full prefix of the current input.
+            if shared == len(prev_full_input) and len(event.input) > len(prev_full_input):
+                result[i] = event.model_copy(
+                    update={
+                        "input": event.input[shared:],
+                        "input_delta": True,
+                    }
+                )
+
+        prev_full_input = event.input  # always the ORIGINAL full input
+
+    return result
+
+
+def _count_shared_prefix(prev: list[ChatMessage], curr: list[ChatMessage]) -> int:
+    """Count the number of shared prefix messages between two input lists."""
+    shared = 0
+    for p, c in zip(prev, curr):
+        if p == c:
+            shared += 1
+        else:
+            break
+    return shared
+
+
+def resolve_input_deltas(events: list[Event]) -> list[Event]:
+    """Resolve delta-encoded ModelEvent inputs back to full inputs.
+
+    Walks forward through events, accumulating full input from deltas.
+
+    Args:
+        events: List of events potentially containing delta-encoded ModelEvents.
+
+    Returns:
+        List of events with all ModelEvent inputs fully resolved.
+    """
+    result = list(events)
+    prev_full_input: list[ChatMessage] = []
+
+    for i, event in enumerate(events):
+        if not isinstance(event, ModelEvent):
+            continue
+
+        if event.input_delta:
+            full_input = prev_full_input + event.input
+            result[i] = event.model_copy(
+                update={
+                    "input": full_input,
+                    "input_delta": False,
+                }
+            )
+            prev_full_input = full_input
+        else:
+            prev_full_input = event.input
+
+    return result
+
+
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     """Reduce the storage size of the eval sample.
 
@@ -77,11 +158,13 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     messages_fn = messages_attachment_fn(attachments, log_images)
 
     context = WalkContext(message_cache={}, only_core=False)
+    events = walk_events(sample.events, events_fn, context)
+    events = delta_encode_model_inputs(events)
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, messages_fn, context),
             "messages": walk_chat_messages(sample.messages, messages_fn, context),
-            "events": walk_events(sample.events, events_fn, context),
+            "events": events,
             "attachments": attachments,
         }
     )
@@ -181,11 +264,13 @@ def resolve_sample_attachments(
         message_cache={},
         only_core=resolve_attachments == "core",
     )
+    events = walk_events(sample.events, content_fn, context)
+    events = resolve_input_deltas(events)
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
-            "events": walk_events(sample.events, content_fn, context),
+            "events": events,
             "attachments": {},
         }
     )

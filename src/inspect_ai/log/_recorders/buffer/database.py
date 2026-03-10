@@ -21,6 +21,7 @@ from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import ChatMessage
 
 from ..._condense import (
@@ -147,6 +148,9 @@ class SampleBufferDatabase(SampleBuffer):
             else None
         )
         self._sync_time = time.monotonic()
+        # Track last full ModelEvent input per sample so we can delta-encode
+        # realtime event payloads in the append-only case.
+        self._model_event_input_state: dict[tuple[str, int], list[ChatMessage]] = {}
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -193,6 +197,7 @@ class SampleBufferDatabase(SampleBuffer):
             """,
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
+        self._model_event_input_state.pop((str(summary.id), summary.epoch), None)
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
@@ -245,6 +250,8 @@ class SampleBufferDatabase(SampleBuffer):
                 logger.warning(f"Unexpcted error cleaning up samples: {ex}")
             finally:
                 cursor.close()
+        for sample_id, epoch in samples:
+            self._model_event_input_state.pop((str(sample_id), epoch), None)
 
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
@@ -516,6 +523,8 @@ class SampleBufferDatabase(SampleBuffer):
         )
 
     def _condense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
+        event = self._delta_encode_model_event(event)
+
         # alias attachments
         attachments: dict[str, str] = {}
         event.event = walk_events(
@@ -528,6 +537,41 @@ class SampleBufferDatabase(SampleBuffer):
         self._insert_attachments(conn, event.id, event.epoch, attachments)
 
         # return events with aliases
+        return event
+
+    def _delta_encode_model_event(self, event: SampleEvent) -> SampleEvent:
+        if not isinstance(event.event, ModelEvent):
+            return event
+
+        key = (str(event.id), event.epoch)
+        prev_full_input = self._model_event_input_state.get(key)
+        curr_full_input = event.event.input
+
+        # Always advance state with the original full input.
+        self._model_event_input_state[key] = curr_full_input
+
+        if prev_full_input is None:
+            return event
+
+        shared = 0
+        for prev_msg, curr_msg in zip(prev_full_input, curr_full_input):
+            if prev_msg == curr_msg:
+                shared += 1
+            else:
+                break
+
+        # Only encode append-only transitions. If input shrank or diverged,
+        # leave this as a full input event (input_delta=False).
+        if shared == len(prev_full_input) and len(curr_full_input) > len(prev_full_input):
+            event.event = event.event.model_copy(
+                update={
+                    "input": curr_full_input[shared:],
+                    "input_delta": True,
+                }
+            )
+        elif event.event.input_delta:
+            event.event = event.event.model_copy(update={"input_delta": False})
+
         return event
 
     def _resolve_event_attachments(

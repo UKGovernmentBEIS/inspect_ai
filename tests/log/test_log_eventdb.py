@@ -16,7 +16,10 @@ from inspect_ai.log._recorders.buffer.database import sync_to_filestore
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.event._model import ModelEvent
 
 
 @pytest.fixture
@@ -70,6 +73,46 @@ def test_log_events(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None
     with db._get_connection() as conn:
         logged_events = list(db._get_events(conn, id="sample1", epoch=1))
     assert len(logged_events) == 2
+
+
+def test_log_events_delta_encode_model_input_append_only(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """Realtime event logging delta-encodes append-only ModelEvent inputs."""
+    db.start_sample(sample=sample)
+
+    m1 = ChatMessageUser(content="m1")
+    m2 = ChatMessageUser(content="m2")
+    m3 = ChatMessageUser(content="m3")
+
+    e1 = ModelEvent(
+        model="mockllm/model",
+        input=[m1],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", "ok"),
+    )
+    e2 = ModelEvent(
+        model="mockllm/model",
+        input=[m1, m2, m3],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", "ok"),
+    )
+
+    db.log_events(
+        [SampleEvent(id="sample1", epoch=1, event=e1), SampleEvent(id="sample1", epoch=1, event=e2)]
+    )
+
+    with db._get_connection() as conn:
+        logged_events = list(db._get_events(conn, id="sample1", epoch=1))
+
+    assert len(logged_events) == 2
+    assert logged_events[0].event.get("input_delta") is False
+    assert logged_events[1].event.get("input_delta") is True
+    assert len(logged_events[1].event["input"]) == 2
 
 
 def test_complete_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:

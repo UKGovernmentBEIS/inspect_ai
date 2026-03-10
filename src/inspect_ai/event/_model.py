@@ -29,6 +29,10 @@ class ModelEvent(BaseEvent):
     input: list[ChatMessage]
     """Model input (list of messages)."""
 
+    input_delta: bool = Field(default=False)
+    """When True, `input` contains only the new messages added since the
+    previous ModelEvent. Full input = chain from first ModelEvent forward."""
+
     tools: list[ToolInfo]
     """Tools available to the model."""
 
