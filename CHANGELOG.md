@@ -1,5 +1,6 @@
 ## 0.3.191 (12 March 2026)
 
+- Mistral: Update to v2.0 of `mistralai` package.
 - Inspect View: Fix regression that prevented proper display of running samples.
 
 ## 0.3.190 (11 March 2026)
