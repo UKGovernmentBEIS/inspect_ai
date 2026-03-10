@@ -493,12 +493,22 @@ website:
           href: reference/inspect_ai.log.qmd#retryable_eval_logs
         - text: EvalLogInfo
           href: reference/inspect_ai.log.qmd#evalloginfo
+        - text: edit_eval_log
+          href: reference/inspect_ai.log.qmd#edit_eval_log
         - text: edit_score
           href: reference/inspect_ai.log.qmd#edit_score
         - text: invalidate_samples
           href: reference/inspect_ai.log.qmd#invalidate_samples
         - text: uninvalidate_samples
           href: reference/inspect_ai.log.qmd#uninvalidate_samples
+        - text: LogUpdate
+          href: reference/inspect_ai.log.qmd#logupdate
+        - text: LogEdit
+          href: reference/inspect_ai.log.qmd#logedit
+        - text: MetadataEdit
+          href: reference/inspect_ai.log.qmd#metadataedit
+        - text: TagsEdit
+          href: reference/inspect_ai.log.qmd#tagsedit
         - text: ProvenanceData
           href: reference/inspect_ai.log.qmd#provenancedata
         - text: EvalStatus

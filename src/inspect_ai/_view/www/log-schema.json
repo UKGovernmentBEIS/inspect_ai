@@ -4629,6 +4629,42 @@
       "additionalProperties": false
     },
     "JsonValue": {},
+    "LogUpdate": {
+      "description": "A group of edits that share provenance.",
+      "properties": {
+        "edits": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "metadata": "#/$defs/MetadataEdit",
+                "tags": "#/$defs/TagsEdit"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TagsEdit"
+              },
+              {
+                "$ref": "#/$defs/MetadataEdit"
+              }
+            ]
+          },
+          "title": "Edits",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProvenanceData"
+        }
+      },
+      "required": [
+        "edits",
+        "provenance"
+      ],
+      "title": "LogUpdate",
+      "type": "object",
+      "additionalProperties": false
+    },
     "LoggerEvent": {
       "description": "Log message recorded with Python logger.",
       "properties": {
@@ -4848,6 +4884,37 @@
       ],
       "title": "Logprobs",
       "type": "object",
+      "additionalProperties": false
+    },
+    "MetadataEdit": {
+      "description": "Edit action for metadata.",
+      "properties": {
+        "type": {
+          "const": "metadata",
+          "default": "metadata",
+          "title": "Type",
+          "type": "string"
+        },
+        "metadata_set": {
+          "additionalProperties": true,
+          "title": "Metadata Set",
+          "type": "object"
+        },
+        "metadata_remove": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Metadata Remove",
+          "type": "array"
+        }
+      },
+      "title": "MetadataEdit",
+      "type": "object",
+      "required": [
+        "type",
+        "metadata_set",
+        "metadata_remove"
+      ],
       "additionalProperties": false
     },
     "ModelCall": {
@@ -7161,6 +7228,39 @@
       "type": "object",
       "additionalProperties": false
     },
+    "TagsEdit": {
+      "description": "Edit action for tags.",
+      "properties": {
+        "type": {
+          "const": "tags",
+          "default": "tags",
+          "title": "Type",
+          "type": "string"
+        },
+        "tags_add": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags Add",
+          "type": "array"
+        },
+        "tags_remove": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags Remove",
+          "type": "array"
+        }
+      },
+      "title": "TagsEdit",
+      "type": "object",
+      "required": [
+        "type",
+        "tags_add",
+        "tags_remove"
+      ],
+      "additionalProperties": false
+    },
     "Timeline": {
       "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
       "properties": {
@@ -8300,6 +8400,33 @@
       "default": false,
       "title": "Invalidated",
       "type": "boolean"
+    },
+    "log_updates": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/LogUpdate"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Log Updates"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
     },
     "samples": {
       "anyOf": [
