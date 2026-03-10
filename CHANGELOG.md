@@ -2,6 +2,7 @@
 
 - Computer Tool: Support for the updated OpenAI computer tool released with GPT 5.4.
 - Computer Tool: Support for the native Gemini computer tool.
+- Bash Session: Catch ProcessLookupError in case bash session has crashed.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
