@@ -23,6 +23,7 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
+import { ActivityBar } from "../../components/ActivityBar";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { JSONPanel } from "../../components/JsonPanel";
 import { NoContentsPanel } from "../../components/NoContentsPanel";
@@ -56,7 +57,6 @@ import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
-import { ActivityBar } from "../../components/ActivityBar";
 
 interface SampleDisplayProps {
   id: string;
@@ -135,6 +135,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       return [];
     }
   }, [sample?.messages, runningSampleData]);
+
+  const hasSampleData =
+    sample !== undefined ||
+    sampleEvents !== undefined ||
+    sampleMessages !== undefined;
 
   // Get all URL parameters at component level
   const {
@@ -342,6 +347,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }, [selectedSampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
+  console.log({ sample, sampleMetadatas });
 
   return (
     <Fragment>
@@ -350,7 +356,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       ) : undefined}
       <ActivityBar animating={showActivity} />
 
-      {sample && (
+      {hasSampleData && (
         <TabSet
           id={tabsetId}
           tabsRef={tabsRef}
@@ -440,12 +446,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={effectiveSelectedTab === kSampleMetdataTabId}
           >
-            {!sample || sampleMetadatas.length > 0 ? (
+            {sampleMetadatas.length > 0 ? (
               <div className={clsx(styles.padded, styles.fullWidth)}>
                 {sampleMetadatas}
               </div>
             ) : (
-              <NoContentsPanel text="No metadata" />
+              <NoContentsPanel text="No sample metadata available" />
             )}
           </TabPanel>
           {sample?.error ||
