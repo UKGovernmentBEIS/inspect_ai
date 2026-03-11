@@ -36,7 +36,7 @@ from ..._condense import (
 )
 from ..._log import EvalSampleSummary
 from ..._pool import (
-    _anonymous_msg_key,
+    _msg_hash,
     condense_model_event_calls,
     condense_model_event_inputs,
 )
@@ -637,7 +637,7 @@ class SampleBufferDatabase(SampleBuffer):
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed[0])
             for i in range(prev_msg_len, len(msg_pool)):
                 msg = msg_pool[i]
-                msg_id = msg.id if msg.id is not None else _anonymous_msg_key(msg)
+                msg_id = msg.id if msg.id is not None else _msg_hash(msg)
                 self._insert_message_pool_entry(
                     conn, event.id, event.epoch, msg_id, msg
                 )
