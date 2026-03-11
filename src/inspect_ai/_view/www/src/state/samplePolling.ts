@@ -12,7 +12,7 @@ import {
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
-import { resolveSample } from "./sampleUtils";
+import { expandRefs, resolveSample } from "./sampleUtils";
 import { StoreState } from "./store";
 
 const log = createLogger("samplePolling");
@@ -374,16 +374,6 @@ function processEvents(
     }
   }
   return true;
-}
-
-function expandRefs<T>(refs: [number, number][], pool: T[]): T[] {
-  const result: T[] = [];
-  for (const item of refs) {
-    for (let i = item[0]; i < item[1]; i++) {
-      result.push(pool[i]);
-    }
-  }
-  return result;
 }
 
 function resolvePoolRefs(event: Event, pollingState: PollingState): Event {
