@@ -251,13 +251,12 @@ input = [
 > pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
 > ```
 
-Some models can generate images as part of their responses. To activate
-this capability, use the `modalities` option in `GenerateConfig`:
+Some models can generate multimodal output along with text:
 
-| Provider | Images | Models |
-|----|:--:|----|
-| OpenAI | • | `gpt-4o`, `gpt-5`, `gpt-5.2`, `gpt-5.4` (via Responses API) |
-| Google | • | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` |
+- OpenAI `gpt-4o` and `gpt-5` models support image generation
+
+- Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`,
+  and `gemini-3.1-flash-image-preview` support image generation.
 
 Enable image output by setting `modalities=["image"]` in your
 `GenerateConfig`:
@@ -271,9 +270,8 @@ additional modalities beyond text.
 
 ### OpenAI
 
-When image output is requested, Inspect automatically switches to the
-Responses API (which is required for image generation). Image generation
-uses `gpt-image-1` / `gpt-image-1.5` under the hood:
+Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood
+(you can custmize this using `ImageOutput` options).
 
 ``` python
 model = get_model("openai/gpt-5.4")
@@ -291,7 +289,12 @@ from inspect_ai.model import ImageOutput
 
 config = GenerateConfig(modalities=[
     ImageOutput(options={
-        "openai": {"quality": "high", "size": "1024x1024", "output_format": "png"}
+        "openai": {
+            "quality": "high", 
+            "size": "1024x1024", 
+            "output_format": "png",
+            "model": "gpt-image-1.5"
+        }
     })
 ])
 ```
