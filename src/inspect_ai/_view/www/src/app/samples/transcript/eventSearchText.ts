@@ -22,11 +22,10 @@ export const eventSearchText = (node: EventNode): string[] => {
           texts.push(...extractContentText(choice.message.content));
         }
       }
-      if (event.input) {
-        for (const msg of event.input) {
-          if (msg.role === "user" || msg.role === "system") {
-            texts.push(...extractContentText(msg.content));
-          }
+      // Model event error details (API errors, tracebacks)
+      if (event.error) {
+        if (typeof event.error === "string") {
+          texts.push(event.error);
         }
       }
       break;
@@ -36,15 +35,15 @@ export const eventSearchText = (node: EventNode): string[] => {
       if (event.function) {
         texts.push(event.function);
       }
-      if (event.arguments) {
+      if (event.arguments && typeof event.arguments === "string") {
+        texts.push(event.arguments);
+      } else if (event.arguments && typeof event.arguments === "object") {
         texts.push(JSON.stringify(event.arguments));
       }
-      if (event.result) {
-        if (typeof event.result === "string") {
-          texts.push(event.result);
-        } else {
-          texts.push(JSON.stringify(event.result));
-        }
+      if (event.result && typeof event.result === "string") {
+        texts.push(event.result);
+      } else if (event.result != null) {
+        texts.push(...extractToolResultText(event.result));
       }
       if (event.error?.message) {
         texts.push(event.error.message);
@@ -63,9 +62,6 @@ export const eventSearchText = (node: EventNode): string[] => {
       if (event.error?.message) {
         texts.push(event.error.message);
       }
-      if (event.error?.traceback) {
-        texts.push(event.error.traceback);
-      }
       break;
     }
 
@@ -80,12 +76,8 @@ export const eventSearchText = (node: EventNode): string[] => {
     }
 
     case "info": {
-      if (event.data) {
-        if (typeof event.data === "string") {
-          texts.push(event.data);
-        } else {
-          texts.push(JSON.stringify(event.data));
-        }
+      if (event.data && typeof event.data === "string") {
+        texts.push(event.data);
       }
       break;
     }
@@ -94,16 +86,15 @@ export const eventSearchText = (node: EventNode): string[] => {
       if (event.source) {
         texts.push(event.source);
       }
-      texts.push(JSON.stringify(event));
       break;
     }
 
     case "subtask": {
-      if (event.input) {
-        texts.push(JSON.stringify(event.input));
+      if (event.input && typeof event.input === "string") {
+        texts.push(event.input);
       }
-      if (event.result) {
-        texts.push(JSON.stringify(event.result));
+      if (event.result && typeof event.result === "string") {
+        texts.push(event.result);
       }
       break;
     }
@@ -226,12 +217,62 @@ const extractContentText = (content: Content): string[] => {
         if (item.name) {
           texts.push(item.name);
         }
-        if (item.arguments) {
-          texts.push(JSON.stringify(item.arguments));
+        if (item.arguments && typeof item.arguments === "string") {
+          texts.push(item.arguments);
         }
         break;
       }
     }
   }
   return texts;
+};
+
+const extractToolResultText = (value: unknown): string[] => {
+  if (value == null) {
+    return [];
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return [String(value)];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractToolResultText(item));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  const item = value as Record<string, unknown>;
+  const type = item.type;
+
+  if (type === "text" && typeof item.text === "string") {
+    return [item.text];
+  }
+
+  if (type === "reasoning") {
+    const out: string[] = [];
+    if (typeof item.reasoning === "string") {
+      out.push(item.reasoning);
+    }
+    if (typeof item.summary === "string") {
+      out.push(item.summary);
+    }
+    return out;
+  }
+
+  if (type === "tool" && Array.isArray(item.content)) {
+    return item.content.flatMap((c) => extractToolResultText(c));
+  }
+
+  if (type === "image" && typeof item.image === "string") {
+    return item.image.startsWith("data:") ? [] : [item.image];
+  }
+
+  return [JSON.stringify(value)];
 };
