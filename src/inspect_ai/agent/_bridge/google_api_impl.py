@@ -22,6 +22,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
@@ -80,6 +81,16 @@ async def inspect_google_api_request_impl(
     )
 
     debug_log("SCAFFOLD INPUT", contents)
+
+    # validate computer use compatibility
+    has_computer_use = any(
+        "computerUse" in google_tool for google_tool in google_tools or []
+    )
+    if has_computer_use and ModelName(model).api != "google":
+        raise RuntimeError(
+            f"computer use with the Google agent bridge requires a "
+            f"Google model, got '{ModelName(model)}'"
+        )
 
     # translate tools
     tools = tools_from_google_tools(

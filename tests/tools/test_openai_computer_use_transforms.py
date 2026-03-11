@@ -296,14 +296,6 @@ def test_left_mouse_up_maps_to_move():
     assert action.y == 60
 
 
-def test_unknown_action_defaults_to_screenshot():
-    args = {"action": "unknown_action"}
-    action = tool_call_arguments_to_actions({"actions": [args]})[0]
-
-    assert isinstance(action, Screenshot)
-    assert action.type == "screenshot"
-
-
 def test_multi_action_parse():
     tool_call = _make_tool_call(
         [

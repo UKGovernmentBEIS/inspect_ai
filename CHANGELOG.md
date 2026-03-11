@@ -19,6 +19,7 @@
 - Inspect View: Fix regression that prevented proper display of running sanples.
 - Google: Include images from tool results in API requests for non-computer-use models.
 - Bugfix: Handle dicts with numeric keys in json_changes.
+- Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 
 ## 0.3.189 (07 March 2026)
 

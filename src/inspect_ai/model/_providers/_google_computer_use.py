@@ -107,11 +107,7 @@ def gemini_action_from_tool_call(
 
     elif action == "type":
         text = str(arguments.get("text", ""))
-        coordinate = arguments.get("coordinate")
-        if coordinate:
-            x, y = _normalize_coordinate(coordinate)
-        else:
-            x, y = 0, 0
+        x, y = _normalize_coordinate(arguments.get("coordinate", [0, 0]))
         return "type_text_at", {"text": text, "x": x, "y": y}
 
     elif action == "scroll":

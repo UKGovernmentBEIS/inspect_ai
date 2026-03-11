@@ -183,9 +183,17 @@ async def inspect_responses_api_request_impl(
     # record parallel tool calls
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
 
+    # validate computer use compatibility
+    responses_tools: list[ToolParam] = json_data.get("tools", [])
+    has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
+    if has_computer_use and not is_openai:
+        raise RuntimeError(
+            f"computer use with the OpenAI Responses agent bridge requires an "
+            f"OpenAI model, got '{ModelName(model)}'"
+        )
+
     # convert openai tools to inspect tools (don't pass custom tools on to
     # non openai models as they don't know how to handle them)
-    responses_tools: list[ToolParam] = json_data.get("tools", [])
     tools = [
         tool_from_responses_tool(tool, web_search, code_execution)
         for tool in responses_tools
