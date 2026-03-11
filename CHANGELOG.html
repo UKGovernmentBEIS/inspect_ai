@@ -353,8 +353,13 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Computer Tool: Support for the updated OpenAI computer tool released with GPT 5.4.</li>
-<li>Computer Tool: Support for the native Gemini computer tool.</li>
+<li>OpenAI: Support for image output for multimodal modals.</li>
+<li>OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.</li>
+<li>Google: Support for image output for multimodal models.</li>
+<li>Google: Support for the native Gemini computer tool.</li>
+<li>Anthropic: Add <code>insert_text</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool (matches Claude 4.6 schema).</li>
+<li>Mistral: Update to v2.0 of <code>mistralai</code> package.</li>
+<li>Bash Session: Catch ProcessLookupError in case bash session has crashed.</li>
 <li>Eval Logs: Use async S3 interface when flushing log buffer.</li>
 <li>Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).</li>
 <li>Eval Logs: Materialize <code>samples</code> and <code>reductions</code> fields lazily in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> returned by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</li>
@@ -364,6 +369,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).</li>
 <li>Task Execution: Add <code>--max-dataset-memory</code> option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.</li>
 <li>Inspect Score: Add support for an optional list of metrics when rescoring a log.</li>
+<li>Inspect View: Fix regression that prevented proper display of running sanples.</li>
+<li>Google: Include images from tool results in API requests for non-computer-use models.</li>
 <li>Bugfix: Handle dicts with numeric keys in json_changes.</li>
 </ul>
 </section>
@@ -424,6 +431,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Add support for find in log list.</li>
 <li>Inspect View: Fix regression displaying running samples when switching samples.</li>
 <li>Testing: Fix “Event loop is closed” error in bridge compaction tests by properly closing AsyncOpenAI client.</li>
+<li>Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing <code>.eval</code> file sizes.</li>
 </ul>
 </section>
 <section id="march-2026-4" class="level2">

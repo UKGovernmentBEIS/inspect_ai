@@ -90,6 +90,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--response-schema` | text | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. | None |
 | `--cache` | text | Policy for caching of model generations. Specify –cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration. | None |
 | `--batch` | text | Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify –batch to batch with default configuration, specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration. | None |
+| `--modalities` | text | Additional output modalities beyond text (e.g. ‘image’). Comma-separated names or a YAML/JSON config file path. OpenAI and Google only. | None |
 | `--log-format` | choice (`eval` \| `json`) | Format for writing log files. | None |
 | `--log-level-transcript` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level of the transcript (defaults to ‘info’) | `info` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |

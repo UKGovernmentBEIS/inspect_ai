@@ -531,6 +531,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#formats-1" id="toc-formats-1" class="nav-link" data-scroll-target="#formats-1">Formats</a></li>
   </ul></li>
   <li><a href="#pdf" id="toc-pdf" class="nav-link" data-scroll-target="#pdf">PDF</a></li>
+  <li><a href="#multimodal-output" id="toc-multimodal-output" class="nav-link" data-scroll-target="#multimodal-output">Multimodal Output</a>
+  <ul class="collapse">
+  <li><a href="#openai" id="toc-openai" class="nav-link" data-scroll-target="#openai">OpenAI</a></li>
+  <li><a href="#google" id="toc-google" class="nav-link" data-scroll-target="#google">Google</a></li>
+  <li><a href="#response-format" id="toc-response-format" class="nav-link" data-scroll-target="#response-format">Response Format</a></li>
+  </ul></li>
   <li><a href="#uploads" id="toc-uploads" class="nav-link" data-scroll-target="#uploads">Uploads</a></li>
   <li><a href="#logging" id="toc-logging" class="nav-link" data-scroll-target="#logging">Logging</a></li>
   </ul>
@@ -639,6 +645,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we’ll enumerate which models can handle these input types. It’s also always a good idea to check the provider documentation for the most up to date compatibility matrix.</p>
+<p>Some OpenAI and Google models additionally support <a href="#multimodal-output">Multimodal Output</a>.</p>
 </section>
 <section id="provider-notes" class="level2">
 <h2 class="anchored" data-anchor-id="provider-notes">Images</h2>
@@ -779,6 +786,86 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    ])</span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
+<section id="multimodal-output" class="level2">
+<h2 class="anchored" data-anchor-id="multimodal-output">Multimodal Output</h2>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Support for multimodal output is available only in the development version of Inspect. Install the development version from GitHub with:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pip install git<span class="op">+</span>https:<span class="op">//</span>github.com<span class="op">/</span>UKGovernmentBEIS<span class="op">/</span>inspect_ai.git</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<p>Some models can generate images as part of their responses. To activate this capability, use the <code>modalities</code> option in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 10%">
+<col style="width: 70%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Provider</th>
+<th style="text-align: center;">Images</th>
+<th>Models</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>OpenAI</td>
+<td style="text-align: center;">•</td>
+<td><code>gpt-4o</code>, <code>gpt-5</code>, <code>gpt-5.2</code>, <code>gpt-5.4</code> (via Responses API)</td>
+</tr>
+<tr class="even">
+<td>Google</td>
+<td style="text-align: center;">•</td>
+<td><code>gemini-2.5-flash-image</code>, <code>gemini-3-pro-image-preview</code>, <code>gemini-3.1-flash-image-preview</code></td>
+</tr>
+</tbody>
+</table>
+<p>Enable image output by setting <code>modalities=["image"]</code> in your <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> GenerateConfig(modalities<span class="op">=</span>[<span class="st">"image"</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Text output is always implicitly included—you only need to specify additional modalities beyond text.</p>
+<section id="openai" class="level3">
+<h3 class="anchored" data-anchor-id="openai">OpenAI</h3>
+<p>When image output is requested, Inspect automatically switches to the Responses API (which is required for image generation). Image generation uses <code>gpt-image-1</code> / <code>gpt-image-1.5</code> under the hood:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"openai/gpt-5.4"</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> <span class="cf">await</span> model.generate(</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span>[ChatMessageUser(content<span class="op">=</span><span class="st">"Generate an image of a sunset"</span>)],</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>GenerateConfig(modalities<span class="op">=</span>[<span class="st">"image"</span>]),</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>For more control over image generation, use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#imageoutput">ImageOutput</a></span> with provider-specific options:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ImageOutput</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> GenerateConfig(modalities<span class="op">=</span>[</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    ImageOutput(options<span class="op">=</span>{</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"openai"</span>: {<span class="st">"quality"</span>: <span class="st">"high"</span>, <span class="st">"size"</span>: <span class="st">"1024x1024"</span>, <span class="st">"output_format"</span>: <span class="st">"png"</span>}</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="google" class="level3">
+<h3 class="anchored" data-anchor-id="google">Google</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"google/gemini-3.1-flash-image-preview"</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> <span class="cf">await</span> model.generate(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span>[ChatMessageUser(content<span class="op">=</span><span class="st">"Generate an image of a sunset"</span>)],</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>GenerateConfig(modalities<span class="op">=</span>[<span class="st">"image"</span>]),</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="response-format" class="level3">
+<h3 class="anchored" data-anchor-id="response-format">Response Format</h3>
+<p>Image output appears as <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentimage">ContentImage</a></span> in the assistant message’s <code>content</code> list, with a <code>data:image/png;base64,...</code> data URI:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> content <span class="kw">in</span> output.choices[<span class="dv">0</span>].message.content:</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(content, ContentImage):</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>        <span class="co"># content.image contains a data URI like "data:image/png;base64,..."</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">pass</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
 <section id="uploads" class="level2">
 <h2 class="anchored" data-anchor-id="uploads">Uploads</h2>
 <p>When using audio and video with the Google Gemini API, media is first uploaded using the <a href="https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio">File API</a> and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.</p>
@@ -788,7 +875,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="logging">Logging</h2>
 <p>By default, full base64 encoded copies of media files are included in the log file. Media file logging will not create performance problems when using <code>.eval</code> logs, however if you are using <code>.json</code> logs then large numbers of media files could become unwieldy (i.e.&nbsp;if your <code>.json</code> log file grows to 100MB or larger as a result).</p>
 <p>You can disable all media logging using the <code>--no-log-images</code> flag. For example, here we enable the <code>.json</code> log format and disable media logging:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval images.py <span class="at">--log-format</span><span class="op">=</span>json <span class="at">--no-log-images</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval images.py <span class="at">--log-format</span><span class="op">=</span>json <span class="at">--no-log-images</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also use the <code>INSPECT_EVAL_LOG_IMAGES</code> environment variable to set a global default in your <code>.env</code> configuration file.</p>
 
 
