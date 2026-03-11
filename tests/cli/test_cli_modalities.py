@@ -22,7 +22,7 @@ def test_parse_modalities_multiple_comma_separated():
 
 
 def test_parse_modalities_yaml_file():
-    config = [{"quality": "high", "size": "1024x1024"}]
+    config = [{"options": {"openai": {"quality": "high", "size": "1024x1024"}}}]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         yaml.dump(config, f)
         f.flush()
@@ -30,14 +30,15 @@ def test_parse_modalities_yaml_file():
             result = parse_modalities(f.name)
             assert len(result) == 1
             assert isinstance(result[0], ImageOutput)
-            assert result[0].quality == "high"
-            assert result[0].size == "1024x1024"
+            assert result[0].options is not None
+            assert result[0].options["openai"]["quality"] == "high"
+            assert result[0].options["openai"]["size"] == "1024x1024"
         finally:
             os.unlink(f.name)
 
 
 def test_parse_modalities_json_file():
-    config = [{"quality": "low", "size": "1024x1024"}]
+    config = [{"options": {"openai": {"quality": "low", "size": "1024x1024"}}}]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config, f)
         f.flush()
@@ -45,13 +46,14 @@ def test_parse_modalities_json_file():
             result = parse_modalities(f.name)
             assert len(result) == 1
             assert isinstance(result[0], ImageOutput)
-            assert result[0].quality == "low"
+            assert result[0].options is not None
+            assert result[0].options["openai"]["quality"] == "low"
         finally:
             os.unlink(f.name)
 
 
 def test_parse_modalities_yaml_mixed():
-    config = ["image", {"quality": "high"}]
+    config = ["image", {"options": {"openai": {"quality": "high"}}}]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         yaml.dump(config, f)
         f.flush()

@@ -1,7 +1,9 @@
 ## Unreleased
 
-- Computer Tool: Support for the updated OpenAI computer tool released with GPT 5.4.
-- Computer Tool: Support for the native Gemini computer tool.
+- OpenAI: Support for image output for multimodal modals.
+- OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
+- Google: Support for image output for multimodal models.
+- Google: Support for the native Gemini computer tool.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
 - Mistral: Update to v2.0 of `mistralai` package.
 - Eval Logs: Use async S3 interface when flushing log buffer.

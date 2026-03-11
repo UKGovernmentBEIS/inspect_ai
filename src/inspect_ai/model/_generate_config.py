@@ -54,21 +54,14 @@ class BatchConfig(BaseModel):
 
 
 class ImageOutput(BaseModel):
-    """Image output configuration. OpenAI only options."""
+    """Image output configuration.
 
-    quality: Literal["low", "medium", "high", "auto"] | None = Field(default=None)
-    """Image quality. OpenAI only."""
+    Use the `options` field to pass provider-specific options directly
+    to the underlying API (e.g. OpenAI image_generation tool parameters).
+    """
 
-    size: Literal["1024x1024", "1024x1536", "1536x1024", "auto"] | None = Field(
-        default=None
-    )
-    """Image size. OpenAI only."""
-
-    background: Literal["transparent", "opaque", "auto"] | None = Field(default=None)
-    """Background type. OpenAI only."""
-
-    format: Literal["png", "jpeg", "webp"] | None = Field(default=None)
-    """Output format. OpenAI only."""
+    options: dict[Literal["openai"], dict[str, Any]] | None = Field(default=None)
+    """Provider-specific image output options, keyed by provider name."""
 
 
 OutputModality = Union[Literal["image"], ImageOutput]

@@ -8,7 +8,7 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import model_graded_fact
@@ -67,6 +67,39 @@ async def test_openai_responses_image_generation_gpt4():
 @skip_if_no_openai
 async def test_openai_responses_image_generation_gpt5():
     await check_openai_responses_image_generation("openai/gpt-5.4")
+
+
+@pytest.mark.slow
+@skip_if_no_openai
+async def test_openai_responses_image_generation_gpt5_with_options():
+    """Test image generation with provider-specific ImageOutput options."""
+    model = get_model("openai/gpt-5.4")
+    output = await model.generate(
+        input=[ChatMessageUser(content="Generate a simple image of a blue square")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(
+            modalities=[
+                ImageOutput(
+                    options={
+                        "openai": {
+                            "quality": "low",
+                            "size": "1024x1024",
+                            "output_format": "png",
+                        }
+                    }
+                )
+            ]
+        ),
+    )
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    images = [c for c in content if isinstance(c, ContentImage)]
+    assert len(images) >= 1
+    assert images[0].image.startswith("data:image/png;base64,")
+    _, b64data = images[0].image.split(",", 1)
+    raw = base64.b64decode(b64data)
+    assert raw[:4] == b"\x89PNG"
 
 
 @pytest.mark.slow

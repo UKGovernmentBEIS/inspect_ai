@@ -981,9 +981,19 @@ def test_openai_responses_tools_image_modality():
     assert len(tools) == 1
     assert tools[0]["type"] == "image_generation"
 
-    # ImageOutput with options
+    # ImageOutput with provider-specific options
     config = GenerateConfig(
-        modalities=[ImageOutput(quality="high", size="1024x1024", background="opaque")]
+        modalities=[
+            ImageOutput(
+                options={
+                    "openai": {
+                        "quality": "high",
+                        "size": "1024x1024",
+                        "background": "opaque",
+                    }
+                }
+            )
+        ]
     )
     tools = openai_responses_tools([], "gpt-4o", config)
     assert len(tools) == 1

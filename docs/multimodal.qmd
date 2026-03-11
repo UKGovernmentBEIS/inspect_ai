@@ -238,13 +238,15 @@ output = await model.generate(
 )
 ```
 
-For more control over image generation, use `ImageOutput`:
+For more control over image generation, use `ImageOutput` with provider-specific options:
 
 ``` python
 from inspect_ai.model import ImageOutput
 
 config = GenerateConfig(modalities=[
-    ImageOutput(quality="high", size="1024x1024", format="png")
+    ImageOutput(options={
+        "openai": {"quality": "high", "size": "1024x1024", "output_format": "png"}
+    })
 ])
 ```
 

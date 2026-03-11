@@ -433,15 +433,10 @@ def openai_responses_tools(
         for modality in config.modalities:
             if modality == "image" or isinstance(modality, ImageOutput):
                 tool_def = ImageGeneration(type="image_generation")
-                if isinstance(modality, ImageOutput):
-                    if modality.quality:
-                        tool_def["quality"] = modality.quality
-                    if modality.size:
-                        tool_def["size"] = modality.size
-                    if modality.background:
-                        tool_def["background"] = modality.background
-                    if modality.format:
-                        tool_def["output_format"] = modality.format
+                if isinstance(modality, ImageOutput) and modality.options:
+                    openai_options = modality.options.get("openai", {})
+                    for key, value in openai_options.items():
+                        tool_def[key] = value  # type: ignore[literal-required]
                 result.append(tool_def)
 
     return result
