@@ -1,5 +1,6 @@
 import { StoreApi, UseBoundStore } from "zustand";
 
+import { JsonValue, ModelEvent } from "../@types/log";
 import { Event } from "../app/types";
 import {
   AttachmentData,
@@ -11,7 +12,7 @@ import {
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
-import { resolveSample } from "./sampleUtils";
+import { expandRefs, resolveSample } from "./sampleUtils";
 import { StoreState } from "./store";
 
 const log = createLogger("samplePolling");
@@ -27,8 +28,12 @@ const kPollingMaxRetries = 10;
 interface PollingState {
   eventId: number;
   attachmentId: number;
+  messagePoolId: number;
+  callPoolId: number;
 
   attachments: Record<string, string>;
+  messagePool: JsonValue[];
+  callPool: JsonValue[];
 
   eventMapping: Record<string, number>;
   events: Event[];
@@ -47,9 +52,13 @@ export function createSamplePolling(
   const pollingState: PollingState = {
     eventId: kNoId,
     attachmentId: kNoId,
+    messagePoolId: kNoId,
+    callPoolId: kNoId,
 
     eventMapping: {},
     attachments: {},
+    messagePool: [],
+    callPool: [],
     events: [],
   };
 
@@ -101,12 +110,16 @@ export function createSamplePolling(
       // Fetch sample data
       const eventId = pollingState.eventId;
       const attachmentId = pollingState.attachmentId;
+      const messagePoolId = pollingState.messagePoolId;
+      const callPoolId = pollingState.callPoolId;
       const sampleDataResponse = await api.get_log_sample_data(
         logFile,
         summary.id,
         summary.epoch,
         eventId,
         attachmentId,
+        messagePoolId !== kNoId ? messagePoolId : undefined,
+        callPoolId !== kNoId ? callPoolId : undefined,
       );
 
       if (abortController.signal.aborted) {
@@ -175,6 +188,10 @@ export function createSamplePolling(
         if (sampleDataResponse.sampleData) {
           // Process attachments
           processAttachments(sampleDataResponse.sampleData, pollingState);
+
+          // Process pool entries (must come before events so refs can be resolved)
+          processMessagePool(sampleDataResponse.sampleData, pollingState);
+          processCallPool(sampleDataResponse.sampleData, pollingState);
 
           // Process events
           const processedEvents = processEvents(
@@ -252,8 +269,12 @@ export function createSamplePolling(
 const resetPollingState = (state: PollingState) => {
   state.eventId = kNoId;
   state.attachmentId = kNoId;
+  state.messagePoolId = kNoId;
+  state.callPoolId = kNoId;
   state.eventMapping = {};
   state.attachments = {};
+  state.messagePool = [];
+  state.callPool = [];
   state.events = [];
 };
 
@@ -265,6 +286,29 @@ function processAttachments(
   Object.values(sampleData.attachments).forEach((v) => {
     pollingState.attachments[v.hash] = v.content;
   });
+}
+
+function processMessagePool(
+  sampleData: SampleData,
+  pollingState: PollingState,
+) {
+  if (!sampleData.message_pool?.length) return;
+  log.debug(
+    `Processing ${sampleData.message_pool.length} message pool entries`,
+  );
+  for (const entry of sampleData.message_pool) {
+    pollingState.messagePool.push(JSON.parse(entry.data) as JsonValue);
+    pollingState.messagePoolId = Math.max(pollingState.messagePoolId, entry.id);
+  }
+}
+
+function processCallPool(sampleData: SampleData, pollingState: PollingState) {
+  if (!sampleData.call_pool?.length) return;
+  log.debug(`Processing ${sampleData.call_pool.length} call pool entries`);
+  for (const entry of sampleData.call_pool) {
+    pollingState.callPool.push(JSON.parse(entry.data) as JsonValue);
+    pollingState.callPoolId = Math.max(pollingState.callPoolId, entry.id);
+  }
 }
 
 function processEvents(
@@ -284,7 +328,7 @@ function processEvents(
     const existingIndex = pollingState.eventMapping[eventData.event_id];
 
     // Resolve attachments within this event
-    const resolvedEvent = resolveAttachments<Event>(
+    let resolvedEvent = resolveAttachments<Event>(
       eventData.event,
       pollingState.attachments,
       (attachmentId: string) => {
@@ -305,7 +349,17 @@ function processEvents(
       },
     );
 
-    if (existingIndex) {
+    // Resolve pool refs for model events
+    resolvedEvent = resolvePoolRefs(resolvedEvent, pollingState);
+
+    // Resolve attachments again after pool expansion, since pool entries
+    // may contain attachment:// URIs that weren't visible before expansion.
+    resolvedEvent = resolveAttachments<Event>(
+      resolvedEvent,
+      pollingState.attachments,
+    );
+
+    if (existingIndex !== undefined) {
       // There is an existing event in the stream, replace it
       log.debug(`Replace event ${existingIndex}`);
       pollingState.events[existingIndex] = resolvedEvent;
@@ -320,6 +374,49 @@ function processEvents(
     }
   }
   return true;
+}
+
+function resolvePoolRefs(event: Event, pollingState: PollingState): Event {
+  // The Event union includes DOM InputEvent (missing .event property) so we
+  // need to cast through a ModelEvent-like shape for the type guard.
+  const ev = event as ModelEvent;
+  if (ev.event !== "model") return event;
+
+  let resolved = ev;
+
+  if (
+    Array.isArray(resolved.input_refs) &&
+    pollingState.messagePool.length > 0
+  ) {
+    resolved = {
+      ...resolved,
+      input: expandRefs(
+        resolved.input_refs as [number, number][],
+        pollingState.messagePool,
+      ) as ModelEvent["input"],
+      input_refs: null,
+    };
+  }
+
+  if (resolved.call && Array.isArray(resolved.call.call_refs)) {
+    const msgKey = (resolved.call.call_key as string) || "messages";
+    const request = { ...resolved.call.request };
+    request[msgKey] = expandRefs(
+      resolved.call.call_refs as [number, number][],
+      pollingState.callPool,
+    );
+    resolved = {
+      ...resolved,
+      call: {
+        ...resolved.call,
+        request,
+        call_refs: null,
+        call_key: null,
+      },
+    };
+  }
+
+  return resolved;
 }
 
 const findMaxId = (

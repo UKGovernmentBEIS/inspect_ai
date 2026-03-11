@@ -8,7 +8,7 @@ type ChatMessage = EvalSample["messages"][number];
  * Expand range-encoded refs against a pool.
  * Each ref element is [start, end_exclusive) — a half-open range.
  */
-const expandRefs = <T>(refs: [number, number][], pool: T[]): T[] =>
+export const expandRefs = <T>(refs: [number, number][], pool: T[]): T[] =>
   refs.flatMap(([start, end_exclusive]) => pool.slice(start, end_exclusive));
 
 /**
