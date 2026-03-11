@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
+- Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 
 ## 0.3.189 (07 March 2026)
 
