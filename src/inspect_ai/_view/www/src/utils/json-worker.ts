@@ -83,6 +83,26 @@ class JsonWorkerPool {
     });
   }
 
+  async parseBytes(data: Uint8Array): Promise<any> {
+    this.ensureWorkers();
+
+    const requestId = this.nextRequestId++;
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(requestId, { resolve, reject });
+
+      const worker = this.workers[requestId % this.workers.length];
+      worker?.postMessage(
+        {
+          type: "parse",
+          requestId,
+          encodedText: data,
+        },
+        [data.buffer],
+      );
+    });
+  }
+
   terminate() {
     this.workers.forEach((w) => w.terminate());
     this.workers = [];
@@ -111,6 +131,20 @@ export const asyncJsonParse = async <T>(text: string): Promise<T> => {
     return Promise.resolve(result) as T;
   } else {
     return workerPool.parse(text);
+  }
+};
+
+export const asyncJsonParseBytes = async <T>(data: Uint8Array): Promise<T> => {
+  // Small payloads: decode + parse on main thread (worker overhead not worth it)
+  if (data.byteLength < 50000) {
+    const text = new TextDecoder().decode(data);
+    try {
+      return JSON.parse(text);
+    } catch {
+      return JSON5.parse(text);
+    }
+  } else {
+    return workerPool.parseBytes(data);
   }
 };
 

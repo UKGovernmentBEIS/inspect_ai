@@ -151,21 +151,11 @@ export const useFilteredSamples = () => {
     const filtered =
       error === undefined || !allErrors ? result : sampleSummaries;
 
-    // Sort samples by sample ID (asc) then epoch (asc)
-    const sorted = [...filtered].sort((a, b) => {
-      // Compare by ID first
-      let idCompare: number;
-      if (typeof a.id === "number" && typeof b.id === "number") {
-        idCompare = a.id - b.id;
-      } else {
-        idCompare = String(a.id).localeCompare(String(b.id));
-      }
-      if (idCompare !== 0) return idCompare;
-      // Then by epoch
-      return a.epoch - b.epoch;
-    });
+    if (filtered.length < 2 || samplesAreSorted(filtered)) {
+      return filtered;
+    }
 
-    return sorted;
+    return [...filtered].sort(compareSamples);
   }, [
     evalDescriptor,
     sampleSummaries,
@@ -173,6 +163,30 @@ export const useFilteredSamples = () => {
     setFilterError,
     clearFilterError,
   ]);
+};
+
+const compareSamples = (a: SampleSummary, b: SampleSummary): number => {
+  let idCompare: number;
+  if (typeof a.id === "number" && typeof b.id === "number") {
+    idCompare = a.id - b.id;
+  } else {
+    idCompare = String(a.id).localeCompare(String(b.id));
+  }
+
+  if (idCompare !== 0) {
+    return idCompare;
+  }
+
+  return a.epoch - b.epoch;
+};
+
+const samplesAreSorted = (samples: SampleSummary[]): boolean => {
+  for (let i = 1; i < samples.length; i++) {
+    if (compareSamples(samples[i - 1], samples[i]) > 0) {
+      return false;
+    }
+  }
+  return true;
 };
 
 // Provides the currently selected sample summary
@@ -341,6 +355,8 @@ export const useMessageVisibility = (
   // Reset state if the eval changes, but not during initialization
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   useEffect(() => {
+    void selectedLogFile;
+
     // Skip the first effect run
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -357,6 +373,8 @@ export const useMessageVisibility = (
   );
 
   useEffect(() => {
+    void selectedSampleHandle;
+
     // Skip the first effect run for sample changes too
     if (isFirstRender.current) {
       return;
