@@ -53,6 +53,8 @@ from ._generate_config import (
     BatchConfig,
     GenerateConfig,
     GenerateConfigArgs,
+    ImageOutput,
+    OutputModality,
     ResponseSchema,
 )
 from ._google_convert import messages_from_google, model_output_from_google
@@ -96,6 +98,8 @@ __all__ = [
     "GenerateConfigArgs",
     "GenerateFilter",
     "GenerateInput",
+    "ImageOutput",
+    "OutputModality",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",

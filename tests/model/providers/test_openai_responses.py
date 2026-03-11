@@ -12,7 +12,6 @@ from inspect_ai.model._openai_responses import (
     MESSAGE_PHASE,
     _openai_input_items_from_chat_message_assistant,
 )
-from inspect_ai.model._providers.openai_compatible import ModelInfo
 from inspect_ai.solver import generate, user_message
 
 
@@ -71,37 +70,47 @@ def test_openai_responses_no_store():
     assert log.status == "success"
 
 
-def test_multiple_consecutive_reasoning_blocks_filtering():
-    """Test that multiple consecutive ContentReasoning blocks are all preserved."""
+def test_image_generation_call_output():
+    """Test that ImageGenerationCall produces ContentImage."""
+    from openai.types.responses.response_output_item import ImageGenerationCall
 
-    class O1EarlyModelInfo(ModelInfo):
-        def is_o1_early(self):
-            return True
+    from inspect_ai._util.content import ContentImage
+    from inspect_ai.model._openai_responses import _process_response_output_items
 
-    message = ChatMessageAssistant(
-        content=[
-            ContentText(text="First text"),
-            ContentReasoning(reasoning="First reasoning", signature="r1"),
-            ContentReasoning(reasoning="Second reasoning", signature="r2"),
-            ContentReasoning(reasoning="Third reasoning", signature="r3"),
-            ContentText(text="Second text"),
-        ],
-        model="test",
-        source="generate",
+    outputs = [
+        ImageGenerationCall(
+            id="img_123",
+            result="base64encodeddata",
+            status="completed",
+            type="image_generation_call",
+        )
+    ]
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
     )
+    assert len(content) == 1
+    assert isinstance(content[0], ContentImage)
+    assert "base64,base64encodeddata" in content[0].image
 
-    # test that when using o-series we still collapse
-    items = _openai_input_items_from_chat_message_assistant(message, O1EarlyModelInfo())
-    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
-    assert len(reasoning_items) == 1
-    assert reasoning_items[0]["id"] == "r3"
 
-    # test that when not using o-series we don't collapse
-    items = _openai_input_items_from_chat_message_assistant(message)
-    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
-    assert len(reasoning_items) == 3
-    ids = {item["id"] for item in reasoning_items}
-    assert ids == {"r1", "r2", "r3"}
+def test_image_generation_call_incomplete():
+    """Test that incomplete ImageGenerationCall produces no content."""
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    outputs = [
+        ImageGenerationCall(
+            id="img_456",
+            result=None,
+            status="in_progress",
+            type="image_generation_call",
+        )
+    ]
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+    assert len(content) == 0
 
 
 def test_non_consecutive_reasoning_blocks_filtering():
@@ -186,7 +195,6 @@ async def test_responses_api_invalid_prompt_content_filter():
     # Mock model_info
     model_info = MagicMock()
     model_info.is_o_series.return_value = False
-    model_info.is_o1_early.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
 
@@ -791,7 +799,6 @@ def _make_mock_model_info():
     model_info.is_gpt_5_chat.return_value = False
     model_info.is_o_series.return_value = False
     model_info.is_o1.return_value = False
-    model_info.is_o1_early.return_value = False
     model_info.is_o3_mini.return_value = False
     model_info.is_deep_research.return_value = False
     model_info.is_codex.return_value = False
@@ -845,3 +852,147 @@ def test_completion_params_no_error_when_computer_tool_and_store_true():
         has_computer_tool=True,
     )
     assert "store" not in params or params["store"] is not False
+
+
+def test_image_generation_round_trip():
+    """Test that an image generation call round-trips through assistant message → input items."""
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai._util.content import ContentImage
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+        _process_response_output_items,
+        init_sample_openai_assistant_internal,
+    )
+
+    init_sample_openai_assistant_internal()
+
+    # Step 1: Model returns an image generation call
+    b64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    image_call = ImageGenerationCall(
+        id="img_abc123",
+        result=b64_data,
+        status="completed",
+        type="image_generation_call",
+    )
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        [image_call], []
+    )
+
+    # Verify the image was extracted as ContentImage
+    assert len(content) == 1
+    assert isinstance(content[0], ContentImage)
+    assert content[0].image == f"data:image/png;base64,{b64_data}"
+
+    # Step 2: Build an assistant message with the image content
+    assistant_msg = ChatMessageAssistant(
+        content=content,
+        model="gpt-4o",
+        source="generate",
+    )
+
+    # Step 3: Convert back to input items (simulating the next turn)
+    input_items = _openai_input_items_from_chat_message_assistant(assistant_msg)
+
+    # Verify the image is replayed as a user input_image message
+    image_items = [item for item in input_items if item.get("type") == "message"]
+    assert len(image_items) == 1
+    assert image_items[0]["role"] == "user"
+    img_content = image_items[0]["content"][0]
+    assert img_content["type"] == "input_image"
+    assert img_content["image_url"] == f"data:image/png;base64,{b64_data}"
+
+
+def test_image_generation_round_trip_with_text():
+    """Test round-trip when image is alongside text content."""
+    from openai.types.responses import ResponseOutputMessage, ResponseOutputText
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    from inspect_ai._util.content import ContentImage, ContentText
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+        _process_response_output_items,
+        init_sample_openai_assistant_internal,
+    )
+
+    init_sample_openai_assistant_internal()
+
+    # Model returns text output + image generation call
+    outputs = [
+        ResponseOutputMessage(
+            id="msg_001",
+            type="message",
+            role="assistant",
+            status="completed",
+            content=[
+                ResponseOutputText(
+                    type="output_text",
+                    text="Here is the image you requested:",
+                    annotations=[],
+                )
+            ],
+        ),
+        ImageGenerationCall(
+            id="img_xyz",
+            result="fakeb64data",
+            status="completed",
+            type="image_generation_call",
+        ),
+    ]
+    content, tool_calls, logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+
+    # Should have text + image
+    texts = [c for c in content if isinstance(c, ContentText)]
+    images = [c for c in content if isinstance(c, ContentImage)]
+    assert len(texts) >= 1
+    assert len(images) == 1
+
+    # Build assistant message and convert back
+    assistant_msg = ChatMessageAssistant(
+        content=content,
+        model="gpt-4o",
+        source="generate",
+    )
+    input_items = _openai_input_items_from_chat_message_assistant(assistant_msg)
+
+    # Should have both an assistant message item and a user image message
+    message_items = [item for item in input_items if item.get("type") == "message"]
+    assistant_msgs = [m for m in message_items if m.get("role") == "assistant"]
+    image_msgs = [
+        m
+        for m in message_items
+        if m.get("role") == "user"
+        and any(c.get("type") == "input_image" for c in m.get("content", []))
+    ]
+    assert len(assistant_msgs) >= 1
+    assert len(image_msgs) == 1
+
+
+def test_openai_responses_tools_image_modality():
+    """Test that openai_responses_tools adds image_generation tool for image modality."""
+    from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
+    from inspect_ai.model._openai_responses import openai_responses_tools
+
+    # Simple "image" string modality
+    config = GenerateConfig(modalities=["image"])
+    tools = openai_responses_tools([], "gpt-4o", config)
+    assert len(tools) == 1
+    assert tools[0]["type"] == "image_generation"
+
+    # ImageOutput with options
+    config = GenerateConfig(
+        modalities=[ImageOutput(quality="high", size="1024x1024", background="opaque")]
+    )
+    tools = openai_responses_tools([], "gpt-4o", config)
+    assert len(tools) == 1
+    assert tools[0]["type"] == "image_generation"
+    assert tools[0]["quality"] == "high"
+    assert tools[0]["size"] == "1024x1024"
+    assert tools[0]["background"] == "opaque"
+
+    # No modalities → no image tool added
+    config = GenerateConfig()
+    tools = openai_responses_tools([], "gpt-4o", config)
+    assert len(tools) == 0

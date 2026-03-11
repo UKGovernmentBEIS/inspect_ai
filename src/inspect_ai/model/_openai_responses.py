@@ -83,6 +83,7 @@ from openai.types.responses.response_input_text_content_param import (
     ResponseInputTextContentParam,
 )
 from openai.types.responses.response_output_item import (
+    ImageGenerationCall,
     McpCall,
     McpListTools,
 )
@@ -110,6 +111,7 @@ from openai.types.responses.response_usage import (
 from openai.types.responses.tool_param import (
     CodeInterpreter,
     CodeInterpreterContainerCodeInterpreterToolAuto,
+    ImageGeneration,
     Mcp,
 )
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -141,7 +143,7 @@ from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
 )
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -176,7 +178,6 @@ class ResponsesModelInfo(Protocol):
     def is_gpt_5_chat(self) -> bool: ...
     def is_o_series(self) -> bool: ...
     def is_o1(self) -> bool: ...
-    def is_o1_early(self) -> bool: ...
     def is_o3_mini(self) -> bool: ...
     def is_deep_research(self) -> bool: ...
     def is_codex(self) -> bool: ...
@@ -425,7 +426,25 @@ def openai_responses_tool_choice(
 def openai_responses_tools(
     tools: list[ToolInfo], model_name: str, config: GenerateConfig
 ) -> list[ToolParam]:
-    return [_tool_param_for_tool_info(tool, model_name, config) for tool in tools]
+    result = [_tool_param_for_tool_info(tool, model_name, config) for tool in tools]
+
+    # Add image_generation tool if image output modality requested
+    if config.modalities:
+        for modality in config.modalities:
+            if modality == "image" or isinstance(modality, ImageOutput):
+                tool_def = ImageGeneration(type="image_generation")
+                if isinstance(modality, ImageOutput):
+                    if modality.quality:
+                        tool_def["quality"] = modality.quality
+                    if modality.size:
+                        tool_def["size"] = modality.size
+                    if modality.background:
+                        tool_def["background"] = modality.background
+                    if modality.format:
+                        tool_def["output_format"] = modality.format
+                result.append(tool_def)
+
+    return result
 
 
 def openai_responses_chat_choices(
@@ -704,6 +723,10 @@ def _process_response_output_items(
             case ResponseCompactionItem():
                 # Skip compaction items - handled separately by caller
                 pass
+            case ImageGenerationCall():
+                if output.status == "completed" and output.result is not None:
+                    data_uri = f"data:image/png;base64,{output.result}"
+                    message_content.append(ContentImage(image=data_uri))
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -1002,13 +1025,17 @@ def _openai_input_items_from_chat_message_assistant(
     # (indicating that when reading the message from the server we didn't find output).
     # this could happen e.g. when a react() agent sets the output.completion in response
     # to a submit() tool call
-    content_items: list[ContentText | ContentReasoning | ContentToolUse] = (
+    content_items: list[
+        ContentText | ContentReasoning | ContentToolUse | ContentImage
+    ] = (
         [ContentText(text=message.content)]
         if isinstance(message.content, str)
         else [
             c
             for c in message.content
-            if isinstance(c, ContentText | ContentReasoning | ContentToolUse)
+            if isinstance(
+                c, ContentText | ContentReasoning | ContentToolUse | ContentImage
+            )
         ]
     )
 
@@ -1042,16 +1069,31 @@ def _openai_input_items_from_chat_message_assistant(
         pending_response_phase = None
         pending_response_output.clear()
 
-    # filter consecutive reasoning blocks if we have a model that demands it
-    if model_info is not None and model_info.is_o1_early():
-        content_items = _filter_consecutive_reasoning_blocks(content_items)
-
     for content in content_items:
         # flush if we aren't ContentText
         if not isinstance(content, ContentText):
             flush_pending_context_text()
 
         match content:
+            case ContentImage():
+                # Replay generated images as user input_image messages
+                # (replaying as image_generation_call requires store=true)
+                items.append(
+                    cast(
+                        ResponseInputItemParam,
+                        {
+                            "type": "message",
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_image",
+                                    "image_url": content.image,
+                                    "detail": content.detail,
+                                }
+                            ],
+                        },
+                    )
+                )
             case ContentReasoning():
                 items.append(responses_reasoning_from_reasoning(content))
             case ContentToolUse(

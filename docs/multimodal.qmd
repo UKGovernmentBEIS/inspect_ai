@@ -23,6 +23,8 @@ The following providers currently have support for multimodal inputs:
 
 Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we'll enumerate which models can handle these input types. It's also always a good idea to check the provider documentation for the most up to date compatibility matrix.
 
+Some OpenAI and Google models additionally support [Multimodal Output](#multimodal-output).
+
 ## Images {#provider-notes}
 
 Please see provider specific documentation on which models support image input:
@@ -195,6 +197,76 @@ input = [
         ContentDocument(document="attention.pdf")
     ])
 ]
+```
+
+## Multimodal Output {#multimodal-output}
+
+::: {.callout-note}
+Support for multimodal output is available only in the development version of Inspect. Install the development version from GitHub with:
+
+```python
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
+```
+:::
+
+Some models can generate images as part of their responses. To activate this capability, use the `modalities` option in `GenerateConfig`:
+
+| Provider | Images | Models |
+|----------|:------:|--------|
+| OpenAI   |   •    | `gpt-4o`, `gpt-5`, `gpt-5.2`, `gpt-5.4` (via Responses API) |
+| Google   |   •    | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview` |
+
+: {tbl-colwidths=\[20,10,70\]}
+
+Enable image output by setting `modalities=["image"]` in your `GenerateConfig`:
+
+``` python
+config = GenerateConfig(modalities=["image"])
+```
+
+Text output is always implicitly included—you only need to specify additional modalities beyond text.
+
+### OpenAI
+
+When image output is requested, Inspect automatically switches to the Responses API (which is required for image generation). Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood:
+
+``` python
+model = get_model("openai/gpt-5.4")
+output = await model.generate(
+    input=[ChatMessageUser(content="Generate an image of a sunset")],
+    config=GenerateConfig(modalities=["image"]),
+)
+```
+
+For more control over image generation, use `ImageOutput`:
+
+``` python
+from inspect_ai.model import ImageOutput
+
+config = GenerateConfig(modalities=[
+    ImageOutput(quality="high", size="1024x1024", format="png")
+])
+```
+
+### Google
+
+``` python
+model = get_model("google/gemini-3.1-flash-image-preview")
+output = await model.generate(
+    input=[ChatMessageUser(content="Generate an image of a sunset")],
+    config=GenerateConfig(modalities=["image"]),
+)
+```
+
+### Response Format
+
+Image output appears as `ContentImage` in the assistant message's `content` list, with a `data:image/png;base64,...` data URI:
+
+``` python
+for content in output.choices[0].message.content:
+    if isinstance(content, ContentImage):
+        # content.image contains a data URI like "data:image/png;base64,..."
+        pass
 ```
 
 ## Uploads
