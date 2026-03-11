@@ -376,7 +376,7 @@ function processEvents(
   return true;
 }
 
-function expandRefs<T>(refs: number[][], pool: T[]): T[] {
+function expandRefs<T>(refs: [number, number][], pool: T[]): T[] {
   const result: T[] = [];
   for (const item of refs) {
     for (let i = item[0]; i < item[1]; i++) {
@@ -401,7 +401,7 @@ function resolvePoolRefs(event: Event, pollingState: PollingState): Event {
     resolved = {
       ...resolved,
       input: expandRefs(
-        resolved.input_refs,
+        resolved.input_refs as [number, number][],
         pollingState.messagePool,
       ) as ModelEvent["input"],
       input_refs: null,
@@ -412,7 +412,7 @@ function resolvePoolRefs(event: Event, pollingState: PollingState): Event {
     const msgKey = (resolved.call.call_key as string) || "messages";
     const request = { ...resolved.call.request };
     request[msgKey] = expandRefs(
-      resolved.call.call_refs,
+      resolved.call.call_refs as [number, number][],
       pollingState.callPool,
     );
     resolved = {
