@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   GridColumnsChangedEvent,
   IRowNode,
   RowClickedEvent,
@@ -24,10 +25,7 @@ import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import "../../shared/agGrid";
 import styles from "../../shared/gridCells.module.css";
-import {
-  createGridAuxClickHandler,
-  createGridKeyboardHandler,
-} from "../../shared/gridKeyboardNavigation";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
 import { useLogListColumns } from "./columns/hooks";
@@ -214,27 +212,27 @@ export const LogListGrid: FC<LogListGridProps> = ({
     [gridRef, handleOpenRow],
   );
 
-  const handleAuxClick = useMemo(
-    () =>
-      createGridAuxClickHandler<LogListRow>({
-        gridRef,
-        onOpenRow: (data) => data.url && window.open(`#${data.url}`, "_blank"),
-      }),
-    [gridRef],
-  );
-
   useEffect(() => {
     const gridElement = gridContainerRef.current;
     if (!gridElement) return;
 
     gridElement.addEventListener("keydown", handleKeyDown);
-    gridElement.addEventListener("auxclick", handleAuxClick);
 
     return () => {
       gridElement.removeEventListener("keydown", handleKeyDown);
-      gridElement.removeEventListener("auxclick", handleAuxClick);
     };
-  }, [handleKeyDown, handleAuxClick]);
+  }, [handleKeyDown]);
+
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<LogListRow>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data?.url) {
+        mouseEvent.preventDefault();
+        window.open(`#${e.data.url}`, "_blank");
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const loadHeaders = async () => {
@@ -417,6 +415,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
             }
           }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onSortChanged={handleSortChanged}
           onFilterChanged={handleFilterChanged}
           loading={data.length === 0 && (loading > 0 || syncing)}
