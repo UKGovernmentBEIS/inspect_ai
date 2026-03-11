@@ -5,7 +5,7 @@ from typing import Generator
 import anyio
 import pytest
 from test_helpers.limits import check_limit_event, find_limit_event
-from test_helpers.utils import skip_if_no_docker, skip_if_no_openai, sleep_for_solver
+from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai, sleep_for_solver
 
 from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
@@ -248,6 +248,7 @@ def test_time_limit_scorer():
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_sample_limits_available_to_scorer():
     def check_limits() -> None:
         limits = sample_limits()

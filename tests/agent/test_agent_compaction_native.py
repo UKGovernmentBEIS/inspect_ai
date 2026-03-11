@@ -41,6 +41,7 @@ def test_anthropic_native_compaction_multiple_events() -> None:
 
 @skip_if_no_openai
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_openai_native_compaction_context_preservation() -> None:
     check_native_compaction_context_preservation("openai/gpt-5.2")
 
