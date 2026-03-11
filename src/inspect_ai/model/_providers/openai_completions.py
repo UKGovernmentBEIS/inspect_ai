@@ -64,15 +64,10 @@ async def generate_completions(
         else:
             config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
-    # determine system role
-    # o1-mini does not support developer or system messages
-    # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
-    if openai_api.is_o1_early():
-        system_role: Literal["user", "system", "developer"] = "user"
-    # other o-series models use 'developer' rather than 'system' messages
+    # o-series and gpt5 models use 'developer' rather than 'system' messages
     # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
-    elif openai_api.is_o_series() or openai_api.is_gpt_5():
-        system_role = "developer"
+    if openai_api.is_o_series() or openai_api.is_gpt_5():
+        system_role: Literal["developer", "system"] = "developer"
     else:
         system_role = "system"
 
@@ -152,7 +147,7 @@ def completion_params_completions(
 
     # remove reasoning_effort if not supported
     if "reasoning_effort" in params.keys() and (
-        (openai_api.is_gpt() and not openai_api.is_gpt_5()) or openai_api.is_o1_early()
+        openai_api.is_gpt() and not openai_api.is_gpt_5()
     ):
         del params["reasoning_effort"]
 
