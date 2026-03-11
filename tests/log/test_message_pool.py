@@ -759,3 +759,18 @@ def test_condense_same_id_different_content_gets_separate_pool_entries():
         if isinstance(msg.content, list)
         for c in msg.content
     )
+
+
+def test_resolve_shares_message_instances():
+    """Resolved events share the same ChatMessage objects — no N² duplication."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed = condense_sample(sample)
+    resolved = resolve_sample_message_pool(condensed)
+
+    model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
+    # Events 0, 1, 2 all start with the same system + user prefix
+    assert model_events[0].input[0] is model_events[1].input[0]
+    assert model_events[0].input[0] is model_events[2].input[0]
+    assert model_events[0].input[1] is model_events[1].input[1]
+    assert model_events[1].input[2] is model_events[2].input[2]
+    assert model_events[1].input[3] is model_events[2].input[3]
