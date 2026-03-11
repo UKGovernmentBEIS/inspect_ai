@@ -2,6 +2,7 @@
 
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
+- Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
