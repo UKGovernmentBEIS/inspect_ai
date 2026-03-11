@@ -1,7 +1,25 @@
 ## Unreleased
 
+- OpenAI: Support for image output for multimodal modals.
+- OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
+- Google: Support for image output for multimodal models.
+- Google: Support for the native Gemini computer tool.
+- Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
+- Mistral: Update to v2.0 of `mistralai` package.
+- Bash Session: Catch ProcessLookupError in case bash session has crashed.
+- Eval Logs: Use async S3 interface when flushing log buffer.
+- Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
+- Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
+- Eval Logs: Add post-eval editing of tags and metadata with provenance tracking via `edit_eval_log()`.
+- Eval Logs: Add `tags` parameter to `Task`, merged with eval-level tags at eval time.
+- Eval Logs: Remove JSON indentation inside .eval archives.
 - Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
+- Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
+- Inspect Score: Add support for an optional list of metrics when rescoring a log.
+- Inspect View: Fix regression that prevented proper display of running sanples.
+- Google: Include images from tool results in API requests for non-computer-use models.
+- Bugfix: Handle dicts with numeric keys in json_changes.
 
 ## 0.3.189 (07 March 2026)
 
@@ -13,6 +31,7 @@
 - Hooks: Add ML Flow tracking example hook.
 - AsyncFilesystem: Support writing files larger than 5GB to S3 using `upload_fileobj` for automatic multipart uploads.
 - File Utils: Strip trailing separators from S3 paths in `absolute_file_path` (matches local fs behavior).
+- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 - Inspect View: Display proper message when transcript events are removed to reduce eval log size.
 - Inspect View: Properly compute nested span parents when rendering the event tree.
 - Bugfix: Eval set task_identifier is now computed using redacted model_args
@@ -36,7 +55,6 @@
 - Timelines: Detect k/v warmup calls as utility agents.
 - Inspect View: Fix truncation of the bottom of events and messages panels.
 - Inspect View: Improve appearance of model events in transcript.
-- Inspect View: Add `inspect view embed` command and `--embed-viewer` eval-set option to embed a log viewer into a log directory.
 - Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain `[trio-...]` instead of `[trio]`.
 
 ## 0.3.186 (03 March 2026)
@@ -53,6 +71,7 @@
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
+- Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
 
 ## 0.3.185 (01 March 2026)
 

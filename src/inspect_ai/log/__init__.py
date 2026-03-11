@@ -7,7 +7,12 @@ from ._bundle import bundle_log_dir
 from ._condense import condense_sample, resolve_sample_attachments
 from ._convert import convert_eval_logs
 from ._edit import (
+    LogEdit,
+    LogUpdate,
+    MetadataEdit,
     ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
     invalidate_samples,
     uninvalidate_samples,
 )
@@ -43,6 +48,7 @@ from ._log import (
     EvalStatus,
 )
 from ._metric import recompute_metrics
+from ._pool import resolve_sample_message_pool
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
@@ -82,6 +88,7 @@ __all__ = [
     "read_eval_log_sample_summaries",
     "condense_sample",
     "resolve_sample_attachments",
+    "resolve_sample_message_pool",
     "write_eval_log",
     "write_eval_log_async",
     "write_log_dir_manifest",
@@ -90,6 +97,11 @@ __all__ = [
     "edit_score",
     "recompute_metrics",
     "ProvenanceData",
+    "LogEdit",
+    "LogUpdate",
+    "MetadataEdit",
+    "TagsEdit",
+    "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
 ]
