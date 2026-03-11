@@ -199,7 +199,7 @@ input = [
 ]
 ```
 
-## Multimodal Output {#multimodal-output}
+## Output {#multimodal-output}
 
 ::: {.callout-note}
 Support for multimodal output is available only in the development version of Inspect. Install the development version from GitHub with:
