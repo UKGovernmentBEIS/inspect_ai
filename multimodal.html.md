@@ -240,7 +240,7 @@ input = [
 ]
 ```
 
-## Multimodal Output
+## Output
 
 > [!NOTE]
 >
