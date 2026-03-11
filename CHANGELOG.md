@@ -1,3 +1,7 @@
+## 0.3.190 (11 March 2026)
+
+- Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
+
 ## 0.3.189 (07 March 2026)
 
 - Anthropic: Preserve OAuth beta header when per-request betas are set.
