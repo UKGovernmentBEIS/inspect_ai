@@ -389,11 +389,9 @@ def walk_model_call(
         return call.model_copy(
             update={
                 "request": walk_json_dict(call.request, content_fn, context),
-                "response": (
-                    walk_json_dict(call.response, content_fn, context)
-                    if call.response
-                    else None
-                ),
+                "response": walk_json_dict(call.response, content_fn, context)
+                if call.response
+                else None,
             }
         )
     else:
@@ -495,14 +493,12 @@ def walk_chat_message(
     else:
         res = message.model_copy(
             update=dict(
-                tool_calls=(
-                    [
-                        walk_tool_call(tool_call, content_fn, context)
-                        for tool_call in message.tool_calls
-                    ]
-                    if isinstance(message, ChatMessageAssistant) and message.tool_calls
-                    else None
-                ),
+                tool_calls=[
+                    walk_tool_call(tool_call, content_fn, context)
+                    for tool_call in message.tool_calls
+                ]
+                if isinstance(message, ChatMessageAssistant) and message.tool_calls
+                else None,
                 content=[
                     walk_content(content, content_fn, context)
                     for content in message.content
@@ -564,18 +560,14 @@ def walk_tool_call(
         function=tool_call.function,
         arguments=walk_json_dict(tool_call.arguments, content_fn, context),
         parse_error=tool_call.parse_error,
-        view=(
-            tool_call.view.model_copy(
-                update=dict(
-                    content=(
-                        content_fn(tool_call.view.content)
-                        if tool_call.view and tool_call.view.content
-                        else None
-                    ),
-                )
+        view=tool_call.view.model_copy(
+            update=dict(
+                content=content_fn(tool_call.view.content)
+                if tool_call.view and tool_call.view.content
+                else None,
             )
-            if tool_call.view
-            else None
-        ),
+        )
+        if tool_call.view
+        else None,
         type=tool_call.type,
     )
