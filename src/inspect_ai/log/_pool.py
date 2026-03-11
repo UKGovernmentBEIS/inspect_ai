@@ -16,6 +16,7 @@ content by definition).
 """
 
 import json
+from collections.abc import Mapping, Sequence
 from typing import Final, TypeVar
 
 from pydantic import JsonValue
@@ -50,17 +51,22 @@ def _build_call_index(pool: list[JsonValue]) -> dict[str, int]:
 
 
 def condense_model_event_inputs(
-    events: list[Event],
-    message_pool: list[ChatMessage],
-    msg_index: dict[str, int],
-) -> list[Event]:
+    events: Sequence[Event],
+    message_pool: Sequence[ChatMessage],
+    msg_index: Mapping[str, int],
+) -> tuple[list[Event], list[ChatMessage]]:
     """Replace ModelEvent.input with message_pool references.
 
-    Collects all messages from ModelEvent inputs into the message_pool list
+    Collects all messages from ModelEvent inputs into a message pool
     and replaces each ModelEvent's input with range-encoded input_refs.
 
     See module docstring for the hash-based dedup strategy.
+
+    Returns:
+        A tuple of (condensed events, message pool).
     """
+    pool = list(message_pool)
+    index = dict(msg_index)
     obj_id_cache: dict[int, str] = {}
     result: list[Event] = []
     for event in events:
@@ -76,15 +82,15 @@ def condense_model_event_inputs(
                     h = obj_id_cache.get(obj_key) or obj_id_cache.setdefault(
                         obj_key, _msg_hash(msg)
                     )
-                    if h not in msg_index:
-                        msg_index[h] = len(message_pool)
-                        message_pool.append(msg)
-                    raw_indices.append(msg_index[h])
+                    if h not in index:
+                        index[h] = len(pool)
+                        pool.append(msg)
+                    raw_indices.append(index[h])
                 event = event.model_copy(
                     update={"input": [], "input_refs": _compress_refs(raw_indices)}
                 )
         result.append(event)
-    return result
+    return result, pool
 
 
 # Known keys for messages array in provider wire formats
@@ -137,11 +143,17 @@ def _expand_refs(
 
 
 def condense_model_event_calls(
-    events: list[Event],
-    call_pool: list[JsonValue],
-    call_index: dict[str, int],
-) -> list[Event]:
-    """Replace call.request messages with call_pool references."""
+    events: Sequence[Event],
+    call_pool: Sequence[JsonValue],
+    call_index: Mapping[str, int],
+) -> tuple[list[Event], list[JsonValue]]:
+    """Replace call.request messages with call_pool references.
+
+    Returns:
+        A tuple of (condensed events, call pool).
+    """
+    pool = list(call_pool)
+    index = dict(call_index)
     result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.call:
@@ -157,10 +169,10 @@ def condense_model_event_calls(
                 raw_indices: list[int] = []
                 for msg in msgs:
                     h = mm3_hash(json.dumps(msg, sort_keys=True))
-                    if h not in call_index:
-                        call_index[h] = len(call_pool)
-                        call_pool.append(msg)
-                    raw_indices.append(call_index[h])
+                    if h not in index:
+                        index[h] = len(pool)
+                        pool.append(msg)
+                    raw_indices.append(index[h])
                 new_request = {
                     k: v for k, v in event.call.request.items() if k != msg_key
                 }
@@ -173,7 +185,7 @@ def condense_model_event_calls(
                 )
                 event = event.model_copy(update={"call": new_call})
         result.append(event)
-    return result
+    return result, pool
 
 
 def resolve_model_event_calls(
