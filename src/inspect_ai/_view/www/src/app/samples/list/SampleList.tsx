@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   ColumnResizedEvent,
   IRowNode,
   RowClickedEvent,
@@ -28,10 +29,7 @@ import {
 import { useStore } from "../../../state/store";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
 import "../../shared/agGrid";
-import {
-  createGridAuxClickHandler,
-  createGridKeyboardHandler,
-} from "../../shared/gridKeyboardNavigation";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
 import { buildColumnDefs } from "./columns";
 import { SampleFooter } from "./SampleFooter";
 import styles from "./SampleList.module.css";
@@ -173,33 +171,31 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     [listHandle, handleOpenRow],
   );
 
-  const handleAuxClick = useMemo(
-    () =>
-      createGridAuxClickHandler<SampleListItem>({
-        gridRef: listHandle,
-        onOpenRow: (data) => {
-          const url = sampleNavigation.getSampleUrl(
-            data.data.id,
-            data.data.epoch,
-          );
-          if (url) window.open(url, "_blank");
-        },
-      }),
-    [listHandle, sampleNavigation],
-  );
-
   useEffect(() => {
     const el = gridContainerRef.current;
     if (!el) return;
 
     el.addEventListener("keydown", handleKeyDown);
-    el.addEventListener("auxclick", handleAuxClick);
 
     return () => {
       el.removeEventListener("keydown", handleKeyDown);
-      el.removeEventListener("auxclick", handleAuxClick);
     };
-  }, [handleKeyDown, handleAuxClick]);
+  }, [handleKeyDown]);
+
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<SampleListItem>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data) {
+        mouseEvent.preventDefault();
+        const url = sampleNavigation.getSampleUrl(
+          e.data.data.id,
+          e.data.data.epoch,
+        );
+        if (url) window.open(url, "_blank");
+      }
+    },
+    [sampleNavigation],
+  );
 
   const selectCurrentSample = useCallback(() => {
     if (!listHandle.current?.api || !selectedSampleHandle) {
@@ -328,6 +324,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           getRowId={getRowId}
           rowSelection={{ mode: "singleRow", checkboxes: false }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onColumnResized={handleColumnResized}
           theme={themeBalham}
           enableCellTextSelection={true}

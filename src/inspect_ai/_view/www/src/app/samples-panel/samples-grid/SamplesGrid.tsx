@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   ColDef,
   GridApi,
   GridColumnsChangedEvent,
@@ -14,10 +15,7 @@ import { useStore } from "../../../state/store";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
-import {
-  createGridAuxClickHandler,
-  createGridKeyboardHandler,
-} from "../../shared/gridKeyboardNavigation";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
@@ -157,28 +155,32 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     [gridRef, handleOpenRow],
   );
 
-  const handleAuxClick = useMemo(
-    () =>
-      createGridAuxClickHandler<SampleRow>({
-        gridRef,
-        onOpenRow: (data) =>
-          navigateToSampleDetail(data.logFile, data.sampleId, data.epoch, true),
-      }),
-    [gridRef, navigateToSampleDetail],
-  );
-
   useEffect(() => {
     const gridElement = gridContainerRef.current;
     if (!gridElement) return;
 
     gridElement.addEventListener("keydown", handleKeyDown);
-    gridElement.addEventListener("auxclick", handleAuxClick);
 
     return () => {
       gridElement.removeEventListener("keydown", handleKeyDown);
-      gridElement.removeEventListener("auxclick", handleAuxClick);
     };
-  }, [handleKeyDown, handleAuxClick]);
+  }, [handleKeyDown]);
+
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<SampleRow>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data) {
+        mouseEvent.preventDefault();
+        navigateToSampleDetail(
+          e.data.logFile,
+          e.data.sampleId,
+          e.data.epoch,
+          true,
+        );
+      }
+    },
+    [navigateToSampleDetail],
+  );
 
   const sampleRowId = (
     logFile: string,
@@ -272,6 +274,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
             }
           }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onFilterChanged={() => {
             if (gridRef.current?.api) {
               const newDisplayedSamples = gridDisplayedSamples(
