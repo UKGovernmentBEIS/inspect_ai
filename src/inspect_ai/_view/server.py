@@ -119,7 +119,18 @@ def view_server(
             return web.HTTPBadRequest(reason="No 'end' query param")
         start = int(start_param)
         end = int(end_param)
-        body = await get_log_bytes(file, start, end)
+
+        # Get actual file size to clamp the requested range
+        file_size = await get_log_size(file)
+
+        if start >= file_size:
+            raise web.HTTPRequestRangeNotSatisfiable(
+                headers={"Content-Range": f"bytes */{file_size}"}
+            )
+
+        actual_end = min(end, file_size - 1)
+
+        body = await get_log_bytes(file, start, actual_end)
         return web.Response(
             body=body,
             headers={"Content-Length": str(len(body))},
