@@ -11,9 +11,11 @@ import {
 } from "../../../../@types/log";
 import { ContentTool } from "../../../../app/types";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
+import { NavPills } from "../../../../components/NavPills";
 import { MessageContent } from "../MessageContent";
 import { defaultContext } from "../MessageContents";
 import styles from "./ToolCallView.module.css";
+import { AnnotatedToolOutput, ToolAnnotation } from "./AnnotatedToolOutput";
 import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
 
@@ -21,6 +23,16 @@ interface ToolCallViewProps {
   id: string;
   functionCall: string;
   input?: unknown;
+  /** Annotation derived from this visual action's own arguments. */
+  selfAnnotation?: ToolAnnotation;
+  /** Normalized content from the preceding screenshot (for the Input tab). */
+  inputScreenshot?: (
+    | ContentText
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+    | ContentTool
+  )[];
   description?: string;
   contentType?: string;
   view?: ToolCallContent;
@@ -55,6 +67,8 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   id,
   functionCall,
   input,
+  selfAnnotation,
+  inputScreenshot,
   description,
   contentType,
   view,
@@ -115,6 +129,31 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
 
   const contents = mode !== "compact" ? input : input || functionCall;
   const context = defaultContext("tool");
+
+  // Build the output rendering (Result tab or standalone)
+  const outputElement =
+    hasContent && collapsible ? (
+      <ExpandablePanel
+        id={`${id}-tool-input`}
+        collapse={collapse}
+        border={true}
+        lines={15}
+        className={clsx("text-size-small")}
+      >
+        <MessageContent contents={normalizedContent} context={context} />
+      </ExpandablePanel>
+    ) : (
+      <MessageContent contents={normalizedContent} context={context} />
+    );
+
+  // Build the input screenshot rendering (Input tab)
+  const inputElement =
+    selfAnnotation && inputScreenshot ? (
+      <AnnotatedToolOutput annotation={selfAnnotation}>
+        <MessageContent contents={inputScreenshot} context={context} />
+      </AnnotatedToolOutput>
+    ) : null;
+
   return (
     <div className={clsx(styles.toolCallView)}>
       <div>
@@ -132,25 +171,20 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           toolCallView={view}
         />
       </div>
-      {hasContent && collapsible ? (
-        <ExpandablePanel
-          id={`${id}-tool-input`}
-          collapse={collapse}
-          border={true}
-          lines={15}
-          className={clsx("text-size-small")}
-        >
-          <MessageContent contents={normalizedContent} context={context} />
-        </ExpandablePanel>
+      {inputElement ? (
+        <NavPills id={`${id}-browser-action`}>
+          <div title="Input">{inputElement}</div>
+          <div title="Result">{outputElement}</div>
+        </NavPills>
       ) : (
-        <MessageContent contents={normalizedContent} context={context} />
+        outputElement
       )}
     </div>
   );
 };
 
 /**
- * Renders the ToolCallView component.
+ * Normalize tool output into a flat content array for MessageContent.
  */
 const normalizeContent = (
   output:
