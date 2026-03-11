@@ -310,6 +310,10 @@ website:
           href: reference/inspect_ai.model.qmd#stopreason
         - text: ChatCompletionChoice
           href: reference/inspect_ai.model.qmd#chatcompletionchoice
+        - text: OutputModality
+          href: reference/inspect_ai.model.qmd#outputmodality
+        - text: ImageOutput
+          href: reference/inspect_ai.model.qmd#imageoutput
         - text: ChatMessage
           href: reference/inspect_ai.model.qmd#chatmessage
         - text: ChatMessageBase

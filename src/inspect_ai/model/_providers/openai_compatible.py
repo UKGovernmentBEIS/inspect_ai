@@ -401,9 +401,6 @@ class ModelInfo(ResponsesModelInfo):
     def is_o1(self) -> bool:
         return False
 
-    def is_o1_early(self) -> bool:
-        return False
-
     def is_o3_mini(self) -> bool:
         return False
 

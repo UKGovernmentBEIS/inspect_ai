@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
 
+from inspect_ai._util.content import ContentImage
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -112,3 +113,34 @@ async def test_mistral_with_description_parameter(tiktok_tool_with_description_p
         assert result is not None, "Expected a result from the model"
     except Exception as e:
         pytest.fail(f"Test failed with exception: {e}")
+
+
+@skip_if_no_mistral_package
+def test_completion_content_chunks_image_url_string():
+    """Test that ImageURLChunk with string URL converts to ContentImage."""
+    from mistralai.client.models import ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import completion_content_chunks
+
+    chunk = ImageURLChunk(image_url="data:image/png;base64,abc123")
+    result = completion_content_chunks(chunk)
+    assert len(result) == 1
+    assert isinstance(result[0], ContentImage)
+    assert result[0].image == "data:image/png;base64,abc123"
+
+
+@skip_if_no_mistral_package
+def test_completion_content_chunks_image_url_object():
+    """Test that ImageURLChunk with ImageURL object converts to ContentImage with detail."""
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import completion_content_chunks
+
+    chunk = ImageURLChunk(
+        image_url=ImageURL(url="https://example.com/img.png", detail="high")
+    )
+    result = completion_content_chunks(chunk)
+    assert len(result) == 1
+    assert isinstance(result[0], ContentImage)
+    assert result[0].image == "https://example.com/img.png"
+    assert result[0].detail == "high"

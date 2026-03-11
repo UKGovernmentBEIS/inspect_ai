@@ -28,6 +28,7 @@ from tenacity import (
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
@@ -104,14 +105,15 @@ async def generate_responses(
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
         openai_responses_tools(tools, model_name, config)
-        if len(tools) > 0
+        if len(tools) > 0 or has_image_output(config.modalities)
         else NOT_GIVEN
     )
+
     request = dict(
         input=await openai_responses_inputs(input, model_info),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
-        if isinstance(tool_params, list) and tool_choice != "auto"
+        if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0
         else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
         | (config.extra_headers or {}),

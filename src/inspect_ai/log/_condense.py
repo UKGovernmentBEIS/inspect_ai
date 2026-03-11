@@ -86,22 +86,20 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
     condensed_events = walk_events(sample.events, events_fn, context)
 
-    message_pool: list[ChatMessage] = []
-    call_pool: list[JsonValue] = []
-
     if log_schema_version() >= 3:
         # Carry forward existing pool entries for idempotent re-condensation
-        message_pool = list(sample.message_pool)
-        msg_index = _build_msg_index(message_pool)
-        condensed_events = condense_model_event_inputs(
-            condensed_events, message_pool, msg_index
+        msg_index = _build_msg_index(sample.message_pool)
+        condensed_events, message_pool = condense_model_event_inputs(
+            condensed_events, sample.message_pool, msg_index
         )
 
-        call_pool = list(sample.call_pool)
-        call_index = _build_call_index(call_pool)
-        condensed_events = condense_model_event_calls(
-            condensed_events, call_pool, call_index
+        call_index = _build_call_index(sample.call_pool)
+        condensed_events, call_pool = condense_model_event_calls(
+            condensed_events, sample.call_pool, call_index
         )
+    else:
+        message_pool = []
+        call_pool = []
 
     return sample.model_copy(
         update={

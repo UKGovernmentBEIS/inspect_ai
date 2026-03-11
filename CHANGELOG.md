@@ -1,9 +1,12 @@
 ## Unreleased
 
-- Computer Tool: Support for the updated OpenAI computer tool released with GPT 5.4.
-- Computer Tool: Support for the native Gemini computer tool.
-- Bash Session: Catch ProcessLookupError in case bash session has crashed.
+- OpenAI: Support for image output for multimodal modals.
+- OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
+- Google: Support for image output for multimodal models.
+- Google: Support for the native Gemini computer tool.
+- Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
 - Mistral: Update to v2.0 of `mistralai` package.
+- Bash Session: Catch ProcessLookupError in case bash session has crashed.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
@@ -13,6 +16,7 @@
 - Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
+- Inspect View: Fix regression that prevented proper display of running sanples.
 - Google: Include images from tool results in API requests for non-computer-use models.
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
