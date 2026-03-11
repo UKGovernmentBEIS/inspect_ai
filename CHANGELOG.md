@@ -2,6 +2,7 @@
 
 - Computer Tool: Support for the updated OpenAI computer tool released with GPT 5.4.
 - Computer Tool: Support for the native Gemini computer tool.
+- Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
 - Mistral: Update to v2.0 of `mistralai` package.
 - Eval Logs: Use async S3 interface when flushing log buffer.
