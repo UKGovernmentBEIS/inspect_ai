@@ -1295,8 +1295,12 @@ def parse_modalities(value: str) -> list[Any]:
                 raise PrerequisiteError(f"Invalid modality item: {item}")
         return result
     else:
+        # Check if it looks like a file path that doesn't exist
+        if "/" in value or "\\" in value or value.endswith((".json", ".yaml", ".yml")):
+            raise PrerequisiteError(f"Modalities file not found: {value}")
         # Comma-separated literal names (e.g. "image" or "image,audio")
-        return [m.strip() for m in value.split(",")]  # type: ignore[misc]
+        tokens = [m.strip() for m in value.split(",")]
+        return [t for t in tokens if t]  # type: ignore[misc]
 
 
 def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:

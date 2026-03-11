@@ -970,6 +970,25 @@ def test_image_generation_round_trip_with_text():
     assert len(image_msgs) == 1
 
 
+def test_openai_responses_tools_deduplicates_image_modalities():
+    """Multiple image entries should produce exactly one image_generation tool."""
+    from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
+    from inspect_ai.model._openai_responses import openai_responses_tools
+
+    config = GenerateConfig(
+        modalities=[
+            "image",
+            ImageOutput(options={"openai": {"quality": "high", "size": "1024x1024"}}),
+        ]
+    )
+    tools = openai_responses_tools([], "gpt-4o", config)
+    image_tools = [t for t in tools if t["type"] == "image_generation"]
+    assert len(image_tools) == 1
+    # Should use the last ImageOutput's options
+    assert image_tools[0]["quality"] == "high"
+    assert image_tools[0]["size"] == "1024x1024"
+
+
 def test_openai_responses_tools_image_modality():
     """Test that openai_responses_tools adds image_generation tool for image modality."""
     from inspect_ai.model._generate_config import GenerateConfig, ImageOutput

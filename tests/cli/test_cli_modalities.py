@@ -2,10 +2,12 @@ import json
 import os
 import tempfile
 
+import pytest
 import yaml
 
 from inspect_ai import Task, eval
 from inspect_ai._cli.eval import parse_modalities
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.model._generate_config import ImageOutput
 from inspect_ai.solver import generate
@@ -64,6 +66,33 @@ def test_parse_modalities_yaml_mixed():
             assert isinstance(result[1], ImageOutput)
         finally:
             os.unlink(f.name)
+
+
+def test_parse_modalities_typoed_file_path():
+    """A path-like string that doesn't exist should raise PrerequisiteError."""
+    with pytest.raises(PrerequisiteError, match="Modalities file not found"):
+        parse_modalities("/nonexistent/path/modalities.yaml")
+
+
+def test_parse_modalities_typoed_json_extension():
+    """A .json filename that doesn't exist should raise PrerequisiteError."""
+    with pytest.raises(PrerequisiteError, match="Modalities file not found"):
+        parse_modalities("modalities.json")
+
+
+def test_parse_modalities_empty_tokens():
+    """Empty/whitespace tokens in comma-separated input are filtered out."""
+    result = parse_modalities("image,,audio")
+    assert result == ["image", "audio"]
+
+    result = parse_modalities("image, ,audio")
+    assert result == ["image", "audio"]
+
+
+def test_parse_modalities_duplicates():
+    """Duplicate modalities in comma-separated input are preserved as-is."""
+    result = parse_modalities("image,image,audio")
+    assert result == ["image", "image", "audio"]
 
 
 def test_eval_modalities_passed_through():

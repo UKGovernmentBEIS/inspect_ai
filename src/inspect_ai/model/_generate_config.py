@@ -338,9 +338,29 @@ active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
 
 def has_image_output(modalities: list[OutputModality] | None) -> bool:
     """Check if modalities include image output."""
-    return modalities is not None and any(
-        m == "image" or isinstance(m, ImageOutput) for m in modalities
-    )
+    return image_output_config(modalities) is not None
+
+
+def image_output_config(
+    modalities: list[OutputModality] | None,
+) -> ImageOutput | None:
+    """Return the last ImageOutput from modalities.
+
+    Returns a default ImageOutput if only string "image" entries exist,
+    or None if no image output is present.
+    """
+    if modalities is None:
+        return None
+    last: ImageOutput | None = None
+    found = False
+    for m in modalities:
+        if m == "image" or isinstance(m, ImageOutput):
+            found = True
+            if isinstance(m, ImageOutput):
+                last = m
+    if not found:
+        return None
+    return last if last is not None else ImageOutput()
 
 
 def normalized_batch_config(

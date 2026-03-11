@@ -143,7 +143,10 @@ from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
 )
-from inspect_ai.model._generate_config import GenerateConfig, ImageOutput
+from inspect_ai.model._generate_config import (
+    GenerateConfig,
+    image_output_config,
+)
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -428,16 +431,14 @@ def openai_responses_tools(
 ) -> list[ToolParam]:
     result = [_tool_param_for_tool_info(tool, model_name, config) for tool in tools]
 
-    # Add image_generation tool if image output modality requested
-    if config.modalities:
-        for modality in config.modalities:
-            if modality == "image" or isinstance(modality, ImageOutput):
-                tool_def = ImageGeneration(type="image_generation")
-                if isinstance(modality, ImageOutput) and modality.options:
-                    openai_options = modality.options.get("openai", {})
-                    for key, value in openai_options.items():
-                        tool_def[key] = value  # type: ignore[literal-required]
-                result.append(tool_def)
+    # Add at most one image_generation tool if image output modality requested
+    img_config = image_output_config(config.modalities)
+    if img_config is not None:
+        tool_def = ImageGeneration(type="image_generation")
+        if img_config.options:
+            for key, value in img_config.options.get("openai", {}).items():
+                tool_def[key] = value  # type: ignore[literal-required]
+        result.append(tool_def)
 
     return result
 

@@ -1343,9 +1343,16 @@ def completion_choice_from_candidate(
                         if mime.startswith("image/"):
                             content.append(ContentImage(image=data_uri))
                         elif mime.startswith("audio/"):
-                            fmt: Literal["wav", "mp3"] = (
-                                "wav" if "wav" in mime else "mp3"
-                            )
+                            if "wav" in mime:
+                                fmt: Literal["wav", "mp3"] = "wav"
+                            elif "mp3" in mime or "mpeg" in mime:
+                                fmt = "mp3"
+                            else:
+                                logger.warning(
+                                    f"Unsupported audio MIME type '{mime}', "
+                                    f"skipping audio content."
+                                )
+                                continue
                             content.append(ContentAudio(audio=data_uri, format=fmt))
                 continue  # Skip other non-text/non-executable_code parts
 
