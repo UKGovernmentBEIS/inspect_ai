@@ -15,8 +15,6 @@ class SubmitParams(BaseModel):
     """Additional environment variables (merged with the current environment)."""
     cwd: str | None = None
     """Working directory for command execution."""
-    output_limit: int | None = None
-    """Max bytes to buffer per stream (stdout/stderr). None uses server default."""
     model_config = {"extra": "forbid"}
 
 

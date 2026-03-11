@@ -25,7 +25,6 @@ async def exec_remote_start(params: SubmitParams) -> SubmitResult:
         stdin_open=params.stdin_open,
         env=params.env,
         cwd=params.cwd,
-        output_limit=params.output_limit,
     )
     return SubmitResult(pid=pid)
 

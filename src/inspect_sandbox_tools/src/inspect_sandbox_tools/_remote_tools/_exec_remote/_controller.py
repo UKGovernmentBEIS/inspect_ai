@@ -21,7 +21,6 @@ class Controller:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
-        output_limit: int | None = None,
     ) -> int:
         """Create a new job and return its PID.
 
@@ -31,15 +30,9 @@ class Controller:
             stdin_open: If True, keep stdin open for later writes.
             env: Additional environment variables (merged with current env).
             cwd: Working directory for command execution.
-            output_limit: Max bytes to buffer per stream. None uses server default.
         """
         job = await Job.create(
-            command,
-            input=input,
-            stdin_open=stdin_open,
-            env=env,
-            cwd=cwd,
-            output_limit=output_limit,
+            command, input=input, stdin_open=stdin_open, env=env, cwd=cwd
         )
         self._jobs[job.pid] = job
         return job.pid
