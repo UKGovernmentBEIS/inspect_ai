@@ -6,6 +6,7 @@
 - Google: Support for the native Gemini computer tool.
 - Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
 - Mistral: Update to v2.0 of `mistralai` package.
+- Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
