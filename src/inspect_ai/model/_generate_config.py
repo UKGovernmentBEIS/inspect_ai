@@ -319,7 +319,7 @@ class GenerateConfig(BaseModel):
         for key in config_keys:
             value = getattr(other, key, None)
             if value is not None:
-                setattr(config, key, value)
+                setattr(config, key, deepcopy(value))
         return config
 
 

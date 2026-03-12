@@ -712,7 +712,7 @@ class AnthropicAPI(ModelAPI):
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
-        headers: dict[str, str] = config.extra_headers or {}
+        headers: dict[str, str] = (config.extra_headers or {}).copy()
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
