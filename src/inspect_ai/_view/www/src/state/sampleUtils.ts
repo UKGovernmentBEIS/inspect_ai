@@ -60,7 +60,7 @@ const resolveEventRefs = (
  */
 const resolvePools = (sample: EvalSample): EvalSample => {
   const { message_pool, call_pool } = sample;
-  if (!message_pool.length && !call_pool.length) return sample;
+  if (!message_pool?.length && !call_pool?.length) return sample;
 
   return {
     ...sample,
