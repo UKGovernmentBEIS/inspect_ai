@@ -20,6 +20,7 @@
 - Google: Include images from tool results in API requests for non-computer-use models.
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
+- Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.
 
 ## 0.3.190 (11 March 2026)
 
