@@ -4,7 +4,6 @@
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
-- Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
 - Mistral: Update to v2.0 of `mistralai` package.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
@@ -21,6 +20,10 @@
 - Google: Include images from tool results in API requests for non-computer-use models.
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
+
+## 0.3.190 (11 March 2026)
+
+- Anthropic: Add `insert_text` parameter to `text_editor()` tool (matches Claude 4.6 schema).
 
 ## 0.3.189 (07 March 2026)
 
