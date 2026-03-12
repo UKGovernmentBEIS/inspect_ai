@@ -1692,7 +1692,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
         else:
             content = [
-                item
+                _strip_text_block_citations(item)
                 for content in message.content
                 for item in await message_block_params(content)
             ]
@@ -1772,6 +1772,18 @@ MessageBlockParam = Union[
     | BetaTextEditorCodeExecutionToolResultBlockParam
     | BetaWebFetchToolResultBlockParam
 ]
+
+
+def _strip_text_block_citations(block: MessageBlockParam) -> MessageBlockParam:
+    """Strip citations from TextBlockParam.
+
+    Citations are not allowed inside tool result blocks — they are only
+    valid on top-level text blocks in the message content.
+    """
+    if isinstance(block, dict) and block.get("type") == "text" and "citations" in block:
+        block = cast(TextBlockParam | DocumentBlockParam, block.copy())
+        del block["citations"]
+    return block
 
 
 async def assistant_message_blocks(
