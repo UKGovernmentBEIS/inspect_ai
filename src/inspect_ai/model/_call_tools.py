@@ -38,6 +38,7 @@ from pydantic import BaseModel
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentText,
     ContentVideo,
@@ -193,15 +194,32 @@ async def execute_tools(
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
             if isinstance(
-                result, ContentText | ContentImage | ContentAudio | ContentVideo
+                result,
+                ContentText
+                | ContentImage
+                | ContentAudio
+                | ContentVideo
+                | ContentDocument,
             ):
                 content: (
-                    str | list[ContentText | ContentImage | ContentAudio | ContentVideo]
+                    str
+                    | list[
+                        ContentText
+                        | ContentImage
+                        | ContentAudio
+                        | ContentVideo
+                        | ContentDocument
+                    ]
                 ) = [result]
             elif isinstance(result, list) and (
                 len(result) == 0
                 or isinstance(
-                    result[0], ContentText | ContentImage | ContentAudio | ContentVideo
+                    result[0],
+                    ContentText
+                    | ContentImage
+                    | ContentAudio
+                    | ContentVideo
+                    | ContentDocument,
                 )
             ):
                 content = result
