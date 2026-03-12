@@ -11,7 +11,9 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._condense import (
+    condense_events,
     condense_sample,
+    expand_events,
     resolve_sample_attachments,
 )
 from inspect_ai.log._file import read_eval_log, write_eval_log
@@ -774,3 +776,38 @@ def test_resolve_shares_message_instances():
     assert model_events[0].input[1] is model_events[1].input[1]
     assert model_events[1].input[2] is model_events[2].input[2]
     assert model_events[1].input[3] is model_events[2].input[3]
+
+
+def test_condense_expand_events_round_trip():
+    """condense_events + expand_events should preserve message content."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed, data = condense_events(sample.events)
+
+    assert len(data["messages"]) == 5
+    assert isinstance(data["calls"], list)
+
+    expanded = expand_events(condensed, data)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].input) == 2
+    assert len(model_events[1].input) == 4
+    assert len(model_events[2].input) == 5
+
+
+def test_condense_expand_events_call_pool_round_trip():
+    """condense_events + expand_events round-trips call pools."""
+    sample = _make_sample_with_call_messages()
+    condensed, data = condense_events(sample.events)
+
+    assert len(data["calls"]) == 3
+
+    expanded = expand_events(condensed, data)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].call.request["messages"]) == 1
+    assert len(model_events[1].call.request["messages"]) == 3
+
+
+def test_expand_events_empty_pools_is_noop():
+    """expand_events with empty pools returns events unchanged."""
+    sample = _make_sample_with_repeated_inputs()
+    result = expand_events(sample.events, {"messages": [], "calls": []})
+    assert len(result) == len(sample.events)
