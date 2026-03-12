@@ -271,6 +271,10 @@ The basic mechanism for task re-use is to create flexible and adaptable base `@t
 
 In some cases though you might not have full control over the base `@task` function (e.g. it's published in a Python package you aren't the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the `task_with()` function, which provides a straightforward way to modify the properties of an existing task.
 
+::: {.callout-tip}
+For a comprehensive reference on all configuration and override mechanisms --- including `task_with()`, `eval()` overrides, CLI flags, and precedence rules --- see [Task Configuration](task-configuration.qmd).
+:::
+
 For example, imagine you are dealing with a `Task` that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
 
 ``` python
