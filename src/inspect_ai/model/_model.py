@@ -356,6 +356,10 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
+    def tool_result_documents(self) -> bool:
+        """Tool results can be replayed to the model with documents."""
+        return False
+
     def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False
@@ -849,6 +853,12 @@ class Model:
         # support tools returning images
         if not self.api.tool_result_images():
             input = tool_result_images_as_user_message(input)
+
+        # Providers without native document tool-result replay still need a
+        # textual placeholder so the follow-up turn can see that a document
+        # was returned.
+        if not self.api.tool_result_documents():
+            input = tool_result_documents_as_text(input)
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -1682,6 +1692,32 @@ def tool_result_images_as_user_message(
     return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
 
 
+def tool_result_documents_as_text(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Convert document blocks in tool results into text summaries."""
+    chat_messages: list[ChatMessage] = []
+    for message in messages:
+        if not isinstance(message, ChatMessageTool) or not isinstance(
+            message.content, list
+        ):
+            chat_messages.append(message)
+            continue
+
+        changed = False
+        content: list[Content] = []
+        for item in message.content:
+            if isinstance(item, ContentDocument):
+                content.append(tool_result_document_text(item))
+                changed = True
+            else:
+                content.append(item)
+
+        chat_messages.append(
+            message if not changed else message.model_copy(update={"content": content})
+        )
+
+    return chat_messages
+
+
 ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
 """
 ImagesAccumulator is a tuple containing three lists:
@@ -1757,6 +1793,13 @@ def tool_result_image_content_reducer(
 
     else:
         return new_user_message_content, edited_tool_message_content + [content]
+
+
+def tool_result_document_text(content: ContentDocument) -> ContentText:
+    """Summarize a document tool result for replay on unsupported providers."""
+    return ContentText(
+        text=f"Tool returned document '{content.filename}' ({content.mime_type})."
+    )
 
 
 def maybe_adding_user_message(
