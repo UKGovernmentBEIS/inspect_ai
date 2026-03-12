@@ -14,6 +14,7 @@ from typing import (
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentText,
     ContentVideo,
@@ -40,7 +41,8 @@ ToolResult = (
     | ContentImage
     | ContentAudio
     | ContentVideo
-    | list[ContentText | ContentImage | ContentAudio | ContentVideo]
+    | ContentDocument
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
 )
 """Valid types for results from tool calls."""
 
@@ -267,14 +269,24 @@ def tool(
 
 def tool_result_content(
     content: str | list[Content],
-) -> str | list[ContentText | ContentImage | ContentAudio | ContentVideo]:
+) -> (
+    str
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+):
     if isinstance(content, str):
         return content
     else:
         return [
             c
             for c in content
-            if isinstance(c, ContentText | ContentImage | ContentAudio | ContentVideo)
+            if isinstance(
+                c,
+                ContentText
+                | ContentImage
+                | ContentAudio
+                | ContentVideo
+                | ContentDocument,
+            )
         ]
 
 
