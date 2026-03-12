@@ -20,6 +20,7 @@ export const useTaskTabConfig = (
   evalSpec: EvalSpec | undefined,
   evalStats?: EvalStats,
   earlyStopping?: EarlyStoppingSummary | null,
+  tags?: string[],
 ) => {
   return useMemo(() => {
     return {
@@ -31,21 +32,24 @@ export const useTaskTabConfig = (
         evalSpec,
         evalStats,
         earlyStopping,
+        tags,
       },
     };
-  }, [evalSpec, evalStats, earlyStopping]);
+  }, [evalSpec, evalStats, earlyStopping, tags]);
 };
 
 interface TaskTabProps {
   evalSpec?: EvalSpec;
   evalStats?: EvalStats;
   earlyStopping?: EarlyStoppingSummary | null;
+  tags?: string[];
 }
 
 export const TaskTab: FC<TaskTabProps> = ({
   evalSpec,
   evalStats,
   earlyStopping,
+  tags,
 }) => {
   const config: Record<string, unknown> = {};
   Object.entries(evalSpec?.config || {}).forEach((entry) => {
@@ -84,8 +88,8 @@ export const TaskTab: FC<TaskTabProps> = ({
       taskInformation["Inspect"] = names;
     }
   }
-  if (evalSpec?.tags) {
-    taskInformation["tags"] = evalSpec?.tags.join(", ");
+  if (tags && tags.length > 0) {
+    taskInformation["tags"] = tags.join(", ");
   }
 
   if (evalSpec?.sandbox) {

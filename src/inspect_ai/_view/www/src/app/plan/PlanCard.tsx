@@ -8,6 +8,7 @@ interface PlanCardProps {
   evalSpec?: EvalSpec;
   evalPlan?: EvalPlan;
   scores?: EvalScore[];
+  metadata?: Record<string, unknown>;
   scrollRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -18,9 +19,10 @@ export const PlanCard: FC<PlanCardProps> = ({
   evalSpec,
   evalPlan,
   scores,
+  metadata: metadataProp,
   scrollRef,
 }) => {
-  const metadata = evalSpec?.metadata || {};
+  const metadata = metadataProp || {};
 
   return (
     <>

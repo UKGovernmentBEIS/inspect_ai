@@ -401,16 +401,10 @@ class ModelInfo(ResponsesModelInfo):
     def is_o1(self) -> bool:
         return False
 
-    def is_o1_early(self) -> bool:
-        return False
-
     def is_o3_mini(self) -> bool:
         return False
 
     def is_deep_research(self) -> bool:
-        return False
-
-    def is_computer_use_preview(self) -> bool:
         return False
 
     def is_codex(self) -> bool:

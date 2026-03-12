@@ -19,7 +19,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
   fnNavigationUrl,
   bordered,
   children,
-  showActivity = "all",
+  showActivity = "log",
   breadcrumbsEnabled,
 }) => {
   const optionsRef = useRef<HTMLButtonElement>(null);

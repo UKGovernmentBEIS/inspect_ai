@@ -118,6 +118,7 @@ def eval(
     cost_limit: float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
@@ -198,6 +199,9 @@ def eval(
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
@@ -270,6 +274,7 @@ def eval(
                 cost_limit=cost_limit,
                 model_cost_config=model_cost_config,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
@@ -333,6 +338,7 @@ async def eval_async(
     cost_limit: float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
@@ -399,6 +405,9 @@ async def eval_async(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
@@ -462,6 +471,7 @@ async def eval_async(
                 cost_limit=cost_limit,
                 model_cost_config=model_cost_config,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
@@ -530,6 +540,7 @@ async def _eval_async_inner(
     cost_limit: float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
@@ -701,6 +712,7 @@ async def _eval_async_inner(
             time_limit=time_limit,
             working_limit=working_limit,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -1361,3 +1373,6 @@ class EvalLogs(list[EvalLog]):
 
     def __repr__(self) -> str:
         return ""
+
+    def __str__(self) -> str:
+        return list.__repr__(self)

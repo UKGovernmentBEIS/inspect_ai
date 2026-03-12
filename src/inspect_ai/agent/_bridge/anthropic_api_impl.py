@@ -39,6 +39,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
@@ -100,6 +101,14 @@ async def inspect_anthropic_api_request_impl(
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None = (
         json_data.get("mcp_servers", None)
     )
+    # validate computer use compatibility
+    has_computer_use = any(is_computer_tool(tool) for tool in anthropic_tools or [])
+    if has_computer_use and ModelName(model).api != "anthropic":
+        raise RuntimeError(
+            f"computer use with the Anthropic agent bridge requires an "
+            f"Anthropic model, got '{ModelName(model)}'"
+        )
+
     tools = tools_from_anthropic_tools(
         anthropic_tools, anthropic_mcp_servers, web_search, code_execution
     )
