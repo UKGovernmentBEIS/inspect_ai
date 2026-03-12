@@ -12,8 +12,11 @@ from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
+from tenacity import wait_none
 
 from inspect_ai.util._sandbox.exec_remote import (
+    CLEANUP_RETRY,
+    POLL_RETRY,
     ExecCompleted,
     ExecOutput,
     ExecRemoteAwaitableOptions,
@@ -22,6 +25,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteStreamingOptions,
     ExecStderr,
     ExecStdout,
+    RetryPolicy,
     exec_remote_awaitable,
     exec_remote_streaming,
 )
@@ -849,3 +853,136 @@ class TestStdinOpenStartParam:
             start_call.kwargs.get("input", start_call[1].get("input", ""))
         )
         assert "stdin_open" not in rpc_payload["params"]
+
+
+# ============================================================================
+# RPC retry (centralized in _rpc())
+# ============================================================================
+
+
+_RETRY_MOD = "inspect_ai.util._sandbox.exec_remote"
+_NO_WAIT_POLL = RetryPolicy(wait=wait_none(), stop=POLL_RETRY.stop)
+_NO_WAIT_CLEANUP = RetryPolicy(wait=wait_none(), stop=CLEANUP_RETRY.stop)
+
+
+def _make_flaky_sandbox(
+    fail_count: int = 1, success_response: str | None = None
+) -> tuple[AsyncMock, list[int]]:
+    """Create a sandbox that starts OK, fails `fail_count` times, then succeeds.
+
+    If success_response is None, all post-start calls raise permanently.
+    Returns (sandbox, call_counts) where call_counts tracks exec invocations.
+    """
+    call_counts = [0]
+
+    async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+        call_counts[0] += 1
+        if call_counts[0] == 1:
+            return ExecResult(
+                success=True, returncode=0, stdout=_start_response(), stderr=""
+            )
+        if call_counts[0] <= 1 + fail_count:
+            raise ConnectionError("WebSocket connection lost")
+        if success_response is None:
+            raise ConnectionError("permanently broken")
+        return ExecResult(
+            success=True, returncode=0, stdout=success_response, stderr=""
+        )
+
+    sandbox = AsyncMock()
+    sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
+    sandbox.exec = AsyncMock(side_effect=fake_exec)
+    return sandbox, call_counts
+
+
+class TestRpcRetry:
+    async def test_poll_retries_on_transient_error(self) -> None:
+        sandbox, calls = _make_flaky_sandbox(
+            fail_count=1, success_response=_poll_response(stdout="recovered")
+        )
+        proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
+        proc._poll_interval = 0
+        await proc._start()
+
+        with patch(f"{_RETRY_MOD}.POLL_RETRY", _NO_WAIT_POLL):
+            events = [event async for event in proc]
+
+        assert any(isinstance(e, ExecStdout) and e.data == "recovered" for e in events)
+        assert calls[0] == 3
+
+    async def test_poll_retries_runtime_error(self) -> None:
+        """RuntimeError from transport (success=False) is also retried."""
+        sandbox = AsyncMock()
+        sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
+        call_count = [0]
+
+        async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return ExecResult(
+                    success=True, returncode=0, stdout=_start_response(), stderr=""
+                )
+            if call_count[0] == 2:
+                return ExecResult(
+                    success=False, returncode=1, stdout="", stderr="exec failed"
+                )
+            return ExecResult(
+                success=True,
+                returncode=0,
+                stdout=_poll_response(stdout="ok"),
+                stderr="",
+            )
+
+        sandbox.exec = AsyncMock(side_effect=fake_exec)
+        proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
+        proc._poll_interval = 0
+        await proc._start()
+
+        with patch(f"{_RETRY_MOD}.POLL_RETRY", _NO_WAIT_POLL):
+            events = [event async for event in proc]
+
+        assert any(isinstance(e, ExecCompleted) for e in events)
+        assert call_count[0] == 3
+
+    async def test_kill_retries_then_succeeds(self) -> None:
+        sandbox, calls = _make_flaky_sandbox(
+            fail_count=1, success_response=_kill_response()
+        )
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        with patch(f"{_RETRY_MOD}.CLEANUP_RETRY", _NO_WAIT_CLEANUP):
+            await proc.kill()
+
+        assert proc._killed is True
+        assert calls[0] == 3
+
+    async def test_kill_swallows_after_retries_exhausted(self) -> None:
+        sandbox, _ = _make_flaky_sandbox(fail_count=999, success_response=None)
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        with patch(f"{_RETRY_MOD}.CLEANUP_RETRY", _NO_WAIT_CLEANUP):
+            await proc.kill()
+
+        assert proc._killed is True
+
+    async def test_close_stdin_retries_then_succeeds(self) -> None:
+        sandbox, calls = _make_flaky_sandbox(
+            fail_count=1, success_response=_close_stdin_response()
+        )
+        opts = ExecRemoteStreamingOptions(stdin_open=True)
+        proc = await exec_remote_streaming(sandbox, ["cat"], 5, opts)
+
+        with patch(f"{_RETRY_MOD}.CLEANUP_RETRY", _NO_WAIT_CLEANUP):
+            await proc.close_stdin()
+
+        assert calls[0] == 3
+
+    async def test_close_stdin_swallows_after_retries_exhausted(self) -> None:
+        sandbox, _ = _make_flaky_sandbox(fail_count=999, success_response=None)
+        opts = ExecRemoteStreamingOptions(stdin_open=True)
+        proc = await exec_remote_streaming(sandbox, ["cat"], 5, opts)
+
+        with patch(f"{_RETRY_MOD}.CLEANUP_RETRY", _NO_WAIT_CLEANUP):
+            await proc.close_stdin()
