@@ -273,12 +273,11 @@ async def _perform_compaction(
     Raises:
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
-    MAX_ITERATIONS = 3
     c_input, c_message = await strategy.compact(model, messages, tools)
     compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
-    for _ in range(MAX_ITERATIONS):
+    for _ in range(strategy.retries):
         if total_compacted <= threshold:
             break  # Success
 
@@ -293,15 +292,15 @@ async def _perform_compaction(
         if compacted_tokens >= prev_tokens:
             break
 
-    # Final validation
-    if total_compacted > threshold:
-        raise RuntimeError(
+    # Final validation — only warn for strategies that retry (non-native).
+    # Native compaction (retries == 0) handles its own logging.
+    if total_compacted > threshold and strategy.retries > 0:
+        logger.warning(
             f"Compaction insufficient: {total_compacted:,} tokens "
             f"still exceeds threshold of {threshold:,} "
             f"(tools: {tool_tokens:,}, prefix: {prefix_tokens:,}, "
             f"messages: {compacted_tokens:,}). "
-            f"Consider using a lower compaction threshold to accommodate "
-            f"tool definitions and prefix."
+            f"Proceeding with oversized input."
         )
 
     return c_input, c_message

@@ -291,6 +291,32 @@ class ModelAPI(abc.ABC):
         """
         return count_media_tokens(media)
 
+    async def count_tool_tokens(self, tools: Sequence["ToolInfo"]) -> int:
+        """Count tokens for tool definitions.
+
+        Override for provider-specific counting (e.g. using native token
+        counting APIs that accept tool schemas directly).
+
+        Args:
+            tools: List of tool definitions.
+
+        Returns:
+            Total token count for all tool definitions.
+        """
+        tool_json = ""
+        for tool in tools:
+            tool_json += json.dumps(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters.model_dump(exclude_none=True),
+                    },
+                }
+            )
+        return await self.count_tokens([ChatMessageUser(content=tool_json)])
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -694,26 +720,15 @@ class Model:
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
 
+        Delegates to the provider's count_tool_tokens for accurate counting.
+
         Args:
             tools: List of tool definitions.
 
         Returns:
             Total token count for all tool definitions.
         """
-        # create a message with the tool tokens embedded and count that
-        tool_json = ""
-        for tool in tools:
-            tool_json += json.dumps(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.parameters.model_dump(exclude_none=True),
-                    },
-                }
-            )
-        return await self.count_tokens([ChatMessageUser(content=tool_json)])
+        return await self.api.count_tool_tokens(tools)
 
     async def compact(
         self,

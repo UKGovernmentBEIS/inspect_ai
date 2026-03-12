@@ -1,5 +1,6 @@
 """Tests for the compaction() factory function."""
 
+import logging
 from typing import Literal
 
 import pytest
@@ -545,7 +546,9 @@ async def test_iterative_compaction_succeeds() -> None:
     assert len(result) < len(messages)
 
 
-async def test_iterative_compaction_stops_when_no_progress() -> None:
+async def test_iterative_compaction_stops_when_no_progress(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Test that iteration stops if compaction makes no progress."""
     # CompactionEdit with nothing to clear should stop immediately
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
@@ -560,13 +563,16 @@ async def test_iterative_compaction_stops_when_no_progress() -> None:
         user_msg("Q" * 100, "msg1"),
     ]
 
-    # Should raise RuntimeError since Edit can't reduce these messages
-    with pytest.raises(RuntimeError, match="Compaction insufficient"):
+    # Should warn and proceed since Edit can't reduce these messages
+    with caplog.at_level(logging.WARNING):
         await compact.compact_input(messages)
+    assert "Compaction insufficient" in caplog.text
 
 
-async def test_compaction_error_message_breakdown() -> None:
-    """Test that RuntimeError includes tools, prefix, messages breakdown."""
+async def test_compaction_warning_message_breakdown(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that warning includes tools, prefix, messages breakdown."""
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
     model = get_model("mockllm/model")
 
@@ -579,13 +585,12 @@ async def test_compaction_error_message_breakdown() -> None:
         user_msg("Q" * 100, "msg1"),
     ]
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with caplog.at_level(logging.WARNING):
         await compact.compact_input(messages)
 
-    error_msg = str(exc_info.value)
-    assert "tools:" in error_msg
-    assert "prefix:" in error_msg
-    assert "messages:" in error_msg
+    assert "tools:" in caplog.text
+    assert "prefix:" in caplog.text
+    assert "messages:" in caplog.text
 
 
 # ==============================================================================

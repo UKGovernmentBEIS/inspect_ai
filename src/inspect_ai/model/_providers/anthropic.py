@@ -552,6 +552,24 @@ class AnthropicAPI(ModelAPI):
         return response.input_tokens
 
     @override
+    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
+        """Count tokens for tool definitions using Anthropic's count_tokens API."""
+        tool_params = [
+            ToolParam(
+                name=tool.name,
+                description=tool.description,
+                input_schema=tool.parameters.model_dump(exclude_none=True),
+            )
+            for tool in tools
+        ]
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=[{"role": "user", "content": "x"}],
+            tools=tool_params,
+        )
+        return response.input_tokens
+
+    @override
     async def compact(
         self,
         input: list[ChatMessage],
@@ -600,15 +618,18 @@ class AnthropicAPI(ModelAPI):
                 # from the compaction inference, not the task, and would waste
                 # input tokens on subsequent turns.
                 message = _strip_reasoning(output.message)
-                return [message], output.usage
+                return [
+                    message,
+                    ChatMessageUser(content="Continue with the task."),
+                ], output.usage
             else:
-                raise RuntimeError(
-                    f"Anthropic native compaction did not trigger. "
-                    f"This can occur when the total input tokens (including tools) "
-                    f"is below Anthropic's {MIN_COMPACTION_TOKENS} token minimum for compaction. "
-                    f"Consider increasing the compaction threshold or using a "
-                    f"non-native compaction strategy."
+                trace_message(
+                    logger,
+                    "Anthropic",
+                    f"Native compaction did not trigger (input may be below "
+                    f"Anthropic's {MIN_COMPACTION_TOKENS} token minimum)",
                 )
+                return list(input), output.usage
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
