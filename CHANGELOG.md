@@ -7,6 +7,7 @@
 - Anthropic: Ensure that tool result content never carries citations.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
+- Compaction: Prevent trailing assistant messages for `CompactionEdit` strategy.
 - Agents: Strip citations from content returned via `as_tool()` agent wrapper.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
