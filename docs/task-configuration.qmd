@@ -4,14 +4,15 @@ title: Task Configuration
 
 ## Overview
 
-When running an evaluation, there are three layers where you can set or override task parameters. Each layer takes precedence over the one before it:
+When running an evaluation, there are four layers where you can set or override task parameters. Each layer takes precedence over the one before it:
 
 1.  **Task definition** --- defaults baked into the `@task` function and `Task()` constructor.
 2.  **`task_with()`** --- programmatic overrides applied to a task object before passing it to `eval()`.
-3.  **`eval()` / CLI** --- runtime overrides that apply to all tasks in the evaluation.
+3.  **Environment variables / `.env` files** --- project or session defaults set outside code.
+4.  **`eval()` / CLI** --- explicit runtime overrides that take highest precedence.
 
 ```
-Task definition  <  task_with()  <  eval() / CLI
+Task definition  <  task_with()  <  env vars / .env  <  eval() / CLI
 ```
 
 Understanding these layers is key to reusing and adapting tasks without modifying their source code. This article provides a complete reference for what can be overridden, where, and how.
@@ -74,9 +75,24 @@ task_b = task_with(base, solver=agent_b())
 
 See the [Override Reference](#override-reference) table below for the complete list of parameters that `task_with()` accepts. Note that defaults are `NOT_GIVEN` (a sentinel), not `None` --- this means you can explicitly pass `None` to clear a value that the base task set. See the API reference for `task_with()` for the full signature.
 
-### Layer 3: `eval()` / CLI {#eval-cli}
+### Layer 3: Environment Variables / `.env` Files {#env-vars}
 
-Parameters passed to `eval()` or on the `inspect eval` command line apply to **all tasks** being evaluated in that call. These are the outermost overrides and take highest precedence.
+Every CLI flag can also be set as an environment variable using the `INSPECT_EVAL_` prefix (with hyphens converted to underscores). These can be set in the shell or placed in a `.env` file, which Inspect reads automatically from the current directory (searching parent directories if not found).
+
+This layer is useful for setting project or session defaults --- values you want applied across multiple eval runs without specifying them each time:
+
+``` {.makefile filename=".env"}
+INSPECT_EVAL_MODEL=anthropic/claude-sonnet-4-5
+INSPECT_EVAL_TEMPERATURE=0.0
+INSPECT_EVAL_MAX_CONNECTIONS=20
+INSPECT_EVAL_MAX_RETRIES=5
+```
+
+Environment variables set in the shell take precedence over values in `.env` files. See [Options](options.qmd) for full details on `.env` file handling.
+
+### Layer 4: `eval()` / CLI {#eval-cli}
+
+Parameters passed to `eval()` or on the `inspect eval` command line are the outermost overrides and take highest precedence. They apply to **all tasks** being evaluated in that call.
 
 **Python:**
 
@@ -355,16 +371,25 @@ inspect score log_file.eval --scorer scorers.py@custom_scorer
 
 ## Precedence {#precedence}
 
-When the same parameter is set at multiple layers, the outermost layer wins:
+When the same parameter is set at multiple levels, the outermost level wins. The full precedence chain is:
 
 ``` text
-Task definition  <  task_with()  <  eval() / CLI
+Task definition  <  task_with()  <  .env file  <  env var  <  CLI flag / eval()
 ```
+
+An explicit CLI flag overrides an environment variable, which overrides a value from a `.env` file, which overrides `task_with()`, which overrides the task definition.
 
 For example, a task that sets `temperature=0.5` internally can be overridden at runtime:
 
 ``` bash
 inspect eval my_task.py --temperature 0.0
+```
+
+Or via environment variable:
+
+``` bash
+export INSPECT_EVAL_TEMPERATURE=0.0
+inspect eval my_task.py
 ```
 
 Or in Python:
@@ -373,7 +398,7 @@ Or in Python:
 eval(my_task(), temperature=0.0)
 ```
 
-For `GenerateConfig` specifically, CLI values from `--generate-config` are merged with individual CLI flags, with individual flags taking precedence over the file.
+For `GenerateConfig` specifically, values from `--generate-config` (a YAML/JSON file) are merged with individual CLI flags, with individual flags taking precedence over the file.
 
 ## Common Patterns {#common-patterns}
 
