@@ -935,6 +935,10 @@ class AnthropicAPI(ModelAPI):
         return True
 
     @override
+    def tool_result_documents(self) -> bool:
+        return True
+
+    @override
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 
