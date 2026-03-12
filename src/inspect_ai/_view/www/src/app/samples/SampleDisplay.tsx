@@ -347,7 +347,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }, [selectedSampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
-  console.log({ sample, sampleMetadatas });
 
   return (
     <Fragment>
