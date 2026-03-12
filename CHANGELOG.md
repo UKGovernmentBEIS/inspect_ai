@@ -1,4 +1,4 @@
-## 0.3.191
+## 0.3.191 (12 March 2026)
 
 - Inspect View: Fix regression that prevented proper display of running samples.
 

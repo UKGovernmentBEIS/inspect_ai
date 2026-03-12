@@ -389,7 +389,9 @@ class AnthropicAPI(ModelAPI):
                 betas.append("mcp-client-2025-04-04")
 
             # beta param for interleaved thinking
-            if self.is_using_thinking(config) and self.is_claude_4():
+            if self.is_using_thinking(config) and (
+                self.is_claude_4() or self.is_claude_latest()
+            ):
                 betas.append("interleaved-thinking-2025-05-14")
 
             # extra headers (for time tracker and computer use)
@@ -745,7 +747,9 @@ class AnthropicAPI(ModelAPI):
             betas.append("effort-2025-11-24")
             effort = config.effort
             # max is claude 4.6 only
-            if effort == "max" and not self.is_claude_4_6():
+            if effort == "max" and not (
+                self.is_claude_4_6() or self.is_claude_latest()
+            ):
                 effort = "high"
             params["output_config"] = OutputConfigParam(effort=effort)
 
@@ -822,7 +826,9 @@ class AnthropicAPI(ModelAPI):
                 max_tokens = max_tokens + config.reasoning_tokens
 
         # apply caps after bumping for reasoning
-        if self.is_claude_4_6() and self.is_claude_4_opus():
+        if (
+            self.is_claude_4_6() and self.is_claude_4_opus()
+        ) or self.is_claude_latest():
             # Opus 4.6 only
             max_tokens = min(max_tokens, 128000)
         elif self.is_claude_4_5() or self.is_claude_4_6():
@@ -864,14 +870,52 @@ class AnthropicAPI(ModelAPI):
     def is_claude_4(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
 
+    def is_claude_4_0(self) -> bool:
+        return self._is_claude_4_x(0) or (
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.service_model_name())
+            is not None
+        )
+
+    def is_claude_4_1(self) -> bool:
+        return self._is_claude_4_x(1)
+
+    def is_claude_4_5(self) -> bool:
+        return self._is_claude_4_x(5)
+
+    def is_claude_4_6(self) -> bool:
+        return self._is_claude_4_x(6)
+
     def is_claude_4_opus(self) -> bool:
         return self.is_claude_4() and "opus" in self.service_model_name()
 
-    def is_claude_4_5(self) -> bool:
-        return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
+    def _is_claude_4_x(self, x: int) -> bool:
+        return (
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.service_model_name())
+            is not None
+        )
 
-    def is_claude_4_6(self) -> bool:
-        return re.search(r"claude-[a-zA-Z]+-4-6", self.service_model_name()) is not None
+    # attempt to not require an inspect package update for new models
+    # (assume that all capabilities of claude 4.6 are available in
+    # future model versions)
+    def is_claude_latest(self) -> bool:
+        # future minor version
+        if self.is_claude_4() and not (
+            self.is_claude_4_0()
+            or self.is_claude_4_1()
+            or self.is_claude_4_5()
+            or self.is_claude_4_6()
+        ):
+            return True
+        # future major version
+        elif (
+            not self.is_claude_3()
+            and not self.is_claude_3_5()
+            and not self.is_claude_3_7()
+            and not self.is_claude_4()
+        ):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -1173,8 +1217,10 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
-            if self.is_claude_4_6() or (
-                self.is_claude_4_5() and self.is_claude_4_opus()
+            if (
+                self.is_claude_4_6()
+                or self.is_claude_latest()
+                or (self.is_claude_4_5() and self.is_claude_4_opus())
             ):
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
@@ -1229,7 +1275,7 @@ class AnthropicAPI(ModelAPI):
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
                 )
-                if self.is_claude_4()
+                if self.is_claude_4() or self.is_claude_latest()
                 else BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
                 )
@@ -1307,7 +1353,7 @@ class AnthropicAPI(ModelAPI):
         if (
             config.reasoning_effort is not None
             and config.reasoning_effort != "none"
-            and self.is_claude_4_6()
+            and (self.is_claude_4_6() or self.is_claude_latest())
         ):
             match config.reasoning_effort:
                 case "low" | "minimal":
