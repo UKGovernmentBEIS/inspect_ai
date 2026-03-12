@@ -54,6 +54,13 @@ title: "inspect_ai.log"
 ### EvalSampleScore
 ### WriteConflictError
 
+## Condense API
+
+### condense_sample
+### condense_events
+### expand_events
+### EventsData
+
 ## Transcript API
 
 ### transcript
