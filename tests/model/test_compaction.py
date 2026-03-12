@@ -1,6 +1,5 @@
 """Tests for the compaction() factory function."""
 
-import logging
 from typing import Literal
 
 import pytest
@@ -546,10 +545,10 @@ async def test_iterative_compaction_succeeds() -> None:
     assert len(result) < len(messages)
 
 
-async def test_iterative_compaction_stops_when_no_progress(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+async def test_iterative_compaction_stops_when_no_progress() -> None:
     """Test that iteration stops if compaction makes no progress."""
+    from unittest.mock import patch
+
     # CompactionEdit with nothing to clear should stop immediately
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
     model = get_model("mockllm/model")
@@ -564,15 +563,17 @@ async def test_iterative_compaction_stops_when_no_progress(
     ]
 
     # Should warn and proceed since Edit can't reduce these messages
-    with caplog.at_level(logging.WARNING):
+    with patch("inspect_ai.model._compaction._compaction.logger") as mock_logger:
         await compact.compact_input(messages)
-    assert "Compaction insufficient" in caplog.text
+        mock_logger.warning.assert_called_once()
+        warning_msg = mock_logger.warning.call_args[0][0]
+        assert "Compaction insufficient" in warning_msg
 
 
-async def test_compaction_warning_message_breakdown(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+async def test_compaction_warning_message_breakdown() -> None:
     """Test that warning includes tools, prefix, messages breakdown."""
+    from unittest.mock import patch
+
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
     model = get_model("mockllm/model")
 
@@ -585,12 +586,13 @@ async def test_compaction_warning_message_breakdown(
         user_msg("Q" * 100, "msg1"),
     ]
 
-    with caplog.at_level(logging.WARNING):
+    with patch("inspect_ai.model._compaction._compaction.logger") as mock_logger:
         await compact.compact_input(messages)
-
-    assert "tools:" in caplog.text
-    assert "prefix:" in caplog.text
-    assert "messages:" in caplog.text
+        mock_logger.warning.assert_called_once()
+        warning_msg = mock_logger.warning.call_args[0][0]
+        assert "tools:" in warning_msg
+        assert "prefix:" in warning_msg
+        assert "messages:" in warning_msg
 
 
 # ==============================================================================
