@@ -21,6 +21,7 @@
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 - Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.
 - Bugfix: Fix mutation of reused GenerateConfig values during request assembly.
+- Bugfix: Fix sandbox tools Docker build failure caused by `staticx` incompatibility with setuptools 82+ (removed `pkg_resources`).
 
 ## 0.3.191 (12 March 2026)
 
