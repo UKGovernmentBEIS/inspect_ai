@@ -4,8 +4,10 @@
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
+- Anthropic: Ensure that tool result content never carries citations.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
+- Agents: Strip citations from content returned via `as_tool()` agent wrapper.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
