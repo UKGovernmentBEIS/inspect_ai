@@ -57,10 +57,7 @@ ATTACHMENT_PROTOCOL = "attachment://"
 
 
 class EventsData(TypedDict):
-    """Pooled data extracted by :func:`condense_events`.
-
-    Both keys are always present (empty list when nothing was pooled).
-    """
+    """Pooled data extracted by :func:`condense_events`."""
 
     messages: list[ChatMessage]
     calls: list[JsonValue]
