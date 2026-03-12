@@ -10,7 +10,6 @@ from mistralai.client.models import (
 )
 from mistralai.client.models import (
     AudioChunk,
-    AudioURLChunk,
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
