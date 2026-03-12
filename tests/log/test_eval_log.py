@@ -11,6 +11,7 @@ from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentDocument
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
@@ -228,6 +229,22 @@ def test_eval_log_writer_handles_invalid_unicode_safely(tmp_path: str):
 def test_can_round_trip_serialize_tool_event():
     original = ToolEvent(
         id="id", function="fn", arguments={}, timestamp=datetime.now(timezone.utc)
+    )
+
+    serialized = original.model_dump_json()
+    deserialized = ToolEvent.model_validate_json(serialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_tool_event_with_document_result():
+    """ToolEvent round-trips document results through JSON serialization."""
+    original = ToolEvent(
+        id="id",
+        function="fn",
+        arguments={},
+        result=[ContentDocument(document="/path/to/report.pdf")],
+        timestamp=datetime.now(timezone.utc),
     )
 
     serialized = original.model_dump_json()
