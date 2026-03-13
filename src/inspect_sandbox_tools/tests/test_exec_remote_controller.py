@@ -5,11 +5,14 @@ spawning real subprocesses.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from inspect_sandbox_tools._remote_tools._exec_remote._controller import Controller
-from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import PollResult
+from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
+from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import (
+    PollResult,
+)
 
 
 class TestControllerConcurrentPollAndKill:
@@ -69,3 +72,198 @@ class TestControllerConcurrentPollAndKill:
 
         # cleanup should have been called exactly once, not twice.
         assert job.cleanup.call_count == 1
+
+
+def _make_mock_job(pid: int = 42) -> MagicMock:
+    """Build a mock Job with sensible async defaults."""
+    job = MagicMock(spec=Job)
+    job.pid = pid
+    job.cleanup = AsyncMock()
+    job.poll = AsyncMock(
+        return_value=PollResult(state="running", exit_code=None, stdout="", stderr="")
+    )
+    job.kill = AsyncMock(return_value=("", ""))
+    job.write_stdin = AsyncMock(return_value=("", ""))
+    job.close_stdin = AsyncMock(return_value=("", ""))
+    return job
+
+
+class TestControllerStartDedup:
+    """Verify that submit() deduplicates on request_id."""
+
+    @pytest.mark.asyncio
+    async def test_duplicate_start_returns_same_pid(self) -> None:
+        """Submit twice with same request_id; Job.create called once, same pid returned."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        mock_create = AsyncMock(return_value=job)
+
+        with patch.object(Job, "create", mock_create):
+            pid1 = await controller.submit("echo hi", request_id="req-abc")
+            pid2 = await controller.submit("echo hi", request_id="req-abc")
+
+        assert pid1 == pid2 == 42
+        mock_create.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_different_request_ids_create_different_jobs(self) -> None:
+        """Different request_ids each create their own job."""
+        controller = Controller()
+        job1 = _make_mock_job(pid=42)
+        job2 = _make_mock_job(pid=43)
+        mock_create = AsyncMock(side_effect=[job1, job2])
+
+        with patch.object(Job, "create", mock_create):
+            pid1 = await controller.submit("echo a", request_id="req-1")
+            pid2 = await controller.submit("echo b", request_id="req-2")
+
+        assert pid1 == 42
+        assert pid2 == 43
+        assert mock_create.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_request_id_skips_dedup(self) -> None:
+        """Without request_id, every submit creates a new job."""
+        controller = Controller()
+        job1 = _make_mock_job(pid=42)
+        job2 = _make_mock_job(pid=43)
+        mock_create = AsyncMock(side_effect=[job1, job2])
+
+        with patch.object(Job, "create", mock_create):
+            pid1 = await controller.submit("echo a")
+            pid2 = await controller.submit("echo b")
+
+        assert pid1 == 42
+        assert pid2 == 43
+        assert mock_create.await_count == 2
+
+
+class TestControllerResponseCache:
+    """Verify that request_id caches the last response per PID."""
+
+    @pytest.mark.asyncio
+    async def test_poll_cache_returns_same_response(self) -> None:
+        """Same request_id on poll: job.poll called once, same result returned."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        controller._jobs[42] = job
+
+        result1 = await controller.poll(42, request_id="req-x")
+        result2 = await controller.poll(42, request_id="req-x")
+
+        assert result1 == result2
+        job.poll.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_poll_cache_miss_on_different_request_id(self) -> None:
+        """Different request_ids each call job.poll."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        controller._jobs[42] = job
+
+        await controller.poll(42, request_id="req-1")
+        await controller.poll(42, request_id="req-2")
+
+        assert job.poll.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_terminal_poll_cached_after_cleanup(self) -> None:
+        """After terminal poll + cleanup, retry with same request_id returns cached response."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        completed = PollResult(state="completed", exit_code=0, stdout="done", stderr="")
+        job.poll = AsyncMock(return_value=completed)
+        controller._jobs[42] = job
+
+        result1 = await controller.poll(42, request_id="req-final")
+        # Job is now cleaned up (not in _jobs)
+        assert 42 not in controller._jobs
+
+        # Retry with same request_id — should hit cache even though job is gone
+        result2 = await controller.poll(42, request_id="req-final")
+
+        assert result1 == result2 == completed
+        job.poll.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_no_request_id_skips_cache(self) -> None:
+        """Without request_id, every call hits job.poll."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        controller._jobs[42] = job
+
+        await controller.poll(42)
+        await controller.poll(42)
+
+        assert job.poll.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_kill_cache_returns_same_response(self) -> None:
+        """Same request_id on kill: job.kill called once."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        controller._jobs[42] = job
+
+        result1 = await controller.kill(42, request_id="req-k")
+        result2 = await controller.kill(42, request_id="req-k")
+
+        assert result1 == result2
+        job.kill.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_write_stdin_cache(self) -> None:
+        """Same request_id on write_stdin: job.write_stdin called once."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        controller._jobs[42] = job
+
+        result1 = await controller.write_stdin(42, "hello", request_id="req-w")
+        result2 = await controller.write_stdin(42, "hello", request_id="req-w")
+
+        assert result1 == result2
+        job.write_stdin.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_stdin_cache(self) -> None:
+        """Same request_id on close_stdin: job.close_stdin called once."""
+        controller = Controller()
+        job = _make_mock_job(pid=42)
+        controller._jobs[42] = job
+
+        result1 = await controller.close_stdin(42, request_id="req-c")
+        result2 = await controller.close_stdin(42, request_id="req-c")
+
+        assert result1 == result2
+        job.close_stdin.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_pid_reuse_overwrites_stale_cache(self) -> None:
+        """After job1 completes on pid=42, job2 reuses pid=42; fresh request_id gets fresh result."""
+        controller = Controller()
+
+        job1 = _make_mock_job(pid=42)
+        job1.poll = AsyncMock(
+            return_value=PollResult(
+                state="completed", exit_code=0, stdout="job1", stderr=""
+            )
+        )
+        controller._jobs[42] = job1
+
+        # Complete job1
+        result1 = await controller.poll(42, request_id="req-job1-final")
+        assert result1.stdout == "job1"
+        assert 42 not in controller._jobs  # cleaned up
+
+        # New job2 reuses pid=42
+        job2 = _make_mock_job(pid=42)
+        job2.poll = AsyncMock(
+            return_value=PollResult(
+                state="running", exit_code=None, stdout="job2", stderr=""
+            )
+        )
+        controller._jobs[42] = job2
+
+        # Different request_id -> cache miss -> job2.poll called
+        result2 = await controller.poll(42, request_id="req-job2-first")
+        assert result2.stdout == "job2"
+        job2.poll.assert_awaited_once()
