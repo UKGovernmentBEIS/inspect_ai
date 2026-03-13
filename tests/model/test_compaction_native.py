@@ -3,6 +3,7 @@
 import pytest
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
+from inspect_ai._util.content import ContentData, ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -17,6 +18,7 @@ from inspect_ai.model._providers.anthropic import (
     EDITS,
     EXTRA_BODY,
     _add_edit_compation,
+    _compaction_from_message,
 )
 
 
@@ -73,6 +75,42 @@ async def test_native_raises_not_implemented() -> None:
         await strategy.compact(model, messages, [])
 
 
+async def test_native_not_implemented_error_includes_token_count() -> None:
+    """NotImplementedError message includes token count."""
+    strategy = CompactionNative()
+    model = get_model("mockllm/model")
+    messages = _sample_messages()
+
+    with pytest.raises(NotImplementedError, match=r"tokens"):
+        await strategy.compact(model, messages, [])
+
+
+async def test_native_not_implemented_error_survives_count_tokens_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Error message preserves base message even if count_tokens fails."""
+    strategy = CompactionNative()
+    model = get_model("mockllm/model")
+    messages = _sample_messages()
+
+    # Make count_tokens raise an error
+    async def failing_count_tokens(
+        input: object, config: object = None
+    ) -> int:
+        raise RuntimeError("count_tokens failed")
+
+    monkeypatch.setattr(model, "count_tokens", failing_count_tokens)
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        await strategy.compact(model, messages, [])
+
+    error_msg = str(exc_info.value)
+    # Base error message should be preserved
+    assert "not supported" in error_msg.lower() or len(error_msg) > 0
+    # Should NOT have token count since counting failed
+    assert "tokens" not in error_msg
+
+
 @skip_if_no_openai
 async def test_native_compaction_with_supported_model() -> None:
     """CompactionNative succeeds with a provider that supports native compaction."""
@@ -121,6 +159,50 @@ async def test_anthropic_unsupported_model_raises_not_implemented() -> None:
     # Direct call to the provider's compact method should raise NotImplementedError
     with pytest.raises(NotImplementedError):
         await model.api.compact(messages, [], model.config)
+
+
+# --- _compaction_from_message tests ---
+
+
+def test_compaction_from_message_finds_compaction_after_non_compaction_data() -> None:
+    """Compaction block is found even when preceded by non-compaction ContentData."""
+    non_compaction = ContentData(data={"other": "stuff"})
+    compaction = ContentData(
+        data={
+            "compaction_metadata": {
+                "type": "anthropic_compact",
+                "content": "compacted-content-here",
+            }
+        }
+    )
+    message = ChatMessageAssistant(
+        content=[non_compaction, compaction], id="msg1"
+    )
+
+    result = _compaction_from_message(message)
+    assert result is not None
+    assert result["type"] == "compaction"
+    assert result["content"] == "compacted-content-here"
+
+
+def test_compaction_from_message_returns_none_for_no_compaction() -> None:
+    """Returns None when message has no compaction ContentData."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(text="hello"),
+            ContentData(data={"other": "stuff"}),
+        ],
+        id="msg1",
+    )
+
+    assert _compaction_from_message(message) is None
+
+
+def test_compaction_from_message_returns_none_for_string_content() -> None:
+    """Returns None when message content is a plain string."""
+    message = ChatMessageAssistant(content="just a string", id="msg1")
+
+    assert _compaction_from_message(message) is None
 
 
 def _long_messages() -> list[ChatMessage]:
