@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from logging import getLogger
 from typing import Any, Awaitable, Callable, Iterator, NamedTuple, NoReturn, cast
 
+import anyio
 from shortuuid import uuid
 
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
@@ -190,22 +191,28 @@ async def sandbox_with_injection(
 
     if target is not None:
         target_sandbox = target
-        needed_injections = await _get_needed_injections(target, injectables)
     elif name:
         # Named sandbox: inject directly into the specified sandbox
         target_sandbox = sandbox(name)
-        needed_injections = await _get_needed_injections(target_sandbox, injectables)
     else:
         # Unnamed sandbox: find best candidate (fewest injections needed)
-        target_sandbox, needed_injections = await _get_injection_target(injectables)
+        target_sandbox, _ = await _get_injection_target(injectables)
 
-    for detector, injector in needed_injections:
-        await injector(target_sandbox)
-        # Verify injection succeeded
-        if not await detector(target_sandbox):
-            raise RuntimeError(
-                "Injection failed - detector still returns False after injection"
-            )
+    # belt and suspenders in case subclasses forget to call __init__
+    if not hasattr(target_sandbox, "_inject_lock"):
+        target_sandbox._inject_lock = anyio.Lock()
+
+    async with target_sandbox._inject_lock:
+        # refresh the needed injections
+        needed_injections = await _get_needed_injections(target_sandbox, injectables)
+
+        for detector, injector in needed_injections:
+            await injector(target_sandbox)
+            # Verify injection succeeded
+            if not await detector(target_sandbox):
+                raise RuntimeError(
+                    "Injection failed - detector still returns False after injection"
+                )
 
     return target_sandbox
 
