@@ -149,6 +149,12 @@ class EvalConfig(BaseModel):
     max_sandboxes: int | None = Field(default=None)
     """Maximum number of sandboxes to run concurrently."""
 
+    max_read_file_size: int | None = Field(default=None)
+    """Maximum size (in bytes) for sandbox file reads. Overrides the default 100 MiB limit."""
+
+    max_exec_output_size: int | None = Field(default=None)
+    """Maximum size (in bytes) for sandbox exec output. Overrides the default 10 MiB limit."""
+
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
 

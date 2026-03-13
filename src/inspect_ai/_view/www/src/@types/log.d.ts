@@ -145,6 +145,8 @@ export type MaxDatasetMemory = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
 export type MaxSandboxes = number | null;
+export type MaxReadFileSize = number | null;
+export type MaxExecOutputSize = number | null;
 export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogRealtime = boolean | null;
@@ -1133,6 +1135,8 @@ export interface EvalConfig {
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
   max_sandboxes: MaxSandboxes;
+  max_read_file_size: MaxReadFileSize;
+  max_exec_output_size: MaxExecOutputSize;
   sandbox_cleanup: SandboxCleanup;
   log_samples: LogSamples;
   log_realtime: LogRealtime;

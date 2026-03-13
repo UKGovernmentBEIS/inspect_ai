@@ -135,6 +135,8 @@ def eval_set(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
+    max_read_file_size: int | None = None,
+    max_exec_output_size: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
@@ -230,6 +232,10 @@ def eval_set(
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
+        max_read_file_size: Maximum size (in bytes) for sandbox file reads.
+            Overrides the default 100 MiB limit.
+        max_exec_output_size: Maximum size (in bytes) for sandbox exec output.
+            Overrides the default 10 MiB limit.
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
@@ -304,6 +310,8 @@ def eval_set(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
+            max_read_file_size=max_read_file_size,
+            max_exec_output_size=max_exec_output_size,
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
