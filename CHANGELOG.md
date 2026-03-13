@@ -10,6 +10,7 @@
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
 - Compaction: Prevent trailing assistant messages for `CompactionEdit` and `CompactionNative` strategies.
 - Agents: Strip citations from content returned via `as_tool()` agent wrapper.
+- Agent Bridge: Print errors which occur in model proxy to stderr.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
