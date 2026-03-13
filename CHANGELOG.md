@@ -5,6 +5,7 @@
 - OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
+- Google: Include images from tool results in API requests for non-computer-use models.
 - Anthropic: Ensure that tool result content never carries citations.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
@@ -21,9 +22,9 @@
 - Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
-- Google: Include images from tool results in API requests for non-computer-use models.
-- Bugfix: Handle missing 'content' content key in parse_reasoning_content for OpenAI.
+- Inspect View: Fix incorrectly themed sample column header text in VS Code (especially dark themes).
 - Bugfix: Handle dicts with numeric keys in json_changes.
+- Bugfix: Handle missing 'content' content key in parse_reasoning_content for OpenAI.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 - Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.
 - Bugfix: Fix mutation of reused GenerateConfig values during request assembly.
