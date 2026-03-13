@@ -1,3 +1,4 @@
+import json
 from logging import getLogger
 from typing import (
     Callable,
@@ -6,7 +7,7 @@ from typing import (
     TypedDict,
 )
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_schema_version
 from inspect_ai._util.content import (
@@ -88,18 +89,30 @@ def condense_events(
 
 
 def expand_events(
-    events: Sequence[Event],
-    data: EventsData,
+    events: Sequence[Event] | str,
+    data: EventsData | str,
 ) -> list[Event]:
     """Reverse :func:`condense_events` — restore pooled content into events.
 
     Args:
-        events: Condensed events (with pool index references).
-        data: Events data returned by :func:`condense_events`.
+        events: Condensed events (with pool index references), or a JSON-serialized
+            ``list[Event]``.
+        data: Events data returned by :func:`condense_events`, or a JSON-serialized
+            ``EventsData``.
 
     Returns:
         Events with full message inputs and call request messages restored.
     """
+    if isinstance(events, str):
+        events = TypeAdapter(list[Event]).validate_json(events)
+    if isinstance(data, str):
+        raw = json.loads(data)
+        data = EventsData(
+            messages=TypeAdapter(list[ChatMessage]).validate_python(
+                raw.get("messages", [])
+            ),
+            calls=raw.get("calls", []),
+        )
     result = resolve_model_event_inputs(list(events), data["messages"])
     result = resolve_model_event_calls(result, data["calls"])
     return result
