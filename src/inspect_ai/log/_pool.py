@@ -200,7 +200,7 @@ def resolve_model_event_calls(
         if (
             isinstance(event, ModelEvent)
             and event.call
-            and event.call.call_refs is not None
+            and event.call.call_refs
         ):
             msgs = _expand_refs(event.call.call_refs, call_pool)
             msg_key = event.call.call_key or "messages"
