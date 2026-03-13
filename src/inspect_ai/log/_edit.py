@@ -29,9 +29,6 @@ class ProvenanceData(BaseModel):
 class LogEdit(BaseModel):
     """A single edit action on log tags and/or metadata."""
 
-    type: str
-    """Edit type discriminator."""
-
 
 class TagsEdit(LogEdit):
     """Edit action for tags."""
@@ -72,7 +69,7 @@ class LogUpdate(BaseModel):
 
 def edit_eval_log(
     log: EvalLog,
-    edits: list[LogEdit],
+    edits: Sequence[LogEdit],
     provenance: ProvenanceData,
 ) -> EvalLog:
     """Apply edits to a log.
