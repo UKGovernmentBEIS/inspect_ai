@@ -197,11 +197,7 @@ def resolve_model_event_calls(
         return events
     result: list[Event] = []
     for event in events:
-        if (
-            isinstance(event, ModelEvent)
-            and event.call
-            and event.call.call_refs
-        ):
+        if isinstance(event, ModelEvent) and event.call and event.call.call_refs:
             msgs = _expand_refs(event.call.call_refs, call_pool)
             msg_key = event.call.call_key or "messages"
             new_request = dict(event.call.request)
