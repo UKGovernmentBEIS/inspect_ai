@@ -228,7 +228,7 @@ def test_compaction_from_content_data_with_non_string_content(
         data={
             "compaction_metadata": {
                 "type": "anthropic_compact",
-                "content": bad_content,
+                "content": bad_content,  # type: ignore[dict-item]
             }
         }
     )
