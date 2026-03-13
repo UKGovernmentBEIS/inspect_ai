@@ -17,6 +17,7 @@
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Google: Include images from tool results in API requests for non-computer-use models.
+- Inspect View: Embed viewer directly in the log directory instead of a `viewer/` subdirectory, fixing permission issues when serving logs.
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 - Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.

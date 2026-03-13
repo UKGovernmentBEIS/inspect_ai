@@ -108,25 +108,20 @@ def test_s3_embed(mock_s3) -> None:
     # embed the viewer
     embed_log_dir(log_dir)
 
-    # ensure viewer files are present
+    # ensure viewer files are present directly in the log dir
     viewer_expected = [
-        "viewer/index.html",
-        "viewer/assets",
-        "viewer/assets/index.js",
-        "viewer/assets/index.css",
-        "viewer/robots.txt",
+        "index.html",
+        "assets",
+        "assets/index.js",
+        "assets/index.css",
+        "robots.txt",
+        "listing.json",
     ]
     for exp in viewer_expected:
         assert s3_fs.exists(os.path.join(log_dir, exp))
 
-    # ensure listing.json is in the viewer dir
-    assert s3_fs.exists(os.path.join(log_dir, "viewer/listing.json"))
-
-    # ensure no log files were copied into the viewer dir
-    viewer_dir = os.path.join(log_dir, "viewer")
-    viewer_files = s3_fs.ls(viewer_dir, recursive=True)
-    eval_files = [f for f in viewer_files if f.name.endswith(".eval")]
-    assert len(eval_files) == 0
+    # ensure old viewer/ subdirectory was not created
+    assert not s3_fs.exists(os.path.join(log_dir, "viewer"))
 
 
 def test_embed() -> None:
@@ -147,32 +142,25 @@ def test_embed() -> None:
         # embed the viewer
         embed_log_dir(log_dir)
 
-        # ensure viewer files are present
-        viewer_dir = os.path.join(log_dir, "viewer")
+        # ensure viewer files are present directly in the log dir
         viewer_expected = [
             "index.html",
             "assets",
             "assets/index.js",
             "assets/index.css",
             "robots.txt",
+            "listing.json",
         ]
         for exp in viewer_expected:
-            assert os.path.exists(os.path.join(viewer_dir, exp))
+            assert os.path.exists(os.path.join(log_dir, exp))
 
-        # ensure listing.json is in the viewer dir
-        assert os.path.exists(os.path.join(viewer_dir, "listing.json"))
+        # ensure old viewer/ subdirectory was not created
+        assert not os.path.exists(os.path.join(log_dir, "viewer"))
 
-        # ensure no log files were copied into the viewer dir
-        viewer_files = []
-        for root, _dirs, files in os.walk(viewer_dir):
-            viewer_files.extend(files)
-        eval_files = [f for f in viewer_files if f.endswith(".eval")]
-        assert len(eval_files) == 0
-
-        # ensure index.html has the log_dir context set to ".."
-        with open(os.path.join(viewer_dir, "index.html")) as f:
+        # ensure index.html has the log_dir context set to "."
+        with open(os.path.join(log_dir, "index.html")) as f:
             contents = f.read()
-        assert '"log_dir": ".."' in contents
+        assert '"log_dir": "."' in contents
 
 
 def test_bundle_output_dir_cannot_be_subdir_of_log_dir(tmp_path) -> None:

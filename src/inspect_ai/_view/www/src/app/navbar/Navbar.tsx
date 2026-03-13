@@ -24,8 +24,17 @@ export const Navbar: FC<NavbarProps> = ({
   breadcrumbsEnabled,
 }) => {
   const logDir = useStore((state) => state.logs.logDir);
-  const baseLogDir = dirname(logDir || "");
-  const baseLogName = basename(logDir || "");
+  const displayDir =
+    logDir === "."
+      ? basename(
+          window.location.pathname.substring(
+            0,
+            window.location.pathname.lastIndexOf("/"),
+          ),
+        )
+      : logDir || "";
+  const baseLogDir = dirname(displayDir);
+  const baseLogName = basename(displayDir);
   const pathContainerRef = useRef<HTMLDivElement>(null);
 
   const backUrl = fnNavigationUrl(
