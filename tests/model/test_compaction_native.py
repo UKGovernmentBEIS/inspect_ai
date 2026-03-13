@@ -94,9 +94,7 @@ async def test_native_not_implemented_error_survives_count_tokens_failure(
     messages = _sample_messages()
 
     # Make count_tokens raise an error
-    async def failing_count_tokens(
-        input: object, config: object = None
-    ) -> int:
+    async def failing_count_tokens(input: object, config: object = None) -> int:
         raise RuntimeError("count_tokens failed")
 
     monkeypatch.setattr(model, "count_tokens", failing_count_tokens)
@@ -175,9 +173,7 @@ def test_compaction_from_message_finds_compaction_after_non_compaction_data() ->
             }
         }
     )
-    message = ChatMessageAssistant(
-        content=[non_compaction, compaction], id="msg1"
-    )
+    message = ChatMessageAssistant(content=[non_compaction, compaction], id="msg1")
 
     result = _compaction_from_message(message)
     assert result is not None
