@@ -1,6 +1,8 @@
 ## 0.3.193 (13 March 2026)
 
 - OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
+- Bugfix: Handle missing 'content' content key in parse_reasoning_content for OpenAI.
+(fix: handle missing content key in parse_reasoning_content (#3478))
 
 ## 0.3.192 (13 March 2026)
 
