@@ -310,6 +310,10 @@ website:
           href: reference/inspect_ai.model.qmd#stopreason
         - text: ChatCompletionChoice
           href: reference/inspect_ai.model.qmd#chatcompletionchoice
+        - text: OutputModality
+          href: reference/inspect_ai.model.qmd#outputmodality
+        - text: ImageOutput
+          href: reference/inspect_ai.model.qmd#imageoutput
         - text: ChatMessage
           href: reference/inspect_ai.model.qmd#chatmessage
         - text: ChatMessageBase
@@ -493,12 +497,22 @@ website:
           href: reference/inspect_ai.log.qmd#retryable_eval_logs
         - text: EvalLogInfo
           href: reference/inspect_ai.log.qmd#evalloginfo
+        - text: edit_eval_log
+          href: reference/inspect_ai.log.qmd#edit_eval_log
         - text: edit_score
           href: reference/inspect_ai.log.qmd#edit_score
         - text: invalidate_samples
           href: reference/inspect_ai.log.qmd#invalidate_samples
         - text: uninvalidate_samples
           href: reference/inspect_ai.log.qmd#uninvalidate_samples
+        - text: LogUpdate
+          href: reference/inspect_ai.log.qmd#logupdate
+        - text: LogEdit
+          href: reference/inspect_ai.log.qmd#logedit
+        - text: MetadataEdit
+          href: reference/inspect_ai.log.qmd#metadataedit
+        - text: TagsEdit
+          href: reference/inspect_ai.log.qmd#tagsedit
         - text: ProvenanceData
           href: reference/inspect_ai.log.qmd#provenancedata
         - text: EvalStatus
@@ -541,6 +555,14 @@ website:
           href: reference/inspect_ai.log.qmd#evalsamplescore
         - text: WriteConflictError
           href: reference/inspect_ai.log.qmd#writeconflicterror
+        - text: condense_sample
+          href: reference/inspect_ai.log.qmd#condense_sample
+        - text: condense_events
+          href: reference/inspect_ai.log.qmd#condense_events
+        - text: expand_events
+          href: reference/inspect_ai.log.qmd#expand_events
+        - text: EventsData
+          href: reference/inspect_ai.log.qmd#eventsdata
         - text: transcript
           href: reference/inspect_ai.log.qmd#transcript
         - text: Transcript
@@ -843,6 +865,8 @@ website:
           href: reference/inspect_ai.hooks.qmd#sampleinit
         - text: SampleStart
           href: reference/inspect_ai.hooks.qmd#samplestart
+        - text: SampleEvent
+          href: reference/inspect_ai.hooks.qmd#sampleevent
         - text: TaskEnd
           href: reference/inspect_ai.hooks.qmd#taskend
         - text: TaskStart

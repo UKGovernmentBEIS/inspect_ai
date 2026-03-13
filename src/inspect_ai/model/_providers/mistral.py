@@ -3,7 +3,12 @@ import json
 import os
 from typing import Any, Literal
 
-from mistralai import (
+from mistralai.client import Mistral
+from mistralai.client.errors import SDKError
+from mistralai.client.models import (
+    AssistantMessage as MistralAssistantMessage,
+)
+from mistralai.client.models import (
     AudioChunk,
     ContentChunk,
     DocumentURLChunk,
@@ -12,34 +17,30 @@ from mistralai import (
     FunctionName,
     ImageURL,
     ImageURLChunk,
-    Mistral,
     ReferenceChunk,
     TextChunk,
     ThinkChunk,
+    UnknownContentChunk,
 )
-from mistralai.models import (
-    AssistantMessage as MistralAssistantMessage,
-)
-from mistralai.models import (
+from mistralai.client.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
-from mistralai.models import Function as MistralFunction
-from mistralai.models import (
+from mistralai.client.models import Function as MistralFunction
+from mistralai.client.models import (
     JSONSchema as MistralJSONSchema,
 )
-from mistralai.models import (
+from mistralai.client.models import (
     ResponseFormat as MistralResponseFormat,
 )
-from mistralai.models import SDKError
-from mistralai.models import SystemMessage as MistralSystemMessage
-from mistralai.models import Tool as MistralTool
-from mistralai.models import ToolCall as MistralToolCall
-from mistralai.models import (
+from mistralai.client.models import SystemMessage as MistralSystemMessage
+from mistralai.client.models import Tool as MistralTool
+from mistralai.client.models import ToolCall as MistralToolCall
+from mistralai.client.models import (
     ToolChoice as MistralToolChoice,
 )
-from mistralai.models import ToolMessage as MistralToolMessage
-from mistralai.models import UserMessage as MistralUserMessage
-from mistralai.models.chatcompletionresponse import (
+from mistralai.client.models import ToolMessage as MistralToolMessage
+from mistralai.client.models import UserMessage as MistralUserMessage
+from mistralai.client.models.chatcompletionresponse import (
     ChatCompletionResponse as MistralChatCompletionResponse,
 )
 from shortuuid import uuid
@@ -472,7 +473,12 @@ async def mistral_content_chunk(content: Content) -> ContentChunk:
         image_url = await file_as_data_uri(content.image)
 
         # return chunk
-        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+        return ImageURLChunk(
+            image_url=ImageURL(
+                url=image_url,
+                detail="high" if content.detail == "original" else content.detail,
+            )
+        )
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     else:
@@ -577,8 +583,8 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 )
             )
         ]
-    elif isinstance(content, AudioChunk):
-        raise TypeError("AudioChunk content is not supported by Inspect.")
+    elif isinstance(content, AudioChunk | UnknownContentChunk):
+        raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 
 def completion_choices_from_response(

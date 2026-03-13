@@ -24,7 +24,7 @@ import os
 import tempfile
 from typing import Any
 
-import mlflow
+import mlflow  # type: ignore[import-not-found]
 
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
@@ -229,9 +229,7 @@ class MlflowTrackingHooks(Hooks):
                 mlflow.log_metric(
                     "total_model_calls", event_counts.get("model_calls", 0)
                 )
-                mlflow.log_metric(
-                    "total_tool_calls", event_counts.get("tool_calls", 0)
-                )
+                mlflow.log_metric("total_tool_calls", event_counts.get("tool_calls", 0))
             except Exception:
                 pass
 
@@ -372,9 +370,7 @@ class MlflowTrackingHooks(Hooks):
                         "event/output_tokens", usage.output_tokens, step=step
                     )
                 if event.working_time is not None:
-                    mlflow.log_metric(
-                        "event/model_time", event.working_time, step=step
-                    )
+                    mlflow.log_metric("event/model_time", event.working_time, step=step)
             except Exception:
                 pass
 
@@ -383,15 +379,11 @@ class MlflowTrackingHooks(Hooks):
             counters["tool_calls"] += 1
             try:
                 mlflow.log_metric("event/tool_call", step, step=step)
-                mlflow.log_param(
-                    f"tool_call.{step}.function", event.function[:500]
-                )
+                mlflow.log_param(f"tool_call.{step}.function", event.function[:500])
                 if event.error:
                     mlflow.log_metric("event/tool_error", 1, step=step)
                 if event.working_time is not None:
-                    mlflow.log_metric(
-                        "event/tool_time", event.working_time, step=step
-                    )
+                    mlflow.log_metric("event/tool_time", event.working_time, step=step)
             except Exception:
                 pass
 

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import importlib.util
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from inspect_ai.hooks._hooks import (
+from inspect_ai.hooks._hooks import (  # noqa: E402
     ModelUsageData,
     RunEnd,
     RunStart,
@@ -28,6 +31,46 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
+
+# Ensure a mock 'mlflow' module exists so the example can be imported
+# without mlflow actually installed.
+_mlflow_was_mocked = "mlflow" not in sys.modules
+if _mlflow_was_mocked:
+    _mock = MagicMock()
+    _mock.__spec__ = None
+    sys.modules["mlflow"] = _mock
+
+
+def _load_mlflow_tracking():
+    """Load the mlflow_tracking module from examples/hooks/."""
+    module_path = (
+        Path(__file__).parents[2] / "examples" / "hooks" / "mlflow_tracking.py"
+    )
+    spec = importlib.util.spec_from_file_location("mlflow_tracking", module_path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_mlflow_mod = _load_mlflow_tracking()
+MlflowTrackingHooks = _mlflow_mod.MlflowTrackingHooks
+_score_to_numeric = _mlflow_mod._score_to_numeric
+
+# Clean up mock so it doesn't pollute other tests
+if _mlflow_was_mocked:
+    del sys.modules["mlflow"]
+
+
+@pytest.fixture(autouse=True)
+def _mock_mlflow_in_sys_modules():
+    """Ensure mock mlflow is in sys.modules during tests, clean up after."""
+    installed = "mlflow" not in sys.modules
+    if installed:
+        sys.modules["mlflow"] = MagicMock()
+    yield
+    if installed:
+        sys.modules.pop("mlflow", None)
 
 
 def _make_eval_spec(
@@ -70,8 +113,6 @@ def mlflow_env(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_enabled_requires_tracking_uri(monkeypatch: pytest.MonkeyPatch):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
 
     monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
@@ -83,12 +124,10 @@ def test_enabled_requires_tracking_uri(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.anyio
 async def test_run_lifecycle(mlflow_env):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
 
     mock_run = MagicMock()
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = mock_run
 
         await hook.on_run_start(
@@ -119,11 +158,9 @@ async def test_run_lifecycle(mlflow_env):
 
 @pytest.mark.anyio
 async def test_run_end_with_exception(mlflow_env):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
@@ -144,12 +181,10 @@ async def test_run_end_with_exception(mlflow_env):
 
 @pytest.mark.anyio
 async def test_task_lifecycle(mlflow_env):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
@@ -210,32 +245,24 @@ async def test_task_lifecycle(mlflow_env):
         mock_mlflow.log_metric.assert_any_call("accuracy/accuracy", 0.85)
         mock_mlflow.log_metric.assert_any_call("total_samples", 10)
         mock_mlflow.log_metric.assert_any_call("completed_samples", 10)
-        mock_mlflow.log_metric.assert_any_call(
-            "usage/openai/gpt-4/input_tokens", 5000
-        )
-        mock_mlflow.log_metric.assert_any_call(
-            "usage/openai/gpt-4/output_tokens", 1000
-        )
+        mock_mlflow.log_metric.assert_any_call("usage/openai/gpt-4/input_tokens", 5000)
+        mock_mlflow.log_metric.assert_any_call("usage/openai/gpt-4/output_tokens", 1000)
         mock_mlflow.end_run.assert_called_with(status="FINISHED")
 
 
 @pytest.mark.anyio
 async def test_sample_scores_logged_as_step_metrics(mlflow_env):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         sample_0 = _make_sample(
@@ -276,8 +303,6 @@ async def test_sample_scores_logged_as_step_metrics(mlflow_env):
 
 
 def test_score_to_numeric_conversion():
-    from examples.hooks.mlflow_tracking import _score_to_numeric
-
     assert _score_to_numeric(0.85) == 0.85
     assert _score_to_numeric(1) == 1.0
     assert _score_to_numeric("C") == 1.0
@@ -290,8 +315,6 @@ def test_score_to_numeric_conversion():
 
 @pytest.mark.anyio
 async def test_model_usage_accumulation():
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
 
     await hook.on_model_usage(
@@ -318,8 +341,6 @@ async def test_model_usage_accumulation():
 
 @pytest.mark.anyio
 async def test_sample_without_active_task_is_ignored():
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
 
     sample = _make_sample(scores={"accuracy": Score(value=1.0)})
@@ -341,21 +362,17 @@ async def test_sample_event_model_call(mlflow_env):
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model_output import ModelOutput, ModelUsage
 
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         model_event = ModelEvent(
@@ -365,9 +382,7 @@ async def test_sample_event_model_call(mlflow_env):
             tool_choice="auto",
             config=GenerateConfig(),
             output=ModelOutput(
-                usage=ModelUsage(
-                    input_tokens=150, output_tokens=50, total_tokens=200
-                )
+                usage=ModelUsage(input_tokens=150, output_tokens=50, total_tokens=200)
             ),
             working_time=0.8,
         )
@@ -394,21 +409,17 @@ async def test_sample_event_model_call(mlflow_env):
 async def test_sample_event_tool_call(mlflow_env):
     from inspect_ai.event._tool import ToolEvent
 
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         tool_event = ToolEvent(
@@ -440,8 +451,6 @@ async def test_sample_event_without_active_task_is_ignored():
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model_output import ModelOutput
-
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
 
     hook = MlflowTrackingHooks()
 
@@ -475,21 +484,17 @@ async def test_event_counts_logged_on_task_end(mlflow_env):
     from inspect_ai.model._generate_config import GenerateConfig
     from inspect_ai.model._model_output import ModelOutput
 
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         # Send 2 model events and 1 tool event

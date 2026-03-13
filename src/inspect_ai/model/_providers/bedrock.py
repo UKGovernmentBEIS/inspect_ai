@@ -385,6 +385,9 @@ class BedrockAPI(ModelAPI):
     def is_claude(self) -> bool:
         return "claude" in self.model_name
 
+    def is_nova(self) -> bool:
+        return "nova" in self.model_name
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -498,6 +501,14 @@ class BedrockAPI(ModelAPI):
                     "reasoning_config": {
                         "type": "enabled",
                         "budget_tokens": config.reasoning_tokens,
+                    }
+                }
+        elif self.is_nova():
+            if config.reasoning_effort is not None:
+                return {
+                    "reasoningConfig": {
+                        "type": "enabled",
+                        "maxReasoningEffort": config.reasoning_effort,
                     }
                 }
 

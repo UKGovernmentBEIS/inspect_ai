@@ -90,6 +90,7 @@ class Task:
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -132,6 +133,7 @@ class Task:
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
+            tags: Tags to associate with the task.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -184,6 +186,7 @@ class Task:
         self._display_name = display_name
         self._name = name
         self.metadata = metadata
+        self.tags = tags
 
     @property
     def name(self) -> str:
@@ -253,6 +256,7 @@ def task_with(
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
+    tags: list[str] | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -300,6 +304,7 @@ def task_with(
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
+        tags: Tags to associate with the task.
 
     Returns:
         Task: Passed `task` with modifications.
@@ -352,6 +357,8 @@ def task_with(
         task._name = name
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
+    if not isinstance(tags, NotGiven):
+        task.tags = tags
 
     # return modified task
     return task

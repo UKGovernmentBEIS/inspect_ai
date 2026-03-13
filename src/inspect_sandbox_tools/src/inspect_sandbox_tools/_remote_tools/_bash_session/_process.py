@@ -93,6 +93,9 @@ class Process:
         except (TimeoutError, asyncio.TimeoutError):
             self._process.kill()
             await self._process.wait()
+        except ProcessLookupError:
+            # the process has already ended
+            pass
 
         self._pty.cleanup()
 

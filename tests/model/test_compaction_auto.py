@@ -1,5 +1,6 @@
 """Tests for the CompactionAuto strategy."""
 
+import pytest
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai.model import (
@@ -109,6 +110,29 @@ async def test_auto_memory_auto_after_fallback() -> None:
     # After fallback, memory property returns True
     assert strategy._use_fallback is True
     assert strategy.memory is True
+
+
+async def test_auto_fallback_logs_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CompactionAuto logs a warning when falling back to summary compaction."""
+    warnings: list[str] = []
+
+    import inspect_ai.model._compaction.auto as auto_module
+
+    monkeypatch.setattr(
+        auto_module.logger, "warning", lambda msg, *a, **kw: warnings.append(str(msg))
+    )
+
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+    messages = _sample_messages()
+
+    await strategy.compact(model, messages, [])
+
+    assert len(warnings) == 1
+    assert "Falling back to summary compaction" in warnings[0]
+    assert "switch to CompactionAuto" not in warnings[0]
 
 
 async def test_auto_memory_explicit_true() -> None:
