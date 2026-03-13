@@ -100,6 +100,12 @@ class HuggingFaceAPI(ModelAPI):
             self.tokenizer_call_args = {}
         self.hidden_states = collect_model_arg("hidden_states")
 
+        # continuous batching parameters
+        self.continuous_batching = collect_model_arg("continuous_batching") or False
+        self.num_blocks = collect_model_arg("num_blocks")
+        self.max_batch_tokens = collect_model_arg("max_batch_tokens")
+        self.scheduler = collect_model_arg("scheduler") or "fifo"
+
         # device
         if device:
             self.device = device
@@ -133,6 +139,20 @@ class HuggingFaceAPI(ModelAPI):
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
+
+        # Setup continuous batching if enabled
+        if self.continuous_batching:
+            logger.warning(
+                "continuous_batching is enabled but not yet fully implemented. "
+                "This feature requires transformers' generate_batch() API with "
+                "paged attention. For now, falling back to standard batching. "
+                "Track progress at: https://github.com/UKGovernmentBEIS/inspect_ai/issues/[TBD]"
+            )
+            # TODO: Implement continuous batching with:
+            # 1. Load model with attn_implementation="paged|sdpa" or "paged|flash_attention_2"
+            # 2. Set up GenerationConfig with max_batch_tokens and num_blocks
+            # 3. Replace batched_generate to use model.generate_batch()
+            # 4. Handle PagedAttentionCache initialization and management
 
     @override
     def close(self) -> None:
