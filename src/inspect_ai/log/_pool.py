@@ -94,7 +94,7 @@ def condense_model_event_inputs(
 
 
 # Known keys for messages array in provider wire formats
-_CALL_MESSAGE_KEYS: Final = ("messages", "contents")
+_CALL_MESSAGE_KEYS: Final = ("messages", "contents", "input", "inputs")
 
 
 def _compress_refs(indices: list[int]) -> list[tuple[int, int]]:
