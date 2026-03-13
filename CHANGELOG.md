@@ -2,6 +2,7 @@
 
 - OpenAI: Support for image output for multimodal modals.
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
+- OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
 - Anthropic: Ensure that tool result content never carries citations.
