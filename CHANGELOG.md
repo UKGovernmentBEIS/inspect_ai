@@ -1,6 +1,8 @@
 ## 0.3.192 (13 March 2026)
 
+- Anthropic: Fallback to summary compaction when native compaction fails to compact.
 - Compaction: Improve logging message for native compaction failures.
+- Model Args: Support for specifying `model_args` using the `--model-role` CLI flag.
 
 ## 0.3.191 (12 March 2026)
 
