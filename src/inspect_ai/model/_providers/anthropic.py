@@ -434,7 +434,7 @@ class AnthropicAPI(ModelAPI):
                 _add_edit_compaction(
                     request=request,
                     betas=betas,
-                    has_1mm_context=self.is_claude_4_6() or self.is_claude_latest(),
+                    has_1mm_context=self.is_claude_4_6(),
                 )
 
             # add compaction beta header if required
@@ -939,7 +939,9 @@ class AnthropicAPI(ModelAPI):
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
         if "context-1m-2025-08-07" in self.betas:
-            return "anthropic/claude-sonnet-4-6"
+            return "anthropic/claude-opus-4-6"  # 1MM
+        elif self.is_claude_latest():
+            return "claude-haiku-4-5"  # 200K
         else:
             return self.canonical_name()
 
@@ -2352,7 +2354,7 @@ def _add_edit_compaction(
     (user controls compaction via their own threshold).
     """
     # Determine max trigger based on context window
-    if "context-1m-2025-08-07" in betas or has_1mm_context:
+    if ("context-1m-2025-08-07" in betas) or has_1mm_context:
         max_trigger = 990_000  # Just below 1M context
     else:
         max_trigger = 190_000  # Just above default 150k trigger
