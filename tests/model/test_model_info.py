@@ -2,8 +2,8 @@
 
 import pytest
 
-from inspect_ai.model import ModelInfo, get_model_info, set_model_info
-from inspect_ai.model._model_info import clear_model_info_cache
+from inspect_ai.model import ModelInfo, get_model, get_model_info, set_model_info
+from inspect_ai.model._model_info import clear_model_info_cache, get_model_input_tokens
 
 
 @pytest.fixture(autouse=True)
@@ -57,6 +57,18 @@ class TestGetModelInfo:
         info_mixed = get_model_info("anthropic/CLAUDE-SONNET-4")
         assert info_mixed is not None
         assert info_mixed.context_length == info_correct.context_length
+
+    def test_claude_opus_4_6_context_length(self):
+        """Test that Claude Opus 4.6 has 1MM context window."""
+        info = get_model_info("anthropic/claude-opus-4-6")
+        assert info is not None
+        assert info.context_length == 1_000_000
+
+    def test_claude_sonnet_4_6_context_length(self):
+        """Test that Claude Sonnet 4.6 has 1MM context window."""
+        info = get_model_info("anthropic/claude-sonnet-4-6")
+        assert info is not None
+        assert info.context_length == 1_000_000
 
     def test_underscore_hyphen_normalization(self):
         """Test that underscores and hyphens are treated equivalently."""
@@ -150,3 +162,19 @@ class TestModelInfoFields:
             if info is not None:  # Model may not exist in database
                 assert info.context_length is not None, f"{model} has no context_length"
                 assert info.context_length > 0, f"{model} has invalid context_length"
+
+
+class TestGetModelInputTokens:
+    """Tests for get_model_input_tokens function."""
+
+    def test_claude_sonnet_4_6(self):
+        """Test that Claude Sonnet 4.6 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-sonnet-4-6")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_opus_4_6(self):
+        """Test that Claude Opus 4.6 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-4-6")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
