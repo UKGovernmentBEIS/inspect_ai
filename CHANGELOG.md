@@ -24,6 +24,7 @@
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Inspect View: Fix incorrectly themed sample column header text in VS Code (especially dark themes).
+- Inspect View: Fix issue where expanding one message in a sample chat would expand all messages.
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Handle missing 'content' content key in parse_reasoning_content for OpenAI.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
