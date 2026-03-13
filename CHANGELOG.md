@@ -2,11 +2,9 @@
 
 - OpenAI: Support for image output for multimodal modals.
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
-- OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
 - Google: Include images from tool results in API requests for non-computer-use models.
-- Anthropic: Update input tokens for Sonnet/Opus 4.6 to 1MM.
 - Anthropic: Ensure that tool result content never carries citations.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
@@ -26,11 +24,16 @@
 - Inspect View: Fix incorrectly themed sample column header text in VS Code (especially dark themes).
 - Inspect View: Fix issue where expanding one message in a sample chat would expand all messages.
 - Bugfix: Handle dicts with numeric keys in json_changes.
-- Bugfix: Handle missing 'content' content key in parse_reasoning_content for OpenAI.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 - Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.
 - Bugfix: Fix mutation of reused GenerateConfig values during request assembly.
 - Bugfix: Fix sandbox tools Docker build failure caused by `staticx` incompatibility with setuptools 82+ (removed `pkg_resources`).
+
+## 0.3.193 (13 March 2026)
+
+- OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
+- Anthropic: Update input tokens for Sonnet/Opus 4.6 to 1MM.
+- Bugfix: Handle missing 'content' content key in parse_reasoning_content for OpenAI.
 
 ## 0.3.192 (13 March 2026)
 
