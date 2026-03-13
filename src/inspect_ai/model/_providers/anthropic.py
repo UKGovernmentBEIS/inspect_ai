@@ -441,10 +441,6 @@ class AnthropicAPI(ModelAPI):
             if _request_has_edit_compaction(request):
                 betas.append("compact-2026-01-12")
 
-            # add 1m context
-            if self.is_claude_latest():
-                betas.append("context-1m-2025-08-07")
-
             # resolve betas and extra headers — preserve any client default
             # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
@@ -942,7 +938,7 @@ class AnthropicAPI(ModelAPI):
 
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
-        if self.is_claude_latest():
+        if "context-1m-2025-08-07" in self.betas:
             return "anthropic/claude-sonnet-4-6"
         else:
             return self.canonical_name()
