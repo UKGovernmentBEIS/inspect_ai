@@ -68,9 +68,7 @@ test_cases = [
             "critic={model: mockllm/model, temperature: 0.2, model_args: {custom_outputs: null}}",
         ),
         params=[
-            ModelRoleParameters(
-                role_name="critic", temperature=0.2, parsed_type=Model
-            ),
+            ModelRoleParameters(role_name="critic", temperature=0.2, parsed_type=Model),
         ],
     ),
     # Model roles should use default model if no model is specified
