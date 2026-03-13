@@ -11,9 +11,11 @@ When running an evaluation, there are four layers where you can set or override 
 3.  **Environment variables / `.env` files** --- project or session defaults set outside code.
 4.  **`eval()` / CLI** --- explicit runtime overrides that take highest precedence.
 
-```
-Task definition  <  task_with()  <  env vars / .env  <  eval() / CLI
-```
+| Lowest | | | Highest |
+|--------|-|-|---------|
+| Task definition | `task_with()` | `.env` / env vars | `eval()` / CLI |
+
+: Precedence order (each layer overrides those to its left) {tbl-colwidths=\[20,25,25,20\]}
 
 Understanding these layers is key to reusing and adapting tasks without modifying their source code. This article provides a complete reference for what can be overridden, where, and how.
 
@@ -25,7 +27,7 @@ The `@task` function returns a `Task` object with all its defaults. These are th
 
 ``` python
 @task
-def security_guide():
+def security_guide() -> Task:
     return Task(
         dataset=json_dataset("security_guide.json"),
         solver=[chain_of_thought(), generate()],
@@ -35,7 +37,39 @@ def security_guide():
     )
 ```
 
-Task authors can also expose [parameters](tasks.qmd#parameters) on the `@task` function, which users can set with `-T` on the CLI or `task_args` in `eval()`.
+Task authors can also expose [parameters](tasks.qmd#parameters) on the `@task` function, which users can set with `-T` on the CLI or `task_args` in `eval()`:
+
+``` python
+@task
+def security_guide(
+    difficulty: str = "medium", 
+    temperature: float = 0.0
+) -> Task:
+    dataset_file = f"security_guide_{difficulty}.json"
+    return Task(
+        dataset=json_dataset(dataset_file),
+        solver=[chain_of_thought(), generate()],
+        scorer=model_graded_fact(),
+        config=GenerateConfig(temperature=temperature),
+    )
+```
+
+Users can then set the parameter from the command line:
+
+``` bash
+# CLI
+inspect eval security_guide.py -T difficulty=hard -T temperature=1.0
+```
+::: {.callout-important}
+Duplicating framework parameters like `temperature` as task parameters is not recommended. They can be set directly using the framework's built-in flags, and this will override any value set in the task definition.
+
+``` bash
+# CLI
+inspect eval security_guide.py --temperature 1.0
+```
+:::
+
+
 
 ### Layer 2: `task_with()` {#task-with}
 
@@ -54,7 +88,7 @@ adapted = task_with(
 )
 ```
 
-`task_with()` is the **only** way to override `dataset`, `scorer`, `metrics`, `setup`, and `cleanup` at runtime --- none of these have CLI flags or `eval()` parameters.
+`task_with()` is the **only** way to override `dataset`, `scorer`, `setup`, and `cleanup` at runtime; none of these have CLI flags or `eval()` parameters.
 
 ::: {.callout-important}
 #### In-place mutation
@@ -88,7 +122,12 @@ INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MAX_RETRIES=5
 ```
 
-Environment variables set in the shell take precedence over values in `.env` files. See [Options](options.qmd) for full details on `.env` file handling.
+Environment variables set in the shell take precedence over values in `.env` files. See [Options](options.qmd#env-files) for full details on `.env` file handling.
+
+``` bash
+# CLI
+INSPECT_EVAL_LIMIT=1 inspect eval simpleqa.py
+```
 
 ### Layer 4: `eval()` / CLI {#eval-cli}
 
@@ -373,9 +412,11 @@ inspect score log_file.eval --scorer scorers.py@custom_scorer
 
 When the same parameter is set at multiple levels, the outermost level wins. The full precedence chain is:
 
-``` text
-Task definition  <  task_with()  <  .env file  <  env var  <  CLI flag / eval()
-```
+| Lowest | | | | Highest |
+|---|---|---|---|---|
+| Task definition | `task_with()` | `.env` file | env var | CLI flag / `eval()` |
+
+: Full precedence chain {tbl-colwidths=\[17,17,17,17,22\]}
 
 An explicit CLI flag overrides an environment variable, which overrides a value from a `.env` file, which overrides `task_with()`, which overrides the task definition.
 

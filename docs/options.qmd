@@ -53,6 +53,8 @@ Below are sections for the various categories of options supported by `inspect e
 
 : {tbl-colwidths=\[33,33,33\]}
 
+For more detail on the different methods of configuration, see [Task Configuration](task-configuration.qmd).
+
 ## Model Provider
 
 |                    |                                              |
