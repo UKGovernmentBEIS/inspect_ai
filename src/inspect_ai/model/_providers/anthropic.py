@@ -431,7 +431,11 @@ class AnthropicAPI(ModelAPI):
             if _input_has_compaction(input) and not _request_has_edit_compaction(
                 request
             ):
-                _add_edit_compation(request, betas)
+                _add_edit_compaction(
+                    request=request,
+                    betas=betas,
+                    has_1mm_context=self.is_claude_4_6(),
+                )
 
             # add compaction beta header if required
             if _request_has_edit_compaction(request):
@@ -595,20 +599,22 @@ class AnthropicAPI(ModelAPI):
 
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
-            if _message_has_compaction(output.message):
+            compaction = _compaction_from_message(output.message)
+            if compaction is not None and compaction["content"] is not None:
                 # Strip reasoning blocks from the compacted output — they're
                 # from the compaction inference, not the task, and would waste
                 # input tokens on subsequent turns.
                 message = _strip_reasoning(output.message)
-                return [message], output.usage
-            else:
-                raise RuntimeError(
-                    f"Anthropic native compaction did not trigger. "
-                    f"This can occur when the total input tokens (including tools) "
-                    f"is below Anthropic's {MIN_COMPACTION_TOKENS} token minimum for compaction. "
-                    f"Consider increasing the compaction threshold or using a "
-                    f"non-native compaction strategy."
+                return [
+                    message,
+                    ChatMessageUser(content="Please continue working."),
+                ], output.usage
+            elif compaction is not None:
+                raise NotImplementedError(
+                    "Anthropic compaction triggered but failed to compact."
                 )
+            else:
+                raise NotImplementedError("Anthropic compaction did not trigger.")
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
@@ -929,6 +935,15 @@ class AnthropicAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"anthropic/{self.service_model_name()}"
+
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        if "context-1m-2025-08-07" in self.betas:
+            return "anthropic/claude-opus-4-6"  # 1MM
+        elif self.is_claude_latest():
+            return "anthropic/claude-haiku-4-5"  # 200K
+        else:
+            return self.canonical_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -1692,7 +1707,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
         else:
             content = [
-                item
+                _strip_text_block_citations(item)
                 for content in message.content
                 for item in await message_block_params(content)
             ]
@@ -1772,6 +1787,18 @@ MessageBlockParam = Union[
     | BetaTextEditorCodeExecutionToolResultBlockParam
     | BetaWebFetchToolResultBlockParam
 ]
+
+
+def _strip_text_block_citations(block: MessageBlockParam) -> MessageBlockParam:
+    """Strip citations from TextBlockParam.
+
+    Citations are not allowed inside tool result blocks — they are only
+    valid on top-level text blocks in the message content.
+    """
+    if isinstance(block, dict) and block.get("type") == "text" and "citations" in block:
+        block = cast(TextBlockParam | DocumentBlockParam, block.copy())
+        del block["citations"]
+    return block
 
 
 async def assistant_message_blocks(
@@ -2316,7 +2343,9 @@ CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 
 
-def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
+def _add_edit_compaction(
+    request: dict[str, Any], betas: list[str], has_1mm_context: bool = False
+) -> None:
     """Add compaction edit to request without triggering new compaction.
 
     When messages already contain compaction blocks, we need to include
@@ -2325,7 +2354,7 @@ def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
     (user controls compaction via their own threshold).
     """
     # Determine max trigger based on context window
-    if "context-1m-2025-08-07" in betas:
+    if ("context-1m-2025-08-07" in betas) or has_1mm_context:
         max_trigger = 990_000  # Just below 1M context
     else:
         max_trigger = 190_000  # Just above default 150k trigger
@@ -2358,15 +2387,7 @@ def _input_has_compaction(input: list[ChatMessage]) -> bool:
 
 
 def _message_has_compaction(message: ChatMessageAssistant) -> bool:
-    if isinstance(message.content, list):
-        for c in message.content:
-            if (
-                isinstance(c, ContentData)
-                and _compaction_from_content_data(c) is not None
-            ):
-                return True
-
-    return False
+    return _compaction_from_message(message) is not None
 
 
 def _content_data_for_compaction(block: BetaCompactionBlock) -> ContentData:
@@ -2387,10 +2408,30 @@ def _compaction_from_content_data(
     if isinstance(compaction_metadata, dict):
         if compaction_metadata.get("type") == "anthropic_compact":
             compaction_content = compaction_metadata.get("content", None)
-            if isinstance(compaction_content, str):
-                return BetaCompactionBlockParam(
-                    type="compaction", content=compaction_content
+            if compaction_content is not None and not isinstance(
+                compaction_content, str
+            ):
+                logger.warning(
+                    f"Unexpected compaction content type: {type(compaction_content).__name__}"
                 )
+                compaction_content = None
+            return BetaCompactionBlockParam(
+                type="compaction",
+                content=compaction_content,
+            )
+
+    return None
+
+
+def _compaction_from_message(
+    message: ChatMessageAssistant,
+) -> BetaCompactionBlockParam | None:
+    if isinstance(message.content, list):
+        for c in message.content:
+            if isinstance(c, ContentData):
+                result = _compaction_from_content_data(c)
+                if result is not None:
+                    return result
 
     return None
 

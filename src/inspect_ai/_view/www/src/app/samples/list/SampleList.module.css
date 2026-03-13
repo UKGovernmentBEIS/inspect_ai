@@ -24,7 +24,6 @@
   font-size: var(--inspect-font-size-smallestest);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--bs-secondary-color);
   font-weight: 400;
 }
 

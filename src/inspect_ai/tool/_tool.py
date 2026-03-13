@@ -271,11 +271,17 @@ def tool_result_content(
     if isinstance(content, str):
         return content
     else:
-        return [
-            c
-            for c in content
-            if isinstance(c, ContentText | ContentImage | ContentAudio | ContentVideo)
-        ]
+        result: list[ContentText | ContentImage | ContentAudio | ContentVideo] = []
+        for c in content:
+            if isinstance(c, ContentText):
+                # Strip citations — they reference server-side tool results
+                # from the inner context and are invalid in tool result blocks
+                if c.citations:
+                    c = c.model_copy(update={"citations": None})
+                result.append(c)
+            elif isinstance(c, ContentImage | ContentAudio | ContentVideo):
+                result.append(c)
+        return result
 
 
 TOOL_PROMPT = "prompt"
