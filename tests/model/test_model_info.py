@@ -2,7 +2,7 @@
 
 import pytest
 
-from inspect_ai.model import ModelInfo, get_model_info, set_model_info
+from inspect_ai.model import ModelInfo, get_model, get_model_info, set_model_info
 from inspect_ai.model._model_info import clear_model_info_cache, get_model_input_tokens
 
 
@@ -169,10 +169,12 @@ class TestGetModelInputTokens:
 
     def test_claude_sonnet_4_6(self):
         """Test that Claude Sonnet 4.6 reports 1MM input tokens."""
-        tokens = get_model_input_tokens("anthropic/claude-sonnet-4-6")
+        model = get_model("anthropic/claude-sonnet-4-6")
+        tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
     def test_claude_opus_4_6(self):
         """Test that Claude Opus 4.6 reports 1MM input tokens."""
-        tokens = get_model_input_tokens("anthropic/claude-opus-4-6")
+        model = get_model("anthropic/claude-opus-4-6")
+        tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000

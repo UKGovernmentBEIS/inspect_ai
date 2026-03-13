@@ -312,11 +312,7 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
         return None
 
 
-def get_model_input_tokens(model: str | Model) -> int | None:
-    from inspect_ai.model._model import get_model
-
-    if isinstance(model, str):
-        model = get_model(model, api_key="__model_info_lookup__")
+def get_model_input_tokens(model: Model) -> int | None:
     model_name = model.input_tokens_name()
     model_info = get_model_info(model_name)
     if model_info:
