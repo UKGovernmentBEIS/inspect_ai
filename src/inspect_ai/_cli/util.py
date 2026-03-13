@@ -167,13 +167,14 @@ def parse_model_role_cli_args(
         # if value is a dict, create a model instance
         if isinstance(params, dict):
             model_name = params.pop("model", None)
+            model_args = params.pop("model_args", {})
             try:
                 config = GenerateConfig(**params)
             except ValidationError as e:
                 raise ValueError(
                     f"Invalid config for model role '{role_name}': {e}"
                 ) from e
-            parsed_args[role_name] = get_model(model_name, config=config)
+            parsed_args[role_name] = get_model(model_name, config=config, **model_args)
         # else assume it is just a model name and leave it as a string
     return parsed_args
 
