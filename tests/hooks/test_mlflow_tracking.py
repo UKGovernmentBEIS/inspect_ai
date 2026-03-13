@@ -554,3 +554,156 @@ async def test_event_counts_logged_on_task_end(mlflow_env):
 
         # Event counts cleaned up after task end
         assert "eval-001" not in hook._event_counts
+
+
+@pytest.mark.anyio
+async def test_artifact_logging_sample_table(mlflow_env):
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        samples = [
+            _make_sample(
+                sample_id=1,
+                scores={"accuracy": Score(value=1.0, explanation="Correct")},
+                total_time=1.5,
+            ),
+            _make_sample(
+                sample_id=2,
+                scores={"accuracy": Score(value=0.0, explanation="Wrong")},
+                total_time=2.0,
+            ),
+        ]
+        results = EvalResults(
+            total_samples=2,
+            completed_samples=2,
+            scores=[
+                EvalScore(
+                    name="accuracy",
+                    scorer="accuracy",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.5)},
+                )
+            ],
+        )
+        log = EvalLog(
+            eval=spec,
+            status="success",
+            results=results,
+            stats=EvalStats(
+                started_at="2026-03-06T00:00:00Z",
+                completed_at="2026-03-06T00:01:00Z",
+            ),
+            samples=samples,
+        )
+
+        await hook.on_task_end(
+            TaskEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                log=log,
+            )
+        )
+
+        # Should have 2 log_artifact calls: sample_results + eval_logs
+        artifact_calls = mock_mlflow.log_artifact.call_args_list
+        assert len(artifact_calls) == 2
+
+        artifact_paths = [
+            call.kwargs.get("artifact_path") or call.args[1] for call in artifact_calls
+        ]
+        assert "sample_results" in artifact_paths
+        assert "eval_logs" in artifact_paths
+
+
+@pytest.mark.anyio
+async def test_artifact_logging_disabled(mlflow_env, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("MLFLOW_INSPECT_LOG_ARTIFACTS", "false")
+
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        log = EvalLog(
+            eval=spec,
+            status="success",
+            results=EvalResults(total_samples=1, completed_samples=1),
+            stats=EvalStats(
+                started_at="2026-03-06T00:00:00Z",
+                completed_at="2026-03-06T00:01:00Z",
+            ),
+            samples=[_make_sample(scores={"accuracy": Score(value=1.0)})],
+        )
+
+        await hook.on_task_end(
+            TaskEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                log=log,
+            )
+        )
+
+        # log_artifact should NOT be called when disabled
+        mock_mlflow.log_artifact.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_artifact_logging_no_samples(mlflow_env):
+    hook = MlflowTrackingHooks()
+    spec = _make_eval_spec()
+
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
+        mock_mlflow.start_run.return_value = MagicMock()
+
+        await hook.on_run_start(
+            RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
+        )
+        await hook.on_task_start(
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
+        )
+
+        log = EvalLog(
+            eval=spec,
+            status="success",
+            results=EvalResults(total_samples=0, completed_samples=0),
+            stats=EvalStats(
+                started_at="2026-03-06T00:00:00Z",
+                completed_at="2026-03-06T00:01:00Z",
+            ),
+        )
+
+        await hook.on_task_end(
+            TaskEnd(
+                eval_set_id=None,
+                run_id="run-001",
+                eval_id="eval-001",
+                log=log,
+            )
+        )
+
+        # Only eval_logs artifact (no sample_results since no samples)
+        artifact_calls = mock_mlflow.log_artifact.call_args_list
+        assert len(artifact_calls) == 1
+        artifact_path = (
+            artifact_calls[0].kwargs.get("artifact_path") or artifact_calls[0].args[1]
+        )
+        assert artifact_path == "eval_logs"

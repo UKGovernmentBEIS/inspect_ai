@@ -2,10 +2,15 @@
 
 - OpenAI: Support for image output for multimodal modals.
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
+- OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
+- Anthropic: Ensure that tool result content never carries citations.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.
+- Compaction: Prevent trailing assistant messages for `CompactionEdit` and `CompactionNative` strategies.
+- Agents: Strip citations from content returned via `as_tool()` agent wrapper.
+- Agent Bridge: Print errors which occur in model proxy to stderr.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
@@ -17,11 +22,18 @@
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Google: Include images from tool results in API requests for non-computer-use models.
+- Inspect View: Fix incorrectly themed sample column header text in VS Code (especially dark themes).
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 - Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.
 - Bugfix: Fix mutation of reused GenerateConfig values during request assembly.
 - Bugfix: Fix sandbox tools Docker build failure caused by `staticx` incompatibility with setuptools 82+ (removed `pkg_resources`).
+
+## 0.3.192 (13 March 2026)
+
+- Anthropic: Fallback to summary compaction when native compaction fails to compact.
+- Compaction: Improve logging message for native compaction failures.
+- Model Args: Support for specifying `model_args` using the `--model-role` CLI flag.
 
 ## 0.3.191 (12 March 2026)
 
