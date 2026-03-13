@@ -9,11 +9,13 @@ from __future__ import annotations
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Literal, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Callable, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
+import shortuuid
 from pydantic import BaseModel
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception,
     stop_after_attempt,
@@ -194,31 +196,32 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class RetryPolicy:
+class _RetryPolicy:
     """Configuration for retrying transient RPC failures."""
 
     wait: WaitBaseT
     stop: StopBaseT
 
 
-POLL_RETRY = RetryPolicy(
+_POLL_RETRY = _RetryPolicy(
     wait=wait_exponential_jitter(initial=2, max=15),
     stop=stop_after_attempt(15) | stop_after_delay(120),
 )
-CLEANUP_RETRY = RetryPolicy(
+_CLEANUP_RETRY = _RetryPolicy(
     wait=wait_exponential_jitter(initial=2, max=15),
     stop=stop_after_attempt(5) | stop_after_delay(30),
 )
 
 
-def _log_retry(method_name: str) -> Callable[..., None]:
+def _log_retry(method_name: str) -> Callable[[RetryCallState], None]:
     """Create a tenacity before_sleep callback that logs retry attempts."""
 
-    def log(retry_state: Any) -> None:
+    def log(retry_state: RetryCallState) -> None:
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
         logger.warning(
             f"exec_remote RPC retry: method={method_name} "
             f"attempt={retry_state.attempt_number} "
-            f"error={retry_state.outcome.exception()!r}"
+            f"error={exc!r}"
         )
 
     return log
@@ -305,7 +308,7 @@ class ExecRemoteProcess:
         method: str,
         params: dict[str, object],
         result_type: type[T],
-        retry_policy: RetryPolicy | None = None,
+        retry_policy: _RetryPolicy | None = None,
     ) -> T:
         """Make an RPC call to the sandbox.
 
@@ -313,13 +316,10 @@ class ExecRemoteProcess:
             method: JSON-RPC method name.
             params: JSON-RPC parameters.
             result_type: Pydantic model to parse the result into.
-            retry_policy: If provided, retries transient failures with
-                exponential backoff. Also injects a request_id for
-                server-side idempotency.
+            retry_policy: If provided, retries transient failures and
+                injects a request_id for server-side idempotency.
         """
         if retry_policy is not None:
-            import shortuuid
-
             params = {**params, "request_id": shortuuid.uuid()}
 
         async def call() -> T:
@@ -365,7 +365,7 @@ class ExecRemoteProcess:
             params["cwd"] = self._options.cwd
 
         result = await self._rpc(
-            "exec_remote_start", params, _StartResult, retry_policy=CLEANUP_RETRY
+            "exec_remote_start", params, _StartResult, retry_policy=_CLEANUP_RETRY
         )
         self._pid = result.pid
 
@@ -462,7 +462,7 @@ class ExecRemoteProcess:
                 "exec_remote_poll",
                 {"pid": self._pid},
                 _PollResult,
-                retry_policy=POLL_RETRY,
+                retry_policy=_POLL_RETRY,
             )
 
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
@@ -504,7 +504,7 @@ class ExecRemoteProcess:
             "exec_remote_write_stdin",
             {"pid": self._pid, "data": data},
             _WriteStdinResult,
-            retry_policy=CLEANUP_RETRY,
+            retry_policy=_CLEANUP_RETRY,
         )
         self._enqueue_output(result.stdout, result.stderr)
 
@@ -536,7 +536,7 @@ class ExecRemoteProcess:
                 "exec_remote_close_stdin",
                 {"pid": self._pid},
                 _CloseStdinResult,
-                retry_policy=CLEANUP_RETRY,
+                retry_policy=_CLEANUP_RETRY,
             )
             self._enqueue_output(result.stdout, result.stderr)
         except Exception:
@@ -562,7 +562,7 @@ class ExecRemoteProcess:
                 "exec_remote_kill",
                 {"pid": self._pid},
                 _KillResult,
-                retry_policy=CLEANUP_RETRY,
+                retry_policy=_CLEANUP_RETRY,
             )
             self._enqueue_output(result.stdout, result.stderr)
         except Exception:
