@@ -4,13 +4,18 @@ This module provides a CompactionStrategy that delegates to provider-native
 compaction endpoints (e.g., OpenAI Codex's responses.compact API).
 """
 
+from logging import getLogger
+
 from typing_extensions import override
 
+from inspect_ai._util.error import exception_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .types import CompactionStrategy
+
+logger = getLogger(__name__)
 
 
 class CompactionNative(CompactionStrategy):
@@ -45,12 +50,7 @@ class CompactionNative(CompactionStrategy):
         """
         super().__init__(type="summary", threshold=threshold, memory=memory)
         self._instructions = instructions
-
-    @property
-    @override
-    def retries(self) -> int:
-        """Native compaction is all-or-nothing server-side; retries won't help."""
-        return 0
+        self._suggest_auto = True
 
     @property
     @override
@@ -83,8 +83,19 @@ class CompactionNative(CompactionStrategy):
         """
         # Delegate to the Model wrapper's compact method
         # This provides retry logic, concurrency management, and usage tracking
-        compacted_messages, _ = await model.compact(messages, tools, self._instructions)
+        try:
+            compacted_messages, _ = await model.compact(
+                messages, tools, self._instructions
+            )
+            return compacted_messages, None
 
-        # Return compacted messages with no supplemental message
-        # (native compaction doesn't produce summaries or side-effect messages)
-        return compacted_messages, None
+        except NotImplementedError as ex:
+            msg = exception_message(ex)
+            try:
+                token_count = await model.count_tokens(messages)
+                msg = f"{msg} Messages input had {token_count:,} tokens."
+            except Exception as count_ex:
+                logger.warning(f"Error attempting to count tokens: {count_ex}")
+            if self._suggest_auto:
+                msg = f"{msg} You may want to switch to CompactionAuto for automatic fallback to CompactionSummary when native compaction fails."
+            raise NotImplementedError(msg) from ex

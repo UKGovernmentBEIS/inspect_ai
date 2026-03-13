@@ -1,4 +1,5 @@
 import contextlib
+import sys
 from collections.abc import Sequence
 from logging import getLogger
 from typing import AsyncIterator
@@ -18,7 +19,12 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
-from inspect_ai.util._sandbox.exec_remote import ExecRemoteStreamingOptions
+from inspect_ai.util._sandbox.exec_remote import (
+    ExecCompleted,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
+    ExecStderr,
+)
 
 from ..._agent import AgentState
 from ..util import default_code_execution_providers, internal_web_search_providers
@@ -162,7 +168,14 @@ async def sandbox_agent_bridge(
                 yield bridge
                 agent_completed = True
             finally:
-                await proxy.kill()
+                with anyio.CancelScope(shield=True):
+                    # ensure the process terminates (no-op if already dead)
+                    await proxy.kill()
+
+                    # print stderr if the process failed
+                    await _print_proxy_stderr(proxy)
+
+                # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
     except Exception as ex:
         # If the agent completed successfully but we got an error during cleanup,
@@ -195,3 +208,22 @@ def _register_bridged_tools(
         url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
     )
+
+
+async def _print_proxy_stderr(proxy: ExecRemoteProcess) -> None:
+    try:
+        # print stderr if the process failed
+        stderr: list[str] = []
+        async for event in proxy:
+            if isinstance(event, ExecStderr):
+                stderr.append(event.data)
+            if isinstance(event, ExecCompleted):
+                if event.success:
+                    stderr.clear()
+                break
+        if stderr:
+            sys.stderr.write("ERROR from model proxy exec_remote:\n")
+            sys.stderr.write("".join(stderr))
+            sys.stderr.flush()
+    except Exception as ex:
+        logger.warning(f"Error attempting to print model proxy stderr: {ex}")
