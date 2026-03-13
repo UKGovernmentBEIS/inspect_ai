@@ -314,8 +314,13 @@ class ExecRemoteProcess:
             params: JSON-RPC parameters.
             result_type: Pydantic model to parse the result into.
             retry_policy: If provided, retries transient failures with
-                exponential backoff. Safe only for idempotent methods.
+                exponential backoff. Also injects a request_id for
+                server-side idempotency.
         """
+        if retry_policy is not None:
+            import shortuuid
+
+            params = {**params, "request_id": shortuuid.uuid()}
 
         async def call() -> T:
             return await exec_model_request(
@@ -359,7 +364,9 @@ class ExecRemoteProcess:
         if self._options.cwd:
             params["cwd"] = self._options.cwd
 
-        result = await self._rpc("exec_remote_start", params, _StartResult)
+        result = await self._rpc(
+            "exec_remote_start", params, _StartResult, retry_policy=CLEANUP_RETRY
+        )
         self._pid = result.pid
 
     # -------------------------------------------------------------------------
@@ -497,6 +504,7 @@ class ExecRemoteProcess:
             "exec_remote_write_stdin",
             {"pid": self._pid, "data": data},
             _WriteStdinResult,
+            retry_policy=CLEANUP_RETRY,
         )
         self._enqueue_output(result.stdout, result.stderr)
 

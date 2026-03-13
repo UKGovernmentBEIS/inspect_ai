@@ -26,6 +26,8 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecStderr,
     ExecStdout,
     RetryPolicy,
+    _PollResult,
+    _StartResult,
     exec_remote_awaitable,
     exec_remote_streaming,
 )
@@ -894,6 +896,164 @@ def _make_flaky_sandbox(
     sandbox.no_events = _no_events_context
     sandbox.exec = AsyncMock(side_effect=fake_exec)
     return sandbox, call_counts
+
+
+class TestRequestIdInjection:
+    """Verify that _rpc() injects request_id when retry_policy is set."""
+
+    async def test_request_id_added_when_retry_policy_set(self) -> None:
+        """When retry_policy is provided, params should include a request_id."""
+        sandbox = _make_sandbox_mock([_poll_response(state="running")])
+        proc = ExecRemoteProcess(
+            sandbox, ["echo", "hi"], ExecRemoteCommonOptions(), 5.0
+        )
+
+        captured_params: dict[str, object] = {}
+
+        async def capture_params(**kwargs: Any) -> Any:
+            captured_params.update(kwargs.get("params", {}))
+            return _PollResult(state="running", stdout="", stderr="")
+
+        with patch(f"{_RETRY_MOD}.exec_model_request", side_effect=capture_params):
+            with patch(f"{_RETRY_MOD}.POLL_RETRY", _NO_WAIT_POLL):
+                await proc._rpc(
+                    "exec_remote_poll",
+                    {"pid": 1},
+                    _PollResult,
+                    retry_policy=POLL_RETRY,
+                )
+
+        assert "request_id" in captured_params
+        assert isinstance(captured_params["request_id"], str)
+        assert len(captured_params["request_id"]) > 0
+
+    async def test_no_request_id_without_retry_policy(self) -> None:
+        """When no retry_policy, params should NOT include request_id."""
+        sandbox = _make_sandbox_mock([_start_response()])
+        proc = ExecRemoteProcess(
+            sandbox, ["echo", "hi"], ExecRemoteCommonOptions(), 5.0
+        )
+
+        captured_params: dict[str, object] = {}
+
+        async def capture_params(**kwargs: Any) -> Any:
+            captured_params.update(kwargs.get("params", {}))
+            return _StartResult(pid=1)
+
+        with patch(f"{_RETRY_MOD}.exec_model_request", side_effect=capture_params):
+            await proc._rpc(
+                "exec_remote_start",
+                {"command": "echo hi"},
+                _StartResult,
+            )
+
+        assert "request_id" not in captured_params
+
+    async def test_request_id_is_unique_per_call(self) -> None:
+        """Each _rpc() call should generate a fresh request_id."""
+        sandbox = _make_sandbox_mock(
+            [
+                _poll_response(state="running"),
+                _poll_response(state="running"),
+            ]
+        )
+        proc = ExecRemoteProcess(
+            sandbox, ["echo", "hi"], ExecRemoteCommonOptions(), 5.0
+        )
+
+        request_ids: list[str] = []
+
+        async def capture_request_id(**kwargs: Any) -> Any:
+            params = kwargs.get("params", {})
+            if "request_id" in params:
+                request_ids.append(params["request_id"])
+            return _PollResult(state="running", stdout="", stderr="")
+
+        with patch(f"{_RETRY_MOD}.exec_model_request", side_effect=capture_request_id):
+            with patch(f"{_RETRY_MOD}.POLL_RETRY", _NO_WAIT_POLL):
+                await proc._rpc(
+                    "exec_remote_poll",
+                    {"pid": 1},
+                    _PollResult,
+                    retry_policy=POLL_RETRY,
+                )
+                await proc._rpc(
+                    "exec_remote_poll",
+                    {"pid": 1},
+                    _PollResult,
+                    retry_policy=POLL_RETRY,
+                )
+
+        assert len(request_ids) == 2
+        assert request_ids[0] != request_ids[1]
+
+
+def _make_initially_flaky_sandbox(
+    fail_count: int, success_response: str
+) -> tuple[AsyncMock, list[int]]:
+    """Create a sandbox that fails `fail_count` times, then succeeds.
+
+    Unlike _make_flaky_sandbox, this fails from the very first call
+    (no guaranteed-success first call). Used for testing retry on _start()
+    and write_stdin().
+    """
+    call_counts = [0]
+
+    async def fake_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+        call_counts[0] += 1
+        if call_counts[0] <= fail_count:
+            raise ConnectionError("WebSocket connection lost")
+        return ExecResult(
+            success=True, returncode=0, stdout=success_response, stderr=""
+        )
+
+    sandbox = AsyncMock()
+    sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
+    sandbox.exec = AsyncMock(side_effect=fake_exec)
+    return sandbox, call_counts
+
+
+class TestStartRetry:
+    """Verify that _start() retries transient failures."""
+
+    async def test_start_retries_on_failure(self) -> None:
+        sandbox, calls = _make_initially_flaky_sandbox(
+            fail_count=2, success_response=_start_response(pid=42)
+        )
+        proc = ExecRemoteProcess(
+            sandbox,
+            ["echo", "hi"],
+            ExecRemoteCommonOptions(),
+            5.0,
+        )
+        with patch(f"{_RETRY_MOD}.CLEANUP_RETRY", _NO_WAIT_CLEANUP):
+            await proc._start()
+
+        assert proc._pid == 42
+        assert calls[0] == 3  # 2 failures + 1 success
+
+
+class TestWriteStdinRetry:
+    """Verify that write_stdin() retries transient failures."""
+
+    async def test_write_stdin_retries_on_failure(self) -> None:
+        sandbox, calls = _make_initially_flaky_sandbox(
+            fail_count=2,
+            success_response=_write_stdin_response(),
+        )
+        proc = ExecRemoteProcess(
+            sandbox,
+            ["cat"],
+            ExecRemoteStreamingOptions(stdin_open=True),
+            5.0,
+        )
+        proc._pid = 42  # Skip _start(), pretend already started
+
+        with patch(f"{_RETRY_MOD}.CLEANUP_RETRY", _NO_WAIT_CLEANUP):
+            await proc.write_stdin("hello\n")
+
+        assert calls[0] == 3  # 2 failures + 1 success
 
 
 class TestRpcRetry:
