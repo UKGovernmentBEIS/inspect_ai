@@ -65,6 +65,7 @@ ignore = [
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
+"typing.is_typeddict".msg = "Use typing_extensions.is_typeddict (typing.is_typeddict doesn't recognize typing_extensions.TypedDict subclasses)"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
