@@ -94,7 +94,7 @@ def condense_model_event_inputs(
 
 
 # Known keys for messages array in provider wire formats
-_CALL_MESSAGE_KEYS: Final = ("messages", "contents")
+_CALL_MESSAGE_KEYS: Final = ("messages", "contents", "input", "inputs")
 
 
 def _compress_refs(indices: list[int]) -> list[tuple[int, int]]:
@@ -197,11 +197,7 @@ def resolve_model_event_calls(
         return events
     result: list[Event] = []
     for event in events:
-        if (
-            isinstance(event, ModelEvent)
-            and event.call
-            and event.call.call_refs is not None
-        ):
+        if isinstance(event, ModelEvent) and event.call and event.call.call_refs:
             msgs = _expand_refs(event.call.call_refs, call_pool)
             msg_key = event.call.call_key or "messages"
             new_request = dict(event.call.request)
