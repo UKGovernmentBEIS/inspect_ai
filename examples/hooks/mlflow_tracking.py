@@ -285,9 +285,7 @@ class MlflowTrackingHooks(Hooks):
             rows.append(row)
 
         eval_id = log.eval.eval_id if log.eval else "unknown"
-        fd, path = tempfile.mkstemp(
-            prefix=f"sample_results_{eval_id}_", suffix=".json"
-        )
+        fd, path = tempfile.mkstemp(prefix=f"sample_results_{eval_id}_", suffix=".json")
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(rows, f, indent=2, default=str)
@@ -300,9 +298,7 @@ class MlflowTrackingHooks(Hooks):
         eval_id = log.eval.eval_id if log.eval else "unknown"
         log_data = log.model_dump(mode="json", exclude={"samples"})
 
-        fd, path = tempfile.mkstemp(
-            prefix=f"eval_log_{eval_id}_", suffix=".json"
-        )
+        fd, path = tempfile.mkstemp(prefix=f"eval_log_{eval_id}_", suffix=".json")
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(log_data, f, indent=2, default=str)

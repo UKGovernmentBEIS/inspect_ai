@@ -558,21 +558,17 @@ async def test_event_counts_logged_on_task_end(mlflow_env):
 
 @pytest.mark.anyio
 async def test_artifact_logging_sample_table(mlflow_env):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         samples = [
@@ -622,30 +618,28 @@ async def test_artifact_logging_sample_table(mlflow_env):
         artifact_calls = mock_mlflow.log_artifact.call_args_list
         assert len(artifact_calls) == 2
 
-        artifact_paths = [call.kwargs.get("artifact_path") or call.args[1] for call in artifact_calls]
+        artifact_paths = [
+            call.kwargs.get("artifact_path") or call.args[1] for call in artifact_calls
+        ]
         assert "sample_results" in artifact_paths
         assert "eval_logs" in artifact_paths
 
 
 @pytest.mark.anyio
 async def test_artifact_logging_disabled(mlflow_env, monkeypatch: pytest.MonkeyPatch):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     monkeypatch.setenv("MLFLOW_INSPECT_LOG_ARTIFACTS", "false")
 
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         log = EvalLog(
@@ -674,21 +668,17 @@ async def test_artifact_logging_disabled(mlflow_env, monkeypatch: pytest.MonkeyP
 
 @pytest.mark.anyio
 async def test_artifact_logging_no_samples(mlflow_env):
-    from examples.hooks.mlflow_tracking import MlflowTrackingHooks
-
     hook = MlflowTrackingHooks()
     spec = _make_eval_spec()
 
-    with patch("examples.hooks.mlflow_tracking.mlflow") as mock_mlflow:
+    with patch.object(_mlflow_mod, "mlflow") as mock_mlflow:
         mock_mlflow.start_run.return_value = MagicMock()
 
         await hook.on_run_start(
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         log = EvalLog(
@@ -713,5 +703,7 @@ async def test_artifact_logging_no_samples(mlflow_env):
         # Only eval_logs artifact (no sample_results since no samples)
         artifact_calls = mock_mlflow.log_artifact.call_args_list
         assert len(artifact_calls) == 1
-        artifact_path = artifact_calls[0].kwargs.get("artifact_path") or artifact_calls[0].args[1]
+        artifact_path = (
+            artifact_calls[0].kwargs.get("artifact_path") or artifact_calls[0].args[1]
+        )
         assert artifact_path == "eval_logs"
