@@ -195,9 +195,10 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
         (index: number, item: ResolvedMessage): ReactNode => {
           const number =
             collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+          const rowId = `${id}-msg-${index}`;
           return (
             <ChatMessageRow
-              parentName={id || "chat-virtual-list"}
+              id={rowId}
               number={number}
               resolvedMessage={item}
               indented={indented}
