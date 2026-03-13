@@ -31,14 +31,16 @@ FROM packages-${TARGETARCH} AS final
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 
-RUN python -m pip install --no-cache-dir --upgrade pip && \
-    python -m pip install --no-cache-dir \
+RUN python -m pip install --no-cache-dir --upgrade pip 'setuptools<82' wheel
+# staticx's setup.py imports pkg_resources which was removed in setuptools 82.
+# pip's build isolation installs latest setuptools, breaking the build.
+# --no-build-isolation uses the venv's pinned setuptools instead.
+RUN python -m pip install --no-cache-dir --no-build-isolation staticx
+RUN python -m pip install --no-cache-dir \
         pyinstaller \
-        staticx \
         psutil \
         jsonrpcserver \
         pydantic \
-        setuptools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -7,7 +7,7 @@ from copy import copy
 from io import BytesIO
 from logging import getLogger
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any, Literal, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
@@ -90,13 +90,19 @@ from inspect_ai.model import (
     TopLogprob,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
     get_candidate_citations,
+)
+from inspect_ai.model._providers._google_computer_use import (
+    computer_tool_result_parts,
+    gemini_action_from_tool_call,
+    maybe_computer_use_tool,
+    tool_call_from_gemini_computer_action,
 )
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
@@ -139,6 +145,13 @@ DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
         "threshold": HarmBlockThreshold.BLOCK_NONE,
     },
 ]
+
+
+class CategorizedTools(NamedTuple):
+    google_search: GoogleSearch | None
+    code_execution: ToolCodeExecution | None
+    computer_use: Tool | None
+    function_declarations: list[FunctionDeclaration]
 
 
 class GoogleGenAIAPI(ModelAPI):
@@ -300,6 +313,16 @@ class GoogleGenAIAPI(ModelAPI):
             system_instruction = await extract_system_message_as_parts(
                 client, input, tools
             )
+            # Map modalities to Google's response_modalities
+            response_modalities = None
+            if config.modalities:
+                if has_image_output(config.modalities):
+                    response_modalities = ["TEXT", "IMAGE"]
+                else:
+                    raise PrerequisiteError(
+                        f"Unsupported modalities for Google: {config.modalities}"
+                    )
+
             parameters = GenerateContentConfig(
                 http_options=HttpOptions(
                     headers={HttpHooks.REQUEST_ID_HEADER: request_id}
@@ -320,6 +343,7 @@ class GoogleGenAIAPI(ModelAPI):
                 tool_config=gemini_tool_config,
                 system_instruction=system_instruction,  # type: ignore[arg-type]
                 thinking_config=self.chat_thinking_config(config),
+                response_modalities=response_modalities,
             )
             if config.response_schema is not None:
                 parameters.response_mime_type = "application/json"
@@ -393,9 +417,15 @@ class GoogleGenAIAPI(ModelAPI):
             model_call.set_response(response, http_hooks.end_request(request_id))
 
             model_name = response.model_version or self.service_model_name()
+            has_computer_use = gemini_tools is not None and any(
+                isinstance(tool, Tool) and tool.computer_use is not None
+                for tool in gemini_tools
+            )
             output = ModelOutput(
                 model=model_name,
-                choices=completion_choices_from_candidates(model_name, response),
+                choices=completion_choices_from_candidates(
+                    model_name, response, has_computer_use
+                ),
                 usage=usage_metadata_to_model_usage(response.usage_metadata),
             )
 
@@ -646,6 +676,10 @@ class GoogleGenAIAPI(ModelAPI):
         return str(self.api_key)
 
     @override
+    def tool_result_images(self) -> bool:
+        return True
+
+    @override
     def is_auth_failure(self, ex: Exception) -> bool:
         if isinstance(ex, APIError):
             return ex.code == 401
@@ -780,13 +814,9 @@ class GoogleGenAIAPI(ModelAPI):
 
     def _categorize_tool(
         self,
-        acc: tuple[
-            GoogleSearch | None, ToolCodeExecution | None, list[FunctionDeclaration]
-        ],
+        acc: CategorizedTools,
         tool: ToolInfo,
-    ) -> tuple[
-        GoogleSearch | None, ToolCodeExecution | None, list[FunctionDeclaration]
-    ]:
+    ) -> CategorizedTools:
         """Reducer function that categorizes tools into native search vs function declarations.
 
         Returns:
@@ -794,28 +824,29 @@ class GoogleGenAIAPI(ModelAPI):
             is True if any tool uses native search, and function_declarations contains
             all non-native-search tools converted to FunctionDeclaration objects.
         """
-        return (
-            (self._google_search_options(tool.options), acc[1], acc[2])
-            if tool.options and self._use_native_search(tool)
-            else (acc[0], ToolCodeExecution(), acc[2])
-            if tool.options and self._use_native_code_execution(tool)
-            else (
-                acc[0],
-                acc[1],
-                acc[2]
-                + [
-                    FunctionDeclaration(
-                        name=tool.name,
-                        description=tool.description,
-                        parameters_json_schema=tool.parameters.model_dump(
-                            exclude_none=True
+        if tool.options and self._use_native_search(tool):
+            return acc._replace(google_search=self._google_search_options(tool.options))
+        elif tool.options and self._use_native_code_execution(tool):
+            return acc._replace(code_execution=ToolCodeExecution())
+        else:
+            computer_use = maybe_computer_use_tool(self.model_name, tool)
+            if computer_use is not None:
+                return acc._replace(computer_use=computer_use)
+            else:
+                return acc._replace(
+                    function_declarations=acc.function_declarations
+                    + [
+                        FunctionDeclaration(
+                            name=tool.name,
+                            description=tool.description,
+                            parameters_json_schema=tool.parameters.model_dump(
+                                exclude_none=True
+                            )
+                            if len(tool.parameters.properties) > 0
+                            else None,
                         )
-                        if len(tool.parameters.properties) > 0
-                        else None,
-                    )
-                ],
-            )
-        )
+                    ],
+                )
 
     def _google_search_options(self, options: dict[str, Any]) -> GoogleSearch:
         gemini_options = options.get("gemini", None)
@@ -825,16 +856,21 @@ class GoogleGenAIAPI(ModelAPI):
             return GoogleSearch()
 
     def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
-        # cleave up tools (must use either native tools or client tools but not both)
-        search_seed: GoogleSearch | None = None
-        execution_seed: ToolCodeExecution | None = None
-        google_search, code_execution, function_declarations = functools.reduce(
-            self._categorize_tool,
-            tools,
-            (search_seed, execution_seed, list[FunctionDeclaration]()),
+        # categorize tools into native tools vs function declarations
+        google_search, code_execution, computer_use, function_declarations = (
+            functools.reduce(
+                self._categorize_tool,
+                tools,
+                CategorizedTools(
+                    google_search=None,
+                    code_execution=None,
+                    computer_use=None,
+                    function_declarations=[],
+                ),
+            )
         )
 
-        # native tools
+        # native search/code execution tools (cannot mix with function declarations)
         if google_search or code_execution:
             if function_declarations:
                 raise ValueError(
@@ -847,9 +883,15 @@ class GoogleGenAIAPI(ModelAPI):
                 native_tools.append(Tool(code_execution=code_execution))
             return (True, native_tools)
 
-        # client tools
-        else:
-            return (False, [Tool(function_declarations=function_declarations)])
+        # computer use (can coexist with function declarations)
+        if computer_use is not None:
+            native_tools = [computer_use]
+            if function_declarations:
+                native_tools.append(Tool(function_declarations=function_declarations))
+            return (True, native_tools)
+
+        # client tools only
+        return (False, [Tool(function_declarations=function_declarations)])
 
     def _resolve_batcher(
         self, config: GenerateConfig, http_options: HttpOptions
@@ -1060,11 +1102,20 @@ async def content(
             # The loop below applies the signature to the first tool call (when working_reasoning_block
             # is not None), then clears it so subsequent tool calls don't get it.
             for tool_call in message.tool_calls:
-                # extract the part
-                part = Part.from_function_call(
-                    name=tool_call.function,
-                    args=tool_call.arguments,
-                )
+                if tool_call.function == "computer":
+                    action_name = (
+                        tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
+                    )
+                    _, action_args = gemini_action_from_tool_call(tool_call)
+                    part = Part.from_function_call(
+                        name=action_name,
+                        args=action_args,
+                    )
+                else:
+                    part = Part.from_function_call(
+                        name=tool_call.function,
+                        args=tool_call.arguments,
+                    )
 
                 # handle reasoning block if available
                 if working_reasoning_block is not None:
@@ -1086,15 +1137,38 @@ async def content(
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
-        response = FunctionResponse(
-            name=message.function,
-            response={
-                "content": (
-                    message.error.message if message.error is not None else message.text
-                )
-            },
+        content_text = (
+            message.error.message if message.error is not None else message.text
         )
-        return Content(role="user", parts=[Part(function_response=response)])
+        response_dict: dict[str, object] = {
+            "content": content_text,
+            "safety_acknowledgement": "true",
+        }
+        if message.function == "computer":
+            response_dict["url"] = ""
+            response_name = (
+                message.tool_call_id.rsplit("_", 1)[0]
+                if message.tool_call_id
+                else "computer"
+            )
+            # Computer-use models support multimodal function responses.
+            fn_response_parts = await computer_tool_result_parts(message)
+        else:
+            response_name = message.function or ""
+            fn_response_parts = None
+        response = FunctionResponse(
+            name=response_name,
+            response=response_dict,
+            parts=fn_response_parts,
+        )
+        parts: list[Part] = [Part(function_response=response)]
+        # For non-computer tools, include images as sibling content parts
+        # since most models don't support multimodal function responses.
+        if message.function != "computer" and isinstance(message.content, list):
+            for item in message.content:
+                if isinstance(item, ContentImage):
+                    parts.append(await content_part(client, item))
+        return Content(role="user", parts=parts)
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
@@ -1193,8 +1267,40 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
         )
 
 
+def _consolidate_thought_signature(
+    signature: bytes,
+    working_reasoning_block: ContentReasoning | None,
+    content: list[
+        ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentToolUse
+        | ContentAudio
+        | ContentVideo
+        | ContentData
+        | ContentDocument
+    ],
+) -> ContentReasoning | None:
+    """Consolidate a thought_signature into the working reasoning block or create a new one.
+
+    Returns the updated working_reasoning_block (None after consolidation).
+    """
+    if working_reasoning_block is None:
+        content.append(
+            ContentReasoning(
+                reasoning=base64.b64encode(signature).decode(),
+                redacted=True,
+            )
+        )
+    else:
+        working_reasoning_block.summary = working_reasoning_block.reasoning
+        working_reasoning_block.reasoning = base64.b64encode(signature).decode()
+        working_reasoning_block.redacted = True
+    return None
+
+
 def completion_choice_from_candidate(
-    model: str, candidate: Candidate
+    model: str, candidate: Candidate, computer_use: bool = False
 ) -> ChatCompletionChoice:
     # content we'll return
     content: list[
@@ -1220,7 +1326,35 @@ def completion_choice_from_candidate(
         parts = candidate.content.parts
         for i, part in enumerate(parts):
             if part.text is None and part.executable_code is None:
-                continue  # We only care about text and executable_code here
+                # Handle inline_data parts (images, audio)
+                if part.inline_data is not None:
+                    # Process thought_signature before appending media content
+                    # so that the ContentReasoning precedes the media in the list
+                    # (on replay, the signature is applied to the next part)
+                    if part.thought_signature is not None:
+                        working_reasoning_block = _consolidate_thought_signature(
+                            part.thought_signature, working_reasoning_block, content
+                        )
+                    blob = part.inline_data
+                    if blob.data is not None:
+                        b64 = base64.b64encode(blob.data).decode()
+                        data_uri = f"data:{blob.mime_type};base64,{b64}"
+                        mime = blob.mime_type or ""
+                        if mime.startswith("image/"):
+                            content.append(ContentImage(image=data_uri))
+                        elif mime.startswith("audio/"):
+                            if "wav" in mime:
+                                fmt: Literal["wav", "mp3"] = "wav"
+                            elif "mp3" in mime or "mpeg" in mime:
+                                fmt = "mp3"
+                            else:
+                                logger.warning(
+                                    f"Unsupported audio MIME type '{mime}', "
+                                    f"skipping audio content."
+                                )
+                                continue
+                            content.append(ContentAudio(audio=data_uri, format=fmt))
+                continue  # Skip other non-text/non-executable_code parts
 
             if part.code_execution_result is not None:
                 continue  # We pickup code execution results with part.executable_code
@@ -1239,27 +1373,9 @@ def completion_choice_from_candidate(
                 # Check if this block has an associated thought_signature and
                 # whether it corresponds to the previous ContentReasoning block.
                 if part.thought_signature is not None:
-                    if working_reasoning_block is None:
-                        # append the reasoning block to the list
-                        content.append(
-                            ContentReasoning(
-                                reasoning=base64.b64encode(
-                                    part.thought_signature
-                                ).decode(),
-                                redacted=True,
-                            )
-                        )
-                    else:
-                        # attach the though_signature to the previous reasoning block
-                        working_reasoning_block.summary = (
-                            working_reasoning_block.reasoning
-                        )
-                        working_reasoning_block.reasoning = base64.b64encode(
-                            part.thought_signature
-                        ).decode()
-                        working_reasoning_block.redacted = True
-                        # clear it out
-                        working_reasoning_block = None
+                    working_reasoning_block = _consolidate_thought_signature(
+                        part.thought_signature, working_reasoning_block, content
+                    )
 
                 if part.text is not None:
                     content.append(ContentText(text=part.text))
@@ -1316,13 +1432,34 @@ def completion_choice_from_candidate(
                         working_reasoning_block.redacted = True
                         working_reasoning_block = None
 
-                tool_calls.append(
-                    ToolCall(
-                        id=f"{part.function_call.name}_{uuid()}",
-                        function=part.function_call.name,
-                        arguments=part.function_call.args,
+                if computer_use and part.function_call.name in {
+                    "click_at",
+                    "type_text_at",
+                    "hover_at",
+                    "key_combination",
+                    "scroll_document",
+                    "scroll_at",
+                    "drag_and_drop",
+                    "navigate",
+                    "go_back",
+                    "go_forward",
+                    "open_web_browser",
+                    "search",
+                    "wait_5_seconds",
+                }:
+                    tool_calls.append(
+                        tool_call_from_gemini_computer_action(part.function_call)
                     )
-                )
+                else:
+                    if part.function_call.args:
+                        part.function_call.args.pop("safety_decision", None)
+                    tool_calls.append(
+                        ToolCall(
+                            id=f"{part.function_call.name}_{uuid()}",
+                            function=part.function_call.name,
+                            arguments=part.function_call.args,
+                        )
+                    )
 
     # stop reason
     stop_reason = finish_reason_to_stop_reason(
@@ -1384,12 +1521,13 @@ def completion_choice_from_candidate(
 def completion_choices_from_candidates(
     model: str,
     response: GenerateContentResponse,
+    computer_use: bool = False,
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index or 0)
         return [
-            completion_choice_from_candidate(model, candidate)
+            completion_choice_from_candidate(model, candidate, computer_use)
             for candidate in candidates_list
         ]
     elif response.prompt_feedback:

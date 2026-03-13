@@ -88,6 +88,27 @@ def test_anthropic_oauth_beta_preserved_with_effort() -> None:
             os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 
+def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
+    """Ensure per-call extra_headers are stable across repeated use."""
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    config = GenerateConfig(
+        max_tokens=64,
+        extra_headers={
+            "anthropic_beta": "context-1m-2025-08-07",
+            "x-test-header": "value",
+        },
+    )
+
+    for _ in range(2):
+        _params, _extra_body, headers, betas = api.completion_config(config)
+        assert headers == {"x-test-header": "value"}
+        assert betas == ["context-1m-2025-08-07"]
+        assert config.extra_headers == {
+            "anthropic_beta": "context-1m-2025-08-07",
+            "x-test-header": "value",
+        }
+
+
 @skip_if_no_anthropic
 def test_anthropic_should_retry():
     import httpx

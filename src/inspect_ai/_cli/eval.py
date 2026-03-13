@@ -1,7 +1,9 @@
 import functools
+import json
 from typing import Any, Callable, Literal, cast
 
 import click
+import yaml
 from pydantic import TypeAdapter
 from typing_extensions import Unpack
 
@@ -24,12 +26,15 @@ from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._generate_config import (
+from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
+    ImageOutput,
+    OutputModality,
     ResponseSchema,
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.util._resource import resource
 
 from .common import (
     CommonOptions,
@@ -253,6 +258,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=MAX_SAMPLES_HELP,
         envvar="INSPECT_EVAL_MAX_SAMPLES",
+    )
+    @click.option(
+        "--max-dataset-memory",
+        type=click.IntRange(min=0),
+        help="Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.",
+        envvar="INSPECT_EVAL_MAX_DATASET_MEMORY",
     )
     @click.option(
         "--max-tasks", type=int, help=MAX_TASKS_HELP, envvar="INSPECT_EVAL_MAX_TASKS"
@@ -581,6 +592,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_BATCH",
     )
     @click.option(
+        "--modalities",
+        type=str,
+        help="Additional output modalities beyond text (e.g. 'image'). Comma-separated names or a YAML/JSON config file path. OpenAI and Google only.",
+        envvar="INSPECT_EVAL_MODALITIES",
+    )
+    @click.option(
         "--log-format",
         type=click.Choice(["eval", "json"], case_sensitive=False),
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
@@ -663,6 +680,7 @@ def eval_command(
     response_schema: ResponseSchema | None,
     cache: int | str | None,
     batch: int | str | None,
+    modalities: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -670,6 +688,7 @@ def eval_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -733,6 +752,7 @@ def eval_command(
         cost_limit=cost_limit,
         model_cost_config=model_cost_config,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -877,6 +897,7 @@ def eval_set_command(
     response_schema: ResponseSchema | None,
     cache: int | str | None,
     batch: int | str | None,
+    modalities: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -884,6 +905,7 @@ def eval_set_command(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -955,6 +977,7 @@ def eval_set_command(
         time_limit=time_limit,
         working_limit=working_limit,
         max_samples=max_samples,
+        max_dataset_memory=max_dataset_memory,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         max_sandboxes=max_sandboxes,
@@ -1024,6 +1047,7 @@ def eval_exec(
     cost_limit: float | None,
     model_cost_config: str | None,
     max_samples: int | None,
+    max_dataset_memory: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
     max_sandboxes: int | None,
@@ -1145,6 +1169,7 @@ def eval_exec(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -1241,8 +1266,41 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                     case str():
                         value = BatchConfig.model_validate(resolve_args(value))
 
+            if key == "modalities":
+                value = parse_modalities(value)
+
             config[key] = value  # type: ignore
     return config
+
+
+def parse_modalities(value: str) -> list[Any]:
+    """Parse modalities from comma-separated names or YAML/JSON file."""
+    # Check if it's a file path
+    fs = filesystem(value)
+    if fs.exists(value):
+        content = resource(value, type="file")
+        is_json = content.strip().startswith("[") or content.strip().startswith("{")
+        config = json.loads(content) if is_json else yaml.safe_load(content)
+        if not isinstance(config, list):
+            raise PrerequisiteError(
+                f"Modalities config file must contain a list, got: {type(config).__name__}"
+            )
+        result: list[OutputModality] = []
+        for item in config:
+            if isinstance(item, str):
+                result.append(item)  # type: ignore[arg-type]
+            elif isinstance(item, dict):
+                result.append(ImageOutput.model_validate(item))
+            else:
+                raise PrerequisiteError(f"Invalid modality item: {item}")
+        return result
+    else:
+        # Check if it looks like a file path that doesn't exist
+        if "/" in value or "\\" in value or value.endswith((".json", ".yaml", ".yml")):
+            raise PrerequisiteError(f"Modalities file not found: {value}")
+        # Comma-separated literal names (e.g. "image" or "image,audio")
+        tokens = [m.strip() for m in value.split(",")]
+        return [t for t in tokens if t]  # type: ignore[misc]
 
 
 def parse_logit_bias(logit_bias: str | None) -> dict[int, float] | None:
