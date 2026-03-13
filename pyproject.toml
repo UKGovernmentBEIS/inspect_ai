@@ -41,6 +41,7 @@ select = [
   # "RET", # flake8-return
   # "RUF", # ruff rules
   "DTZ",
+  "TID251",  # banned-api
 ]
 ignore = [
   "E203",
@@ -61,6 +62,9 @@ ignore = [
   "B904",
   "B905",
 ]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
