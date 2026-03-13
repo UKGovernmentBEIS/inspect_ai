@@ -28,7 +28,7 @@ from tenacity.wait import WaitBaseT
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 
 from ._cli import SANDBOX_CLI
-from ._json_rpc_transport import SandboxJSONRPCTransport
+from ._json_rpc_transport import SandboxExecError, SandboxJSONRPCTransport
 
 if TYPE_CHECKING:
     from .._subprocess import ExecResult
@@ -213,6 +213,20 @@ _CLEANUP_RETRY = _RetryPolicy(
 )
 
 
+def _is_transient(exc: BaseException) -> bool:
+    """Return True for transport-level errors that are worth retrying.
+
+    Application errors (RuntimeError, ValueError) come from the JSON-RPC error
+    mapper after a successful round-trip — retrying them is pointless.
+    SandboxExecError (a RuntimeError subclass) means sandbox.exec() returned
+    non-zero, which IS transient. Everything else (ConnectionError, K8sError,
+    OSError, …) also indicates a transport failure.
+    """
+    if isinstance(exc, SandboxExecError):
+        return True
+    return not isinstance(exc, (RuntimeError, ValueError))
+
+
 def _log_retry(method_name: str) -> Callable[[RetryCallState], None]:
     """Create a tenacity before_sleep callback that logs retry attempts."""
 
@@ -340,7 +354,7 @@ class ExecRemoteProcess:
         retrying = retry(
             wait=retry_policy.wait,
             stop=retry_policy.stop,
-            retry=retry_if_exception(lambda e: isinstance(e, Exception)),
+            retry=retry_if_exception(_is_transient),
             before_sleep=_log_retry(method),
         )
         return await retrying(call)()
