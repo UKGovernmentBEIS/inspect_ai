@@ -1,3 +1,7 @@
+## 0.3.192 (13 March 2026)
+
+- Compaction: Improve logging message for native compaction failures.
+
 ## 0.3.191 (12 March 2026)
 
 - Mistral: Update to v2.0 of `mistralai` package.
