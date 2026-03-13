@@ -6,6 +6,7 @@
 - Google: Support for image output for multimodal models.
 - Google: Support for the native Gemini computer tool.
 - Google: Include images from tool results in API requests for non-computer-use models.
+- Anthropic: Update input tokens for Sonnet/Opus 4.6 to 1MM.
 - Anthropic: Ensure that tool result content never carries citations.
 - Bedock: Add support for `reasoning_effort` for Nova models.
 - Bash Session: Catch ProcessLookupError in case bash session has crashed.

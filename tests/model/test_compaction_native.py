@@ -17,7 +17,7 @@ from inspect_ai.model._providers.anthropic import (
     CONTEXT_MANAGEMENT,
     EDITS,
     EXTRA_BODY,
-    _add_edit_compation,
+    _add_edit_compaction,
     _compaction_from_content_data,
     _compaction_from_message,
 )
@@ -35,13 +35,13 @@ def _sample_messages() -> list[ChatMessage]:
 
 
 def test_add_edit_compaction_sets_high_trigger_default() -> None:
-    """_add_edit_compation sets high trigger for default context (200k)."""
+    """_add_edit_compaction sets high trigger for default context (200k)."""
     from typing import Any
 
     request: dict[str, Any] = {}
     betas: list[str] = []
 
-    _add_edit_compation(request, betas)
+    _add_edit_compaction(request, betas)
 
     # Verify trigger is set to 190k (just above Anthropic's 150k default)
     edits = request.get(EXTRA_BODY, {}).get(CONTEXT_MANAGEMENT, {}).get(EDITS, [])
@@ -51,13 +51,13 @@ def test_add_edit_compaction_sets_high_trigger_default() -> None:
 
 
 def test_add_edit_compaction_sets_high_trigger_1m_context() -> None:
-    """_add_edit_compation sets high trigger for 1M context."""
+    """_add_edit_compaction sets high trigger for 1M context."""
     from typing import Any
 
     request: dict[str, Any] = {}
     betas = ["context-1m-2025-08-07"]
 
-    _add_edit_compation(request, betas)
+    _add_edit_compaction(request, betas)
 
     # Verify trigger is set to 990k (just below 1M context limit)
     edits = request.get(EXTRA_BODY, {}).get(CONTEXT_MANAGEMENT, {}).get(EDITS, [])
