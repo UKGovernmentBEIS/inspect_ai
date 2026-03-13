@@ -69,6 +69,7 @@ async def eval_run(
     solver: Solver | SolverSpec | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    environment: dict[str, str] | None = None,
     debug_errors: bool = False,
     run_samples: bool = True,
     score: bool = True,
@@ -234,6 +235,7 @@ async def eval_run(
                     model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
                     metadata=((metadata or {}) | (task.metadata or {})) or None,
+                    environment=environment,
                     recorder=recorder,
                     header_only=header_only,
                 )
