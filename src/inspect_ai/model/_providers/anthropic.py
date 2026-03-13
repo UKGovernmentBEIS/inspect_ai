@@ -595,20 +595,22 @@ class AnthropicAPI(ModelAPI):
 
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
-            if _message_has_compaction(output.message):
+            compaction = _compaction_from_message(output.message)
+            if compaction is not None and compaction["content"] is not None:
                 # Strip reasoning blocks from the compacted output — they're
                 # from the compaction inference, not the task, and would waste
                 # input tokens on subsequent turns.
                 message = _strip_reasoning(output.message)
-                return [message], output.usage
-            else:
-                raise RuntimeError(
-                    f"Anthropic native compaction did not trigger. "
-                    f"This can occur when the total input tokens (including tools) "
-                    f"is below Anthropic's {MIN_COMPACTION_TOKENS} token minimum for compaction. "
-                    f"Consider increasing the compaction threshold or using a "
-                    f"non-native compaction strategy."
+                return [
+                    message,
+                    ChatMessageUser(content="Please continue working."),
+                ], output.usage
+            elif compaction is not None:
+                raise NotImplementedError(
+                    "Anthropic compaction triggered but failed to compact."
                 )
+            else:
+                raise NotImplementedError("Anthropic compaction did not trigger.")
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
@@ -2370,15 +2372,7 @@ def _input_has_compaction(input: list[ChatMessage]) -> bool:
 
 
 def _message_has_compaction(message: ChatMessageAssistant) -> bool:
-    if isinstance(message.content, list):
-        for c in message.content:
-            if (
-                isinstance(c, ContentData)
-                and _compaction_from_content_data(c) is not None
-            ):
-                return True
-
-    return False
+    return _compaction_from_message(message) is not None
 
 
 def _content_data_for_compaction(block: BetaCompactionBlock) -> ContentData:
@@ -2399,10 +2393,30 @@ def _compaction_from_content_data(
     if isinstance(compaction_metadata, dict):
         if compaction_metadata.get("type") == "anthropic_compact":
             compaction_content = compaction_metadata.get("content", None)
-            if isinstance(compaction_content, str):
-                return BetaCompactionBlockParam(
-                    type="compaction", content=compaction_content
+            if compaction_content is not None and not isinstance(
+                compaction_content, str
+            ):
+                logger.warning(
+                    f"Unexpected compaction content type: {type(compaction_content).__name__}"
                 )
+                compaction_content = None
+            return BetaCompactionBlockParam(
+                type="compaction",
+                content=compaction_content,
+            )
+
+    return None
+
+
+def _compaction_from_message(
+    message: ChatMessageAssistant,
+) -> BetaCompactionBlockParam | None:
+    if isinstance(message.content, list):
+        for c in message.content:
+            if isinstance(c, ContentData):
+                result = _compaction_from_content_data(c)
+                if result is not None:
+                    return result
 
     return None
 
