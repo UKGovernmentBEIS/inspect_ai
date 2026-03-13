@@ -118,6 +118,7 @@
 - Testing: Migrate async tests from pytest-asyncio to anyio, enabling dual-backend (asyncio/trio) test execution via `--runtrio` flag.
 - Testing: Run `--runtrio` as trio-only in a separate process to prevent cross-backend global state contamination; convert batch tests from asyncio to anyio.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
+- Eval Logs: Batch log-headers validation and file mapping concurrently.
 
 ## 0.3.183 (24 February 2026)
 
