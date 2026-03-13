@@ -10,6 +10,7 @@
 - Compaction: Improve logging message for native compaction failures.
 - Compaction: Prevent trailing assistant messages for `CompactionEdit` and `CompactionNative` strategies.
 - Agents: Strip citations from content returned via `as_tool()` agent wrapper.
+- Model Args: Support for specifying `model_args` using the `--model-role` CLI flag.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
