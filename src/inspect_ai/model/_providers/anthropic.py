@@ -2393,11 +2393,16 @@ def _compaction_from_content_data(
     if isinstance(compaction_metadata, dict):
         if compaction_metadata.get("type") == "anthropic_compact":
             compaction_content = compaction_metadata.get("content", None)
+            if compaction_content is not None and not isinstance(
+                compaction_content, str
+            ):
+                logger.warning(
+                    f"Unexpected compaction content type: {type(compaction_content).__name__}"
+                )
+                compaction_content = None
             return BetaCompactionBlockParam(
                 type="compaction",
-                content=str(compaction_content)
-                if compaction_content is not None
-                else None,
+                content=compaction_content,
             )
 
     return None

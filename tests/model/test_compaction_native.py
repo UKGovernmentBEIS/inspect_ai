@@ -18,6 +18,7 @@ from inspect_ai.model._providers.anthropic import (
     EDITS,
     EXTRA_BODY,
     _add_edit_compation,
+    _compaction_from_content_data,
     _compaction_from_message,
 )
 
@@ -199,6 +200,43 @@ def test_compaction_from_message_returns_none_for_string_content() -> None:
     message = ChatMessageAssistant(content="just a string", id="msg1")
 
     assert _compaction_from_message(message) is None
+
+
+def test_compaction_from_content_data_with_none_content() -> None:
+    """Returns BetaCompactionBlockParam with content=None when content key is None."""
+    content = ContentData(
+        data={
+            "compaction_metadata": {
+                "type": "anthropic_compact",
+                "content": None,
+            }
+        }
+    )
+
+    result = _compaction_from_content_data(content)
+    assert result is not None
+    assert result["type"] == "compaction"
+    assert result["content"] is None
+
+
+@pytest.mark.parametrize("bad_content", [{"key": "val"}, [1, 2, 3], 42])
+def test_compaction_from_content_data_with_non_string_content(
+    bad_content: object,
+) -> None:
+    """Non-string content is treated as None with a warning, not coerced to string."""
+    content = ContentData(
+        data={
+            "compaction_metadata": {
+                "type": "anthropic_compact",
+                "content": bad_content,
+            }
+        }
+    )
+
+    result = _compaction_from_content_data(content)
+    assert result is not None
+    assert result["type"] == "compaction"
+    assert result["content"] is None
 
 
 def _long_messages() -> list[ChatMessage]:
