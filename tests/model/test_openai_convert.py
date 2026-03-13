@@ -29,6 +29,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
 )
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._openai_responses import (
+    reasoning_from_responses_reasoning,
+    responses_reasoning_from_reasoning,
+)
 
 
 async def test_model_output_from_openai_basic() -> None:
@@ -525,3 +529,120 @@ async def test_model_output_from_openai_responses_cache_normalization() -> None:
     assert result.usage.input_tokens_cache_read == 600
     assert result.usage.output_tokens == 50
     assert result.usage.total_tokens == 1050
+
+
+# --- Tests for reasoning_from_responses_reasoning (ingest) ---
+
+
+def test_reasoning_from_responses_both_content_and_encrypted() -> None:
+    """When both content and encrypted_content exist, prefer readable content."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_123",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "readable thinking"}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "readable thinking"
+    assert result.redacted is False
+    assert result.internal == {"encrypted_content": "ENCRYPTED_BLOB"}
+    assert result.signature == "rs_123"
+
+
+def test_reasoning_from_responses_only_encrypted() -> None:
+    """When only encrypted_content exists, store it in reasoning as redacted."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_456",
+        type="reasoning",
+        content=None,
+        encrypted_content="ENCRYPTED_ONLY",
+        summary=[],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED_ONLY"
+    assert result.redacted is True
+    assert result.internal is None
+
+
+def test_reasoning_from_responses_only_content() -> None:
+    """When only content exists (no encryption), store readable text normally."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_789",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "just thinking"}],
+        encrypted_content=None,
+        summary=[{"type": "summary_text", "text": "a summary"}],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "just thinking"
+    assert result.redacted is False
+    assert result.internal is None
+    assert result.summary == "a summary"
+
+
+# --- Tests for responses_reasoning_from_reasoning (replay) ---
+
+
+def test_replay_new_format_with_encrypted_in_internal() -> None:
+    """New format: readable in reasoning, encrypted in internal."""
+    content = ContentReasoning(
+        reasoning="readable thinking",
+        redacted=False,
+        internal={"encrypted_content": "ENCRYPTED_BLOB"},
+        signature="rs_123",
+    )
+    result = responses_reasoning_from_reasoning(content)
+    result_content = list(result["content"])
+    assert result["encrypted_content"] == "ENCRYPTED_BLOB"
+    assert len(result_content) == 1
+    assert result_content[0]["text"] == "readable thinking"
+    assert result["id"] == "rs_123"
+
+
+def test_replay_old_format_redacted() -> None:
+    """Old format: encrypted in reasoning, redacted=True."""
+    content = ContentReasoning(
+        reasoning="ENCRYPTED_BLOB",
+        redacted=True,
+        signature="rs_456",
+    )
+    result = responses_reasoning_from_reasoning(content)
+    assert result["encrypted_content"] == "ENCRYPTED_BLOB"
+    assert list(result["content"]) == []
+    assert result["id"] == "rs_456"
+
+
+def test_replay_no_encrypted_content() -> None:
+    """No encryption at all — just readable text."""
+    content = ContentReasoning(
+        reasoning="just thinking",
+        redacted=False,
+        signature="rs_789",
+    )
+    result = responses_reasoning_from_reasoning(content)
+    result_content = list(result["content"])
+    assert result["encrypted_content"] is None
+    assert len(result_content) == 1
+    assert result_content[0]["text"] == "just thinking"
+
+
+# --- Round-trip test ---
+
+
+def test_reasoning_round_trip_preserves_encrypted() -> None:
+    """Ingest then replay preserves both readable text and encrypted content."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_rt",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "readable"}],
+        encrypted_content="ENCRYPTED",
+        summary=[],
+    )
+    content = reasoning_from_responses_reasoning(item)
+    replayed = responses_reasoning_from_reasoning(content)
+    replayed_content = list(replayed["content"])
+    assert replayed["encrypted_content"] == "ENCRYPTED"
+    assert len(replayed_content) == 1
+    assert replayed_content[0]["text"] == "readable"
+    assert replayed["id"] == "rs_rt"
