@@ -2006,6 +2006,18 @@
           "default": null,
           "title": "Max Samples"
         },
+        "max_dataset_memory": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Dataset Memory"
+        },
         "max_tasks": {
           "anyOf": [
             {
@@ -2157,6 +2169,7 @@
         "working_limit",
         "cost_limit",
         "max_samples",
+        "max_dataset_memory",
         "max_tasks",
         "max_subprocesses",
         "max_sandboxes",
@@ -2429,6 +2442,7 @@
             "response_schema": null,
             "extra_headers": null,
             "extra_body": null,
+            "modalities": null,
             "cache": null,
             "batch": null
           }
@@ -2925,6 +2939,33 @@
           "title": "Attachments",
           "type": "object"
         },
+        "message_pool": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Message Pool",
+          "type": "array"
+        },
+        "call_pool": {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Call Pool",
+          "type": "array"
+        },
         "limit": {
           "anyOf": [
             {
@@ -2964,6 +3005,8 @@
         "error",
         "error_retries",
         "attachments",
+        "message_pool",
+        "call_pool",
         "limit"
       ],
       "title": "EvalSample",
@@ -4134,6 +4177,29 @@
           "default": null,
           "title": "Extra Body"
         },
+        "modalities": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "const": "image",
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/ImageOutput"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modalities"
+        },
         "cache": {
           "anyOf": [
             {
@@ -4202,8 +4268,39 @@
         "response_schema",
         "extra_headers",
         "extra_body",
+        "modalities",
         "cache",
         "batch"
+      ],
+      "additionalProperties": false
+    },
+    "ImageOutput": {
+      "description": "Image output configuration.\n\nUse the `options` field to pass provider-specific options directly\nto the underlying API (e.g. OpenAI image_generation tool parameters).",
+      "properties": {
+        "options": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "propertyNames": {
+                "const": "openai"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        }
+      },
+      "title": "ImageOutput",
+      "type": "object",
+      "required": [
+        "options"
       ],
       "additionalProperties": false
     },
@@ -4616,6 +4713,42 @@
       "additionalProperties": false
     },
     "JsonValue": {},
+    "LogUpdate": {
+      "description": "A group of edits that share provenance.",
+      "properties": {
+        "edits": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "metadata": "#/$defs/MetadataEdit",
+                "tags": "#/$defs/TagsEdit"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TagsEdit"
+              },
+              {
+                "$ref": "#/$defs/MetadataEdit"
+              }
+            ]
+          },
+          "title": "Edits",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ProvenanceData"
+        }
+      },
+      "required": [
+        "edits",
+        "provenance"
+      ],
+      "title": "LogUpdate",
+      "type": "object",
+      "additionalProperties": false
+    },
     "LoggerEvent": {
       "description": "Log message recorded with Python logger.",
       "properties": {
@@ -4837,6 +4970,37 @@
       "type": "object",
       "additionalProperties": false
     },
+    "MetadataEdit": {
+      "description": "Edit action for metadata.",
+      "properties": {
+        "type": {
+          "const": "metadata",
+          "default": "metadata",
+          "title": "Type",
+          "type": "string"
+        },
+        "metadata_set": {
+          "additionalProperties": true,
+          "title": "Metadata Set",
+          "type": "object"
+        },
+        "metadata_remove": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Metadata Remove",
+          "type": "array"
+        }
+      },
+      "title": "MetadataEdit",
+      "type": "object",
+      "required": [
+        "type",
+        "metadata_set",
+        "metadata_remove"
+      ],
+      "additionalProperties": false
+    },
     "ModelCall": {
       "description": "Model call (raw request/response data).",
       "properties": {
@@ -4885,13 +5049,52 @@
           ],
           "default": null,
           "title": "Time"
+        },
+        "call_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Refs"
+        },
+        "call_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call Key"
         }
       },
       "required": [
         "request",
         "response",
         "error",
-        "time"
+        "time",
+        "call_refs",
+        "call_key"
       ],
       "title": "ModelCall",
       "type": "object",
@@ -5038,6 +5241,31 @@
           "title": "Input",
           "type": "array"
         },
+        "input_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Refs"
+        },
         "tools": {
           "items": {
             "$ref": "#/$defs/ToolInfo"
@@ -5179,6 +5407,7 @@
         "model",
         "role",
         "input",
+        "input_refs",
         "tools",
         "tool_choice",
         "config",
@@ -7148,6 +7377,39 @@
       "type": "object",
       "additionalProperties": false
     },
+    "TagsEdit": {
+      "description": "Edit action for tags.",
+      "properties": {
+        "type": {
+          "const": "tags",
+          "default": "tags",
+          "title": "Type",
+          "type": "string"
+        },
+        "tags_add": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags Add",
+          "type": "array"
+        },
+        "tags_remove": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags Remove",
+          "type": "array"
+        }
+      },
+      "title": "TagsEdit",
+      "type": "object",
+      "required": [
+        "type",
+        "tags_add",
+        "tags_remove"
+      ],
+      "additionalProperties": false
+    },
     "Timeline": {
       "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
       "properties": {
@@ -8287,6 +8549,33 @@
       "default": false,
       "title": "Invalidated",
       "type": "boolean"
+    },
+    "log_updates": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/LogUpdate"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Log Updates"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
     },
     "samples": {
       "anyOf": [

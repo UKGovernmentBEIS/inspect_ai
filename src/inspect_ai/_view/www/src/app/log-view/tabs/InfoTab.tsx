@@ -20,6 +20,7 @@ export const useInfoTabConfig = (
   evalError: EvalError | undefined | null,
   evalResults: EvalResults | undefined | null,
   evalStatus: Status | undefined | null,
+  metadata?: Record<string, unknown>,
 ) => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const totalSampleCount = useTotalSampleCount();
@@ -35,6 +36,7 @@ export const useInfoTabConfig = (
         evalError,
         evalResults,
         evalStatus,
+        metadata,
         sampleCount: totalSampleCount,
         scrollRef,
       },
@@ -46,6 +48,7 @@ export const useInfoTabConfig = (
     evalError,
     evalResults,
     evalStatus,
+    metadata,
     totalSampleCount,
   ]);
 };
@@ -57,6 +60,7 @@ interface InfoTabProps {
   evalResults?: EvalResults;
   samples?: SampleSummary[];
   evalStatus?: Status;
+  metadata?: Record<string, unknown>;
   sampleCount?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
 }
@@ -66,6 +70,7 @@ export const InfoTab: FC<InfoTabProps> = ({
   evalPlan,
   evalResults,
   evalStatus,
+  metadata,
   sampleCount,
   scrollRef,
 }) => {
@@ -91,6 +96,7 @@ export const InfoTab: FC<InfoTabProps> = ({
           evalSpec={evalSpec}
           evalPlan={evalPlan}
           scores={evalResults?.scores}
+          metadata={metadata}
           scrollRef={scrollRef}
         />
       </div>

@@ -10,6 +10,14 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 
 
+def test_eval_epochs_sample_count():
+    task = Task(dataset=[Sample(input="s1"), Sample(input="s2")])
+    log = eval(task, model="mockllm/model", epochs=3)[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    assert len(log.samples) == 6  # 2 samples * 3 epochs
+
+
 @pytest.mark.anyio
 async def test_no_concurrent_eval_async():
     tasks = [

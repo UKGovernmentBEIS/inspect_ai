@@ -47,6 +47,7 @@ export const LogView: FC = () => {
     selectedLogDetails?.error,
     selectedLogDetails?.results,
     selectedLogDetails?.status,
+    selectedLogDetails?.metadata,
   );
 
   const errorTabConfig = useErrorTabConfig(selectedLogDetails?.error);
@@ -55,6 +56,7 @@ export const LogView: FC = () => {
     evalSpec,
     selectedLogDetails?.stats,
     selectedLogDetails?.results?.early_stopping,
+    selectedLogDetails?.tags,
   );
 
   const modelsTabConfig = useModelsTab(
@@ -63,15 +65,7 @@ export const LogView: FC = () => {
     selectedLogDetails?.status,
   );
 
-  const jsonTabConfig = useJsonTabConfig(
-    selectedLogDetails?.version,
-    selectedLogDetails?.status,
-    evalSpec,
-    selectedLogDetails?.plan,
-    selectedLogDetails?.error,
-    selectedLogDetails?.results,
-    selectedLogDetails?.stats,
-  );
+  const jsonTabConfig = useJsonTabConfig(selectedLogDetails);
 
   const tabs: Record<string, TabDescriptor<any>> = {
     ...(samplesTabConfig ? { samples: samplesTabConfig } : {}),

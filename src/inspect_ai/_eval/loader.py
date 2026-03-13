@@ -26,6 +26,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
+from inspect_ai.scorer._metric import Metric, MetricSpec, metric_create
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
@@ -669,6 +670,70 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
             else:
                 raise PrerequisiteError(
                     f"The function {scorer_name} was not found in file {pretty_scorer_file}."
+                )
+
+
+def metric_from_spec(spec: MetricSpec, **kwargs: Any) -> Metric:
+    """
+    Load a metric
+
+    Args:
+        spec: The metric spec
+        **kwargs: Additional keyword arguments passed to the metric initialization
+
+    Returns:
+        Metric: the loaded metric
+
+    Raises:
+        PrerequisiteError: If the metric cannot be found or loaded
+    """
+    # resolve @ reference
+    metric_file, metric_name = parse_spec_str(spec.metric)
+
+    # switch contexts if we are loading from a file
+    create_cm = (
+        chdir_python(metric_file.parent.as_posix())
+        if metric_file is not None
+        else contextlib.nullcontext()
+    )
+
+    # pretty metric name for error messages
+    pretty_metric_file = (
+        cwd_relative_path(metric_file.as_posix()) if metric_file else None
+    )
+
+    with create_cm:
+        # is there a metric file being provided? if not, load from registry
+        if metric_file is None:
+            if metric_name is None:
+                raise ValueError(f"Unable to resolve metric name from {spec.metric}")
+
+            return metric_create(metric_name, **kwargs)
+
+        # metric is a path, so load it that way
+        else:
+            load_module(metric_file)
+            metric_decorators = parse_decorators(metric_file, "metric")
+
+            # if there is no metric_name see if we can discover it
+            if metric_name is None:
+                if len(metric_decorators) == 1:
+                    metric_name = metric_decorators[0][0]
+                elif len(metric_decorators) == 0:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_metric_file} does not contain any @metric functions."
+                    )
+                else:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_metric_file} has more than one @metric function (qualify which metric using e.g. '{metric_file.name}@metric_fn')"
+                    )
+
+            # create decorator based metrics using the registry
+            if any(metric[0] == metric_name for metric in metric_decorators):
+                return metric_create(metric_name, **kwargs)
+            else:
+                raise PrerequisiteError(
+                    f"The function {metric_name} was not found in file {pretty_metric_file}."
                 )
 
 

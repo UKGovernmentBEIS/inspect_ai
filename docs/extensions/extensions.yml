@@ -52,6 +52,12 @@
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
+- name: "[MLflow Tracking Hook](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py)"
+  description: |
+    Log Inspect evaluations to MLflow with hierarchical run tracking, per-sample metrics, and artifact logging.
+  author: "[Debu Sinha](https://github.com/debu-sinha)"
+  categories: ["Analysis"]
+
 - name: "[CJE](https://github.com/cimo-labs/cje)"
   description: |
     Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
