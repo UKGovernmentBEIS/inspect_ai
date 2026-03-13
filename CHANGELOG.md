@@ -1,3 +1,7 @@
+## 0.3.193 (13 March 2026)
+
+- OpenAI: Don't serialize unspecified fields in `ResponseCustomToolCallParam`.
+
 ## 0.3.192 (13 March 2026)
 
 - Anthropic: Fallback to summary compaction when native compaction fails to compact.
