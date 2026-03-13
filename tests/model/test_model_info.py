@@ -178,3 +178,19 @@ class TestGetModelInputTokens:
         model = get_model("anthropic/claude-opus-4-6")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+    def test_claude_latest_defaults_to_200k(self):
+        """Test that a future Claude model (is_claude_latest) maps to haiku-4-5 (200K)."""
+        # Use a hypothetical future model name that triggers is_claude_latest()
+        model = get_model("anthropic/claude-sonnet-4-9")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 200_000
+
+    def test_claude_latest_with_1m_beta(self):
+        """Test that a future Claude model with 1M beta maps to opus-4-6 (1MM)."""
+        model = get_model(
+            "anthropic/claude-sonnet-4-9",
+            betas=["context-1m-2025-08-07"],
+        )
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
