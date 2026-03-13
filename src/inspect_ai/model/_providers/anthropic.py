@@ -940,7 +940,7 @@ class AnthropicAPI(ModelAPI):
         if "context-1m-2025-08-07" in self.betas:
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
-            return "claude-haiku-4-5"  # 200K
+            return "anthropic/claude-haiku-4-5"  # 200K
         else:
             return self.canonical_name()
 

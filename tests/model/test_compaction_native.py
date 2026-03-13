@@ -66,6 +66,22 @@ def test_add_edit_compaction_sets_high_trigger_1m_context() -> None:
     assert edits[0]["trigger"]["value"] == 990_000
 
 
+def test_add_edit_compaction_sets_high_trigger_1m_context_direct() -> None:
+    """_add_edit_compaction sets high trigger when has_1mm_context=True (no beta)."""
+    from typing import Any
+
+    request: dict[str, Any] = {}
+    betas: list[str] = []
+
+    _add_edit_compaction(request, betas, has_1mm_context=True)
+
+    # Verify trigger is set to 990k (just below 1M context limit)
+    edits = request.get(EXTRA_BODY, {}).get(CONTEXT_MANAGEMENT, {}).get(EDITS, [])
+    assert len(edits) == 1
+    assert edits[0]["trigger"]["type"] == "input_tokens"
+    assert edits[0]["trigger"]["value"] == 990_000
+
+
 async def test_native_raises_not_implemented() -> None:
     """CompactionNative raises NotImplementedError on unsupported providers."""
     strategy = CompactionNative()
