@@ -431,7 +431,11 @@ class AnthropicAPI(ModelAPI):
             if _input_has_compaction(input) and not _request_has_edit_compaction(
                 request
             ):
-                _add_edit_compation(request, betas)
+                _add_edit_compaction(
+                    request=request,
+                    betas=betas,
+                    has_1mm_context=self.is_claude_4_6(),
+                )
 
             # add compaction beta header if required
             if _request_has_edit_compaction(request):
@@ -931,6 +935,15 @@ class AnthropicAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"anthropic/{self.service_model_name()}"
+
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        if "context-1m-2025-08-07" in self.betas:
+            return "anthropic/claude-opus-4-6"  # 1MM
+        elif self.is_claude_latest():
+            return "claude-haiku-4-5"  # 200K
+        else:
+            return self.canonical_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -2330,7 +2343,9 @@ CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 
 
-def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
+def _add_edit_compaction(
+    request: dict[str, Any], betas: list[str], has_1mm_context: bool = False
+) -> None:
     """Add compaction edit to request without triggering new compaction.
 
     When messages already contain compaction blocks, we need to include
@@ -2339,7 +2354,7 @@ def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
     (user controls compaction via their own threshold).
     """
     # Determine max trigger based on context window
-    if "context-1m-2025-08-07" in betas:
+    if ("context-1m-2025-08-07" in betas) or has_1mm_context:
         max_trigger = 990_000  # Just below 1M context
     else:
         max_trigger = 190_000  # Just above default 150k trigger
