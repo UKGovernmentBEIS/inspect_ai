@@ -11,6 +11,7 @@
 - Compaction: Prevent trailing assistant messages for `CompactionEdit` and `CompactionNative` strategies.
 - Agents: Strip citations from content returned via `as_tool()` agent wrapper.
 - Agent Bridge: Print errors which occur in model proxy to stderr.
+- Sandbox Tools: Prevent race conditions when multiple coroutines attempt to inject sandbox tools.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
 - Eval Logs: Materialize `samples` and `reductions` fields lazily in `EvalLog` returned by `eval()`.
@@ -23,6 +24,7 @@
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Inspect View: Embed viewer directly in the log directory instead of a `viewer/` subdirectory, fixing permission issues when serving logs.
 - Inspect View: Fix incorrectly themed sample column header text in VS Code (especially dark themes).
+- Inspect View: Fix issue where expanding one message in a sample chat would expand all messages.
 - Bugfix: Handle dicts with numeric keys in json_changes.
 - Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.
 - Bugfix: Catch `NotADirectoryError` when locating sandbox tools binary so S3 download/build fallbacks run on Python < 3.13.
