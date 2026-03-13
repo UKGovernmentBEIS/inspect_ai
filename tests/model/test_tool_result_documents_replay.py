@@ -91,8 +91,8 @@ async def test_model_generate_preserves_document_tool_results_for_supporting_pro
     )
 
 
-async def test_model_generate_applies_image_and_document_rewrites_together():
-    """Image and document fallbacks both run when native replay is unavailable."""
+async def test_model_generate_preserves_image_and_document_order_in_fallback():
+    """Mixed media fallback preserves the original content order."""
     image = ContentImage(image="image_for_tool")
     document = ContentDocument(document="/path/to/report.pdf")
     api = _CaptureAPI()
@@ -113,8 +113,7 @@ async def test_model_generate_applies_image_and_document_rewrites_together():
                     ContentText(text="Document content is included below."),
                 ],
             ),
-            ChatMessageUser(content=[document], tool_call_id=["mixed"]),
-            ChatMessageUser(content=[image], tool_call_id=["mixed"]),
+            ChatMessageUser(content=[image, document], tool_call_id=["mixed"]),
         ],
     )
 

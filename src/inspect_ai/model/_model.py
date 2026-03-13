@@ -849,15 +849,18 @@ class Model:
             ),
         )
 
-        # break tool image content out into user messages if the model doesn't
-        # support tools returning images
-        if not self.api.tool_result_images():
-            input = tool_result_images_as_user_message(input)
+        if not self.api.tool_result_images() and not self.api.tool_result_documents():
+            input = tool_result_images_and_documents_as_user_message(input)
+        else:
+            # break tool image content out into user messages if the model doesn't
+            # support tools returning images
+            if not self.api.tool_result_images():
+                input = tool_result_images_as_user_message(input)
 
-        # break tool document content out into user messages if the model doesn't
-        # support tools returning documents
-        if not self.api.tool_result_documents():
-            input = tool_result_documents_as_user_message(input)
+            # break tool document content out into user messages if the model doesn't
+            # support tools returning documents
+            if not self.api.tool_result_documents():
+                input = tool_result_documents_as_user_message(input)
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -1691,6 +1694,23 @@ def tool_result_images_as_user_message(
     return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
 
 
+def tool_result_images_and_documents_as_user_message(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    """
+    To conform to models lacking support for images and documents in tool responses, create an alternate message history that moves both into a fabricated user message.
+
+    Tool responses will have images replaced with "Image content is included below.", documents replaced with "Document content is included below.", and the new user message will contain the images and documents in their original order.
+    """
+    chat_messages, user_message_content, tool_call_ids = functools.reduce(
+        tool_result_images_and_documents_reducer,
+        messages,
+        (list[ChatMessage](), list[Content](), list[str]()),
+    )
+    # if the last message was a tool result, we may need to flush the pending stuff here
+    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
+
+
 def tool_result_documents_as_user_message(
     messages: list[ChatMessage],
 ) -> list[ChatMessage]:
@@ -1803,6 +1823,46 @@ def tool_result_documents_reducer(
         )
 
 
+def tool_result_images_and_documents_reducer(
+    accum: tuple[list[ChatMessage], list[Content], list[str]],
+    message: ChatMessage,
+) -> tuple[list[ChatMessage], list[Content], list[str]]:
+    messages, pending_content, tool_call_ids = accum
+    if (
+        isinstance(message, ChatMessageTool)
+        and isinstance(message.content, list)
+        and any(
+            [isinstance(c, (ContentImage, ContentDocument)) for c in message.content]
+        )
+    ):
+        new_user_message_content, edited_tool_message_content = functools.reduce(
+            tool_result_image_and_document_content_reducer,
+            message.content,
+            (list[Content](), list[Content]()),
+        )
+
+        return (
+            messages
+            + [
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
+                )
+            ],
+            pending_content + new_user_message_content,
+            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
+        )
+
+    else:
+        return (
+            maybe_adding_user_message(messages, pending_content, tool_call_ids)
+            + [message],
+            [],
+            [],
+        )
+
+
 ImageContentAccumulator = tuple[list[Content], list[Content]]
 """
 ImageContentAccumulator is a tuple containing two lists of Content objects:
@@ -1857,6 +1917,30 @@ def tool_result_document_content_reducer(
             ContentText(text="Document content is included below.")
         ]
 
+    else:
+        return new_user_message_content, edited_tool_message_content + [content]
+
+
+def tool_result_image_and_document_content_reducer(
+    acc: tuple[list[Content], list[Content]], content: Content
+) -> tuple[list[Content], list[Content]]:
+    """
+    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and documents and one for modified tool message with the images and documents replaced with text.
+
+    Returns:
+      A tuple containing two lists of Content objects.
+        - The first list contains the images and documents that will be included in a fabricated user message.
+        - The second list contains modified content for the tool message with images and documents replaced with text.
+    """
+    new_user_message_content, edited_tool_message_content = acc
+    if isinstance(content, ContentImage):
+        return new_user_message_content + [content], edited_tool_message_content + [
+            ContentText(text="Image content is included below.")
+        ]
+    elif isinstance(content, ContentDocument):
+        return new_user_message_content + [content], edited_tool_message_content + [
+            ContentText(text="Document content is included below.")
+        ]
     else:
         return new_user_message_content, edited_tool_message_content + [content]
 
