@@ -35,11 +35,6 @@ class CompactionStrategy(abc.ABC):
         return self._memory
 
     @property
-    def retries(self) -> int:
-        """Number of retry iterations for compaction. 0 means no retries."""
-        return 3
-
-    @property
     def preserve_prefix(self) -> bool:
         """Instruction to orchestrator: preserve prefix messages in compacted output.
 

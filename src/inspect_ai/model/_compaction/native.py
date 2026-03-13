@@ -48,12 +48,6 @@ class CompactionNative(CompactionStrategy):
 
     @property
     @override
-    def retries(self) -> int:
-        """Native compaction is all-or-nothing server-side; retries won't help."""
-        return 0
-
-    @property
-    @override
     def preserve_prefix(self) -> bool:
         """Instruction to orchestrator: do not preserve prefix messages.
 

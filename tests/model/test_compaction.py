@@ -547,8 +547,6 @@ async def test_iterative_compaction_succeeds() -> None:
 
 async def test_iterative_compaction_stops_when_no_progress() -> None:
     """Test that iteration stops if compaction makes no progress."""
-    from unittest.mock import patch
-
     # CompactionEdit with nothing to clear should stop immediately
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
     model = get_model("mockllm/model")
@@ -562,18 +560,13 @@ async def test_iterative_compaction_stops_when_no_progress() -> None:
         user_msg("Q" * 100, "msg1"),
     ]
 
-    # Should warn and proceed since Edit can't reduce these messages
-    with patch("inspect_ai.model._compaction._compaction.logger") as mock_logger:
+    # Should raise RuntimeError since Edit can't reduce these messages
+    with pytest.raises(RuntimeError, match="Compaction insufficient"):
         await compact.compact_input(messages)
-        mock_logger.warning.assert_called_once()
-        warning_msg = mock_logger.warning.call_args[0][0]
-        assert "Compaction insufficient" in warning_msg
 
 
-async def test_compaction_warning_message_breakdown() -> None:
-    """Test that warning includes tools, prefix, messages breakdown."""
-    from unittest.mock import patch
-
+async def test_compaction_error_message_breakdown() -> None:
+    """Test that RuntimeError includes tools, prefix, messages breakdown."""
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
     model = get_model("mockllm/model")
 
@@ -586,13 +579,13 @@ async def test_compaction_warning_message_breakdown() -> None:
         user_msg("Q" * 100, "msg1"),
     ]
 
-    with patch("inspect_ai.model._compaction._compaction.logger") as mock_logger:
+    with pytest.raises(RuntimeError) as exc_info:
         await compact.compact_input(messages)
-        mock_logger.warning.assert_called_once()
-        warning_msg = mock_logger.warning.call_args[0][0]
-        assert "tools:" in warning_msg
-        assert "prefix:" in warning_msg
-        assert "messages:" in warning_msg
+
+    error_msg = str(exc_info.value)
+    assert "tools:" in error_msg
+    assert "prefix:" in error_msg
+    assert "messages:" in error_msg
 
 
 # ==============================================================================
