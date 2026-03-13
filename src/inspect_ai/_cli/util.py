@@ -168,6 +168,8 @@ def parse_model_role_cli_args(
         if isinstance(params, dict):
             model_name = params.pop("model", None)
             model_args = params.pop("model_args", {})
+            if not isinstance(model_args, dict):
+                raise ValueError("model_args must be a dict")
             try:
                 config = GenerateConfig(**params)
             except ValidationError as e:
