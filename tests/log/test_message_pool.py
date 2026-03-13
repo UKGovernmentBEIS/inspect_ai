@@ -1,5 +1,6 @@
 """Tests for message pool deduplication in .eval files."""
 
+import json
 import os
 import tempfile
 from typing import Literal
@@ -806,8 +807,91 @@ def test_condense_expand_events_call_pool_round_trip():
     assert len(model_events[1].call.request["messages"]) == 3
 
 
+def test_expand_events_json_string_events():
+    """expand_events accepts events as a JSON string."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed, data = condense_events(sample.events)
+    events_json = json.dumps([e.model_dump() for e in condensed])
+
+    expanded = expand_events(events_json, data)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].input) == 2
+    assert len(model_events[1].input) == 4
+    assert len(model_events[2].input) == 5
+
+
+def test_expand_events_json_string_data():
+    """expand_events accepts data as a JSON string."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed, data = condense_events(sample.events)
+    data_json = json.dumps(
+        {
+            "messages": [m.model_dump() for m in data["messages"]],
+            "calls": data["calls"],
+        }
+    )
+
+    expanded = expand_events(condensed, data_json)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].input) == 2
+    assert len(model_events[1].input) == 4
+    assert len(model_events[2].input) == 5
+
+
+def test_expand_events_both_json_strings():
+    """expand_events accepts both params as JSON strings."""
+    sample = _make_sample_with_call_messages()
+    condensed, data = condense_events(sample.events)
+    events_json = json.dumps([e.model_dump() for e in condensed])
+    data_json = json.dumps(
+        {
+            "messages": [m.model_dump() for m in data["messages"]],
+            "calls": data["calls"],
+        }
+    )
+
+    expanded = expand_events(events_json, data_json)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].call.request["messages"]) == 1
+    assert len(model_events[1].call.request["messages"]) == 3
+
+
 def test_expand_events_empty_pools_is_noop():
     """expand_events with empty pools returns events unchanged."""
     sample = _make_sample_with_repeated_inputs()
     result = expand_events(sample.events, {"messages": [], "calls": []})
     assert len(result) == len(sample.events)
+
+
+def test_resolve_call_empty_refs_preserves_request():
+    """Resolve must not corrupt call.request when call_refs is [] (deserialized as empty).
+
+    Regression: if persistence stores call_refs as [] instead of null,
+    resolve_model_event_calls fires ([] is not None), expands to no messages,
+    then sets request[default_key] = [], adding a spurious 'messages' key
+    and potentially masking the original 'input' field.
+    """
+    from inspect_ai.log._pool import resolve_model_event_calls
+
+    call = ModelCall(
+        request={"model": "test", "input": "What is 2+2?"},
+        response={"choices": []},
+        call_refs=[],  # simulates deserialization storing [] instead of null
+        call_key=None,
+    )
+    event = ModelEvent(
+        model="test-model",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        call=call,
+    )
+
+    resolved = resolve_model_event_calls([event], call_pool=["dummy"])
+    resolved_call = resolved[0].call
+
+    # request must be unchanged — no spurious keys, 'input' preserved
+    assert resolved_call.request == {"model": "test", "input": "What is 2+2?"}
+    assert "messages" not in resolved_call.request
