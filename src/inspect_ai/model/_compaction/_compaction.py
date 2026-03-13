@@ -8,7 +8,7 @@ from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageUser
 from .._model import Model, get_model
-from .._model_info import get_model_info
+from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
 from .types import Compact, CompactionStrategy
@@ -321,10 +321,8 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
         return int(threshold)
     else:
         # Look up the model's input token capacity
-        info = get_model_info(model)
-        if info and info.input_tokens:
-            context_window = info.input_tokens
-        else:
+        context_window = get_model_input_tokens(model)
+        if context_window is None:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"
             )
