@@ -105,11 +105,17 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
                 )
 
         # Start the server as root so it can setuid to any user for exec_remote.
-        # If the container doesn't support root, the server starts as whatever
-        # user is available and user-switching is disabled (auto-detected).
+        # If root isn't available, fall back to the sandbox's default user —
+        # user-switching will be disabled (auto-detected by the server).
         result = await sandbox.exec([SANDBOX_CLI, "healthcheck"], user="root")
-        if not result.success:
-            raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
+        if result.success:
+            sandbox._tools_user = "root"
+        else:
+            result = await sandbox.exec([SANDBOX_CLI, "healthcheck"])
+            if not result.success:
+                raise RuntimeError(
+                    f"Failed to start sandbox tools server: {result.stderr}"
+                )
     except Exception as e:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e

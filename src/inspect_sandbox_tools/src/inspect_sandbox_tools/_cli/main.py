@@ -152,7 +152,10 @@ def _read_server_logs() -> str:
 
 def _can_connect_to_socket() -> bool:
     """Test if we can connect to the Unix domain socket."""
-    if not SOCKET_PATH.exists():
+    try:
+        if not SOCKET_PATH.exists():
+            return False
+    except PermissionError:
         return False
 
     try:
