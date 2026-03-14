@@ -276,7 +276,9 @@ def tool_result_content(
     if isinstance(content, str):
         return content
     else:
-        result: list[ContentText | ContentImage | ContentAudio | ContentVideo] = []
+        result: list[
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument
+        ] = []
         for c in content:
             if isinstance(c, ContentText):
                 # Strip citations — they reference server-side tool results
@@ -284,7 +286,9 @@ def tool_result_content(
                 if c.citations:
                     c = c.model_copy(update={"citations": None})
                 result.append(c)
-            elif isinstance(c, ContentImage | ContentAudio | ContentVideo | ContentDocument):
+            elif isinstance(
+                c, ContentImage | ContentAudio | ContentVideo | ContentDocument
+            ):
                 result.append(c)
         return result
 
