@@ -88,7 +88,6 @@ class TestMakePreexec:
 class TestJobCreateHomeEnv:
     """Test that Job.create() sets HOME when switching users."""
 
-    @pytest.mark.asyncio
     async def test_user_sets_home_from_passwd(self) -> None:
         """When switching user, HOME should be set from /etc/passwd."""
         from unittest.mock import AsyncMock
@@ -119,7 +118,6 @@ class TestJobCreateHomeEnv:
             _, kwargs = mock_create.call_args
             assert kwargs["env"]["HOME"] == "/nonexistent"
 
-    @pytest.mark.asyncio
     async def test_no_user_does_not_override_home(self) -> None:
         """When not switching user, HOME should not be modified."""
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
@@ -129,7 +127,6 @@ class TestJobCreateHomeEnv:
         # No assertion on env needed — just verify it doesn't crash.
         # The subprocess inherits os.environ unchanged when env=None.
 
-    @pytest.mark.asyncio
     async def test_unknown_user_sets_home_to_slash(self) -> None:
         """When passwd lookup fails for HOME, fall back to '/'."""
         from unittest.mock import AsyncMock
@@ -173,7 +170,6 @@ class TestJobCreateHomeEnv:
 class TestJobCreateUserValidation:
     """Test that Job.create() rejects user when can_switch_user is False."""
 
-    @pytest.mark.asyncio
     async def test_user_without_can_switch_raises(self) -> None:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
         from inspect_sandbox_tools._util.common_types import ToolException
@@ -181,7 +177,6 @@ class TestJobCreateUserValidation:
         with pytest.raises(ToolException, match="Cannot switch to user"):
             await Job.create("echo hello", user="nobody", can_switch_user=False)
 
-    @pytest.mark.asyncio
     async def test_no_user_without_can_switch_works(self) -> None:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 
@@ -189,7 +184,6 @@ class TestJobCreateUserValidation:
         assert job.pid > 0
         await job.kill()
 
-    @pytest.mark.asyncio
     async def test_current_user_without_can_switch_works(self) -> None:
         """Requesting the current user should succeed even without root."""
         import getpass
@@ -206,7 +200,6 @@ class TestExecRemoteUserIntegration:
     """Integration tests requiring root. Skipped when not root."""
 
     @pytest.mark.skipif(os.getuid() != 0, reason="Requires root")
-    @pytest.mark.asyncio
     async def test_run_as_nobody(self) -> None:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 
