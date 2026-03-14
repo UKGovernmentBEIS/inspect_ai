@@ -96,24 +96,9 @@ export const fetchManifest = async (
     const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
     return { raw: text, parsed };
   };
-  const handle404 = (response: Response): boolean => {
-    return response.status === 404;
-  };
-
-  // Try log_dir first, then fall back to ./listing.json (for embedded viewers
-  // where listing.json is placed alongside the viewer assets)
-  const logs = await fetchFile<LogFilesFetchResponse>(
+  return await fetchFile<LogFilesFetchResponse>(
     log_dir + "/listing.json",
     parseListing,
-    handle404,
-  );
-  if (logs) {
-    return logs;
-  }
-  return await fetchFile<LogFilesFetchResponse>(
-    "./listing.json",
-    parseListing,
-    handle404,
   );
 };
 

@@ -13,6 +13,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
+from inspect_ai.model._openai import openai_completion_params
 
 
 @pytest.mark.anyio
@@ -45,6 +46,20 @@ def test_openai_verbosity() -> None:
         verbosity="low",
     )[0]
     assert log.status == "success"
+
+
+def test_openai_completion_params_extra_body_not_mutated() -> None:
+    config = GenerateConfig(
+        extra_body={"metadata": {"source": "test"}, "reasoning": {"effort": "low"}}
+    )
+
+    for _ in range(2):
+        params = openai_completion_params("gpt-4o-mini", config, tools=False)
+        assert params["extra_body"] == {"reasoning": {"effort": "low"}}
+        assert config.extra_body == {
+            "metadata": {"source": "test"},
+            "reasoning": {"effort": "low"},
+        }
 
 
 @skip_if_no_openai

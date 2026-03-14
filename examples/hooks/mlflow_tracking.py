@@ -18,8 +18,10 @@ Then import this module before running evals:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import tempfile
 from typing import Any
 
 import mlflow  # type: ignore[import-not-found]
@@ -63,6 +65,14 @@ def _score_to_numeric(value: Any) -> float | None:
         mapping = {"C": 1.0, "I": 0.0, "P": 0.5, "correct": 1.0, "incorrect": 0.0}
         return mapping.get(value)
     return None
+
+
+def _truncate(text: Any, max_len: int = 500) -> str:
+    """Truncate text to max_len characters, adding ellipsis if truncated."""
+    s = str(text) if text is not None else ""
+    if len(s) > max_len:
+        return s[: max_len - 3] + "..."
+    return s
 
 
 @hooks(name="mlflow_tracking", description="MLflow Tracking")
@@ -223,12 +233,78 @@ class MlflowTrackingHooks(Hooks):
             except Exception:
                 pass
 
+        # Log eval artifacts (sample results table + eval log JSON)
+        if os.getenv("MLFLOW_INSPECT_LOG_ARTIFACTS", "true").lower() != "false":
+            self._log_eval_artifacts(log)
+
         # Log eval status
         status = "FINISHED" if log.status == "success" else "FAILED"
         mlflow.end_run(status=status)
         self._task_runs.pop(eval_id, None)
         self._tasks.pop(eval_id, None)
         self._event_counts.pop(eval_id, None)
+
+    def _log_eval_artifacts(self, log: Any) -> None:
+        """Log eval artifacts: per-sample results table and eval log JSON."""
+        try:
+            self._log_sample_table(log)
+        except Exception:
+            logger.debug("Failed to log sample results artifact", exc_info=True)
+        try:
+            self._log_eval_json(log)
+        except Exception:
+            logger.debug("Failed to log eval log artifact", exc_info=True)
+
+    def _log_sample_table(self, log: Any) -> None:
+        """Write per-sample results as a JSON artifact under sample_results/."""
+        if not log.samples:
+            return
+
+        rows = []
+        for sample in log.samples:
+            row: dict[str, Any] = {
+                "id": sample.id,
+                "epoch": sample.epoch,
+                "input": _truncate(sample.input, 500),
+                "target": _truncate(sample.target, 300),
+                "total_time": sample.total_time,
+                "error": getattr(sample, "error", None),
+            }
+            if sample.output and sample.output.choices:
+                first_choice = sample.output.choices[0]
+                row["output"] = _truncate(first_choice.message.text, 500)
+            else:
+                row["output"] = ""
+            if sample.scores:
+                for scorer_name, score in sample.scores.items():
+                    row[f"score/{scorer_name}"] = score.value
+                    if score.explanation:
+                        row[f"explanation/{scorer_name}"] = _truncate(
+                            score.explanation, 300
+                        )
+            rows.append(row)
+
+        eval_id = log.eval.eval_id if log.eval else "unknown"
+        fd, path = tempfile.mkstemp(prefix=f"sample_results_{eval_id}_", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(rows, f, indent=2, default=str)
+            mlflow.log_artifact(path, artifact_path="sample_results")
+        finally:
+            os.unlink(path)
+
+    def _log_eval_json(self, log: Any) -> None:
+        """Write EvalLog (minus samples) as JSON under eval_logs/."""
+        eval_id = log.eval.eval_id if log.eval else "unknown"
+        log_data = log.model_dump(mode="json", exclude={"samples"})
+
+        fd, path = tempfile.mkstemp(prefix=f"eval_log_{eval_id}_", suffix=".json")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(log_data, f, indent=2, default=str)
+            mlflow.log_artifact(path, artifact_path="eval_logs")
+        finally:
+            os.unlink(path)
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         eval_id = data.eval_id

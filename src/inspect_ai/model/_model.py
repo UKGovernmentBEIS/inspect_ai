@@ -220,6 +220,10 @@ class ModelAPI(abc.ABC):
         """Canonical model name for querying results."""
         return self.model_name
 
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        return self.canonical_name()
+
     @abc.abstractmethod
     async def generate(
         self,
@@ -491,6 +495,10 @@ class Model:
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return self.api.canonical_name()
+
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        return self.api.input_tokens_name()
 
     @property
     def explicit_base_url(self) -> str | None:

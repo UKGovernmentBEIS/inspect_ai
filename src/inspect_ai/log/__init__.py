@@ -4,7 +4,13 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
 from ._bundle import bundle_log_dir
-from ._condense import condense_sample, resolve_sample_attachments
+from ._condense import (
+    EventsData,
+    condense_events,
+    condense_sample,
+    expand_events,
+    resolve_sample_attachments,
+)
 from ._convert import convert_eval_logs
 from ._edit import (
     LogEdit,
@@ -87,6 +93,9 @@ __all__ = [
     "read_eval_log_samples",
     "read_eval_log_sample_summaries",
     "condense_sample",
+    "condense_events",
+    "EventsData",
+    "expand_events",
     "resolve_sample_attachments",
     "resolve_sample_message_pool",
     "write_eval_log",

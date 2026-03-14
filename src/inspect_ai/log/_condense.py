@@ -1,11 +1,13 @@
+import json
 from logging import getLogger
 from typing import (
     Callable,
     Literal,
+    Sequence,
     TypedDict,
 )
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_schema_version
 from inspect_ai._util.content import (
@@ -55,9 +57,65 @@ logger = getLogger(__name__)
 ATTACHMENT_PROTOCOL = "attachment://"
 
 
+class EventsData(TypedDict):
+    """Pooled data extracted by :func:`condense_events`."""
+
+    messages: list[ChatMessage]
+    calls: list[JsonValue]
+
+
 class WalkContext(TypedDict):
     message_cache: dict[str, ChatMessage]
     only_core: bool
+
+
+def condense_events(
+    events: Sequence[Event],
+) -> tuple[list[Event], EventsData]:
+    """De-duplicate repeated content in a sequence of events.
+
+    Extracts repeated ModelEvent inputs and calls into shared pools,
+    replacing inline content with pool index references.
+
+    Args:
+        events: Events to condense.
+
+    Returns:
+        Tuple of (condensed events, events data containing message and call pools).
+    """
+    condensed_events, message_pool = condense_model_event_inputs(events, [], {})
+    condensed_events, call_pool = condense_model_event_calls(condensed_events, [], {})
+    return condensed_events, EventsData(messages=message_pool, calls=call_pool)
+
+
+def expand_events(
+    events: Sequence[Event] | str,
+    data: EventsData | str,
+) -> list[Event]:
+    """Reverse :func:`condense_events` — restore pooled content into events.
+
+    Args:
+        events: Condensed events (with pool index references), or a JSON-serialized
+            ``list[Event]``.
+        data: Events data returned by :func:`condense_events`, or a JSON-serialized
+            ``EventsData``.
+
+    Returns:
+        Events with full message inputs and call request messages restored.
+    """
+    if isinstance(events, str):
+        events = TypeAdapter(list[Event]).validate_json(events)
+    if isinstance(data, str):
+        raw = json.loads(data)
+        data = EventsData(
+            messages=TypeAdapter(list[ChatMessage]).validate_python(
+                raw.get("messages", [])
+            ),
+            calls=raw.get("calls", []),
+        )
+    result = resolve_model_event_inputs(list(events), data["messages"])
+    result = resolve_model_event_calls(result, data["calls"])
+    return result
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:

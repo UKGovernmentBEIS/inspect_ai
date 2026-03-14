@@ -4,10 +4,12 @@ This module provides a CompactionStrategy that tries native compaction first
 and falls back to summary-based compaction for unsupported providers.
 """
 
+from logging import getLogger
 from typing import Literal
 
 from typing_extensions import override
 
+from inspect_ai._util.error import exception_message
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool_info import ToolInfo
@@ -15,6 +17,8 @@ from inspect_ai.tool._tool_info import ToolInfo
 from .native import CompactionNative
 from .summary import CompactionSummary
 from .types import CompactionStrategy
+
+logger = getLogger(__name__)
 
 
 class CompactionAuto(CompactionStrategy):
@@ -57,6 +61,7 @@ class CompactionAuto(CompactionStrategy):
             instructions=instructions,
             memory=native_memory,
         )
+        self._native._suggest_auto = False
         self._summary = CompactionSummary(
             threshold=threshold,
             instructions=instructions,
@@ -103,7 +108,14 @@ class CompactionAuto(CompactionStrategy):
         try:
             # Try native compaction
             return await self._native.compact(model, messages, tools)
-        except NotImplementedError:
-            # Switch to summary and remember for future calls
+        except NotImplementedError as ex:
+            # switch to summary and remember for future calls
             self._use_fallback = True
+
+            # log warning
+            logger.warning(
+                f"{exception_message(ex)} Falling back to summary compaction."
+            )
+
+            # do summary compaction
             return await self._summary.compact(model, messages, tools)

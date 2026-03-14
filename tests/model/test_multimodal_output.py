@@ -1,7 +1,7 @@
 import base64
 
 import pytest
-from test_helpers.utils import skip_if_no_google, skip_if_no_openai
+from test_helpers.utils import flaky_retry, skip_if_no_google, skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
@@ -169,6 +169,7 @@ async def test_openai_responses_image_replay():
 
 @pytest.mark.slow
 @skip_if_no_google
+@flaky_retry(max_retries=3)
 async def test_google_image_replay():
     """Test that a generated image can be replayed in a follow-up turn."""
     model = get_model("google/gemini-3.1-flash-image-preview")
