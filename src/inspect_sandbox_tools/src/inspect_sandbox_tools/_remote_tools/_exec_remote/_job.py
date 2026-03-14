@@ -58,7 +58,7 @@ def _make_preexec(username: str | None) -> Callable[[], None]:
                 os.initgroups(username, pw.pw_gid)
                 os.setgid(pw.pw_gid)
                 os.setuid(pw.pw_uid)
-            except PermissionError:
+            except OSError:
                 os.write(
                     2,
                     f"exec_remote: permission denied switching to user {username!r} (server may lack CAP_SETUID/CAP_SETGID)\n".encode(),
