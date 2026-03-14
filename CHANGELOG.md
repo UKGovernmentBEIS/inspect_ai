@@ -20,6 +20,7 @@
 - Eval Logs: Remove JSON indentation inside .eval archives.
 - Eval Logs: Add `condense_events`/`expand_events` API pair and `EventsData` TypedDict for deduplicating and restoring repeated model event inputs and call messages.
 - Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).
+- Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Task Execution: Add `--max-dataset-memory` option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.
 - Inspect Score: Add support for an optional list of metrics when rescoring a log.
 - Inspect View: Embed viewer directly in the log directory instead of a `viewer/` subdirectory, fixing permission issues when serving logs.
