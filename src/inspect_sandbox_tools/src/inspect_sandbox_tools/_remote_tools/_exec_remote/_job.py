@@ -107,13 +107,30 @@ class Job:
             # Wait for read tasks to finish draining
             await self._wait_for_readers()
 
-        final = self._state != "running"
-        max_bytes = None if final else _MAX_POLL_OUTPUT_BYTES
-        stdout, stderr = self._drain_buffers(final=final, max_bytes=max_bytes)
+        # Always limit per-poll output to keep JSON-RPC responses small.
+        # Defer reporting terminal state until buffers are fully drained
+        # so the client keeps polling for remaining output.
+        stdout, stderr = self._drain_buffers(
+            final=False, max_bytes=_MAX_POLL_OUTPUT_BYTES
+        )
+
+        buffers_empty = not stdout and not stderr
+        if self._state != "running" and not buffers_empty:
+            # Report as running so client keeps polling
+            reported_state: Literal["running", "completed", "killed"] = "running"
+            reported_exit_code = None
+        elif self._state != "running" and buffers_empty:
+            # Buffers drained — flush decoder and report terminal state
+            stdout, stderr = self._drain_buffers(final=True)
+            reported_state = self._state
+            reported_exit_code = self._exit_code
+        else:
+            reported_state = self._state
+            reported_exit_code = self._exit_code
 
         return PollResult(
-            state=self._state,
-            exit_code=self._exit_code,
+            state=reported_state,
+            exit_code=reported_exit_code,
             stdout=stdout,
             stderr=stderr,
         )
