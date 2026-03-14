@@ -15,6 +15,14 @@ if TYPE_CHECKING:
     from .environment import SandboxEnvironment
 
 
+class SandboxExecError(RuntimeError):
+    """Raised when sandbox.exec() returns a non-success result.
+
+    Distinguished from plain RuntimeError so the retry layer can tell
+    transport failures apart from JSON-RPC application errors.
+    """
+
+
 class SandboxJSONRPCTransport(JSONRPCTransport):
     """A transport that uses a sandbox for RPC communication.
 
@@ -66,7 +74,7 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
         )
 
         if not exec_result.success:
-            raise RuntimeError(
+            raise SandboxExecError(
                 f"Sandbox.exec failure executing {rpc_call_description(method, params)}: {exec_result.stderr}"
             )
         return exec_result.stdout

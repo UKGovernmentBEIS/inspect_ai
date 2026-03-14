@@ -6,25 +6,31 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Callable, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
+import shortuuid
 from pydantic import BaseModel
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception,
     stop_after_attempt,
     stop_after_delay,
     wait_exponential_jitter,
 )
+from tenacity.stop import StopBaseT
+from tenacity.wait import WaitBaseT
 
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 
 from ._cli import SANDBOX_CLI
-from ._json_rpc_transport import SandboxJSONRPCTransport
+from ._json_rpc_transport import SandboxExecError, SandboxJSONRPCTransport
+from .limits import OutputLimitExceededError
 
 if TYPE_CHECKING:
     from .._subprocess import ExecResult
@@ -188,6 +194,57 @@ RPC_TIMEOUT = 30
 
 T = TypeVar("T", bound=BaseModel)
 
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _RetryPolicy:
+    """Configuration for retrying transient RPC failures."""
+
+    wait: WaitBaseT
+    stop: StopBaseT
+
+
+_POLL_RETRY = _RetryPolicy(
+    wait=wait_exponential_jitter(initial=2, max=15),
+    stop=stop_after_attempt(15) | stop_after_delay(120),
+)
+_CLEANUP_RETRY = _RetryPolicy(
+    wait=wait_exponential_jitter(initial=2, max=15),
+    stop=stop_after_attempt(5) | stop_after_delay(30),
+)
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """Return True for transport-level errors that are worth retrying.
+
+    Application errors (RuntimeError, ValueError) come from the JSON-RPC error
+    mapper after a successful round-trip — retrying them is pointless.
+    OutputLimitExceededError means the sandbox output stream was exceeded —
+    also permanent. SandboxExecError (a RuntimeError subclass) means
+    sandbox.exec() returned non-zero, which IS transient. Everything else
+    (ConnectionError, K8sError, OSError, …) also indicates a transport failure.
+    """
+    if isinstance(exc, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+        return False
+    if isinstance(exc, SandboxExecError):
+        return True
+    return not isinstance(exc, (RuntimeError, ValueError, OutputLimitExceededError))
+
+
+def _log_retry(method_name: str) -> Callable[[RetryCallState], None]:
+    """Create a tenacity before_sleep callback that logs retry attempts."""
+
+    def log(retry_state: RetryCallState) -> None:
+        exc = retry_state.outcome.exception() if retry_state.outcome else None
+        logger.warning(
+            f"exec_remote RPC retry: method={method_name} "
+            f"attempt={retry_state.attempt_number} "
+            f"error={exc!r}"
+        )
+
+    return log
+
 
 class ExecRemoteProcess:
     r"""Handle to a running exec_remote process.
@@ -266,19 +323,46 @@ class ExecRemoteProcess:
     # -------------------------------------------------------------------------
 
     async def _rpc(
-        self, method: str, params: dict[str, object], result_type: type[T]
+        self,
+        method: str,
+        params: dict[str, object],
+        result_type: type[T],
+        retry_policy: _RetryPolicy | None = None,
     ) -> T:
-        """Make an RPC call to the sandbox."""
-        return await exec_model_request(
-            method=method,
-            params=params,
-            result_type=result_type,
-            transport=self._transport,
-            error_mapper=GenericJSONRPCErrorMapper,
-            timeout=RPC_TIMEOUT,
-            user=self._options.user,
-            concurrency=self._options.concurrency,
+        """Make an RPC call to the sandbox.
+
+        Args:
+            method: JSON-RPC method name.
+            params: JSON-RPC parameters.
+            result_type: Pydantic model to parse the result into.
+            retry_policy: If provided, retries transient failures and
+                injects a request_id for server-side idempotency.
+        """
+        if retry_policy is not None:
+            params = {**params, "request_id": shortuuid.uuid()}
+
+        async def call() -> T:
+            return await exec_model_request(
+                method=method,
+                params=params,
+                result_type=result_type,
+                transport=self._transport,
+                error_mapper=GenericJSONRPCErrorMapper,
+                timeout=RPC_TIMEOUT,
+                user=self._options.user,
+                concurrency=self._options.concurrency,
+            )
+
+        if retry_policy is None:
+            return await call()
+
+        retrying = retry(
+            wait=retry_policy.wait,
+            stop=retry_policy.stop,
+            retry=retry_if_exception(_is_transient),
+            before_sleep=_log_retry(method),
         )
+        return await retrying(call)()
 
     async def _start(self) -> None:
         """Submit the job to the sandbox."""
@@ -299,7 +383,9 @@ class ExecRemoteProcess:
         if self._options.cwd:
             params["cwd"] = self._options.cwd
 
-        result = await self._rpc("exec_remote_start", params, _StartResult)
+        result = await self._rpc(
+            "exec_remote_start", params, _StartResult, retry_policy=_CLEANUP_RETRY
+        )
         self._pid = result.pid
 
     # -------------------------------------------------------------------------
@@ -387,21 +473,16 @@ class ExecRemoteProcess:
             raise
 
     async def _poll(self) -> _PollResult:
-        @retry(
-            wait=wait_exponential_jitter(initial=2),
-            stop=(stop_after_attempt(5) | stop_after_delay(30)),
-            retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
-        )
-        async def poll() -> _PollResult:
-            from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+        from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
-            sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
-            with sandbox_proxy.no_events():
-                return await self._rpc(
-                    "exec_remote_poll", {"pid": self._pid}, _PollResult
-                )
-
-        return await poll()
+        sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
+        with sandbox_proxy.no_events():
+            return await self._rpc(
+                "exec_remote_poll",
+                {"pid": self._pid},
+                _PollResult,
+                retry_policy=_POLL_RETRY,
+            )
 
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""
@@ -442,6 +523,7 @@ class ExecRemoteProcess:
             "exec_remote_write_stdin",
             {"pid": self._pid, "data": data},
             _WriteStdinResult,
+            retry_policy=_CLEANUP_RETRY,
         )
         self._enqueue_output(result.stdout, result.stderr)
 
@@ -468,12 +550,19 @@ class ExecRemoteProcess:
         if self._completed or self._killed:
             return
 
-        result = await self._rpc(
-            "exec_remote_close_stdin",
-            {"pid": self._pid},
-            _CloseStdinResult,
-        )
-        self._enqueue_output(result.stdout, result.stderr)
+        try:
+            result = await self._rpc(
+                "exec_remote_close_stdin",
+                {"pid": self._pid},
+                _CloseStdinResult,
+                retry_policy=_CLEANUP_RETRY,
+            )
+            self._enqueue_output(result.stdout, result.stderr)
+        except Exception:
+            logger.debug(
+                f"exec_remote close_stdin RPC failed for pid {self._pid}",
+                exc_info=True,
+            )
 
     async def kill(self) -> None:
         """Terminate the process.
@@ -489,11 +578,14 @@ class ExecRemoteProcess:
         self._killed = True
         try:
             result = await self._rpc(
-                "exec_remote_kill", {"pid": self._pid}, _KillResult
+                "exec_remote_kill",
+                {"pid": self._pid},
+                _KillResult,
+                retry_policy=_CLEANUP_RETRY,
             )
             self._enqueue_output(result.stdout, result.stderr)
         except Exception:
-            logging.debug(
+            logger.debug(
                 f"exec_remote kill RPC failed for pid {self._pid}", exc_info=True
             )
 
