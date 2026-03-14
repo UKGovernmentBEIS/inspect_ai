@@ -803,16 +803,22 @@ def reasoning_from_responses_reasoning(
     if not isinstance(item, ResponseReasoningItem):
         item = read_reasoning_item_param(item)
 
-    if item.encrypted_content is not None:
+    if item.content:
+        reasoning = "\n".join([s.text for s in item.content])
+        redacted = False
+        internal: JsonValue | None = (
+            {"encrypted_content": item.encrypted_content}
+            if item.encrypted_content is not None
+            else None
+        )
+    elif item.encrypted_content is not None:
         reasoning = item.encrypted_content
         redacted = True
+        internal = None
     else:
-        reasoning = (
-            "\n".join([s.text for s in item.content])
-            if item.content is not None
-            else ""
-        )
+        reasoning = ""
         redacted = False
+        internal = None
 
     if item.summary:
         summary: str | None = "\n\n".join([s.text for s in item.summary])
@@ -820,7 +826,11 @@ def reasoning_from_responses_reasoning(
         summary = None
 
     return ContentReasoning(
-        reasoning=reasoning, summary=summary, signature=item.id, redacted=redacted
+        reasoning=reasoning,
+        summary=summary,
+        signature=item.id,
+        redacted=redacted,
+        internal=internal,
     )
 
 
@@ -844,14 +854,19 @@ def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
     content_params: list[ContentParam] = []
+
     if content.redacted:
         encrypted_content: str | None = content.reasoning
+    elif isinstance(content.internal, dict):
+        ec = content.internal.get("encrypted_content")
+        encrypted_content = ec if isinstance(ec, str) else None
     else:
         encrypted_content = None
-        if content.reasoning:
-            content_params.append(
-                ContentParam(type="reasoning_text", text=content.reasoning)
-            )
+
+    if not content.redacted and content.reasoning:
+        content_params.append(
+            ContentParam(type="reasoning_text", text=content.reasoning)
+        )
 
     summary_params: list[SummaryParam] = []
     if content.summary:
