@@ -3,6 +3,7 @@ import { FC, useMemo } from "react";
 import {
   ContentAudio,
   ContentData,
+  ContentDocument,
   ContentImage,
   ContentReasoning,
   ContentText,
@@ -32,6 +33,7 @@ interface ToolCallViewProps {
     | ContentAudio
     | ContentImage
     | ContentVideo
+    | ContentDocument
     | ContentTool
     | ContentReasoning
     | ContentData
@@ -40,6 +42,7 @@ interface ToolCallViewProps {
         | ContentAudio
         | ContentImage
         | ContentVideo
+        | ContentDocument
         | ContentTool
         | ContentReasoning
         | ContentData
@@ -72,6 +75,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
       | ContentAudio
       | ContentImage
       | ContentVideo
+      | ContentDocument
       | ContentTool
       | ContentReasoning
       | ContentData,
@@ -161,6 +165,7 @@ const normalizeContent = (
     | ContentImage
     | ContentAudio
     | ContentVideo
+    | ContentDocument
     | ContentTool
     | ContentReasoning
     | ContentData
@@ -169,6 +174,7 @@ const normalizeContent = (
         | ContentImage
         | ContentAudio
         | ContentVideo
+        | ContentDocument
         | ContentTool
         | ContentReasoning
         | ContentData
@@ -178,6 +184,7 @@ const normalizeContent = (
   | ContentImage
   | ContentAudio
   | ContentVideo
+  | ContentDocument
   | ContentTool
   | ContentReasoning
   | ContentData

@@ -3,6 +3,7 @@ import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
   CompactionEvent,
+  ContentDocument,
   ContentImage,
   ContentText,
   EvalSample,
@@ -208,7 +209,7 @@ export type SampleMode = "none" | "single" | "many";
 
 export interface ContentTool {
   type: "tool";
-  content: (ContentImage | ContentText)[];
+  content: (ContentImage | ContentText | ContentDocument)[];
 }
 
 export interface RunningSampleData {

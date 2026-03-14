@@ -175,6 +175,11 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
             content: [con],
             type: "tool",
           } as ContentTool;
+        } else if (con.type === "document") {
+          return {
+            content: [con],
+            type: "tool",
+          } as ContentTool;
         }
       })
       .filter((con) => con !== undefined);
