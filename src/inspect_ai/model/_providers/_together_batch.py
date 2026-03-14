@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import functools
 import sys
-from typing import IO, TypedDict, cast
+from typing import IO, cast
 
 from anyio import to_thread
 from openai import AsyncOpenAI
 from openai.types import Batch as OpenAIBatch
 from openai.types.chat import ChatCompletion
-from typing_extensions import override
+from typing_extensions import TypedDict, override
 
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.error import pip_dependency_error
