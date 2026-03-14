@@ -1,4 +1,6 @@
-from typing import Literal, TypeAlias, TypedDict
+from typing import Literal, TypeAlias
+
+from typing_extensions import TypedDict
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 

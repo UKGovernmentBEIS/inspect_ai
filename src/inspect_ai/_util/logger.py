@@ -13,13 +13,12 @@ from logging import (
     getLogger,
 )
 from pathlib import Path
-from typing import TypedDict
 
 import rich
 from rich.console import ConsoleRenderable
 from rich.logging import RichHandler
 from rich.text import Text
-from typing_extensions import override
+from typing_extensions import TypedDict, override
 
 from .constants import (
     ALL_LOG_LEVELS,
