@@ -1,5 +1,6 @@
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
+    BeforeModelGenerate,
     EvalSetEnd,
     EvalSetStart,
     Hooks,
@@ -19,6 +20,7 @@ from inspect_ai.hooks._hooks import (
 
 __all__ = [
     "ApiKeyOverride",
+    "BeforeModelGenerate",
     "ModelCacheUsageData",
     "Hooks",
     "ModelUsageData",

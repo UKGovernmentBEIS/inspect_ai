@@ -12,6 +12,7 @@ from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
+    BeforeModelGenerate,
     Hooks,
     ModelUsageData,
     RunEnd,
@@ -43,6 +44,7 @@ class MockHooks(Hooks):
         self.sample_event_events: list[SampleEvent] = []
         self.sample_end_events: list[SampleEnd] = []
         self.model_usage_events: list[ModelUsageData] = []
+        self.before_model_generate_events: list[BeforeModelGenerate] = []
 
     def assert_no_events(self) -> None:
         assert not self.run_start_events
@@ -54,6 +56,7 @@ class MockHooks(Hooks):
         assert not self.sample_event_events
         assert not self.sample_end_events
         assert not self.model_usage_events
+        assert not self.before_model_generate_events
 
     def enabled(self) -> bool:
         return self.should_enable
@@ -84,6 +87,9 @@ class MockHooks(Hooks):
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         self.model_usage_events.append(data)
+
+    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+        self.before_model_generate_events.append(data)
 
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         return f"mocked-{data.env_var_name}-{data.value}"
@@ -152,6 +158,12 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
     assert len(mock_hooks.model_usage_events) == 1
+    assert len(mock_hooks.before_model_generate_events) == 1
+    before_gen = mock_hooks.before_model_generate_events[0]
+    assert before_gen.model_name is not None
+    assert len(before_gen.input) > 0
+    assert before_gen.sample_id is not None
+    assert before_gen.task_name is not None
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(
@@ -172,6 +184,7 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.sample_start_events) == 1
         assert len(h.sample_end_events) == 1
         assert len(h.model_usage_events) == 1
+        assert len(h.before_model_generate_events) == 1
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
