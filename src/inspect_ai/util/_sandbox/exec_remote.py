@@ -6,6 +6,7 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shlex
 from dataclasses import dataclass
@@ -224,6 +225,8 @@ def _is_transient(exc: BaseException) -> bool:
     sandbox.exec() returned non-zero, which IS transient. Everything else
     (ConnectionError, K8sError, OSError, …) also indicates a transport failure.
     """
+    if isinstance(exc, (KeyboardInterrupt, SystemExit, asyncio.CancelledError)):
+        return False
     if isinstance(exc, SandboxExecError):
         return True
     return not isinstance(exc, (RuntimeError, ValueError, OutputLimitExceededError))
