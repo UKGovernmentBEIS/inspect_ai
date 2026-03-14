@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Awaitable, Callable, Type, TypeVar, cast
+from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream
@@ -214,7 +214,7 @@ class BeforeModelGenerate:
     """Directives to the model as to which tools to prefer."""
     config: GenerateConfig
     """The generation configuration."""
-    cache: str | None
+    cache: Literal["write"] | None
     """Cache mode: 'write' if caching is enabled, None otherwise."""
 
 
@@ -684,7 +684,7 @@ async def emit_before_model_generate(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
-    cache: str | None,
+    cache: Literal["write"] | None,
 ) -> None:
     data = BeforeModelGenerate(
         model_name=model_name,
