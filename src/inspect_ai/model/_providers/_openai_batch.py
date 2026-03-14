@@ -1,4 +1,4 @@
-from typing import IO, Any, Generic, Literal, TypedDict, TypeVar
+from typing import IO, Any, Generic, Literal, TypeVar
 
 import httpx
 import pydantic
@@ -8,7 +8,7 @@ from openai.types import Batch as OpenAIBatch
 from openai.types.batch import Errors as OpenAIErrors
 from openai.types.batch_error import BatchError
 from pydantic import BaseModel
-from typing_extensions import override
+from typing_extensions import TypedDict, override
 
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
