@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from inspect_sandbox_tools._agent_bridge.proxy import run_model_proxy_server
 from inspect_sandbox_tools._cli.server import main as server_main
 from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
-from inspect_sandbox_tools._util.constants import SOCKET_PATH
+from inspect_sandbox_tools._util.constants import SERVER_DIR, SOCKET_PATH
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
 
@@ -78,14 +78,21 @@ async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
     return await json_rpc_unix_call(str(SOCKET_PATH), request_json_str)
 
 
-_SERVER_STDOUT_LOG = "/tmp/sandbox-tools-server-stdout.log"
-_SERVER_STDERR_LOG = "/tmp/sandbox-tools-server-stderr.log"
+_SERVER_STDOUT_LOG = str(SERVER_DIR / "server-stdout.log")
+_SERVER_STDERR_LOG = str(SERVER_DIR / "server-stderr.log")
 
 
 def _ensure_server_is_running() -> None:
     if _can_connect_to_socket():
         return  # Server already running and responsive
 
+    # Create server directory for socket and logs.
+    # Permissions are enforced by the server on startup; here we just
+    # ensure the directory exists so we can open log files.
+    SERVER_DIR.mkdir(exist_ok=True)
+
+    stdout_log = open(_SERVER_STDOUT_LOG, "a")
+    stderr_log = open(_SERVER_STDERR_LOG, "a")
     process = subprocess.Popen(
         (
             # Production staticx mode
@@ -99,9 +106,11 @@ def _ensure_server_is_running() -> None:
             # Dev/test mode: use Python interpreter with module invocation
             else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
         ),
-        stdout=open(_SERVER_STDOUT_LOG, "a"),
-        stderr=open(_SERVER_STDERR_LOG, "a"),
+        stdout=stdout_log,
+        stderr=stderr_log,
     )
+    stdout_log.close()
+    stderr_log.close()
 
     # Wait for socket to become available
     for _ in range(1200):  # Wait up to 120 seconds
@@ -137,7 +146,10 @@ def _read_server_logs() -> str:
 
 def _can_connect_to_socket() -> bool:
     """Test if we can connect to the Unix domain socket."""
-    if not SOCKET_PATH.exists():
+    try:
+        if not SOCKET_PATH.exists():
+            return False
+    except PermissionError:
         return False
 
     try:

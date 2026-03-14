@@ -276,7 +276,11 @@ class ExecRemoteProcess:
             transport=self._transport,
             error_mapper=GenericJSONRPCErrorMapper,
             timeout=RPC_TIMEOUT,
-            user=self._options.user,
+            # Run the CLI wrapper as the same user that started the server.
+            # When root is available, this is "root" (needed to access the
+            # protected server directory at /tmp/sandbox-tools/, mode 0o700).
+            # When root isn't available, this is None (sandbox default user).
+            user=self._sandbox._tools_user,
             concurrency=self._options.concurrency,
         )
 
@@ -298,6 +302,8 @@ class ExecRemoteProcess:
             params["env"] = self._options.env
         if self._options.cwd:
             params["cwd"] = self._options.cwd
+        if self._options.user:
+            params["user"] = self._options.user
 
         result = await self._rpc("exec_remote_start", params, _StartResult)
         self._pid = result.pid
