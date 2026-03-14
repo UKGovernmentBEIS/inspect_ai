@@ -10,6 +10,7 @@ from ._output_buffer import BoundedByteBuffer, DecodingBuffer
 from .tool_types import PollResult
 
 _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
+_MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 
 
 class Job:
@@ -107,7 +108,8 @@ class Job:
             await self._wait_for_readers()
 
         final = self._state != "running"
-        stdout, stderr = self._drain_buffers(final=final)
+        max_bytes = None if final else _MAX_POLL_OUTPUT_BYTES
+        stdout, stderr = self._drain_buffers(final=final, max_bytes=max_bytes)
 
         return PollResult(
             state=self._state,
@@ -150,19 +152,23 @@ class Job:
 
         return self._drain_buffers(final=True)
 
-    def _drain_buffers(self, final: bool = False) -> tuple[str, str]:
+    def _drain_buffers(
+        self, final: bool = False, max_bytes: int | None = None
+    ) -> tuple[str, str]:
         """Collect and clear the stdout/stderr buffers.
 
         Args:
             final: If True, flush any trailing partial UTF-8 sequences
                 as replacement characters.
+            max_bytes: Maximum raw bytes to drain per stream. If None,
+                drains everything.
 
         Returns:
             A tuple of (stdout, stderr) strings accumulated since the last drain.
         """
         return (
-            self._stdout_output.drain(final),
-            self._stderr_output.drain(final),
+            self._stdout_output.drain(final, max_bytes),
+            self._stderr_output.drain(final, max_bytes),
         )
 
     async def write_stdin(self, data: str) -> tuple[str, str]:

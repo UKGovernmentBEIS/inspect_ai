@@ -32,10 +32,19 @@ class BoundedByteBuffer:
         if not self._closed:
             self._buf.extend(data)
 
-    def drain(self) -> bytes:
-        """Return all buffered data and clear the buffer."""
-        result = bytes(self._buf)
-        self._buf.clear()
+    def drain(self, max_bytes: int | None = None) -> bytes:
+        """Return buffered data and remove it from the buffer.
+
+        Args:
+            max_bytes: Maximum number of bytes to return. If None or
+                greater than the buffer size, returns everything.
+        """
+        if max_bytes is None or max_bytes >= len(self._buf):
+            result = bytes(self._buf)
+            self._buf.clear()
+        else:
+            result = bytes(self._buf[:max_bytes])
+            del self._buf[:max_bytes]
         self._has_space.set()
         return result
 
@@ -59,6 +68,13 @@ class DecodingBuffer:
         self._buffer = buffer
         self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
-    def drain(self, final: bool = False) -> str:
-        """Drain the underlying buffer and decode to str."""
-        return self._decoder.decode(self._buffer.drain(), final)
+    def drain(self, final: bool = False, max_bytes: int | None = None) -> str:
+        """Drain the underlying buffer and decode to str.
+
+        Args:
+            final: If True, flush any trailing partial UTF-8 sequences
+                as replacement characters.
+            max_bytes: Maximum number of raw bytes to pull from the
+                underlying buffer. If None, drains everything.
+        """
+        return self._decoder.decode(self._buffer.drain(max_bytes), final)

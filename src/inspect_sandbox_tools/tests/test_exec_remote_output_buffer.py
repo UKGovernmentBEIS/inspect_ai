@@ -125,3 +125,45 @@ async def test_decoding_buffer_trailing_partial_on_final():
     await buf.put(b"hello\xc3")
     result = dec.drain(final=True)
     assert result == "hello\ufffd"
+
+
+@pytest.mark.asyncio
+async def test_bounded_drain_returns_partial():
+    """drain(max_bytes) returns only the requested amount, leaving the rest."""
+    buf = BoundedByteBuffer(max_bytes=100)
+    await buf.put(b"abcdefghij")
+    assert buf.drain(max_bytes=4) == b"abcd"
+    assert buf.drain() == b"efghij"
+
+
+@pytest.mark.asyncio
+async def test_bounded_drain_unblocks_put():
+    """A partial drain should still unblock a waiting put()."""
+    buf = BoundedByteBuffer(max_bytes=10)
+    await buf.put(b"0123456789")
+    # Buffer is full — put should block
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(buf.put(b"x"), timeout=0.05)
+    # Partial drain frees space
+    buf.drain(max_bytes=5)
+    await asyncio.wait_for(buf.put(b"x"), timeout=0.05)
+
+
+@pytest.mark.asyncio
+async def test_bounded_drain_larger_than_buffer():
+    """drain(max_bytes) with max_bytes > buffer size returns everything."""
+    buf = BoundedByteBuffer(max_bytes=100)
+    await buf.put(b"short")
+    assert buf.drain(max_bytes=1000) == b"short"
+    assert buf.drain() == b""
+
+
+@pytest.mark.asyncio
+async def test_decoding_buffer_bounded_drain():
+    """DecodingBuffer passes max_bytes through to the underlying buffer."""
+    buf = BoundedByteBuffer(max_bytes=100)
+    dec = DecodingBuffer(buf)
+    await buf.put(b"hello world")
+    part1 = dec.drain(max_bytes=5)
+    part2 = dec.drain(final=True)
+    assert part1 + part2 == "hello world"
