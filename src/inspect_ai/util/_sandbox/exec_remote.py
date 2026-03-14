@@ -29,6 +29,7 @@ from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_req
 
 from ._cli import SANDBOX_CLI
 from ._json_rpc_transport import SandboxExecError, SandboxJSONRPCTransport
+from .limits import OutputLimitExceededError
 
 if TYPE_CHECKING:
     from .._subprocess import ExecResult
@@ -218,13 +219,14 @@ def _is_transient(exc: BaseException) -> bool:
 
     Application errors (RuntimeError, ValueError) come from the JSON-RPC error
     mapper after a successful round-trip — retrying them is pointless.
-    SandboxExecError (a RuntimeError subclass) means sandbox.exec() returned
-    non-zero, which IS transient. Everything else (ConnectionError, K8sError,
-    OSError, …) also indicates a transport failure.
+    OutputLimitExceededError means the sandbox output stream was exceeded —
+    also permanent. SandboxExecError (a RuntimeError subclass) means
+    sandbox.exec() returned non-zero, which IS transient. Everything else
+    (ConnectionError, K8sError, OSError, …) also indicates a transport failure.
     """
     if isinstance(exc, SandboxExecError):
         return True
-    return not isinstance(exc, (RuntimeError, ValueError))
+    return not isinstance(exc, (RuntimeError, ValueError, OutputLimitExceededError))
 
 
 def _log_retry(method_name: str) -> Callable[[RetryCallState], None]:
