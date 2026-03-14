@@ -159,8 +159,11 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.sample_end_events) == 1
     assert len(mock_hooks.model_usage_events) == 1
     assert len(mock_hooks.before_model_generate_events) == 1
-    assert mock_hooks.before_model_generate_events[0].model_name is not None
-    assert len(mock_hooks.before_model_generate_events[0].input) > 0
+    before_gen = mock_hooks.before_model_generate_events[0]
+    assert before_gen.model_name is not None
+    assert len(before_gen.input) > 0
+    assert before_gen.sample_id is not None
+    assert before_gen.task_name is not None
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(

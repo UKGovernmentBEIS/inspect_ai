@@ -216,6 +216,10 @@ class BeforeModelGenerate:
     """The generation configuration."""
     cache: Literal["write"] | None
     """Cache mode: 'write' if caching is enabled, None otherwise."""
+    sample_id: str | None = None
+    """The globally unique identifier for the sample execution (if any)."""
+    task_name: str | None = None
+    """The name of the task that triggered this generate call (if any)."""
 
 
 @dataclass(frozen=True)
@@ -686,6 +690,10 @@ async def emit_before_model_generate(
     config: GenerateConfig,
     cache: Literal["write"] | None,
 ) -> None:
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+
     data = BeforeModelGenerate(
         model_name=model_name,
         input=input,
@@ -693,6 +701,8 @@ async def emit_before_model_generate(
         tool_choice=tool_choice,
         config=config,
         cache=cache,
+        sample_id=active.id if active else None,
+        task_name=active.task if active else None,
     )
     await _emit_to_all(lambda hook: hook.on_before_model_generate(data))
 
