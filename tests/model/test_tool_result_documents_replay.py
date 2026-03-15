@@ -143,9 +143,7 @@ def test_combined_image_and_document_extraction():
 
 
 def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMessage]):
-    transformed = tool_result_media_as_user_message(
-        input_messages, (ContentDocument,)
-    )
+    transformed = tool_result_media_as_user_message(input_messages, (ContentDocument,))
     assert_messages_equal(transformed, expected)
 
 
