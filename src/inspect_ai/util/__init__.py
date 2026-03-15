@@ -62,7 +62,7 @@ from ._sandbox import (
     sandbox_with,
     sandboxenv,
 )
-from ._span import span
+from ._span import current_span_id, span
 from ._store import Store, store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
@@ -120,6 +120,7 @@ __all__ = [
     "StoreModel",
     "store_as",
     "span",
+    "current_span_id",
     "collect",
     "Subtask",
     "subtask",
