@@ -2,6 +2,7 @@
 
 - Support for `ContentDocument` as a result type for tool calls.
 - Events: Added `event_tree_walk()` function for enumerating tree items with an optional filter.
+- Inspect View: Add 'None' present when choosing transcript events to display.
 
 ## 0.3.195 (14 March 2026)
 
