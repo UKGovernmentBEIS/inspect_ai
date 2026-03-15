@@ -1,3 +1,7 @@
+## Unreleased
+
+- Support for `ContentDocument` as a result type for tool calls.
+
 ## 0.3.195 (14 March 2026)
 
 - OpenAI: Support for image output for multimodal modals.
