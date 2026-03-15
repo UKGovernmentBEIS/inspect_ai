@@ -22,6 +22,7 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.url import location_without_query
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._pool import resolve_sample_message_pool
@@ -194,6 +195,11 @@ async def write_eval_log_async(
         if isinstance(location, Path)
         else location.name
     )
+
+    if "?" in location:
+        raise ValueError(
+            f"Cannot write to a location with query parameters: {location}"
+        )
 
     logger.debug(f"Writing eval log to {location}")
 
@@ -693,6 +699,8 @@ log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
+    # Strip query params before checking extensions (e.g., ?versionId=...)
+    file = location_without_query(file)
     parts = file.replace("\\", "/").split("/")
     name = parts[-1]
 
@@ -707,7 +715,7 @@ def is_log_file(file: str, extensions: list[str]) -> bool:
 def log_file_info(info: FileInfo) -> "EvalLogInfo":
     # extract the basename and split into parts
     # (deal with previous logs had the model in their name)
-    basename = os.path.splitext(info.name)[0]
+    basename = os.path.splitext(location_without_query(info.name))[0]
     parts = basename.split("/").pop().split("_")
     if len(parts) == 1:
         task = ""

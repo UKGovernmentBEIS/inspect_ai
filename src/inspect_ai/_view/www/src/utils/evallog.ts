@@ -1,4 +1,5 @@
 import { filename } from "./path";
+import { locationWithoutQuery } from "./uri";
 
 const kLogFilePattern =
   /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
@@ -11,6 +12,7 @@ export interface ParsedLogFileName {
 }
 
 export const parseLogFileName = (logFileName: string): ParsedLogFileName => {
+  logFileName = locationWithoutQuery(logFileName);
   const match = logFileName.match(kLogFilePattern);
   if (!match) {
     // read the extension
