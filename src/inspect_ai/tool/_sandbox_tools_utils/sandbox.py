@@ -97,25 +97,27 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         async with _open_executable_for_arch(info["architecture"]) as (_, f):
             # TODO: The first tuple member, filename, isn't currently used, but it will be
             await sandbox.write_file(SANDBOX_CLI, f.read())
-            # .write_file used `tee` which dropped execute permissions
-            result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI], user="root")
-            if not result.success:
-                raise RuntimeError(
-                    f"Failed to chmod sandbox tools binary: {result.stderr}"
-                )
+            # .write_file used `tee` which dropped execute permissions.
+            # Try root-only (0o700) first so the agent can't execute the binary;
+            # fall back to world-executable (+x) for sandboxes without root.
+            result = await sandbox.exec(["chmod", "700", SANDBOX_CLI], user="root")
+            if result.success:
+                sandbox._tools_user = "root"
+            else:
+                result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
+                if not result.success:
+                    raise RuntimeError(
+                        f"Failed to chmod sandbox tools binary: {result.stderr}"
+                    )
 
         # Start the server as root so it can setuid to any user for exec_remote.
         # If root isn't available, fall back to the sandbox's default user —
         # user-switching will be disabled (auto-detected by the server).
-        result = await sandbox.exec([SANDBOX_CLI, "healthcheck"], user="root")
-        if result.success:
-            sandbox._tools_user = "root"
-        else:
-            result = await sandbox.exec([SANDBOX_CLI, "healthcheck"])
-            if not result.success:
-                raise RuntimeError(
-                    f"Failed to start sandbox tools server: {result.stderr}"
-                )
+        result = await sandbox.exec(
+            [SANDBOX_CLI, "healthcheck"], user=sandbox._tools_user
+        )
+        if not result.success:
+            raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except Exception as e:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
