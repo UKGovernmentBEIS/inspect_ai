@@ -5,7 +5,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import (
     Model,
     ModelAPI,
-    tool_result_documents_as_user_message,
+    tool_result_media_as_user_message,
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -118,8 +118,34 @@ async def test_model_generate_preserves_image_and_document_order_in_fallback():
     )
 
 
+def test_combined_image_and_document_extraction():
+    """Extracting both images and documents in a single call works correctly."""
+    image = ContentImage(image="image_for_tool")
+    document = ContentDocument(document="/path/to/report.pdf")
+    tool = ChatMessageTool(tool_call_id="mixed", content=[image, document])
+
+    transformed = tool_result_media_as_user_message(
+        [tool], (ContentImage, ContentDocument)
+    )
+    assert_messages_equal(
+        transformed,
+        [
+            ChatMessageTool(
+                tool_call_id="mixed",
+                content=[
+                    ContentText(text="Image content is included below."),
+                    ContentText(text="Document content is included below."),
+                ],
+            ),
+            ChatMessageUser(content=[image, document], tool_call_id=["mixed"]),
+        ],
+    )
+
+
 def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMessage]):
-    transformed = tool_result_documents_as_user_message(input_messages)
+    transformed = tool_result_media_as_user_message(
+        input_messages, (ContentDocument,)
+    )
     assert_messages_equal(transformed, expected)
 
 

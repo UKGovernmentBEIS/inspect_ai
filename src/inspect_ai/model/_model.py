@@ -857,18 +857,13 @@ class Model:
             ),
         )
 
-        if not self.api.tool_result_images() and not self.api.tool_result_documents():
-            input = tool_result_images_and_documents_as_user_message(input)
-        else:
-            # break tool image content out into user messages if the model doesn't
-            # support tools returning images
-            if not self.api.tool_result_images():
-                input = tool_result_images_as_user_message(input)
-
-            # break tool document content out into user messages if the model doesn't
-            # support tools returning documents
-            if not self.api.tool_result_documents():
-                input = tool_result_documents_as_user_message(input)
+        extract_types: list[type] = []
+        if not self.api.tool_result_images():
+            extract_types.append(ContentImage)
+        if not self.api.tool_result_documents():
+            extract_types.append(ContentDocument)
+        if extract_types:
+            input = tool_result_media_as_user_message(input, tuple(extract_types))
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -1685,272 +1680,94 @@ def resolve_tool_model_input(
     return messages
 
 
-def tool_result_images_as_user_message(
-    messages: list[ChatMessage],
-) -> list[ChatMessage]:
-    """
-    To conform to models lacking support for images in tool responses, create an alternate message history that moves images into a fabricated user message.
+MEDIA_PLACEHOLDERS: dict[type, str] = {
+    ContentImage: "Image content is included below.",
+    ContentDocument: "Document content is included below.",
+}
 
-    Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
+MediaAccumulator: TypeAlias = tuple[list[ChatMessage], list[Content], list[str]]
+MediaContentAccumulator: TypeAlias = tuple[list[Content], list[Content]]
+
+
+def tool_result_media_as_user_message(
+    messages: list[ChatMessage],
+    extract_types: tuple[type, ...],
+) -> list[ChatMessage]:
+    """Move media content out of tool results into fabricated user messages.
+
+    Tool responses will have matching media replaced with placeholder text,
+    and the extracted content will appear in a new user message.
     """
+    message_reducer = _make_message_reducer(extract_types)
     chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        tool_result_images_reducer,
+        message_reducer,
         messages,
         (list[ChatMessage](), list[Content](), list[str]()),
     )
-    # if the last message was a tool result, we may need to flush the pending stuff here
     return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
 
 
-def tool_result_images_and_documents_as_user_message(
-    messages: list[ChatMessage],
-) -> list[ChatMessage]:
-    """
-    To conform to models lacking support for images and documents in tool responses, create an alternate message history that moves both into a fabricated user message.
+def _make_content_reducer(
+    extract_types: tuple[type, ...],
+) -> Callable[[MediaContentAccumulator, Content], MediaContentAccumulator]:
+    """Return a content-level reducer that extracts the given media types."""
 
-    Tool responses will have images replaced with "Image content is included below.", documents replaced with "Document content is included below.", and the new user message will contain the images and documents in their original order.
-    """
-    chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        tool_result_images_and_documents_reducer,
-        messages,
-        (list[ChatMessage](), list[Content](), list[str]()),
-    )
-    # if the last message was a tool result, we may need to flush the pending stuff here
-    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
-
-
-def tool_result_documents_as_user_message(
-    messages: list[ChatMessage],
-) -> list[ChatMessage]:
-    """
-    To conform to models lacking support for documents in tool responses, create an alternate message history that moves documents into a fabricated user message.
-
-    Tool responses will have documents replaced with "Document content is included below.", and the new user message will contain the documents.
-    """
-    chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        tool_result_documents_reducer,
-        messages,
-        (list[ChatMessage](), list[Content](), list[str]()),
-    )
-    # if the last message was a tool result, we may need to flush the pending stuff here
-    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
-
-
-ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
-"""
-ImagesAccumulator is a tuple containing three lists:
-- The first list contains ChatMessages that are the result of processing.
-- The second list contains ContentImages that need to be inserted into a fabricated user message.
-- The third list contains the tool_call_id's associated with the tool responses.
-"""
-
-
-DocumentsAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
-"""
-DocumentsAccumulator is a tuple containing three lists:
-- The first list contains ChatMessages that are the result of processing.
-- The second list contains ContentDocuments that need to be inserted into a fabricated user message.
-- The third list contains the tool_call_id's associated with the tool responses.
-"""
-
-
-def tool_result_images_reducer(
-    accum: ImagesAccumulator,
-    message: ChatMessage,
-) -> ImagesAccumulator:
-    messages, pending_content, tool_call_ids = accum
-    # if there are tool result images, pull them out into a ChatUserMessage
-    if (
-        isinstance(message, ChatMessageTool)
-        and isinstance(message.content, list)
-        and any([isinstance(c, ContentImage) for c in message.content])
-    ):
-        new_user_message_content, edited_tool_message_content = functools.reduce(
-            tool_result_image_content_reducer,
-            message.content,
-            (list[Content](), list[Content]()),
-        )
-
-        return (
-            messages
-            + [
-                ChatMessageTool(
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
-                )
-            ],
-            pending_content + new_user_message_content,
-            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
-        )
-
-    else:
-        return (
-            maybe_adding_user_message(messages, pending_content, tool_call_ids)
-            + [message],
-            [],
-            [],
-        )
-
-
-def tool_result_documents_reducer(
-    accum: DocumentsAccumulator,
-    message: ChatMessage,
-) -> DocumentsAccumulator:
-    messages, pending_content, tool_call_ids = accum
-    if (
-        isinstance(message, ChatMessageTool)
-        and isinstance(message.content, list)
-        and any([isinstance(c, ContentDocument) for c in message.content])
-    ):
-        new_user_message_content, edited_tool_message_content = functools.reduce(
-            tool_result_document_content_reducer,
-            message.content,
-            (list[Content](), list[Content]()),
-        )
-
-        return (
-            messages
-            + [
-                ChatMessageTool(
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
-                )
-            ],
-            pending_content + new_user_message_content,
-            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
-        )
-
-    else:
-        return (
-            maybe_adding_user_message(messages, pending_content, tool_call_ids)
-            + [message],
-            [],
-            [],
-        )
-
-
-def tool_result_images_and_documents_reducer(
-    accum: tuple[list[ChatMessage], list[Content], list[str]],
-    message: ChatMessage,
-) -> tuple[list[ChatMessage], list[Content], list[str]]:
-    messages, pending_content, tool_call_ids = accum
-    if (
-        isinstance(message, ChatMessageTool)
-        and isinstance(message.content, list)
-        and any(
-            [isinstance(c, (ContentImage, ContentDocument)) for c in message.content]
-        )
-    ):
-        new_user_message_content, edited_tool_message_content = functools.reduce(
-            tool_result_image_and_document_content_reducer,
-            message.content,
-            (list[Content](), list[Content]()),
-        )
-
-        return (
-            messages
-            + [
-                ChatMessageTool(
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
-                )
-            ],
-            pending_content + new_user_message_content,
-            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
-        )
-
-    else:
-        return (
-            maybe_adding_user_message(messages, pending_content, tool_call_ids)
-            + [message],
-            [],
-            [],
-        )
-
-
-ImageContentAccumulator = tuple[list[Content], list[Content]]
-"""
-ImageContentAccumulator is a tuple containing two lists of Content objects:
-- The first list contains ContentImages that will be included in a fabricated user message.
-- The second list contains modified content for the tool message with images replaced with text.
-"""
-
-
-DocumentContentAccumulator = tuple[list[Content], list[Content]]
-"""
-DocumentContentAccumulator is a tuple containing two lists of Content objects:
-- The first list contains ContentDocuments that will be included in a fabricated user message.
-- The second list contains modified content for the tool message with documents replaced with text.
-"""
-
-
-def tool_result_image_content_reducer(
-    acc: ImageContentAccumulator, content: Content
-) -> ImageContentAccumulator:
-    """
-    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and one for modified tool message with the images replaced with text.
-
-    Returns:
-      ImageContentReducer: A tuple containing two lists of Content objects.
-        - The first list contains the images that will be included in a fabricated user message.
-        - The second list contains modified content for the tool message with images replaced with text.
-    """
-    new_user_message_content, edited_tool_message_content = acc
-    if isinstance(content, ContentImage):
-        return new_user_message_content + [content], edited_tool_message_content + [
-            ContentText(text="Image content is included below.")
-        ]
-
-    else:
+    def reducer(
+        acc: MediaContentAccumulator, content: Content
+    ) -> MediaContentAccumulator:
+        new_user_message_content, edited_tool_message_content = acc
+        for media_type, placeholder in MEDIA_PLACEHOLDERS.items():
+            if isinstance(content, media_type) and media_type in extract_types:
+                return new_user_message_content + [
+                    content
+                ], edited_tool_message_content + [ContentText(text=placeholder)]
         return new_user_message_content, edited_tool_message_content + [content]
 
-
-def tool_result_document_content_reducer(
-    acc: DocumentContentAccumulator, content: Content
-) -> DocumentContentAccumulator:
-    """
-    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the documents and one for modified tool message with the documents replaced with text.
-
-    Returns:
-      DocumentContentReducer: A tuple containing two lists of Content objects.
-        - The first list contains the documents that will be included in a fabricated user message.
-        - The second list contains modified content for the tool message with the documents replaced with text.
-    """
-    new_user_message_content, edited_tool_message_content = acc
-    if isinstance(content, ContentDocument):
-        return new_user_message_content + [content], edited_tool_message_content + [
-            ContentText(text="Document content is included below.")
-        ]
-
-    else:
-        return new_user_message_content, edited_tool_message_content + [content]
+    return reducer
 
 
-def tool_result_image_and_document_content_reducer(
-    acc: tuple[list[Content], list[Content]], content: Content
-) -> tuple[list[Content], list[Content]]:
-    """
-    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and documents and one for modified tool message with the images and documents replaced with text.
+def _make_message_reducer(
+    extract_types: tuple[type, ...],
+) -> Callable[[MediaAccumulator, ChatMessage], MediaAccumulator]:
+    """Return a message-level reducer that extracts the given media types."""
+    content_reducer = _make_content_reducer(extract_types)
 
-    Returns:
-      A tuple containing two lists of Content objects.
-        - The first list contains the images and documents that will be included in a fabricated user message.
-        - The second list contains modified content for the tool message with images and documents replaced with text.
-    """
-    new_user_message_content, edited_tool_message_content = acc
-    if isinstance(content, ContentImage):
-        return new_user_message_content + [content], edited_tool_message_content + [
-            ContentText(text="Image content is included below.")
-        ]
-    elif isinstance(content, ContentDocument):
-        return new_user_message_content + [content], edited_tool_message_content + [
-            ContentText(text="Document content is included below.")
-        ]
-    else:
-        return new_user_message_content, edited_tool_message_content + [content]
+    def reducer(accum: MediaAccumulator, message: ChatMessage) -> MediaAccumulator:
+        messages, pending_content, tool_call_ids = accum
+        if (
+            isinstance(message, ChatMessageTool)
+            and isinstance(message.content, list)
+            and any(isinstance(c, extract_types) for c in message.content)
+        ):
+            new_user_message_content, edited_tool_message_content = functools.reduce(
+                content_reducer,
+                message.content,
+                (list[Content](), list[Content]()),
+            )
+
+            return (
+                messages
+                + [
+                    ChatMessageTool(
+                        content=edited_tool_message_content,
+                        tool_call_id=message.tool_call_id,
+                        function=message.function,
+                    )
+                ],
+                pending_content + new_user_message_content,
+                tool_call_ids
+                + ([message.tool_call_id] if message.tool_call_id else []),
+            )
+
+        else:
+            return (
+                maybe_adding_user_message(messages, pending_content, tool_call_ids)
+                + [message],
+                [],
+                [],
+            )
+
+    return reducer
 
 
 def maybe_adding_user_message(
