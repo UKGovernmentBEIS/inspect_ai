@@ -26,7 +26,6 @@ from typing import (
     get_args,
     get_origin,
     get_type_hints,
-    is_typeddict,
 )
 
 import anyio
@@ -34,6 +33,7 @@ import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from jsonschema import Draft7Validator
 from pydantic import BaseModel
+from typing_extensions import is_typeddict
 
 from inspect_ai._util.content import (
     Content,

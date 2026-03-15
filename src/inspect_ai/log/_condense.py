@@ -4,10 +4,10 @@ from typing import (
     Callable,
     Literal,
     Sequence,
-    TypedDict,
 )
 
 from pydantic import JsonValue, TypeAdapter
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_schema_version
 from inspect_ai._util.content import (

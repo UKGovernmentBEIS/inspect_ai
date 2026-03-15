@@ -2,9 +2,10 @@ import datetime
 from dataclasses import dataclass
 from datetime import date, time, timezone
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel
+from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.model._call_tools import execute_tools

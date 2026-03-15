@@ -1,6 +1,6 @@
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type, TypedDict
+from typing import Any, Literal, Type
 
 from pydantic import (
     BaseModel,
@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
 )
 from shortuuid import uuid
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
