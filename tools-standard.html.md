@@ -393,16 +393,6 @@ native Claude tool definition.
 
 ## Computer
 
-> [!NOTE]
->
-> Support for the OpenAI GPT 5.4 computer tool and Gemini computer tool
-> are available only in the development version of Inspect. Install the
-> development version from GitHub with:
->
-> ``` python
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-> ```
-
 The `computer()` tool provides models with a computer desktop
 environment along with the ability to view the screen and perform mouse
 and keyboard gestures. The computer tool work better with models that

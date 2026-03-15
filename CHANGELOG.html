@@ -152,16 +152,16 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#march-2026" id="toc-march-2026" class="nav-link" data-scroll-target="#march-2026">0.3.193 (13 March 2026)</a></li>
-  <li><a href="#march-2026-1" id="toc-march-2026-1" class="nav-link" data-scroll-target="#march-2026-1">0.3.192 (13 March 2026)</a></li>
-  <li><a href="#march-2026-2" id="toc-march-2026-2" class="nav-link" data-scroll-target="#march-2026-2">0.3.191 (12 March 2026)</a></li>
-  <li><a href="#march-2026-3" id="toc-march-2026-3" class="nav-link" data-scroll-target="#march-2026-3">0.3.190 (11 March 2026)</a></li>
-  <li><a href="#march-2026-4" id="toc-march-2026-4" class="nav-link" data-scroll-target="#march-2026-4">0.3.189 (07 March 2026)</a></li>
-  <li><a href="#march-2026-5" id="toc-march-2026-5" class="nav-link" data-scroll-target="#march-2026-5">0.3.188 (05 March 2026)</a></li>
-  <li><a href="#march-2026-6" id="toc-march-2026-6" class="nav-link" data-scroll-target="#march-2026-6">0.3.187 (05 March 2026)</a></li>
-  <li><a href="#march-2026-7" id="toc-march-2026-7" class="nav-link" data-scroll-target="#march-2026-7">0.3.186 (03 March 2026)</a></li>
-  <li><a href="#march-2026-8" id="toc-march-2026-8" class="nav-link" data-scroll-target="#march-2026-8">0.3.185 (01 March 2026)</a></li>
+  <li><a href="#march-2026" id="toc-march-2026" class="nav-link active" data-scroll-target="#march-2026">0.3.195 (14 March 2026)</a></li>
+  <li><a href="#march-2026-1" id="toc-march-2026-1" class="nav-link" data-scroll-target="#march-2026-1">0.3.193 (13 March 2026)</a></li>
+  <li><a href="#march-2026-2" id="toc-march-2026-2" class="nav-link" data-scroll-target="#march-2026-2">0.3.192 (13 March 2026)</a></li>
+  <li><a href="#march-2026-3" id="toc-march-2026-3" class="nav-link" data-scroll-target="#march-2026-3">0.3.191 (12 March 2026)</a></li>
+  <li><a href="#march-2026-4" id="toc-march-2026-4" class="nav-link" data-scroll-target="#march-2026-4">0.3.190 (11 March 2026)</a></li>
+  <li><a href="#march-2026-5" id="toc-march-2026-5" class="nav-link" data-scroll-target="#march-2026-5">0.3.189 (07 March 2026)</a></li>
+  <li><a href="#march-2026-6" id="toc-march-2026-6" class="nav-link" data-scroll-target="#march-2026-6">0.3.188 (05 March 2026)</a></li>
+  <li><a href="#march-2026-7" id="toc-march-2026-7" class="nav-link" data-scroll-target="#march-2026-7">0.3.187 (05 March 2026)</a></li>
+  <li><a href="#march-2026-8" id="toc-march-2026-8" class="nav-link" data-scroll-target="#march-2026-8">0.3.186 (03 March 2026)</a></li>
+  <li><a href="#march-2026-9" id="toc-march-2026-9" class="nav-link" data-scroll-target="#march-2026-9">0.3.185 (01 March 2026)</a></li>
   <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.184 (28 February 2026)</a></li>
   <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.183 (24 February 2026)</a></li>
   <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.182 (24 February 2026)</a></li>
@@ -354,8 +354,8 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="march-2026" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026">0.3.195 (14 March 2026)</h2>
 <ul>
 <li>OpenAI: Support for image output for multimodal modals.</li>
 <li>OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.</li>
@@ -368,6 +368,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Compaction: Prevent trailing assistant messages for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> strategies.</li>
 <li>Agents: Strip citations from content returned via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span> agent wrapper.</li>
 <li>Agent Bridge: Print errors which occur in model proxy to stderr.</li>
+<li>Sandbox Tools: Prevent race conditions when multiple coroutines attempt to inject sandbox tools.</li>
 <li>Eval Logs: Use async S3 interface when flushing log buffer.</li>
 <li>Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).</li>
 <li>Eval Logs: Materialize <code>samples</code> and <code>reductions</code> fields lazily in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> returned by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</li>
@@ -378,7 +379,9 @@ ul.task-list li input[type="checkbox"] {
 <li>Task Execution: Defer loading full task states until samples actually execute, reduding sample memory usage from O(total_samples × epochs) to O(concurrent_samples).</li>
 <li>Task Execution: Add <code>--max-dataset-memory</code> option to limit the size of datasets held in memory during execution. When exceeded, samples are paged to disk.</li>
 <li>Inspect Score: Add support for an optional list of metrics when rescoring a log.</li>
+<li>Inspect View: Embed viewer directly in the log directory instead of a <code>viewer/</code> subdirectory, fixing permission issues when serving logs.</li>
 <li>Inspect View: Fix incorrectly themed sample column header text in VS Code (especially dark themes).</li>
+<li>Inspect View: Fix issue where expanding one message in a sample chat would expand all messages.</li>
 <li>Bugfix: Handle dicts with numeric keys in json_changes.</li>
 <li>Bugfix: Raise error when computer use is requested with an incompatible model/bridge combination.</li>
 <li>Bugfix: Catch <code>NotADirectoryError</code> when locating sandbox tools binary so S3 download/build fallbacks run on Python &lt; 3.13.</li>
@@ -386,37 +389,37 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix sandbox tools Docker build failure caused by <code>staticx</code> incompatibility with setuptools 82+ (removed <code>pkg_resources</code>).</li>
 </ul>
 </section>
-<section id="march-2026" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026">0.3.193 (13 March 2026)</h2>
+<section id="march-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-1">0.3.193 (13 March 2026)</h2>
 <ul>
 <li>OpenAI: Don’t serialize unspecified fields in <code>ResponseCustomToolCallParam</code>.</li>
 <li>Anthropic: Update input tokens for Sonnet/Opus 4.6 to 1MM.</li>
 <li>Bugfix: Handle missing ‘content’ content key in parse_reasoning_content for OpenAI.</li>
 </ul>
 </section>
-<section id="march-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-1">0.3.192 (13 March 2026)</h2>
+<section id="march-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-2">0.3.192 (13 March 2026)</h2>
 <ul>
 <li>Anthropic: Fallback to summary compaction when native compaction fails to compact.</li>
 <li>Compaction: Improve logging message for native compaction failures.</li>
 <li>Model Args: Support for specifying <code>model_args</code> using the <code>--model-role</code> CLI flag.</li>
 </ul>
 </section>
-<section id="march-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-2">0.3.191 (12 March 2026)</h2>
+<section id="march-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-3">0.3.191 (12 March 2026)</h2>
 <ul>
 <li>Mistral: Update to v2.0 of <code>mistralai</code> package.</li>
 <li>Inspect View: Fix regression that prevented proper display of running samples.</li>
 </ul>
 </section>
-<section id="march-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-3">0.3.190 (11 March 2026)</h2>
+<section id="march-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-4">0.3.190 (11 March 2026)</h2>
 <ul>
 <li>Anthropic: Add <code>insert_text</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool (matches Claude 4.6 schema).</li>
 </ul>
 </section>
-<section id="march-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-4">0.3.189 (07 March 2026)</h2>
+<section id="march-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-5">0.3.189 (07 March 2026)</h2>
 <ul>
 <li>Anthropic: Preserve OAuth beta header when per-request betas are set.</li>
 <li>Timelines: Detect <code>agent_result</code> for timeline spans.</li>
@@ -432,15 +435,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Eval set task_identifier is now computed using redacted model_args</li>
 </ul>
 </section>
-<section id="march-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-5">0.3.188 (05 March 2026)</h2>
+<section id="march-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-6">0.3.188 (05 March 2026)</h2>
 <ul>
 <li>OpenAI: Fix mypy issues with OpenAI SDK 2.26 (now required).</li>
 <li>Improve error serialization for model call objects.</li>
 </ul>
 </section>
-<section id="march-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-6">0.3.187 (05 March 2026)</h2>
+<section id="march-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-7">0.3.187 (05 March 2026)</h2>
 <ul>
 <li>OpenAI: Detect some additional “content_filter” stop reason conditions.</li>
 <li>OpenAI: Handle <code>web_search_call</code> response witgh no <code>action</code> field.</li>
@@ -457,8 +460,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Testing: Fix trio skip/select logic for parameterized tests whose node IDs contain <code>[trio-...]</code> instead of <code>[trio]</code>.</li>
 </ul>
 </section>
-<section id="march-2026-7" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-7">0.3.186 (03 March 2026)</h2>
+<section id="march-2026-8" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-8">0.3.186 (03 March 2026)</h2>
 <ul>
 <li>Anthropic: Handle updated Anthropic compaction not supported error message.</li>
 <li>OpenAI: Use fallback for token counting and compaction endpoints when running in environments (e.g.&nbsp;AzureAI) where they are not supported.</li>
@@ -475,8 +478,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing <code>.eval</code> file sizes.</li>
 </ul>
 </section>
-<section id="march-2026-8" class="level2">
-<h2 class="anchored" data-anchor-id="march-2026-8">0.3.185 (01 March 2026)</h2>
+<section id="march-2026-9" class="level2">
+<h2 class="anchored" data-anchor-id="march-2026-9">0.3.185 (01 March 2026)</h2>
 <ul>
 <li>Anthropic: Use <code>text_editor_20250728</code> for all Claude 4.x models per Anthropic docs.</li>
 <li>Events: Add <code>agent_span_id</code> property to tool events for associating them with their associated agent.</li>

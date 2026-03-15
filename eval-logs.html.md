@@ -628,16 +628,6 @@ modifications that can be viewed in the log viewer.
 
 ### Tags & Metadata Editing
 
-> [!NOTE]
->
-> The tag and metadata editing event features described below are
-> available only in the development version of Inspect. Install the
-> development version from GitHub with:
->
-> ``` python
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-> ```
-
 You can also edit the tags and metadata associated with a log after
 evaluation. This is useful for workflows like QA review, categorisation,
 and filtering—for example, tagging a log as `"needs_qa"` at eval time,
