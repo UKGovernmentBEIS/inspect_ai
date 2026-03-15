@@ -1,4 +1,4 @@
-## 0.3.194 (14 March 2026)
+## 0.3.195 (14 March 2026)
 
 - OpenAI: Support for image output for multimodal modals.
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
