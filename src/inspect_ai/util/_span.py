@@ -64,6 +64,7 @@ async def span(
 
 
 def current_span_id() -> str | None:
+    """Return the current span id (if any)."""
     return _current_span_id.get()
 
 
