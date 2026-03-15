@@ -4,6 +4,7 @@
 - Events: Added `event_tree_walk()` function for enumerating tree items with an optional filter.
 - Events: Provide `current_span_id()` function to get the current span id (if any).
 - Timelines: Enable specifying `name` and/or `description` when calling `timeline_build()`
+- Timelines: Correct deserialization behavior for timelines in `read_eval_log()`, etc.
 - Inspect View: Add 'None' present when choosing transcript events to display.
 
 ## 0.3.195 (14 March 2026)

@@ -8,6 +8,7 @@ from pydantic import (
     Field,
     JsonValue,
     PrivateAttr,
+    ValidationInfo,
     field_serializer,
     model_validator,
 )
@@ -520,6 +521,28 @@ class EvalSample(BaseModel):
             del values["transcript"]
 
         return migrate_values(values)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _resolve_timelines(
+        cls, data: Any, handler: Any, info: ValidationInfo
+    ) -> "EvalSample":
+        raw_timelines = None
+        if isinstance(data, dict) and data.get("timelines"):
+            raw_timelines = data.pop("timelines")
+
+        sample: EvalSample = handler(data)
+
+        if raw_timelines:
+            events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}
+            ctx: dict[str, Any] = {"events_by_uuid": events_by_uuid}
+            if info.context:
+                ctx.update(info.context)
+            sample.timelines = [
+                Timeline.model_validate(t, context=ctx) for t in raw_timelines
+            ]
+
+        return sample
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
