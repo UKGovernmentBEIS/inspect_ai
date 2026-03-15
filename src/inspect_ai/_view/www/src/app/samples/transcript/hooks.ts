@@ -84,6 +84,10 @@ export const useTranscriptFilter = () => {
     setFilteredEventTypes([...kDefaultExcludeEvents]);
   }, [setFilteredEventTypes]);
 
+  const setNoneFilter = useCallback(() => {
+    setFilteredEventTypes(Object.keys(eventTypes) as AllEventTypes[]);
+  }, [setFilteredEventTypes]);
+
   const isDefaultFilter = useMemo(() => {
     return (
       filtered.length === kDefaultExcludeEvents.length &&
@@ -93,6 +97,14 @@ export const useTranscriptFilter = () => {
 
   const isDebugFilter = useMemo(() => {
     return filtered.length === 0;
+  }, [filtered]);
+
+  const isNoneFilter = useMemo(() => {
+    const allTypes = Object.keys(eventTypes);
+    return (
+      filtered.length === allTypes.length &&
+      allTypes.every((type) => filtered.includes(type))
+    );
   }, [filtered]);
 
   const arrangedEventTypes = useCallback((columns: number = 1) => {
@@ -145,8 +157,10 @@ export const useTranscriptFilter = () => {
     filtered,
     isDefaultFilter,
     isDebugFilter,
+    isNoneFilter,
     setDefaultFilter,
     setDebugFilter,
+    setNoneFilter,
     filterEventType,
     eventTypes,
     arrangedEventTypes,
