@@ -108,6 +108,8 @@ For more detail on the different methods of configuration, see [Task Configurati
 | `--solver-config` | Solver arguments (JSON or YAML file)              |
 | `-S`              | Solver arguments (`key=value`)                    |
 
+For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with `task_with()`, via `eval()`, or on the CLI, see the [override reference](task-configuration.qmd#override-reference).
+
 ## Sample Selection
 
 |  |  |

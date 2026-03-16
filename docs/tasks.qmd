@@ -124,6 +124,8 @@ Reference this file from the CLI with:
 inspect eval security.py --task-config=config.yaml
 ```
 
+For a broader view of how task parameters relate to `task_with()`, environment variables, `eval()`, and CLI overrides, see [Task Configuration](task-configuration.qmd).
+
 ## Solvers {#solvers}
 
 While tasks always include a *default* solver, you can also vary the solver to explore other strategies and elicitation techniques. This section covers best practices for creating solver-independent tasks.

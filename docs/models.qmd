@@ -178,6 +178,12 @@ Task(
 )
 ```
 
+**With `task_with()`:**
+
+``` python
+task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+```
+
 **With `eval()`:**
 
 ``` python
@@ -202,6 +208,8 @@ inspect eval math.py \
 ```
 
 Note that the built-in [model-graded scorers](scorers.qmd#model-graded) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
+
+For how model roles fit into the broader override and precedence model, see [Task Configuration](task-configuration.qmd#model-roles).
 
 ### Role Resolution
 
