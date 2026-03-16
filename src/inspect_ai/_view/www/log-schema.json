@@ -7945,6 +7945,9 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
+              "$ref": "#/$defs/ContentDocument"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -7958,6 +7961,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },

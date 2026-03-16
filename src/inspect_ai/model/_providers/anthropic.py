@@ -91,6 +91,7 @@ from anthropic.types.beta import (
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
     BetaThinkingBlock,
+    BetaToolBash20250124Param,
     BetaToolComputerUse20250124Param,
     BetaToolComputerUse20251124Param,
     BetaToolTextEditor20241022Param,
@@ -994,6 +995,10 @@ class AnthropicAPI(ModelAPI):
         return True
 
     @override
+    def tool_result_documents(self) -> bool:
+        return True
+
+    @override
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 
@@ -1521,6 +1526,12 @@ def is_web_fetch_tool(param: ToolParamDef) -> TypeGuard[BetaWebFetchTool20250910
 
 def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:
     return param.get("name") == "memory" and not is_tool_param(param)
+
+
+def is_bash_tool(
+    param: ToolParamDef,
+) -> TypeGuard[BetaToolBash20250124Param]:
+    return param.get("name") == "bash" and not is_tool_param(param)
 
 
 def is_code_execution_tool(
