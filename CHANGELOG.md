@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
+
 ## 0.3.196 (16 March 2026)
 
 - Support for `ContentDocument` as a result type for tool calls.
