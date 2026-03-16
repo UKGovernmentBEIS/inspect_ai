@@ -5,7 +5,7 @@ tbl-colwidths: [37,63]
 
 ## Overview
 
-Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interctions. These options fall into roughly two categories:
+Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interactions. These options fall into roughly two categories:
 
 1.  Options that you want to set on a more durable basis (for a project or session).
 
