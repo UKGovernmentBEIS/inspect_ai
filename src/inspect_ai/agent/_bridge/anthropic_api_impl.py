@@ -66,6 +66,7 @@ from inspect_ai.tool._tools._code_execution import (
     code_execution,
 )
 from inspect_ai.tool._tools._computer._computer import computer
+from inspect_ai.tool._tools._execute import bash
 from inspect_ai.tool._tools._text_editor import text_editor
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -236,6 +237,8 @@ def tools_from_anthropic_tools(
             pass
         elif is_code_execution_tool(anthropic_tool):
             tools.append(code_execution(providers=code_execution_providers))
+        elif anthropic_tool.get("name") == "bash" and not is_tool_param(anthropic_tool):
+            tools.append(bash())
         else:
             raise RuntimeError(
                 f"ToolParam of type {anthropic_tool['type']} not supported by agent bridge."
