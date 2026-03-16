@@ -1,3 +1,9 @@
+## Unreleased
+
+- Anthropic: Agent bridge now maps native bash tool to standard `bash()` tool.
+- Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
+- Hooks: Add eval context id fields to `ModelUsageData` hook.
+
 ## 0.3.196 (16 March 2026)
 
 - Support for `ContentDocument` as a result type for tool calls.
