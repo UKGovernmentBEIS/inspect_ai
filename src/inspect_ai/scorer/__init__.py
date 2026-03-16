@@ -4,6 +4,7 @@ from ._answer import AnswerPattern, answer
 from ._choice import choice
 from ._classification import exact, f1
 from ._match import includes, match
+from ._math import math
 from ._metric import (
     CORRECT,
     INCORRECT,
@@ -46,6 +47,7 @@ from ._tool import require_tool
 __all__ = [
     "includes",
     "match",
+    "math",
     "model_graded_qa",
     "model_graded_fact",
     "answer",

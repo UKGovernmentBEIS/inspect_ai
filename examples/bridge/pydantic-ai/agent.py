@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai import WebSearchTool
+from pydantic_ai import WebFetchTool, WebSearchTool
 
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
 from inspect_ai.model import user_prompt
@@ -12,16 +12,17 @@ class AnswerToQueryOutput(BaseModel):
 
 @agent
 def web_research_agent() -> Agent:
-    """OpenAI Agents SDK search agent."""
+    """Pydantic AI Web Research Agent."""
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
             # define agent
             agent = PydanticAgent(
-                "openai-responses:inspect",
-                builtin_tools=[WebSearchTool()],
+                "anthropic:inspect",
+                builtin_tools=[WebSearchTool(), WebFetchTool()],
                 system_prompt="You help users find information by searching the web.",
                 output_type=AnswerToQueryOutput,
+                output_retries=3,
             )
 
             # run agent and capture result

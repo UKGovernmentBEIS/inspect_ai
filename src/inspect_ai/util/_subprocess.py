@@ -49,7 +49,7 @@ async def subprocess(
     text: Literal[True] = True,
     input: str | bytes | memoryview | None = None,
     cwd: str | Path | None = None,
-    env: dict[str, str] = {},
+    env: dict[str, str] | None = None,
     capture_output: bool = True,
     output_limit: int | None = None,
     timeout: int | None = None,
@@ -63,7 +63,7 @@ async def subprocess(
     text: Literal[False] = False,
     input: str | bytes | memoryview | None = None,
     cwd: str | Path | None = None,
-    env: dict[str, str] = {},
+    env: dict[str, str] | None = None,
     capture_output: bool = True,
     output_limit: int | None = None,
     timeout: int | None = None,
@@ -76,7 +76,7 @@ async def subprocess(
     text: bool = True,
     input: str | bytes | memoryview | None = None,
     cwd: str | Path | None = None,
-    env: dict[str, str] = {},
+    env: dict[str, str] | None = None,
     capture_output: bool = True,
     output_limit: int | None = None,
     timeout: int | None = None,
@@ -128,7 +128,7 @@ async def subprocess(
             stdout=PIPE if capture_output else None,
             stderr=PIPE if capture_output else None,
             cwd=cwd,
-            env={**os.environ, **env},
+            env={**os.environ, **(env or {})},
         )
         try:
             # write to stdin (convert input to bytes)

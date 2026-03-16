@@ -2,7 +2,7 @@
 title: "inspect_ai.log"
 ---
 
-## Eval Log Files
+## Eval Logs
 
 ### list_eval_logs
 ### write_eval_log
@@ -18,13 +18,22 @@ title: "inspect_ai.log"
 ### write_log_dir_manifest
 ### retryable_eval_logs
 ### EvalLogInfo
+
+## Log Editing
+
+### edit_eval_log
 ### edit_score
 ### invalidate_samples
 ### uninvalidate_samples
+### LogUpdate
+### LogEdit
+### MetadataEdit
+### TagsEdit
 ### ProvenanceData
 
 ## Eval Log API
 
+### EvalStatus
 ### EvalLog
 ### EvalSpec
 ### EvalDataset
@@ -44,6 +53,13 @@ title: "inspect_ai.log"
 ### EvalSampleReductions
 ### EvalSampleScore
 ### WriteConflictError
+
+## Condense API
+
+### condense_sample
+### condense_events
+### expand_events
+### EventsData
 
 ## Transcript API
 

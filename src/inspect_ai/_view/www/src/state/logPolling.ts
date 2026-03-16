@@ -129,14 +129,24 @@ export function createLogPolling(
           // Continue polling
           return true;
         } else if (pendingSamples.status === "NotFound") {
-          // The eval has completed (no more events/pending samples will be delivered)
+          // NotFound can mean either:
+          // 1. The eval completed (buffer cleaned up)
+          // 2. The sample buffer isn't ready yet (eval just started)
+          // Only stop polling if the eval is no longer running.
+          const currentStatus = get().log.selectedLogDetails?.status;
+          if (currentStatus === "started") {
+            log.debug(
+              `NotFound but eval still running, continuing to poll: ${logFileName}`,
+            );
+            // Refresh log details to pick up any status changes
+            await refreshLog(logFileName, false);
+            return true;
+          }
+
           log.debug(`Stop polling running samples: ${logFileName}`);
 
           // Clear pending summaries and refresh in one transaction
-          if (
-            loadedPendingSamples ||
-            state.log.selectedLogDetails?.status === "started"
-          ) {
+          if (loadedPendingSamples) {
             log.debug(`Refresh log: ${logFileName}`);
             await refreshLog(logFileName, true);
           }

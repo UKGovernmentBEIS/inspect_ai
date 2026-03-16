@@ -12,7 +12,6 @@ from .environment import (
 )
 from .limits import (
     SandboxEnvironmentLimits,
-    verify_exec_result_size,
     verify_read_file_size,
 )
 from .registry import sandboxenv
@@ -52,7 +51,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -77,7 +76,6 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
             concurrency=concurrency,
         )
-        verify_exec_result_size(result)
         return result
 
     @override

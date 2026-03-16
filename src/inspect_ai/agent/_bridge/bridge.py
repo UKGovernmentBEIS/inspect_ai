@@ -32,12 +32,54 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
+from .google_api import inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
     default_code_execution_providers,
     internal_web_search_providers,
     resolve_web_search_providers,
 )
+
+# Headers blocked from bridge clients (exact match, case-insensitive)
+_BLOCKED_BRIDGE_HEADERS = frozenset(
+    [
+        # Inspect internal tracking
+        "x-irid",
+        # Authentication
+        "authorization",
+        "x-api-key",
+        # Protocol headers
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "host",
+        "connection",
+        # SDK internal headers
+        "anthropic-version",
+        # User-Agent would be misleading since Inspect transforms the request
+        "user-agent",
+    ]
+)
+
+# Header prefixes blocked from bridge clients
+_BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
+
+
+def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
+    """Filter headers from bridge clients, removing sensitive/internal headers.
+
+    Note: `anthropic-beta` is intentionally NOT blocked - it's used for
+    legitimate feature flags (e.g., `code-execution-2025-08-25`).
+    """
+    if headers is None:
+        return None
+    filtered = {
+        k: v
+        for k, v in headers.items()
+        if k.lower() not in _BLOCKED_BRIDGE_HEADERS
+        and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
+    }
+    return filtered if filtered else None
 
 
 @contextlib.asynccontextmanager
@@ -138,16 +180,31 @@ def init_bridge_request_patch() -> None:
 
     init_openai_request_patch()
     init_anthropic_request_patch()
+    init_google_request_patch()
 
     _patch_initialised = True
 
 
 def init_openai_request_patch() -> None:
+    # don't patch if no openai
+    if not importlib.util.find_spec("openai"):
+        return
     validate_openai_client("agent bridge")
 
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
     from openai._models import FinalRequestOptions
-    from openai._types import ResponseT
+    from openai._types import Omit, ResponseT
+
+    # extract headers
+    def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
+        if isinstance(options.headers, dict) and len(options.headers) > 0:
+            headers: dict[str, str] = {}
+            for name, value in options.headers.items():
+                if not isinstance(value, Omit):
+                    headers[name] = value
+            return headers
+
+        return None
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -178,13 +235,16 @@ def init_openai_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
+                headers = filter_bridge_headers(request_headers(options))
+
                 if options.url == "/chat/completions":
                     return await inspect_completions_api_request(
-                        json_data, config.bridge
+                        json_data, headers, config.bridge
                     )
                 else:
                     return await inspect_responses_api_request(
                         json_data,
+                        headers,
                         config.web_search,
                         config.code_execution,
                         config.bridge,
@@ -211,7 +271,18 @@ def init_anthropic_request_patch() -> None:
 
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._models import FinalRequestOptions
-    from anthropic._types import ResponseT
+    from anthropic._types import Omit, ResponseT
+
+    # extract headers
+    def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
+        if isinstance(options.headers, dict) and len(options.headers) > 0:
+            headers: dict[str, str] = {}
+            for name, value in options.headers.items():
+                if not isinstance(value, Omit):
+                    headers[name] = value
+            return headers
+
+        return None
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -234,7 +305,7 @@ def init_anthropic_request_patch() -> None:
             # enabled for this coroutine
             config.enabled
             # messages request
-            and options.url in ["/v1/messages"]
+            and options.url in ["/v1/messages", "/v1/messages?beta=true"]
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
@@ -242,8 +313,14 @@ def init_anthropic_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
+                is_beta = "beta" in options.url
                 return await inspect_anthropic_api_request(
-                    json_data, config.web_search, config.code_execution, config.bridge
+                    json_data,
+                    filter_bridge_headers(request_headers(options)),
+                    config.web_search,
+                    config.code_execution,
+                    config.bridge,
+                    beta=is_beta,
                 )
 
         # otherwise just delegate
@@ -256,6 +333,59 @@ def init_anthropic_request_patch() -> None:
         )
 
     setattr(AsyncAPIClient, "request", patched_request)
+
+
+def init_google_request_patch() -> None:
+    # don't patch if no google genai
+    if not importlib.util.find_spec("google.genai"):
+        return
+
+    from google.genai._api_client import BaseApiClient
+    from google.genai.types import HttpResponse as SdkHttpResponse
+
+    # get reference to original method
+    original_async_request = getattr(BaseApiClient, "async_request")
+    if original_async_request is None:
+        raise RuntimeError("Couldn't find 'async_request' method on BaseApiClient")
+
+    @wraps(original_async_request)
+    async def patched_async_request(
+        self: BaseApiClient,
+        http_method: str,
+        path: str,
+        request_dict: dict[str, object],
+        http_options: Any = None,
+    ) -> SdkHttpResponse:
+        config = _patch_config.get()
+        if config.enabled and ":generateContent" in path:
+            model_name = _google_api_model_name(path)
+            if model_name and targets_inspect_model({"model": model_name}):
+                if ":streamGenerateContent" in path:
+                    raise_stream_error()
+
+                response = await inspect_google_api_request(
+                    cast(dict[str, Any], request_dict),
+                    config.web_search,
+                    config.code_execution,
+                    config.bridge,
+                )
+                import json
+
+                return SdkHttpResponse(headers={}, body=json.dumps(response))
+
+        # otherwise just delegate
+        result: SdkHttpResponse = await original_async_request(
+            self, http_method, path, request_dict, http_options
+        )
+        return result
+
+    setattr(BaseApiClient, "async_request", patched_async_request)
+
+
+def _google_api_model_name(path: str) -> str | None:
+    """Extract model name from Google API path like 'models/inspect:generateContent'."""
+    match = re.search(r"models/([^/:]+)", path)
+    return match.group(1) if match else None
 
 
 def targets_inspect_model(json_data: dict[str, Any]) -> bool:

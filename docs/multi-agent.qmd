@@ -81,7 +81,7 @@ For example, here we create a supervisor agent that makes the `web_surfer` agent
 ``` python
 from inspect_ai.agent import as_tool, react
 from inspect_ai.dataset import Sample
-from inspect_ai.tool import web_browser
+from inspect_ai.tool import web_search
 from math_tools import addition
 
 web_surfer = react(
@@ -89,7 +89,7 @@ web_surfer = react(
     description="Web research assistant",
     prompt="You are a tenacious web researcher that is expert "
            + "at using a web browser to answer questions.",
-    tools=web_browser()   
+    tools=[web_search()]   
 )
 
 supervisor = react(
@@ -109,14 +109,14 @@ Create handoffs by enclosing an agent with the `handoff()` function. These agent
 
 ``` python
 from inspect_ai.agent react
-from inspect_ai.tool import web_browser
+from inspect_ai.tool import web_search
 
 web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
     prompt="You are a tenacious web researcher that is expert "
            + "at using a web browser to answer questions.",
-    tools=web_browser()   
+    tools=[web_search()]
 )
 ```
 

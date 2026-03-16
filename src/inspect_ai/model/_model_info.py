@@ -10,7 +10,11 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from inspect_ai.model._model_data.model_data import ModelInfo, read_model_info
+from inspect_ai.model._model_data.model_data import (
+    ModelCost,
+    ModelInfo,
+    read_model_info,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import Model  # noqa: F401
@@ -57,14 +61,88 @@ def _get_lookup_index() -> dict[str, str]:
     return _lookup_index
 
 
+# Known service prefixes that should be stripped for model info lookup.
+# These are intermediate routing prefixes (e.g., "azure" in "openai/azure/gpt-4o")
+# that indicate a hosting service but don't correspond to the model organization.
+# Only stripped when in the "service slot" (middle position of 3-part paths).
+SERVICE_PREFIXES = {"azure", "bedrock", "vertex"}
+
+# Hosting providers that serve models from multiple organizations.
+# For these providers, we need to detect the organization from the model name.
+HOSTING_PROVIDERS = {"azureai", "bedrock", "vertex"}
+
+
+def _detect_org_from_model_name(model_name: str) -> str | None:
+    """Detect the organization from a model name pattern.
+
+    Args:
+        model_name: The model name (without provider prefix).
+
+    Returns:
+        The detected organization, or None if not detected.
+    """
+    name = model_name.lower()
+
+    # OpenAI models: gpt-*, o1*, o3*, o4*
+    if (
+        name.startswith("gpt-")
+        or name.startswith("o1")
+        or name.startswith("o3")
+        or name.startswith("o4")
+    ):
+        return "openai"
+
+    # Anthropic models: claude-*
+    if name.startswith("claude"):
+        return "anthropic"
+
+    # Mistral models: mistral-*, mixtral-*
+    if name.startswith("mistral") or name.startswith("mixtral"):
+        return "mistral"
+
+    # Google models: gemini-*
+    if name.startswith("gemini"):
+        return "google"
+
+    return None
+
+
 def _extract_model_name(name: str) -> str:
     """Extract the model name component from a full path.
 
     For paths like org/model, returns both parts.
     For paths like provider/org/model, returns org/model.
+    For paths like provider/service/model where service is a known hosting service
+    (azure, bedrock, vertex), strips the service and returns provider/model.
+    For hosting providers (azureai, bedrock, vertex), detects the organization
+    from the model name.
+
+    Examples:
+        "openai/gpt-4o" → "openai/gpt-4o"
+        "together/meta-llama/Llama-3" → "meta-llama/Llama-3"
+        "openai/azure/gpt-4o" → "openai/gpt-4o" (service prefix stripped)
+        "anthropic/bedrock/claude-3" → "anthropic/claude-3" (service prefix stripped)
+        "google/vertex/gemini-2" → "google/gemini-2" (service prefix stripped)
+        "azureai/gpt-4o" → "openai/gpt-4o" (org detection)
+        "azureai/claude-3-sonnet" → "anthropic/claude-3-sonnet" (org detection)
+        "bedrock/claude-3-sonnet" → "anthropic/claude-3-sonnet" (org detection)
+        "vertex/gemini-2.0-flash" → "google/gemini-2.0-flash" (org detection)
     """
     parts = name.split("/")
+    if len(parts) >= 3:
+        # Check if the second-to-last part is a known service prefix
+        # e.g., "openai/azure/gpt-4o" → parts[-2] is "azure"
+        if parts[-2].lower() in SERVICE_PREFIXES:
+            # Strip the service prefix: return provider/model
+            return f"{parts[-3]}/{parts[-1]}"
     if len(parts) >= 2:
+        # Check if this is a hosting provider that needs org detection
+        provider = parts[-2].lower()
+        if provider in HOSTING_PROVIDERS:
+            model_name = parts[-1]
+            detected_org = _detect_org_from_model_name(model_name)
+            if detected_org:
+                return f"{detected_org}/{model_name}"
         return "/".join(parts[-2:])
     return parts[-1] if parts else name
 
@@ -234,6 +312,15 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
         return None
 
 
+def get_model_input_tokens(model: Model) -> int | None:
+    model_name = model.input_tokens_name()
+    model_info = get_model_info(model_name)
+    if model_info:
+        return model_info.input_tokens
+    else:
+        return None
+
+
 def set_model_info(model: str, info: ModelInfo) -> None:
     """Set custom model information for models not in the database.
 
@@ -261,6 +348,22 @@ def set_model_info(model: str, info: ModelInfo) -> None:
     _custom_models[model] = info
 
 
+def set_model_cost(model: str, cost: ModelCost) -> None:
+    """Set cost data for a model already in the database.
+
+    Looks up the model and updates its cost field. Raises if
+    the model is not found in the database or custom registry.
+
+    Args:
+        model: Model name (e.g. "openai/gpt-4o")
+        cost: ModelCost with pricing per million tokens.
+    """
+    info = get_model_info(model)
+    if info is None:
+        raise ValueError(f"Model '{model}' not found.")
+    _custom_models[model] = info.model_copy(update={"cost": cost})
+
+
 def clear_model_info_cache() -> None:
     """Clear the model info cache.
 
@@ -270,3 +373,4 @@ def clear_model_info_cache() -> None:
     global _model_info_cache, _lookup_index
     _model_info_cache = None
     _lookup_index = None
+    _custom_models.clear()

@@ -70,8 +70,9 @@ def react(
     Use the `attempts` option to enable additional submissions if the initial
     submission(s) are incorrect (by default, no additional attempts are permitted).
 
-    By default, the model will be urged to continue if it fails to call
-    a tool. Customise this behavior using the `on_continue` option.
+    When using the `submit()` tool, the model will be urged to continue if it
+    fails to call a tool. When not using a `submit()` tool, the agent will terminate
+    if it fails to call a tool. Customise this behavior using the `on_continue` option.
 
     Args:
        name: Agent name (required when using with `handoff()` or `as_tool()`)
@@ -193,6 +194,9 @@ def react(
             # track attempts
             attempt_count = 0
 
+            # track consecutive content_filter responses
+            consecutive_content_filter = 0
+
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
@@ -208,6 +212,15 @@ def react(
                         continue
                     else:
                         break
+
+                # check for content filter (model refusal) -- allow a few
+                # chances to recover before breaking to avoid infinite loop
+                if state.output.stop_reason == "content_filter":
+                    consecutive_content_filter += 1
+                    if consecutive_content_filter >= 3:
+                        break
+                else:
+                    consecutive_content_filter = 0
 
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:
@@ -347,6 +360,9 @@ def react_no_submit(
             # create compact function
             compact = _agent_compact(compaction, state.messages, tools, model)
 
+            # track consecutive content_filter responses
+            consecutive_content_filter = 0
+
             # main loop
             while True:
                 # generate output and append assistant message
@@ -361,6 +377,15 @@ def react_no_submit(
                         continue
                     else:
                         break
+
+                # check for content filter (model refusal) -- allow a few
+                # chances to recover before breaking to avoid infinite loop
+                if state.output.stop_reason == "content_filter":
+                    consecutive_content_filter += 1
+                    if consecutive_content_filter >= 3:
+                        break
+                else:
+                    consecutive_content_filter = 0
 
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:
@@ -522,7 +547,7 @@ def _model_generate(
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
         # optionally perform compaction on the input
         if compact is not None:
-            input_messages, c_message = await compact(state.messages)
+            input_messages, c_message = await compact.compact_input(state.messages)
             if c_message is not None:
                 state.messages.append(c_message)
         else:
@@ -542,6 +567,12 @@ def _model_generate(
             # no retry, we are done
             state.output = output
             state.messages.append(state.output.message)
+
+            # update the compaction baseline with the actual input token
+            # count from the generate call (most accurate source of truth)
+            if compact is not None:
+                compact.record_output(output)
+
             break
         return state
 

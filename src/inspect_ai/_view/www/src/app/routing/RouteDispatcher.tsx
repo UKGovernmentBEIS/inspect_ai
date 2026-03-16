@@ -1,21 +1,31 @@
 import { FC } from "react";
 import { FlowPanel } from "../flow/FlowPanel";
 import { LogsPanel } from "../log-list/LogsPanel";
+import { LogSampleDetailView } from "../log-view/LogSampleDetailView";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { useLogRouteParams } from "./url";
 
 /**
- * RouteDispatcher component that determines whether to show FlowPanel, LogsPanel or LogViewContainer
- * based on the logPath parameter. If the path ends with .yaml/.yml, it shows the FlowPanel.
- * If logPath ends with .eval or .json, it shows the individual log view.
- * Otherwise, it shows the logs directory view.
+ * RouteDispatcher component that determines which view to show based on the route params.
+ *
+ * Routes to:
+ * - LogSampleDetailView: for sample detail URLs (/logs/path/samples/sample/id/epoch)
+ * - FlowPanel: for flow files (.yaml/.yml)
+ * - LogViewContainer: for log files (.eval/.json)
+ * - LogsPanel: for directory views
  */
 export const RouteDispatcher: FC = () => {
-  const { logPath } = useLogRouteParams();
+  const { logPath, sampleId, epoch, sampleUuid } = useLogRouteParams();
 
   // If no logPath is provided, show the logs directory view
   if (!logPath) {
     return <LogsPanel />;
+  }
+
+  // Check if this is a sample detail URL
+  // Sample URLs have sampleId + epoch, or sampleUuid
+  if ((sampleId && epoch) || sampleUuid) {
+    return <LogSampleDetailView />;
   }
 
   // Check if the path ends with .yaml or .yml (indicating it's a flow file)

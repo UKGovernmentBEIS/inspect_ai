@@ -1,7 +1,8 @@
 import clsx from "clsx";
 import { FC, Ref, useRef } from "react";
 
-import { usePrismHighlight } from "../../../../state/hooks";
+import { ToolCallContent } from "../../../../@types/log";
+import { usePrismHighlight } from "../../../../components/prism";
 import { RenderedText } from "../../../content/RenderedText";
 import styles from "./ToolInput.module.css";
 import { kToolTodoContentType } from "./tool";
@@ -10,15 +11,16 @@ import { TodoWriteInput } from "./tool-input/TodoWriteInput";
 interface ToolInputProps {
   contentType?: string;
   contents?: unknown | object;
-  toolCallView?: { content: string };
+  toolCallView?: ToolCallContent;
   className?: string | string[];
 }
 export const ToolInput: FC<ToolInputProps> = (props) => {
   const { contentType, contents, toolCallView, className } = props;
 
   const sourceCodeRef = useRef<HTMLDivElement | null>(null);
+  const useToolView = toolCallView && isValidView(toolCallView);
 
-  const sourceCodeLength = toolCallView
+  const sourceCodeLength = useToolView
     ? toolCallView.content.length
     : contents
       ? typeof contents === "string"
@@ -27,9 +29,11 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
       : 0;
   usePrismHighlight(sourceCodeRef, sourceCodeLength);
 
-  if (!contents && !toolCallView?.content) return null;
+  if (!contents && !useToolView) {
+    return null;
+  }
 
-  if (toolCallView) {
+  if (useToolView) {
     return (
       <RenderedText
         markdown={toolCallView.content}
@@ -92,4 +96,13 @@ const RenderTool: FC<RenderToolProps> = ({
       </pre>
     </div>
   );
+};
+
+// This is a hack to enable a specific user scenario where a large
+// number of log files were generated with an invalid tool view for specific commands.
+const isValidView = (view: ToolCallContent): boolean => {
+  if (view.content === "```bash\nbash\n```\n") {
+    return false;
+  }
+  return true;
 };

@@ -2,17 +2,19 @@ import datetime
 from dataclasses import dataclass
 from datetime import date, time, timezone
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 
-import pytest
 from pydantic import BaseModel
+from typing_extensions import TypedDict
 
+from inspect_ai._util.content import ContentDocument, ContentText
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
 from inspect_ai.tool import tool
+from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -144,10 +146,28 @@ def complex_tool():
     return complex_tool
 
 
+@tool
+def document_tool():
+    async def document_tool() -> ContentDocument:
+        """Return a document tool result."""
+        return ContentDocument(document="/path/to/report.pdf")
+
+    return document_tool
+
+
+@tool
+def mixed_content_tool():
+    async def mixed_content_tool() -> list[ContentText | ContentDocument]:
+        """Return mixed structured content."""
+        return [
+            ContentText(text="Attached report"),
+            ContentDocument(document="/path/to/report.pdf"),
+        ]
+
+    return mixed_content_tool
+
+
 # --- Positive tests -------------------------------------------------------
-
-
-@pytest.mark.asyncio
 async def test_incr_simple_positive():
     """Calling incr(0) should return 1."""
     tool_def = ToolDef(incr())
@@ -161,7 +181,6 @@ async def test_incr_simple_positive():
     assert messages[-1].content == "1"
 
 
-@pytest.mark.asyncio
 async def test_complex_tool_all_params():
     """Exercise every parameter type in one call."""
     args = {
@@ -228,3 +247,39 @@ async def test_complex_tool_all_params():
     assert result["the_date"] == date(2025, 4, 17)
     assert result["the_time"] == time(12, 0, 0)
     assert result["anything"] == {"complex": ["structure", 123]}
+
+
+def test_tool_result_content_preserves_documents():
+    """tool_result_content preserves document content blocks."""
+    document = ContentDocument(document="/path/to/report.pdf")
+
+    assert tool_result_content([document]) == [document]
+
+
+async def test_document_tool_result_preserved_as_structured_content():
+    """execute_tools preserves a document tool result as structured content."""
+    tool_def = ToolDef(document_tool())
+    call = make_call("document_tool", {})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].content == [ContentDocument(document="/path/to/report.pdf")]
+
+
+async def test_mixed_tool_result_preserved_as_structured_content():
+    """execute_tools preserves mixed text and document tool results."""
+    tool_def = ToolDef(mixed_content_tool())
+    call = make_call("mixed_content_tool", {})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].content == [
+        ContentText(text="Attached report"),
+        ContentDocument(document="/path/to/report.pdf"),
+    ]

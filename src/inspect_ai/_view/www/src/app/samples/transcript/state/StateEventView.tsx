@@ -18,6 +18,7 @@ import {
 
 import { FC, useEffect, useMemo } from "react";
 import { useStore } from "../../../../state/store";
+import { formatTitle } from "../event/utils";
 import { EventNode, kTranscriptCollapseScope } from "../types";
 import styles from "./StateEventView.module.css";
 
@@ -74,7 +75,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={title}
+      title={formatTitle(title, undefined, event.working_start)}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={!changePreview ? summary : undefined}

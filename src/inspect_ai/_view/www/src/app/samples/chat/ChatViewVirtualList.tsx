@@ -21,6 +21,7 @@ import { ContextProp, ItemProps, VirtuosoHandle } from "react-virtuoso";
 import { useStore } from "../../../state/store";
 import { ChatView } from "./ChatView";
 import styles from "./ChatViewVirtualList.module.css";
+import { messageSearchText } from "./messageSearchText";
 
 interface ChatViewVirtualListProps {
   id: string;
@@ -194,9 +195,10 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
         (index: number, item: ResolvedMessage): ReactNode => {
           const number =
             collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+          const rowId = `${id}-msg-${index}`;
           return (
             <ChatMessageRow
-              parentName={id || "chat-virtual-list"}
+              id={rowId}
               number={number}
               resolvedMessage={item}
               indented={indented}
@@ -247,6 +249,7 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
           live={running}
           showProgress={running}
           components={{ Item }}
+          itemSearchText={messageSearchText}
         />
       );
     },

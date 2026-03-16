@@ -1,7 +1,9 @@
 import abc
-from typing import IO, Literal
+from typing import IO
 
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
     EvalPlan,
@@ -11,6 +13,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 
 
@@ -24,7 +27,7 @@ class Recorder(abc.ABC):
     def handles_bytes(cls, first_bytes: bytes) -> bool: ...
 
     @abc.abstractmethod
-    def default_log_buffer(self, sample_count: int) -> int: ...
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int: ...
 
     @abc.abstractmethod
     def is_writeable(self) -> bool: ...
@@ -45,18 +48,23 @@ class Recorder(abc.ABC):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+    ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
@@ -72,6 +80,8 @@ class Recorder(abc.ABC):
         id: str | int | None = None,
         epoch: int = 1,
         uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample: ...
 
     @classmethod

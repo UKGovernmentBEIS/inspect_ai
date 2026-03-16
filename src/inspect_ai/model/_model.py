@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 import anyio
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 from tenacity import (
     RetryCallState,
     retry,
@@ -49,6 +50,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -59,9 +61,9 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import report_http_retry
+from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
-from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -70,8 +72,10 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
+    record_model_cost,
     record_model_usage,
 )
 
@@ -99,7 +103,8 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
-from ._model_call import ModelCall
+from ._model_call import ModelCall, as_error_response
+from ._model_data.model_data import ModelCost
 from ._model_output import ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -120,17 +125,6 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
-
-
-GenerateFilter: TypeAlias = Callable[
-    [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
-    Awaitable[ModelOutput | GenerateInput | None],
-]
-"""Filter a model generation.
-
-A filter may substitute for the default model generation by returning a
-`ModelOutput`, modify the input parameters by returning a `GenerateInput`, or return `None` to allow default processing to continue.
-"""
 
 
 class ModelAPI(abc.ABC):
@@ -170,7 +164,7 @@ class ModelAPI(abc.ABC):
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
-        from inspect_ai.hooks._hooks import override_api_key
+        from inspect_ai.hooks._hooks import has_api_key_override, override_api_key
 
         # apply api key override
         api_key = self.api_key
@@ -189,6 +183,13 @@ class ModelAPI(abc.ABC):
                     override = override_api_key(key, value)
                     if override is not None:
                         os.environ[key] = override
+                # When a hook is registered but no API key exists anywhere,
+                # still call the hook so it can provide credentials from its
+                # own source (e.g. OAuth tokens, vault, etc.)
+                elif has_api_key_override():
+                    override = override_api_key(key, "")
+                    if override is not None:
+                        api_key = override
 
         # set any explicitly specified api key
         self.api_key = api_key
@@ -219,6 +220,10 @@ class ModelAPI(abc.ABC):
         """Canonical model name for querying results."""
         return self.model_name
 
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        return self.canonical_name()
+
     @abc.abstractmethod
     async def generate(
         self,
@@ -242,7 +247,11 @@ class ModelAPI(abc.ABC):
         """
         ...
 
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Estimate token count for input.
 
         This default implementation uses character-based heuristics for text
@@ -252,6 +261,8 @@ class ModelAPI(abc.ABC):
 
         Args:
             input: Input to count tokens for.
+            config: Optional generation config for provider-specific counting
+                (e.g., reasoning parameters that affect token allocation).
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
@@ -349,13 +360,13 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
+    def tool_result_documents(self) -> bool:
+        """Tool results can be replayed to the model with documents."""
+        return False
+
     def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False
-
-    def emulate_reasoning_history(self) -> bool:
-        """Chat message assistant messages with reasoning should playback reasoning with emulation (.e.g. <think> tags)"""
-        return True
 
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         """Force a specific reasoning history behavior for this provider."""
@@ -368,6 +379,39 @@ class ModelAPI(abc.ABC):
     def compact_reasoning_history(self) -> bool:
         """Is reasoning history eligible for compation for this provider?"""
         return True
+
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using provider-native compaction.
+
+        Some model providers (e.g., OpenAI Codex models) support native context
+        compaction, which reduces the token count of a conversation while preserving
+        semantic meaning. This is useful for long conversations that approach the
+        context window limit.
+
+        Args:
+            input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
+            instructions: Additional instructions to give the model about compaction
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+
+        Returns:
+            A tuple of (compacted_messages, usage) where compacted_messages is a
+            list containing a single message with compaction metadata, and usage
+            contains token counts for the compaction operation.
+
+        Raises:
+            NotImplementedError: For providers without native compaction support.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support native compaction."
+        )
 
 
 class Model:
@@ -406,6 +450,7 @@ class Model:
         self.config = config
         self.model_args = model_args if model_args is not None else {}
         self._role: str | None = None
+        self._explicit_base_url: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -450,6 +495,15 @@ class Model:
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return self.api.canonical_name()
+
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        return self.api.input_tokens_name()
+
+    @property
+    def explicit_base_url(self) -> str | None:
+        """Base URL explicitly provided by the user (not resolved from env/defaults)."""
+        return self._explicit_base_url
 
     @property
     def role(self) -> str | None:
@@ -501,26 +555,8 @@ class Model:
         conversation_length = len(input) if isinstance(input, list) else 1
         check_message_limit(conversation_length, raise_for_equal=True)
 
-        # base config for this model
-        base_config = self.config
-
-        # if we are the active_model then merge active generate config
-        active_config = active_generate_config()
-        if is_active_model:
-            base_config = base_config.merge(active_config)
-
-        ## otherwise merge connection-oriented config
-        else:
-            base_config = base_config.merge(
-                GenerateConfig(
-                    max_connections=active_config.max_connections,
-                    max_retries=active_config.max_retries,
-                    timeout=active_config.timeout,
-                )
-            )
-
-        # merge passed config
-        config = base_config.merge(config)
+        # resolve config
+        config = self._resolve_config(config)
 
         # resolve cache (prefer arg, fall back to config)
         if isinstance(cache, NotGiven):
@@ -630,12 +666,19 @@ class Model:
             else:
                 return messages[len(input) :], output
 
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Estimate token count for input.
 
         Args:
            input: Input to count tokens for.
+           config: Optional generation config for provider-specific counting
+               (e.g., reasoning parameters that affect token allocation).
         """
+        config = self._resolve_config(config)
         model_name = ModelName(self)
         key = f"ModelCountTokens({self.api.connection_key()})"
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
@@ -652,11 +695,13 @@ class Model:
                     self.api.retry_wait(),
                 )
             )
-            async def _count_tokens(input: str | list[ChatMessage]) -> int:
-                return await self.api.count_tokens(input)
+            async def _count_tokens(
+                input: str | list[ChatMessage], config: GenerateConfig | None
+            ) -> int:
+                return await self.api.count_tokens(input, config)
 
             # count tokens
-            return await _count_tokens(input)
+            return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -682,6 +727,70 @@ class Model:
             )
         return await self.count_tokens([ChatMessageUser(content=tool_json)])
 
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using provider-native compaction.
+
+        Delegates to the model provider's native compaction API when available.
+        Automatically tracks token usage and enforces token limits.
+
+        Args:
+          input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+          tools: Tools available for the model to call.
+          config: Model configuration.
+          instructions: Additional instructions to give the model about compaction
+               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+
+        Returns:
+          A tuple of (compacted_messages, usage) where compacted_messages is
+          a list of compacted messages and usage contains token counts.
+
+        Raises:
+            NotImplementedError: For providers without native compaction support.
+        """
+        config = self._resolve_config(None)
+
+        # provide max_tokens from the model api if required (same as generate)
+        if config.max_tokens is None:
+            config.max_tokens = self.api.max_tokens_for_config(config)
+            if config.max_tokens is None:
+                config.max_tokens = self.api.max_tokens()
+
+        model_name = ModelName(self)
+        key = f"ModelCompact({self.api.connection_key()})"
+
+        async with concurrency(f"{model_name}_compact", 10, key, visible=False):
+
+            @retry(
+                **model_retry_config(
+                    self.api.model_name,
+                    self.config.max_retries,
+                    self.config.timeout,
+                    self.should_retry,
+                    self.before_retry,
+                    log_model_retry,
+                    report_sample_waiting_time,
+                    self.api.retry_wait(),
+                )
+            )
+            async def _compact(
+                messages: list[ChatMessage],
+            ) -> tuple[list[ChatMessage], ModelUsage | None]:
+                return await self.api.compact(messages, tools, config, instructions)
+
+            # Call compact with retry handling
+            compacted_messages, usage = await _compact(input)
+
+            # Record and check usage
+            if usage:
+                record_and_check_model_usage(f"{self}", usage, role=self.role)
+
+            return compacted_messages, usage
+
     async def _generate(
         self,
         input: list[ChatMessage],
@@ -693,6 +802,7 @@ class Model:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import emit_model_cache_usage, emit_model_usage
         from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import track_active_model_event
 
         # default to 'auto' for tool_choice (same as underlying model apis)
@@ -747,10 +857,13 @@ class Model:
             ),
         )
 
-        # break tool image content out into user messages if the model doesn't
-        # support tools returning images
+        extract_types: list[type] = []
         if not self.api.tool_result_images():
-            input = tool_result_images_as_user_message(input)
+            extract_types.append(ContentImage)
+        if not self.api.tool_result_documents():
+            extract_types.append(ContentDocument)
+        if extract_types:
+            input = tool_result_media_as_user_message(input, tuple(extract_types))
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -862,7 +975,10 @@ class Model:
                             and timeout_cm.cancel_called
                         ):
                             raise AttemptTimeoutError(config.attempt_timeout)
-
+                except Exception as ex:
+                    # Mark event as failed for uncaught provider exceptions
+                    complete(ex, None)
+                    raise
                 finally:
                     time_elapsed = time.monotonic() - time_start
 
@@ -877,10 +993,18 @@ class Model:
                 complete(output, call)
 
                 # Wrap the error in a runtime error which will show the
-                # request which caused the error
+                # request which caused the error (truncated to last
+                # 200 lines if larger to avoid overflowing terminal)
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
-                error_message = f"{error}\n\nRequest:\n{request}"
+                max_lines = 200
+                request_lines = request.splitlines()
+                if len(request_lines) > max_lines:
+                    request = "\n".join(
+                        [f"... ({len(request_lines) - max_lines} lines truncated) ..."]
+                        + request_lines[-max_lines:]
+                    )
+                error_message = f"\nRequest:\n{request}\n\n{error}"
                 raise RuntimeError(error_message)
 
             # update output with time (call.time captures time spent
@@ -900,8 +1024,7 @@ class Model:
 
             # record usage
             if output.usage:
-                # record usage
-                record_and_check_model_usage(f"{self}", output.usage)
+                record_and_check_model_usage(f"{self}", output.usage, role=self.role)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -930,6 +1053,10 @@ class Model:
             report_sample_waiting_time(
                 total_time - reported_waiting_time - model_output.time
             )
+
+        # report refusal
+        if not model_output.empty and model_output.stop_reason == "content_filter":
+            report_refusal(model_output.completion)
 
         # return results
         return model_output, event
@@ -1017,6 +1144,28 @@ class Model:
         ):
             yield
 
+    def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
+        # base config for this model
+        base_config = self.config
+
+        # if we are the active_model then merge active generate config
+        active_config = active_generate_config()
+        if self == active_model():
+            base_config = base_config.merge(active_config)
+
+        # otherwise merge connection-oriented config so its inherited everywhere
+        else:
+            base_config = base_config.merge(
+                GenerateConfig(
+                    max_connections=active_config.max_connections,
+                    max_retries=active_config.max_retries,
+                    timeout=active_config.timeout,
+                )
+            )
+
+        # merge passed config
+        return base_config.merge(config or GenerateConfig())
+
     def _record_model_interaction(
         self,
         input: list[ChatMessage],
@@ -1026,7 +1175,10 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
+    ) -> tuple[
+        Callable[[ModelOutput | Exception, ModelCall | None], None],
+        BaseModel,
+    ]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
@@ -1057,9 +1209,31 @@ class Model:
                 event.output = result
             else:
                 display_conversation_assistant_error(result)
-                event.error = repr(result)
+                event.error = exception_message(result)
+                traceback_text, traceback_ansi = format_traceback(
+                    type(result), result, result.__traceback__
+                )
+                event.traceback = traceback_text
+                event.traceback_ansi = traceback_ansi
 
-            event.call = updated_call
+            if updated_call is not None:
+                event.call = updated_call
+
+            if (
+                isinstance(result, Exception)
+                and event.call is not None
+                and event.call.response is None
+            ):
+                # We try to set these in the individual providers' error handling, but we make a last
+                # ditch effort here to set them if we don't have a response.
+                event.call.error = True
+                if hasattr(result, "body"):
+                    event.call.response = as_error_response(result.body)
+                elif hasattr(result, "response"):
+                    event.call.response = as_error_response(result.response)
+                else:
+                    event.call.response = as_error_response(str(result))
+
             event.pending = None
             transcript()._event_updated(event)
 
@@ -1068,6 +1242,31 @@ class Model:
             complete(output, call)
 
         return complete, event
+
+
+ModelGenerateFilter: TypeAlias = Callable[
+    [Model, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
+    Awaitable[ModelOutput | GenerateInput | None],
+]
+"""Filter that receives the resolved ``Model`` instance as its first argument."""
+
+StrGenerateFilter: TypeAlias = Callable[
+    [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
+    Awaitable[ModelOutput | GenerateInput | None],
+]
+"""Deprecated filter that receives a model name ``str`` as its first argument."""
+
+GenerateFilter: TypeAlias = ModelGenerateFilter | StrGenerateFilter
+"""Filter a model generation.
+
+The first argument is the resolved ``Model`` instance.  Filters that
+accept a ``str`` as the first argument are still supported but
+deprecated and will receive ``model.name`` instead.
+
+A filter may substitute for the default model generation by returning a
+``ModelOutput``, modify the input parameters by returning a ``GenerateInput``,
+or return ``None`` to allow default processing to continue.
+"""
 
 
 class AttemptTimeoutError(RuntimeError):
@@ -1220,7 +1419,7 @@ def get_model(
             model = model.split(",")[0]
         else:
             raise ValueError(
-                "No model specified (and no model environment varible defined)"
+                "No model specified (and no model environment variable defined)"
             )
 
     # see if we can return a memoized model instance
@@ -1273,6 +1472,7 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        m._explicit_base_url = base_url
         if role is not None:
             m._set_role(role)
         if memoize:
@@ -1423,40 +1623,21 @@ def resolve_reasoning_history(
                 # remove it unless we are in "last" mode and haven't yet found last
                 if has_reasoning:
                     if reasoning_history == "none" or found_last:
-                        message = message.model_copy(
-                            update={
-                                "content": [
-                                    content
-                                    for content in message.content
-                                    if not isinstance(content, ContentReasoning)
-                                ]
-                            }
-                        )
+                        filtered = [
+                            content
+                            for content in message.content
+                            if not isinstance(content, ContentReasoning)
+                        ]
+                        if len(filtered) != len(message.content):
+                            message = message.model_copy(
+                                update={"id": uuid(), "content": filtered}
+                            )
                     found_last = True
 
             resolved_messages.append(message)
 
         # reverse them back
         resolved_messages.reverse()
-
-    # api can't represent reasoning natively so emulate it
-    if model_api.emulate_reasoning_history():
-        emulated_messages: list[ChatMessage] = []
-        for message in resolved_messages:
-            if isinstance(message, ChatMessageAssistant) and isinstance(
-                message.content, list
-            ):
-                content: list[Content] = []
-                for c in message.content:
-                    if isinstance(c, ContentReasoning):
-                        content.append(ContentText(text=reasoning_to_think_tag(c)))
-                    else:
-                        content.append(c)
-                message = message.model_copy(update={"content": content})
-
-            emulated_messages.append(message)
-
-        resolved_messages = emulated_messages
 
     # return messages
     return resolved_messages
@@ -1488,107 +1669,105 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
+            original_content = message.content
             message.content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
+            if message.content is not original_content:
+                message.id = uuid()
 
     # return modified messages
     return messages
 
 
-def tool_result_images_as_user_message(
-    messages: list[ChatMessage],
-) -> list[ChatMessage]:
-    """
-    To conform to models lacking support for images in tool responses, create an alternate message history that moves images into a fabricated user message.
+MEDIA_PLACEHOLDERS: dict[type, str] = {
+    ContentImage: "Image content is included below.",
+    ContentDocument: "Document content is included below.",
+}
 
-    Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
+MediaAccumulator: TypeAlias = tuple[list[ChatMessage], list[Content], list[str]]
+MediaContentAccumulator: TypeAlias = tuple[list[Content], list[Content]]
+
+
+def tool_result_media_as_user_message(
+    messages: list[ChatMessage],
+    extract_types: tuple[type, ...],
+) -> list[ChatMessage]:
+    """Move media content out of tool results into fabricated user messages.
+
+    Tool responses will have matching media replaced with placeholder text,
+    and the extracted content will appear in a new user message.
     """
+    message_reducer = _make_message_reducer(extract_types)
     chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        tool_result_images_reducer,
+        message_reducer,
         messages,
         (list[ChatMessage](), list[Content](), list[str]()),
     )
-    # if the last message was a tool result, we may need to flush the pending stuff here
     return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
 
 
-ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
-"""
-ImagesAccumulator is a tuple containing three lists:
-- The first list contains ChatMessages that are the result of processing.
-- The second list contains ContentImages that need to be inserted into a fabricated user message.
-- The third list contains the tool_call_id's associated with the tool responses.
-"""
+def _make_content_reducer(
+    extract_types: tuple[type, ...],
+) -> Callable[[MediaContentAccumulator, Content], MediaContentAccumulator]:
+    """Return a content-level reducer that extracts the given media types."""
 
-
-def tool_result_images_reducer(
-    accum: ImagesAccumulator,
-    message: ChatMessage,
-) -> ImagesAccumulator:
-    messages, pending_content, tool_call_ids = accum
-    # if there are tool result images, pull them out into a ChatUserMessage
-    if (
-        isinstance(message, ChatMessageTool)
-        and isinstance(message.content, list)
-        and any([isinstance(c, ContentImage) for c in message.content])
-    ):
-        new_user_message_content, edited_tool_message_content = functools.reduce(
-            tool_result_image_content_reducer,
-            message.content,
-            (list[Content](), list[Content]()),
-        )
-
-        return (
-            messages
-            + [
-                ChatMessageTool(
-                    id=message.id,
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
-                )
-            ],
-            pending_content + new_user_message_content,
-            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
-        )
-
-    else:
-        return (
-            maybe_adding_user_message(messages, pending_content, tool_call_ids)
-            + [message],
-            [],
-            [],
-        )
-
-
-ImageContentAccumulator = tuple[list[Content], list[Content]]
-"""
-ImageContentAccumulator is a tuple containing two lists of Content objects:
-- The first list contains ContentImages that will be included in a fabricated user message.
-- The second list contains modified content for the tool message with images replaced with text.
-"""
-
-
-def tool_result_image_content_reducer(
-    acc: ImageContentAccumulator, content: Content
-) -> ImageContentAccumulator:
-    """
-    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and one for modified tool message with the images replaced with text.
-
-    Returns:
-      ImageContentReducer: A tuple containing two lists of Content objects.
-        - The first list contains the images that will be included in a fabricated user message.
-        - The second list contains modified content for the tool message with images replaced with text.
-    """
-    new_user_message_content, edited_tool_message_content = acc
-    if isinstance(content, ContentImage):
-        return new_user_message_content + [content], edited_tool_message_content + [
-            ContentText(text="Image content is included below.")
-        ]
-
-    else:
+    def reducer(
+        acc: MediaContentAccumulator, content: Content
+    ) -> MediaContentAccumulator:
+        new_user_message_content, edited_tool_message_content = acc
+        for media_type, placeholder in MEDIA_PLACEHOLDERS.items():
+            if isinstance(content, media_type) and media_type in extract_types:
+                return new_user_message_content + [
+                    content
+                ], edited_tool_message_content + [ContentText(text=placeholder)]
         return new_user_message_content, edited_tool_message_content + [content]
+
+    return reducer
+
+
+def _make_message_reducer(
+    extract_types: tuple[type, ...],
+) -> Callable[[MediaAccumulator, ChatMessage], MediaAccumulator]:
+    """Return a message-level reducer that extracts the given media types."""
+    content_reducer = _make_content_reducer(extract_types)
+
+    def reducer(accum: MediaAccumulator, message: ChatMessage) -> MediaAccumulator:
+        messages, pending_content, tool_call_ids = accum
+        if (
+            isinstance(message, ChatMessageTool)
+            and isinstance(message.content, list)
+            and any(isinstance(c, extract_types) for c in message.content)
+        ):
+            new_user_message_content, edited_tool_message_content = functools.reduce(
+                content_reducer,
+                message.content,
+                (list[Content](), list[Content]()),
+            )
+
+            return (
+                messages
+                + [
+                    ChatMessageTool(
+                        content=edited_tool_message_content,
+                        tool_call_id=message.tool_call_id,
+                        function=message.function,
+                    )
+                ],
+                pending_content + new_user_message_content,
+                tool_call_ids
+                + ([message.tool_call_id] if message.tool_call_id else []),
+            )
+
+        else:
+            return (
+                maybe_adding_user_message(messages, pending_content, tool_call_ids)
+                + [message],
+                [],
+                [],
+            )
+
+    return reducer
 
 
 def maybe_adding_user_message(
@@ -1656,14 +1835,21 @@ def combine_messages(
     # `content` have default values, it's more the case that they're reset to
     # default values rather than dropped.
 
+    # track combination
+    metadata = {"combined_from": [a.id, b.id]}
+
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}")
+        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content)
+        return message_type(content=a.content + b.content, metadata=metadata)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=[ContentText(text=a.content), *b.content])
+        return message_type(
+            content=[ContentText(text=a.content), *b.content], metadata=metadata
+        )
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(content=a.content + [ContentText(text=b.content)])
+        return message_type(
+            content=a.content + [ContentText(text=b.content)], metadata=metadata
+        )
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
@@ -1728,21 +1914,56 @@ def init_sample_model_usage() -> None:
     sample_model_usage_context_var.set({})
 
 
-def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import set_active_sample_total_tokens
+def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
+    if initial_usage is not None:
+        role_usage_context_var.set(initial_usage)
+    elif len(role_usage_context_var.get()) == 0:
+        role_usage_context_var.set({})
+
+
+def init_sample_role_usage() -> None:
+    sample_role_usage_context_var.set({})
+
+
+def record_and_check_model_usage(
+    model: str, usage: ModelUsage, role: str | None = None
+) -> None:
+    from inspect_ai.log._samples import (
+        set_active_sample_total_cost,
+        set_active_sample_total_tokens,
+    )
+    from inspect_ai.model._model_info import get_model_info
+
+    # compute cost and set on usage before recording (so ModelUsage.__add__
+    # accumulates it in the per-model usage dicts)
+    info = get_model_info(model)
+    total_cost: float | None = None
+    # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
+    if info is not None and info.cost is not None:
+        total_cost = compute_model_cost(info.cost, usage)
+        usage.total_cost = total_cost
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
+
+    # record usage by role name (if role is set)
+    if role is not None:
+        set_model_usage(role, usage, sample_role_usage_context_var.get(None))
+        set_model_usage(role, usage, role_usage_context_var.get(None))
+
     record_model_usage(usage)
 
-    # compute total tokens
+    # compute total tokens and update active sample
     total_tokens = sample_total_tokens()
-
-    # update active sample
     set_active_sample_total_tokens(total_tokens)
-
     check_token_limit()
+
+    # record cost to limit tree and check
+    if total_cost is not None:
+        record_model_cost(total_cost)
+        set_active_sample_total_cost(sample_total_cost())
+        check_cost_limit()
 
 
 def set_model_usage(
@@ -1767,6 +1988,14 @@ def sample_model_usage() -> dict[str, ModelUsage]:
     return sample_model_usage_context_var.get()
 
 
+def role_usage() -> dict[str, ModelUsage]:
+    return role_usage_context_var.get()
+
+
+def sample_role_usage() -> dict[str, ModelUsage]:
+    return sample_role_usage_context_var.get()
+
+
 def sample_total_tokens() -> int:
     total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
     return sum(total_tokens)
@@ -1775,3 +2004,43 @@ def sample_total_tokens() -> int:
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
 )
+
+
+role_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "role_usage", default={}
+)
+
+
+sample_role_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "sample_role_usage", default={}
+)
+
+
+def compute_model_cost(cost_data: ModelCost, usage: ModelUsage) -> float:
+    """Compute cost for a model call based on usage and cost data.
+
+    Args:
+        cost_data: Per-token pricing for the model.
+        usage: Token counts for the call.
+
+    Returns:
+        Cost in dollars.
+    """
+    cost = usage.input_tokens * cost_data.input / 1_000_000
+    cost += usage.output_tokens * cost_data.output / 1_000_000
+
+    if usage.input_tokens_cache_write is not None:
+        cost += usage.input_tokens_cache_write * cost_data.input_cache_write / 1_000_000
+    if usage.input_tokens_cache_read is not None:
+        cost += usage.input_tokens_cache_read * cost_data.input_cache_read / 1_000_000
+
+    return cost
+
+
+def sample_total_cost() -> float:
+    """Get total cost across all models for the current sample."""
+    return sum(
+        usage.total_cost
+        for usage in sample_model_usage().values()
+        if usage.total_cost is not None
+    )

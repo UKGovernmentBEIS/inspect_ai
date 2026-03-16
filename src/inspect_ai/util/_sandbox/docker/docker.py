@@ -13,6 +13,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
 from ..environment import (
     HostMapping,
     PortMapping,
@@ -22,7 +23,6 @@ from ..environment import (
 )
 from ..limits import (
     SandboxEnvironmentLimits,
-    verify_exec_result_size,
     verify_read_file_size,
 )
 from ..registry import sandboxenv
@@ -45,7 +45,6 @@ from .compose import (
     compose_services,
     compose_up,
 )
-from .config import CONFIG_FILES, DOCKERFILE
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -57,7 +56,11 @@ logger = getLogger(__name__)
 class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
-        return CONFIG_FILES + [DOCKERFILE]
+        return COMPOSE_FILES + [DOCKERFILE]
+
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
+        return True
 
     @classmethod
     def default_concurrency(cls) -> int | None:
@@ -278,7 +281,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -300,7 +303,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
-        if len(env.items()) > 0:
+        if env:
             for key, value in env.items():
                 args.append("--env")
                 args.append(f"{key}={value}")
@@ -314,7 +317,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
             concurrency=concurrency,
         )
-        verify_exec_result_size(exec_result)
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
             raise PermissionError(f"Permission denied executing command: {exec_result}")
 
@@ -591,5 +593,9 @@ def resolve_config_environment(
 
         # return resolved
         return ConfigEnvironment(config_file, config_text, env)
+    elif isinstance(config, ComposeConfig):
+        # ComposeConfig objects don't support metadata interpolation
+        # (they are already fully resolved)
+        return None
     else:
         return None

@@ -4,6 +4,7 @@ import { Status } from "../../../@types/log";
 export interface SampleRow {
   displayIndex?: number;
   logFile: string;
+  created: string; // representing datetime
   task: string;
   model: string;
   status?: Status;

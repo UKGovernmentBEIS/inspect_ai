@@ -65,12 +65,15 @@ disallow_untyped_decorators = true
 extra_checks = true
 disable_error_code = "unused-ignore"
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.check-wheel-contents]
 ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_sandbox_tools"
-version = "1.2.0"
+version = "1.2.1"
 description = "Sandbox container tool code for inspect_ai"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
@@ -115,6 +118,8 @@ dev = [
     "towncrier",
     "types-psutil",
     "pytest",
+    "pytest-asyncio",
+    "pytest-dotenv",
 ]
 
 dist = ["twine", "build"]

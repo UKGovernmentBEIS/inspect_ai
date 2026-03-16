@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
 
+import anyio
+from anyio.streams.memory import MemoryObjectReceiveStream
+
 from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -11,8 +14,10 @@ from inspect_ai._util.registry import (
     registry_find,
     registry_name,
 )
+from inspect_ai.event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._limit import LimitExceededError
 
@@ -101,6 +106,22 @@ class TaskEnd:
 
 
 @dataclass(frozen=True)
+class SampleInit:
+    """Sample init hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    summary: EvalSampleSummary
+    """Summary of the sample to be initialized."""
+
+
+@dataclass(frozen=True)
 class SampleStart:
     """Sample start hook event data."""
 
@@ -114,6 +135,22 @@ class SampleStart:
     """The globally unique identifier for the sample execution."""
     summary: EvalSampleSummary
     """Summary of the sample to be run."""
+
+
+@dataclass(frozen=True)
+class SampleEvent:
+    """Sample event hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    event: Event
+    """Sample events."""
 
 
 @dataclass(frozen=True)
@@ -260,6 +297,22 @@ class Hooks:
         """
         pass
 
+    async def on_sample_init(self, data: SampleInit) -> None:
+        """On sample init.
+
+        Called when a sample has been scheduled and is about to begin
+        initialization, before sandbox environments are created. This hook can
+        be used to gate sandbox resource provisioning.
+
+        If the sample errors and retries, this will not be called again.
+
+        If a sample is run for multiple epochs, this will be called once per epoch.
+
+        Args:
+           data: Sample init data.
+        """
+        pass
+
     async def on_sample_start(self, data: SampleStart) -> None:
         """On sample start.
 
@@ -270,6 +323,18 @@ class Hooks:
 
         Args:
            data: Sample start data.
+        """
+        pass
+
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        """On sample event.
+
+        Called when a sample event is emmitted. Pending events are not
+        logged here (i.e. ToolEvent and ModelEvent are not logged until
+        they are complete).
+
+        Args:
+           data: Sample event.
         """
         pass
 
@@ -421,6 +486,23 @@ async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
     await _emit_to_all(lambda hook: hook.on_task_end(data))
 
 
+async def emit_sample_init(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
+) -> None:
+    data = SampleInit(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
+    )
+    await _emit_to_all(lambda hook: hook.on_sample_init(data))
+
+
 async def emit_sample_start(
     eval_set_id: str | None,
     run_id: str,
@@ -436,6 +518,111 @@ async def emit_sample_start(
         summary=summary,
     )
     await _emit_to_all(lambda hook: hook.on_sample_start(data))
+
+
+def emit_sample_event(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    event: Event,
+) -> None:
+    active = sample_active()
+    if active is None or active.event_send is None:
+        return
+    if event.pending:
+        return
+    data = SampleEvent(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        event=event,
+    )
+    try:
+        active.event_send.send_nowait(data)
+    except anyio.WouldBlock:
+        logger.warning("Sample event queue full, dropping event")
+    except anyio.ClosedResourceError:
+        pass
+
+
+def start_sample_event_emitter() -> None:
+    """Start the background coroutine that emits sample events to hooks.
+
+    Must be called after active.start(tg) so that the task group is available.
+    """
+    active = sample_active()
+    if active is None or active.tg is None:
+        return
+
+    send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](1000)
+    active.event_send = send_stream
+    active.event_receive = receive_stream
+    active.event_done = anyio.Event()
+
+    async def _emit_loop(
+        receive: MemoryObjectReceiveStream[SampleEvent],
+        done: anyio.Event,
+    ) -> None:
+        try:
+            async for data in receive:
+                try:
+
+                    async def _call_hook(hook: Hooks, d: SampleEvent = data) -> None:
+                        await hook.on_sample_event(d)
+
+                    await _emit_to_all(_call_hook)
+                except Exception as ex:
+                    logger.warning(f"Exception in sample event emitter: {ex}")
+        finally:
+            done.set()
+
+    active.tg.start_soon(_emit_loop, receive_stream, active.event_done)
+
+
+async def drain_sample_events() -> None:
+    """Drain all queued sample events and wait for the emitter to finish.
+
+    Must be called before emit_sample_end() to ensure all queued events are
+    delivered before the sample end hook fires.
+    """
+    active = sample_active()
+    if active is None:
+        return
+
+    try:
+        # Close the send stream to signal no more events
+        if active.event_send is not None:
+            await active.event_send.aclose()
+
+        # Wait for the background emitter to finish processing
+        if active.event_done is not None:
+            with anyio.move_on_after(5):
+                await active.event_done.wait()
+            if not active.event_done.is_set():
+                logger.warning("Timed out waiting for sample event emitter to drain")
+
+        # Process any remaining events the background emitter didn't get to
+        # (e.g. scoring events queued after the solver task group was cancelled)
+        if active.event_receive is not None:
+            try:
+                while True:
+                    data = active.event_receive.receive_nowait()
+
+                    async def _emit_event(hook: Hooks, d: SampleEvent = data) -> None:
+                        await hook.on_sample_event(d)
+
+                    await _emit_to_all(_emit_event)
+            except (anyio.WouldBlock, anyio.EndOfStream, anyio.ClosedResourceError):
+                pass
+    except Exception as ex:
+        logger.warning(f"Exception draining sample events: {ex}")
+    finally:
+        # Clean up regardless of success/failure
+        active.event_send = None
+        active.event_receive = None
+        active.event_done = None
 
 
 async def emit_sample_end(

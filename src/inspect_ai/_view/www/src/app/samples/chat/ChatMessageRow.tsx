@@ -7,7 +7,7 @@ import { ResolvedMessage } from "./messages";
 import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageRowProps {
-  parentName: string;
+  id: string;
   number?: number;
   resolvedMessage: ResolvedMessage;
   toolCallStyle: ChatViewToolCallStyle;
@@ -15,19 +15,21 @@ interface ChatMessageRowProps {
   padded?: boolean;
   highlightUserMessage?: boolean;
   allowLinking?: boolean;
+  unlabeledRoles?: string[];
 }
 
 /**
  * Renders the ChatMessage component.
  */
 export const ChatMessageRow: FC<ChatMessageRowProps> = ({
-  parentName,
+  id,
   number,
   resolvedMessage,
   toolCallStyle,
   indented,
   highlightUserMessage,
   allowLinking = true,
+  unlabeledRoles,
 }) => {
   if (number) {
     return (
@@ -51,12 +53,13 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
             {number}
           </div>
           <ChatMessage
-            id={`${parentName}-chat-messages`}
+            id={`${id}-chat-messages`}
             message={resolvedMessage.message}
             toolMessages={resolvedMessage.toolMessages}
             indented={indented}
             toolCallStyle={toolCallStyle}
             allowLinking={allowLinking}
+            unlabeledRoles={unlabeledRoles}
           />
         </div>
       </>
@@ -73,12 +76,13 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
         )}
       >
         <ChatMessage
-          id={`${parentName}-chat-messages`}
+          id={`${id}-chat-messages`}
           message={resolvedMessage.message}
           toolMessages={resolvedMessage.toolMessages}
           indented={indented}
           toolCallStyle={toolCallStyle}
           allowLinking={allowLinking}
+          unlabeledRoles={unlabeledRoles}
         />
         {resolvedMessage.message.role === "user" ? (
           <div style={{ height: "10px" }}></div>

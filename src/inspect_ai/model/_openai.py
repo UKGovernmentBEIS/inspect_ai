@@ -1,7 +1,9 @@
 import functools
 import json
+import re
 from copy import copy
-from typing import Any, Callable, Literal, cast
+from dataclasses import dataclass
+from typing import Any, Callable, Literal, TypeAlias, cast
 
 import httpx
 from openai import (
@@ -63,7 +65,6 @@ from inspect_ai.model._internal import (
 )
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.model._reasoning import (
-    openrouter_reasoning_details_to_reasoning,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
@@ -90,6 +91,19 @@ class OpenAIResponseError(OpenAIError):
 
 # is_o_series etc. have been moved to the OpenAIAPI class
 # in _providers/openai.py to enable proper overriding by subclasses
+def is_gpt_5_model(model_name: str) -> bool:
+    return "gpt-5" in model_name.lower()
+
+
+def is_o_series_model(model_name: str) -> bool:
+    name = model_name.lower()
+    if bool(re.match(r"^o\d+", name)):
+        return True
+    return "gpt" not in name and bool(re.search(r"o\d+", name))
+
+
+def needs_max_completion_tokens(model_name: str) -> bool:
+    return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
@@ -130,7 +144,9 @@ async def openai_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     elif content.type == "audio":
         audio_data_uri = await file_as_data_uri(content.audio)
@@ -273,8 +289,9 @@ def openai_completion_params(
         )
     if config.extra_body:
         # never supported for completions as requires 'store'
-        config.extra_body.pop("metadata", None)
-        params["extra_body"] = config.extra_body
+        params["extra_body"] = {
+            key: value for key, value in config.extra_body.items() if key != "metadata"
+        }
 
     return params
 
@@ -292,7 +309,7 @@ def openai_assistant_content(
     # resolve reasoning handler -- sometimes reasoning should be represented by
     # extra_body (e.g. reasoning_details for openrouter). the reasoning_handler
     # provides a hook for this
-    reasoning_handler = reasoning_handler or reasoning_to_think_tag
+    reasoning_handler = reasoning_handler or default_reasoning_handler
 
     if isinstance(message.content, str):
         return message.content, {}
@@ -313,6 +330,22 @@ def openai_assistant_content(
                     content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
 
     return content, extra_body
+
+
+def default_reasoning_handler(
+    reasoning: ContentReasoning,
+) -> dict[str, JsonValue] | str:
+    # check for an internal field with a source
+    if str(reasoning.internal) in [
+        "reasoning",
+        "reasoning_content",
+        "reasoning_details",
+    ]:
+        extra_body: dict[str, JsonValue] = {}
+        extra_body[str(reasoning.internal)] = reasoning.reasoning
+        return extra_body
+    else:
+        return reasoning_to_think_tag(reasoning)
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
@@ -457,6 +490,7 @@ async def messages_from_openai(
                             reasoning=smuggled_reasoning.reasoning,
                             signature=smuggled_reasoning.signature,
                             redacted=smuggled_reasoning.redacted,
+                            summary=smuggled_reasoning.summary,
                         ),
                         ContentText(text=asst_content, internal=content_internal),
                     ]
@@ -473,16 +507,24 @@ async def messages_from_openai(
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
-            reasoning = message.get("reasoning_content", None) or message.get(
-                "reasoning", None
-            )
+            # note that we already handled <think> tags so we only care about the
+            # other sources
+            parse_result = parse_reasoning_content(message)
+            if parse_result is not None:
+                reasoning: ContentReasoning | None = ContentReasoning(
+                    internal=parse_result[0].source,
+                    reasoning=str(parse_result[0].reasoning),
+                )
+            else:
+                reasoning = None
+
             if reasoning is not None:
                 # normalize content to an array
                 if isinstance(content, str):
                     content = [ContentText(text=content, refusal=refusal)]
 
                 # insert reasoning
-                content.insert(0, ContentReasoning(reasoning=str(reasoning)))
+                content.insert(0, reasoning)
 
             # return message
             if "tool_calls" in message:
@@ -590,7 +632,9 @@ def content_from_openai(
             if reasoning:
                 return [
                     ContentReasoning(
+                        internal=reasoning.internal,
                         reasoning=reasoning.reasoning,
+                        summary=reasoning.summary,
                         signature=reasoning.signature,
                         redacted=reasoning.redacted,
                     ),
@@ -623,29 +667,52 @@ def content_from_openai(
         raise ValueError(f"Unexpected content type '{content_type}' in message.")
 
 
-REASONING_DETAILS_SIGNATURE = "reasoning-details-"
+CompletionsReasoningSource: TypeAlias = Literal[
+    "think", "reasoning", "reasoning_content", "reasoning_details"
+]
+
+
+@dataclass
+class CompletionsReasoningContent:
+    source: CompletionsReasoningSource
+    reasoning: JsonValue
+
+
+ReasoningExtractor: TypeAlias = Callable[
+    [CompletionsReasoningContent], ContentReasoning | None
+]
 
 
 def chat_message_assistant_from_openai(
-    model: str, message: ChatCompletionMessage, tools: list[ToolInfo]
+    model: str,
+    message: ChatCompletionMessage,
+    tools: list[ToolInfo],
+    reasoning_extractor: ReasoningExtractor | None = None,
 ) -> ChatMessageAssistant:
+    # determine message content (might be refusal)
     refusal = getattr(message, "refusal", None)
-    reasoning_details = getattr(message, "reasoning_details", None)
-    reasoning = getattr(message, "reasoning_content", None) or getattr(
-        message, "reasoning", None
-    )
+    msg_content = str(refusal or message.content or "")
 
-    msg_content = refusal or message.content or ""
-    if reasoning_details is not None or reasoning is not None:
-        reasoning = (
-            openrouter_reasoning_details_to_reasoning(reasoning_details)
-            if reasoning_details is not None
-            else ContentReasoning(reasoning=str(reasoning))
-        )
+    # look for reasoning
+    parse_result = parse_reasoning_content(message)
+    if parse_result is not None:
+        reasoning_content, remaining_content = parse_result
+        reasoning: ContentReasoning | None = None
+        if reasoning_extractor is not None:
+            reasoning = reasoning_extractor(reasoning_content)
+        if reasoning is None:
+            reasoning = ContentReasoning(
+                reasoning=str(reasoning_content.reasoning),
+                internal=reasoning_content.source,
+            )
+
         content: str | list[Content] = [
             reasoning,
-            ContentText(text=msg_content, refusal=True if refusal else None),
+            ContentText(
+                text=remaining_content or msg_content, refusal=True if refusal else None
+            ),
         ]
+
     elif refusal is not None:
         content = [ContentText(text=msg_content, refusal=True)]
     else:
@@ -659,6 +726,34 @@ def chat_message_assistant_from_openai(
     )
 
 
+def parse_reasoning_content(
+    message: ChatCompletionMessage | ChatCompletionAssistantMessageParam,
+) -> tuple[CompletionsReasoningContent, str | None] | None:
+    # look in various fields where reasoning lives
+    for source in cast(
+        list[CompletionsReasoningSource],
+        ["reasoning_details", "reasoning_content", "reasoning"],
+    ):
+        reasoning = getattr(message, source, None)
+        if reasoning:
+            return CompletionsReasoningContent(source=source, reasoning=reasoning), None
+
+    # not found, look for <think> tag
+    content = (
+        message.content
+        if isinstance(message, ChatCompletionMessage)
+        else str(message.get("content") or "")
+    )
+    content_text, reasoning = parse_content_with_reasoning(content or "")
+    if reasoning:
+        return CompletionsReasoningContent(
+            source="think", reasoning=reasoning.reasoning
+        ), content_text
+
+    # no reasoning found
+    return None
+
+
 def model_output_from_openai(
     completion: ChatCompletion,
     choices: list[ChatCompletionChoice],
@@ -668,7 +763,13 @@ def model_output_from_openai(
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens,
+                input_tokens=completion.usage.prompt_tokens
+                - (
+                    completion.usage.prompt_tokens_details.cached_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    and completion.usage.prompt_tokens_details.cached_tokens is not None
+                    else 0
+                ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens
@@ -689,14 +790,16 @@ def model_output_from_openai(
 
 
 def chat_choices_from_openai(
-    response: ChatCompletion, tools: list[ToolInfo]
+    response: ChatCompletion,
+    tools: list[ToolInfo],
+    reasoning_extractor: ReasoningExtractor | None = None,
 ) -> list[ChatCompletionChoice]:
     choices = list(response.choices)
     choices.sort(key=lambda c: c.index)
     return [
         ChatCompletionChoice(
             message=chat_message_assistant_from_openai(
-                response.model, choice.message, tools
+                response.model, choice.message, tools, reasoning_extractor
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=(
@@ -739,6 +842,7 @@ def openai_handle_bad_request(
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
 

@@ -1,5 +1,6 @@
 import os
 import re
+from functools import partial
 from logging import getLogger
 from pathlib import Path
 from typing import IO, Any, Callable, Generator, Literal, cast
@@ -9,7 +10,9 @@ from pydantic import (
     Field,
 )
 
-from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -21,8 +24,9 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._pool import resolve_sample_message_pool
 
-from ._log import EvalLog, EvalMetric, EvalSample
+from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
     recorder_type_for_bytes,
     recorder_type_for_format,
@@ -68,7 +72,7 @@ class LogOverview(BaseModel):
     task_version: int | str
 
     version: int
-    status: Literal["started", "success", "cancelled", "error"]
+    status: EvalStatus
     invalidated: bool = Field(default=False)
     error: EvalError | None = Field(default=None)
 
@@ -334,12 +338,14 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_format(format)
         log = await recorder_type.read_log(log_file, header_only)
 
-    # resolve attachement if requested
-    if resolve_attachments and log.samples:
-        log.samples = [
-            resolve_sample_attachments(sample, resolve_attachments)
-            for sample in log.samples
-        ]
+    # always resolve message pool refs so ModelEvent.input is populated
+    if log.samples:
+        log.samples = [resolve_sample_message_pool(sample) for sample in log.samples]
+        if resolve_attachments:
+            log.samples = [
+                resolve_sample_attachments(sample, resolve_attachments)
+                for sample in log.samples
+            ]
 
     # provide sample ids if they aren't there
     if log.eval.dataset.sample_ids is None and log.samples is not None:
@@ -355,20 +361,39 @@ async def read_eval_log_async(
     return log
 
 
+class ReadEvalLogsProgress:
+    def before_reading_logs(self, total_files: int) -> None:
+        pass
+
+    def after_read_log(self, log_file: str) -> None:
+        pass
+
+
 def read_eval_log_headers(
     log_files: list[str] | list[EvalLogInfo],
+    progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return run_coroutine(read_eval_log_headers_async(log_files))
+    return run_coroutine(read_eval_log_headers_async(log_files, progress))
 
 
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
+    progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
-    return [
-        await read_eval_log_async(log_file, header_only=True) for log_file in log_files
-    ]
+    if progress:
+        progress.before_reading_logs(len(log_files))
+
+    async def _read(lf: str | Path | EvalLogInfo) -> EvalLog:
+        log = await read_eval_log_async(lf, header_only=True)
+        if progress:
+            progress.after_read_log(
+                lf.name if isinstance(lf, EvalLogInfo) else str(lf),
+            )
+        return log
+
+    return await tg_collect([partial(_read, lf) for lf in log_files])
 
 
 def read_eval_log_sample(
@@ -378,6 +403,7 @@ def read_eval_log_sample(
     uuid: str | None = None,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -392,6 +418,9 @@ def read_eval_log_sample(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        EvalSample object read from file.
@@ -405,13 +434,31 @@ def read_eval_log_sample(
             "read_eval_log_sample cannot be called from a trio async context (please use read_eval_log_sample_async instead)"
         )
 
+    # resolve to file path
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return run_coroutine(
-        read_eval_log_sample_async(
-            log_file, id, epoch, uuid, resolve_attachments, format
+    async def do_read() -> EvalSample:
+        reader = AsyncZipReader(get_async_filesystem(), log_file)
+        return await read_eval_log_sample_async(
+            log_file,
+            id,
+            epoch,
+            uuid,
+            resolve_attachments,
+            format,
+            exclude_fields,
+            reader,
         )
-    )
+
+    return run_coroutine(do_read())
 
 
 async def read_eval_log_sample_async(
@@ -421,6 +468,8 @@ async def read_eval_log_sample_async(
     uuid: str | None = None,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
+    reader: AsyncZipReader | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -433,6 +482,10 @@ async def read_eval_log_sample_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
+       reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
        EvalSample object read from file.
@@ -459,8 +512,20 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    sample = await recorder_type.read_log_sample(log_file, id, epoch, uuid)
+    if exclude_fields:
+        if "events" not in exclude_fields:
+            # pools are needed to resolve refs in events
+            exclude_fields = exclude_fields - {"message_pool", "call_pool"}
+        else:
+            # no events means pools are useless
+            exclude_fields = exclude_fields | {"message_pool", "call_pool"}
 
+    sample = await recorder_type.read_log_sample(
+        log_file, id, epoch, uuid, exclude_fields, reader
+    )
+
+    # always resolve message pool refs so ModelEvent.input is populated
+    sample = resolve_sample_message_pool(sample)
     if resolve_attachments:
         sample = resolve_sample_attachments(sample, resolve_attachments)
 
@@ -527,6 +592,7 @@ def read_eval_log_samples(
     all_samples_required: bool = True,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.
 
@@ -541,6 +607,9 @@ def read_eval_log_samples(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -578,6 +647,7 @@ def read_eval_log_samples(
                     epoch=epoch_id,
                     resolve_attachments=resolve_attachments,
                     format=format,
+                    exclude_fields=exclude_fields,
                 )
                 yield sample
             except IndexError:
@@ -609,7 +679,7 @@ def log_files_from_ls(
         for file in (
             sorted(
                 ls,
-                key=lambda file: (file.mtime if file.mtime else 0),
+                key=lambda file: file.mtime if file.mtime else 0,
                 reverse=descending,
             )
             if sort

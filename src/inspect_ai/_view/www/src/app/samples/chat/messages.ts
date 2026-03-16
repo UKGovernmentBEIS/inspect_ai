@@ -16,12 +16,16 @@ import {
 } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 
+export type Message = (
+  | ChatMessageAssistant
+  | ChatMessageSystem
+  | ChatMessageUser
+  | ChatMessageTool
+) & {
+  timestamp?: string | null;
+};
 export interface ResolvedMessage {
-  message:
-    | ChatMessageAssistant
-    | ChatMessageSystem
-    | ChatMessageUser
-    | ChatMessageTool;
+  message: Message;
   toolMessages: ChatMessageTool[];
 }
 

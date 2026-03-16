@@ -15,6 +15,7 @@ interface ChatViewProps {
   numbered?: boolean;
   className?: string | string[];
   allowLinking?: boolean;
+  unlabeledRoles?: string[];
 }
 
 /**
@@ -29,6 +30,7 @@ export const ChatView: FC<ChatViewProps> = ({
   numbered = true,
   className,
   allowLinking = true,
+  unlabeledRoles,
 }) => {
   const collapsedMessages = resolveToolCallsIntoPreviousMessage
     ? resolveMessages(messages)
@@ -43,16 +45,18 @@ export const ChatView: FC<ChatViewProps> = ({
       {collapsedMessages.map((msg, index) => {
         const number =
           collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+        const rowId = (id || "chat-view") + `-msg-${index}`;
         return (
           <ChatMessageRow
             key={`${id}-msg-${index}`}
-            parentName={id || "chat-view"}
+            id={rowId}
             number={number}
             resolvedMessage={msg}
             indented={indented}
             toolCallStyle={toolCallStyle}
             allowLinking={allowLinking}
             highlightUserMessage={true}
+            unlabeledRoles={unlabeledRoles}
           />
         );
       })}

@@ -2,7 +2,8 @@ import { FC, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
 import clsx from "clsx";
-import { useLogs, usePrismHighlight } from "../../state/hooks";
+import { usePrismHighlight } from "../../components/prism";
+import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname } from "../../utils/path";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
@@ -20,10 +21,7 @@ export const FlowPanel: FC = () => {
   // Get the logs from the store
   const { loadLogs } = useLogs();
   useEffect(() => {
-    const exec = async () => {
-      await loadLogs(flowDir);
-    };
-    exec();
+    loadLogs(flowDir);
   }, [loadLogs, flowDir]);
 
   // Retrieve flow data

@@ -187,6 +187,12 @@ async def eval_run(
                 else:
                     task.working_limit = task_eval_config.working_limit
 
+                # sample cost limit
+                if task_eval_config.cost_limit is None:
+                    task_eval_config.cost_limit = task.cost_limit
+                else:
+                    task.cost_limit = task_eval_config.cost_limit
+
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:
                     task_eval_config.fail_on_error = task.fail_on_error
@@ -199,6 +205,9 @@ async def eval_run(
                 else:
                     task.continue_on_fail = task_eval_config.continue_on_fail
 
+                # merge eval-level and task-level tags
+                merged_tags = list(set(tags or []) | set(task.tags or [])) or None
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,
@@ -210,7 +219,7 @@ async def eval_run(
                     eval_set_id=eval_set_id,
                     run_id=run_id,
                     solver=eval_solver_spec,
-                    tags=tags,
+                    tags=merged_tags,
                     model=resolved_task.model,
                     model_roles=resolved_task.model_roles,
                     dataset=task.dataset,
@@ -241,7 +250,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         solver=eval_solver,
-                        tags=tags,
+                        tags=merged_tags,
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors,

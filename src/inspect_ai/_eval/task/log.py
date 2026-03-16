@@ -1,6 +1,7 @@
+import logging
 import os
 from importlib import metadata as importlib_metadata
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from shortuuid import uuid
 
@@ -10,7 +11,11 @@ from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
-from inspect_ai._util.registry import registry_log_name, registry_params
+from inspect_ai._util.registry import (
+    registry_log_name,
+    registry_package_name,
+    registry_params,
+)
 from inspect_ai.dataset import Dataset
 from inspect_ai.event._event import Event
 from inspect_ai.log import (
@@ -24,6 +29,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 from inspect_ai.log._log import (
     EvalLog,
@@ -41,7 +47,7 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import model_usage
+from inspect_ai.model._model import model_usage, role_usage
 from inspect_ai.model._model_config import (
     model_args_for_log,
     model_roles_to_model_roles_config,
@@ -52,6 +58,56 @@ from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_revision() -> EvalRevision | None:
+    git = git_context()
+    return (
+        EvalRevision(type="git", origin=git.origin, commit=git.commit, dirty=git.dirty)
+        if git
+        else None
+    )
+
+
+def resolve_external_registry_package_version(
+    task_registry_name: str | None,
+) -> tuple[str, str] | None:
+    if task_registry_name is None:
+        return None
+
+    package_name = registry_package_name(task_registry_name)
+
+    is_external = package_name != PKG_NAME
+    if package_name is None or not is_external:
+        return None
+
+    try:
+        package_version = importlib_metadata.version(package_name)
+    except importlib_metadata.PackageNotFoundError:
+        logger.warning(f"Could not resolve version for {package_name=}")
+        return None
+
+    return package_name, package_version
+
+
+def _effective_max_samples(eval_config: EvalConfig, model: Model) -> int:
+    """Resolve effective max_samples for high-throughput detection.
+
+    Follows the resolution chain from create_sample_semaphore (run.py),
+    excluding batch mode (which is not inherently high-throughput).
+    """
+    if eval_config.max_samples is not None:
+        return eval_config.max_samples
+    if model.config.max_connections is not None:
+        return model.config.max_connections
+    return model.api.max_connections()
+
+
+def _is_high_throughput(sample_count: int, effective_max_samples: int) -> bool:
+    """Detect high-throughput runs that benefit from reduced logging overhead."""
+    return effective_max_samples >= 100 or sample_count >= 1000
 
 
 class TaskLogger:
@@ -84,16 +140,16 @@ class TaskLogger:
         recorder: Recorder,
         header_only: bool,
     ) -> None:
-        # determine versions
-        git = git_context()
-        revision = (
-            EvalRevision(
-                type="git", origin=git.origin, commit=git.commit, dirty=git.dirty
-            )
-            if git
-            else None
+        packages = {
+            PKG_NAME: importlib_metadata.version(PKG_NAME),
+        }
+        revision = resolve_revision()
+        resolved_registry = resolve_external_registry_package_version(
+            task_registry_name
         )
-        packages = {PKG_NAME: importlib_metadata.version(PKG_NAME)}
+        if resolved_registry:
+            external_package, external_package_version = resolved_registry
+            packages[external_package] = external_package_version
 
         # redact authentication oriented model_args
         model_args = model_args_for_log(model_args)
@@ -114,6 +170,19 @@ class TaskLogger:
                 )
             ],
         )
+
+        # total samples accounting for slicing and epochs
+        epochs = eval_config.epochs if eval_config.epochs else 1
+        total_samples = len(sample_ids) * epochs
+
+        # adaptive defaults for high-throughput runs
+        eff_max_samples = _effective_max_samples(eval_config, model)
+        high_throughput = _is_high_throughput(total_samples, eff_max_samples)
+        if high_throughput:
+            if eval_config.log_realtime is None:
+                eval_config.log_realtime = False
+            if eval_config.score_display is None:
+                eval_config.score_display = False
 
         # write defaults for unspecified config
         for name, value in eval_config_defaults().items():
@@ -146,7 +215,7 @@ class TaskLogger:
             solver_args_passed=solver.args_passed if solver else None,
             model=f"{ModelName(model).api}/{model.name}",
             model_generate_config=model.config,
-            model_base_url=model.api.base_url,
+            model_base_url=model.explicit_base_url,
             model_roles=model_roles_to_model_roles_config(model_roles),
             dataset=EvalDataset(
                 name=dataset.name,
@@ -174,8 +243,10 @@ class TaskLogger:
 
         # size of flush buffer (how many samples we buffer before hitting storage)
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer(
-            len(dataset)
+            total_samples, high_throughput
         )
+        if high_throughput and eval_config.log_buffer is None:
+            eval_config.log_buffer = self.flush_buffer
         self.flush_pending: list[tuple[str | int, int]] = []
 
         # sample buffer db
@@ -252,7 +323,7 @@ class TaskLogger:
 
     async def log_finish(
         self,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None = None,
         reductions: list[EvalSampleReductions] | None = None,
@@ -304,6 +375,7 @@ def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
+    stats.role_usage = role_usage()
 
 
 def resolve_eval_metrics(

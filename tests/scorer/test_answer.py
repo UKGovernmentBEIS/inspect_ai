@@ -1,3 +1,5 @@
+import textwrap
+
 import pytest
 from test_helpers.utils import simple_task_state
 
@@ -56,3 +58,20 @@ async def test_line_failure():
     result = await scorer(state, Target(["This doesn't match does it?"]))
 
     assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_line_multiple_matches():
+    scorer = answer("line")
+    state = simple_task_state(
+        model_output=textwrap.dedent("""\
+            What if I submitted this as the answer: some stuff we don't want to be the answer
+
+            No, that seems wrong.
+
+            ANSWER: 0.1
+        """)
+    )
+    result = await scorer(state, Target(["0.1"]))
+
+    assert result.text == CORRECT

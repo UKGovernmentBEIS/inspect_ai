@@ -17,6 +17,7 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -32,12 +33,13 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
     messages_to_openai,
     model_output_from_openai,
+    needs_max_completion_tokens,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -63,7 +65,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
-        emulate_reasoning_history: bool = True,
+        strict_tools: bool = True,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -117,7 +119,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
-        self._emulate_reasoning_history = emulate_reasoning_history
+        self.strict_tools = strict_tools
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -136,6 +138,8 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def initialize(self) -> None:
         super().initialize()
+        if self.http_client.is_closed:
+            self.http_client = OpenAIAsyncHttpxClient()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
@@ -161,7 +165,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
-                background=False,
+                background=None,
                 service_tier=None,
                 prompt_cache_key=NOT_GIVEN,
                 prompt_cache_retention=NOT_GIVEN,
@@ -188,18 +192,6 @@ class OpenAICompatibleAPI(ModelAPI):
             # allocate request_id (so we can see it from ModelCall)
             request_id = self._http_hooks.start_request()
 
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
-
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=openai_media_filter,
-                    time=self._http_hooks.end_request(request_id),
-                )
-
             # get completion params (slice off service from model name)
             completion_params = self.completion_params(
                 config=config,
@@ -214,14 +206,20 @@ class OpenAICompatibleAPI(ModelAPI):
                 tool_choice=openai_chat_tool_choice(tool_choice)
                 if have_tools
                 else NOT_GIVEN,
-                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | (config.extra_headers or {}),
                 **completion_params,
             )
+
+            model_call = set_active_model_event_call(request, openai_media_filter)
 
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
                 response = completion.model_dump()
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
+                )
                 self.on_response(response)
 
                 # get choices
@@ -235,14 +233,17 @@ class OpenAICompatibleAPI(ModelAPI):
                     ]
 
                 # return output
-                return model_output_from_openai(completion, choices), model_call()
+                return model_output_from_openai(completion, choices), model_call
 
             except (
                 BadRequestError,
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
-                return self.handle_bad_request(ex), model_call()
+                model_call.set_error(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
+                return self.handle_bad_request(ex), model_call
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
@@ -253,7 +254,7 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if self.stream:
+        if self.stream or self.should_stream(config):
             async with self.client.chat.completions.stream(**request) as stream:
                 return await stream.get_final_completion()
         else:
@@ -291,19 +292,33 @@ class OpenAICompatibleAPI(ModelAPI):
         return False
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        return openai_completion_params(
+        params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
         )
 
+        if (
+            needs_max_completion_tokens(self.service_model_name())
+            and "max_tokens" in params
+        ):
+            params["max_completion_tokens"] = params.pop("max_tokens")
+
+        return params
+
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""
         pass
 
+    def should_stream(self, config: GenerateConfig) -> bool:
+        return False
+
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-        """Hook for subclasses to do custom tools processing"""
-        return openai_chat_tools(tools)
+        # some inference platforms (e.g. hf-inference) require strict=True
+        openai_tools = openai_chat_tools(tools)
+        for tool in openai_tools:
+            tool["function"]["strict"] = self.strict_tools
+        return openai_tools
 
     async def messages_to_openai(
         self, input: list[ChatMessage]
@@ -327,9 +342,6 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         return openai_handle_bad_request(self.service_model_name(), ex)
-
-    def emulate_reasoning_history(self) -> bool:
-        return self._emulate_reasoning_history
 
 
 class OpenAICompatibleHandler(Llama31Handler):
@@ -389,16 +401,10 @@ class ModelInfo(ResponsesModelInfo):
     def is_o1(self) -> bool:
         return False
 
-    def is_o1_early(self) -> bool:
-        return False
-
     def is_o3_mini(self) -> bool:
         return False
 
     def is_deep_research(self) -> bool:
-        return False
-
-    def is_computer_use_preview(self) -> bool:
         return False
 
     def is_codex(self) -> bool:

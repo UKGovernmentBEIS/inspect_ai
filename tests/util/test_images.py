@@ -61,4 +61,4 @@ def test_mistral_images():
 
 @skip_if_no_grok
 def test_grok_images():
-    check_images("grok/grok-2-vision")
+    check_images("grok/grok-imagine-image")

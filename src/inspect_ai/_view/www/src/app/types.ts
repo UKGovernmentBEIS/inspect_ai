@@ -2,6 +2,8 @@ import { GridState } from "ag-grid-community";
 import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
+  CompactionEvent,
+  ContentDocument,
   ContentImage,
   ContentText,
   EvalSample,
@@ -39,7 +41,6 @@ export interface AppState {
     sample: string;
   };
   dialogs: {
-    sample: boolean;
     transcriptFilter: boolean;
     options: boolean;
   };
@@ -89,6 +90,7 @@ export interface LogsState {
   };
   flow?: string;
   flowDir?: string;
+  showRetriedLogs: boolean;
 }
 
 export interface LogsListing {
@@ -103,6 +105,7 @@ export interface LogsListing {
 export interface SampleHandle {
   id: string | number;
   epoch: number;
+  logFile: string;
 }
 
 export interface LogState {
@@ -115,8 +118,6 @@ export interface LogState {
   filter: string;
   filterError?: FilterError;
 
-  epoch: string;
-  sort: string;
   selectedScores?: ScoreLabel[];
   scores?: ScoreLabel[];
 
@@ -125,22 +126,18 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
-export type SampleIdentifier = {
-  id: string | number;
-  epoch: number;
-};
-
 export interface EventFilter {
   filteredTypes: string[];
 }
 
 export interface SampleState {
-  sample_identifier: SampleIdentifier | undefined;
+  sample_identifier: SampleHandle | undefined;
   sampleInState: boolean;
   selectedSampleObject?: EvalSample;
   sampleStatus: SampleStatus;
   sampleError: Error | undefined;
   sampleNeedsReload: number;
+  eventsCleared: boolean;
 
   visiblePopover?: string;
 
@@ -157,6 +154,7 @@ export interface SampleState {
 export type Event =
   | SampleInitEvent
   | SampleLimitEvent
+  | CompactionEvent
   | SandboxEvent
   | StateEvent
   | StoreEvent
@@ -211,7 +209,7 @@ export type SampleMode = "none" | "single" | "many";
 
 export interface ContentTool {
   type: "tool";
-  content: (ContentImage | ContentText)[];
+  content: (ContentImage | ContentText | ContentDocument)[];
 }
 
 export interface RunningSampleData {

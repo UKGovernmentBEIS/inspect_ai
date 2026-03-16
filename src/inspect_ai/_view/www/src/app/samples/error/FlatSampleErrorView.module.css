@@ -7,9 +7,10 @@
 }
 
 .iconSmall {
-  font-size: var(--inspect-font-size-small);
-  line-height: var(--inspect-font-size-small);
-  height: var(--inspect-font-size-small);
+  font-size: var(--inspect-font-size-smallest);
+  line-height: var(--inspect-font-size-smaller);
+  height: var(--inspect-font-size-smaller);
+  margin-top: 1px;
 }
 
 .lineBase {

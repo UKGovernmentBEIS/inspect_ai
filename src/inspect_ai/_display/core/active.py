@@ -14,6 +14,11 @@ from .display import Display, TaskScreen
 _active_display: Display | None = None
 
 
+def active_display() -> Display | None:
+    global _active_display
+    return _active_display
+
+
 def display() -> Display:
     global _active_display
     if _active_display is None:

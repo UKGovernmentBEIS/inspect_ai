@@ -1,17 +1,19 @@
-import os
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type, TypedDict
+from typing import Any, Literal, Type
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    JsonValue,
     PrivateAttr,
+    ValidationInfo,
+    field_serializer,
     model_validator,
 )
-from rich.console import Console
 from shortuuid import uuid
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
@@ -20,10 +22,16 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
-from inspect_ai._util.rich import rich_traceback, truncate_traceback
+from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.log._edit import ProvenanceData
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.event._timeline import Timeline
+from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
@@ -35,6 +43,9 @@ from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
+
+EvalStatus = Literal["started", "success", "cancelled", "error"]
+"""Status of an evaluation run."""
 
 SCORER_PLACEHOLDER = "88F74D2C"
 
@@ -48,6 +59,7 @@ class EvalConfigDefaults(TypedDict):
     log_samples: bool
     log_realtime: bool
     log_images: bool
+    log_model_api: bool
     score_display: bool
 
 
@@ -61,6 +73,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
+        "log_model_api": False,
         "score_display": True,
     }
 
@@ -119,8 +132,15 @@ class EvalConfig(BaseModel):
     working_limit: int | None = Field(default=None)
     """Meximum working time per sample."""
 
+    cost_limit: float | None = Field(default=None)
+    """Maximum cost (in dollars) per sample."""
+
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
+
+    max_dataset_memory: int | None = Field(default=None)
+    """Maximum MB of dataset sample data to hold in memory per task.
+    When exceeded, samples are paged to a temporary file on disk."""
 
     max_tasks: int | None = Field(default=None)
     """Maximum number of tasks to run in parallel."""
@@ -142,6 +162,9 @@ class EvalConfig(BaseModel):
 
     log_images: bool | None = Field(default=None)
     """Log base64 encoded versions of images."""
+
+    log_model_api: bool | None = Field(default=None)
+    """Log raw model api requests and responses."""
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
@@ -175,7 +198,7 @@ class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
     type: Literal[
-        "context", "time", "working", "message", "token", "operator", "custom"
+        "context", "time", "working", "message", "token", "cost", "operator", "custom"
     ]
     """The type of limit"""
 
@@ -209,6 +232,9 @@ class EvalSampleSummary(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -356,8 +382,14 @@ class EvalSample(BaseModel):
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""
 
+    timelines: list[Timeline] | None = Field(default=None)
+    """Custom timelines for this sample."""
+
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -388,6 +420,18 @@ class EvalSample(BaseModel):
 
     Resolve attachments for a sample (replacing attachment://* references with
     attachment content) by passing `resolve_attachments=True` to log reading functions.
+    """
+
+    message_pool: list[ChatMessage] = Field(default_factory=list)
+    """Pool of deduplicated messages referenced by model event input_refs.
+
+    Messages are referenced by ordinal index.
+    """
+
+    call_pool: list[JsonValue] = Field(default_factory=list)
+    """Pool of raw API request messages.
+
+    Referenced by ordinal index.
     """
 
     limit: EvalSampleLimit | None = Field(default=None)
@@ -477,6 +521,28 @@ class EvalSample(BaseModel):
             del values["transcript"]
 
         return migrate_values(values)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _resolve_timelines(
+        cls, data: Any, handler: Any, info: ValidationInfo
+    ) -> "EvalSample":
+        raw_timelines = None
+        if isinstance(data, dict) and data.get("timelines"):
+            raw_timelines = data.pop("timelines")
+
+        sample: EvalSample = handler(data)
+
+        if raw_timelines:
+            events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}
+            ctx: dict[str, Any] = {"events_by_uuid": events_by_uuid}
+            if info.context:
+                ctx.update(info.context)
+            sample.timelines = [
+                Timeline.model_validate(t, context=ctx) for t in raw_timelines
+            ]
+
+        return sample
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -883,18 +949,10 @@ def eval_error(
     exc_value: BaseException,
     exc_traceback: TracebackType | None,
 ) -> EvalError:
-    # get text traceback
-    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
+    traceback_text, traceback_ansi = format_traceback(
+        exc_type, exc_value, exc_traceback
+    )
 
-    if not truncated:
-        with open(os.devnull, "w") as f:
-            console = Console(record=True, file=f, legacy_windows=True)
-            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
-            traceback_ansi = console.export_text(styles=True)
-    else:
-        traceback_ansi = traceback_text
-
-    # return error
     return EvalError(
         message=exception_message(exception),
         traceback=traceback_text,
@@ -914,6 +972,9 @@ class EvalStats(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
 
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for evaluation."""
+
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
 
@@ -928,9 +989,7 @@ class EvalLog(BaseModel):
     version: int = Field(default=2)
     """Eval log file format version."""
 
-    status: Literal["started", "success", "cancelled", "error"] = Field(
-        default="started"
-    )
+    status: EvalStatus = Field(default="started")
     """Status of evaluation (did it succeed or fail)."""
 
     eval: EvalSpec
@@ -951,6 +1010,15 @@ class EvalLog(BaseModel):
     invalidated: bool = Field(default=False)
     """Whether any samples were invalidated."""
 
+    log_updates: list[LogUpdate] | None = Field(default=None)
+    """Post-eval edits to tags and metadata."""
+
+    tags: list[str] = Field(default_factory=list)
+    """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Current metadata (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
@@ -964,6 +1032,27 @@ class EvalLog(BaseModel):
     """ETag from S3 for conditional writes."""
 
     @model_validator(mode="after")
+    def _validate_tags_and_metadata(self) -> "EvalLog":
+        self.recompute_tags_and_metadata()
+        return self
+
+    def recompute_tags_and_metadata(self) -> None:
+        """Recompute tags and metadata from eval-time values + log_updates."""
+        tags = set(self.eval.tags or [])
+        metadata = dict(self.eval.metadata or {})
+        for update in self.log_updates or []:
+            for edit in update.edits:
+                if isinstance(edit, TagsEdit):
+                    tags -= set(edit.tags_remove)
+                    tags |= set(edit.tags_add)
+                elif isinstance(edit, MetadataEdit):
+                    for key in edit.metadata_remove:
+                        metadata.pop(key, None)
+                    metadata.update(edit.metadata_set)
+        self.tags = sorted(tags)
+        self.metadata = metadata
+
+    @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
             scorer_name = self.results.scores[0].name
@@ -973,6 +1062,25 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
+
+    @field_serializer("samples", "reductions")
+    @classmethod
+    def _serialize_lazy_lists(cls, value: Any) -> Any:
+        """Ensure LazyList instances are materialized before Pydantic serializes.
+
+        Pydantic v2's Rust serializer accesses the C-level list array directly,
+        bypassing Python __len__/__iter__ overrides. For empty LazyList instances
+        (not yet loaded), this means Pydantic sees an empty list and never
+        triggers the lazy load. Calling _ensure_loaded() here populates the
+        underlying C array in-place — no copy needed.
+        """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
 
     @model_validator(mode="before")
     @classmethod

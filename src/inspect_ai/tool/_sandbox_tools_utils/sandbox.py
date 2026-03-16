@@ -18,6 +18,7 @@ from inspect_ai._util.package import get_package_direct_url
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_file_detector,
@@ -27,7 +28,6 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
 from ._build_config import (
-    SANDBOX_TOOLS_BASE_NAME,
     SandboxToolsBuildConfig,
     config_to_filename,
 )
@@ -66,32 +66,27 @@ InstallState = Literal["pypi", "clean", "edited"]
 """
 
 
-# For this, we choose /var/tmp as the injection location since
-#  1) it is accessible in all major linux distributions
-#  2) all users have permissions to read/write to it (i.e. world-writable)
-#  3) it is unlikely to be cleared during an evaluation (https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard)
-#  4) it is unlikely to be accidentally stumbled upon by an LLM solving a taks that requires interacting with temp files
-# We additionally choose a dot-prefixed random hash sub-directory to further attempt to prevent LLMs from stumbling on the injected tools.
-SANDBOX_TOOLS_CLI = f"/var/tmp/.da7be258e003d428/{SANDBOX_TOOLS_BASE_NAME}"
-
-
 async def sandbox_with_injected_tools(
-    *, sandbox_name: str | None = None
+    *,
+    sandbox_name: str | None = None,
+    sandbox: SandboxEnvironment | None = None,
 ) -> SandboxEnvironment:
     """Create a sandbox environment with sandbox tools injection.
 
     Args:
         sandbox_name: Optional name for the sandbox environment.
+        sandbox: Optional sandbox instance to inject into directly.
 
     Returns:
         A sandbox environment with container tools injected.
     """
     return await sandbox_with_injection(
         SandboxInjectable(
-            sandbox_file_detector(SANDBOX_TOOLS_CLI),
+            sandbox_file_detector(SANDBOX_CLI),
             _inject_container_tools_code,
         ),
         name=sandbox_name,
+        target=sandbox,
     )
 
 
@@ -101,9 +96,9 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 
         async with _open_executable_for_arch(info["architecture"]) as (_, f):
             # TODO: The first tuple member, filename, isn't currently used, but it will be
-            await sandbox.write_file(SANDBOX_TOOLS_CLI, f.read())
+            await sandbox.write_file(SANDBOX_CLI, f.read())
             # .write_file used `tee` which dropped execute permissions
-            result = await sandbox.exec(["chmod", "+x", SANDBOX_TOOLS_CLI], user="root")
+            result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI], user="root")
             if not result.success:
                 raise RuntimeError(
                     f"Failed to chmod sandbox tools binary: {result.stderr}"
@@ -167,7 +162,7 @@ async def _open_executable_for_arch(
                 trace_message(logger, TRACE_SANDBOX_TOOLS, f"found {executable_name}")
                 yield executable_name, f
                 return
-        except (FileNotFoundError, ModuleNotFoundError):
+        except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
             if install_state == "pypi":
                 msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
                 # TODO: once we get the github CI/CD actions robust, this should be fatal

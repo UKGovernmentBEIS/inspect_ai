@@ -21,6 +21,7 @@ def grouped(
     all: Literal["samples", "groups"] | Literal[False] = "samples",
     all_label: str = "all",
     value_to_float: ValueToFloat = value_to_float(),
+    name_template: str = "{group_name}",
 ) -> Metric:
     """
     Creates a grouped metric that applies the given metric to subgroups of samples.
@@ -34,6 +35,7 @@ def grouped(
           - False: Don't calculate an aggregate score
       all_label: The label for the "all" key in the returned dictionary.
       value_to_float: Function to convert metric values to floats, used when all="groups".
+      name_template: Template for the name of each group. The default is "{group_name}".
 
     Returns:
         A new metric function that returns a dictionary mapping group names to their scores,
@@ -61,7 +63,7 @@ def grouped(
 
         # Compute the per group metric
         grouped_scores = {
-            group_name: metric_protocol(values)
+            name_template.format(group_name=group_name): metric_protocol(values)
             for group_name, values in scores_dict.items()
         }
 

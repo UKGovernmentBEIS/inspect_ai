@@ -2,17 +2,15 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Field, RootModel
 
+from inspect_ai._util._json_rpc import exec_model_request, exec_scalar_request
 from inspect_ai.tool import ToolResult
-from inspect_ai.tool._json_rpc_helpers import exec_model_request, exec_scalar_request
-from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
-    SandboxJSONRPCTransport,
-    SandboxToolsServerErrorMapper,
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
 )
-from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-    SANDBOX_TOOLS_CLI,
-    sandbox_with_injected_tools,
-)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.util import StoreModel, store_as
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._tool import Tool, ToolParsingError, tool
@@ -74,7 +72,7 @@ class BashSessionParams(
 DEFAULT_WAIT_FOR_OUTPUT = 30
 DEFAULT_IDLE_TIME = 0.5
 # this is how long we're willing to wait for the basic RPC call overhead.
-TRANSPORT_TIMEOUT = 5
+TRANSPORT_TIMEOUT = 30  # Some K8's deployments can be very slow
 
 
 @tool()
@@ -144,6 +142,10 @@ def bash_session(
           a new command will not be processed until the previous completes. To
           abort a long-running command, use the "interrupt" action:
           `bash_session(action="interrupt")`
+        - If output ends with "> " (the shell's continuation prompt), it means
+          the previous input contained unmatched quotes, backticks, or other
+          incomplete syntax. Either complete the quoted input or use the
+          "interrupt" action to cancel, then retry with corrected input.
 
         Example use case:
         - For a short-running command with a nominal amount of output, a single
@@ -194,22 +196,24 @@ def bash_session(
         store = store_as(BashSessionStore, instance=instance)
         sandbox = await _get_sandbox(store)
 
-        # Create transport and server error mapper for all RPC calls
-        transport = SandboxJSONRPCTransport(sandbox, SANDBOX_TOOLS_CLI)
-        server_error_mapper = SandboxToolsServerErrorMapper()
+        # Create transport for all RPC calls
+        transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
 
         if not store.session_id:
-            store.session_id = (
-                await exec_model_request(
-                    method="bash_session_new_session",
-                    params={},
-                    result_type=NewSessionResult,
-                    transport=transport,
-                    server_error_mapper=server_error_mapper,
-                    timeout=TRANSPORT_TIMEOUT,
-                    user=user,
-                )
-            ).session_name
+            try:
+                store.session_id = (
+                    await exec_model_request(
+                        method="bash_session_new_session",
+                        params={},
+                        result_type=NewSessionResult,
+                        transport=transport,
+                        error_mapper=SandboxToolsErrorMapper,
+                        timeout=TRANSPORT_TIMEOUT,
+                        user=user,
+                    )
+                ).session_name
+            except TimeoutError:
+                raise RuntimeError("Timed out creating new session")
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
@@ -228,7 +232,7 @@ def bash_session(
             params={"session_name": store.session_id, **(action_specific[action])},
             result_type=str,
             transport=transport,
-            server_error_mapper=server_error_mapper,
+            error_mapper=SandboxToolsErrorMapper,
             timeout=timeout,
             user=user,
         )

@@ -12,7 +12,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai.log import list_eval_logs
+from inspect_ai.log import EvalStatus, list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
     eval_log_json_str,
@@ -73,7 +73,7 @@ def list_logs_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def log_list(
-    status: Literal["started", "success", "cancelled", "error"] | None,
+    status: EvalStatus | None,
     absolute: bool,
     json: bool,
     no_recursive: bool | None,
@@ -125,7 +125,7 @@ def resolve_attachments_callback(
 @log_command.command("list")
 @list_logs_options
 def list_command(
-    status: Literal["started", "success", "cancelled", "error"] | None,
+    status: EvalStatus | None,
     absolute: bool,
     json: bool,
     no_recursive: bool | None,

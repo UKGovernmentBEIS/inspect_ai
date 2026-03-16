@@ -3,7 +3,6 @@
 import base64
 import os
 
-import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -18,14 +17,19 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentVideo,
 )
-from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    get_model,
+)
 from inspect_ai.model._tokens import (
     FALLBACK_AUDIO_TOKENS,
     FALLBACK_DOCUMENT_TOKENS,
     FALLBACK_VIDEO_TOKENS,
     count_media_tokens,
 )
-from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
 # Test message for token counting - long enough to ensure meaningful token count
 TEST_MESSAGE = [
@@ -57,7 +61,6 @@ TEST_TOOL = ToolInfo(
 )
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_openai_count_tokens():
     """Test OpenAI token counting using tiktoken."""
@@ -70,7 +73,6 @@ async def test_openai_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens():
     """Test Anthropic token counting using native API."""
@@ -83,7 +85,6 @@ async def test_anthropic_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tool_tokens():
     """Test Anthropic tool token counting using native API."""
@@ -96,7 +97,59 @@ async def test_anthropic_count_tool_tokens():
     assert isinstance(tool_token_count, int)
 
 
-@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_consecutive_tool_messages():
+    """Test Anthropic token counting with consecutive tool messages.
+
+    This tests the fix for GitHub issue #3108 where token counting failed
+    with "tool_use ids were found without tool_result blocks immediately after"
+    when an assistant message had multiple tool_calls and each tool response
+    was in a separate ChatMessageTool.
+    """
+    model = get_model("anthropic/claude-sonnet-4-20250514")
+
+    # Create a conversation with an assistant message containing multiple tool calls
+    # followed by separate tool response messages (as happens with CompactionTrim)
+    messages = [
+        ChatMessageUser(content="What's the weather in Paris and London?"),
+        ChatMessageAssistant(
+            content="I'll check the weather for both cities.",
+            tool_calls=[
+                ToolCall(
+                    id="call_paris",
+                    function="get_weather",
+                    arguments={"location": "Paris, France"},
+                ),
+                ToolCall(
+                    id="call_london",
+                    function="get_weather",
+                    arguments={"location": "London, UK"},
+                ),
+            ],
+        ),
+        # Two separate tool messages (this is what CompactionTrim produces)
+        ChatMessageTool(
+            content="Weather in Paris: 18°C, sunny",
+            tool_call_id="call_paris",
+            function="get_weather",
+        ),
+        ChatMessageTool(
+            content="Weather in London: 15°C, cloudy",
+            tool_call_id="call_london",
+            function="get_weather",
+        ),
+    ]
+
+    # Count tokens - this should succeed without raising an exception
+    # Prior to the fix, this would fail with:
+    # "tool_use ids were found without tool_result blocks immediately after"
+    token_count = await model.count_tokens(messages)
+
+    # Verify token count is reasonable
+    assert token_count >= 20
+    assert isinstance(token_count, int)
+
+
 @skip_if_no_google
 async def test_google_count_tokens():
     """Test Google token counting using native Gemini API."""
@@ -109,7 +162,6 @@ async def test_google_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_count_tokens():
     """Test Grok token counting using native xAI API."""
@@ -122,7 +174,6 @@ async def test_grok_count_tokens():
     assert isinstance(token_count, int)
 
 
-@pytest.mark.asyncio
 @skip_if_no_mistral
 async def test_default_count_tokens():
     """Test default token counting using tiktoken o200k_base with 10% buffer.

@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Literal, Type
+from typing import Any, Literal, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -8,12 +8,19 @@ from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
 
+_T = TypeVar("_T", int, float)
+
 
 class ModelUsage(BaseModel):
     """Token usage for completion."""
 
     input_tokens: int = Field(default=0)
-    """Total input tokens used."""
+    """Input tokens charged at full rate (excludes cached tokens).
+
+    This count excludes tokens reported in input_tokens_cache_read and
+    input_tokens_cache_write. The true total input token count is:
+    input_tokens + (input_tokens_cache_read or 0) + (input_tokens_cache_write or 0).
+    """
 
     output_tokens: int = Field(default=0)
     """Total output tokens used."""
@@ -30,8 +37,11 @@ class ModelUsage(BaseModel):
     reasoning_tokens: int | None = Field(default=None)
     """Number of tokens used for reasoning."""
 
+    total_cost: float | None = Field(default=None)
+    """Total cost in dollars for this usage."""
+
     def __add__(self, other: "ModelUsage") -> "ModelUsage":
-        def optional_sum(a: int | None, b: int | None) -> int | None:
+        def optional_sum(a: _T | None, b: _T | None) -> _T | None:
             if a is not None and b is not None:
                 return a + b
             if a is not None:
@@ -53,6 +63,7 @@ class ModelUsage(BaseModel):
             reasoning_tokens=optional_sum(
                 self.reasoning_tokens, other.reasoning_tokens
             ),
+            total_cost=optional_sum(self.total_cost, other.total_cost),
         )
 
 

@@ -2,6 +2,7 @@ import { FC } from "react";
 import { ApprovalEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventRow } from "./event/EventRow";
+import { eventTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface ApprovalEventViewProps {
@@ -19,33 +20,13 @@ export const ApprovalEventView: FC<ApprovalEventViewProps> = ({
   const event = eventNode.event;
   return (
     <EventRow
-      title={decisionLabel(event.decision)}
+      title={eventTitle(event)}
       icon={decisionIcon(event.decision)}
       className={className}
     >
       {event.explanation || ""}
     </EventRow>
   );
-};
-
-/**
- * Determines the label for a decision
- */
-const decisionLabel = (decision: string): string => {
-  switch (decision) {
-    case "approve":
-      return "Approved";
-    case "reject":
-      return "Rejected";
-    case "terminate":
-      return "Terminated";
-    case "escalate":
-      return "Escalated";
-    case "modify":
-      return "Modified";
-    default:
-      return decision;
-  }
 };
 
 /**

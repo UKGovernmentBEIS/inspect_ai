@@ -2,7 +2,7 @@ import json
 from unittest.mock import patch
 
 from inspect_ai._util.content import ContentReasoning
-from inspect_ai.model._reasoning import (
+from inspect_ai.model._providers.openrouter import (
     OPENROUTER_REASONING_DETAILS_SIGNATURE,
     openrouter_reasoning_details_to_reasoning,
     reasoning_to_openrouter_reasoning_details,
@@ -88,9 +88,31 @@ class TestOpenrouterReasoningDetailsToReasoning:
         assert result.reasoning == "eyJlbmNyeXB0ZWQiOiJ0cnVlIn0="
         assert result.redacted is True
 
+    def test_text_and_encrypted_combined(self):
+        """Both text and encrypted preserves text as summary."""
+        details = [
+            {
+                "type": "reasoning.text",
+                "format": "google-gemini-v1",
+                "text": "Let me think about this step by step...",
+                "id": "t1",
+            },
+            {
+                "type": "reasoning.encrypted",
+                "format": "google-gemini-v1",
+                "data": "CiQBjz1rXxKfW2fJuqbBlfGrk8wxR",
+                "id": "e1",
+            },
+        ]
+        result = openrouter_reasoning_details_to_reasoning(details)
+
+        assert result.reasoning == "CiQBjz1rXxKfW2fJuqbBlfGrk8wxR"
+        assert result.summary == "Let me think about this step by step..."
+        assert result.redacted is True
+
     def test_empty_list_logs_warning(self):
         """Empty reasoning_details list logs warning and returns raw JSON."""
-        with patch("inspect_ai.model._reasoning.logger") as mock_logger:
+        with patch("inspect_ai.model._providers.openrouter.logger") as mock_logger:
             details = []
             result = openrouter_reasoning_details_to_reasoning(details)
 
@@ -101,7 +123,7 @@ class TestOpenrouterReasoningDetailsToReasoning:
 
     def test_invalid_format_logs_warning(self):
         """Invalid/malformed data logs warning and returns raw JSON."""
-        with patch("inspect_ai.model._reasoning.logger") as mock_logger:
+        with patch("inspect_ai.model._providers.openrouter.logger") as mock_logger:
             details = [{"type": "unknown.type", "foo": "bar"}]
             result = openrouter_reasoning_details_to_reasoning(details)
 

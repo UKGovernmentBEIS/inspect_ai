@@ -1,6 +1,6 @@
 .wrapper {
   display: grid;
-  grid-template-columns: 0 auto auto;
+  grid-template-columns: 0 auto max-content;
   column-gap: 1.5em;
   row-gap: 0.2em;
 }

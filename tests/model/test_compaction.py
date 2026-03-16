@@ -4,6 +4,8 @@ from typing import Literal
 
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -17,6 +19,7 @@ from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._model import get_model
+from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolInfo
 
 
@@ -56,9 +59,6 @@ def other_tool() -> ToolInfo:
 # ==============================================================================
 # Threshold Resolution Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_threshold_absolute_int() -> None:
     """Test that integer threshold is used as-is."""
     strategy = CompactionEdit(threshold=500)  # Absolute token count
@@ -75,12 +75,11 @@ async def test_threshold_absolute_int() -> None:
     ]
 
     # Should not trigger compaction
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # No compaction occurred
     assert len(result) == 3
 
 
-@pytest.mark.asyncio
 async def test_threshold_absolute_float_above_one() -> None:
     """Test that threshold > 1.0 is treated as absolute."""
     strategy = CompactionEdit(threshold=5000.0)  # Float > 1.0 = absolute
@@ -94,7 +93,7 @@ async def test_threshold_absolute_float_above_one() -> None:
         user_msg("Message", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # Under threshold, no compaction
     assert len(result) == 2
 
@@ -102,9 +101,6 @@ async def test_threshold_absolute_float_above_one() -> None:
 # ==============================================================================
 # Memory Warning Logic Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
     """Test that memory warning is issued when tokens > 0.9 * threshold."""
     # Use a low threshold so we can trigger memory warning zone
@@ -122,7 +118,7 @@ async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
         assistant_msg("A" * 50, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # The test verifies the mechanism works - whether warning is issued
     # depends on exact token count which varies with tiktoken encoding.
@@ -131,7 +127,6 @@ async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
     assert len(result) >= 3  # At least the original messages
 
 
-@pytest.mark.asyncio
 async def test_memory_warning_disabled() -> None:
     """Test that memory warning is NOT issued when strategy.memory=False."""
     strategy = CompactionEdit(threshold=100, memory=False)
@@ -147,7 +142,7 @@ async def test_memory_warning_disabled() -> None:
         assistant_msg("A" * 30, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # No memory warning should be present when memory=False
     has_warning = any(
@@ -159,7 +154,6 @@ async def test_memory_warning_disabled() -> None:
     assert not has_warning
 
 
-@pytest.mark.asyncio
 async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
     """Test that memory warning is NOT issued when MEMORY_TOOL not in tools."""
     strategy = CompactionEdit(threshold=100, memory=True)
@@ -175,7 +169,7 @@ async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
         assistant_msg("A" * 30, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # No memory warning without memory tool
     has_warning = any(
@@ -190,9 +184,6 @@ async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
 # ==============================================================================
 # Prefix Preservation Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_prefix_restored() -> None:
     """Test that prefix messages are restored after compaction."""
     strategy = CompactionSummary(threshold=100)
@@ -215,7 +206,7 @@ async def test_prefix_restored() -> None:
         assistant_msg("A" * 100, "msg3"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # Prefix should be preserved in result
     assert len(result) >= 2
@@ -223,7 +214,6 @@ async def test_prefix_restored() -> None:
     assert isinstance(result[0], ChatMessageSystem)
 
 
-@pytest.mark.asyncio
 async def test_prefix_empty() -> None:
     """Test that empty prefix is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -238,16 +228,13 @@ async def test_prefix_empty() -> None:
         assistant_msg("Answer", "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
 # ==============================================================================
 # Multiple Compaction Cycles Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_cycle_processed_ids() -> None:
     """Test that sequential calls track processed_message_ids correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -262,7 +249,7 @@ async def test_cycle_processed_ids() -> None:
         user_msg("Q1", "msg1"),
         assistant_msg("A1", "msg2"),
     ]
-    result1, _ = await compact(messages1)
+    result1, _ = await compact.compact_input(messages1)
 
     # Second call with additional messages
     messages2: list[ChatMessage] = [
@@ -272,13 +259,12 @@ async def test_cycle_processed_ids() -> None:
         user_msg("Q2", "msg3"),
         assistant_msg("A2", "msg4"),
     ]
-    result2, _ = await compact(messages2)
+    result2, _ = await compact.compact_input(messages2)
 
     # All messages should be included
     assert len(result2) == 5
 
 
-@pytest.mark.asyncio
 async def test_cycle_token_cache() -> None:
     """Test that token counts are cached and reused across calls."""
     strategy = CompactionEdit(threshold=500)
@@ -294,8 +280,8 @@ async def test_cycle_token_cache() -> None:
     ]
 
     # Call twice with same messages
-    result1, _ = await compact(messages)
-    result2, _ = await compact(messages)
+    result1, _ = await compact.compact_input(messages)
+    result2, _ = await compact.compact_input(messages)
 
     # Results should be consistent
     assert len(result1) == len(result2)
@@ -304,9 +290,6 @@ async def test_cycle_token_cache() -> None:
 # ==============================================================================
 # Tool Token Handling Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_tools_empty() -> None:
     """Test that empty tools list is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -320,11 +303,10 @@ async def test_tools_empty() -> None:
         user_msg("Question", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
-@pytest.mark.asyncio
 async def test_tools_none() -> None:
     """Test that None tools is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -338,16 +320,13 @@ async def test_tools_none() -> None:
         user_msg("Question", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
 # ==============================================================================
 # Boundary Condition Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_boundary_under_threshold() -> None:
     """Test that tokens under threshold don't trigger compaction."""
     strategy = CompactionEdit(threshold=10000)  # High threshold
@@ -362,12 +341,11 @@ async def test_boundary_under_threshold() -> None:
         assistant_msg("Short", "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # No compaction
     assert len(result) == 3
 
 
-@pytest.mark.asyncio
 async def test_boundary_triggers_compaction() -> None:
     """Test that tokens above threshold trigger compaction (with tool calls to clear)."""
     from inspect_ai.tool import ToolCall
@@ -394,7 +372,7 @@ async def test_boundary_triggers_compaction() -> None:
         assistant_msg("Done", "msg5"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Compaction should have occurred (summary is still None for Edit strategy)
     assert summary is None  # Edit strategy returns None
     # Tool result should have been cleared
@@ -404,9 +382,6 @@ async def test_boundary_triggers_compaction() -> None:
 # ==============================================================================
 # Strategy Return Value Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_return_edit_none() -> None:
     """Test that CompactionEdit returns None for summary."""
     strategy = CompactionEdit(threshold=50)
@@ -421,12 +396,11 @@ async def test_return_edit_none() -> None:
         assistant_msg("B" * 100, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Edit strategy always returns None for summary
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_return_trim_none() -> None:
     """Test that CompactionTrim returns None for summary."""
     strategy = CompactionTrim(threshold=50)
@@ -441,12 +415,11 @@ async def test_return_trim_none() -> None:
         assistant_msg("B" * 100, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Trim strategy always returns None for summary
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_return_summary_not_none() -> None:
     """Test that CompactionSummary returns non-None summary."""
     # Use threshold that triggers compaction but can accommodate the summary output
@@ -466,7 +439,7 @@ async def test_return_summary_not_none() -> None:
         user_msg("C" * 800, "msg3"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Summary strategy returns non-None summary when compaction occurs
     assert summary is not None
     assert isinstance(summary, ChatMessageUser)
@@ -477,9 +450,6 @@ async def test_return_summary_not_none() -> None:
 # ==============================================================================
 # Edge Case Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_edge_small_threshold() -> None:
     """Test that very small threshold (100 tokens) works correctly."""
     strategy = CompactionEdit(threshold=100)
@@ -494,11 +464,10 @@ async def test_edge_small_threshold() -> None:
     ]
 
     # Should work without errors
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert result is not None
 
 
-@pytest.mark.asyncio
 async def test_single_message() -> None:
     """Test compaction with a single message."""
     strategy = CompactionEdit(threshold=500)
@@ -511,11 +480,10 @@ async def test_single_message() -> None:
         user_msg("Hello", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 1
 
 
-@pytest.mark.asyncio
 async def test_summary_integration() -> None:
     """Test that summary message is recognized in subsequent calls."""
     strategy = CompactionSummary(threshold=100)
@@ -536,14 +504,14 @@ async def test_summary_integration() -> None:
         user_msg("Q" * 500, "msg2"),
     ]
 
-    result1, summary1 = await compact(messages1)
+    result1, summary1 = await compact.compact_input(messages1)
     assert summary1 is not None
 
     # Second call with the summary included
     messages2: list[ChatMessage] = messages1 + [summary1]
     messages2.append(assistant_msg("Continuing", "msg3"))
 
-    result2, summary2 = await compact(messages2)
+    result2, summary2 = await compact.compact_input(messages2)
     # The factory should handle the summary in the history
     assert result2 is not None
 
@@ -551,9 +519,6 @@ async def test_summary_integration() -> None:
 # ==============================================================================
 # Iterative Compaction Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_iterative_compaction_succeeds() -> None:
     """Test that iterative compaction retries until under threshold."""
     # Use CompactionTrim with threshold that requires 2+ passes to succeed.
@@ -575,12 +540,11 @@ async def test_iterative_compaction_succeeds() -> None:
         messages.append(assistant_msg(f"A{i}" * 10, f"a{i}"))
 
     # Should succeed via iteration (not raise RuntimeError)
-    result, _ = await compact(messages)
+    result, _ = await compact.compact_input(messages)
     assert result is not None
     assert len(result) < len(messages)
 
 
-@pytest.mark.asyncio
 async def test_iterative_compaction_stops_when_no_progress() -> None:
     """Test that iteration stops if compaction makes no progress."""
     # CompactionEdit with nothing to clear should stop immediately
@@ -598,10 +562,9 @@ async def test_iterative_compaction_stops_when_no_progress() -> None:
 
     # Should raise RuntimeError since Edit can't reduce these messages
     with pytest.raises(RuntimeError, match="Compaction insufficient"):
-        await compact(messages)
+        await compact.compact_input(messages)
 
 
-@pytest.mark.asyncio
 async def test_compaction_error_message_breakdown() -> None:
     """Test that RuntimeError includes tools, prefix, messages breakdown."""
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
@@ -617,9 +580,183 @@ async def test_compaction_error_message_breakdown() -> None:
     ]
 
     with pytest.raises(RuntimeError) as exc_info:
-        await compact(messages)
+        await compact.compact_input(messages)
 
     error_msg = str(exc_info.value)
     assert "tools:" in error_msg
     assert "prefix:" in error_msg
     assert "messages:" in error_msg
+
+
+# ==============================================================================
+# Citation Stripping Tests
+# ==============================================================================
+
+
+def teststrip_citations_removes_citations_from_content_text() -> None:
+    """Test that citations are removed from ContentText blocks."""
+    citation = UrlCitation(
+        url="https://example.com",
+        cited_text="some text",
+        title="Example",
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageAssistant(
+            content=[ContentText(text="Response with citation", citations=[citation])],
+            id="msg1",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 1
+    assistant = result[0]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.text == "Response with citation"
+    assert content_text.citations is None
+
+
+def teststrip_citations_preserves_messages_without_citations() -> None:
+    """Test that messages without citations are unchanged."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question", id="msg1"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Response without citation")],
+            id="msg2",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 2
+    # Messages without citations should be the same objects
+    assert result[0] is messages[0]
+    assert result[1] is messages[1]
+
+
+def teststrip_citations_preserves_string_content() -> None:
+    """Test that string content messages are unchanged."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Simple string content", id="msg1"),
+        ChatMessageAssistant(content="Simple response", id="msg2"),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 2
+    # String content messages should be the same objects
+    assert result[0] is messages[0]
+    assert result[1] is messages[1]
+
+
+def teststrip_citations_preserves_other_content_types() -> None:
+    """Test that non-text content types are unchanged."""
+    citation = UrlCitation(url="https://example.com", cited_text="text")
+    messages: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                ContentImage(image="data:image/png;base64,abc123"),
+                ContentText(text="Text with citation", citations=[citation]),
+            ],
+            id="msg1",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 1
+    user_msg = result[0]
+    assert isinstance(user_msg, ChatMessageUser)
+    assert isinstance(user_msg.content, list)
+    assert len(user_msg.content) == 2
+    # Image should be unchanged
+    assert isinstance(user_msg.content[0], ContentImage)
+    assert user_msg.content[0].image == "data:image/png;base64,abc123"
+    # Text should have citations stripped
+    assert isinstance(user_msg.content[1], ContentText)
+    assert user_msg.content[1].citations is None
+
+
+def teststrip_citations_handles_empty_list() -> None:
+    """Test that empty message list returns empty list."""
+    result = strip_citations([])
+    assert result == []
+
+
+def teststrip_citations_handles_multiple_citations() -> None:
+    """Test that multiple citations are all removed."""
+    citations = [
+        UrlCitation(url="https://example1.com", cited_text="text1"),
+        UrlCitation(url="https://example2.com", cited_text="text2"),
+    ]
+    messages: list[ChatMessage] = [
+        ChatMessageAssistant(
+            content=[
+                ContentText(
+                    text="Response with multiple citations", citations=citations
+                )
+            ],
+            id="msg1",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assistant = result[0]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.citations is None
+
+
+async def test_compaction_strips_citations() -> None:
+    """Test that compaction strips citations from messages."""
+    from inspect_ai.tool import ToolCall
+
+    citation = UrlCitation(
+        url="https://example.com",
+        cited_text="search result",
+        title="Example",
+    )
+
+    # Use CompactionEdit with low threshold to ensure compaction triggers
+    # keep_tool_uses=0 allows clearing tool results to reduce tokens
+    strategy = CompactionEdit(threshold=100, keep_tool_uses=0)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # Create tool calls with large content to exceed threshold
+    tool_call = ToolCall(id="t1", function="bash", arguments={"cmd": "A" * 500})
+
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("Question", "msg1"),
+        ChatMessageAssistant(content="Using tool", id="msg2", tool_calls=[tool_call]),
+        ChatMessageTool(
+            content="B" * 500, tool_call_id="t1", function="bash", id="msg3"
+        ),
+        user_msg("Follow up", "msg4"),
+        # Assistant response with citations (simulating web_search result)
+        ChatMessageAssistant(
+            content=[ContentText(text="Here is what I found", citations=[citation])],
+            id="msg5",
+        ),
+    ]
+
+    result, _ = await compact.compact_input(messages)
+
+    # Find any assistant message with ContentText content
+    for msg in result:
+        if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
+            for content in msg.content:
+                if isinstance(content, ContentText):
+                    # Citations should have been stripped during compaction
+                    assert content.citations is None, (
+                        f"Expected citations to be None, got {content.citations}"
+                    )

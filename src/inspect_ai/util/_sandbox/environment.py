@@ -16,11 +16,19 @@ from typing import (
     overload,
 )
 
+import anyio
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.logger import warn_once
 
 from .._subprocess import ExecResult
+from .exec_remote import (
+    ExecRemoteAwaitableOptions,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
+    exec_remote_awaitable,
+    exec_remote_streaming,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,13 +96,16 @@ class SandboxEnvironment(abc.ABC):
     filesystem context to copy samples files into and resolve relative paths to.
     """
 
+    def __init__(self) -> None:
+        self._inject_lock = anyio.Lock()
+
     @abc.abstractmethod
     async def exec(
         self,
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -207,6 +218,103 @@ class SandboxEnvironment(abc.ABC):
            ConnectionError: If sandbox is not currently running.
         """
         raise NotImplementedError("connection not implemented")
+
+    @overload
+    async def exec_remote(
+        self,
+        cmd: list[str],
+        options: ExecRemoteStreamingOptions | None = None,
+        *,
+        stream: Literal[True] = True,
+    ) -> ExecRemoteProcess: ...
+
+    @overload
+    async def exec_remote(
+        self,
+        cmd: list[str],
+        options: ExecRemoteAwaitableOptions | None = None,
+        *,
+        stream: Literal[False],
+    ) -> ExecResult[str]: ...
+
+    async def exec_remote(
+        self,
+        cmd: list[str],
+        options: ExecRemoteStreamingOptions | ExecRemoteAwaitableOptions | None = None,
+        *,
+        stream: bool = True,
+    ) -> ExecRemoteProcess | ExecResult[str]:
+        """Start a command and return a process handle or result.
+
+        In streaming mode (stream=True), the function returns only after the
+        process has been successfully launched in the sandbox. The returned
+        ExecRemoteProcess handle can then be iterated for output events or
+        killed later.
+
+        Both modes support automatic cleanup on cancellation: if the calling
+        task is cancelled (e.g., via task group cancellation), the subprocess
+        is automatically killed before the cancellation exception propagates.
+
+        Usage patterns:
+
+        1. Streaming (stream=True, default): iterate over events
+           ```python
+           proc = await sandbox.exec_remote(["pytest", "-v"])
+           async for event in proc:
+               match event:
+                   case ExecStdout(data=data): print(data, end="")
+                   case ExecStderr(data=data): print(data, end="", file=sys.stderr)
+                   case ExecCompleted(exit_code=code): print(f"Done: {code}")
+           ```
+
+        2. Fire-and-forget with explicit kill:
+           ```python
+           proxy = await sandbox.exec_remote(["./model-proxy"])
+           # ... do other work ...
+           await proxy.kill()  # terminate when done
+           ```
+
+        3. Simple await (stream=False): get result without streaming
+           ```python
+           result = await sandbox.exec_remote(["pytest", "-v"], stream=False)
+           if result.success:
+               print(result.stdout)
+           ```
+
+        4. Long-running process with automatic cleanup via task cancellation:
+           ```python
+           async with anyio.create_task_group() as tg:
+               tg.start_soon(run_server)  # uses exec_remote(..., stream=False)
+               yield  # do work while server runs
+               tg.cancel_scope.cancel()  # server killed automatically
+           ```
+
+        Args:
+            cmd: Command and arguments to execute.
+            options: Execution options (see ExecRemoteOptions).
+            stream: If True (default), returns ExecRemoteProcess for streaming.
+                If False, returns ExecResult[str] directly.
+
+        Returns:
+            If stream=True: ExecRemoteProcess handle with events iterator and kill() method.
+                The process is guaranteed to have been started in the sandbox when this returns.
+            If stream=False: ExecResult[str] with success, returncode, stdout, and stderr.
+
+        Raises:
+            TimeoutError: If `timeout` is specified in ExecRemoteAwaitableOptions and the command exceeds it (only applicable when `stream=False`).
+        """
+        from inspect_ai.tool._sandbox_tools_utils.sandbox import (
+            sandbox_with_injected_tools,
+        )
+
+        # inject tools (use flag for fast path)
+        if not getattr(self, "_tools_injected", False):
+            await sandbox_with_injected_tools(sandbox=self)
+            self._tools_injected = True
+
+        return await (exec_remote_streaming if stream else exec_remote_awaitable)(
+            self, cmd, self.default_polling_interval(), options
+        )
 
     def as_type(self, sandbox_cls: Type[ST]) -> ST:
         """Verify and return a reference to a subclass of SandboxEnvironment.
@@ -341,6 +449,11 @@ class SandboxEnvironment(abc.ABC):
         return []
 
     @classmethod
+    def is_docker_compatible(cls) -> bool:
+        """Is the provider docker compatible (accepts Dockerfile and compose.yaml)"""
+        return any(["compose.yaml" in f for f in cls.config_files()])
+
+    @classmethod
     def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
         """Deserialize a sandbox-specific configuration model from a dict.
 
@@ -440,6 +553,22 @@ def deserialize_sandbox_specific_config(
             "Ensure the plugin is installed in your environment.",
         )
         return config
+    # If the provider is docker compatible and the config is a valid
+    # ComposeConfig, deserialize it automatically so providers don't
+    # need to handle this case in config_deserialize.
+    is_docker_compatible_fn = cast(
+        Callable[..., bool], getattr(sandboxenv_type, "is_docker_compatible")
+    )
+    if is_docker_compatible_fn():
+        from pydantic import ValidationError
+
+        from inspect_ai.util._sandbox.compose import ComposeConfig
+
+        try:
+            return ComposeConfig.model_validate(config)
+        except ValidationError:
+            pass
+
     config_deserialize = cast(
         ConfigDeserialize, getattr(sandboxenv_type, "config_deserialize")
     )

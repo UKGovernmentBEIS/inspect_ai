@@ -1,7 +1,19 @@
 import clsx from "clsx";
-import { EvalSample, Target, TotalTime, WorkingTime } from "../../@types/log";
-import { arrayToString, formatTime, inputString } from "../../utils/format";
-import { FlatSampleError } from "./error/FlatSampleErrorView";
+import {
+  EvalSample,
+  ProvenanceData,
+  Target,
+  TotalTime,
+  WorkingTime,
+} from "../../@types/log";
+import {
+  arrayToString,
+  formatDateTime,
+  formatTime,
+  inputString,
+} from "../../utils/format";
+import { truncateMarkdown } from "../../utils/markdown";
+import { SampleErrorView } from "./error/SampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../client/api/types";
@@ -10,8 +22,7 @@ import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
-const kMaxRowTextSize = 1024 * 5;
-
+const kMaxCellTextLength = 256;
 interface SampleSummaryViewProps {
   parent_id: string;
   sample: SampleSummary | EvalSample;
@@ -98,16 +109,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   }
   const fields = resolveSample(sample, sampleDescriptor);
 
-  const limitSize =
-    sampleDescriptor?.messageShape.normalized.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
-      : 0;
-  const retrySize =
-    sampleDescriptor?.messageShape.normalized.retries > 0 ? 6 : 0;
-  const idSize = Math.max(
-    2,
-    Math.min(10, sampleDescriptor?.messageShape.raw.id),
-  );
+  const shape = sampleDescriptor?.messageShape;
+  const limitSize = shape?.limitSize ?? 0;
+  const retrySize = shape?.retriesSize ?? 0;
+  const idSize = shape?.idSize ?? 2;
 
   // The columns for the sample
   const columns: SummaryColumn[] = [];
@@ -121,11 +126,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     label: "Input",
     value: (
       <RenderedText
-        markdown={fields.input.join(" ").slice(0, kMaxRowTextSize)}
+        markdown={truncateMarkdown(fields.input.join(" "), kMaxCellTextLength)}
       />
     ),
     size: `minmax(auto, 5fr)`,
-    clamp: true,
   });
 
   if (fields.target) {
@@ -133,9 +137,9 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Target",
       value: (
         <RenderedText
-          markdown={arrayToString(fields?.target || "none").slice(
-            0,
-            kMaxRowTextSize,
+          markdown={truncateMarkdown(
+            arrayToString(fields?.target || "none"),
+            kMaxCellTextLength,
           )}
           className={clsx("no-last-para-padding", styles.target)}
         />
@@ -150,7 +154,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Answer",
       value: sample ? (
         <RenderedText
-          markdown={(fields.answer || "").slice(0, kMaxRowTextSize)}
+          markdown={truncateMarkdown(fields.answer || "", kMaxCellTextLength)}
           className={clsx("no-last-para-padding", styles.answer)}
         />
       ) : (
@@ -182,7 +186,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Limit",
       value: fields.limit,
-      size: `fit-content(10rem)`,
+      size: `${limitSize}em`,
       center: true,
     });
   }
@@ -191,81 +195,123 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Retries",
       value: fields.retries,
-      size: `fit-content(${retrySize}rem)`,
+      size: `${retrySize}em`,
       center: true,
     });
   }
 
   if (selectedScores && selectedScores.length > 0) {
-    selectedScores.forEach((scoreLabel) => {
-      columns.push({
+    const scoreColumns = selectedScores
+      .map((scoreLabel) => ({
         label: selectedScores.length === 1 ? "Score" : scoreLabel.name,
-        value: fields.error ? (
-          <FlatSampleError message={fields.error} />
-        ) : (
+        value:
           sampleDescriptor?.evalDescriptor
             .score(sample, scoreLabel)
-            ?.render() || ""
-        ),
+            ?.render() || "",
         size: "fit-content(15em)",
         center: true,
-      });
-    });
-  } else {
+      }))
+      .filter((col) => col.value !== "");
+    columns.push(...scoreColumns);
+  }
+
+  if (fields.error) {
     columns.push({
-      label: "Score",
-      value: fields.error ? <FlatSampleError message={fields.error} /> : "",
-      size: "fit-content(15em)",
+      label: "Error",
+      value: <SampleErrorView message={fields.error} />,
+      size: `${shape?.errorSize ?? 1}em`,
       center: true,
     });
   }
 
+  // Check if sample is invalidated (only available on full EvalSample)
+  const invalidation: ProvenanceData | null | undefined = isEvalSample(sample)
+    ? sample.invalidation
+    : undefined;
+
   return (
-    <div
-      id={`sample-heading-${parent_id}`}
-      className={clsx(styles.grid, "text-size-base")}
-      style={{
-        gridTemplateColumns: `${columns
-          .map((col) => {
-            return col.size;
-          })
-          .join(" ")}`,
-      }}
-    >
-      {columns.map((col, idx) => {
-        return (
-          <div
-            key={`sample-summ-lbl-${idx}`}
-            className={clsx(
-              "text-style-label",
-              "text-style-secondary",
-              "text-size-smallest",
-              col.title ? styles.titled : undefined,
-              col.center ? styles.centerLabel : undefined,
-            )}
-            title={col.title}
-            data-unsearchable={true}
-          >
-            {col.label}
-          </div>
-        );
-      })}
-      {columns.map((col, idx) => {
-        return (
-          <div
-            key={`sample-summ-val-${idx}`}
-            className={clsx(
-              styles.value,
-              styles.wrap,
-              col.clamp ? "three-line-clamp" : undefined,
-              col.center ? styles.centerValue : undefined,
-            )}
-            data-unsearchable={true}
-          >
-            {col.value}
-          </div>
-        );
-      })}
+    <div id={`sample-heading-${parent_id}`}>
+      {invalidation && <InvalidationBanner invalidation={invalidation} />}
+      <div
+        className={clsx(styles.grid, "text-size-base")}
+        style={{
+          gridTemplateColumns: `${columns
+            .map((col) => {
+              return col.size;
+            })
+            .join(" ")}`,
+        }}
+      >
+        {columns.map((col, idx) => {
+          return (
+            <div
+              key={`sample-summ-lbl-${idx}`}
+              className={clsx(
+                "text-style-label",
+                "text-style-secondary",
+                "text-size-smallest",
+                col.title ? styles.titled : undefined,
+                col.center ? styles.centerLabel : undefined,
+              )}
+              title={col.title}
+              data-unsearchable={true}
+            >
+              {col.label}
+            </div>
+          );
+        })}
+        {columns.map((col, idx) => {
+          return (
+            <div
+              key={`sample-summ-val-${idx}`}
+              className={clsx(
+                styles.value,
+                styles.wrap,
+                col.clamp ? "three-line-clamp" : undefined,
+                col.center ? styles.centerValue : undefined,
+              )}
+              data-unsearchable={true}
+            >
+              {col.value}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Banner component to display when a sample has been invalidated.
+ */
+const InvalidationBanner: FC<{ invalidation: ProvenanceData }> = ({
+  invalidation,
+}) => {
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      return formatDateTime(new Date(timestamp));
+    } catch {
+      return timestamp;
+    }
+  };
+
+  return (
+    <div className={styles.invalidationBanner}>
+      <div className={styles.invalidationIcon}>⚠</div>
+      <div className={styles.invalidationContent}>
+        <div className={styles.invalidationTitle}>Sample Invalidated</div>
+        <div className={styles.invalidationDetails}>
+          {invalidation.author && <span>By: {invalidation.author}</span>}
+          {invalidation.timestamp && (
+            <span>On: {formatTimestamp(invalidation.timestamp)}</span>
+          )}
+          {invalidation.reason && (
+            <span className={styles.invalidationReason}>
+              Reason: {invalidation.reason}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

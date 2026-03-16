@@ -1,14 +1,10 @@
 import clsx from "clsx";
 import { FC, memo, useState } from "react";
-import {
-  ChatMessageAssistant,
-  ChatMessageSystem,
-  ChatMessageTool,
-  ChatMessageUser,
-} from "../../../@types/log";
+import { ChatMessageTool } from "../../../@types/log";
 import { CopyButton } from "../../../components/CopyButton";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { LabeledValue } from "../../../components/LabeledValue";
+import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { RecordTree } from "../../content/RecordTree";
 import {
@@ -19,18 +15,16 @@ import {
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { ChatViewToolCallStyle } from "./types";
+import { Message } from "./messages";
 
 interface ChatMessageProps {
   id: string;
-  message:
-    | ChatMessageAssistant
-    | ChatMessageSystem
-    | ChatMessageUser
-    | ChatMessageTool;
+  message: Message;
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
   allowLinking?: boolean;
+  unlabeledRoles?: string[];
 }
 
 export const ChatMessage: FC<ChatMessageProps> = memo(
@@ -41,12 +35,27 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
     indented,
     toolCallStyle,
     allowLinking = true,
+    unlabeledRoles,
   }) => {
     const messageUrl = useSampleMessageUrl(message.id);
+    const [mouseOver, setMouseOver] = useState(false);
 
     const collapse = message.role === "system" || message.role === "user";
+    const hideRole = unlabeledRoles?.includes(message.role) ?? false;
 
-    const [mouseOver, setMouseOver] = useState(false);
+    // When the role header is hidden, skip rendering if there's no visible
+    // text content (e.g. assistant messages with only tool_calls).
+    if (hideRole) {
+      const content = message.content;
+      const hasVisibleContent =
+        typeof content === "string"
+          ? content.trim().length > 0
+          : Array.isArray(content) &&
+            content.some((c) => c.type !== "tool_use");
+      if (!hasVisibleContent) {
+        return null;
+      }
+    }
 
     return (
       <div
@@ -61,25 +70,34 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
         onMouseEnter={() => setMouseOver(true)}
         onMouseLeave={() => setMouseOver(false)}
       >
-        <div
-          className={clsx(
-            styles.messageGrid,
-            message.role === "tool" ? styles.toolMessageGrid : undefined,
-            "text-style-label",
-          )}
-        >
-          {message.role}
-          {message.role === "tool" ? `: ${message.function}` : ""}
-          {supportsLinking() && messageUrl && allowLinking ? (
-            <CopyButton
-              icon={ApplicationIcons.link}
-              value={toFullUrl(messageUrl)}
-              className={clsx(styles.copyLink)}
-            />
-          ) : (
-            ""
-          )}
-        </div>
+        {!hideRole && (
+          <div
+            className={clsx(
+              styles.messageGrid,
+              message.role === "tool" ? styles.toolMessageGrid : undefined,
+              "text-style-label",
+            )}
+          >
+            <div>
+              {message.role}
+              {message.role === "tool" ? `: ${message.function}` : ""}
+              {supportsLinking() && messageUrl && allowLinking ? (
+                <CopyButton
+                  icon={ApplicationIcons.link}
+                  value={toFullUrl(messageUrl)}
+                  className={clsx(styles.copyLink)}
+                />
+              ) : (
+                ""
+              )}
+            </div>
+            {message.timestamp && (
+              <span className={styles.timestamp} title={message.timestamp}>
+                {formatDateTime(new Date(message.timestamp))}
+              </span>
+            )}
+          </div>
+        )}
         <div
           className={clsx(
             styles.messageContents,

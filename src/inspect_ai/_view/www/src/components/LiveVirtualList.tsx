@@ -10,7 +10,11 @@ import {
 import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
-import { ExtendedFindFn, useExtendedFind } from "./ExtendedFindContext";
+import {
+  ExtendedFindFn,
+  ExtendedCountFn,
+  useExtendedFind,
+} from "./ExtendedFindContext";
 import { PulsingDots } from "./PulsingDots";
 
 import styles from "./LiveVirtualList.module.css";
@@ -44,9 +48,10 @@ interface LiveVirtualListProps<T> {
 
   components?: Components<T>;
 
-  // Optional function to search within data items for text
+  // Optional function to extract searchable text from data items
   // If not provided, will use JSON.stringify as fallback
-  searchInItem?: (item: T, searchTerm: string) => boolean;
+  // Return a string or array of strings to search within
+  itemSearchText?: (item: T) => string | string[];
 }
 
 /**
@@ -64,14 +69,13 @@ export const LiveVirtualList = <T,>({
   initialTopMostItemIndex,
   offsetTop,
   components,
-  searchInItem,
+  itemSearchText,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
   const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
     useVirtuosoState(listHandle, `live-virtual-list-${id}`);
 
-  // Search functionality
-  const { registerVirtualList } = useExtendedFind();
+  const { registerVirtualList, registerMatchCounter } = useExtendedFind();
   const pendingSearchCallback = useRef<(() => void) | null>(null);
   const [isCurrentlyScrolling, setIsCurrentlyScrolling] = useState(false);
 
@@ -161,22 +165,72 @@ export const LiveVirtualList = <T,>({
 
   const [, forceRender] = useState({});
 
-  // Default search function that uses JSON.stringify as fallback
-  const defaultSearchInItem = useCallback(
-    (item: T, searchTerm: string): boolean => {
-      const searchLower = searchTerm.toLowerCase();
-      try {
-        // TODO: should we make this more pluggable?
-        const itemString = JSON.stringify(item).toLowerCase();
-        return itemString.includes(searchLower);
-      } catch {
-        return false;
+  // Default function to extract searchable text using JSON.stringify
+  const defaultItemSearchText = useCallback((item: T): string => {
+    try {
+      return JSON.stringify(item);
+    } catch {
+      return "";
+    }
+  }, []);
+
+  // Search within a single text string
+  const searchInText = useCallback(
+    (text: string, searchTerm: string): boolean => {
+      const lowerText = text.toLowerCase();
+      const prepared = prepareSearchTerm(searchTerm);
+
+      // Simple search
+      if (lowerText.includes(prepared.simple)) {
+        return true;
       }
+
+      // Check variations
+      if (prepared.unquoted && lowerText.includes(prepared.unquoted)) {
+        return true;
+      }
+
+      if (prepared.jsonEscaped && lowerText.includes(prepared.jsonEscaped)) {
+        return true;
+      }
+
+      return false;
     },
     [],
   );
 
-  // Search in data function
+  // Search within an item using itemSearchText
+  const searchInItem = useCallback(
+    (item: T, searchTerm: string): boolean => {
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+      const texts = getSearchText(item);
+      const textArray = Array.isArray(texts) ? texts : [texts];
+
+      return textArray.some((text) => searchInText(text, searchTerm));
+    },
+    [itemSearchText, defaultItemSearchText, searchInText],
+  );
+
+  const scrollToMatch = useCallback(
+    (index: number, onContentReady: () => void) => {
+      pendingSearchCallback.current = onContentReady;
+
+      listHandle.current?.scrollToIndex({
+        index,
+        behavior: "auto",
+        align: "center",
+      });
+
+      setTimeout(() => {
+        if (pendingSearchCallback.current === onContentReady) {
+          pendingSearchCallback.current = null;
+          onContentReady();
+        }
+      }, 200);
+    },
+    [listHandle],
+  );
+
   const searchInData: ExtendedFindFn = useCallback(
     async (
       term: string,
@@ -185,28 +239,24 @@ export const LiveVirtualList = <T,>({
     ) => {
       if (!data.length || !term) return false;
 
-      const searchFn = searchInItem || defaultSearchInItem;
-      const currentIndex =
-        direction === "forward"
-          ? visibleRange.endIndex
-          : visibleRange.startIndex;
-      const searchStart =
-        direction === "forward"
-          ? Math.max(0, currentIndex + 1)
-          : Math.min(data.length - 1, currentIndex - 1);
-      const step = direction === "forward" ? 1 : -1;
+      const isForward = direction === "forward";
+      const currentIndex = isForward
+        ? visibleRange.endIndex
+        : visibleRange.startIndex;
 
-      for (let i = searchStart; i >= 0 && i < data.length; i += step) {
-        if (searchFn(data[i], term)) {
-          // Found a match! Set up callback and scroll to it
-          pendingSearchCallback.current = onContentReady;
+      // Search from current position to end, then wrap from beginning to current position
+      const len = data.length;
+      for (let offset = 1; offset < len; offset++) {
+        const i = isForward
+          ? (currentIndex + offset) % len
+          : (currentIndex - offset + len) % len;
 
-          listHandle.current?.scrollToIndex({
-            index: i,
-            behavior: "auto",
-            align: "center",
-          });
+        // Skip items already in the visible range (window.find already checked them)
+        if (i >= visibleRange.startIndex && i <= visibleRange.endIndex)
+          continue;
 
+        if (searchInItem(data[i], term)) {
+          scrollToMatch(i, onContentReady);
           return true;
         }
       }
@@ -216,18 +266,50 @@ export const LiveVirtualList = <T,>({
     [
       data,
       searchInItem,
-      defaultSearchInItem,
       visibleRange.endIndex,
       visibleRange.startIndex,
-      listHandle,
+      scrollToMatch,
     ],
   );
 
-  // Register with search context
+  const countMatchesInData: ExtendedCountFn = useCallback(
+    (term: string): number => {
+      if (!term || !data.length) return 0;
+      const lower = term.toLowerCase();
+      let total = 0;
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+
+      for (const item of data) {
+        const texts = getSearchText(item);
+        const textArray = Array.isArray(texts) ? texts : [texts];
+        for (const text of textArray) {
+          const lowerText = text.toLowerCase();
+          let pos = 0;
+          while ((pos = lowerText.indexOf(lower, pos)) !== -1) {
+            total++;
+            pos += lower.length;
+          }
+        }
+      }
+      return total;
+    },
+    [data, itemSearchText, defaultItemSearchText],
+  );
+
   useEffect(() => {
-    const unregister = registerVirtualList(id, searchInData);
-    return unregister;
-  }, [id, registerVirtualList, searchInData]);
+    const unregisterSearch = registerVirtualList(id, searchInData);
+    const unregisterCount = registerMatchCounter(id, countMatchesInData);
+    return () => {
+      unregisterSearch();
+      unregisterCount();
+    };
+  }, [
+    id,
+    registerVirtualList,
+    registerMatchCounter,
+    searchInData,
+    countMatchesInData,
+  ]);
 
   const Footer = () => {
     return showProgress ? (
@@ -301,6 +383,7 @@ export const LiveVirtualList = <T,>({
       rangeChanged={(range) => {
         setVisibleRange(range);
       }}
+      skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
       totalListHeightChanged={heightChanged}
       components={{
@@ -309,4 +392,28 @@ export const LiveVirtualList = <T,>({
       }}
     />
   );
+};
+
+type PreparedSearchTerms = {
+  simple: string;
+  unquoted?: string;
+  jsonEscaped?: string;
+};
+
+const prepareSearchTerm = (term: string): PreparedSearchTerms => {
+  const lower = term.toLowerCase();
+
+  // No special characters that need JSON handling
+  if (!term.includes('"') && !term.includes(":")) {
+    return { simple: lower };
+  }
+
+  // Generate variations for JSON-like syntax
+  return {
+    simple: lower,
+    // Remove quotes
+    unquoted: lower.replace(/"/g, ""),
+    // Escape quotes for JSON
+    jsonEscaped: lower.replace(/"/g, '\\"'),
+  };
 };

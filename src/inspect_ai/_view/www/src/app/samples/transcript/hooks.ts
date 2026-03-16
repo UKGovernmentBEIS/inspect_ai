@@ -6,7 +6,8 @@ import {
   Event11,
   Event12,
   Event13,
-  Event17,
+  Event14,
+  Event18,
   Event2,
   Event3,
   Event4,
@@ -34,7 +35,8 @@ export type AllEventTypes =
   | Event11
   | Event12
   | Event13
-  | Event17;
+  | Event14
+  | Event18;
 
 const eventTypes: Record<AllEventTypes, string> = {
   sample_init: "Sample Init",
@@ -50,6 +52,7 @@ const eventTypes: Record<AllEventTypes, string> = {
   score_edit: "Score Edit",
   error: "Error",
   logger: "Logger",
+  compaction: "Compaction",
   info: "Info",
   subtask: "Subtask",
 } as const;
@@ -81,6 +84,10 @@ export const useTranscriptFilter = () => {
     setFilteredEventTypes([...kDefaultExcludeEvents]);
   }, [setFilteredEventTypes]);
 
+  const setNoneFilter = useCallback(() => {
+    setFilteredEventTypes(Object.keys(eventTypes) as AllEventTypes[]);
+  }, [setFilteredEventTypes]);
+
   const isDefaultFilter = useMemo(() => {
     return (
       filtered.length === kDefaultExcludeEvents.length &&
@@ -90,6 +97,14 @@ export const useTranscriptFilter = () => {
 
   const isDebugFilter = useMemo(() => {
     return filtered.length === 0;
+  }, [filtered]);
+
+  const isNoneFilter = useMemo(() => {
+    const allTypes = Object.keys(eventTypes);
+    return (
+      filtered.length === allTypes.length &&
+      allTypes.every((type) => filtered.includes(type))
+    );
   }, [filtered]);
 
   const arrangedEventTypes = useCallback((columns: number = 1) => {
@@ -142,8 +157,10 @@ export const useTranscriptFilter = () => {
     filtered,
     isDefaultFilter,
     isDebugFilter,
+    isNoneFilter,
     setDefaultFilter,
     setDebugFilter,
+    setNoneFilter,
     filterEventType,
     eventTypes,
     arrangedEventTypes,

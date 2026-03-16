@@ -1,10 +1,11 @@
-import asyncio
 from typing import Generator
 
+import anyio
 import pytest
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util._async import tg_collect
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.solver._fork import fork
@@ -270,13 +271,13 @@ async def test_same_context_manager_across_async_contexts():
             for _ in range(10):
                 _consume_tokens(1)
                 # Yield to the event loop to allow other coroutines to run.
-                await asyncio.sleep(0)
+                await anyio.sleep(0)
             with pytest.raises(LimitExceededError) as exc_info:
                 _consume_tokens(1)
                 assert exc_info.value.value == 11
 
     # This will result in 3 distinct "trees" each with 1 root node.
-    await asyncio.gather(*(async_task() for _ in range(3)))
+    await tg_collect([async_task for _ in range(3)])
 
 
 def test_parallel_nested_forks(model: Model):

@@ -18,6 +18,8 @@ title: "inspect_ai.model"
 ### ModelUsage
 ### StopReason
 ### ChatCompletionChoice
+### OutputModality
+### ImageOutput
 
 ## Messages
 
@@ -29,6 +31,7 @@ title: "inspect_ai.model"
 ### ChatMessageTool
 ### trim_messages
 ### user_prompt
+### stable_message_ids
 
 ## Content
 
@@ -60,15 +63,20 @@ title: "inspect_ai.model"
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionAuto
+### CompactionNative
 ### CompactionEdit
 ### CompactionSummary
 ### CompactionTrim
+
 
 ## Model Info
 
 ### get_model_info
 ### set_model_info
+### set_model_cost
 ### ModelInfo
+### ModelCost
 
 ## Logprobs
 

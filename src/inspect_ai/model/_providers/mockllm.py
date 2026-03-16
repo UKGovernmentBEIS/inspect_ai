@@ -1,10 +1,13 @@
-from typing import Any, Callable, Generator, Iterable, Iterator
+import json
+from collections.abc import Callable, Generator, Iterable, Iterator
+from typing import Any
 
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 
 
@@ -71,10 +74,18 @@ class MockLLM(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        # Build request dict for model call recording
+        request = {
+            "model": self.model_name,
+            "messages": [m.model_dump() for m in input],
+        }
+
         # If we have a custom function, call it with the generate arguments each time
         if callable(self.outputs):
-            return self.outputs(input, tools, tool_choice, config)
+            output = self.outputs(input, tools, tool_choice, config)
+            model_call = ModelCall.create(request, {"content": output.completion})
+            return output, model_call
 
         try:
             output = next(self.outputs)
@@ -85,13 +96,33 @@ class MockLLM(ModelAPI):
             raise ValueError(
                 f"output must be an instance of ModelOutput; got {type(output)}; content: {repr(output)}"
             )
-        # For testing, we set token usage here only if not already specified
+        # For testing, we set token usage here only if not already specified.
+        # Uses count_tokens for consistency with the compaction baseline
+        # tracking, which compares generate's input_tokens against count_tokens.
+        # Includes tool tokens since real APIs (e.g. Anthropic) include them
+        # in usage.input_tokens.
         if output.usage is None:
+            input_tokens = await self.count_tokens(input)
+            # count tool tokens (same approach as Model.count_tool_tokens)
+            tool_json = ""
+            for t in tools:
+                tool_json += json.dumps(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": t.name,
+                            "description": t.description,
+                            "parameters": t.parameters.model_dump(exclude_none=True),
+                        },
+                    }
+                )
+            if tool_json:
+                input_tokens += await self.count_text_tokens(tool_json)
             content_length = len(output.completion) if output.completion else 0
-            input_length = sum(len(msg.content) for msg in input)
             output.usage = ModelUsage(
-                input_tokens=input_length,
+                input_tokens=input_tokens,
                 output_tokens=content_length,
-                total_tokens=input_length + content_length,
+                total_tokens=input_tokens + content_length,
             )
-        return output
+        model_call = ModelCall.create(request, {"content": output.completion})
+        return output, model_call

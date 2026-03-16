@@ -2,8 +2,10 @@ import clsx from "clsx";
 import { LoggerEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventRow } from "./event/EventRow";
+import { eventTitle } from "./event/utils";
 
 import { FC } from "react";
+import ExpandablePanel from "../../../components/ExpandablePanel";
 import { parsedJson as maybeParseJson } from "../../../utils/json";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import styles from "./LoggerEventView.module.css";
@@ -26,7 +28,7 @@ export const LoggerEventView: FC<LoggerEventViewProps> = ({
   return (
     <EventRow
       className={className}
-      title={event.message.level}
+      title={eventTitle(event)}
       icon={ApplicationIcons.logging[event.message.level.toLowerCase()]}
     >
       <div className={clsx("text-size-base", styles.grid)}>
@@ -34,7 +36,13 @@ export const LoggerEventView: FC<LoggerEventViewProps> = ({
           {obj !== undefined && obj !== null ? (
             <MetaDataGrid entries={obj as Record<string, unknown>} />
           ) : (
-            event.message.message
+            <ExpandablePanel
+              id={`event-message-${event.uuid}`}
+              collapse={true}
+              className={clsx(styles.wrap)}
+            >
+              {event.message.message}
+            </ExpandablePanel>
           )}
         </div>
         <div className={clsx("text-size-smaller", "text-style-secondary")}>

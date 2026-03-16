@@ -3,6 +3,7 @@
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
+from inspect_ai.event import CompactionEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -257,3 +258,35 @@ def test_react_compaction_clears_memory_content() -> None:
         assert not is_monotonic or len(model_events) <= 2, (
             "Expected compaction to occur or memory call to be found"
         )
+
+
+def test_compaction_event_emitted() -> None:
+    """Verify CompactionEvent is emitted when compaction occurs."""
+    log = run_react_with_compaction(
+        compaction=CompactionEdit(threshold=500, keep_tool_uses=1, memory=False),
+        tool_calls=4,
+    )
+
+    assert log.status == "success"
+    assert log.samples
+
+    # Find CompactionEvent in the sample events
+    compaction_events = [
+        e for e in log.samples[0].events if isinstance(e, CompactionEvent)
+    ]
+
+    # Compaction should have triggered at least once
+    assert len(compaction_events) >= 1, "Expected at least one CompactionEvent"
+
+    # Verify CompactionEvent fields
+    event = compaction_events[0]
+    assert event.event == "compaction"
+    assert event.source == "inspect"
+    assert event.tokens_before is not None
+    assert event.tokens_after is not None
+    assert event.tokens_before > event.tokens_after, (
+        "Compaction should reduce token count"
+    )
+    assert event.metadata is not None
+    assert "strategy" in event.metadata
+    assert event.metadata["strategy"] == "CompactionEdit"

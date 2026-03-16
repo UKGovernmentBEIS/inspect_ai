@@ -31,7 +31,7 @@ async def test_openai_num_choices() -> None:
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_num_choices() -> None:
-    await check_num_choices("together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo")
+    await check_num_choices("together/MiniMaxAI/MiniMax-M2.5")
 
 
 @pytest.mark.anyio

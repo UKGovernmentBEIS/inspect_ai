@@ -1,5 +1,4 @@
 from json import dumps
-from typing import Literal
 
 import click
 from pydantic_core import to_jsonable_python
@@ -10,6 +9,7 @@ from inspect_ai._cli.log import list_logs_options, log_list
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.task import TaskInfo
+from inspect_ai.log import EvalStatus
 
 
 @click.group("list")
@@ -81,7 +81,7 @@ def tasks(
 @list_command.command("logs", hidden=True)
 @list_logs_options
 def list_logs_command(
-    status: Literal["started", "success", "cancelled", "error"] | None,
+    status: EvalStatus | None,
     absolute: bool,
     json: bool,
     no_recursive: bool | None,

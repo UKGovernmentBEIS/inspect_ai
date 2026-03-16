@@ -53,6 +53,21 @@ class BatchConfig(BaseModel):
     """Maximum number of consecutive check failures before failing a batch (defaults to 1000)."""
 
 
+class ImageOutput(BaseModel):
+    """Image output configuration.
+
+    Use the `options` field to pass provider-specific options directly
+    to the underlying API (e.g. OpenAI image_generation tool parameters).
+    """
+
+    options: dict[Literal["openai"], dict[str, Any]] | None = Field(default=None)
+    """Provider-specific image output options, keyed by provider name."""
+
+
+OutputModality = Union[Literal["image"], ImageOutput]
+"""Output modality type. Either a literal string or an ImageOutput configuration."""
+
+
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
@@ -125,8 +140,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     verbosity: Literal["low", "medium", "high"] | None
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
-    effort: Literal["low", "medium", "high"] | None
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
+    effort: Literal["low", "medium", "high", "max"] | None
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
@@ -145,8 +160,14 @@ class GenerateConfigArgs(TypedDict, total=False):
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
+    extra_headers: dict[str, str] | None
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    modalities: list[OutputModality] | None
+    """Additional output modalities to enable beyond text (e.g. ["image"]). OpenAI and Google only."""
 
     cache: bool | CachePolicy | None
     """Policy for caching of model generations."""
@@ -227,8 +248,8 @@ class GenerateConfig(BaseModel):
     verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
-    effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
+    effort: Literal["low", "medium", "high", "max"] | None = Field(default=None)
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
@@ -251,8 +272,14 @@ class GenerateConfig(BaseModel):
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, vLLM, and SGLang only."""
 
+    extra_headers: dict[str, str] | None = Field(default=None)
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    modalities: list[OutputModality] | None = Field(default=None)
+    """Additional output modalities to enable beyond text (e.g. ["image"]). OpenAI and Google only."""
 
     cache: bool | CachePolicy | None = Field(default=None)
     """Policy for caching of model generate output."""
@@ -292,7 +319,7 @@ class GenerateConfig(BaseModel):
         for key in config_keys:
             value = getattr(other, key, None)
             if value is not None:
-                setattr(config, key, value)
+                setattr(config, key, deepcopy(value))
         return config
 
 
@@ -307,6 +334,33 @@ def set_active_generate_config(config: GenerateConfig) -> None:
 active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
     "generate_config", default=GenerateConfig()
 )
+
+
+def has_image_output(modalities: list[OutputModality] | None) -> bool:
+    """Check if modalities include image output."""
+    return image_output_config(modalities) is not None
+
+
+def image_output_config(
+    modalities: list[OutputModality] | None,
+) -> ImageOutput | None:
+    """Return the last ImageOutput from modalities.
+
+    Returns a default ImageOutput if only string "image" entries exist,
+    or None if no image output is present.
+    """
+    if modalities is None:
+        return None
+    last: ImageOutput | None = None
+    found = False
+    for m in modalities:
+        if m == "image" or isinstance(m, ImageOutput):
+            found = True
+            if isinstance(m, ImageOutput):
+                last = m
+    if not found:
+        return None
+    return last if last is not None else ImageOutput()
 
 
 def normalized_batch_config(

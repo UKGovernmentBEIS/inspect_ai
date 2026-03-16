@@ -18,12 +18,12 @@ from openai.types.responses import (
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
+    ResponseInputMessageContentListParam,
     ResponseInputTextParam,
     ResponseOutputItem,
     ResponseOutputMessage,
     ResponseOutputRefusal,
     ResponseOutputText,
-    ResponseReasoningItem,
     ToolParam,
     WebSearchToolParam,
 )
@@ -43,8 +43,7 @@ from openai.types.responses.response_custom_tool_call_output_param import (
     OutputOutputContentList,
 )
 from openai.types.responses.response_function_web_search import (
-    Action,
-    ActionSearch,
+    Action as WebSearchAction,
 )
 from openai.types.responses.response_input_item_param import McpCall as McpCallParam
 from openai.types.responses.response_input_item_param import (
@@ -59,11 +58,12 @@ from openai.types.responses.response_output_item import (
     McpListToolsTool,
 )
 from openai.types.responses.tool_param import CodeInterpreter
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
     Content,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -115,16 +115,16 @@ from inspect_ai.model._openai_responses import (
     is_response_output_text,
     is_response_reasoning_item,
     is_response_web_search_call,
+    is_simple_assistant_message,
     is_tool_choice_function_param,
     is_tool_choice_mcp_param,
     is_web_search_tool_param,
     mcp_call_to_tool_use,
     mcp_list_tools_to_tool_use,
-    read_reasoning_item_param,
+    parse_web_search_action,
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
-    responses_reasoning_from_reasoning,
     to_inspect_citation,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
@@ -132,8 +132,12 @@ from inspect_ai.model._openai_responses import (
     web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
-    tool_call_arguments_to_action,
+    tool_call_arguments_to_actions,
     tool_call_from_openai_computer_tool_call,
+)
+from inspect_ai.model._reasoning import (
+    parse_content_with_reasoning,
+    reasoning_to_think_tag,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
@@ -165,22 +169,31 @@ logger = getLogger(__name__)
 
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name)
+    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
     model_name = model.api.model_name
     is_openai = ModelName(model).api == "openai"
 
     # record parallel tool calls
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
 
+    # validate computer use compatibility
+    responses_tools: list[ToolParam] = json_data.get("tools", [])
+    has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
+    if has_computer_use and not is_openai:
+        raise RuntimeError(
+            f"computer use with the OpenAI Responses agent bridge requires an "
+            f"OpenAI model, got '{ModelName(model)}'"
+        )
+
     # convert openai tools to inspect tools (don't pass custom tools on to
     # non openai models as they don't know how to handle them)
-    responses_tools: list[ToolParam] = json_data.get("tools", [])
     tools = [
         tool_from_responses_tool(tool, web_search, code_execution)
         for tool in responses_tools
@@ -202,6 +215,7 @@ async def inspect_responses_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_responses(json_data)
+    config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -502,7 +516,59 @@ def messages_from_responses_input(
             content: list[Content] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
-                if is_response_output_message(param):
+                # convert simple assistant message to standard format
+                if is_simple_assistant_message(param):
+                    if isinstance(param["content"], str):
+                        param_content: ResponseInputMessageContentListParam = [
+                            ResponseInputTextParam(
+                                text=param["content"], type="input_text"
+                            )
+                        ]
+                    else:
+                        param_content = param["content"]
+                    for c in param_content:
+                        if c["type"] == "input_text":
+                            asst_content, content_internal = (
+                                parse_content_with_internal(
+                                    c["text"], CONTENT_INTERNAL_TAG
+                                )
+                            )
+                            # Check for serialized <think> tags and restore as ContentReasoning
+                            remaining_text, reasoning_capsule = (
+                                parse_content_with_reasoning(asst_content)
+                            )
+                            if reasoning_capsule is not None:
+                                content.append(
+                                    ContentReasoning(
+                                        reasoning=reasoning_capsule.reasoning,
+                                        signature=reasoning_capsule.signature,
+                                        redacted=reasoning_capsule.redacted,
+                                        summary=reasoning_capsule.summary,
+                                    )
+                                )
+                                asst_content = remaining_text
+                            if (
+                                asst_content
+                            ):  # Only add text if there's remaining content
+                                content.append(
+                                    ContentText(
+                                        text=asst_content, internal=content_internal
+                                    )
+                                )
+                        elif c["type"] == "input_image" and c["image_url"] is not None:
+                            content.append(
+                                ContentImage(image=c["image_url"], detail=c["detail"])
+                            )
+                        elif c["type"] == "input_file":
+                            content.append(
+                                ContentDocument(
+                                    document=c["file_data"],
+                                    filename=c["filename"],
+                                    # mime_type auto-detected from file_data URI
+                                )
+                            )
+
+                elif is_response_output_message(param):
                     for output in param["content"]:
                         text = str(output.get("text", output.get("refusal", "")))
 
@@ -511,20 +577,37 @@ def messages_from_responses_input(
                         )
 
                         if is_response_output_text(output):
-                            content.append(
-                                ContentText(
-                                    text=asst_content,
-                                    internal=content_internal,
-                                    citations=(
-                                        [
-                                            to_inspect_citation(annotation)
-                                            for annotation in output["annotations"]
-                                        ]
-                                        if output.get("annotations", None)
-                                        else None
-                                    ),
-                                )
+                            # Check for serialized <think> tags and restore as ContentReasoning
+                            remaining_text, reasoning_capsule = (
+                                parse_content_with_reasoning(asst_content)
                             )
+                            if reasoning_capsule is not None:
+                                content.append(
+                                    ContentReasoning(
+                                        reasoning=reasoning_capsule.reasoning,
+                                        signature=reasoning_capsule.signature,
+                                        redacted=reasoning_capsule.redacted,
+                                        summary=reasoning_capsule.summary,
+                                    )
+                                )
+                                asst_content = remaining_text
+                            if (
+                                asst_content
+                            ):  # Only add text if there's remaining content
+                                content.append(
+                                    ContentText(
+                                        text=asst_content,
+                                        internal=content_internal,
+                                        citations=(
+                                            [
+                                                to_inspect_citation(annotation)
+                                                for annotation in output["annotations"]
+                                            ]
+                                            if output.get("annotations", None)
+                                            else None
+                                        ),
+                                    )
+                                )
                         elif is_response_output_refusal(output):
                             content.append(
                                 ContentText(
@@ -564,11 +647,11 @@ def messages_from_responses_input(
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_web_search_call(param):
                     ensure_id(param, "ws")
-                    # Workaround for OpenAI server implementation change
-                    # https://github.com/openai/openai-java/issues/526
+                    # Backwards compat: older SDK data may use "find" instead of
+                    # "find_in_page". https://github.com/openai/openai-java/issues/526
                     action = param["action"]
-                    if action["type"] == "find_in_page":  # type: ignore[comparison-overlap]
-                        action["type"] = "find"
+                    if action["type"] == "find":  # type: ignore[comparison-overlap]
+                        action["type"] = "find_in_page"
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
                 elif is_response_code_interpreter_call(param):
@@ -725,8 +808,6 @@ def filter_duplicate_assistant_content(
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
 
-action_adapter = TypeAdapter[Action](Action)
-
 mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
 
 
@@ -770,29 +851,36 @@ def responses_output_items_from_assistant_message(
                 )
             )
         elif isinstance(content, ContentReasoning):
-            reasoning = responses_reasoning_from_reasoning(content)
+            # Serialize reasoning as <think> tag with full attributes (signature, redacted, summary)
+            # so it travels through the scaffold as opaque text and can be restored on the way back
+            think_tag = reasoning_to_think_tag(content)
             output.append(
-                ResponseReasoningItem.model_validate(
-                    read_reasoning_item_param(reasoning)
+                ResponseOutputMessage(
+                    type="message",
+                    id=uuid(),
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text",
+                            text=think_tag,
+                            annotations=[],
+                            logprobs=[],
+                        )
+                    ],
+                    status="completed",
                 )
             )
 
         elif isinstance(content, ContentToolUse):
             if content.tool_type == "web_search":
-                # if this originated from responses then the action will validate as
-                # a native OpenAI action -- otherwise just provide a plausible stand-in
-                # (the native model provider e.g. anthropic will have saved its call
-                # keyed by id so that it can replay with the correct fidelity)
-                try:
-                    action = action_adapter.validate_json(content.arguments)
-                except ValidationError:
-                    action = ActionSearch(type="search", query=content.arguments)
-
                 output.append(
                     ResponseFunctionWebSearch(
                         type="web_search_call",
                         id=content.id,
-                        action=action,
+                        action=cast(
+                            WebSearchAction,
+                            parse_web_search_action(content.arguments),
+                        ),
                         status="failed" if content.error else "completed",
                     )
                 )
@@ -819,7 +907,7 @@ def responses_output_items_from_assistant_message(
                 ResponseComputerToolCall(
                     id=uuid(),
                     type="computer_call",
-                    action=tool_call_arguments_to_action(tool_call.arguments),
+                    actions=tool_call_arguments_to_actions(tool_call.arguments),
                     call_id=tool_call.id,
                     pending_safety_checks=[],
                     status="completed",

@@ -19,7 +19,6 @@ def model():
     )
 
 
-@pytest.mark.asyncio
 @skip_if_no_transformers
 @skip_if_github_action
 @skip_if_no_accelerate

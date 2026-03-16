@@ -107,7 +107,6 @@ function staticHttpApiForLog(logInfo: {
           }
         },
       );
-      console.log({ f: joinURI(...dirSegments, "eval-set.json"), result });
       return result;
     },
     get_flow: async (dir?: string) => {

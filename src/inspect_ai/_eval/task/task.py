@@ -84,11 +84,13 @@ class Task:
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        cost_limit: float | None = None,
         early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -122,6 +124,8 @@ class Task:
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
+            cost_limit: Limit on total cost (in dollars) for each sample.
+                Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
@@ -129,6 +133,7 @@ class Task:
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
+            tags: Tags to associate with the task.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -175,11 +180,13 @@ class Task:
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
+        self.cost_limit = cost_limit
         self.early_stopping = early_stopping
         self.version = version
         self._display_name = display_name
         self._name = name
         self.metadata = metadata
+        self.tags = tags
 
     @property
     def name(self) -> str:
@@ -244,10 +251,12 @@ def task_with(
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
+    cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
+    tags: list[str] | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -285,6 +294,8 @@ def task_with(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
@@ -293,6 +304,7 @@ def task_with(
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
+        tags: Tags to associate with the task.
 
     Returns:
         Task: Passed `task` with modifications.
@@ -335,6 +347,8 @@ def task_with(
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):
         task.working_limit = working_limit
+    if not isinstance(cost_limit, NotGiven):
+        task.cost_limit = cost_limit
     if not isinstance(early_stopping, NotGiven):
         task.early_stopping = early_stopping
     if not isinstance(version, NotGiven):
@@ -343,6 +357,8 @@ def task_with(
         task._name = name
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
+    if not isinstance(tags, NotGiven):
+        task.tags = tags
 
     # return modified task
     return task

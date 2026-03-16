@@ -63,6 +63,7 @@ export interface LogsSlice {
     clearDisplayedSamples: () => void;
     setSamplesColumnVisibility: (visibility: Record<string, boolean>) => void;
     setPreviousSamplesPath: (path: string | undefined) => void;
+    setShowRetriedLogs: (showRetriedLogs: boolean) => void;
   };
 }
 
@@ -84,6 +85,7 @@ const initialState: LogsState = {
   samplesListState: {
     columnVisibility: {},
   },
+  showRetriedLogs: false,
 };
 
 export const createLogsSlice = (
@@ -360,7 +362,7 @@ export const createLogsSlice = (
             !state.app.singleFileMode
           ) {
             await state.logsActions.syncLogs();
-            const logHandle = state.logs.logs.find((val: { name: string }) =>
+            const logHandle = get().logs.logs.find((val: { name: string }) =>
               val.name.endsWith(logFile),
             );
             if (!logHandle) {
@@ -458,6 +460,11 @@ export const createLogsSlice = (
           log.debug("Sample query failed, returning empty results");
           return [];
         }
+      },
+      setShowRetriedLogs: (showRetriedLogs: boolean) => {
+        set((state) => {
+          state.logs.showRetriedLogs = showRetriedLogs;
+        });
       },
     },
   } as const;

@@ -17,6 +17,8 @@ from inspect_ai.hooks._hooks import (
     RunEnd,
     RunStart,
     SampleEnd,
+    SampleEvent,
+    SampleInit,
     SampleStart,
     TaskEnd,
     TaskStart,
@@ -36,7 +38,9 @@ class MockHooks(Hooks):
         self.run_end_events: list[RunEnd] = []
         self.task_start_events: list[TaskStart] = []
         self.task_end_events: list[TaskEnd] = []
+        self.sample_init_events: list[SampleInit] = []
         self.sample_start_events: list[SampleStart] = []
+        self.sample_event_events: list[SampleEvent] = []
         self.sample_end_events: list[SampleEnd] = []
         self.model_usage_events: list[ModelUsageData] = []
 
@@ -45,7 +49,9 @@ class MockHooks(Hooks):
         assert not self.run_end_events
         assert not self.task_start_events
         assert not self.task_end_events
+        assert not self.sample_init_events
         assert not self.sample_start_events
+        assert not self.sample_event_events
         assert not self.sample_end_events
         assert not self.model_usage_events
 
@@ -64,8 +70,14 @@ class MockHooks(Hooks):
     async def on_task_end(self, data: TaskEnd) -> None:
         self.task_end_events.append(data)
 
+    async def on_sample_init(self, data: SampleInit) -> None:
+        self.sample_init_events.append(data)
+
     async def on_sample_start(self, data: SampleStart) -> None:
         self.sample_start_events.append(data)
+
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        self.sample_event_events.append(data)
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         self.sample_end_events.append(data)
@@ -136,6 +148,7 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 1
     assert len(mock_hooks.task_end_events) == 1
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
     assert len(mock_hooks.model_usage_events) == 1
@@ -155,6 +168,7 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.run_end_events) == 1
         assert len(h.task_start_events) == 1
         assert len(h.task_end_events) == 1
+        assert len(h.sample_init_events) == 1
         assert len(h.sample_start_events) == 1
         assert len(h.sample_end_events) == 1
         assert len(h.model_usage_events) == 1
@@ -173,6 +187,7 @@ def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 2
     assert len(mock_hooks.task_end_events) == 2
+    assert len(mock_hooks.sample_init_events) == 2
     assert len(mock_hooks.sample_start_events) == 2
     assert len(mock_hooks.sample_end_events) == 2
 
@@ -189,6 +204,7 @@ def test_hooks_with_multiple_samples(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.run_end_events) == 1
     assert len(mock_hooks.task_start_events) == 1
     assert len(mock_hooks.task_end_events) == 1
+    assert len(mock_hooks.sample_init_events) == 2
     assert len(mock_hooks.sample_start_events) == 2
     assert len(mock_hooks.sample_end_events) == 2
 
@@ -200,6 +216,7 @@ def test_hooks_with_multiple_epochs(mock_hooks: MockHooks) -> None:
         epochs=3,
     )
 
+    assert len(mock_hooks.sample_init_events) == 3
     assert len(mock_hooks.sample_start_events) == 3
     assert len(mock_hooks.sample_end_events) == 3
 
@@ -211,9 +228,72 @@ def test_hooks_with_sample_retries(mock_hooks: MockHooks) -> None:
         retry_on_error=10,
     )
 
-    # Will succeed on 3rd attempt, but just 1 sample start and end event.
+    # Will succeed on 3rd attempt, but just 1 sample init/start/end event.
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
+
+    # UUID should be consistent across init/start/end
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_across_multiple_retries(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(5)),
+        model="mockllm/model",
+        retry_on_error=10,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 1
+    assert len(mock_hooks.sample_end_events) == 1
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+    # All mid-sample events also carry the same UUID
+    for evt in mock_hooks.sample_event_events:
+        assert evt.sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_on_retry_then_fail(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=_fail_n_times_solver(10)),
+        model="mockllm/model",
+        retry_on_error=3,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 1
+    assert len(mock_hooks.sample_end_events) == 1
+    init_id = mock_hooks.sample_init_events[0].sample_id
+    assert mock_hooks.sample_start_events[0].sample_id == init_id
+    assert mock_hooks.sample_end_events[0].sample_id == init_id
+
+
+def test_hooks_sample_uuid_stable_multiple_samples_with_retries(
+    mock_hooks: MockHooks,
+) -> None:
+    eval(
+        Task(
+            dataset=[Sample("s1"), Sample("s2")],
+            solver=_fail_n_times_solver(2),
+        ),
+        model="mockllm/model",
+        retry_on_error=5,
+    )
+
+    assert len(mock_hooks.sample_init_events) == 2
+    assert len(mock_hooks.sample_end_events) == 2
+    # The two samples have different UUIDs
+    init_ids = {evt.sample_id for evt in mock_hooks.sample_init_events}
+    assert len(init_ids) == 2
+    # Each init UUID appears in the end events
+    end_ids = {evt.sample_id for evt in mock_hooks.sample_end_events}
+    assert init_ids == end_ids
 
 
 def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
@@ -224,6 +304,7 @@ def test_hooks_with_error_and_no_retries(mock_hooks: MockHooks) -> None:
     )
 
     # Will fail on first attempt without any retries.
+    assert len(mock_hooks.sample_init_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
 
@@ -349,6 +430,55 @@ def test_required_hooks_when_one_missing(
             init_hooks()
 
     assert "missing: {'fake'}" in str(exc_info.value)
+
+
+def test_sample_events_are_emitted(mock_hooks: MockHooks) -> None:
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    # A basic eval should produce at least one sample event (e.g. SampleInitEvent,
+    # ModelEvent, ScoreEvent, etc.)
+    assert len(mock_hooks.sample_event_events) > 0
+
+    # All events should reference the same sample/run/eval ids
+    first = mock_hooks.sample_event_events[0]
+    for evt in mock_hooks.sample_event_events:
+        assert evt.run_id == first.run_id
+        assert evt.eval_id == first.eval_id
+        assert evt.sample_id == first.sample_id
+
+
+def test_sample_events_with_multiple_samples(mock_hooks: MockHooks) -> None:
+    eval(
+        Task(dataset=[Sample("sample_1"), Sample("sample_2")]),
+        model="mockllm/model",
+    )
+
+    # Events should be emitted for both samples
+    sample_ids = {evt.sample_id for evt in mock_hooks.sample_event_events}
+    assert len(sample_ids) == 2
+
+
+def test_sample_events_with_multiple_hooks(
+    mock_hooks: MockHooks, hooks_2: MockHooks
+) -> None:
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    # Both hooks should receive the same sample events
+    assert len(mock_hooks.sample_event_events) > 0
+    assert len(mock_hooks.sample_event_events) == len(hooks_2.sample_event_events)
+
+
+def test_sample_events_arrive_before_sample_end(mock_hooks: MockHooks) -> None:
+    """Verify that all sample events are drained before sample_end fires."""
+    eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert len(mock_hooks.sample_event_events) > 0
+    assert len(mock_hooks.sample_end_events) == 1
+
+    # The sample_end event should share the same sample_id as the sample events
+    end_sample_id = mock_hooks.sample_end_events[0].sample_id
+    for evt in mock_hooks.sample_event_events:
+        assert evt.sample_id == end_sample_id
 
 
 T = TypeVar("T", bound=Hooks)

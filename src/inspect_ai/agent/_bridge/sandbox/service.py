@@ -12,6 +12,7 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
+from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
 from .types import SandboxAgentBridge
 
@@ -38,6 +39,7 @@ async def run_model_service(
             "generate_anthropic": generate_anthropic(
                 web_search, code_execution, bridge
             ),
+            "generate_google": generate_google(web_search, code_execution, bridge),
             "list_tools": list_tools(bridge),
             "call_tool": call_tool(bridge),
         },
@@ -54,8 +56,7 @@ def generate_completions(
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        _resolve_model(bridge.model, json_data)
-        completion = await inspect_completions_api_request(json_data, bridge)
+        completion = await inspect_completions_api_request(json_data, None, bridge)
         return completion.model_dump(mode="json", warnings=False)
 
     return generate
@@ -67,9 +68,8 @@ def generate_responses(
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        _resolve_model(bridge.model, json_data)
         completion = await inspect_responses_api_request(
-            json_data, web_search, code_execution, bridge
+            json_data, None, web_search, code_execution, bridge
         )
         return completion.model_dump(mode="json", warnings=False)
 
@@ -82,23 +82,26 @@ def generate_anthropic(
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        _resolve_model(bridge.model, json_data)
         completion = await inspect_anthropic_api_request(
-            json_data, web_search, code_execution, bridge
+            json_data, None, web_search, code_execution, bridge
         )
         return completion.model_dump(mode="json", warnings=False)
 
     return generate
 
 
-# resolve model to a pre-specified value if model passed in the request
-# is not specifially an inspect model (enables a fallthrough for scaffolds
-# that can't be invoked in such as way as to full control their model)
-def _resolve_model(model: str | None, json_data: dict[str, JsonValue]) -> None:
-    if model is not None:
-        request_model = str(json_data.get("model", ""))
-        if request_model != "inspect" or not model.startswith("inspect/"):
-            json_data["model"] = model
+def generate_google(
+    web_search: WebSearchProviders,
+    code_execution: CodeExecutionProviders,
+    bridge: SandboxAgentBridge,
+) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
+    async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        completion = await inspect_google_api_request(
+            json_data, web_search, code_execution, bridge
+        )
+        return completion
+
+    return generate
 
 
 def list_tools(

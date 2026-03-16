@@ -20,9 +20,19 @@ from inspect_ai.analysis import (
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
-from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.log import (
+    EvalLog,
+    MetadataEdit,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+    list_eval_logs,
+    read_eval_log,
+    write_eval_log,
+)
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
+SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
 
 
 def test_evals_df():
@@ -147,8 +157,7 @@ def test_samples_df_message_count():
 
 
 def test_samples_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
     assert len(df) == 3
 
@@ -161,8 +170,7 @@ def test_samples_df_multiple_eval_logs():
 
 
 def test_evals_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = evals_df(log)
     assert len(df) == 1
 
@@ -175,8 +183,7 @@ def test_evals_df_multiple_eval_logs():
 
 
 def test_messages_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = messages_df(log)
     assert len(df) == 15
 
@@ -189,8 +196,7 @@ def test_messages_df_multiple_eval_logs():
 
 
 def test_events_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = events_df(log)
     assert len(df) == 42
 
@@ -200,3 +206,27 @@ def test_events_df_multiple_eval_logs():
     logs = [read_eval_log(log) for log in logs]
     df = events_df(logs)
     assert len(df) == 124
+
+
+def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
+    log_dir = str(tmp_path)
+    eval(
+        Task(tags=["original"], metadata={"key": "original"}),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )
+    log_info = list_eval_logs(log_dir)[0]
+    log = read_eval_log(log_info)
+    log = edit_eval_log(
+        log,
+        [
+            TagsEdit(tags_add=["added"], tags_remove=["original"]),
+            MetadataEdit(metadata_set={"key": "edited"}),
+        ],
+        ProvenanceData(author="test"),
+    )
+    write_eval_log(log, log.location)
+
+    df = evals_df(log_dir)
+    assert df["tags"].to_list() == ["added"]
+    assert df["metadata"].to_list() == ['{"key": "edited"}']

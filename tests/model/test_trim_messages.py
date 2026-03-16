@@ -1,5 +1,7 @@
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -8,7 +10,11 @@ from inspect_ai.model import (
     ChatMessageUser,
     trim_messages,
 )
-from inspect_ai.model._trim import PartitionedMessages, partition_messages
+from inspect_ai.model._trim import (
+    PartitionedMessages,
+    partition_messages,
+    strip_citations,
+)
 from inspect_ai.tool import ToolCall
 
 
@@ -36,13 +42,11 @@ def tool_response() -> ChatMessageTool:
 
 
 # Tests for the trim_messages function
-@pytest.mark.asyncio
 async def test_empty_list() -> None:
     """Test trimming an empty list of messages."""
     assert await trim_messages([]) == []
 
 
-@pytest.mark.asyncio
 async def test_simple_conversation() -> None:
     """Test trimming a simple conversation."""
     messages: list[ChatMessage] = [
@@ -54,7 +58,6 @@ async def test_simple_conversation() -> None:
     assert await trim_messages(messages) == messages[:-1]
 
 
-@pytest.mark.asyncio
 async def test_no_system_messages() -> None:
     """Test trimming a conversation with no system messages."""
     messages: list[ChatMessage] = [
@@ -64,7 +67,6 @@ async def test_no_system_messages() -> None:
     assert await trim_messages(messages) == messages[:-1]
 
 
-@pytest.mark.asyncio
 async def test_preserve_ratio() -> None:
     """Test preserving a specific ratio of messages."""
     # Create a longer conversation
@@ -85,7 +87,6 @@ async def test_preserve_ratio() -> None:
     assert trimmed[2].content == "User message 5"
 
 
-@pytest.mark.asyncio
 async def test_tool_message_without_assistant() -> None:
     """Test a tool message without a corresponding assistant message."""
     # A tool message without a corresponding assistant message should be excluded
@@ -104,7 +105,6 @@ async def test_tool_message_without_assistant() -> None:
     assert user_message in trimmed
 
 
-@pytest.mark.asyncio
 async def test_tool_calls(
     assistant_with_tool_call: ChatMessageAssistant,
     tool_response: ChatMessageTool,
@@ -130,7 +130,6 @@ async def test_tool_calls(
     assert tool_response in trimmed
 
 
-@pytest.mark.asyncio
 async def test_orphaned_tool_responses(
     assistant_with_tool_call: ChatMessageAssistant,
     tool_response: ChatMessageTool,
@@ -170,7 +169,6 @@ async def test_orphaned_tool_responses(
     )
 
 
-@pytest.mark.asyncio
 async def test_user_message_resets_tool_ids() -> None:
     """Test that a user message resets the active tool IDs."""
     assistant1 = ChatMessageAssistant(
@@ -193,7 +191,6 @@ async def test_user_message_resets_tool_ids() -> None:
     assert tool1 not in trimmed
 
 
-@pytest.mark.asyncio
 async def test_input_source() -> None:
     """Test handling of messages with source='input'."""
     # Test with messages explicitly marked as input
@@ -221,7 +218,6 @@ async def test_input_source() -> None:
     assert conversation_assistant not in trimmed
 
 
-@pytest.mark.asyncio
 async def test_first_user_as_input() -> None:
     """Test that the first user message is treated as input if no input source is specified."""
     # When no source="input" is specified, the first user message becomes input
@@ -240,7 +236,6 @@ async def test_first_user_as_input() -> None:
     assert assistant1 not in trimmed
 
 
-@pytest.mark.asyncio
 async def test_preserve_edge_cases() -> None:
     """Test edge cases of the preserve parameter."""
     # Create a longer conversation
@@ -270,7 +265,6 @@ async def test_preserve_edge_cases() -> None:
         await trim_messages(messages, preserve=-0.5)
 
 
-@pytest.mark.asyncio
 async def test_consecutive_assistant_tool_chains() -> None:
     """Test with multiple consecutive assistant-tool chains."""
     # Test with multiple assistant-tool chains
@@ -306,7 +300,6 @@ async def test_consecutive_assistant_tool_chains() -> None:
     assert tool2 in trimmed
 
 
-@pytest.mark.asyncio
 async def test_preserve_assistant_tool_sequence() -> None:
     """Test preserving assistant-tool sequences."""
     # Create a longer conversation with tool calls
@@ -351,7 +344,6 @@ async def test_preserve_assistant_tool_sequence() -> None:
     assert tool_ids.issubset(assistant_ids)
 
 
-@pytest.mark.asyncio
 async def test_alternating_conversation() -> None:
     """Test with alternating user-assistant pairs."""
     # Create a conversation with alternating user-assistant pairs
@@ -435,7 +427,6 @@ def test_partition_edge_cases() -> None:
 
 
 # Tests for orphan tool_call removal
-@pytest.mark.asyncio
 async def test_orphan_tool_calls_removed() -> None:
     """Test that tool_calls without corresponding tool results are removed."""
     # Create an assistant message with 3 tool calls, but only 1 tool result
@@ -469,7 +460,6 @@ async def test_orphan_tool_calls_removed() -> None:
     assert assistant_msg.tool_calls[0].id == "tool1"
 
 
-@pytest.mark.asyncio
 async def test_all_orphan_tool_calls_removed() -> None:
     """Test that assistant with all orphan tool_calls has tool_calls set to None."""
     # Create an assistant message with tool calls, but no tool results at all
@@ -497,7 +487,6 @@ async def test_all_orphan_tool_calls_removed() -> None:
     assert assistant_msg.tool_calls is None
 
 
-@pytest.mark.asyncio
 async def test_orphan_tool_calls_from_trimming() -> None:
     """Test that orphan tool_calls created by trimming are cleaned up."""
     # Create a conversation where trimming will create orphan tool_calls
@@ -538,3 +527,65 @@ async def test_orphan_tool_calls_from_trimming() -> None:
             tool_ids_in_result = {m.tool_call_id for m in trimmed if m.role == "tool"}
             for tc in msg.tool_calls:
                 assert tc.id in tool_ids_in_result, f"Orphan tool_call {tc.id} found"
+
+
+# Tests for citation stripping
+async def test_trim_messages_strips_citations() -> None:
+    """Test that trim_messages strips citations from ContentText blocks."""
+    citation = UrlCitation(
+        url="https://example.com",
+        cited_text="some text",
+        title="Example",
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question", source="input"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Response with citation", citations=[citation])],
+        ),
+        # Add a user message so assistant isn't trimmed (trailing assistant is removed)
+        ChatMessageUser(content="Follow up"),
+    ]
+
+    trimmed = await trim_messages(messages, preserve=1.0)
+
+    # Find the assistant message
+    assistant_msgs = [m for m in trimmed if m.role == "assistant"]
+    assert len(assistant_msgs) == 1
+    assistant = assistant_msgs[0]
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.citations is None
+
+
+def test_strip_citations_removes_citations() -> None:
+    """Test that strip_citations removes citations from ContentText blocks."""
+    citation = UrlCitation(url="https://example.com", cited_text="text")
+    messages: list[ChatMessage] = [
+        ChatMessageAssistant(
+            content=[ContentText(text="Response", citations=[citation])],
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assistant = result[0]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.citations is None
+
+
+def test_strip_citations_preserves_messages_without_citations() -> None:
+    """Test that messages without citations are unchanged."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        ChatMessageAssistant(content="Response"),
+    ]
+
+    result = strip_citations(messages)
+
+    # Messages without citations should be the same objects
+    assert result[0] is messages[0]
+    assert result[1] is messages[1]

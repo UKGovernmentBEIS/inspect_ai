@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, Fragment } from "react";
+import { FC, Fragment, ReactNode } from "react";
 import { formatDateTime, formatTime } from "../../../../utils/format";
 import styles from "./EventTimingPanel.module.css";
 
@@ -12,7 +12,7 @@ interface EventTimingPanelProps {
 
 interface EventTimingPanelRow {
   label: string | "---";
-  value?: string;
+  value?: ReactNode;
   secondary?: boolean;
   bordered?: boolean;
   topMargin?: boolean;
@@ -46,8 +46,18 @@ export const EventTimingPanel: FC<EventTimingPanelProps> = ({
       value: formatDateTime(new Date(timestamp)),
     });
   } else {
-    rows.push({ label: "Start", value: formatDateTime(new Date(timestamp)) });
-    rows.push({ label: "End", value: formatDateTime(new Date(completed)) });
+    rows.push({
+      label: "Start",
+      value: (
+        <span title={timestamp}>{formatDateTime(new Date(timestamp))}</span>
+      ),
+    });
+    rows.push({
+      label: "End",
+      value: (
+        <span title={completed}>{formatDateTime(new Date(completed))}</span>
+      ),
+    });
   }
 
   if (working_start || working_time) {

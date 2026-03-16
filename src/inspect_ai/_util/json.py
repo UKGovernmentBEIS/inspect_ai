@@ -1,6 +1,7 @@
 import re
 from copy import deepcopy
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
     Mapping,
@@ -8,6 +9,10 @@ from typing import (
 )
 
 import jsonpatch
+
+if TYPE_CHECKING:
+    from ijson import IncompleteJSONError  # type: ignore[import-untyped]
+    from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
 from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
     JsonPointerException,
     resolve_pointer,
@@ -17,6 +22,31 @@ from pydantic_core import PydanticSerializationError, to_json, to_jsonable_pytho
 
 # Pre-compile regex to quickly find paths ending in an index for json_changes (e.g., /items/0)
 _ARRAY_INDEX_RE = re.compile(r"^(.*)/(\d+)$")
+
+
+def is_ijson_nan_inf_error(
+    ex: "ValueError | IncompleteJSONError | UnexpectedSymbol",
+) -> bool:
+    """Check if an ijson exception is due to NaN/Inf values.
+
+    ijson doesn't support NaN and Inf which are valid in Python's JSON
+    (and supported by pydantic). This helper identifies these errors so
+    callers can fall back to standard json.load.
+
+    Args:
+        ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
+            or UnexpectedSymbol).
+
+    Returns:
+        True if the exception is due to NaN/Inf parsing issues.
+    """
+    error_msg = str(ex).lower()
+    return (
+        "invalid json character" in error_msg
+        or "invalid char in json text" in error_msg
+        or "unexpected symbol" in error_msg
+    )
+
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
@@ -44,6 +74,7 @@ _IncEx: TypeAlias = (
 def to_json_safe(
     x: Any,
     exclude: _IncEx | None = None,
+    indent: int | None = 2,
 ) -> bytes:
     normalized = jsonable_python(x)
 
@@ -59,7 +90,7 @@ def to_json_safe(
     try:
         return to_json(
             value=normalized,
-            indent=2,
+            indent=indent,
             exclude_none=True,
             fallback=lambda _x: None,
             exclude=exclude,
@@ -68,7 +99,7 @@ def to_json_safe(
         if "surrogates not allowed" in str(ex):
             cleaned = clean_utf8_json(normalized)
             return to_json(
-                cleaned, indent=2, exclude_none=True, fallback=lambda _x: None
+                cleaned, indent=indent, exclude_none=True, fallback=lambda _x: None
             )
         raise
 
@@ -259,7 +290,8 @@ def json_changes(
         # Update shadow state if the structure changed due to an 'add' or 'remove' op
         if container and op["op"] in ("add", "remove"):
             assert rel_path is not None  # Shouldn't be since container is set
-            _apply_fast_list_op(shadow_state[container], op, rel_path)
+            if isinstance(shadow_state[container], list):
+                _apply_fast_list_op(shadow_state[container], op, rel_path)
 
         # Build Result
         change = JsonChange(**op)

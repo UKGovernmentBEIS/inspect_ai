@@ -1,19 +1,12 @@
-import { highlightElement } from "prismjs";
-import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import { EvalSample, EvalSpec, Events } from "../@types/log";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { EvalSample, EvalSpec, Events, Status } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "../app/samples/descriptor/samplesDescriptor";
 import { filterSamples } from "../app/samples/sample-tools/filters";
-import {
-  byEpoch,
-  bySample,
-  sortSamples,
-} from "../app/samples/sample-tools/SortFilter";
 import { sampleIdsEqual } from "../app/shared/sample";
 import { LogHandle, SampleSummary } from "../client/api/types";
-import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
@@ -132,8 +125,7 @@ export const useSampleDescriptor = () => {
   }, [evalDescriptor, sampleSummaries, selectedScores]);
 };
 
-// Provides the list of filtered samples
-// (applying sorting, grouping, and filtering)
+// Provides the list of filtered and sorted samples
 export const useFilteredSamples = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
@@ -143,13 +135,8 @@ export const useFilteredSamples = () => {
     (state) => state.logActions.clearFilterError,
   );
 
-  const epoch = useStore((state) => state.log.epoch);
-  const sort = useStore((state) => state.log.sort);
-  const samplesDescriptor = useSampleDescriptor();
-  const selectedScores = useSelectedScores();
-
   return useMemo(() => {
-    // Apply filters
+    // Apply text filter
     const { result, error, allErrors } =
       evalDescriptor && filter
         ? filterSamples(evalDescriptor, sampleSummaries, filter)
@@ -161,63 +148,31 @@ export const useFilteredSamples = () => {
       clearFilterError();
     }
 
-    const prefiltered =
+    const filtered =
       error === undefined || !allErrors ? result : sampleSummaries;
 
-    // Filter epochs
-    const filtered =
-      epoch && epoch !== "all"
-        ? prefiltered.filter((sample) => epoch === String(sample.epoch))
-        : prefiltered;
+    // Sort samples by sample ID (asc) then epoch (asc)
+    const sorted = [...filtered].sort((a, b) => {
+      // Compare by ID first
+      let idCompare: number;
+      if (typeof a.id === "number" && typeof b.id === "number") {
+        idCompare = a.id - b.id;
+      } else {
+        idCompare = String(a.id).localeCompare(String(b.id));
+      }
+      if (idCompare !== 0) return idCompare;
+      // Then by epoch
+      return a.epoch - b.epoch;
+    });
 
-    // Sort samples
-    const sorted = samplesDescriptor
-      ? sortSamples(sort, filtered, samplesDescriptor, selectedScores)
-      : filtered;
-
-    return [...sorted];
+    return sorted;
   }, [
     evalDescriptor,
     sampleSummaries,
     filter,
     setFilterError,
     clearFilterError,
-    epoch,
-    sort,
-    samplesDescriptor,
-    selectedScores,
   ]);
-};
-
-// Computes the group by to use given a particular sort
-export const useGroupBy = () => {
-  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
-  const sort = useStore((state) => state.log.sort);
-  const epoch = useStore((state) => state.log.epoch);
-  return useMemo(() => {
-    const epochs = selectedLogDetails?.eval?.config?.epochs || 1;
-    if (epochs > 1) {
-      if (byEpoch(sort) || epoch !== "all") {
-        return "epoch";
-      } else if (bySample(sort)) {
-        return "sample";
-      }
-    }
-
-    return "none";
-  }, [selectedLogDetails, sort, epoch]);
-};
-
-// Computes the ordering for groups based upon the sort
-export const useGroupByOrder = () => {
-  const sort = useStore((state) => state.log.sort);
-  return useMemo(() => {
-    return sort === kSampleAscVal ||
-      sort === kEpochAscVal ||
-      sort === kScoreAscVal
-      ? "asc"
-      : "desc";
-  }, [sort]);
 };
 
 // Provides the currently selected sample summary
@@ -248,6 +203,7 @@ export const useSampleData = () => {
     (state) => state.sample.sample_identifier,
   );
   const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
+  const eventsCleared = useStore((state) => state.sample.eventsCleared);
   const runningEvents = useStore(
     (state) => state.sample.runningEvents,
   ) as Events;
@@ -258,6 +214,7 @@ export const useSampleData = () => {
       sampleNeedsReload,
       error: sampleError,
       getSelectedSample,
+      eventsCleared,
       running: runningEvents,
     };
   }, [
@@ -266,8 +223,22 @@ export const useSampleData = () => {
     getSelectedSample,
     selectedSampleIdentifier,
     sampleNeedsReload,
+    eventsCleared,
     runningEvents,
   ]);
+};
+
+// Returns the invalidation data for the currently selected sample, if any.
+// Returns a tuple of [invalidation, sampleIdentifier]
+export const useSampleInvalidation = () => {
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
+  const sampleIdentifier = useStore((state) => state.sample.sample_identifier);
+  return useMemo(() => {
+    const sample = getSelectedSample();
+    return [sample?.invalidation || null, sampleIdentifier] as const;
+  }, [getSelectedSample, sampleIdentifier]);
 };
 
 export const useLogSelection = () => {
@@ -467,32 +438,6 @@ export const usePrevious = <T>(value: T) => {
   return ref.current;
 };
 
-// Syntax highlighting strings larger than this is too slow
-const kPrismRenderMaxSize = 250000;
-
-export const usePrismHighlight = (
-  containerRef: RefObject<HTMLDivElement | null>,
-  contentLength: number,
-) => {
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      if (
-        contentLength > 0 &&
-        containerRef.current !== null &&
-        contentLength <= kPrismRenderMaxSize
-      ) {
-        const codeBlocks = containerRef.current?.querySelectorAll("pre code");
-        codeBlocks?.forEach((block) => {
-          if (block.className.includes("language-")) {
-            block.classList.add("sourceCode");
-            highlightElement(block as HTMLElement);
-          }
-        });
-      }
-    });
-  }, [contentLength, containerRef]);
-};
-
 export const useSetSelectedLogIndex = () => {
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
@@ -584,27 +529,17 @@ export const useSamplePopover = (id: string) => {
 };
 
 export const useLogs = () => {
-  // Loading logs
+  // Loading logs and eval set info
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
-
-  // Loading eval set info
   const syncEvalSetInfo = useStore(
     (state) => state.logsActions.syncEvalSetInfo,
   );
-
-  // Status
   const setLoading = useStore((state) => state.appActions.setLoading);
 
   const loadLogs = useCallback(
     async (logPath?: string) => {
-      const exec = async () => {
-        // Sync logs
-        await syncLogs();
-
-        // Sync eval set info
-        await syncEvalSetInfo(logPath);
-      };
-      exec().catch((e) => {
+      // load in parallel to display Show Retried Logs button as soon as we know current directory is an eval set without awaiting all logs
+      await Promise.all([syncEvalSetInfo(logPath), syncLogs()]).catch((e) => {
         log.error("Error loading logs", e);
         setLoading(false, e as Error);
       });
@@ -698,4 +633,66 @@ export const useDocumentTitle = () => {
     document.title = title.join(" - ");
   };
   return { setDocumentTitle };
+};
+
+const simplifiedStatusForDeduplication = (status: Status | undefined) =>
+  status === "started" || status === "success" ? status : "_other_";
+
+export type LogHandleWithretried = LogHandle & { retried?: boolean };
+export const useLogsWithretried = (): LogHandleWithretried[] => {
+  const logs = useStore((state) => state.logs.logs);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+
+  const logsWithEvalSetRetry = useMemo(() => {
+    const logsByTaskId = logs.reduce(
+      (acc: Record<string, LogHandleWithretried[]>, log) => {
+        const taskId = log.task_id;
+        if (taskId) {
+          if (!(taskId in acc)) acc[taskId] = [];
+          acc[taskId].push(log);
+        }
+        return acc;
+      },
+      {},
+    );
+    // For each task_id, select the best item (prefer running/complete over error)
+    // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
+    // If same priority, take the latest one
+    const bestByName: Record<string, LogHandleWithretried> = {};
+    for (const items of Object.values(logsByTaskId)) {
+      items.sort((a, b) => {
+        const as = simplifiedStatusForDeduplication(
+          logPreviews[a.name]?.status,
+        );
+        const bs = simplifiedStatusForDeduplication(
+          logPreviews[b.name]?.status,
+        );
+        const am = a.mtime ?? 0;
+        const bm = b.mtime ?? 0;
+
+        if (as === bs) return bm - am; // newest on top
+        if (as === "started") return -1;
+        if (bs === "started") return 1;
+        if (as === "success") return -1;
+        if (bs === "success") return 1;
+
+        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+        return 0;
+      });
+      const { name } = items[0];
+      bestByName[name] = { ...items[0], retried: false };
+    }
+
+    // Rebuild logs maintaining order, marking duplicates as skippable
+    return logs.map(
+      (log) =>
+        bestByName[log.name] ?? {
+          ...log,
+          // task_id is optional for backward compatibility, only new logs files can be skippable
+          retried: log.task_id ? true : undefined,
+        },
+    );
+  }, [logs, logPreviews]);
+
+  return logsWithEvalSetRetry;
 };

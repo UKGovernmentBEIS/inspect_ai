@@ -91,6 +91,7 @@ export const ApplicationIcons = {
     tokens: "bi bi-list",
     time: "bi bi-clock",
     execution: "bi bi-stopwatch",
+    cost: "bi bi-currency-dollar",
   },
   link: "bi bi-link-45deg",
   loading: "bi bi-arrow-clockwise",
@@ -144,6 +145,11 @@ export const ApplicationIcons = {
   step: "bi bi-fast-forward-btn",
   subtask: "bi bi-subtract",
   success: "bi bi-check-circle-fill",
+  toggle: {
+    // combination of toggle-on and toggle2-off looked best for our default button font size
+    on: "bi bi-toggle-on",
+    off: "bi bi-toggle2-off",
+  },
   transcript: "bi bi-list-columns-reverse",
   tree: {
     open: "bi bi-caret-down-fill",

@@ -29,6 +29,9 @@ class ModelEvent(BaseEvent):
     input: list[ChatMessage]
     """Model input (list of messages)."""
 
+    input_refs: list[tuple[int, int]] | None = Field(default=None)
+    """Message pool references for input. Each element is a (start, end_exclusive) range."""
+
     tools: list[ToolInfo]
     """Tools available to the model."""
 
@@ -46,6 +49,12 @@ class ModelEvent(BaseEvent):
 
     error: str | None = Field(default=None)
     """Error which occurred during model call."""
+
+    traceback: str | None = Field(default=None)
+    """Error traceback (plain text)."""
+
+    traceback_ansi: str | None = Field(default=None)
+    """Error traceback with ANSI color codes for display."""
 
     cache: Literal["read", "write"] | None = Field(default=None)
     """Was this a cache read or write."""

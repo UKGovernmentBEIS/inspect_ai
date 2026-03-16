@@ -1,14 +1,23 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { ContentImage, ContentText } from "../../../../@types/log";
+import {
+  ContentDocument,
+  ContentImage,
+  ContentText,
+} from "../../../../@types/log";
 import { ANSIDisplay } from "../../../../components/AnsiDisplay";
 import { isAnsiOutput } from "../../../../utils/ansi";
 import { isJson } from "../../../../utils/json";
+import { ContentDocumentView } from "../documents/ContentDocumentView";
 import { JsonMessageContent } from "../JsonMessageContent";
 import styles from "./ToolOutput.module.css";
 
 interface ToolOutputProps {
-  output: string | number | boolean | (ContentText | ContentImage)[];
+  output:
+    | string
+    | number
+    | boolean
+    | (ContentText | ContentImage | ContentDocument)[];
   className?: string | string[];
 }
 
@@ -28,6 +37,8 @@ export const ToolOutput: FC<ToolOutputProps> = ({ output, className }) => {
       const key = `tool-output-${idx}`;
       if (out.type === "text") {
         outputs.push(<ToolTextOutput text={out.text} key={key} />);
+      } else if (out.type === "document") {
+        outputs.push(<ContentDocumentView id={key} document={out} key={key} />);
       } else {
         if (out.image.startsWith("data:")) {
           outputs.push(
@@ -66,7 +77,13 @@ const ToolTextOutput: FC<ToolTextOutputProps> = ({ text }) => {
 
   // It could have ANSI codes
   if (isAnsiOutput(text)) {
-    return <ANSIDisplay className={styles.ansiOutput} output={text} />;
+    return (
+      <ANSIDisplay
+        className={styles.ansiOutput}
+        output={text}
+        style={{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" }}
+      />
+    );
   }
 
   return (

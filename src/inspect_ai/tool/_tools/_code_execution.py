@@ -1,4 +1,6 @@
-from typing import Any, Literal, TypeAlias, TypedDict, get_args
+from typing import Any, Literal, TypeAlias, get_args
+
+from typing_extensions import TypedDict
 
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef

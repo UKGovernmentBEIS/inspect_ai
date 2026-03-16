@@ -3,16 +3,14 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, RootModel
 
+from inspect_ai._util._json_rpc import exec_scalar_request
 from inspect_ai.tool import ToolResult
-from inspect_ai.tool._json_rpc_helpers import exec_scalar_request
-from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
-    SandboxJSONRPCTransport,
-    SandboxToolsServerErrorMapper,
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
 )
-from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-    SANDBOX_TOOLS_CLI,
-    sandbox_with_injected_tools,
-)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from .._tool import Tool, tool
 
@@ -88,6 +86,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
         path: str,
         file_text: str | None = None,
         insert_line: int | None = None,
+        insert_text: str | None = None,
         new_str: str | None = None,
         old_str: str | None = None,
         view_range: list[int] | None = None,
@@ -100,7 +99,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
           path: Path to file or directory, e.g. `/repo/file.py` or `../repo`.
           file_text: Required parameter of `create` command, with the content of the file to be created.
           insert_line: Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.
-          new_str: Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing the string to insert.
+          insert_text: Required parameter of `insert` command containing the string to insert.
+          new_str: Optional parameter of `str_replace` command containing the new string (if not given, no string will be added).
           old_str: Required parameter of `str_replace` command containing the string in `path` to replace.
           view_range: Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.
 
@@ -108,6 +108,10 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
           The output of the command.
         """
         sandbox = await sandbox_with_injected_tools()
+
+        # re-wire insert_text => new_str
+        if command == "insert" and new_str is None and insert_text is not None:
+            new_str = insert_text
 
         # Create a dictionary of the parameters
         params = {
@@ -120,8 +124,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             method="text_editor",
             params=params,
             result_type=TextEditorResult,
-            transport=SandboxJSONRPCTransport(sandbox, SANDBOX_TOOLS_CLI),
-            server_error_mapper=SandboxToolsServerErrorMapper(),
+            transport=SandboxJSONRPCTransport(sandbox, SANDBOX_CLI),
+            error_mapper=SandboxToolsErrorMapper,
             timeout=timeout,
             user=user,
         )

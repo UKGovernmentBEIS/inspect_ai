@@ -14,7 +14,6 @@ export interface AppSlice {
     hideFind: () => void;
     setNativeFind: (nativeFind: boolean) => void;
 
-    setShowingSampleDialog: (showing: boolean) => void;
     setShowingTranscriptFilterDialog: (showing: boolean) => void;
     setShowingOptionsDialog: (showing: boolean) => void;
     setWorkspaceTab: (tab: string) => void;
@@ -72,7 +71,6 @@ const initialState: AppState = {
   status: { loading: 0, syncing: false },
   showFind: false,
   dialogs: {
-    sample: false,
     transcriptFilter: false,
     options: false,
   },
@@ -138,22 +136,6 @@ export const createAppSlice = (
         set((state) => {
           state.app.nativeFind = nativeFind;
         }),
-      setShowingSampleDialog: (showing: boolean) => {
-        const state = get();
-        const isShowing = state.app.dialogs.sample;
-
-        if (showing === isShowing) {
-          return;
-        }
-
-        set((state) => {
-          state.app.dialogs.sample = showing;
-        });
-        if (!showing) {
-          const state = get();
-          state.appActions.clearSampleTab();
-        }
-      },
       setShowingTranscriptFilterDialog: (showing: boolean) => {
         const state = get();
         const isShowing = state.app.dialogs.transcriptFilter;

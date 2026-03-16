@@ -177,17 +177,38 @@ async def get_log_bytes(
 
 
 async def stream_log_bytes(
-    log_file: str, start: int | None = None, end: int | None = None
+    log_file: str,
+    start: int | None = None,
+    end: int | None = None,
+    log_file_size: int | None = None,
+    stream_threshold_bytes: int = 50 * 1024 * 1024,
 ) -> AsyncIterable[bytes] | BytesIO:
+    """Download log bytes with optional streaming for large files.
+
+    Args:
+        log_file: The log file to download.
+        start: The start byte position to download from.
+        end: The end byte position to download to (exclusive).
+        log_file_size: The size of the log file, if known.
+        stream_threshold_bytes: The threshold size in bytes for streaming.
+    """
     if (start is None) != (end is None):
         raise ValueError("start and end must be both specified or both None")
 
     # fetch bytes
     fs = filesystem(log_file)
     if not fs.is_async() or not fs.is_s3():
-        # We only implement streaming for s3:
-        bs = await get_log_bytes(log_file, start, end)
-        return BytesIO(bs)
+        if start is not None and end is not None:
+            request_size = end - start + 1
+        elif log_file_size is not None:
+            request_size = log_file_size
+        else:
+            request_size = await get_log_size(log_file)
+
+        if request_size <= stream_threshold_bytes:
+            # We only implement streaming for s3 and for large files (>50MB):
+            bs = await get_log_bytes(log_file, start, end)
+            return BytesIO(bs)
 
     connection = async_connection(log_file)
 
@@ -270,7 +291,10 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     # create connection if required
     if protocol not in _async_connections.keys():
         _async_connections[protocol] = fsspec.filesystem(
-            protocol, asynchronous=True, loop=asyncio.get_event_loop()
+            protocol,
+            asynchronous=True,
+            loop=asyncio.get_event_loop(),
+            **default_fs_options(log_file),
         )
 
     # return async file-system

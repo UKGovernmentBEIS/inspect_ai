@@ -5,7 +5,7 @@ import {
   ChatMessageUser,
 } from "../../../@types/log";
 import { MessageContent } from "./MessageContent";
-import { resolveToolInput } from "./tools/tool";
+import { resolveToolInput, substituteToolCallContent } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
 import clsx from "clsx";
@@ -26,13 +26,18 @@ interface MessageContentsProps {
 }
 
 export interface MessagesContext {
+  citeOffset: number;
   citations: Citation[];
+  role: "system" | "user" | "assistant" | "tool" | "unknown";
 }
 
-export const defaultContext = () => {
+export const defaultContext = (
+  role: "system" | "user" | "assistant" | "tool" | "unknown",
+) => {
   return {
     citeOffset: 0,
     citations: [],
+    role,
   };
 };
 
@@ -42,7 +47,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
   toolMessages,
   toolCallStyle,
 }) => {
-  const context: MessagesContext = defaultContext();
+  const context: MessagesContext = defaultContext(message.role);
   if (
     message.role === "assistant" &&
     message.tool_calls &&
@@ -86,7 +91,14 @@ export const MessageContents: FC<MessageContentsProps> = ({
             contentType={contentType}
             output={resolvedToolOutput}
             collapsible={false}
-            view={tool_call.view ? tool_call.view : undefined}
+            view={
+              tool_call.view
+                ? substituteToolCallContent(
+                    tool_call.view,
+                    tool_call.arguments as Record<string, unknown>,
+                  )
+                : undefined
+            }
           />
         );
       }
@@ -153,12 +165,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
               },
             ],
           } as ContentTool;
-        } else if (con.type === "text") {
-          return {
-            content: [con],
-            type: "tool",
-          } as ContentTool;
-        } else if (con.type === "image") {
+        } else if (["text", "image", "document"].includes(con.type)) {
           return {
             content: [con],
             type: "tool",

@@ -60,7 +60,7 @@ def json_dataset(
       fs_options: Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
         if you are accessing a public S3 bucket with no credentials.
-      reader_kwargs: Optional JSON reader options.
+      **reader_kwargs: Optional JSON reader options.
 
     Returns:
         Dataset read from JSON file.

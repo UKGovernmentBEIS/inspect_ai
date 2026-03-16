@@ -19,6 +19,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
+from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
     WalkContext,
     events_attachment_fn,
@@ -39,16 +40,20 @@ class Transcript:
     _context: WalkContext
 
     @overload
-    def __init__(self) -> None: ...
+    def __init__(self, *, log_model_api: bool = False) -> None: ...
 
     @overload
-    def __init__(self, events: list[Event]) -> None: ...
+    def __init__(self, events: list[Event], log_model_api: bool = False) -> None: ...
 
-    def __init__(self, events: list[Event] | None = None) -> None:
+    def __init__(
+        self, events: list[Event] | None = None, log_model_api: bool = False
+    ) -> None:
         self._event_logger = None
+        self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
         self._events: list[Event] = events if events is not None else []
         self._attachments: dict[str, str] = {}
+        self._timelines: list[Timeline] = []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -86,23 +91,52 @@ class Transcript:
     def attachments(self) -> dict[str, str]:
         return self._attachments
 
+    @property
+    def timelines(self) -> Sequence[Timeline]:
+        return self._timelines
+
+    def add_timeline(self, timeline: Timeline) -> None:
+        """Add a named timeline to the transcript.
+
+        Args:
+            timeline: Timeline to add.
+
+        Raises:
+            ValueError: If a timeline with the same name already exists.
+        """
+        for existing in self._timelines:
+            if existing.name == timeline.name:
+                raise ValueError(
+                    f"A timeline with the name '{timeline.name}' already exists."
+                )
+        self._timelines.append(timeline)
+
     def _event(self, event: Event) -> None:
+        self._process_event(event)
+        self._events.append(event)
+
+    def _event_updated(self, event: Event) -> None:
+        self._process_event(event)
+
+    def _process_event(self, event: Event) -> None:
+        # remove call if requested
+        is_error_call = (
+            isinstance(event, ModelEvent)
+            and event.call is not None
+            and event.call.error
+        )
+        if (
+            isinstance(event, ModelEvent)
+            and not is_error_call
+            and not self._log_model_api
+        ):
+            event.call = None
+
         if self._event_logger:
             self._event_logger(event)
 
         # condense model event calls immediately to prevent O(N) memory usage
-        if isinstance(event, ModelEvent):
-            event_fn = events_attachment_fn(self.attachments)
-            event.call = walk_model_call(event.call, event_fn, self._context)
-
-        self._events.append(event)
-
-    def _event_updated(self, event: Event) -> None:
-        if self._event_logger:
-            self._event_logger(event)
-
-        # condense model event call immediately to prevent O(N) memory usage (call is the only changed fields
-        if isinstance(event, ModelEvent):
+        if isinstance(event, ModelEvent) and event.call is not None:
             event_fn = events_attachment_fn(self.attachments)
             event.call = walk_model_call(event.call, event_fn, self._context)
 

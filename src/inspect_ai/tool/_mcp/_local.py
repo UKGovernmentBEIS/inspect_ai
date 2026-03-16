@@ -23,10 +23,14 @@ from mcp.types import (
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
+from inspect_ai._util._json_rpc import (
+    JSONRPCErrorMapper,
+    JSONRPCParamsType,
+    exception_for_rpc_response_error,
+)
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.trace import trace_action
-from inspect_ai.tool._json_rpc_helpers import exception_for_rpc_response_error
-from inspect_ai.tool._tool import Tool, ToolError, ToolResult
+from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
@@ -36,6 +40,41 @@ from ._types import MCPServer
 from .sampling import as_inspect_content_list, sampling_fn
 
 logger = getLogger(__name__)
+
+
+class _McpErrorMapper(JSONRPCErrorMapper):
+    """Error mapper for MCP server JSON-RPC errors.
+
+    MCP servers are opaque — we don't know what server-defined error codes they
+    might use, so all errors are mapped to ToolError/ToolParsingError so they
+    are fed back to the model rather than crashing the eval.
+
+    This preserves the behavior from when the MCP path called
+    exception_for_rpc_response_error with server_error_mapper=None.
+
+    TODO: Consider whether MCP can share SandboxToolsErrorMapper instead.
+    """
+
+    @staticmethod
+    def server_error(
+        code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del code, method, params
+        return ToolError(message)
+
+    @staticmethod
+    def invalid_params(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del method, params
+        return ToolParsingError(message)
+
+    @staticmethod
+    def internal_error(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del method, params
+        return ToolError(message)
 
 
 class MCPServerLocal(MCPServer):
@@ -175,7 +214,11 @@ class MCPServerLocalSession(MCPServer):
                         # need to be converted to ToolError so that they make it
                         # back to the model.
                         raise exception_for_rpc_response_error(
-                            e.error.code, e.error.message, mcp_tool.name, kwargs
+                            e.error.code,
+                            e.error.message,
+                            mcp_tool.name,
+                            kwargs,
+                            error_mapper=_McpErrorMapper,
                         ) from e
 
                 return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]

@@ -9,12 +9,13 @@ interface RenderedTextProps {
   className?: string | string[];
   forceRender?: boolean;
   omitMedia?: boolean;
+  omitMath?: boolean;
 }
 
 export const RenderedText = forwardRef<
   HTMLDivElement | HTMLPreElement,
   RenderedTextProps
->(({ markdown, style, className, forceRender, omitMedia }, ref) => {
+>(({ markdown, style, className, forceRender, omitMedia, omitMath }, ref) => {
   const displayMode = useStore((state) => state.app.displayMode);
   if (forceRender || displayMode === "rendered") {
     return (
@@ -24,6 +25,7 @@ export const RenderedText = forwardRef<
         style={style}
         className={className}
         omitMedia={omitMedia}
+        omitMath={omitMath}
       />
     );
   } else {

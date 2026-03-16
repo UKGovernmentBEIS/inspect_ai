@@ -1,5 +1,4 @@
 import os
-import re
 from logging import getLogger
 from typing import Any
 
@@ -8,18 +7,20 @@ from openai import (
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
+    NotFoundError,
     NotGiven,
     RateLimitError,
+    omit,
 )
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from openai.types.responses import Response
+from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._providers.openai_completions import (
-    completion_params_completions,
     generate_completions,
 )
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -31,14 +32,21 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
-from .._model_output import ModelOutput
+from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    is_gpt_5_model,
+    is_o_series_model,
     openai_should_retry,
 )
-from .._openai_responses import is_native_tool_configured
+from .._openai_responses import (
+    chat_messages_from_compact_response,
+    is_native_tool_configured,
+    model_usage_from_compact_response,
+    openai_responses_inputs,
+    pad_tool_messages_for_token_counting,
+)
 from ._openai_batch import OpenAIBatcher
-from .openai_o1 import generate_o1
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
@@ -128,15 +136,13 @@ class OpenAIAPI(ModelAPI):
 
         # is this a model we use responses api by default for?
         responses_preferred = (
-            (self.is_o_series() and not self.is_o1_early())
-            or self.is_codex()
-            or self.is_gpt_5()
+            self.is_o_series() or self.is_codex() or self.is_gpt_5()
         ) and config.num_choices is None
 
         # resolve whether we are forcing the responses api
         self.responses_api = (
             background
-            or self.is_computer_use_preview()
+            or has_image_output(config.modalities)
             or (responses_api if responses_api is not None else responses_preferred)
         )
 
@@ -258,29 +264,79 @@ class OpenAIAPI(ModelAPI):
         tokens = enc.encode(text)
         return len(tokens)
 
+    @override
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        """Count tokens using native API for messages, tiktoken for text.
+
+        For messages, uses OpenAI's input_tokens endpoint which can accurately
+        count encrypted reasoning blocks. Raises an exception if native
+        counting fails.
+        """
+        if isinstance(input, str):
+            return await self.count_text_tokens(input)
+
+        # Use native counting for responses API (required for accurate counting)
+        if self.responses_api:
+            try:
+                return await self._count_tokens_native(input, config)
+            except NotFoundError:
+                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
+
+        # For non-responses API, use tiktoken-based counting
+        from .._tokens import count_tokens
+
+        return await count_tokens(
+            input, self.count_text_tokens, self.count_media_tokens
+        )
+
+    async def _count_tokens_native(
+        self,
+        messages: list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        """Count tokens using OpenAI's input_tokens endpoint.
+
+        This endpoint can accurately count encrypted reasoning blocks
+        that cannot be counted using tiktoken. Uses padding to handle
+        orphaned tool calls/outputs for per-message counting.
+        """
+        # Convert messages to OpenAI input format
+        input_items = await openai_responses_inputs(messages, self)
+
+        # Apply padding to handle orphaned tool calls for per-message counting
+        padded_items = pad_tool_messages_for_token_counting(input_items)
+
+        # Call the input_tokens endpoint with reasoning settings
+        response = await self.client.responses.input_tokens.count(
+            model=self.service_model_name(),
+            input=padded_items,
+            reasoning=self._get_reasoning_params_for_config(config),
+        )
+
+        return response.input_tokens
+
     def is_azure(self) -> bool:
         return self.service == "azure"
 
     def has_reasoning_options(self) -> bool:
         return (
-            (self.is_o_series() and not self.is_o1_early())
+            self.is_o_series()
             or (self.is_gpt_5() and not self.is_gpt_5_chat())
             or self.is_codex()
         )
 
     def is_o_series(self) -> bool:
-        name = self.service_model_name()
-        if bool(re.match(r"^o\d+", name)):
-            return True
-        else:
-            return not self.is_gpt() and bool(re.search(r"o\d+", name))
+        return is_o_series_model(self.service_model_name())
 
     def is_deep_research(self) -> bool:
         return "deep-research" in self.service_model_name()
 
     def is_gpt_5(self) -> bool:
-        name = self.service_model_name()
-        return "gpt-5" in name
+        return is_gpt_5_model(self.service_model_name())
 
     def is_gpt_5_plus(self) -> bool:
         name = self.service_model_name()
@@ -296,19 +352,11 @@ class OpenAIAPI(ModelAPI):
 
     def is_o1(self) -> bool:
         name = self.service_model_name()
-        return "o1" in name and not self.is_o1_early()
-
-    def is_o1_early(self) -> bool:
-        name = self.service_model_name()
-        return "o1-mini" in name or "o1-preview" in name
+        return "o1" in name
 
     def is_o3_mini(self) -> bool:
         name = self.service_model_name()
         return "o3-mini" in name
-
-    def is_computer_use_preview(self) -> bool:
-        name = self.service_model_name()
-        return "computer-use-preview" in name
 
     def is_codex(self) -> bool:
         name = self.service_model_name()
@@ -323,17 +371,12 @@ class OpenAIAPI(ModelAPI):
         await self.client.close()
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        return not self.responses_api
-
-    @override
     def supports_remote_mcp(self) -> bool:
         return True
 
     @override
     def tool_result_images(self) -> bool:
-        # computer_use_preview supports tool calls returning images
-        if self.is_computer_use_preview() or self.responses_api:
+        if self.responses_api:
             return True
         else:
             return False
@@ -353,17 +396,10 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # short-circuit to call o1- models that are text only
-        if self.is_o1_early():
-            return await generate_o1(
-                client=self.client,
-                input=input,
-                tools=tools,
-                **completion_params_completions(self, config, False),
-            )
-
-        use_responses = self.responses_api or is_native_tool_configured(
-            tools, self.model_name, config
+        use_responses = (
+            self.responses_api
+            or has_image_output(config.modalities)
+            or is_native_tool_configured(tools, self.model_name, config)
         )
         self._resolve_batcher(config, use_responses)
 
@@ -497,3 +533,73 @@ class OpenAIAPI(ModelAPI):
                         ChatCompletion,
                         endpoint="/v1/chat/completions",
                     )
+
+    @override
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using client.responses.compact().
+
+        input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
+
+        Returns:
+            A tuple of (compacted messages, usage info).
+
+        Raises:
+            NotImplementedError: If the model is not using the Responses API.
+        """
+        if not self.responses_api:
+            raise NotImplementedError(
+                f"Native compaction requires the Responses API for {self.service_model_name()}"
+            )
+
+        # Convert messages to OpenAI format
+        input_params = await openai_responses_inputs(input, self)
+
+        # Call compact endpoint (note: compact() doesn't accept reasoning params)
+        try:
+            response = await self.client.responses.compact(
+                model=self.service_model_name(),
+                input=input_params,
+                instructions=instructions if instructions is not None else omit,
+            )
+        except NotFoundError:
+            raise NotImplementedError(
+                f"Native compaction endpoint not available for {self.service_model_name()}"
+            ) from None
+
+        # Extract compaction item and create ChatMessage with ContentData
+        compacted_messages = chat_messages_from_compact_response(
+            response, model=self.service_model_name()
+        )
+        usage = model_usage_from_compact_response(response)
+
+        return compacted_messages, usage
+
+    def _get_reasoning_params_for_config(
+        self, config: GenerateConfig | None
+    ) -> Reasoning | None:
+        """Get reasoning parameters from config for compact/count_tokens calls."""
+        if config is None:
+            return None
+
+        reasoning: Reasoning = {}
+        if config.reasoning_effort is not None:
+            reasoning["effort"] = config.reasoning_effort
+        if config.reasoning_summary is not None and config.reasoning_summary != "none":
+            reasoning["summary"] = config.reasoning_summary
+
+        if reasoning and not self.has_reasoning_options():
+            warn_once(
+                logger,
+                f"reasoning options ignored for non-reasoning model {self.service_model_name()}",
+            )
+            return None
+
+        return reasoning if reasoning else None

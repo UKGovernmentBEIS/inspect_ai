@@ -81,7 +81,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools. |
-| `--effort` | Values: `low`, `medium`, or `high`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only. |
+| `--effort` | Values: `low`, `medium`, `high`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models).
 | `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, or `high`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
@@ -120,6 +120,7 @@ Below are sections for the various categories of options supported by `inspect e
 |--------------------------|----------------------------------------------|
 | `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
 | `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`) |
+| `--max-dataset-memory` | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. |
 | `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
 | `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
 | `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
@@ -134,6 +135,8 @@ Below are sections for the various categories of options supported by `inspect e
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
 | `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. |
+| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via `set_model_cost()` or `--model-cost-config`. |
+| `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 
 ## Eval Logs
 

@@ -2,6 +2,7 @@ import copy
 import logging
 import os
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -12,7 +13,9 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
-from inspect_ai.model._util import resolve_model_roles
+from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.model._model_info import set_model_cost
+from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
@@ -22,7 +25,9 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_args
+from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
+from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_LOG_FORMAT,
@@ -55,6 +60,7 @@ from inspect_ai.model._model import (
     init_active_model,
     init_model_roles,
     init_model_usage,
+    init_role_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -109,13 +115,18 @@ def eval(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -182,8 +193,15 @@ def eval(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
@@ -194,6 +212,8 @@ def eval(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -251,13 +271,18 @@ def eval(
                 token_limit=token_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
+                log_model_api=log_model_api,
+                log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
@@ -274,7 +299,7 @@ def eval(
             else:
                 raise
 
-    return task_display().run_task_app(run_task_app)
+    return task_display().run_task_app(with_async_fs(run_task_app))
 
 
 # single call to eval_async at a time
@@ -310,13 +335,18 @@ async def eval_async(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -370,7 +400,14 @@ async def eval_async(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
@@ -378,6 +415,8 @@ async def eval_async(
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -429,13 +468,18 @@ async def eval_async(
                 token_limit=token_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
+                log_model_api=log_model_api,
+                log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 log_header_only=log_header_only,
@@ -493,13 +537,18 @@ async def _eval_async_inner(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     log_header_only: bool | None = None,
@@ -530,6 +579,15 @@ async def _eval_async_inner(
     model_args = resolve_args(model_args)
     task_args = resolve_args(task_args)
 
+    # apply model cost config
+    if isinstance(model_cost_config, str):
+        cost_data = resolve_args(model_cost_config)
+        for cost_model_name, cost in cost_data.items():
+            set_model_cost(cost_model_name, ModelCost(**cost))
+    elif isinstance(model_cost_config, dict):
+        for k, v in model_cost_config.items():
+            set_model_cost(k, v)
+
     run_id = uuid()
 
     try:
@@ -541,6 +599,7 @@ async def _eval_async_inner(
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
+            log_refusals=log_refusals,
             task_group=tg,
             **kwargs,
         )
@@ -562,6 +621,8 @@ async def _eval_async_inner(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+
+        resolve_model_costs(resolved_tasks, cost_limit)
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
@@ -625,6 +686,12 @@ async def _eval_async_inner(
         if epochs is not None and epochs.epochs < 1:
             raise ValueError("epochs must be a positive integer.")
 
+        # resolve log_model_api from env var if not explicitly set
+        if log_model_api is None:
+            log_model_api_env = os.environ.get("INSPECT_EVAL_LOG_MODEL_API")
+            if log_model_api_env is not None:
+                log_model_api = log_model_api_env.lower() in ("true", "1", "yes")
+
         # create config
         epochs_reducer = epochs.reducer if epochs else None
         eval_config = EvalConfig(
@@ -641,9 +708,11 @@ async def _eval_async_inner(
             retry_on_error=retry_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
+            cost_limit=cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -651,6 +720,7 @@ async def _eval_async_inner(
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
+            log_model_api=log_model_api,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score_display=score_display,
@@ -757,6 +827,8 @@ def eval_retry(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     score: bool = True,
@@ -803,6 +875,8 @@ def eval_retry(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -848,6 +922,8 @@ def eval_retry(
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
+            log_model_api=log_model_api,
+            log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
             score=score,
@@ -858,7 +934,7 @@ def eval_retry(
             max_connections=max_connections,
         )
 
-    return task_display().run_task_app(run_task_app)
+    return task_display().run_task_app(with_async_fs(run_task_app))
 
 
 async def eval_retry_async(
@@ -879,6 +955,8 @@ async def eval_retry_async(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     score: bool = True,
@@ -918,6 +996,8 @@ async def eval_retry_async(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api request and response. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -1064,6 +1144,21 @@ async def eval_retry_async(
         log_images = (
             log_images if log_images is not None else eval_log.eval.config.log_images
         )
+        # resolve log_model_api from env var if not explicitly set
+        if log_model_api is None:
+            log_model_api_env = os.environ.get("INSPECT_EVAL_LOG_MODEL_API")
+            if log_model_api_env is not None:
+                log_model_api = log_model_api_env.lower() in ("true", "1", "yes")
+        log_model_api = (
+            log_model_api
+            if log_model_api is not None
+            else eval_log.eval.config.log_model_api
+        )
+        # resolve log_refusals from env var if not explicitly set
+        if log_refusals is None:
+            log_refusals_env = os.environ.get("INSPECT_EVAL_LOG_REFUSALS")
+            if log_refusals_env is not None:
+                log_refusals = log_refusals_env.lower() in ("true", "1", "yes")
         log_buffer = (
             log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
         )
@@ -1090,6 +1185,14 @@ async def eval_retry_async(
         )
         if initial_model_usage:
             init_model_usage(initial_model_usage)
+
+        initial_role_usage = (
+            copy.deepcopy(eval_log.stats.role_usage)
+            if eval_log.stats.role_usage
+            else None
+        )
+        if initial_role_usage:
+            init_role_usage(initial_role_usage)
 
         # run the eval
         log = (
@@ -1135,6 +1238,8 @@ async def eval_retry_async(
                 log_samples=log_samples,
                 log_realtime=log_realtime,
                 log_images=log_images,
+                log_model_api=log_model_api,
+                log_refusals=log_refusals,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
                 score=score,
@@ -1156,11 +1261,14 @@ def eval_init(
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
+    log_refusals: bool | None = None,
     task_group: TaskGroup | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[Model]:
     # init eval context
-    init_eval_context(log_level, log_level_transcript, max_subprocesses, task_group)
+    init_eval_context(
+        log_level, log_level_transcript, log_refusals, max_subprocesses, task_group
+    )
 
     # resolve model and task args
     model_args = resolve_args(model_args)
@@ -1195,7 +1303,9 @@ def eval_resolve_tasks(
     init_model_roles(resolved_model_roles or {})
 
     task_args = resolve_args(task_args)
-    with task_display().suspend_task_app():
+    # To support inspect-flow using this method directly, make sure not to create the display if it does not already exist.
+    active_display = active_task_display()
+    with active_display.suspend_task_app() if active_display else nullcontext():
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m, config)
@@ -1263,3 +1373,6 @@ class EvalLogs(list[EvalLog]):
 
     def __repr__(self) -> str:
         return ""
+
+    def __str__(self) -> str:
+        return list.__repr__(self)

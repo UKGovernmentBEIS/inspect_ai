@@ -40,6 +40,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -48,10 +49,11 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import ModelAPI
+from inspect_ai.model._model import ModelAPI, log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
+from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -59,7 +61,7 @@ from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._json import json_schema_to_base_model
 
-from .._generate_config import GenerateConfig
+from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -68,6 +70,7 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
+from ._grok_batch import GrokBatcher
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
@@ -93,6 +96,14 @@ class GrokAPI(ModelAPI):
             api_key_vars=[XAI_API_KEY, GROK_API_KEY],
             config=config,
         )
+
+        # raise if we are using trio (gRPC is asyncio-only)
+        from inspect_ai._util._async import current_async_backend
+
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The grok provider does not work with the trio async backend."
+            )
 
         # resolve api key
         if self.api_key is None:
@@ -123,6 +134,10 @@ class GrokAPI(ModelAPI):
                 ("grpc.service_config", "{}"),
             ]
         self.model_args = model_args
+
+        # initialize batcher
+        self._batcher: GrokBatcher | None = None
+        self._batch_client: AsyncClient | None = None
 
         # create client
         self.initialize()
@@ -158,6 +173,11 @@ class GrokAPI(ModelAPI):
             )
             return len(tokens)
 
+    @override
+    async def aclose(self) -> None:
+        if self._batch_client:
+            await self._batch_client.close()
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -165,82 +185,116 @@ class GrokAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        async with self.model_client() as client:
-            # set start time
-            start_time = time.monotonic()
+        # Batch mode is request-scoped via GenerateConfig, so resolve lazily here.
+        self._resolve_batcher(config)
 
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
+        # set start time
+        start_time = time.monotonic()
 
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=_grok_media_filter,
-                    time=time.monotonic() - start_time,
+        # prepare input for chat call
+        grok_messages = await _grok_messages(input)
+        grok_tools = [self._grok_tool(tool) for tool in tools]
+        grok_tool_choice = (
+            self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
+        )
+        grok_params = self._grok_params(config)
+
+        request = dict(
+            model=self.model_name,
+            messages=[MessageToDict(m) for m in grok_messages],
+            tools=[MessageToDict(t) for t in grok_tools],
+            tool_choice=MessageToDict(grok_tool_choice)
+            if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
+            else grok_tool_choice,
+            **grok_params,
+        )
+        if self._batcher and config.response_schema is not None:
+            schema_model = json_schema_to_base_model(config.response_schema.json_schema)
+            # Batch queue payloads are dict-shaped; encode full schema here so the
+            # batcher can rehydrate protobuf ResponseFormat before submission.
+            request["response_format"] = MessageToDict(
+                chat_pb2.ResponseFormat(
+                    format_type=chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
+                    schema=json.dumps(schema_model.model_json_schema()),
                 )
+            )
 
-            try:
-                # prepare input for chat call
-                grok_messages = await _grok_messages(input)
-                grok_tools = [self._grok_tool(tool) for tool in tools]
-                grok_tool_choice = (
-                    self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
-                )
-                grok_params = self._grok_params(config)
+        model_call = set_active_model_event_call(
+            request=request,
+            filter=_grok_media_filter,
+        )
 
-                # update request (convert proto to dict)
-                request = dict(
-                    model=self.model_name,
-                    messages=[MessageToDict(m) for m in grok_messages],
-                    tools=[MessageToDict(t) for t in grok_tools],
-                    tool_choice=MessageToDict(grok_tool_choice)
-                    if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
-                    else grok_tool_choice,
-                    **grok_params,
-                )
-
-                # chat call
-                chat = client.chat.create(
-                    model=self.model_name,
-                    messages=grok_messages,
-                    tools=grok_tools,
-                    tool_choice=grok_tool_choice,
-                    **grok_params,
-                )
-
-                # handle structured output
-                if config.response_schema is not None:
-                    chat_response, _ = await chat.parse(
-                        json_schema_to_base_model(config.response_schema.json_schema)
+        try:
+            if self._batcher:
+                # Batch requests carry response_format/schema to xAI; parse() is only
+                # used in the direct path below.
+                chat_response = await self._batcher.generate_for_request(request)
+            else:
+                async with self.model_client() as client:
+                    # chat call
+                    chat = client.chat.create(
+                        model=self.model_name,
+                        messages=grok_messages,
+                        tools=grok_tools,
+                        tool_choice=grok_tool_choice,
+                        **grok_params,
                     )
-                # stream the reponse for improved connectivity for long requests
-                else:
-                    if self.streaming:
+
+                    # handle structured output
+                    if config.response_schema is not None:
+                        chat_response, _ = await chat.parse(
+                            json_schema_to_base_model(
+                                config.response_schema.json_schema
+                            )
+                        )
+                    # stream the reponse for improved connectivity for long requests
+                    elif self.streaming:
                         async for chat_response, _ in chat.stream():
                             pass
                     else:
                         chat_response = await chat.sample()
 
-                # update response
-                response = MessageToDict(chat_response._proto)
+            model_call.set_response(
+                MessageToDict(chat_response._proto), time.monotonic() - start_time
+            )
 
-                # return
-                return self._model_output_from_response(
-                    chat_response, tools
-                ), model_call()
-            except grpc.RpcError as ex:
-                if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
-                    handled = self._handle_grpc_permission_denied(ex)
-                    if handled:
-                        return handled, model_call()
-                    else:
-                        raise ex
-                elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
-                    return self._handle_grpc_bad_request(ex), model_call()
+            # return
+            return self._model_output_from_response(chat_response, tools), model_call
+        except grpc.RpcError as ex:
+            model_call.set_error(
+                {"error": {"code": str(ex.code()), "details": ex.details()}},
+                time.monotonic() - start_time,
+            )
+            if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
+                handled = self._handle_grpc_permission_denied(ex)
+                if handled:
+                    return handled, model_call
                 else:
                     raise ex
+            elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
+                return self._handle_grpc_bad_request(ex), model_call
+            else:
+                raise ex
+
+    def _resolve_batcher(self, config: GenerateConfig) -> None:
+        if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
+            return
+
+        if not self._batch_client:
+            self._batch_client = self.model_client()
+
+        self._batcher = GrokBatcher(
+            self._batch_client,
+            batch_config,
+            model_retry_config(
+                self.model_name,
+                config.max_retries,
+                config.timeout,
+                self.should_retry,
+                lambda ex: None,
+                log_model_retry,
+            ),
+        )
 
     def is_auth_failure(self, ex: Exception) -> bool:
         return (
@@ -270,10 +324,6 @@ class GrokAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"grok/{self.model_name}"
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
@@ -541,8 +591,9 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
+    cached = usage.cached_prompt_text_tokens or 0
     return ModelUsage(
-        input_tokens=usage.prompt_tokens,
+        input_tokens=usage.prompt_tokens - cached,
         output_tokens=usage.completion_tokens,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,
@@ -640,7 +691,7 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
                 detail = "DETAIL_AUTO"
             case "low":
                 detail = "DETAIL_LOW"
-            case "high":
+            case "high" | "original":
                 detail = "DETAIL_HIGH"
             case _:
                 detail = "DETAIL_AUTO"

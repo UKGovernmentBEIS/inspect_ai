@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 import sys
 from asyncio.subprocess import Process
 from typing import Literal, TextIO
@@ -13,6 +15,15 @@ from mcp import (
 )
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
+# Maximum line length for reading MCP server stdout via asyncio.StreamReader.
+# Override with INSPECT_MCP_READLINE_LIMIT_BYTES to handle large MCP tool
+# responses (e.g., base64-encoded screenshots that exceed the 64KB default).
+_READLINE_LIMIT: int | None = (
+    int(os.environ["INSPECT_MCP_READLINE_LIMIT_BYTES"])
+    if "INSPECT_MCP_READLINE_LIMIT_BYTES" in os.environ
+    else None
+)
+
 
 class MCPServerSession:
     """
@@ -25,6 +36,7 @@ class MCPServerSession:
     async def create(
         cls, server_params: StdioServerParameters, errlog: TextIO = sys.stderr
     ) -> "MCPServerSession":
+        limit_kwargs = {"limit": _READLINE_LIMIT} if _READLINE_LIMIT is not None else {}
         return cls(
             await asyncio.create_subprocess_exec(
                 server_params.command,
@@ -34,6 +46,7 @@ class MCPServerSession:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
+                **limit_kwargs,
             ),
             server_params.encoding,
             server_params.encoding_error_handler,
@@ -156,10 +169,13 @@ class MCPServerSession:
                 buffer = lines.pop()
 
                 for line in lines:
+                    if not line.strip():
+                        continue
                     try:
                         message = JSONRPCMessage.model_validate_json(line)
-                    except pydantic.ValidationError as exc:
-                        self._send_exception_somewhere(exc)
+                    except (pydantic.ValidationError, json.JSONDecodeError):
+                        # Skip non-JSON lines (e.g. debug output, shell traces).
+                        # This matches the MCP SDK's stdio_client behavior.
                         continue
 
                     assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (

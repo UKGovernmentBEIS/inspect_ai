@@ -5,6 +5,7 @@ import { inputString } from "../../../utils/format";
 
 import { FC, RefObject } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
+import { NoContentsPanel } from "../../../components/NoContentsPanel";
 import { useEvalDescriptor } from "../../../state/hooks";
 import { RenderedText } from "../../content/RenderedText";
 import { SampleScoresGrid } from "./SampleScoresGrid";
@@ -26,7 +27,7 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
     return undefined;
   }
   if (!sample) {
-    return undefined;
+    return <NoContentsPanel text="Scoring data not available" />;
   }
 
   const scoreInput = inputString(sample.input);

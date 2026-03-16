@@ -13,9 +13,9 @@ from typing import Callable, Generator, Sequence, TypeVar
 
 import anyio
 import pytest
+from _pytest.outcomes import OutcomeException
 
 from inspect_ai import Task, eval, task
-from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.entrypoints import clear_entry_points_state
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
@@ -23,6 +23,42 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
 F = TypeVar("F", bound=Callable)
+
+
+def _rearm_pytest_timeout() -> None:
+    """Re-arm pytest-timeout's signal timer for the next retry attempt.
+
+    When pytest-timeout uses the signal method, SIGALRM fires once and is
+    consumed. We need to re-arm it so the next retry attempt also has a
+    timeout. We read the original timeout from the SIGALRM handler that
+    pytest-timeout installed and re-arm with the same duration.
+    """
+    if not hasattr(signal, "SIGALRM"):
+        return
+    # If the current SIGALRM handler is a python function (not SIG_DFL/SIG_IGN),
+    # pytest-timeout is active. Re-arm the timer with the same timeout by reading
+    # the remaining time — but since it already fired, we need to get the original
+    # timeout from the handler's closure.
+    try:
+        # pytest_timeout stores the settings on the item in the handler closure.
+        # The simplest reliable approach: look at the current handler and re-arm
+        # using setitimer. We get the timeout from the handler's closure.
+        handler = signal.getsignal(signal.SIGALRM)
+        if (
+            callable(handler)
+            and hasattr(handler, "__closure__")
+            and handler.__closure__
+        ):
+            for cell in handler.__closure__:
+                try:
+                    val = cell.cell_contents
+                    if hasattr(val, "timeout"):
+                        signal.setitimer(signal.ITIMER_REAL, val.timeout)
+                        return
+                except ValueError:
+                    continue
+    except (ImportError, Exception):
+        pass
 
 
 def flaky_retry(max_retries: int) -> Callable[[F], F]:
@@ -55,9 +91,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                 for attempt in range(max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
-                    except Exception as e:
+                    except (Exception, OutcomeException) as e:
                         last_exception = e
                         if attempt < max_retries:
+                            _rearm_pytest_timeout()
                             continue
                         raise last_exception
 
@@ -69,9 +106,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
-                except Exception as e:
+                except (Exception, OutcomeException) as e:
                     last_exception = e
                     if attempt < max_retries:
+                        _rearm_pytest_timeout()
                         continue
                     raise last_exception
 
@@ -133,6 +171,10 @@ def skip_if_no_transformer_lens(func):
     return skip_if_no_package("transformer_lens")(func)
 
 
+def skip_if_no_nnterp(func):
+    return skip_if_no_package("nnterp")(func)
+
+
 def skip_if_no_openai(func):
     return pytest.mark.api(
         pytest.mark.skipif(
@@ -187,7 +229,10 @@ def skip_if_no_mistral_package(func):
 
 
 def skip_if_no_grok(func):
-    return pytest.mark.api(skip_if_env_var("GROK_API_KEY", exists=False)(func))
+    # gRPC is asyncio-only, so always skip under trio
+    return pytest.mark.api(
+        skip_if_env_var("GROK_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_cloudflare(func):
@@ -279,10 +324,31 @@ def skip_if_no_docker(func):
 
 
 def skip_if_async_backend(backend):
-    return pytest.mark.skipif(
-        configured_async_backend() == backend,
-        reason=f"Test not compatible with {backend} async backend.",
-    )
+    """Skip the given backend variant of an anyio test.
+
+    This is a runtime check using sniffio so it works correctly with anyio's
+    parametrised [asyncio]/[trio] variants (unlike pytest.mark.skipif which
+    evaluates at collection time before the backend is known).
+
+    For sync functions this is a no-op — they never run under an async backend.
+    """
+    import inspect
+
+    import sniffio
+
+    def decorator(func):
+        if not inspect.iscoroutinefunction(func):
+            return func
+
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            if sniffio.current_async_library() == backend:
+                pytest.skip(f"Test not compatible with {backend} async backend.")
+            return await func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def skip_if_trio(func):
@@ -398,7 +464,7 @@ def identity_solver(arg: int = 0):
 def ensure_test_package_installed():
     try:
         clear_entry_points_state()
-        import inspect_package  # type: ignore # noqa: F401
+        import inspect_package  # type: ignore[import-not-found] # noqa: F401
     except ImportError:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]

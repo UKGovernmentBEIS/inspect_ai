@@ -1,9 +1,13 @@
 import json
-from typing import Any, Callable, Literal, Sequence
+from collections.abc import Callable
+from typing import Any, Literal, Sequence
 
-from mistralai import (
+from mistralai.client import Mistral
+from mistralai.client.errors import SDKError
+from mistralai.client.models import (
     CodeInterpreterTool,
     CompletionArgs,
+    ConversationRequestTool,
     ConversationResponse,
     DocumentURLChunk,
     Function,
@@ -13,23 +17,18 @@ from mistralai import (
     ImageURL,
     ImageURLChunk,
     InputEntries,
+    JSONSchema,
     MessageInputEntry,
     MessageOutputContentChunks,
     MessageOutputEntry,
-    Mistral,
+    ResponseFormat,
     TextChunk,
     ThinkChunk,
     ToolExecutionEntry,
     ToolReferenceChunk,
-    Tools,
     WebSearchTool,
 )
-from mistralai.models import (
-    JSONSchema,
-    ResponseFormat,
-    SDKError,
-)
-from mistralai.types import UNSET
+from mistralai.client.types import UNSET
 
 from inspect_ai._util.citation import Citation, UrlCitation
 from inspect_ai._util.constants import NO_CONTENT
@@ -43,6 +42,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
@@ -87,26 +87,27 @@ async def mistral_conversation_generate(
         tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
         completion_args=completion_args,
         store=False,
-        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
     )
 
-    # prepare response for inclusion in model call
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            time=http_hooks.end_request(request_id),
-        )
+    model_call = set_active_model_event_call(
+        request=request,
+    )
 
     # send request
     try:
         conv_response = await client.beta.conversations.start_async(**request)
-        response = conv_response.model_dump()
+
+        model_call.set_response(
+            conv_response.model_dump(), http_hooks.end_request(request_id)
+        )
     except SDKError as ex:
+        model_call.set_error(
+            {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+        )
         if ex.status_code == 400:
-            return handle_bad_request(ex), model_call()
+            return handle_bad_request(ex), model_call
         else:
             raise ex
 
@@ -125,7 +126,7 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
-    ), model_call()
+    ), model_call
 
 
 def mistral_conversation_completion_args(
@@ -171,8 +172,8 @@ def mistral_conversation_completion_args(
     return completion_args
 
 
-def mistral_conversation_tools(tools: list[ToolInfo]) -> list[Tools]:
-    conversation_tools: list[Tools] = []
+def mistral_conversation_tools(tools: list[ToolInfo]) -> list[ConversationRequestTool]:
+    conversation_tools: list[ConversationRequestTool] = []
     for tool in tools:
         if is_internal_web_search_tool(tool):
             conversation_tools.append(WebSearchTool(type="web_search"))
@@ -325,7 +326,12 @@ async def mistral_content_chunk(
     elif isinstance(content, ContentImage):
         # resolve image to url
         image_url = await file_as_data_uri(content.image)
-        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+        return ImageURLChunk(
+            image_url=ImageURL(
+                url=image_url,
+                detail="high" if content.detail == "original" else content.detail,
+            )
+        )
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):

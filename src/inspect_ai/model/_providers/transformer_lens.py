@@ -16,6 +16,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelOutput,
 )
+from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import (
     ToolChoice,
     ToolInfo,
@@ -86,7 +87,7 @@ def message_content_to_string(messages: list[ChatMessage]) -> str:
     Modified from the HuggingFace provider.
     """
     out = ""
-    for message in messages:
+    for message in emulate_reasoning_history(messages):
         if isinstance(message.content, list):
             is_multimodal = any(
                 isinstance(

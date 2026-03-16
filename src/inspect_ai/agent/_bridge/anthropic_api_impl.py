@@ -16,11 +16,13 @@ from anthropic.types import (
     SearchResultBlockParam,
     TextBlockParam,
     ToolChoiceParam,
+    ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
+    BetaMessage,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
 )
@@ -37,6 +39,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
 from inspect_ai.model._providers.anthropic import (
@@ -82,19 +85,30 @@ logger = getLogger(__name__)
 
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
-) -> Message:
+    *,
+    beta: bool = False,
+) -> Message | BetaMessage:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name)
+    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None = (
         json_data.get("mcp_servers", None)
     )
+    # validate computer use compatibility
+    has_computer_use = any(is_computer_tool(tool) for tool in anthropic_tools or [])
+    if has_computer_use and ModelName(model).api != "anthropic":
+        raise RuntimeError(
+            f"computer use with the Anthropic agent bridge requires an "
+            f"Anthropic model, got '{ModelName(model)}'"
+        )
+
     tools = tools_from_anthropic_tools(
         anthropic_tools, anthropic_mcp_servers, web_search, code_execution
     )
@@ -112,6 +126,7 @@ async def inspect_anthropic_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
+    config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -134,10 +149,11 @@ async def inspect_anthropic_api_request_impl(
     # update state if we have more messages than the last generation
     bridge._track_state(messages, output)
 
-    # return message
-    message = Message.model_construct(
+    # return message (use beta message type if request came from beta endpoint)
+    message_class = BetaMessage if beta else Message
+    message = message_class.model_construct(
         id=output.message.id or uuid(),
-        content=await assistant_message_blocks(output.message),  # type: ignore[arg-type]
+        content=await assistant_message_blocks(output.message, beta=beta),
         model=output.model,
         role="assistant",
         stop_reason=anthropic_stop_reason(output.stop_reason),
@@ -371,18 +387,23 @@ async def messages_from_anthropic_input(
                         continue
                     if c["type"] == "tool_result":
                         flush_pending_user_content()
-                        content = (
-                            c["content"]
-                            if isinstance(c["content"], str)
-                            else [content_block_to_content(b) for b in c["content"]]
-                        )
+                        content_value = c.get("content")
+                        if content_value is None:
+                            content: str | list[Content] = ""
+                        elif isinstance(content_value, str):
+                            content = content_value
+                        else:
+                            content = [
+                                content_block_to_content(b) for b in content_value
+                            ]
                         messages.append(
                             ChatMessageTool(
                                 tool_call_id=c["tool_use_id"],
                                 function=tool_names.get(c["tool_use_id"], None),
                                 content=content,
                                 error=ToolCallError(
-                                    type="unknown", message=str(c["content"])
+                                    type="unknown",
+                                    message=str(content_value) if content_value else "",
                                 )
                                 if c.get("is_error", False) is True
                                 else None,
@@ -409,7 +430,8 @@ def content_block_to_content(
     block: TextBlockParam
     | ImageBlockParam
     | DocumentBlockParam
-    | SearchResultBlockParam,
+    | SearchResultBlockParam
+    | ToolReferenceBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]

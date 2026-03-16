@@ -84,18 +84,24 @@ export const useLogOrSampleRouteParams = (): LogOrSampleRouteParams => {
 /**
  * Hook that parses log route parameters from the splat route.
  * Handles nested paths properly by parsing the full path after /logs/
+ *
+ * Note: We use the raw URL hash instead of React Router's decoded params
+ * because React Router decodes %2F to /, which breaks parsing of sample IDs
+ * that contain slashes (e.g., "ascii/bike" encoded as "ascii%2Fbike").
  */
 export const useLogRouteParams = () => {
-  const params = useParams<{
-    "*": string;
-    sampleUuid?: string;
-    sampleId?: string;
-    epoch?: string;
-    sampleTabId?: string;
-  }>();
+  const location = useLocation();
 
   return useMemo(() => {
-    const splatPath = params["*"] || "";
+    // Get the raw path from location.pathname (which React Router keeps encoded)
+    // For hash routing, we need to extract from the pathname
+    // The location.pathname for hash routing is the part after # but before ?
+    // Example: /logs/path/to/file.eval/samples/sample/ascii%2Fbike/1
+    const rawPath = location.pathname;
+
+    // Extract the splat path (everything after /logs/)
+    const logsMatch = rawPath.match(/^\/logs\/(.*)$/);
+    const splatPath = logsMatch ? logsMatch[1] : "";
 
     // Check for sample UUID route pattern
     const sampleUuidMatch = splatPath.match(
@@ -233,21 +239,28 @@ export const useLogRouteParams = () => {
         epoch: undefined,
       };
     }
-  }, [params]);
+  }, [location.pathname]);
 };
 
 /**
  * Hook that parses samples route parameters from the splat route.
  * Handles nested paths properly by parsing the full path after /samples/
  * Also handles sample detail routes: /samples/path/to/file.eval/sample/id/epoch
+ *
+ * Note: We use location.pathname instead of React Router's decoded params
+ * because React Router decodes %2F to /, which breaks parsing of sample IDs
+ * that contain slashes (e.g., "ascii/bike" encoded as "ascii%2Fbike").
  */
 export const useSamplesRouteParams = () => {
-  const params = useParams<{
-    "*": string;
-  }>();
+  const location = useLocation();
 
   return useMemo(() => {
-    const splatPath = params["*"] || "";
+    // Get the raw path from location.pathname (which keeps encoding intact)
+    const rawPath = location.pathname;
+
+    // Extract the splat path (everything after /samples/)
+    const samplesMatch = rawPath.match(/^\/samples\/(.*)$/);
+    const splatPath = samplesMatch ? samplesMatch[1] : "";
 
     const sampleMatch = splatPath.match(
       /^(.+?)\/sample\/([^/]+)\/([^/]+)(?:\/([^/]+))?\/?$/,
@@ -270,16 +283,12 @@ export const useSamplesRouteParams = () => {
       epoch: undefined,
       tabId: undefined,
     };
-  }, [params]);
+  }, [location.pathname]);
 };
 
 export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/*";
 export const kSamplesRouteUrlPattern = "/samples";
-export const kSampleRouteUrlPattern =
-  "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
-export const kSampleUuidRouteUrlPattern =
-  "/logs/*/samples/sample_uuid/:sampleUuid/:sampleTabId?";
 
 export const baseUrl = (
   logPath: string,
@@ -326,8 +335,11 @@ export const logSamplesUrl = (
   const decodedLogPath = decodeUrlParam(logPath) || logPath;
 
   if (sampleId !== undefined && sampleEpoch !== undefined) {
+    // Encode sampleId to handle slashes and special characters
+    // This must be done before encodePathParts since it splits on /
+    const encodedSampleId = encodeURIComponent(String(sampleId));
     return encodePathParts(
-      `/logs/${decodedLogPath}/samples/sample/${sampleId}/${sampleEpoch}/${sampleTabId || ""}`,
+      `/logs/${decodedLogPath}/samples/sample/${encodedSampleId}/${sampleEpoch}/${sampleTabId || ""}`,
     );
   } else {
     return encodePathParts(
@@ -343,8 +355,11 @@ export const samplesSampleUrl = (
   sampleTabId?: string,
 ) => {
   const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  // Encode sampleId to handle slashes and special characters
+  // This must be done before encodePathParts since it splits on /
+  const encodedSampleId = encodeURIComponent(String(sampleId));
   return encodePathParts(
-    `/samples/${decodedLogPath}/sample/${sampleId}/${epoch}/${sampleTabId || ""}`,
+    `/samples/${decodedLogPath}/sample/${encodedSampleId}/${epoch}/${sampleTabId || ""}`,
   );
 };
 

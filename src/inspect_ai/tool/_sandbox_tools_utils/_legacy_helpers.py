@@ -17,12 +17,12 @@ from textwrap import dedent
 
 import semver
 
+from inspect_ai._util._json_rpc import exec_scalar_request
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.tool._json_rpc_helpers import exec_scalar_request
-from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
-    SandboxJSONRPCTransport,
-    SandboxToolsServerErrorMapper,
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
 )
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._sandbox.context import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -71,7 +71,7 @@ async def _get_sandbox_tool_support_version(
                 params={},
                 result_type=str,
                 transport=SandboxJSONRPCTransport(sandbox, LEGACY_SANDBOX_CLI),
-                server_error_mapper=SandboxToolsServerErrorMapper(),
+                error_mapper=SandboxToolsErrorMapper,
                 timeout=5,
             )
         )

@@ -22,7 +22,7 @@ def test_mistral_reasoning():
     )
     log = eval(
         task,
-        model="mistral/magistral-small-2506",
+        model="mistral/magistral-medium-2509",
         model_args={"conversation_api": False},  # doesn't yet produce ThinkBlock
     )[0]
     assert log.status == "success"

@@ -41,6 +41,7 @@ select = [
   # "RET", # flake8-return
   # "RUF", # ruff rules
   "DTZ",
+  "TID251",  # banned-api
 ]
 ignore = [
   "E203",
@@ -62,6 +63,10 @@ ignore = [
   "B905",
 ]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
+"typing.is_typeddict".msg = "Use typing_extensions.is_typeddict (typing.is_typeddict doesn't recognize typing_extensions.TypedDict subclasses)"
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -75,8 +80,6 @@ norecursedirs = [
   "tests/test_package",
   "tests/test_task_list",
 ]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
 log_level = "WARNING"
 
 [tool.mypy]
@@ -85,7 +88,9 @@ exclude = [
   "build",
   "(?:^|/)_resources/",
   "examples/bridge",
+  "examples/evals_in_eval",
   "examples/hooks",
+  "examples/http_proxy",
   "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]
@@ -152,24 +157,24 @@ inspect = "inspect_ai._cli.main:main"
 [project.optional-dependencies]
 dev = [
   "adlfs>=2025.8.0",
-  "anthropic>=0.62.0",
+  "anthropic>=0.80.0",
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
-  "google-genai",
-  "griffe",
-  "groq",
+  "google-genai>=1.62.0",
+  "griffe<=1.14.0",
+  "groq>=0.28.0",
   "huggingface_hub>=1.0.0",
   "inspect_scout",
   "ipython",
   "jsonpath-ng",
   "markdown",
   "mcp>=1.10.0",
-  "mistralai",
+  "mistralai>=2.0.0",
   "moto[server]",
   "mypy>=1.17.0",
   "nbformat",
-  "openai",
+  "openai>=2.26.0",
   "pandas>=2.0.0",
   "panflute",
   "pip",
@@ -177,14 +182,13 @@ dev = [
   "pyarrow>=10.0.1",
   "pylint",
   "pytest",
-  "pytest-asyncio",
   "pytest-cov",
   "pytest-dotenv",
   "pytest-mock",
   "pytest-watcher",
   "pytest-xdist",
-  "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
-  "together",
+  "ruff==0.9.6",            # match version specified in .pre-commit-config.yaml
+  "together>=2.0.0",
   "textual-dev>=0.86.2",
   "trio",
   "pandas-stubs",
@@ -192,6 +196,7 @@ dev = [
   "types-grpcio",
   "types-Markdown",
   "types-PyYAML",
+  "types-regex",
   "types-beautifulsoup4",
   "types-aioboto3",
   "types-boto3",
@@ -201,16 +206,19 @@ dev = [
   "types-protobuf",
   "types-psutil",
   "types-python-dateutil",
-  "xai_sdk",
+  "xai_sdk>=1.7.0",
   "uvicorn",
+  # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
+  "zipfile-zstd>=0.0.4; python_version < '3.14'",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = [
   "quarto-cli==1.7.32",
   "jupyter",
+  "nbclient",
   "panflute",
   "markdown",
-  "griffe",
+  "griffe<=1.14.0",
   "click>=8.2.0",
 ]
 dist = ["twine", "build"]

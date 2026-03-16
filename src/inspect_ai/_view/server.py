@@ -119,12 +119,11 @@ def view_server(
             return web.HTTPBadRequest(reason="No 'end' query param")
         start = int(start_param)
         end = int(end_param)
-        headers = {
-            "Content-Length": str(end - start + 1),
-        }
         body = await get_log_bytes(file, start, end)
         return web.Response(
-            body=body, headers=headers, content_type="application/octet-stream"
+            body=body,
+            headers={"Content-Length": str(len(body))},
+            content_type="application/octet-stream",
         )
 
     @routes.get("/api/log-download/{log}")
@@ -135,7 +134,7 @@ def view_server(
 
         # get file size and stream
         file_size = await get_log_size(file)
-        stream = await stream_log_bytes(file)
+        stream = await stream_log_bytes(file, log_file_size=file_size)
 
         # determine filename
         base_name = Path(file).stem

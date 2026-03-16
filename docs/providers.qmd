@@ -17,6 +17,7 @@ pip install openai
 export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
+
 The following environment variables are supported by the OpenAI provider
 
 | Variable | Description |
@@ -33,9 +34,9 @@ The `openai` provider supports the following custom model args (other model args
 | Model Arg | Description |
 |--------------------------|----------------------------------------------|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
-| `responses_store` | Pass `store=True` to the Responses API (defaults to `True`).
+| `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models.  |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
@@ -75,7 +76,7 @@ Note that certain models including `o1-pro` and `computer_use_preview` *require*
 
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
-```bash
+``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
 
@@ -153,17 +154,17 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 5 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 4.5 and Opus 4.6 models:
 
-```bash
+``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
 ```
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with >= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
-```bash
+``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 ```
 
@@ -206,6 +207,7 @@ export AZUREAI_ANTHROPIC_API_KEY=key
 export AZUREAI_ANTHROPIC_BASE_URL=https://your-url-at.azure.com/models
 inspect eval math.py --model anthropic/azure/Claude-4-0-Sonnet-2411
 ```
+
 ## Google {#google-gemini}
 
 To use the [Google](https://ai.google.dev/) provider, install the `google-genai` package, set your credentials, and specify a model using the `--model` option:
@@ -296,6 +298,16 @@ This also can be done from the command line:
 inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 ```
 
+### Streaming
+
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
+
+``` bash
+inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
+```
+
+Streaming is particularly useful for Gemini 3+ models that support thinking/reasoning, as it enables proper capture of reasoning summaries from the streaming API.
+
 ## Mistral {#mistral}
 
 To use the [Mistral](https://mistral.ai/) provider, install the `mistral` package, set your credentials, and specify a model using the `--model` option:
@@ -315,7 +327,7 @@ The following environment variables are supported by the Mistral provider
 
 By default, the Mistral provider uses the [Conversation API](https://docs.mistral.ai/agents/agents#conversations), which includes features not available in the original completions API including native web search and code execution and support for document input. You can switch back to the completions API with the `conversation_api` custom model arg. For example:
 
-```bash
+``` bash
 inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false
 ```
 
@@ -357,7 +369,6 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-
 The following environment variables are supported by the Grok provider
 
 | Variable | Description |
@@ -369,20 +380,19 @@ The following environment variables are supported by the Grok provider
 
 The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
 
-```bash
+``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
 ```
 
 The `grok` provider also supports a `disable_retry` model argument that disables internal GRPC retries. For example:
 
-```bash
+``` bash
 inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
 This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
-
 
 ## AWS Bedrock {#aws-bedrock}
 
@@ -402,6 +412,45 @@ Note that all models on AWS Bedrock require that you [request model access](http
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
+
+## AWS SageMaker {#aws-sagemaker}
+
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+
+``` bash
+pip install aioboto3
+export AWS_ACCESS_KEY_ID=access-key-id
+export AWS_SECRET_ACCESS_KEY=secret-access-key
+inspect eval arc.py --model sagemaker/my-endpoint-name \
+  -M region_name=us-west-2
+```
+
+Deploy your preferred model via Sagemaker studio jumpstart UI/SDK/CLI ([link](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-jumpstart-model.html)). The model name after `sagemaker/` is the SageMaker endpoint name. 
+
+### Model Args
+
+The following model args are supported:
+
+| Model Arg | Description |
+|--------------------------|----------------------------------------------|
+| `region_name` | AWS region where the endpoint is deployed (default: `us-east-1`). |
+| `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
+| `read_timeout` | Read timeout in seconds (default: `600`). |
+| `connect_timeout` | Connection timeout in seconds (default: `60`). |
+| `stream` | Enable streaming responses (default: `false`). |
+
+: {tbl-colwidths=\[35,65\]}
+
+For example:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M read_timeout=300 \
+  -M stream=true
+```
+
+Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
 
 ## Azure AI {#azure-ai}
 
@@ -454,7 +503,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.5
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -597,6 +646,26 @@ Or in a call to `get_model()`
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
+### Chat Templates
+
+For Hugging Face models, Inspect will use a tokenizer chat template when available. 
+Use the `chat_template` model arg to override the tokenizer template, and
+`use_chat_template=false` to bypass chat-template rendering entirely.
+
+For example:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base \
+  -M "chat_template={% for message in messages %}{{ message.content }}{% endfor %}" \
+  -M use_chat_template=true
+```
+
+Or to bypass templates:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
 ### Hidden States
 
 If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
@@ -679,6 +748,82 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 ```
 
+### LoRA Adapters
+
+vLLM supports [LoRA (Low-Rank Adaptation)](https://docs.vllm.ai/en/stable/features/lora.html) adapters, allowing you to use fine-tuned models without duplicating the base model weights. To use a LoRA adapter, append `:adapter-path` to the model name:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+The adapter path can be a HuggingFace repository (e.g., `myorg/my-lora-adapter`) or a local path (e.g., `./adapters/my-adapter`).
+
+When using LoRA adapters:
+
+- The vLLM server is automatically started with `--enable-lora`
+- `max_lora_rank` is auto-detected from the adapter's `adapter_config.json` (supports both local paths and HuggingFace repos)
+- Adapters are dynamically loaded on first request via vLLM's `/v1/load_lora_adapter` endpoint
+- Multiple models sharing the same base model reuse a single vLLM server, even with different adapters
+
+For example, you can evaluate multiple LoRA fine-tunes on the same base model efficiently:
+
+``` python
+# These will share the same vLLM server
+# max_lora_rank is auto-detected as the max across all adapters
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B:adapter-a", "vllm/meta-llama/Llama-3-8B:adapter-b"],
+)
+```
+
+You can also compare a base model against its LoRA fine-tune --- LoRA will be auto-enabled for the shared server:
+
+``` python
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B", "vllm/meta-llama/Llama-3-8B:my-adapter"],
+)
+```
+
+If you need to override the auto-detected rank (e.g. when using `get_model()` directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
+
+``` bash
+inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_rank=128
+```
+
+#### External vLLM Server with LoRA
+
+When using an external vLLM server (`VLLM_BASE_URL`), you have two options:
+
+**Option 1: Pre-load adapters manually**
+
+Load the adapters yourself when starting the server and reference them by name:
+
+``` bash
+# Start server with pre-loaded adapter
+vllm serve meta-llama/Llama-3-8B --enable-lora \
+    --lora-modules my-adapter=path/to/adapter
+
+# Use the adapter name directly (not the path)
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:my-adapter
+```
+
+**Option 2: Enable dynamic loading**
+
+Start the server with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` to let Inspect load adapters dynamically:
+
+``` bash
+VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve meta-llama/Llama-3-8B --enable-lora
+```
+
+Then use adapter paths as normal:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
@@ -742,6 +887,49 @@ SGLang supports tool use and reasoning; however, the usage is often model depend
 
 SGLang automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests---these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
 
+## nnterp {#nnterp}
+
+The [nnterp](https://ndif-team.github.io/nnterp/index.html) provider enables you to use `StandardizedTransformer` models with Inspect. To use the nnterp provider, install the `nnterp` package:
+
+``` bash
+pip install nnterp
+```
+
+The `nnterp` provider works with Hugging Face models. For example:
+
+``` bash
+inspect eval arc.py --model nnterp/openai-community/gpt2
+```
+
+The `nnterp` provider supports the following custom model args (other model args are forwarded to the constructor of the `StandardizedTransformer` class):
+
+| Model Arg | Description | Default |
+|--------------------|--------------------------|--------------------------|
+| `dispatch` | Immediately load model into memory at initialization time | True |
+| `device_map` | Model device map. | "auto" |
+| `dtype` | Torch data type | float16 |
+| `hidden_states` | Provide hidden states in `ModelOutput.metadata` | False |
+
+: {tbl-colwidths="\[30,45,25\]"}
+
+For example:
+
+``` bash
+inspect eval arc.py \
+    --model nnterp/openai-community/gpt2 \
+    -M device_map=0 \
+    -M hidden_states=true
+```
+
+Or from Python:
+
+``` python
+eval(
+    task=arc(), 
+    model="nnterp/openai-community/gpt2", 
+    model_args={"device_map": 0, "hidden_states": True}
+)
+```
 
 ## TransformerLens {#transformer-lens}
 
@@ -875,20 +1063,26 @@ inspect eval ctf.py --model openai-api/<provider>/<model> -M emulate_tools=true
 
 Tool calling emulation works by encoding tool JSON schema in an XML tag and asking the model to make tool calls using another XML tag. This works with varying degrees of efficacy depending on the model and the complexity of the tool schema. Before using tool emulation you should always check if your provider implements native support for tool calling on the model you are using, as that will generally work better.
 
+### Strict Tool Schemas
+
+By default, Inspect sets `"strict": true` on tool function schemas for the `openai-api` provider. This preserves compatibility with providers that require strict tool schemas. You can override this using the `strict_tools` model arg:
+
+``` bash
+inspect eval arc.py --model openai-api/<provider>/<model> -M strict_tools=false
+```
+
+Or using the `eval()` function:
+
+``` python
+eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
+```
+
 ### Streaming {#streaming-openai-compatible}
 
 You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
-```
-
-### Reasoning History Emulation {#reasoning-history-emulation-openai}
-
-Reasoning history emulation (where reasoning is represented by embedded `<think>` tags) is enabled by default. You can disable this behanvior via the `emulate_reasoning_history` model arg. For example:
-
-``` bash
-$ inspect eval arc.py --model openai-api/<provider>/<model> -M emulate_reasoning_history=false
 ```
 
 ## OpenRouter
@@ -943,8 +1137,8 @@ HF Inference Providers provides unified access to hundreds of machine learning m
 
 The following environment variables are supported by the HF Inference Providers:
 
-| Variable | Description |
-|----------------------------|--------------------------------------------|
+| Variable   | Description                                                 |
+|------------|-------------------------------------------------------------|
 | `HF_TOKEN` | Hugging Face token with appropriate permissions (required). |
 
 ### Streaming {#streaming-hf-inference}
