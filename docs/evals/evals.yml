@@ -281,6 +281,9 @@
     It measures whether an agent can execute workflows that resemble real engineering,
     data, devops, and software-automation tasks, not just text generation.
 
+    This benchmark is now run via Inspect Harbor rather than the removed inspect_evals
+    implementation.
+
     '
   group: Coding
   metadata:
@@ -295,7 +298,7 @@
   tasks:
   - terminal_bench_2
   title: 'Terminal-Bench 2.0: Terminal Mastery Challenges'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/terminal_bench_2
+  url: https://github.com/meridianlabs-ai/inspect_harbor
 - arxiv: https://arxiv.org/abs/2311.12983
   categories:
   - Assistants
