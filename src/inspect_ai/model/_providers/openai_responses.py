@@ -93,7 +93,7 @@ async def generate_responses(
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
-        background = config.extra_body.pop("background", None)
+        background = config.extra_body.get("background", None)
 
     # batch mode and background are incompatible
     if batcher:

@@ -227,7 +227,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
   }, [collapsedMode, setCollapsedMode]);
 
-  const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
+  const { isDebugFilter, isDefaultFilter, isNoneFilter } =
+    useTranscriptFilter();
 
   const api = useStore((state) => state.api);
   const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
@@ -289,11 +290,13 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }
 
   if (selectedTab === kSampleTranscriptTabId) {
-    const label = isDebugFilter
-      ? "Debug"
-      : isDefaultFilter
-        ? "Default"
-        : "Custom";
+    const label = isNoneFilter
+      ? "None"
+      : isDebugFilter
+        ? "Debug"
+        : isDefaultFilter
+          ? "Default"
+          : "Custom";
 
     tools.push(
       <ToolButton
@@ -347,7 +350,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }, [selectedSampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
-  console.log({ sample, sampleMetadatas });
 
   return (
     <Fragment>

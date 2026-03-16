@@ -2,11 +2,10 @@ from typing import (
     Any,
     Literal,
     TypeAlias,
-    TypedDict,
     get_args,
 )
 
-from typing_extensions import Unpack
+from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai.tool._tool_def import ToolDef

@@ -407,14 +407,6 @@ When you edit a score, a `ScoreEditEvent` is automatically added to the sample's
 
 ### Tags & Metadata Editing
 
-::: {.callout-note}
-The tag and metadata editing event features described below are available only in the development version of Inspect. Install the development version from GitHub with:
-
-```python
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```
-:::
-
 You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
 
 Use `edit_eval_log()` to add or remove tags and set or remove metadata keys:
