@@ -11,12 +11,17 @@ from test_helpers.utils import skip_if_trio
 from typing_extensions import override
 
 from inspect_ai import Task, eval
+from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai._util.content import ContentDocument
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.dataset import Sample
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._timeline import TimelineEvent, timeline_build
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._edit import ProvenanceData
@@ -28,7 +33,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample,
     write_eval_log,
 )
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -228,6 +233,22 @@ def test_eval_log_writer_handles_invalid_unicode_safely(tmp_path: str):
 def test_can_round_trip_serialize_tool_event():
     original = ToolEvent(
         id="id", function="fn", arguments={}, timestamp=datetime.now(timezone.utc)
+    )
+
+    serialized = original.model_dump_json()
+    deserialized = ToolEvent.model_validate_json(serialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_tool_event_with_document_result():
+    """ToolEvent round-trips document results through JSON serialization."""
+    original = ToolEvent(
+        id="id",
+        function="fn",
+        arguments={},
+        result=[ContentDocument(document="/path/to/report.pdf")],
+        timestamp=datetime.now(timezone.utc),
     )
 
     serialized = original.model_dump_json()
@@ -993,3 +1014,55 @@ def test_log_files_from_ls_sort_order():
         300.0,  # mtime=300
     ]
     assert [f.mtime for f in asc] == asc_mtimes
+
+
+def test_eval_sample_timeline_round_trip():
+    """EvalSample with timelines can round-trip through serialization.
+
+    Timeline events are serialized as UUID strings. Deserialization must
+    resolve those UUIDs back to Event objects using the sample's events.
+    """
+    now = datetime.now(timezone.utc)
+    events = [
+        SpanBeginEvent(id="span1", name="test_span", timestamp=now),
+        InfoEvent(data="hello", timestamp=now),
+        SpanEndEvent(id="span1", timestamp=now),
+    ]
+
+    timeline = timeline_build(events)
+
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="test input",
+        target="test target",
+        events=events,
+        timelines=[timeline],
+    )
+
+    # Serialize — timeline event refs become UUID strings
+    data = sample.model_dump()
+
+    # Deserialize — should resolve UUID strings back to Event objects
+    restored = EvalSample.model_validate(data, context=get_deserializing_context())
+
+    assert restored.timelines is not None
+    assert len(restored.timelines) == 1
+    assert restored.timelines[0].name == timeline.name
+
+    # Walk timeline content and verify events are resolved (not UUID strings)
+    def find_timeline_events(content: list) -> list[TimelineEvent]:
+        result = []
+        for item in content:
+            if isinstance(item, TimelineEvent):
+                result.append(item)
+            elif hasattr(item, "content"):
+                result.extend(find_timeline_events(item.content))
+        return result
+
+    timeline_events = find_timeline_events(restored.timelines[0].root.content)
+    assert len(timeline_events) > 0
+    for te in timeline_events:
+        # event should be an Event object, not a string
+        assert not isinstance(te.event, str)
+        assert te.event.uuid is not None

@@ -262,14 +262,6 @@ The schema for the `text_editor()` tool is based on the standard Anthropic [text
 
 ## Computer {#sec-computer}
 
-::: {.callout-note}
-Support for the OpenAI GPT 5.4 computer tool and Gemini computer tool are available only in the development version of Inspect. Install the development version from GitHub with:
-
-```python
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```
-:::
-
 The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
 | Provider  | Models                                                     |

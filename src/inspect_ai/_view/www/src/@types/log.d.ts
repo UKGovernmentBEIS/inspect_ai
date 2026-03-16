@@ -628,7 +628,14 @@ export type Result2 =
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
+  | ContentDocument
+  | (
+      | ContentText
+      | ContentImage
+      | ContentAudio
+      | ContentVideo
+      | ContentDocument
+    )[];
 export type Truncated = [unknown, unknown] | null;
 export type Events1 = unknown[];
 export type Completed2 = string | null;

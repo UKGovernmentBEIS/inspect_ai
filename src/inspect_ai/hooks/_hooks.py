@@ -181,6 +181,16 @@ class ModelUsageData:
     """The duration of the model call in seconds. If HTTP retries were made, this is the
     time taken for the successful call. This excludes retry waiting (e.g. exponential
     backoff) time."""
+    eval_set_id: str | None = None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str | None = None
+    """The globally unique identifier for the run (if any)."""
+    eval_id: str | None = None
+    """The globally unique identifier for the task execution (if any)."""
+    task_name: str | None = None
+    """The name of the task that generated this usage (if any)."""
+    retries: int = 0
+    """The number of HTTP retries made before the successful call."""
 
 
 @dataclass(frozen=True)
@@ -645,8 +655,37 @@ async def emit_sample_end(
 async def emit_model_usage(
     model_name: str, usage: ModelUsage, call_duration: float
 ) -> None:
+    from inspect_ai.log._samples import sample_active
+
+    # Read eval context from the active sample contextvar (if available).
+    active = sample_active()
+    eval_set_id: str | None = None
+    run_id: str | None = None
+    eval_id: str | None = None
+    task_name: str | None = None
+    retries: int = 0
+    if active is not None:
+        eval_set_id = active.eval_set_id
+        run_id = active.run_id
+        eval_id = active.eval_id
+        task_name = active.task
+
+    # Read retry count from the active model event (if available).
+    from inspect_ai.log._samples import _active_model_event
+
+    model_event = _active_model_event.get()
+    if model_event is not None and model_event.retries is not None:
+        retries = model_event.retries
+
     data = ModelUsageData(
-        model_name=model_name, usage=usage, call_duration=call_duration
+        model_name=model_name,
+        usage=usage,
+        call_duration=call_duration,
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        task_name=task_name,
+        retries=retries,
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 

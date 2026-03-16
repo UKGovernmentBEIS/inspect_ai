@@ -1,5 +1,20 @@
 ## Unreleased
 
+- Anthropic: Agent bridge now maps native bash tool to standard `bash()` tool.
+- Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
+- Hooks: Add eval context id fields to `ModelUsageData` hook.
+
+## 0.3.196 (16 March 2026)
+
+- Support for `ContentDocument` as a result type for tool calls.
+- Events: Added `event_tree_walk()` function for enumerating tree items with an optional filter.
+- Events: Provide `current_span_id()` function to get the current span id (if any).
+- Timelines: Enable specifying `name` and/or `description` when calling `timeline_build()`
+- Timelines: Correct deserialization behavior for timelines in `read_eval_log()`, etc.
+- Inspect View: Add 'None' preset when choosing transcript events to display.
+
+## 0.3.195 (14 March 2026)
+
 - OpenAI: Support for image output for multimodal modals.
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
 - Google: Support for image output for multimodal models.
