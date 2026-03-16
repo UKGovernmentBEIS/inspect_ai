@@ -535,7 +535,7 @@ async def test_model_output_from_openai_responses_cache_normalization() -> None:
 
 
 def test_reasoning_from_responses_both_content_and_encrypted() -> None:
-    """When both content and encrypted_content exist, prefer readable content."""
+    """When both content and encrypted_content exist, readable goes to summary."""
     item = ResponseReasoningItem.model_construct(
         id="rs_123",
         type="reasoning",
@@ -544,9 +544,9 @@ def test_reasoning_from_responses_both_content_and_encrypted() -> None:
         summary=[],
     )
     result = reasoning_from_responses_reasoning(item)
-    assert result.reasoning == "readable thinking"
-    assert result.redacted is False
-    assert result.internal == {"encrypted_content": "ENCRYPTED_BLOB"}
+    assert result.reasoning == "ENCRYPTED_BLOB"
+    assert result.summary == "readable thinking"
+    assert result.redacted is True
     assert result.signature == "rs_123"
 
 
@@ -562,7 +562,7 @@ def test_reasoning_from_responses_only_encrypted() -> None:
     result = reasoning_from_responses_reasoning(item)
     assert result.reasoning == "ENCRYPTED_ONLY"
     assert result.redacted is True
-    assert result.internal is None
+    assert result.summary is None
 
 
 def test_reasoning_from_responses_only_content() -> None:
@@ -577,19 +577,33 @@ def test_reasoning_from_responses_only_content() -> None:
     result = reasoning_from_responses_reasoning(item)
     assert result.reasoning == "just thinking"
     assert result.redacted is False
-    assert result.internal is None
     assert result.summary == "a summary"
+
+
+def test_reasoning_from_responses_encrypted_with_api_summary() -> None:
+    """When encrypted with API summary but no content, summary is used."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_sum",
+        type="reasoning",
+        content=None,
+        encrypted_content="ENCRYPTED",
+        summary=[{"type": "summary_text", "text": "API summary"}],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED"
+    assert result.summary == "API summary"
+    assert result.redacted is True
 
 
 # --- Tests for responses_reasoning_from_reasoning (replay) ---
 
 
-def test_replay_new_format_with_encrypted_in_internal() -> None:
-    """New format: readable in reasoning, encrypted in internal."""
+def test_replay_redacted_with_summary() -> None:
+    """Redacted format: encrypted in reasoning, readable in summary."""
     content = ContentReasoning(
-        reasoning="readable thinking",
-        redacted=False,
-        internal={"encrypted_content": "ENCRYPTED_BLOB"},
+        reasoning="ENCRYPTED_BLOB",
+        summary="readable thinking",
+        redacted=True,
         signature="rs_123",
     )
     result = responses_reasoning_from_reasoning(content)
@@ -600,8 +614,8 @@ def test_replay_new_format_with_encrypted_in_internal() -> None:
     assert result["id"] == "rs_123"
 
 
-def test_replay_old_format_redacted() -> None:
-    """Old format: encrypted in reasoning, redacted=True."""
+def test_replay_redacted_no_summary() -> None:
+    """Redacted with no summary: only encrypted content, no readable content."""
     content = ContentReasoning(
         reasoning="ENCRYPTED_BLOB",
         redacted=True,

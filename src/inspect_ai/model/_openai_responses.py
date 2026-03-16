@@ -804,34 +804,29 @@ def reasoning_from_responses_reasoning(
         item = read_reasoning_item_param(item)
 
     if item.content:
-        reasoning = "\n".join([s.text for s in item.content])
-        redacted = False
-        internal: JsonValue | None = (
-            {"encrypted_content": item.encrypted_content}
-            if item.encrypted_content is not None
-            else None
-        )
-    elif item.encrypted_content is not None:
-        reasoning = item.encrypted_content
-        redacted = True
-        internal = None
+        readable = "\n".join([s.text for s in item.content])
     else:
-        reasoning = ""
-        redacted = False
-        internal = None
+        readable = None
 
     if item.summary:
-        summary: str | None = "\n\n".join([s.text for s in item.summary])
+        summary_text: str | None = "\n\n".join([s.text for s in item.summary])
     else:
-        summary = None
+        summary_text = None
 
-    return ContentReasoning(
-        reasoning=reasoning,
-        summary=summary,
-        signature=item.id,
-        redacted=redacted,
-        internal=internal,
-    )
+    if item.encrypted_content is not None:
+        return ContentReasoning(
+            reasoning=item.encrypted_content,
+            summary=readable or summary_text,
+            signature=item.id,
+            redacted=True,
+        )
+    else:
+        return ContentReasoning(
+            reasoning=readable or "",
+            summary=summary_text,
+            signature=item.id,
+            redacted=False,
+        )
 
 
 # two issues addressed here:
@@ -853,17 +848,12 @@ def read_reasoning_item_param(
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
+    encrypted_content: str | None = content.reasoning if content.redacted else None
+
     content_params: list[ContentParam] = []
-
-    if content.redacted:
-        encrypted_content: str | None = content.reasoning
-    elif isinstance(content.internal, dict):
-        ec = content.internal.get("encrypted_content")
-        encrypted_content = ec if isinstance(ec, str) else None
-    else:
-        encrypted_content = None
-
-    if not content.redacted and content.reasoning:
+    if content.redacted and content.summary:
+        content_params.append(ContentParam(type="reasoning_text", text=content.summary))
+    elif not content.redacted and content.reasoning:
         content_params.append(
             ContentParam(type="reasoning_text", text=content.reasoning)
         )
