@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
 - Anthropic: Agent bridge now maps native bash tool to standard `bash()` tool.
 - Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
 - Hooks: Add eval context id fields to `ModelUsageData` hook.
