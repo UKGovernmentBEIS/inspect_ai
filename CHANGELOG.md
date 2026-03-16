@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.196 (16 March 2026)
 
 - Support for `ContentDocument` as a result type for tool calls.
 - Events: Added `event_tree_walk()` function for enumerating tree items with an optional filter.
