@@ -17,13 +17,13 @@ When running an evaluation, there are four layers where you can set or override 
 
 : Precedence order (each layer overrides those to its left) {tbl-colwidths=\[22,23,25,20\]}
 
-Understanding these layers is key to reusing and adapting tasks without modifying their source code. This article provides a complete reference for what can be overridden, where, and how.
+Understanding these layers is key to reusing and adapting tasks without modifying their source code. This article provides a complete reference for what can be overridden, where, and how. For task authoring patterns, see [Tasks](tasks.qmd); for the full CLI and environment variable catalog, see [Options](options.qmd); and for model-role-specific guidance, see [Model Roles](models.qmd#model-roles).
 
 ## Configuration Layers
 
 ### Layer 1: Task Definition
 
-The `@task` function returns a `Task` object with all its defaults. These are the baseline values that apply when no overrides are specified:
+A @[`task`]{.api-link}-decorated function returns a [`Task`]{.api-link} object with all its defaults. These are the baseline values that apply when no overrides are specified:
 
 ``` python
 @task
@@ -37,7 +37,7 @@ def security_guide() -> Task:
     )
 ```
 
-Task authors can also expose [parameters](tasks.qmd#parameters) on the `@task` function, which users can set with `-T` on the CLI or `task_args` in `eval()`:
+Task authors can also expose [parameters](tasks.qmd#parameters) on the `@task` function, which users can set with `-T` on the CLI or `task_args` in [`eval()`]{.api-link}. For a full guide to designing and using task parameters, see [Parameters](tasks.qmd#parameters); here the focus is how they fit into the overall override model:
 
 ``` python
 @task
@@ -61,7 +61,7 @@ Users can then set the task parameters from the command line using the `-T` flag
 inspect eval security_guide.py -T difficulty=hard -T temperature=1.0
 ```
 ::: {.callout-important}
-Duplicating framework parameters like `temperature` as task parameters is not recommended. They can be set directly using the framework's built-in flags, and this will override any value set in the task definition.
+Duplicating framework parameters like `temperature` as task parameters is not recommended. They can be set directly using the framework's built-in CLI flags or passing a [`GenerateConfig`]{.api-link} object to `eval(my_task(), config=...)`, and this will override any value set in the task definition.
 
 ``` bash
 # CLI
@@ -73,7 +73,7 @@ inspect eval security_guide.py --temperature 1.0
 
 ### Layer 2: `task_with()` {#task-with}
 
-Use `task_with()` when you want to adapt a task you don't control (e.g. one imported from a package) before passing it to `eval()`. It modifies the task **in place** and returns it:
+Use [`task_with()`]{.api-link} when you want to adapt a task you don't control (e.g. one imported from a package) before passing it to [`eval()`]{.api-link}. It modifies the task **in place** and returns it:
 
 ``` python
 from inspect_ai import task_with
@@ -88,7 +88,7 @@ adapted = task_with(
 )
 ```
 
-`task_with()` is the **only** way to override `dataset`, `scorer`, `setup`, and `cleanup` at runtime; none of these have CLI flags or `eval()` parameters.
+`task_with()` is the **only** way to override `dataset`, `scorer`, `setup`, and `cleanup` at runtime; none of these have CLI flags or `eval()` parameters. For the broader pattern of adapting published tasks, see [Task Reuse](tasks.qmd#task-reuse).
 
 ::: {.callout-important}
 #### In-place mutation
@@ -107,7 +107,7 @@ task_b = task_with(base, solver=agent_b())
 ```
 :::
 
-See the [Override Reference](#override-reference) table below for the complete list of parameters that `task_with()` accepts. Note that defaults are `NOT_GIVEN` (a sentinel), not `None`; this means you can explicitly pass `None` to clear a value that the base task set. See the API reference for `task_with()` for the full signature.
+See the [Override Reference](#override-reference) table below for the complete list of parameters that `task_with()` accepts. Note that defaults are `NOT_GIVEN` (a sentinel), not `None`; this means you can explicitly pass `None` to clear a value that the base task set. See the API reference for [`task_with()`]{.api-link} for the full signature.
 
 ### Layer 3: Environment Variables / `.env` Files {#env-vars}
 
@@ -131,7 +131,7 @@ INSPECT_EVAL_LIMIT=1 inspect eval simpleqa.py
 
 ### Layer 4: `eval()` / CLI {#eval-cli}
 
-Parameters passed to `eval()` or on the `inspect eval` command line are the outermost overrides and take highest precedence. They apply to **all tasks** being evaluated in that call.
+Parameters passed to [`eval()`]{.api-link} or on the `inspect eval` command line are the outermost overrides and take highest precedence. They apply to **all tasks** being evaluated in that call.
 
 **Python:**
 
@@ -261,9 +261,11 @@ The table below shows every overridable parameter and which layers support it:
 
 : {tbl-colwidths=\[25,12,20,20,33\]}
 
+Blank cells indicate that a parameter is not configurable at that layer. The `task_args` row indicates these fields are set as arguments of the [`Task`]{.api-link} object, as opposed to passing a `task_args` dictionary.
+
 ## Generation Config {#generate-config}
 
-Generation parameters (`temperature`, `max_tokens`, `top_p`, etc.) can be set at every layer:
+[`GenerateConfig`]{.api-link} parameters (`temperature`, `max_tokens`, `top_p`, etc.) can be set at every layer:
 
 **In the task definition** via `config`:
 
@@ -305,48 +307,24 @@ temperature: 0.5
 max_tokens: 2048
 ```
 
-The `--generate-config` option is useful when you want to bundle a set of generation parameters together     for example, to capture the parameters specified in a paper for reproducibility. Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file.
+The `--generate-config` option is useful when you want to bundle a set of generation parameters together, for example to capture the parameters specified in a paper for reproducibility. Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file.
 
 ## Model Roles {#model-roles}
 
-Model roles let you assign different models to named purposes within a task (e.g. a "grader" model for scoring). They are fully documented in [Model Roles](models.qmd#model-roles); here we summarise the configuration options.
+Model roles let you assign different models to named purposes within a task (e.g. a "grader" model for scoring). They can be configured on [`Task`]{.api-link}, with [`task_with()`]{.api-link}, with [`eval()`]{.api-link}, or on the CLI with `--model-role`; see the override table above for where each form fits into the precedence model.
 
-**In the task definition:**
+For complete guidance, including inline YAML / JSON examples and role-resolution details, see [Model Roles](models.qmd#model-roles). Here is the most common pattern:
 
 ``` python
 Task(..., model_roles={"grader": "openai/gpt-4o"})
-```
-
-**With `task_with()`:**
-
-``` python
-task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
-```
-
-**With `eval()`:**
-
-``` python
 eval(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
 ```
 
-**On the CLI** with `--model-role`:
-
-``` bash
-# Simple: just a model name
-inspect eval my_task.py --model-role grader=google/gemini-2.0-flash
-
-# With generation config for the role
-inspect eval my_task.py \
-    --model-role 'grader={"model": "openai/gpt-4o", "temperature": 0.5}'
-```
-
-Inside a solver or scorer, the role is picked up with `get_model()`:
+Inside a solver or scorer, resolve the role with [`get_model()`]{.api-link}:
 
 ``` python
 model = get_model(role="grader", default="openai/gpt-4o")
 ```
-
-If no role mapping is provided, `get_model(role="grader")` returns the default model for the evaluation. The `default` parameter specifies a fallback model to use when neither a role mapping nor a default evaluation model is available.
 
 ## Solver Override {#solver-override}
 
@@ -374,7 +352,7 @@ inspect eval my_task.py --solver my_registered_solver -S attempts=5
 inspect eval my_task.py --solver solvers.py@ctf_agent -S attempts=5
 ```
 
-Any function decorated with `@solver` is automatically registered with Inspect and can be referenced by name (see [Custom Solvers](solvers.qmd#custom-solvers)). The `file.py@name` syntax lets you reference a solver in any Python file without needing package registration. The `-S` flag passes arguments to the solver function; you can also use `--solver-config` to pass solver arguments from a YAML or JSON file.
+Any function decorated with `@solver` is automatically registered with Inspect and can be referenced by name (see [Custom Solvers](solvers.qmd#custom-solvers)). The `file.py@name` syntax lets you reference a solver in any Python file without needing package registration. The `-S` flag passes arguments to the solver function; you can also use `--solver-config` to pass solver arguments from a YAML or JSON file. See [Tasks and Solvers](options.qmd#tasks-and-solvers) for the corresponding CLI options.
 
 ::: {.callout-note}
 When a solver is overridden, it **replaces** the task's solver entirely. Solvers do not merge or chain across layers. However, the task's `setup` solver (if any) always runs before the overridden solver. See [Setup Parameter](tasks.qmd#setup-parameter) for details.
@@ -458,11 +436,11 @@ When consuming a task from a package (like `inspect_evals`) and you need to cust
 +--------------------------------------+--------------------------------------------------+
 | Different solver                     | `eval(solver=...)` / `--solver` / `task_with()`  |
 +--------------------------------------+--------------------------------------------------+
-| Different scorer                     | `task_with(task, scorer=...)`                     |
+| Different scorer                     | `task_with(task, scorer=...)`                    |
 +--------------------------------------+--------------------------------------------------+
 | Different grader model               | `--model-role grader=...` / `eval(model_roles=)` |
 +--------------------------------------+--------------------------------------------------+
-| Different metrics                    | `task_with(task, metrics=[...])`                  |
+| Different metrics                    | `task_with(task, metrics=[...])`                 |
 +--------------------------------------+--------------------------------------------------+
 | Subset of samples                    | `--limit` / `--sample-id`                        |
 +--------------------------------------+--------------------------------------------------+
@@ -471,6 +449,6 @@ When consuming a task from a package (like `inspect_evals`) and you need to cust
 
 : {tbl-colwidths=\[35,65\]}
 
-The key insight: **most components except `scorer`, `dataset`, and `metrics` can be overridden without modifying the task's source code**. If the task author uses `get_model(role="grader")` for model-graded scoring, even the grader model becomes overridable at runtime via `--model-role`.
+Most components except `scorer`, `dataset`, and `metrics` can be overridden without modifying the task's source code. If the task author uses `get_model(role="grader")` for model-graded scoring, the grader model becomes overridable at runtime via `--model-role`.
 
 [GenerateConfig]: reference/inspect_ai.model.html#generateconfig
