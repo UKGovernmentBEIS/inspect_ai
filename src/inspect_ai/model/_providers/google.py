@@ -411,6 +411,23 @@ class GoogleGenAIAPI(ModelAPI):
                     http_hooks.end_request(request_id),
                 )
                 return self.handle_client_error(ex), model_call
+            except AttributeError as ex:
+                # The google-genai SDK raises AttributeError when the API returns an
+                # error response whose body is a plain string rather than a JSON object.
+                # In that case ClientError.__init__ calls response_json.get(...) on a
+                # str and crashes before the ClientError is ever constructed, so the
+                # real HTTP error message is lost. Surface it as a RuntimeError instead.
+                message = (
+                    f"Google API returned an error response that could not be parsed "
+                    f"(the response body may not be a JSON object). "
+                    f"This can happen when the model name is not recognised by the "
+                    f"endpoint. Detail: {ex}"
+                )
+                model_call.set_error(
+                    {"error": {"message": message}},
+                    http_hooks.end_request(request_id),
+                )
+                return RuntimeError(message), model_call
 
             assert response is not None  # mypy confused by retry loop
 
