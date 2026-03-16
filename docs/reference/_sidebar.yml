@@ -671,6 +671,8 @@ website:
           href: reference/inspect_ai.event.qmd#spanendevent
         - text: event_tree
           href: reference/inspect_ai.event.qmd#event_tree
+        - text: event_tree_walk
+          href: reference/inspect_ai.event.qmd#event_tree_walk
         - text: event_sequence
           href: reference/inspect_ai.event.qmd#event_sequence
         - text: EventTree
@@ -766,6 +768,8 @@ website:
           href: reference/inspect_ai.util.qmd#input_screen
         - text: span
           href: reference/inspect_ai.util.qmd#span
+        - text: current_span_id
+          href: reference/inspect_ai.util.qmd#current_span_id
         - text: collect
           href: reference/inspect_ai.util.qmd#collect
         - text: resource
