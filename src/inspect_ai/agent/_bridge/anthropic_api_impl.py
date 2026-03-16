@@ -47,6 +47,7 @@ from inspect_ai.model._providers.anthropic import (
     anthropic_extra_body_fields,
     assistant_message_blocks,
     content_and_tool_calls_from_assistant_content_blocks,
+    is_bash_tool,
     is_code_execution_tool,
     is_computer_tool,
     is_text_editor_tool,
@@ -237,7 +238,7 @@ def tools_from_anthropic_tools(
             pass
         elif is_code_execution_tool(anthropic_tool):
             tools.append(code_execution(providers=code_execution_providers))
-        elif anthropic_tool.get("name") == "bash" and not is_tool_param(anthropic_tool):
+        elif is_bash_tool(anthropic_tool):
             tools.append(bash())
         else:
             raise RuntimeError(
