@@ -62,6 +62,7 @@ interface SampleDisplayProps {
   id: string;
   scrollRef: RefObject<HTMLDivElement | null>;
   showActivity: boolean;
+  progress?: number;
   focusOnLoad?: boolean;
 }
 
@@ -72,6 +73,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   scrollRef,
   showActivity,
+  progress,
   focusOnLoad,
 }) => {
   // Tab ids
@@ -356,7 +358,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       {selectedSampleSummary ? (
         <SampleSummaryView parent_id={id} sample={selectedSampleSummary} />
       ) : undefined}
-      <ActivityBar animating={showActivity} />
+      <ActivityBar animating={showActivity} progress={progress} />
 
       {hasSampleData && (
         <TabSet
