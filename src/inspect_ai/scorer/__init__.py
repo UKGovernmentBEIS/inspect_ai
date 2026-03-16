@@ -41,6 +41,7 @@ from ._reducer import (
 from ._score import score
 from ._scorer import Scorer, scorer
 from ._target import Target
+from ._tool import require_tool
 
 __all__ = [
     "includes",
@@ -52,6 +53,7 @@ __all__ = [
     "pattern",
     "f1",
     "exact",
+    "require_tool",
     "AnswerPattern",
     "Scorer",
     "Target",
