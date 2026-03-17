@@ -1,7 +1,12 @@
-## Unreleased
+## 0.3.199 (17 March 2026)
 
 - OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
 - Eval Logs: Replace '+' with '-' in eval log filenames.
+- Google: Log warning when image generation returns inline_data with null data (intermittent API issue).
+- Inspect View: Fix error that prevented samples from being printed.
+- Inspect View: Always render `<think>` tags that appear in assistant messages.
+- Inspect View: Improve nested list formatting in rendered markdown content.
+- Inspect View: Correct display of nested solver > agent in transcripts.
 
 ## 0.3.197 (16 March 2026)
 

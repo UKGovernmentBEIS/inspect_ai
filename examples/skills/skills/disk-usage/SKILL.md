@@ -1,21 +1,20 @@
 ---
 name: disk-usage
-description: Analyze disk space usage and filesystem information including mounts, usage, and large files
+description: Analyze disk space usage, filesystem mounts, and storage allocation on Linux systems. Identifies large files and directories, checks partition usage, and reports inode consumption. Use when the user asks about disk full errors, free space, storage usage, du/df output, finding large files, or checking which directories consume the most space.
 ---
 
 # Disk Usage Skill
 
-Use this skill to analyze disk space and filesystem usage on Linux systems.
+Analyzes disk space and filesystem usage on Linux systems.
 
-## Quick Start
+## Suggested Workflow
 
-Run the included script for a disk usage overview:
+1. Run `./scripts/diskinfo.sh` for a structured overview of mounts, block devices, and top directories.
+2. Check `df -h` output for any filesystem above 80% usage.
+3. Drill into high-usage mounts with `du -h --max-depth=1 /mount` to find large subdirectories.
+4. Locate specific large files with `find /path -type f -size +100M`.
 
-```bash
-./scripts/diskinfo.sh
-```
-
-## Manual Commands
+## Commands Reference
 
 ### Filesystem Overview
 - `df -h` - Disk space usage for all mounted filesystems (human-readable)
@@ -41,6 +40,5 @@ Run the included script for a disk usage overview:
 ## Tips
 
 - Always use `-h` for human-readable sizes
-- The `du` command can be slow on large directories
-- Use `--max-depth=1` to limit recursion depth
+- The `du` command can be slow on large directories; use `--max-depth=1` to limit recursion
 - Root filesystem (`/`) usage above 90% may cause issues

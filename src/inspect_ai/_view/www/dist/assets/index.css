@@ -14351,6 +14351,7 @@ body {
   --ag-header-font-size: var(--inspect-font-size-small);
   --ag-header-font-weight: 500;
   --ag-header-text-color: var(--bs-secondary);
+
   --ag-font-family: var(--bs-body-font-family);
   --ag-wrapper-border: none;
   --ag-row-hover-color: var(--bs-secondary-bg-subtle);
@@ -14379,6 +14380,15 @@ a:hover {
 
 .modal {
   --bs-modal-margin: 0.25rem;
+}
+
+li > p {
+  margin-bottom: 0;
+}
+
+li > ol,
+li > ul {
+  margin-bottom: 0.5rem;
 }
 
 .modal-backdrop {

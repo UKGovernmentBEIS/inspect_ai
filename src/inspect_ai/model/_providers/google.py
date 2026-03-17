@@ -1354,6 +1354,12 @@ def completion_choice_from_candidate(
                                 )
                                 continue
                             content.append(ContentAudio(audio=data_uri, format=fmt))
+                    else:
+                        logger.warning(
+                            f"Received inline_data part with mime_type "
+                            f"'{blob.mime_type}' but data was None — "
+                            f"content dropped (intermittent API issue)."
+                        )
                 continue  # Skip other non-text/non-executable_code parts
 
             if part.code_execution_result is not None:
