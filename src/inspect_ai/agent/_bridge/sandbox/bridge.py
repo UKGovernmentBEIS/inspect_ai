@@ -1,5 +1,4 @@
 import contextlib
-import sys
 from collections.abc import Sequence
 from logging import getLogger
 from typing import AsyncIterator

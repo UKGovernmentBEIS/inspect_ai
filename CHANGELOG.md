@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+
 ## 0.3.199 (17 March 2026)
 
 - OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
