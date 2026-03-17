@@ -185,3 +185,42 @@ class TestLogFileInfoHeaderFallback:
         result2 = log_file_info(info)
         assert result1.task == result2.task
         assert result1.task_id == result2.task_id
+
+
+class TestListEvalLogsIntegration:
+    """Integration tests verifying log_file_info works through list_eval_logs."""
+
+    def test_mixed_filenames_all_resolve(self, tmp_path):
+        """list_eval_logs returns correct task for both native and custom names."""
+        from inspect_ai.log import list_eval_logs
+
+        # Create a native-named eval (timestamp prefix -> fast path)
+        native_header = _make_full_header(
+            task="native_task", task_id="nativeid"
+        )
+        _make_eval_zip(
+            str(tmp_path / "2026-01-01T00-00-00_nativetask_nativeid.eval"),
+            native_header,
+        )
+
+        # Create a custom-named eval (no timestamp -> header fallback)
+        custom_header = _make_full_header(
+            task="custom_task", task_id="custom_id", model="custom-model"
+        )
+        _make_eval_zip(
+            str(tmp_path / "my_custom_eval.eval"),
+            custom_header,
+        )
+
+        logs = list_eval_logs(str(tmp_path), recursive=False)
+        assert len(logs) == 2
+
+        by_name = {os.path.basename(log.name): log for log in logs}
+
+        native = by_name["2026-01-01T00-00-00_nativetask_nativeid.eval"]
+        assert native.task == "nativetask"
+        assert native.task_id == "nativeid"
+
+        custom = by_name["my_custom_eval.eval"]
+        assert custom.task == "custom_task"
+        assert custom.task_id == "custom_id"
