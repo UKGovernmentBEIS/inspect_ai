@@ -115,3 +115,73 @@ class TestLogFileInfoNativeParse:
         result = log_file_info(info)
         assert result.task == "mytask"
         assert result.task_id == "abc123"
+
+
+class TestLogFileInfoHeaderFallback:
+    """TDD Red Phase: tests for the fallback path.
+
+    Custom filenames (no ISO timestamp prefix) should trigger header reading.
+    These tests FAIL on current code and PASS after implementation.
+    """
+
+    def test_custom_filename_reads_header(self, tmp_path):
+        """Non-standard filename triggers header.json read for task/task_id."""
+        header = _make_full_header(
+            task="g2a_simlex999",
+            task_id="g2a_simlex999_2026-03-15T11:50:37",
+            model="intfloat/e5-small-v2",
+        )
+        eval_path = tmp_path / "hf_e5_small_g2a.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result = log_file_info(info)
+        assert result.task == "g2a_simlex999"
+        assert result.task_id == "g2a_simlex999_2026-03-15T11:50:37"
+
+    def test_numeric_prefix_not_timestamp(self, tmp_path):
+        """Filename starting with digits but not ISO timestamp triggers fallback."""
+        header = _make_full_header(task="numeric_test", task_id="num_id")
+        eval_path = tmp_path / "2026_custom_eval.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result = log_file_info(info)
+        assert result.task == "numeric_test"
+        assert result.task_id == "num_id"
+
+    def test_corrupt_file_degrades_gracefully(self, tmp_path):
+        """Non-ZIP file with custom name returns empty task, no exception."""
+        bad_path = tmp_path / "bad_name.eval"
+        bad_path.write_bytes(b"this is not a zip file")
+
+        info = _make_fileinfo(str(bad_path), size=22)
+        result = log_file_info(info)
+        assert result.task == ""
+        assert result.task_id == ""
+
+    def test_partial_header_missing_task_id(self, tmp_path):
+        """Header with task but omitting task_id returns Pydantic default ("")."""
+        # Build full header but remove task_id so Pydantic uses default
+        header = _make_full_header(task="onlytask")
+        del header["eval"]["task_id"]
+        eval_path = tmp_path / "partial_header.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result = log_file_info(info)
+        assert result.task == "onlytask"
+        # EvalSpec.task_id has Field(default_factory=str) -> defaults to ""
+        assert result.task_id == ""
+
+    def test_determinism(self, tmp_path):
+        """Calling log_file_info twice on same file returns identical results."""
+        header = _make_full_header(task="det_test", task_id="det_id")
+        eval_path = tmp_path / "determinism_test.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result1 = log_file_info(info)
+        result2 = log_file_info(info)
+        assert result1.task == result2.task
+        assert result1.task_id == result2.task_id
