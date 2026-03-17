@@ -12,6 +12,7 @@
 - Timelines: Enable specifying `name` and/or `description` when calling `timeline_build()`
 - Timelines: Correct deserialization behavior for timelines in `read_eval_log()`, etc.
 - Inspect View: Add 'None' preset when choosing transcript events to display.
+- Inspect View: Add middle-click support to open tasks and samples in a new browser tab.
 
 ## 0.3.195 (14 March 2026)
 
