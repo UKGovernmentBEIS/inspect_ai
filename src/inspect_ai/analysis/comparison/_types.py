@@ -198,10 +198,7 @@ class ComparisonResult:
             for m, name in zip(self.metrics, metric_names):
                 if m.effect_size is not None:
                     d = abs(m.effect_size)
-                    size = (
-                        "small" if d < 0.5
-                        else ("medium" if d < 0.8 else "large")
-                    )
+                    size = "small" if d < 0.5 else ("medium" if d < 0.8 else "large")
                     lines.append(
                         f"  Effect size ({name}): "
                         f"Cohen's d = {m.effect_size:+.2f} ({size} effect)"
