@@ -162,27 +162,50 @@ class ComparisonResult:
         ]
 
         if self.metrics:
-            lines.append(
-                f"{'Metric':<30} {'Baseline':>10} {'Candidate':>10} "
-                f"{'Delta':>10} {'Sig.':>8}"
+            # Compute column widths from data
+            metric_names = [f"{m.scorer}/{m.name}" for m in self.metrics]
+            name_width = max(len(n) for n in metric_names) + 2
+
+            header = (
+                f"  {'Metric':<{name_width}}"
+                f"{'Baseline':>10}"
+                f"{'Candidate':>11}"
+                f"{'Delta':>18}"
+                f"{'Sig.':>12}"
             )
-            lines.append("-" * 72)
-            for m in self.metrics:
-                sig_str = ""
-                if m.p_value is not None:
-                    sig_str = f"p={m.p_value:.3f}" if not m.significant else f"p={m.p_value:.3f}*"
-                effect = ""
-                if m.effect_size is not None:
-                    d = abs(m.effect_size)
-                    size = "small" if d < 0.5 else ("medium" if d < 0.8 else "large")
-                    effect = f" ({size})"
+            lines.append(header)
+            lines.append("  " + "-" * (len(header) - 2))
+
+            for m, name in zip(self.metrics, metric_names):
                 delta_str = f"{m.delta:+.4f}"
                 if m.relative_delta is not None:
                     delta_str += f" ({m.relative_delta:+.1%})"
+
+                sig_str = ""
+                if m.p_value is not None:
+                    sig_str = f"p={m.p_value:.3f}"
+                    if m.significant:
+                        sig_str += "*"
+
                 lines.append(
-                    f"  {m.scorer}/{m.name:<26} {m.baseline_value:>10.4f} "
-                    f"{m.candidate_value:>10.4f} {delta_str:>10} {sig_str:>8}{effect}"
+                    f"  {name:<{name_width}}"
+                    f"{m.baseline_value:>10.4f}"
+                    f"{m.candidate_value:>11.4f}"
+                    f"{delta_str:>18}"
+                    f"  {sig_str}"
                 )
+            # Effect size summary (separate from significance)
+            for m, name in zip(self.metrics, metric_names):
+                if m.effect_size is not None:
+                    d = abs(m.effect_size)
+                    size = (
+                        "small" if d < 0.5
+                        else ("medium" if d < 0.8 else "large")
+                    )
+                    lines.append(
+                        f"  Effect size ({name}): "
+                        f"Cohen's d = {m.effect_size:+.2f} ({size} effect)"
+                    )
             lines.append("")
 
         c = self._direction_counts
