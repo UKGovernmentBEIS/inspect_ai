@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from logging import getLogger
 from pathlib import Path
+from typing import Literal
 
 from inspect_ai.analysis.comparison._alignment import AlignedSample, align_samples
 from inspect_ai.analysis.comparison._statistics import (
@@ -159,6 +160,7 @@ def _compare_samples(
             bl_score = _extract_score(pair.baseline, scorer)
             cd_score = _extract_score(pair.candidate, scorer)
 
+            direction: Literal["improved", "regressed", "unchanged", "new", "missing"]
             if pair.baseline is None:
                 direction = "new"
                 delta = None
