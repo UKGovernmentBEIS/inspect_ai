@@ -2,6 +2,8 @@
 
 - OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
 - Eval Logs: Replace '+' with '-' in eval log filenames.
+- Google: Log warning when image generation returns inline_data with null data (intermittent API issue).
+- Inspect View: Fix error that prevented samples from being printed.
 
 ## 0.3.197 (16 March 2026)
 
