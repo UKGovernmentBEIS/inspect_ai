@@ -1,6 +1,8 @@
-## Unreleased
+## 0.3.197 (16 March 2026)
 
+- Anthropic: Agent bridge now maps native bash tool to standard `bash()` tool.
 - Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
+- Hooks: Add eval context id fields to `ModelUsageData` hook.
 
 ## 0.3.196 (16 March 2026)
 
@@ -10,6 +12,7 @@
 - Timelines: Enable specifying `name` and/or `description` when calling `timeline_build()`
 - Timelines: Correct deserialization behavior for timelines in `read_eval_log()`, etc.
 - Inspect View: Add 'None' preset when choosing transcript events to display.
+- Inspect View: Add middle-click support to open tasks and samples in a new browser tab.
 
 ## 0.3.195 (14 March 2026)
 
