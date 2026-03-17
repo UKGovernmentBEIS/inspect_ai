@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   ColumnResizedEvent,
   IRowNode,
   RowClickedEvent,
@@ -160,6 +161,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   );
 
   const gridContainerRef = useRef<HTMLDivElement>(null);
+
   const handleKeyDown = useMemo(
     () =>
       createGridKeyboardHandler<SampleListItem>({
@@ -172,10 +174,28 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   useEffect(() => {
     const el = gridContainerRef.current;
     if (!el) return;
-    const handler = handleKeyDown as (e: Event) => void;
-    el.addEventListener("keydown", handler);
-    return () => el.removeEventListener("keydown", handler);
+
+    el.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      el.removeEventListener("keydown", handleKeyDown);
+    };
   }, [handleKeyDown]);
+
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<SampleListItem>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data) {
+        mouseEvent.preventDefault();
+        const url = sampleNavigation.getSampleUrl(
+          e.data.data.id,
+          e.data.data.epoch,
+        );
+        if (url) window.open(url, "_blank");
+      }
+    },
+    [sampleNavigation],
+  );
 
   const selectCurrentSample = useCallback(() => {
     if (!listHandle.current?.api || !selectedSampleHandle) {
@@ -304,6 +324,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           getRowId={getRowId}
           rowSelection={{ mode: "singleRow", checkboxes: false }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onColumnResized={handleColumnResized}
           theme={themeBalham}
           enableCellTextSelection={true}
