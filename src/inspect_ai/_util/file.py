@@ -1,5 +1,6 @@
 import datetime
 import io
+import logging
 import os
 import re
 import string
@@ -493,6 +494,42 @@ def safe_filename(s: str, max_length: int = 255) -> str:
 # parse components out later without worrying about underscores
 def clean_filename_component(component: str) -> str:
     return component.replace("_", "-").replace("/", "-").replace(":", "-")
+
+
+logger = logging.getLogger(__name__)
+
+
+async def cleanup_s3_sessions() -> None:
+    """Close cached S3FileSystem sessions to prevent 'Unclosed connector' errors.
+
+    s3fs caches S3FileSystem instances via fsspec's instance cache. Each holds an
+    aiobotocore client with an open aiohttp.ClientSession. At process exit, s3fs's
+    weakref finalizer fails to close these properly due to a bug in its close_session
+    method (it accesses _connector instead of _sessions on AIOHTTPSession), causing
+    aiohttp.ClientSession.__del__ to emit 'Unclosed client session' / 'Unclosed
+    connector' warnings. See https://github.com/fsspec/s3fs/issues/943
+
+    This function explicitly closes the sessions via the proper async cleanup path
+    and clears the instance cache so the weakref finalizer has nothing to do.
+    """
+    instances = list(S3FileSystem._cache.values())
+    if not instances:
+        return
+
+    for instance in instances:
+        s3creator = getattr(instance, "_s3creator", None)
+        if s3creator is not None:
+            try:
+                await s3creator.__aexit__(None, None, None)
+            except (OSError, RuntimeError, AttributeError):
+                pass
+
+    try:
+        S3FileSystem.clear_instance_cache()
+    except Exception:
+        logger.debug("Failed to clear S3FileSystem instance cache", exc_info=True)
+    else:
+        logger.debug("Cleaned up %d cached S3FileSystem instance(s)", len(instances))
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(

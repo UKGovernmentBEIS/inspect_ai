@@ -1,4 +1,8 @@
-from inspect_ai._util.file import basename, filesystem
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from inspect_ai._util.file import basename, cleanup_s3_sessions, filesystem
 
 
 def test_basename():
@@ -22,3 +26,59 @@ def test_filesystem_file_info():
     info = memory_filesystem.info("test_file")
     assert info.name == "memory:///test_file"
     assert info.size == 0
+
+
+@pytest.mark.anyio
+async def test_cleanup_s3_sessions_no_instances():
+    """cleanup_s3_sessions is a no-op when there are no cached instances."""
+    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+        mock_s3fs._cache = {}
+        await cleanup_s3_sessions()
+        mock_s3fs.clear_instance_cache.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_cleanup_s3_sessions_closes_creator():
+    """cleanup_s3_sessions calls __aexit__ on each cached instance's _s3creator."""
+    mock_creator = AsyncMock()
+    mock_instance = MagicMock()
+    mock_instance._s3creator = mock_creator
+
+    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+        mock_s3fs._cache = {"key": mock_instance}
+        await cleanup_s3_sessions()
+
+        mock_creator.__aexit__.assert_awaited_once_with(None, None, None)
+        mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_cleanup_s3_sessions_handles_errors():
+    """cleanup_s3_sessions continues if __aexit__ raises."""
+    mock_creator = AsyncMock()
+    mock_creator.__aexit__.side_effect = OSError("connection closed")
+    mock_instance = MagicMock()
+    mock_instance._s3creator = mock_creator
+
+    mock_creator2 = AsyncMock()
+    mock_instance2 = MagicMock()
+    mock_instance2._s3creator = mock_creator2
+
+    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+        mock_s3fs._cache = {"k1": mock_instance, "k2": mock_instance2}
+        await cleanup_s3_sessions()
+
+        mock_creator2.__aexit__.assert_awaited_once_with(None, None, None)
+        mock_s3fs.clear_instance_cache.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_cleanup_s3_sessions_no_s3creator():
+    """cleanup_s3_sessions skips instances without _s3creator."""
+    mock_instance = MagicMock(spec=[])
+
+    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+        mock_s3fs._cache = {"key": mock_instance}
+        await cleanup_s3_sessions()
+
+        mock_s3fs.clear_instance_cache.assert_called_once()
