@@ -704,32 +704,76 @@ def is_log_file(file: str, extensions: list[str]) -> bool:
         )
 
 
+def _try_parse_filename(
+    parts: list[str],
+) -> tuple[str | None, str | None, str | None]:
+    """Parse task/task_id/suffix from filename parts.
+
+    Returns (None, None, None) if the filename does not match
+    the expected {timestamp}_{task}_{id} pattern.
+    """
+    if len(parts) < 2:
+        return None, None, None
+
+    # Validate that parts[0] looks like an ISO timestamp prefix
+    if not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}", parts[0]):
+        return None, None, None
+
+    if len(parts) == 2:
+        return parts[1], "", None
+
+    # 3+ parts: {ts}_{task}_{id} or {ts}_{task}_{model}_{id}
+    last_idx = 3 if len(parts) > 3 else 2
+    task = parts[1]
+    part3 = parts[last_idx].split("-")
+    task_id = part3[0]
+    suffix = part3[1] if len(part3) > 1 else None
+    return task, task_id, suffix
+
+
+def _try_read_header(
+    name: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Attempt to read task/task_id from the eval log header.
+
+    Only called when filename parsing fails. Uses read_eval_log
+    with header_only=True, which handles local and remote (S3/GCS)
+    filesystems transparently.
+
+    Returns (None, None, None) on any error so callers degrade gracefully.
+    Suffix is not available in header.json.
+    """
+    try:
+        # read_eval_log is defined earlier in this same file.
+        # It is synchronous. log_file_info callers (log_files_from_ls)
+        # run synchronously even when called from async paths
+        # (common.py:385 calls log_files_from_ls directly, not awaited).
+        log = read_eval_log(name, header_only=True)
+        return log.eval.task, log.eval.task_id, None
+    except Exception as e:
+        logger.debug(f"Failed to read header from {name}: {e}")
+        return None, None, None
+
+
 def log_file_info(info: FileInfo) -> "EvalLogInfo":
     # extract the basename and split into parts
-    # (deal with previous logs had the model in their name)
     basename = os.path.splitext(info.name)[0]
     parts = basename.split("/").pop().split("_")
-    if len(parts) == 1:
-        task = ""
-        task_id = ""
-        suffix = None
-    elif len(parts) == 2:
-        task = parts[1]
-        task_id = ""
-        suffix = None
-    else:
-        last_idx = 3 if len(parts) > 3 else 2
-        task = parts[1]
-        part3 = parts[last_idx].split("-")
-        task_id = part3[0]
-        suffix = task_id[2] if len(part3) > 1 else None
+
+    # Try native filename parse first (requires ISO timestamp prefix)
+    task, task_id, suffix = _try_parse_filename(parts)
+
+    if task is None:
+        # Filename parse failed — fallback to reading eval log header
+        task, task_id, suffix = _try_read_header(info.name)
+
     return EvalLogInfo(
         name=info.name,
         type=info.type,
         size=info.size,
         mtime=info.mtime,
-        task=task,
-        task_id=task_id,
+        task=task or "",
+        task_id=task_id or "",
         suffix=suffix,
     )
 
