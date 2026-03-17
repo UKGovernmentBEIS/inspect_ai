@@ -185,6 +185,11 @@ class ComparisonResult:
         )
 
         if self.win_rate is not None:
-            lines.append(f"Win rate: {self.win_rate:.1%}")
+            lines.append(
+                f"Win rate: {self.win_rate:.1%} "
+                f"({self.candidate_model} beat {self.baseline_model} "
+                f"on {self._direction_counts['improved']} of "
+                f"{self.aligned_count} samples)"
+            )
 
         return "\n".join(lines)
