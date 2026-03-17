@@ -851,11 +851,7 @@ def responses_reasoning_from_reasoning(
     encrypted_content: str | None = content.reasoning if content.redacted else None
 
     content_params: list[ContentParam] = []
-    if content.redacted and content.summary:
-        content_params.append(
-            ContentParam(type="reasoning_text", text=content.summary)
-        )
-    elif not content.redacted and content.reasoning:
+    if not content.redacted and content.reasoning:
         content_params.append(
             ContentParam(type="reasoning_text", text=content.reasoning)
         )

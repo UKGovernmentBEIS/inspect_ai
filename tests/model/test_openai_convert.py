@@ -599,7 +599,7 @@ def test_reasoning_from_responses_encrypted_with_api_summary() -> None:
 
 
 def test_replay_redacted_with_summary() -> None:
-    """Redacted format: encrypted in reasoning, readable in summary."""
+    """Redacted format: encrypted in reasoning, readable text not sent back as content."""
     content = ContentReasoning(
         reasoning="ENCRYPTED_BLOB",
         summary="readable thinking",
@@ -607,10 +607,10 @@ def test_replay_redacted_with_summary() -> None:
         signature="rs_123",
     )
     result = responses_reasoning_from_reasoning(content)
-    result_content = list(result["content"])
     assert result["encrypted_content"] == "ENCRYPTED_BLOB"
-    assert len(result_content) == 1
-    assert result_content[0]["text"] == "readable thinking"
+    # OpenAI API requires content to be empty when encrypted_content is present
+    assert list(result["content"]) == []
+    assert list(result["summary"]) == []
     assert result["id"] == "rs_123"
 
 
@@ -645,7 +645,7 @@ def test_replay_no_encrypted_content() -> None:
 
 
 def test_reasoning_round_trip_preserves_encrypted() -> None:
-    """Ingest then replay preserves both readable text and encrypted content."""
+    """Ingest then replay preserves encrypted content; readable text kept in summary only."""
     item = ResponseReasoningItem.model_construct(
         id="rs_rt",
         type="reasoning",
@@ -654,9 +654,12 @@ def test_reasoning_round_trip_preserves_encrypted() -> None:
         summary=[],
     )
     content = reasoning_from_responses_reasoning(item)
+    # Readable text stored in summary for display
+    assert content.summary == "readable"
+    assert content.redacted is True
+    # On replay, only encrypted_content is sent (API rejects content + encrypted_content)
     replayed = responses_reasoning_from_reasoning(content)
-    replayed_content = list(replayed["content"])
     assert replayed["encrypted_content"] == "ENCRYPTED"
-    assert len(replayed_content) == 1
-    assert replayed_content[0]["text"] == "readable"
+    assert list(replayed["content"]) == []
+    assert list(replayed["summary"]) == []
     assert replayed["id"] == "rs_rt"
