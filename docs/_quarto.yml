@@ -73,8 +73,10 @@ website:
                  href: vscode.qmd
 
          - section: "Components"
-           contents: 
+           contents:
                - tasks.qmd
+               - text: Task Config
+                 href: task-configuration.qmd
                - datasets.qmd
                - solvers.qmd
                - scorers.qmd
