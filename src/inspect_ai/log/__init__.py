@@ -36,7 +36,6 @@ from ._file import (
 from ._log import (
     EvalConfig,
     EvalDataset,
-    EventsData,
     EvalLog,
     EvalMetric,
     EvalPlan,
@@ -52,6 +51,7 @@ from ._log import (
     EvalSpec,
     EvalStats,
     EvalStatus,
+    EventsData,
 )
 from ._metric import recompute_metrics
 from ._pool import resolve_sample_events_data
