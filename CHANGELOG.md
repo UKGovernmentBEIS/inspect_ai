@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.198 (17 March 2026)
 
 - OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
 - Eval Logs: Replace '+' with '-' in eval log filenames.
