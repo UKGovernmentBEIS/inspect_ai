@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from logging import getLogger
-from math import erfc, sqrt
+from math import erfc, log as _log, sqrt
 
 import numpy as np
 
@@ -161,7 +161,7 @@ def mcnemars_test(
     n = len(baseline_correct)
     diff = (c - b) / n
     se = np.sqrt((b + c - (b - c) ** 2 / n) / n**2) if n > 0 else 0.0
-    z = 1.96  # 95% CI
+    z = _normal_ppf(1 - significance / 2)
     ci_lower = float(diff - z * se)
     ci_upper = float(diff + z * se)
 
@@ -235,8 +235,9 @@ def permutation_test(
         indices = rng.integers(0, n, size=n)
         boot_means[i] = np.mean(diffs[indices])
 
-    ci_lower = float(np.percentile(boot_means, 2.5))
-    ci_upper = float(np.percentile(boot_means, 97.5))
+    alpha = significance / 2
+    ci_lower = float(np.percentile(boot_means, 100 * alpha))
+    ci_upper = float(np.percentile(boot_means, 100 * (1 - alpha)))
 
     return SignificanceResult(
         significant=p_value < significance,
@@ -245,6 +246,19 @@ def permutation_test(
         ci_upper=ci_upper,
         method="permutation",
     )
+
+
+def _normal_ppf(p: float) -> float:
+    """Inverse CDF of standard normal (Abramowitz and Stegun 26.2.23)."""
+    if p <= 0 or p >= 1:
+        return 0.0
+    t = sqrt(-2.0 * _log(1.0 - p if p > 0.5 else p))
+    c0, c1, c2 = 2.515517, 0.802853, 0.010328
+    d1, d2, d3 = 1.432788, 0.189269, 0.001308
+    result = t - (c0 + c1 * t + c2 * t * t) / (
+        1 + d1 * t + d2 * t * t + d3 * t * t * t
+    )
+    return result if p > 0.5 else -result
 
 
 def _chi2_sf(x: float, df: int = 1) -> float:

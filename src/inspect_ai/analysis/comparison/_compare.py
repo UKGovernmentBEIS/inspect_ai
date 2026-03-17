@@ -7,6 +7,7 @@ runs significance tests, and returns a structured ComparisonResult.
 from __future__ import annotations
 
 from logging import getLogger
+from math import isfinite
 from pathlib import Path
 from typing import Literal
 
@@ -232,12 +233,18 @@ def _compare_metrics(
                     bl_scores, cd_scores, significance=significance
                 )
 
+        # Significance test applies to the primary metric (accuracy for binary,
+        # mean for continuous). Other metrics (stderr, etc.) get no significance
+        # result since the test was not run on their specific values.
+        primary_metrics = {"accuracy", "mean"}
+
         for metric_name in sorted(common_metrics):
             bl_val = bl_scorer_metrics[metric_name]
             cd_val = cd_scorer_metrics[metric_name]
             delta = cd_val - bl_val
             rel_delta = delta / bl_val if bl_val != 0 else None
 
+            is_primary = metric_name in primary_metrics
             comparisons.append(
                 MetricComparison(
                     name=metric_name,
@@ -246,10 +253,12 @@ def _compare_metrics(
                     candidate_value=cd_val,
                     delta=delta,
                     relative_delta=rel_delta,
-                    significant=sig_result.significant if sig_result else False,
-                    p_value=sig_result.p_value if sig_result else None,
-                    ci_lower=sig_result.ci_lower if sig_result else None,
-                    ci_upper=sig_result.ci_upper if sig_result else None,
+                    significant=(
+                        sig_result.significant if sig_result and is_primary else False
+                    ),
+                    p_value=sig_result.p_value if sig_result and is_primary else None,
+                    ci_lower=sig_result.ci_lower if sig_result and is_primary else None,
+                    ci_upper=sig_result.ci_upper if sig_result and is_primary else None,
                 )
             )
 
@@ -276,8 +285,13 @@ def _extract_score(sample: EvalSample | None, scorer: str) -> float | None:
     score = sample.scores.get(scorer)
     if score is None:
         return None
+    if isinstance(score.value, (dict, list)):
+        return None
     try:
-        return _to_float(score.value)
+        val = _to_float(score.value)
+        if not isfinite(val):
+            return None
+        return val
     except (ValueError, TypeError):
         return None
 
