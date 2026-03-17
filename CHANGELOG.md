@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+- Inspect View: Improve reliability of scrolling to bottom of long transcripts.
 
 ## 0.3.199 (17 March 2026)
 
