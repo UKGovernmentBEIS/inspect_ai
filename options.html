@@ -254,6 +254,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./task-configuration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task Config</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./datasets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Datasets</span></a>
   </div>
@@ -558,7 +564,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interctions. These options fall into roughly two categories:</p>
+<p>Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interactions. These options fall into roughly two categories:</p>
 <ol type="1">
 <li><p>Options that you want to set on a more durable basis (for a project or session).</p></li>
 <li><p>Options that you want to tweak per-eval to accommodate particular scenarios.</p></li>
@@ -584,7 +590,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_CONNECTIONS</span><span class="ch">=</span><span class="st">20</span></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MODEL</span><span class="ch">=</span><span class="st">anthropic/claude-3-5-sonnet-20240620</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>All command line options can also be set via environment variable by using the <code>INSPECT_EVAL_</code> prefix.</p>
+<p>All command line options can also be set via environment variable, most commonly by using the <code>INSPECT_EVAL_</code> prefix. Exceptions are noted below.</p>
 <p>Note that <code>.env</code> files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an <code>.env</code> file, it will still be read and resolved. If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as relative to that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
 <div class="callout callout-style-simple callout-important">
 <div class="callout-body d-flex">
@@ -636,6 +642,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<p>For more detail on the different methods of configuration, see <a href="./task-configuration.html">Task Configuration</a>.</p>
 </section>
 <section id="model-provider" class="level2">
 <h2 class="anchored" data-anchor-id="model-provider">Model Provider</h2>
@@ -661,6 +668,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>-M</code></td>
 <td>Model specific arguments (<code>key=value</code>).</td>
 </tr>
+<tr class="odd">
+<td><code>--model-role</code></td>
+<td>Named model role with model name or config (e.g.&nbsp;<code>grader=openai/gpt-4o</code>). See <a href="./models.html#model-roles">Model Roles</a>.</td>
+</tr>
 </tbody>
 </table>
 </section>
@@ -673,110 +684,114 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </colgroup>
 <tbody>
 <tr class="odd">
+<td><code>--generate-config</code></td>
+<td>YAML or JSON config file with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> fields (alternatively, use the individual options below). See <a href="./task-configuration.html#generate-config">Generation Config</a>.</td>
+</tr>
+<tr class="even">
 <td><code>--max-tokens</code></td>
 <td>The maximum number of tokens that can be generated in the completion (default is model specific)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--system-message</code></td>
 <td>Override the default system message.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--temperature</code></td>
 <td>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--top-p</code></td>
 <td>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--top-k</code></td>
 <td>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--frequency-penalty</code></td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--presence-penalty</code></td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--logit-bias</code></td>
 <td>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI and Grok only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--seed</code></td>
 <td>Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--stop-seqs</code></td>
 <td>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--num-choices</code></td>
 <td>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--best-of</code></td>
 <td>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-probs</code></td>
 <td>Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--top-logprobs</code></td>
 <td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--cache-prompt</code></td>
 <td>Values: <code>auto</code>, <code>true</code>, or <code>false</code>. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--effort</code></td>
 <td>Values: <code>low</code>, <code>medium</code>, <code>high</code>, or <code>max</code>. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (<code>max</code> only supported on 4.6).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--verbosity</code></td>
 <td>Values <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-effort</code></td>
 <td>Values: <code>none</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-tokens</code></td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-history</code></td>
 <td>Values: <code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--response-format</code></td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--parallel-tool-calls</code></td>
 <td>Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-tool-output</code></td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--internal-tools</code></td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for Anthropic).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-retries</code></td>
 <td>Maximum number of times to retry generate request (defaults to unlimited)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--timeout</code></td>
 <td>Generate timeout in seconds (defaults to no timeout)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--attempt-timeout</code></td>
 <td>Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 </tr>
@@ -813,6 +828,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
+<p>For a complete matrix of which task, solver, and runtime settings can be configured on <code>Task()</code>, with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, or on the CLI, see the <a href="./task-configuration.html#override-reference">override reference</a>.</p>
 </section>
 <section id="sample-selection" class="level2">
 <h2 class="anchored" data-anchor-id="sample-selection">Sample Selection</h2>
@@ -932,7 +948,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </colgroup>
 <tbody>
 <tr class="odd">
-<td><code>--log-dir</code></td>
+<td><code>--log-dir</code> / <code>INSPECT_LOG_DIR</code></td>
 <td>Directory for log files (defaults to <code>./logs</code>)</td>
 </tr>
 <tr class="even">
@@ -956,15 +972,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify <code>True</code> to sync every 10 seconds, otherwise an integer to sync every <code>n</code> seconds.</td>
 </tr>
 <tr class="odd">
-<td><code>--log-format</code></td>
+<td><code>--log-format</code> / <code>INSPECT_LOG_FORMAT</code></td>
 <td>Values: <code>eval</code>, <code>json</code> Format for writing log files (defaults to <code>eval</code>).</td>
 </tr>
 <tr class="even">
-<td><code>--log-level</code></td>
+<td><code>--log-level</code> / <code>INSPECT_LOG_LEVEL</code></td>
 <td>Python logger level for console. Values: <code>debug</code>, <code>trace</code>, <code>http</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code> (defaults to <code>warning</code>)</td>
 </tr>
 <tr class="odd">
-<td><code>--log-level-transcript</code></td>
+<td><code>--log-level-transcript</code> / <code>INSPECT_LOG_LEVEL_TRANSCRIPT</code></td>
 <td>Python logger level for eval log transcript (values same as <code>--log-level</code>, defaults to <code>info</code>).</td>
 </tr>
 </tbody>
@@ -1017,19 +1033,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </colgroup>
 <tbody>
 <tr class="odd">
-<td><code>--debug</code></td>
+<td><code>--debug</code> / <code>INSPECT_DEBUG</code></td>
 <td>Wait to attach debugger</td>
 </tr>
 <tr class="even">
-<td><code>--debug-port</code></td>
+<td><code>--debug-port</code> / <code>INSPECT_DEBUG_PORT</code></td>
 <td>Port number for debugger</td>
 </tr>
 <tr class="odd">
-<td><code>--debug-errors</code></td>
+<td><code>--debug-errors</code> / <code>INSPECT_DEBUG_ERRORS</code></td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 </tr>
 <tr class="even">
-<td><code>--traceback-locals</code></td>
+<td><code>--traceback-locals</code> / <code>INSPECT_TRACEBACK_LOCALS</code></td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 </tr>
 </tbody>
@@ -1044,26 +1060,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </colgroup>
 <tbody>
 <tr class="odd">
-<td><code>--display</code></td>
+<td><code>--display</code> / <code>INSPECT_DISPLAY</code></td>
 <td>Display type. Values: <code>full</code>, <code>conversation</code>, <code>rich</code>, <code>plain</code>, <code>log</code>, <code>none</code> (defaults to <code>full</code>).</td>
 </tr>
 <tr class="even">
+<td><code>--no-ansi</code> / <code>INSPECT_NO_ANSI</code></td>
+<td>Do not print ANSI control characters.</td>
+</tr>
+<tr class="odd">
 <td><code>--approval</code></td>
 <td>Config file for tool call approval.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--env</code></td>
 <td>Set an environment variable (multiple instances of <code>--env</code> are permitted).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--tags</code></td>
 <td>Tags to associate with this evaluation run.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--metadata</code></td>
 <td>Metadata to associate with this evaluation run (<code>key=value</code>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--help</code></td>
 <td>Display help for command options.</td>
 </tr>

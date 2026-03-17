@@ -65,7 +65,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./datasets.html" rel="next">
+<link href="./task-configuration.html" rel="next">
 <link href="./vscode.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
@@ -250,6 +250,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./tasks.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./task-configuration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task Config</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -716,6 +722,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>Reference this file from the CLI with:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval security.py <span class="at">--task-config</span><span class="op">=</span>config.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>For a broader view of how task parameters relate to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, environment variables, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, and CLI overrides, see <a href="./task-configuration.html">Task Configuration</a>.</p>
 </section>
 <section id="solvers" class="level2">
 <h2 class="anchored" data-anchor-id="solvers">Solvers</h2>
@@ -840,6 +847,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="task-reuse">Task Reuse</h2>
 <p>The basic mechanism for task re-use is to create flexible and adaptable base <code>@task</code> functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional <code>@task</code> functions that call the base function.</p>
 <p>In some cases though you might not have full control over the base <code>@task</code> function (e.g.&nbsp;it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> function, which provides a straightforward way to modify the properties of an existing task.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Tip
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>For a comprehensive reference on all configuration and override mechanisms — including <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> overrides, CLI flags, and precedence rules — see <a href="./task-configuration.html">Task Configuration</a>.</p>
+</div>
+</div>
 <p>For example, imagine you are dealing with a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> that hard-codes its <code>sandbox</code> to a particular Dockerfile included with the task, and further hard codes its <code>solver</code> to a simple agent:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
@@ -1496,8 +1516,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./datasets.html" class="pagination-link" aria-label="Datasets">
-        <span class="nav-page-text">Datasets</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./task-configuration.html" class="pagination-link" aria-label="Task Config">
+        <span class="nav-page-text">Task Config</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

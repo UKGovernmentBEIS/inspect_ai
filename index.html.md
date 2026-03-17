@@ -259,6 +259,9 @@ evaluations.
   define an evaluation. This section explores strategies for creating
   flexible and re-usable tasks.
 
+- [Task Config](task-configuration.qmd) is a reference for overriding
+  task components at runtime using `task_with()`, `eval()`, and the CLI.
+
 - [Datasets](datasets.qmd) provide samples to evaluation tasks. This
   section illustrates how to adapt various data sources for use with
   Inspect, as well as how to include multi-modal data (images, etc.) in

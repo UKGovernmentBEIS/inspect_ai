@@ -122,6 +122,10 @@ Reference this file from the CLI with:
 inspect eval security.py --task-config=config.yaml
 ```
 
+For a broader view of how task parameters relate to `task_with()`,
+environment variables, `eval()`, and CLI overrides, see [Task
+Configuration](task-configuration.qmd).
+
 ## Solvers
 
 While tasks always include a *default* solver, you can also vary the
@@ -295,6 +299,13 @@ maintainer of) but you nevertheless want to flexibly create derivative
 tasks from it. To do this, you can use the `task_with()` function, which
 provides a straightforward way to modify the properties of an existing
 task.
+
+> [!TIP]
+>
+> For a comprehensive reference on all configuration and override
+> mechanisms — including `task_with()`, `eval()` overrides, CLI flags,
+> and precedence rules — see [Task
+> Configuration](task-configuration.qmd).
 
 For example, imagine you are dealing with a `Task` that hard-codes its
 `sandbox` to a particular Dockerfile included with the task, and further

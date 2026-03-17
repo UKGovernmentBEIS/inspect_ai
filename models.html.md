@@ -218,22 +218,69 @@ def model_grader() -> Scorer:
 ```
 
 By default if there is no “grader” role specified, the default model for
-the evaluation will be returned. Model roles can be specified when using
-`inspect eval` or calling the `eval()` function:
+the evaluation will be returned.
+
+Model roles can be specified in several ways:
+
+**In the task definition:**
+
+``` python
+Task(
+    ...,
+    model_roles={"grader": "openai/gpt-4o"}
+)
+```
+
+**With generation config in the task definition:**
+
+``` python
+Task(
+    ...,
+    model_roles={
+        "grader": {
+            "model": "openai/gpt-4o",
+            "temperature": 0.5,
+            "max_tokens": 2048
+        }
+    }
+)
+```
+
+**With `task_with()`:**
+
+``` python
+task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+```
+
+**With `eval()`:**
+
+``` python
+eval("math.py", model_roles={"grader": "google/gemini-2.0-flash"})
+```
+
+**On the CLI** with simple model names:
 
 ``` bash
 inspect eval math.py --model-role grader=google/gemini-2.0-flash
 ```
 
-Or with `eval()`:
+**On the CLI** with inline JSON/YAML for generation config:
 
-``` python
-eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
+``` bash
+# JSON
+inspect eval math.py \
+    --model-role 'grader={"model": "openai/gpt-4o", "temperature": 0.5}'
+# YAML
+inspect eval math.py \
+    --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
 ```
 
 Note that the built-in [model-graded scorers](scorers.qmd#model-graded)
 (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader`
 role by default.
+
+For how model roles fit into the broader override and precedence model,
+see [Task Configuration](task-configuration.qmd#model-roles).
 
 ### Role Resolution
 

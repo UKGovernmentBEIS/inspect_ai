@@ -4,7 +4,7 @@
 ## Overview
 
 Inspect evaluations have a large number of options available for
-logging, tuning, diagnostics and model interctions. These options fall
+logging, tuning, diagnostics and model interactions. These options fall
 into roughly two categories:
 
 1.  Options that you want to set on a more durable basis (for a project
@@ -46,8 +46,9 @@ INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
 ```
 
-All command line options can also be set via environment variable by
-using the `INSPECT_EVAL_` prefix.
+All command line options can also be set via environment variable, most
+commonly by using the `INSPECT_EVAL_` prefix. Exceptions are noted
+below.
 
 Note that `.env` files are searched for in parent directories, so if you
 run an Inspect command from a subdirectory of a parent that has an
@@ -79,19 +80,24 @@ example:
 | `--sample-shuffle` | `sample_shuffle` | `INSPECT_EVAL_SAMPLE_SHUFFLE` |
 | `--limit`          | `limit`          | `INSPECT_EVAL_LIMIT`          |
 
+For more detail on the different methods of configuration, see [Task
+Configuration](task-configuration.qmd).
+
 ## Model Provider
 
-|                    |                                              |
-|--------------------|----------------------------------------------|
-| `--model`          | Model used to evaluate tasks.                |
-| `--model-base-url` | Base URL for for model API                   |
-| `--model-config`   | Model specific arguments (JSON or YAML file) |
-| `-M`               | Model specific arguments (`key=value`).      |
+|  |  |
+|----|----|
+| `--model` | Model used to evaluate tasks. |
+| `--model-base-url` | Base URL for for model API |
+| `--model-config` | Model specific arguments (JSON or YAML file) |
+| `-M` | Model specific arguments (`key=value`). |
+| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.qmd#model-roles). |
 
 ## Model Generation
 
 |  |  |
 |----|----|
+| `--generate-config` | YAML or JSON config file with `GenerateConfig` fields (alternatively, use the individual options below). See [Generation Config](task-configuration.qmd#generate-config). |
 | `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
@@ -129,6 +135,10 @@ example:
 | `--solver`        | Solver to execute (overrides task default solver) |
 | `--solver-config` | Solver arguments (JSON or YAML file)              |
 | `-S`              | Solver arguments (`key=value`)                    |
+
+For a complete matrix of which task, solver, and runtime settings can be
+configured on `Task()`, with `task_with()`, via `eval()`, or on the CLI,
+see the [override reference](task-configuration.qmd#override-reference).
 
 ## Sample Selection
 
@@ -168,15 +178,15 @@ example:
 
 |  |  |
 |----|----|
-| `--log-dir` | Directory for log files (defaults to `./logs`) |
+| `--log-dir` / `INSPECT_LOG_DIR` | Directory for log files (defaults to `./logs`) |
 | `--no-log-samples` | Do not log sample details. |
 | `--no-log-images` | Do not log images and other media. |
 | `--no-log-realtime` | Do not log events in realtime (affects live viewing of logs) |
 | `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
 | `--log-shared` | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
-| `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
-| `--log-level` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
-| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
+| `--log-format` / `INSPECT_LOG_FORMAT` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
+| `--log-level` / `INSPECT_LOG_LEVEL` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
+| `--log-level-transcript` / `INSPECT_LOG_LEVEL_TRANSCRIPT` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
 
 ## Scoring
 
@@ -196,16 +206,17 @@ example:
 
 |  |  |
 |----|----|
-| `--debug` | Wait to attach debugger |
-| `--debug-port` | Port number for debugger |
-| `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
-| `--traceback-locals` | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). |
+| `--debug` / `INSPECT_DEBUG` | Wait to attach debugger |
+| `--debug-port` / `INSPECT_DEBUG_PORT` | Port number for debugger |
+| `--debug-errors` / `INSPECT_DEBUG_ERRORS` | Raise task errors (rather than logging them) so they can be debugged. |
+| `--traceback-locals` / `INSPECT_TRACEBACK_LOCALS` | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). |
 
 ## Miscellaneous
 
 |  |  |
 |----|----|
-| `--display` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `log`, `none` (defaults to `full`). |
+| `--display` / `INSPECT_DISPLAY` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `log`, `none` (defaults to `full`). |
+| `--no-ansi` / `INSPECT_NO_ANSI` | Do not print ANSI control characters. |
 | `--approval` | Config file for tool call approval. |
 | `--env` | Set an environment variable (multiple instances of `--env` are permitted). |
 | `--tags` | Tags to associate with this evaluation run. |

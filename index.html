@@ -256,6 +256,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./task-configuration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task Config</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./datasets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Datasets</span></a>
   </div>
@@ -719,6 +725,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.</p>
 <ul>
 <li><p><a href="./tasks.html">Tasks</a> bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.</p></li>
+<li><p><a href="./task-configuration.html">Task Config</a> is a reference for overriding task components at runtime using <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, and the CLI.</p></li>
 <li><p><a href="./datasets.html">Datasets</a> provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.</p></li>
 <li><p><a href="./solvers.html">Solvers</a> are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the <code>plan</code> in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.</p></li>
 <li><p><a href="./scorers.html">Scorers</a> evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.</p></li>
