@@ -1,11 +1,23 @@
 ## Unreleased
 
+- OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
+- Eval Logs: Replace '+' with '-' in eval log filenames.
+
+## 0.3.197 (16 March 2026)
+
+- Anthropic: Agent bridge now maps native bash tool to standard `bash()` tool.
+- Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
+- Hooks: Add eval context id fields to `ModelUsageData` hook.
+
+## 0.3.196 (16 March 2026)
+
 - Support for `ContentDocument` as a result type for tool calls.
 - Events: Added `event_tree_walk()` function for enumerating tree items with an optional filter.
 - Events: Provide `current_span_id()` function to get the current span id (if any).
 - Timelines: Enable specifying `name` and/or `description` when calling `timeline_build()`
 - Timelines: Correct deserialization behavior for timelines in `read_eval_log()`, etc.
-- Inspect View: Add 'None' present when choosing transcript events to display.
+- Inspect View: Add 'None' preset when choosing transcript events to display.
+- Inspect View: Add middle-click support to open tasks and samples in a new browser tab.
 
 ## 0.3.195 (14 March 2026)
 

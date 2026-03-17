@@ -786,6 +786,9 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            eval_set_id=eval_set_id,
+            run_id=run_id,
+            eval_id=task_id,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:
