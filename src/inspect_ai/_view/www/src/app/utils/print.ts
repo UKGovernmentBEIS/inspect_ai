@@ -1,3 +1,5 @@
+import { EvalSpec } from "../../@types/log";
+
 /**
  * Opens a new window and prints the provided HTML content with optional custom CSS for printing.
  *
@@ -52,20 +54,12 @@ export const printHtml = (html: string, css: string) => {
  * const headingHtml = printHeadingHtml();
  * console.log(headingHtml);
  */
-export const printHeadingHtml = (): string => {
-  const taskEl = document.getElementById("task-title");
-  const modelEl = document.getElementById("task-model");
-  const timeEl = document.getElementById("task-created");
-
-  if (!taskEl || !modelEl || !timeEl) {
-    throw new Error(
-      "Failed to compute heading HTML. The task, model, or time element can't be found.",
-    );
-  }
-
-  const task = taskEl.innerText;
-  const model = modelEl.innerText;
-  const time = timeEl.innerText;
+export const printHeadingHtml = (evalSpec?: EvalSpec): string => {
+  const task = evalSpec?.task || "Unknown Task";
+  const model = evalSpec?.model || "Unknown Model";
+  const time = evalSpec?.created
+    ? new Date(evalSpec.created).toLocaleString()
+    : "Unknown Time";
 
   // Get the task name, date, model
   const headingHtml = `

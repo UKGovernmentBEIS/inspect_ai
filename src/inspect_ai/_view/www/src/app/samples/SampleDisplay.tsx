@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { EvalSample, Events } from "../../@types/log";
+import { EvalSample, EvalSpec, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
 import { ActivityBar } from "../../components/ActivityBar";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -43,7 +43,6 @@ import {
 import { useStore } from "../../state/store";
 import { formatDateTime, formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
-import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
 import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
@@ -57,6 +56,7 @@ import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
+import { printHeadingHtml, printHtml } from "../utils/print";
 
 interface SampleDisplayProps {
   id: string;
@@ -203,8 +203,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const optionsRef = useRef<HTMLButtonElement | null>(null);
 
   const handlePrintClick = useCallback(() => {
-    printSample(id, targetId);
-  }, [id, targetId]);
+    printSample(id, targetId, evalSpec);
+  }, [id, targetId, evalSpec]);
 
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
@@ -655,7 +655,7 @@ const metadataViewsForSample = (
 
   return sampleMetadatas;
 };
-const printSample = (id: string, targetId: string) => {
+const printSample = (id: string, targetId: string, evalSpec?: EvalSpec) => {
   // The active tab
   const targetTabEl = document.querySelector(
     `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
@@ -669,7 +669,7 @@ const printSample = (id: string, targetId: string) => {
       const headingEl = document.getElementById(headingId);
 
       // Print the document
-      const headingHtml = printHeadingHtml();
+      const headingHtml = printHeadingHtml(evalSpec);
       const css = `
       html { font-size: 9pt }
       /* Allow content to break anywhere without any forced page breaks */
@@ -682,13 +682,6 @@ const printSample = (id: string, targetId: string) => {
         page-break-after: auto;
       }
       /* Specifically disable all page breaks for divs */
-      div {
-        break-inside: auto;
-        page-break-inside: auto;
-      }
-      body > .transcript-step {
-        break-inside: avoid;
-      }
       body{
         -webkit-print-color-adjust:exact !important;
         print-color-adjust:exact !important;
