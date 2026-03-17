@@ -113,6 +113,11 @@ export const LiveVirtualList = <T,>({
     }
   }, [live, followOutput, prevLive, scrollRef, setFollowOutput]);
 
+  // Track whether the user is at/near the bottom of the scroll container.
+  // Updated synchronously on every scroll event (not throttled) so the
+  // value is always current when totalListHeightChanged fires.
+  const isNearBottomRef = useRef(false);
+
   const handleScroll = useRafThrottle(() => {
     // Skip processing if auto-scrolling is in progress
     if (isAutoScrollingRef.current) return;
@@ -134,10 +139,36 @@ export const LiveVirtualList = <T,>({
     }
   }, [setFollowOutput, followOutput, live]);
 
+  // Synchronous scroll listener to track near-bottom state without
+  // RAF throttling, so the ref is always up-to-date when Virtuoso
+  // fires totalListHeightChanged.
+  const handleScrollSync = useCallback(() => {
+    if (isAutoScrollingRef.current) return;
+    if (!scrollRef?.current) return;
+    const parent = scrollRef.current;
+    isNearBottomRef.current =
+      parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 50;
+  }, [scrollRef]);
+
   const heightChanged = useCallback(
     (height: number) => {
       requestAnimationFrame(() => {
-        if (followOutput && live && scrollRef?.current) {
+        if (!scrollRef?.current) return;
+
+        if (followOutput && live) {
+          isAutoScrollingRef.current = true;
+          listHandle.current?.scrollTo({ top: height });
+          requestAnimationFrame(() => {
+            isAutoScrollingRef.current = false;
+          });
+          return;
+        }
+
+        // For non-live mode: if the user was near the bottom before the
+        // height change, keep them at the bottom. This prevents the
+        // "can't scroll to bottom" issue caused by Virtuoso re-measuring
+        // item heights and growing the total scroll height.
+        if (isNearBottomRef.current) {
           isAutoScrollingRef.current = true;
           listHandle.current?.scrollTo({ top: height });
           requestAnimationFrame(() => {
@@ -324,9 +355,13 @@ export const LiveVirtualList = <T,>({
     const parent = scrollRef?.current;
     if (parent) {
       parent.addEventListener("scroll", handleScroll);
-      return () => parent.removeEventListener("scroll", handleScroll);
+      parent.addEventListener("scroll", handleScrollSync);
+      return () => {
+        parent.removeEventListener("scroll", handleScroll);
+        parent.removeEventListener("scroll", handleScrollSync);
+      };
     }
-  }, [scrollRef, handleScroll]);
+  }, [scrollRef, handleScroll, handleScrollSync]);
 
   // Scroll to index when component mounts or targetIndex changes
   const hasScrolled = useRef(false);

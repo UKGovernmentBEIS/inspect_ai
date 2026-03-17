@@ -1,12 +1,14 @@
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../../@types/log";
 import { clearLargeEventsArray } from "../../utils/clear-events-preprocessor";
-import { asyncJsonParse } from "../../utils/json-worker";
+import { fetchRange } from "../../utils/http";
+import { asyncJsonParseBytes } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
   LogDetails,
   LogPreview,
   LogViewAPI,
+  ProgressCallback,
   SampleSummary,
 } from "../api/types";
 import { toLogPreview } from "../utils/type-utils";
@@ -39,7 +41,11 @@ export class SampleNotFoundError extends Error {
 export interface RemoteLogFile {
   readEvalBasicInfo: () => Promise<LogPreview>;
   readLogSummary: () => Promise<LogDetails>;
-  readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
+  readSample: (
+    sampleId: string,
+    epoch: number,
+    onProgress?: ProgressCallback,
+  ) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
 }
 
@@ -59,21 +65,38 @@ export const openRemoteLogFile = async (
 ): Promise<RemoteLogFile> => {
   const queue = new AsyncQueue(concurrency);
 
+  const logInfo = await api.get_log_info(url);
+  const directUrl = logInfo.direct_url;
+  const fetchBytes = async (
+    _url: string,
+    start: number,
+    end: number,
+  ): Promise<Uint8Array> => {
+    if (directUrl) {
+      try {
+        return await fetchRange(directUrl, start, end);
+      } catch (e) {
+        console.warn("Direct URL fetch failed, falling back to proxy", e);
+      }
+    }
+    return api.get_log_bytes(url, start, end);
+  };
+
   let remoteZipFile:
     | {
         centralDirectory: Map<string, CentralDirectoryEntry>;
-        readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>;
+        readFile: (
+          file: string,
+          maxBytes?: number,
+          onProgress?: ProgressCallback,
+        ) => Promise<Uint8Array>;
       }
     | undefined = undefined;
 
   let retryCount = 0;
   while (!remoteZipFile && retryCount < OPEN_RETRY_LIMIT) {
     try {
-      remoteZipFile = await openRemoteZipFile(
-        url,
-        api.get_log_size,
-        api.get_log_bytes,
-      );
+      remoteZipFile = await openRemoteZipFile(url, logInfo.size, fetchBytes);
     } catch {
       retryCount++;
       console.warn(
@@ -103,27 +126,19 @@ export const openRemoteLogFile = async (
     file: string,
     maxBytes?: number,
     preprocessor?: JSONPreprocessor,
+    onProgress?: ProgressCallback,
   ): Promise<Object> => {
     try {
-      let data = await remoteZipFile.readFile(file, maxBytes);
+      let data = await remoteZipFile.readFile(file, maxBytes, onProgress);
 
       // Apply preprocessor if provided
       if (preprocessor) {
         data = preprocessor.preprocess(data);
       }
 
-      const textDecoder = new TextDecoder("utf-8");
-      const jsonString = textDecoder.decode(data);
-
-      // Check if decoding failed (resulted in empty string)
-      if (data.length > 0 && jsonString.length === 0) {
-        throw new Error(
-          `Failed to decode ${file} (${(data.length / 1024 / 1024).toFixed(0)}MB). ` +
-            `The file may be corrupted or contain invalid UTF-8 sequences.`,
-        );
-      }
-
-      return asyncJsonParse(jsonString);
+      // Send bytes directly to the worker pool, avoiding a redundant
+      // TextDecoder.decode + TextEncoder.encode round-trip on the main thread.
+      return asyncJsonParseBytes(data);
     } catch (error) {
       if (error instanceof FileSizeLimitError) {
         throw error;
@@ -163,6 +178,7 @@ export const openRemoteLogFile = async (
   const readSample = async (
     sampleId: string,
     epoch: number,
+    onProgress?: ProgressCallback,
   ): Promise<EvalSample> => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
 
@@ -187,6 +203,7 @@ export const openRemoteLogFile = async (
       sampleFile,
       undefined,
       eventsPreprocessor,
+      onProgress,
     )) as EvalSample;
   };
 

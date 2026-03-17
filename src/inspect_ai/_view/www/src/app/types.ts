@@ -126,6 +126,11 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
+export interface Progress {
+  complete: number;
+  total: number;
+}
+
 export interface EventFilter {
   filteredTypes: string[];
 }
@@ -138,6 +143,7 @@ export interface SampleState {
   sampleError: Error | undefined;
   sampleNeedsReload: number;
   eventsCleared: boolean;
+  downloadProgress?: Progress;
 
   visiblePopover?: string;
 
