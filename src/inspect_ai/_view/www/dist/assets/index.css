@@ -16324,7 +16324,7 @@ a._citationLink_1ggvf_9:hover {
 ._viewerOptions_1bbut_7 {
   color: var(--bs-body-color);
 }
-._wrapper_1tajk_1 {
+._wrapper_44dmw_1 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16335,7 +16335,7 @@ a._citationLink_1ggvf_9:hover {
   text-align: center;
 }
 
-._container_1tajk_12 {
+._container_44dmw_12 {
   width: 100%;
   height: 1px;
   background-color: transparent;
@@ -16344,17 +16344,26 @@ a._citationLink_1ggvf_9:hover {
   z-index: 1200;
 }
 
-._animate_1tajk_21 {
+._animate_44dmw_21 {
   width: 5%;
   height: 1px;
-  animation: _leftToRight_1tajk_1 2s linear infinite;
+  animation: _leftToRight_44dmw_1 2s linear infinite;
   background-color: #3b82f6;
   position: absolute;
   left: 0;
   top: 0;
 }
 
-@keyframes _leftToRight_1tajk_1 {
+._determinate_44dmw_31 {
+  height: 1px;
+  background-color: #3b82f6;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: width 150ms ease-out;
+}
+
+@keyframes _leftToRight_44dmw_1 {
   0% {
     transform: translateX(-100%);
   }

@@ -5,6 +5,7 @@ import {
   Capabilities,
   EvalHeader,
   LogContents,
+  LogInfo,
   LogPreview,
   LogViewAPI,
   PendingSampleResponse,
@@ -161,10 +162,10 @@ export function viewServerApi(
     return result;
   };
 
-  const get_log_size = async (file: string): Promise<number> => {
+  const get_log_info = async (file: string): Promise<LogInfo> => {
     const result = await requestApi.fetchString(
       "GET",
-      `/log-size/${encodeURIComponent(file)}`,
+      `/log-info/${encodeURIComponent(file)}`,
     );
     return result.parsed;
   };
@@ -360,7 +361,7 @@ export function viewServerApi(
     get_eval_set,
     get_flow,
     get_log_contents,
-    get_log_size,
+    get_log_info,
     get_log_bytes,
     get_log_summaries,
     log_message,
