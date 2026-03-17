@@ -104,6 +104,7 @@ async def test_openai_responses_image_generation_gpt5_with_options():
 
 @pytest.mark.slow
 @skip_if_no_google
+@flaky_retry(max_retries=3)
 async def test_google_image_generation():
     model = get_model("google/gemini-3.1-flash-image-preview")
     output = await model.generate(
