@@ -282,7 +282,7 @@ async def eval_run(
         try:
             await cleanup_s3_sessions()
         except BaseException as ex:
-            log.debug(f"Error cleaning up S3 sessions: {exception_message(ex)}")
+            log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
 # single mode -- run a single logical task (could consist of multiple

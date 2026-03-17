@@ -26,6 +26,7 @@ from inspect_ai._util.azure import (
     is_azure_path,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.trace import trace_message
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -548,9 +549,14 @@ async def cleanup_s3_sessions() -> None:
     try:
         S3FileSystem.clear_instance_cache()
     except Exception:
-        logger.debug("Failed to clear S3FileSystem instance cache", exc_info=True)
+        logger.warning("Failed to clear S3FileSystem instance cache", exc_info=True)
     else:
-        logger.debug("Cleaned up %d cached S3FileSystem instance(s)", len(instances))
+        trace_message(
+            logger,
+            "s3",
+            "Cleaned up %d cached S3FileSystem instance(s)",
+            len(instances),
+        )
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
