@@ -154,42 +154,48 @@ class ComparisonResult:
     def summary(self) -> str:
         """Generate a text summary of the comparison."""
         lines = [
-            f"Comparison: {self.baseline_model} vs {self.candidate_model}",
-            f"Task: {self.baseline_task}",
-            f"Samples: {self.aligned_count} aligned, "
+            f"Baseline:  {self.baseline_model} ({self.baseline_task})",
+            f"Candidate: {self.candidate_model} ({self.candidate_task})",
+            f"Samples:   {self.aligned_count} aligned, "
             f"{self.missing_count} missing, {self.new_count} new",
             "",
         ]
 
         if self.metrics:
-            lines.append("Metrics:")
+            lines.append(
+                f"{'Metric':<30} {'Baseline':>10} {'Candidate':>10} "
+                f"{'Delta':>10} {'Sig.':>8}"
+            )
+            lines.append("-" * 72)
             for m in self.metrics:
-                sig = "*" if m.significant else ""
-                rel = (
-                    f" ({m.relative_delta:+.1%})"
-                    if m.relative_delta is not None
-                    else ""
-                )
-                effect = f" d={m.effect_size:.2f}" if m.effect_size is not None else ""
+                sig_str = ""
+                if m.p_value is not None:
+                    sig_str = f"p={m.p_value:.3f}" if not m.significant else f"p={m.p_value:.3f}*"
+                effect = ""
+                if m.effect_size is not None:
+                    d = abs(m.effect_size)
+                    size = "small" if d < 0.5 else ("medium" if d < 0.8 else "large")
+                    effect = f" ({size})"
+                delta_str = f"{m.delta:+.4f}"
+                if m.relative_delta is not None:
+                    delta_str += f" ({m.relative_delta:+.1%})"
                 lines.append(
-                    f"  {m.scorer}/{m.name}: "
-                    f"{m.baseline_value:.4f} -> {m.candidate_value:.4f} "
-                    f"(delta: {m.delta:+.4f}{rel}{effect}){sig}"
+                    f"  {m.scorer}/{m.name:<26} {m.baseline_value:>10.4f} "
+                    f"{m.candidate_value:>10.4f} {delta_str:>10} {sig_str:>8}{effect}"
                 )
             lines.append("")
 
         c = self._direction_counts
         lines.append(
-            f"Regressions: {c['regressed']}, Improvements: {c['improved']}, "
+            f"Regressions: {c['regressed']}, "
+            f"Improvements: {c['improved']}, "
             f"Unchanged: {c['unchanged']}"
         )
 
         if self.win_rate is not None:
             lines.append(
-                f"Win rate: {self.win_rate:.1%} "
-                f"({self.candidate_model} beat {self.baseline_model} "
-                f"on {self._direction_counts['improved']} of "
-                f"{self.aligned_count} samples)"
+                f"Candidate won on {self._direction_counts['improved']} "
+                f"of {self.aligned_count} samples ({self.win_rate:.1%})"
             )
 
         return "\n".join(lines)
