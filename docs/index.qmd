@@ -198,7 +198,7 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.
 
--   [Task Configuration](task-configuration.qmd) is a reference for overriding task components at runtime using `task_with()`, `eval()`, and the CLI.
+-   [Task Config](task-configuration.qmd) is a reference for overriding task components at runtime using `task_with()`, `eval()`, and the CLI.
 
 -   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 

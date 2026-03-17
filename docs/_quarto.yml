@@ -75,7 +75,8 @@ website:
          - section: "Components"
            contents:
                - tasks.qmd
-               - task-configuration.qmd
+               - text: Task Config
+                 href: task-configuration.qmd
                - datasets.qmd
                - solvers.qmd
                - scorers.qmd
