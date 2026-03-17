@@ -54,7 +54,10 @@ def align_samples(
 
     all_keys = sorted(
         set(baseline_map.keys()) | set(candidate_map.keys()),
-        key=lambda k: (str(k[0]), k[1]),
+        key=lambda k: (
+            (0, k[0], "") if isinstance(k[0], int) else (1, 0, str(k[0])),
+            k[1],
+        ),
     )
 
     aligned: list[AlignedSample] = []

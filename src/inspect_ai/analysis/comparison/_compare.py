@@ -6,6 +6,7 @@ runs significance tests, and returns a structured ComparisonResult.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from logging import getLogger
 from math import isfinite
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import Literal
 from inspect_ai.analysis.comparison._alignment import AlignedSample, align_samples
 from inspect_ai.analysis.comparison._statistics import (
     bootstrap_ci,
+    cohens_d,
     mcnemars_test,
 )
 from inspect_ai.analysis.comparison._types import (
@@ -35,6 +37,8 @@ def compare_evals(
     candidate: str | Path | EvalLog,
     scorers: list[str] | None = None,
     significance: float = 0.05,
+    regression_threshold: float = 0.0,
+    sample_filter: Callable[[EvalSample], bool] | None = None,
 ) -> ComparisonResult:
     """Compare results from two evaluation runs.
 
@@ -47,12 +51,22 @@ def compare_evals(
         candidate: Path to candidate eval log, or an EvalLog object.
         scorers: Specific scorer names to compare. None compares all.
         significance: P-value threshold for significance tests.
+        regression_threshold: Minimum absolute delta to count as
+            regression or improvement. Deltas within this threshold
+            are classified as unchanged. Default 0.0 (any difference counts).
+        sample_filter: Optional function to filter samples before comparison.
+            Only samples where filter returns True are included.
 
     Returns:
         ComparisonResult with metrics, sample comparisons, and regressions.
     """
     baseline_log = _load_log(baseline)
     candidate_log = _load_log(candidate)
+
+    # Apply sample filter if provided
+    if sample_filter is not None:
+        baseline_log = _filter_samples(baseline_log, sample_filter)
+        candidate_log = _filter_samples(candidate_log, sample_filter)
 
     baseline_path = _log_path(baseline, baseline_log)
     candidate_path = _log_path(candidate, candidate_log)
@@ -62,16 +76,9 @@ def compare_evals(
     baseline_model = baseline_log.eval.model
     candidate_model = candidate_log.eval.model
 
-    # Determine which scorers to compare
     scorer_names = _resolve_scorers(baseline_log, candidate_log, scorers)
-
-    # Align samples
     aligned = align_samples(baseline_log, candidate_log)
-
-    # Compare per-sample scores
-    sample_comparisons = _compare_samples(aligned, scorer_names)
-
-    # Compare aggregate metrics
+    sample_comparisons = _compare_samples(aligned, scorer_names, regression_threshold)
     metric_comparisons = _compare_metrics(
         baseline_log, candidate_log, scorer_names, aligned, significance
     )
@@ -100,6 +107,15 @@ def _log_path(source: str | Path | EvalLog, log: EvalLog) -> str:
     if isinstance(source, (str, Path)):
         return str(source)
     return log.location or "unknown"
+
+
+def _filter_samples(log: EvalLog, fn: Callable[[EvalSample], bool]) -> EvalLog:
+    """Return a copy of the log with only samples passing the filter."""
+    if log.samples is None:
+        return log
+    filtered = [s for s in log.samples if fn(s)]
+    # Create a shallow copy with filtered samples
+    return log.model_copy(update={"samples": filtered})
 
 
 def _resolve_scorers(
@@ -152,6 +168,7 @@ def _get_scorer_names(log: EvalLog) -> set[str]:
 def _compare_samples(
     aligned: list[AlignedSample],
     scorer_names: list[str],
+    regression_threshold: float = 0.0,
 ) -> list[SampleComparison]:
     """Compare per-sample scores across aligned pairs."""
     comparisons: list[SampleComparison] = []
@@ -170,7 +187,7 @@ def _compare_samples(
                 delta = None
             elif bl_score is not None and cd_score is not None:
                 delta = cd_score - bl_score
-                if abs(delta) < 1e-9:
+                if abs(delta) <= regression_threshold:
                     direction = "unchanged"
                 elif delta > 0:
                     direction = "improved"
@@ -214,13 +231,11 @@ def _compare_metrics(
 
         common_metrics = set(bl_scorer_metrics.keys()) & set(cd_scorer_metrics.keys())
 
-        # Collect paired scores for statistical tests
         bl_scores, cd_scores = _collect_paired_scores(aligned, scorer)
 
         # Run significance test
         sig_result = None
         if bl_scores and cd_scores:
-            # Check if scores are binary (all 0.0 or 1.0)
             all_binary = all(v in (0.0, 1.0) for v in bl_scores + cd_scores)
             if all_binary:
                 sig_result = mcnemars_test(
@@ -233,9 +248,12 @@ def _compare_metrics(
                     bl_scores, cd_scores, significance=significance
                 )
 
-        # Significance test applies to the primary metric (accuracy for binary,
-        # mean for continuous). Other metrics (stderr, etc.) get no significance
-        # result since the test was not run on their specific values.
+        # Compute effect size
+        effect = cohens_d(bl_scores, cd_scores) if bl_scores and cd_scores else None
+
+        # Significance test applies only to primary metrics (accuracy, mean).
+        # Other metrics (stderr, etc.) report delta but no significance result
+        # since the test was not run on their specific values.
         primary_metrics = {"accuracy", "mean"}
 
         for metric_name in sorted(common_metrics):
@@ -259,6 +277,7 @@ def _compare_metrics(
                     p_value=sig_result.p_value if sig_result and is_primary else None,
                     ci_lower=sig_result.ci_lower if sig_result and is_primary else None,
                     ci_upper=sig_result.ci_upper if sig_result and is_primary else None,
+                    effect_size=effect if is_primary else None,
                 )
             )
 
@@ -273,7 +292,9 @@ def _extract_metrics(log: EvalLog) -> dict[str, dict[str, float]]:
             metrics: dict[str, float] = {}
             if score_entry.metrics:
                 for metric_name, metric_val in score_entry.metrics.items():
-                    metrics[metric_name] = metric_val.value
+                    val = metric_val.value
+                    if isinstance(val, (int, float)):
+                        metrics[metric_name] = float(val)
             result[score_entry.name] = metrics
     return result
 

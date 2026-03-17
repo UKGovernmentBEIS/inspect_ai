@@ -12,6 +12,7 @@ from inspect_ai.analysis.comparison._compare import (
 )
 from inspect_ai.analysis.comparison._statistics import (
     bootstrap_ci,
+    cohens_d,
     mcnemars_test,
     permutation_test,
 )
@@ -443,3 +444,163 @@ def test_compare_evals_specific_scorer():
     assert len(result.samples) == 1
     assert result.samples[0].scorer == "f1"
     assert result.samples[0].direction == "improved"
+
+
+# Effect size
+
+
+def test_cohens_d_large_effect():
+    baseline = [0.0] * 50 + [1.0] * 50
+    candidate = [0.0] * 20 + [1.0] * 80
+    d = cohens_d(baseline, candidate)
+    assert d is not None
+    assert d > 0.5
+
+
+def test_cohens_d_zero_effect():
+    scores = [0.5] * 100
+    d = cohens_d(scores, scores)
+    assert d == 0.0
+
+
+def test_cohens_d_too_few_samples():
+    assert cohens_d([1.0], [0.0]) is None
+
+
+def test_effect_size_in_metric_comparison():
+    baseline = _make_eval_log(
+        model="model-a",
+        samples=[
+            _make_sample(i, scores={"acc": "C" if i % 2 == 0 else "I"})
+            for i in range(20)
+        ],
+        scores=[
+            EvalScore(
+                name="acc",
+                scorer="acc",
+                params={},
+                metrics={"accuracy": EvalMetric(name="accuracy", value=0.5, params={})},
+            ),
+        ],
+    )
+    candidate = _make_eval_log(
+        model="model-b",
+        samples=[
+            _make_sample(i, scores={"acc": "C" if i % 3 != 0 else "I"})
+            for i in range(20)
+        ],
+        scores=[
+            EvalScore(
+                name="acc",
+                scorer="acc",
+                params={},
+                metrics={
+                    "accuracy": EvalMetric(name="accuracy", value=0.65, params={})
+                },
+            ),
+        ],
+    )
+    result = compare_evals(baseline, candidate)
+    acc_metric = next(m for m in result.metrics if m.name == "accuracy")
+    assert acc_metric.effect_size is not None
+
+
+# Win rate
+
+
+def test_win_rate():
+    baseline = _make_eval_log(
+        samples=[
+            _make_sample(1, scores={"acc": "C"}),
+            _make_sample(2, scores={"acc": "C"}),
+            _make_sample(3, scores={"acc": "I"}),
+            _make_sample(4, scores={"acc": "I"}),
+        ]
+    )
+    candidate = _make_eval_log(
+        samples=[
+            _make_sample(1, scores={"acc": "I"}),
+            _make_sample(2, scores={"acc": "C"}),
+            _make_sample(3, scores={"acc": "C"}),
+            _make_sample(4, scores={"acc": "C"}),
+        ]
+    )
+    result = compare_evals(baseline, candidate)
+    assert result.win_rate == pytest.approx(0.5)
+
+
+def test_win_rate_empty():
+    baseline = _make_eval_log(samples=[])
+    candidate = _make_eval_log(samples=[])
+    result = compare_evals(baseline, candidate)
+    assert result.win_rate is None
+
+
+# Regression threshold
+
+
+def test_regression_threshold_filters_noise():
+    baseline = _make_eval_log(samples=[_make_sample(1, scores={"f1": 0.80})])
+    candidate = _make_eval_log(samples=[_make_sample(1, scores={"f1": 0.79})])
+
+    result_strict = compare_evals(baseline, candidate, regression_threshold=0.0)
+    assert result_strict.samples[0].direction == "regressed"
+
+    result_tolerant = compare_evals(baseline, candidate, regression_threshold=0.02)
+    assert result_tolerant.samples[0].direction == "unchanged"
+
+
+# Sample filter
+
+
+def test_sample_filter():
+    baseline = _make_eval_log(
+        samples=[
+            _make_sample(1, scores={"acc": "C"}),
+            _make_sample(2, scores={"acc": "I"}),
+            _make_sample(3, scores={"acc": "C"}),
+        ]
+    )
+    candidate = _make_eval_log(
+        samples=[
+            _make_sample(1, scores={"acc": "I"}),
+            _make_sample(2, scores={"acc": "C"}),
+            _make_sample(3, scores={"acc": "C"}),
+        ]
+    )
+
+    result = compare_evals(
+        baseline,
+        candidate,
+        sample_filter=lambda s: s.id in (1, 2),
+    )
+    assert result.aligned_count == 2
+    assert len(result.regressions) == 1
+    assert result.regressions[0].id == 1
+
+
+# NaN and non-finite score handling
+
+
+def test_nan_score_excluded():
+    baseline = _make_eval_log(samples=[_make_sample(1, scores={"acc": float("nan")})])
+    candidate = _make_eval_log(samples=[_make_sample(1, scores={"acc": "C"})])
+    result = compare_evals(baseline, candidate)
+    assert result.samples[0].baseline_score is None
+    assert result.samples[0].direction == "unchanged"
+
+
+def test_dict_score_excluded():
+    baseline = _make_eval_log(
+        samples=[
+            _make_sample(1, scores={"multi": {"rouge1": 0.8, "rouge2": 0.6}}),
+        ]
+    )
+    candidate = _make_eval_log(
+        samples=[
+            _make_sample(1, scores={"multi": {"rouge1": 0.9, "rouge2": 0.7}}),
+        ]
+    )
+    result = compare_evals(baseline, candidate)
+    assert result.samples[0].baseline_score is None
+    assert result.samples[0].candidate_score is None

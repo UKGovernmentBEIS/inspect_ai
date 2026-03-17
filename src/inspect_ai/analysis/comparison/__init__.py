@@ -15,6 +15,7 @@ Example usage:
 """
 
 from inspect_ai.analysis.comparison._compare import compare_evals
+from inspect_ai.analysis.comparison._statistics import cohens_d
 from inspect_ai.analysis.comparison._types import (
     ComparisonResult,
     MetricComparison,
@@ -23,6 +24,7 @@ from inspect_ai.analysis.comparison._types import (
 
 __all__ = [
     "compare_evals",
+    "cohens_d",
     "ComparisonResult",
     "MetricComparison",
     "SampleComparison",

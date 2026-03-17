@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -39,6 +40,9 @@ class MetricComparison:
 
     ci_upper: float | None
     """Upper bound of confidence interval for the difference."""
+
+    effect_size: float | None = None
+    """Cohen's d effect size. None if not computed."""
 
 
 @dataclass
@@ -95,6 +99,19 @@ class ComparisonResult:
     samples: list[SampleComparison] = field(default_factory=list)
     """Per-sample score comparisons."""
 
+    @functools.cached_property
+    def _direction_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {
+            "improved": 0,
+            "regressed": 0,
+            "unchanged": 0,
+            "new": 0,
+            "missing": 0,
+        }
+        for s in self.samples:
+            counts[s.direction] += 1
+        return counts
+
     @property
     def regressions(self) -> list[SampleComparison]:
         """Samples where the candidate scored lower than baseline."""
@@ -113,21 +130,26 @@ class ComparisonResult:
     @property
     def aligned_count(self) -> int:
         """Number of samples present in both runs."""
-        return sum(
-            1
-            for s in self.samples
-            if s.direction in ("improved", "regressed", "unchanged")
-        )
+        c = self._direction_counts
+        return c["improved"] + c["regressed"] + c["unchanged"]
 
     @property
     def missing_count(self) -> int:
         """Samples in baseline but not in candidate."""
-        return sum(1 for s in self.samples if s.direction == "missing")
+        return self._direction_counts["missing"]
 
     @property
     def new_count(self) -> int:
         """Samples in candidate but not in baseline."""
-        return sum(1 for s in self.samples if s.direction == "new")
+        return self._direction_counts["new"]
+
+    @property
+    def win_rate(self) -> float | None:
+        """Fraction of aligned samples where candidate outperformed baseline."""
+        aligned = self.aligned_count
+        if aligned == 0:
+            return None
+        return self._direction_counts["improved"] / aligned
 
     def summary(self) -> str:
         """Generate a text summary of the comparison."""
@@ -148,19 +170,21 @@ class ComparisonResult:
                     if m.relative_delta is not None
                     else ""
                 )
+                effect = f" d={m.effect_size:.2f}" if m.effect_size is not None else ""
                 lines.append(
                     f"  {m.scorer}/{m.name}: "
                     f"{m.baseline_value:.4f} -> {m.candidate_value:.4f} "
-                    f"(delta: {m.delta:+.4f}{rel}){sig}"
+                    f"(delta: {m.delta:+.4f}{rel}{effect}){sig}"
                 )
             lines.append("")
 
-        reg_count = len(self.regressions)
-        imp_count = len(self.improvements)
-        unch_count = len(self.unchanged)
+        c = self._direction_counts
         lines.append(
-            f"Regressions: {reg_count}, Improvements: {imp_count}, "
-            f"Unchanged: {unch_count}"
+            f"Regressions: {c['regressed']}, Improvements: {c['improved']}, "
+            f"Unchanged: {c['unchanged']}"
         )
+
+        if self.win_rate is not None:
+            lines.append(f"Win rate: {self.win_rate:.1%}")
 
         return "\n".join(lines)
