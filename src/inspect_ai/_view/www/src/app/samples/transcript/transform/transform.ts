@@ -97,6 +97,17 @@ const transformers = () => {
       process: (node) => skipFirstChildNode(node),
     },
     {
+      name: "unwrap_filtered-agent_solver",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN &&
+        node.event["type"] === TYPE_SOLVER &&
+        node.children.length === 1 &&
+        node.children[0].event.event === SPAN_BEGIN &&
+        node.children[0].event.type === TYPE_AGENT,
+
+      process: (node) => skipFirstChildNode(node),
+    },
+    {
       name: "unwrap_agent_solver w/store",
       matches: (node) =>
         node.event.event === SPAN_BEGIN &&
