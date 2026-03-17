@@ -163,6 +163,9 @@ async def sandbox_agent_bridge(
                 ),
             )
 
+            # monitor proxy for unexpected death
+            tg.start_soon(_monitor_proxy, proxy)
+
             # main agent
             try:
                 yield bridge
@@ -171,9 +174,6 @@ async def sandbox_agent_bridge(
                 with anyio.CancelScope(shield=True):
                     # ensure the process terminates (no-op if already dead)
                     await proxy.kill()
-
-                    # print stderr if the process failed
-                    await _print_proxy_stderr(proxy)
 
                 # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
@@ -210,20 +210,19 @@ def _register_bridged_tools(
     )
 
 
-async def _print_proxy_stderr(proxy: ExecRemoteProcess) -> None:
-    try:
-        # print stderr if the process failed
-        stderr: list[str] = []
-        async for event in proxy:
-            if isinstance(event, ExecStderr):
-                stderr.append(event.data)
-            if isinstance(event, ExecCompleted):
-                if event.success:
-                    stderr.clear()
-                break
-        if stderr:
-            sys.stderr.write("ERROR from model proxy exec_remote:\n")
-            sys.stderr.write("".join(stderr))
-            sys.stderr.flush()
-    except Exception as ex:
-        logger.warning(f"Error attempting to print model proxy stderr: {ex}")
+async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
+    """Monitor the proxy process event stream and raise if it dies unexpectedly."""
+    stderr: list[str] = []
+    async for event in proxy:
+        if isinstance(event, ExecStderr):
+            stderr.append(event.data)
+        if isinstance(event, ExecCompleted):
+            if not event.success:
+                raise RuntimeError(
+                    f"Model proxy process exited unexpectedly with failure: {''.join(stderr)}."
+                )
+            return
+    # Stream ended without ExecCompleted
+    raise RuntimeError(
+        f"Model proxy process stream ended unexpectedly: {''.join(stderr)}."
+    )
