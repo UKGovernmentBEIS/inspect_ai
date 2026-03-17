@@ -852,14 +852,16 @@ def responses_reasoning_from_reasoning(
 
     content_params: list[ContentParam] = []
     if content.redacted and content.summary:
-        content_params.append(ContentParam(type="reasoning_text", text=content.summary))
+        content_params.append(
+            ContentParam(type="reasoning_text", text=content.summary)
+        )
     elif not content.redacted and content.reasoning:
         content_params.append(
             ContentParam(type="reasoning_text", text=content.reasoning)
         )
 
     summary_params: list[SummaryParam] = []
-    if content.summary:
+    if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
     return ResponseReasoningItemParam(
