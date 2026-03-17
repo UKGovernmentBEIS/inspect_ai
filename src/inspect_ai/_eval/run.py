@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Set, cast
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
+from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 
@@ -276,6 +277,12 @@ async def eval_run(
                 log.warning(
                     f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
                 )
+
+        # clean up cached S3 sessions to prevent "Unclosed connector" warnings
+        try:
+            await cleanup_s3_sessions()
+        except BaseException as ex:
+            log.debug(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
 # single mode -- run a single logical task (could consist of multiple
