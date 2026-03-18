@@ -382,7 +382,9 @@ def timeline_load(data: dict[str, Any], events: list[Event]) -> Timeline:
 # =============================================================================
 
 
-def timeline_build(events: list[Event]) -> Timeline:
+def timeline_build(
+    events: list[Event], *, name: str | None = None, description: str | None = None
+) -> Timeline:
     """Build a Timeline from a flat event list.
 
     Transforms a flat event stream into a hierarchical ``Timeline`` tree
@@ -424,14 +426,21 @@ def timeline_build(events: list[Event]) -> Timeline:
 
     Args:
         events: Flat list of Events from a transcript.
+        name: Optional name for timeline (defaults to "Default")
+        description: Optional description for timeline (defaults to "")
 
     Returns:
         A Timeline with a hierarchical root TimelineSpan.
     """
+    # provide defaults
+    name = name or "Default"
+    description = description or ""
+
+    # no events
     if not events:
         return Timeline(
-            name="Default",
-            description="",
+            name=name,
+            description=description,
             root=TimelineSpan(id="root", name="main", span_type=None),
         )
 
@@ -534,7 +543,7 @@ def timeline_build(events: list[Event]) -> Timeline:
         root = _build_agent_from_tree(tree, has_explicit_branches)
         _classify_spans(root, has_explicit_branches)
 
-    return Timeline(name="Default", description="", root=root)
+    return Timeline(name=name, description=description, root=root)
 
 
 def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:

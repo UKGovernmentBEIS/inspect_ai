@@ -555,6 +555,14 @@ website:
           href: reference/inspect_ai.log.qmd#evalsamplescore
         - text: WriteConflictError
           href: reference/inspect_ai.log.qmd#writeconflicterror
+        - text: condense_sample
+          href: reference/inspect_ai.log.qmd#condense_sample
+        - text: condense_events
+          href: reference/inspect_ai.log.qmd#condense_events
+        - text: expand_events
+          href: reference/inspect_ai.log.qmd#expand_events
+        - text: EventsData
+          href: reference/inspect_ai.log.qmd#eventsdata
         - text: transcript
           href: reference/inspect_ai.log.qmd#transcript
         - text: Transcript
@@ -663,6 +671,8 @@ website:
           href: reference/inspect_ai.event.qmd#spanendevent
         - text: event_tree
           href: reference/inspect_ai.event.qmd#event_tree
+        - text: event_tree_walk
+          href: reference/inspect_ai.event.qmd#event_tree_walk
         - text: event_sequence
           href: reference/inspect_ai.event.qmd#event_sequence
         - text: EventTree
@@ -758,6 +768,8 @@ website:
           href: reference/inspect_ai.util.qmd#input_screen
         - text: span
           href: reference/inspect_ai.util.qmd#span
+        - text: current_span_id
+          href: reference/inspect_ai.util.qmd#current_span_id
         - text: collect
           href: reference/inspect_ai.util.qmd#collect
         - text: resource

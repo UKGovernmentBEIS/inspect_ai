@@ -3,6 +3,7 @@ import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
   CompactionEvent,
+  ContentDocument,
   ContentImage,
   ContentText,
   EvalSample,
@@ -125,6 +126,11 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
+export interface Progress {
+  complete: number;
+  total: number;
+}
+
 export interface EventFilter {
   filteredTypes: string[];
 }
@@ -137,6 +143,7 @@ export interface SampleState {
   sampleError: Error | undefined;
   sampleNeedsReload: number;
   eventsCleared: boolean;
+  downloadProgress?: Progress;
 
   visiblePopover?: string;
 
@@ -208,7 +215,7 @@ export type SampleMode = "none" | "single" | "many";
 
 export interface ContentTool {
   type: "tool";
-  content: (ContentImage | ContentText)[];
+  content: (ContentImage | ContentText | ContentDocument)[];
 }
 
 export interface RunningSampleData {

@@ -115,6 +115,7 @@ from inspect_ai.util._limit import (
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
+from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._span import span
@@ -786,6 +787,9 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            eval_set_id=eval_set_id,
+            run_id=run_id,
+            eval_id=task_id,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:
@@ -960,6 +964,9 @@ async def task_run_sample(
                                 record_sample_limit_data(
                                     len((sample_state() or state).messages)
                                 )
+
+                    except SandboxTimeoutError as ex:
+                        raise RuntimeError(str(ex)) from ex
 
                     except TimeoutError:
                         # Scoped time limits manifest themselves as LimitExceededError, not

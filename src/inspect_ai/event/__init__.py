@@ -31,7 +31,14 @@ from ._timeline import (
     timeline_load,
 )
 from ._tool import ToolEvent
-from ._tree import EventTree, EventTreeNode, EventTreeSpan, event_sequence, event_tree
+from ._tree import (
+    EventTree,
+    EventTreeNode,
+    EventTreeSpan,
+    event_sequence,
+    event_tree,
+    event_tree_walk,
+)
 
 __all__ = [
     "Event",
@@ -58,6 +65,7 @@ __all__ = [
     "LoggingMessage",
     "event_tree",
     "event_sequence",
+    "event_tree_walk",
     "EventTree",
     "EventTreeSpan",
     "EventTreeNode",

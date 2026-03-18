@@ -179,7 +179,7 @@ def _single_arg_to_action(arguments: dict[str, object]) -> ComputerAction:
     elif action_type == "wait":
         return Wait(type="wait")
     else:
-        return Screenshot(type="screenshot")
+        assert False, f"Unsupported action for OpenAI computer use: {action_type}"
 
 
 def _parse_computer_tool_call_arguments(

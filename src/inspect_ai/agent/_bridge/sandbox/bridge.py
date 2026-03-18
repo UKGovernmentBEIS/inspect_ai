@@ -18,7 +18,12 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
-from inspect_ai.util._sandbox.exec_remote import ExecRemoteStreamingOptions
+from inspect_ai.util._sandbox.exec_remote import (
+    ExecCompleted,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
+    ExecStderr,
+)
 
 from ..._agent import AgentState
 from ..util import default_code_execution_providers, internal_web_search_providers
@@ -157,12 +162,19 @@ async def sandbox_agent_bridge(
                 ),
             )
 
+            # monitor proxy for unexpected death
+            tg.start_soon(_monitor_proxy, proxy)
+
             # main agent
             try:
                 yield bridge
                 agent_completed = True
             finally:
-                await proxy.kill()
+                with anyio.CancelScope(shield=True):
+                    # ensure the process terminates (no-op if already dead)
+                    await proxy.kill()
+
+                # ensure the scope is cancelled
                 tg.cancel_scope.cancel()
     except Exception as ex:
         # If the agent completed successfully but we got an error during cleanup,
@@ -194,4 +206,22 @@ def _register_bridged_tools(
         type="http",
         url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
+    )
+
+
+async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
+    """Monitor the proxy process event stream and raise if it dies unexpectedly."""
+    stderr: list[str] = []
+    async for event in proxy:
+        if isinstance(event, ExecStderr):
+            stderr.append(event.data)
+        if isinstance(event, ExecCompleted):
+            if not event.success:
+                raise RuntimeError(
+                    f"Model proxy process exited unexpectedly with failure: {''.join(stderr)}."
+                )
+            return
+    # Stream ended without ExecCompleted
+    raise RuntimeError(
+        f"Model proxy process stream ended unexpectedly: {''.join(stderr)}."
     )

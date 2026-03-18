@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Set, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Union
 
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
 
 from inspect_ai.tool._tool_info import (
     parse_docstring,

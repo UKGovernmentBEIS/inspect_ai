@@ -1,13 +1,15 @@
+import json
 from logging import getLogger
 from typing import (
     Callable,
     Literal,
-    TypedDict,
+    Sequence,
 )
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
+from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_schema_version
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_condense_enabled
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -39,7 +41,7 @@ from ..event._state import StateEvent
 from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._tool import ToolEvent
-from ._log import EvalSample
+from ._log import EvalSample, EventsData
 from ._pool import (
     _build_call_index,
     _build_msg_index,
@@ -58,6 +60,55 @@ ATTACHMENT_PROTOCOL = "attachment://"
 class WalkContext(TypedDict):
     message_cache: dict[str, ChatMessage]
     only_core: bool
+
+
+def condense_events(
+    events: Sequence[Event],
+) -> tuple[list[Event], EventsData]:
+    """De-duplicate repeated content in a sequence of events.
+
+    Extracts repeated ModelEvent inputs and calls into shared pools,
+    replacing inline content with pool index references.
+
+    Args:
+        events: Events to condense.
+
+    Returns:
+        Tuple of (condensed events, events data containing message and call pools).
+    """
+    condensed_events, message_pool = condense_model_event_inputs(events, [], {})
+    condensed_events, call_pool = condense_model_event_calls(condensed_events, [], {})
+    return condensed_events, EventsData(messages=message_pool, calls=call_pool)
+
+
+def expand_events(
+    events: Sequence[Event] | str,
+    data: EventsData | str,
+) -> list[Event]:
+    """Reverse :func:`condense_events` — restore pooled content into events.
+
+    Args:
+        events: Condensed events (with pool index references), or a JSON-serialized
+            ``list[Event]``.
+        data: Events data returned by :func:`condense_events`, or a JSON-serialized
+            ``EventsData``.
+
+    Returns:
+        Events with full message inputs and call request messages restored.
+    """
+    if isinstance(events, str):
+        events = TypeAdapter(list[Event]).validate_json(events)
+    if isinstance(data, str):
+        raw = json.loads(data)
+        data = EventsData(
+            messages=TypeAdapter(list[ChatMessage]).validate_python(
+                raw.get("messages", [])
+            ),
+            calls=raw.get("calls", []),
+        )
+    result = resolve_model_event_inputs(list(events), data["messages"])
+    result = resolve_model_event_calls(result, data["calls"])
+    return result
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
@@ -86,20 +137,22 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
     condensed_events = walk_events(sample.events, events_fn, context)
 
-    if log_schema_version() >= 3:
-        # Carry forward existing pool entries for idempotent re-condensation
-        msg_index = _build_msg_index(sample.message_pool)
+    events_data: EventsData | None = None
+    if log_condense_enabled():
+        existing = sample.events_data
+        existing_msgs = existing["messages"] if existing else []
+        existing_calls = existing["calls"] if existing else []
+
+        msg_index = _build_msg_index(existing_msgs)
         condensed_events, message_pool = condense_model_event_inputs(
-            condensed_events, sample.message_pool, msg_index
+            condensed_events, existing_msgs, msg_index
         )
 
-        call_index = _build_call_index(sample.call_pool)
+        call_index = _build_call_index(existing_calls)
         condensed_events, call_pool = condense_model_event_calls(
-            condensed_events, sample.call_pool, call_index
+            condensed_events, existing_calls, call_index
         )
-    else:
-        message_pool = []
-        call_pool = []
+        events_data = EventsData(messages=message_pool, calls=call_pool)
 
     return sample.model_copy(
         update={
@@ -107,8 +160,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
             "messages": walk_chat_messages(sample.messages, messages_fn, context),
             "events": condensed_events,
             "attachments": attachments,
-            "message_pool": message_pool,
-            "call_pool": call_pool,
+            "events_data": events_data,
         }
     )
 
@@ -208,13 +260,17 @@ def resolve_sample_attachments(
     )
 
     # Resolve pools before events — pool messages may contain attachment:// refs
+    ed = sample.events_data
+    msg_pool = ed["messages"] if ed else []
+    call_pool = ed["calls"] if ed else []
+
     resolved_pool: list[ChatMessage] = [
-        walk_chat_message(v, content_fn, context) for v in sample.message_pool
+        walk_chat_message(v, content_fn, context) for v in msg_pool
     ]
     resolved_call_pool: list[JsonValue] = (
-        sample.call_pool
+        call_pool
         if context.get("only_core")
-        else [walk_json_value(v, content_fn, context) for v in sample.call_pool]
+        else [walk_json_value(v, content_fn, context) for v in call_pool]
     )
 
     resolved_events = walk_events(sample.events, content_fn, context)
@@ -227,8 +283,7 @@ def resolve_sample_attachments(
             "messages": walk_chat_messages(sample.messages, content_fn, context),
             "events": resolved_events,
             "attachments": {},
-            "message_pool": [],
-            "call_pool": [],
+            "events_data": None,
         }
     )
 

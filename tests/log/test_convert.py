@@ -137,7 +137,7 @@ def test_convert_applies_message_pool_dedup(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Converting a v2 .eval file should apply message pool dedup."""
-    monkeypatch.setenv("INSPECT_LOG_FORMAT_V3", "1")
+    monkeypatch.setenv("INSPECT_LOG_CONDENSE", "1")
     input_file = (
         _TESTS_DIR
         / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
@@ -155,13 +155,13 @@ def test_convert_applies_message_pool_dedup(
     assert output_file.exists()
 
     log = read_eval_log(str(output_file))
-    assert log.version == 3
+    assert log.version == 2
     assert log.samples
 
     for sample in log.samples:
         # read_eval_log resolves pools, so input_refs should be None
-        # and message_pool should be empty after round-trip
-        assert not sample.message_pool  # resolved to empty
+        # and events_data should be None after round-trip
+        assert sample.events_data is None
         model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
         assert any(len(me.input) > 0 for me in model_events), (
             "At least one model event should have populated input"

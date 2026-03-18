@@ -1,13 +1,13 @@
 import json
 from logging import getLogger
-from typing import Annotated, Any, Literal, TypedDict, Union, cast
+from typing import Annotated, Any, Literal, Union, cast
 
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
 )
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
-from typing_extensions import NotRequired, override
+from typing_extensions import NotRequired, TypedDict, override
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.error import PrerequisiteError

@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   GridColumnsChangedEvent,
   IRowNode,
   RowClickedEvent,
@@ -222,6 +223,17 @@ export const LogListGrid: FC<LogListGridProps> = ({
     };
   }, [handleKeyDown]);
 
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<LogListRow>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data?.url) {
+        mouseEvent.preventDefault();
+        window.open(`#${e.data.url}`, "_blank");
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const loadHeaders = async () => {
       const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
@@ -403,6 +415,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
             }
           }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onSortChanged={handleSortChanged}
           onFilterChanged={handleFilterChanged}
           loading={data.length === 0 && (loading > 0 || syncing)}

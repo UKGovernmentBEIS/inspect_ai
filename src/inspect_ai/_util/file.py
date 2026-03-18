@@ -489,10 +489,15 @@ def safe_filename(s: str, max_length: int = 255) -> str:
     return s
 
 
-# clean underscores, slashes, and : from the file name component so we can reliably
-# parse components out later without worrying about underscores
+# clean underscores, slashes, colons, and + from the file name component so we can
+# reliably parse components out later without worrying about underscores
 def clean_filename_component(component: str) -> str:
-    return component.replace("_", "-").replace("/", "-").replace(":", "-")
+    return (
+        component.replace("_", "-")
+        .replace("/", "-")
+        .replace(":", "-")
+        .replace("+", "-")
+    )
 
 
 def strip_trailing_sep(path: str) -> str:
@@ -513,7 +518,12 @@ def strip_trailing_sep(path: str) -> str:
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
-    s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False),
+    s3=dict(
+        default_fill_cache=False,
+        default_cache_type="none",
+        cache_regions=False,
+        config_kwargs={"signature_version": "s3v4"},
+    ),
     # Azure schemes (credentials resolved dynamically in default_fs_options)
     az=dict(),
     abfs=dict(),

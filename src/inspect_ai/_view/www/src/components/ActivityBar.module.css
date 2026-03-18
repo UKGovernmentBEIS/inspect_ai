@@ -28,6 +28,15 @@
   top: 0;
 }
 
+.determinate {
+  height: 1px;
+  background-color: #3b82f6;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: width 150ms ease-out;
+}
+
 @keyframes leftToRight {
   0% {
     transform: translateX(-100%);

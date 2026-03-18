@@ -201,14 +201,6 @@ input = [
 
 ## Output {#multimodal-output}
 
-::: {.callout-note}
-Support for multimodal output is available only in the development version of Inspect. Install the development version from GitHub with:
-
-```python
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-```
-:::
-
 Some models can generate multimodal output along with text:
 
 - OpenAI `gpt-4o` and `gpt-5` models support image generation

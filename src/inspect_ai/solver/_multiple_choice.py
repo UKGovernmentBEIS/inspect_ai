@@ -2,9 +2,8 @@ import logging
 import re
 from enum import Enum
 from random import Random
-from typing import TypedDict
 
-from typing_extensions import Unpack
+from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai._util.logger import warn_once

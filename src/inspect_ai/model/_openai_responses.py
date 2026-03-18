@@ -667,7 +667,8 @@ def _process_response_output_items(
                 has_tool_calls = True
                 if output.id is not None:
                     assistant_internal().tool_calls[output.call_id] = cast(
-                        ResponseCustomToolCallParam, output.model_dump()
+                        ResponseCustomToolCallParam,
+                        output.model_dump(exclude_none=True),
                     )
                 tool_call = ToolCall(
                     id=output.call_id,
@@ -802,25 +803,30 @@ def reasoning_from_responses_reasoning(
     if not isinstance(item, ResponseReasoningItem):
         item = read_reasoning_item_param(item)
 
-    if item.encrypted_content is not None:
-        reasoning = item.encrypted_content
-        redacted = True
+    if item.content:
+        readable = "\n".join([s.text for s in item.content])
     else:
-        reasoning = (
-            "\n".join([s.text for s in item.content])
-            if item.content is not None
-            else ""
-        )
-        redacted = False
+        readable = None
 
     if item.summary:
-        summary: str | None = "\n\n".join([s.text for s in item.summary])
+        summary_text: str | None = "\n\n".join([s.text for s in item.summary])
     else:
-        summary = None
+        summary_text = None
 
-    return ContentReasoning(
-        reasoning=reasoning, summary=summary, signature=item.id, redacted=redacted
-    )
+    if item.encrypted_content is not None:
+        return ContentReasoning(
+            reasoning=item.encrypted_content,
+            summary=readable or summary_text,
+            signature=item.id,
+            redacted=True,
+        )
+    else:
+        return ContentReasoning(
+            reasoning=readable or "",
+            summary=summary_text,
+            signature=item.id,
+            redacted=False,
+        )
 
 
 # two issues addressed here:
@@ -842,18 +848,16 @@ def read_reasoning_item_param(
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
+    encrypted_content: str | None = content.reasoning if content.redacted else None
+
     content_params: list[ContentParam] = []
-    if content.redacted:
-        encrypted_content: str | None = content.reasoning
-    else:
-        encrypted_content = None
-        if content.reasoning:
-            content_params.append(
-                ContentParam(type="reasoning_text", text=content.reasoning)
-            )
+    if not content.redacted and content.reasoning:
+        content_params.append(
+            ContentParam(type="reasoning_text", text=content.reasoning)
+        )
 
     summary_params: list[SummaryParam] = []
-    if content.summary:
+    if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
     return ResponseReasoningItemParam(
