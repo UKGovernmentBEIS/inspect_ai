@@ -254,7 +254,7 @@ class Job:
     async def _read_stream(
         self, stream: asyncio.StreamReader | None, buffer: BoundedByteBuffer
     ) -> None:
-        """Read from a stream and append to buffer up to the output limit."""
+        """Read from a stream and append to buffer with backpressure."""
         if stream is None:
             return
 

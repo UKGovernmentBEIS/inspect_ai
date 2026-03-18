@@ -2,6 +2,7 @@
 
 import asyncio
 
+import anyio
 import pytest
 from inspect_sandbox_tools._remote_tools._exec_remote._output_buffer import (
     BoundedByteBuffer,
@@ -47,7 +48,7 @@ async def test_close_wakes_waiter():
         woke = True
 
     task = asyncio.create_task(waiter())
-    await asyncio.sleep(0.01)
+    await anyio.sleep(0.01)
     assert not woke
     buf.close()
     await asyncio.wait_for(task, timeout=0.1)
