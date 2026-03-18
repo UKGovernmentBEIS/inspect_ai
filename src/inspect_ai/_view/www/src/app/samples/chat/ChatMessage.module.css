@@ -3,6 +3,7 @@
   margin-left: 0;
   margin-right: 0;
   white-space: normal;
+  min-width: 0;
 }
 
 .systemRole {

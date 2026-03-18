@@ -154,7 +154,14 @@ class TestModelInfoFields:
         test_models = [
             "anthropic/claude-sonnet-4",
             "openai/gpt-4o",
+            "openai/gpt-5.3-chat",
+            "openai/gpt-5.4-mini",
+            "openai/gpt-5.4-nano",
             "google/gemini-2.5-flash-preview-05-20",
+            "google/gemini-2.5-flash-lite",
+            "google/gemini-3-flash-preview",
+            "google/gemini-3.1-flash-image-preview",
+            "google/gemini-3.1-flash-lite-preview",
         ]
 
         for model in test_models:
