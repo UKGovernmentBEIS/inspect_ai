@@ -107,6 +107,14 @@ class ExecRemoteCommonOptions:
     poll_interval: float | None = None
     """Interval between poll requests in seconds"""
 
+    poll_timeout: float | None = None
+    """Timeout for individual RPC poll requests in seconds. Defaults to 30 seconds."""
+
+    poll_timeout_retry: bool | None = None
+    """Retry individual RPC poll requests when they time out.
+    Requests will be retried up to twice, with a timeout of no greater
+    than 60 seconds for the first retry and 30 for the second."""
+
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
@@ -124,14 +132,9 @@ class ExecRemoteStreamingOptions(ExecRemoteCommonOptions):
 
 @dataclass
 class ExecRemoteAwaitableOptions(ExecRemoteCommonOptions):
-    """Options for exec_remote() in awaitable mode (stream=False).
+    """Options for exec_remote() in awaitable mode (stream=False)."""
 
-    Not yet implemented:
-        timeout_retry: Retry logic on timeout (as in exec()) is not yet
-            supported. When added, it will only apply to awaitable mode.
-    """
-
-    timeout: int | None = None
+    timeout: float | None = None
     """Maximum execution time in seconds. On timeout, the process is killed and
     TimeoutError is raised"""
 
@@ -275,7 +278,8 @@ class ExecRemoteProcess:
             result_type=result_type,
             transport=self._transport,
             error_mapper=GenericJSONRPCErrorMapper,
-            timeout=RPC_TIMEOUT,
+            timeout=self._options.poll_timeout or RPC_TIMEOUT,
+            timeout_retry=self._options.poll_timeout_retry,
             user=self._options.user,
             concurrency=self._options.concurrency,
         )
