@@ -232,20 +232,21 @@ def resolve_model_event_inputs(
     return result
 
 
-def resolve_sample_message_pool(sample: EvalSample) -> EvalSample:
-    """Resolve message pool references in model events.
+def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
+    """Resolve events_data pool references in model events.
 
     Always called on read to ensure ModelEvent.input is populated,
     regardless of the resolve_attachments setting.
     """
-    if not sample.message_pool and not sample.call_pool:
+    if sample.events_data is None:
         return sample
-    resolved_events = resolve_model_event_inputs(sample.events, sample.message_pool)
-    resolved_events = resolve_model_event_calls(resolved_events, sample.call_pool)
+    msg_pool = sample.events_data["messages"]
+    call_pool = sample.events_data["calls"]
+    resolved_events = resolve_model_event_inputs(sample.events, msg_pool)
+    resolved_events = resolve_model_event_calls(resolved_events, call_pool)
     return sample.model_copy(
         update={
             "events": resolved_events,
-            "message_pool": [],
-            "call_pool": [],
+            "events_data": None,
         }
     )

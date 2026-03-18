@@ -35,8 +35,7 @@ const makeSample = (overrides: Record<string, unknown> = {}) => ({
   messages: [],
   events: [],
   attachments: {},
-  message_pool: [],
-  call_pool: [],
+  events_data: null,
   ...overrides,
 });
 
@@ -53,24 +52,27 @@ const msgs = [
 describe("resolveSample", () => {
   it.each([
     {
-      name: "resolves input_refs from message_pool",
+      name: "resolves input_refs from events_data",
       sample: makeSample({
-        message_pool: [sys, usr],
+        events_data: { messages: [sys, usr], calls: [] },
         events: [modelEvent([], [[0, 2]])],
       }),
       check: (resolved: any) => {
         expect(resolved.events[0].input).toEqual([sys, usr]);
         expect(resolved.events[0].input_refs).toBeNull();
-        expect(resolved.message_pool).toEqual([]);
+        expect(resolved.events_data).toBeNull();
       },
     },
     {
-      name: "resolves call_refs from call_pool",
+      name: "resolves call_refs from events_data",
       sample: makeSample({
-        call_pool: [
-          { role: "user", content: "Hello" },
-          { role: "assistant", content: "Hi" },
-        ],
+        events_data: {
+          messages: [],
+          calls: [
+            { role: "user", content: "Hello" },
+            { role: "assistant", content: "Hi" },
+          ],
+        },
         events: [modelEventWithCall({ model: "test" }, [[0, 2]], "messages")],
       }),
       check: (resolved: any) => {
@@ -79,13 +81,16 @@ describe("resolveSample", () => {
           { role: "assistant", content: "Hi" },
         ]);
         expect(resolved.events[0].call.call_refs).toBeNull();
-        expect(resolved.call_pool).toEqual([]);
+        expect(resolved.events_data).toBeNull();
       },
     },
     {
       name: "uses call_key to restore under a custom key",
       sample: makeSample({
-        call_pool: [{ role: "user", content: "Hello via contents" }],
+        events_data: {
+          messages: [],
+          calls: [{ role: "user", content: "Hello via contents" }],
+        },
         events: [modelEventWithCall({ model: "test" }, [[0, 1]], "contents")],
       }),
       check: (resolved: any) => {
@@ -98,7 +103,10 @@ describe("resolveSample", () => {
     {
       name: "resolves pool before attachments",
       sample: makeSample({
-        message_pool: [msg("msg-1", "user", "attachment://abc123")],
+        events_data: {
+          messages: [msg("msg-1", "user", "attachment://abc123")],
+          calls: [],
+        },
         attachments: { abc123: "resolved content" },
         events: [modelEvent([], [[0, 1]])],
       }),
@@ -109,7 +117,7 @@ describe("resolveSample", () => {
     {
       name: "resolves non-contiguous range refs",
       sample: makeSample({
-        message_pool: msgs,
+        events_data: { messages: msgs, calls: [] },
         events: [
           modelEvent(
             [],

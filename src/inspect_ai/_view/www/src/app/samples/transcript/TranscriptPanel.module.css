@@ -6,6 +6,10 @@
   transition: grid-template-columns 0.3s ease;
 }
 
+.container > * {
+  min-width: 0;
+}
+
 .container.collapsed {
   grid-template-columns: 1.5em 1fr;
 }
