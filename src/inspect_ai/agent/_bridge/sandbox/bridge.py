@@ -159,6 +159,7 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
+                    poll_timeout=600,
                 ),
             )
 
