@@ -8,6 +8,7 @@ from anyio.streams.memory import MemoryObjectReceiveStream
 from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -167,6 +168,54 @@ class SampleEnd:
     """The globally unique identifier for the sample execution."""
     sample: EvalSample
     """The sample that has run."""
+
+
+@dataclass(frozen=True)
+class SampleAttemptStart:
+    """Sample attempt start hook event data.
+
+    Fired at the beginning of every attempt (including the first).
+    Unlike on_sample_start which fires once per sample, this fires on retries too.
+    """
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    summary: EvalSampleSummary
+    """Summary of the sample to be run."""
+    attempt: int
+    """1-based attempt number."""
+
+
+@dataclass(frozen=True)
+class SampleAttemptEnd:
+    """Sample attempt end hook event data.
+
+    Fired at the end of every attempt (including the last).
+    Unlike on_sample_end which fires once per sample, this fires on retries too.
+    """
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    summary: EvalSampleSummary
+    """Summary of the sample."""
+    attempt: int
+    """1-based attempt number."""
+    error: EvalError | None
+    """The error from this attempt, if any."""
+    will_retry: bool
+    """Whether the sample will be retried after this attempt."""
 
 
 @dataclass(frozen=True)
@@ -358,6 +407,28 @@ class Hooks:
 
         Args:
            data: Sample end data.
+        """
+        pass
+
+    async def on_sample_attempt_start(self, data: SampleAttemptStart) -> None:
+        """On sample attempt start.
+
+        Fired at the beginning of every attempt (including the first).
+        Unlike on_sample_start which fires once per sample, this fires on retries too.
+
+        Args:
+           data: Sample attempt start data.
+        """
+        pass
+
+    async def on_sample_attempt_end(self, data: SampleAttemptEnd) -> None:
+        """On sample attempt end.
+
+        Fired at the end of every attempt (including the last).
+        Unlike on_sample_end which fires once per sample, this fires on retries too.
+
+        Args:
+           data: Sample attempt end data.
         """
         pass
 
@@ -650,6 +721,48 @@ async def emit_sample_end(
         sample=sample,
     )
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
+
+
+async def emit_sample_attempt_start(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
+    attempt: int,
+) -> None:
+    data = SampleAttemptStart(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
+        attempt=attempt,
+    )
+    await _emit_to_all(lambda hook: hook.on_sample_attempt_start(data))
+
+
+async def emit_sample_attempt_end(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
+    attempt: int,
+    error: EvalError | None,
+    will_retry: bool,
+) -> None:
+    data = SampleAttemptEnd(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
+        attempt=attempt,
+        error=error,
+        will_retry=will_retry,
+    )
+    await _emit_to_all(lambda hook: hook.on_sample_attempt_end(data))
 
 
 async def emit_model_usage(
