@@ -538,25 +538,26 @@ async def cleanup_s3_sessions() -> None:
     if not instances:
         return
 
-    for instance in instances:
-        s3creator = getattr(instance, "_s3creator", None)
-        if s3creator is not None:
-            try:
-                await s3creator.__aexit__(None, None, None)
-            except (OSError, RuntimeError, AttributeError):
-                pass
-
     try:
-        S3FileSystem.clear_instance_cache()
-    except Exception:
-        logger.warning("Failed to clear S3FileSystem instance cache", exc_info=True)
-    else:
-        trace_message(
-            logger,
-            "s3",
-            "Cleaned up %d cached S3FileSystem instance(s)",
-            len(instances),
-        )
+        for instance in instances:
+            s3creator = getattr(instance, "_s3creator", None)
+            if s3creator is not None:
+                try:
+                    await s3creator.__aexit__(None, None, None)
+                except Exception:
+                    pass
+    finally:
+        try:
+            S3FileSystem.clear_instance_cache()
+        except Exception:
+            logger.warning("Failed to clear S3FileSystem instance cache", exc_info=True)
+        else:
+            trace_message(
+                logger,
+                "s3",
+                "Cleaned up %d cached S3FileSystem instance(s)",
+                len(instances),
+            )
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(

@@ -281,7 +281,7 @@ async def eval_run(
         # clean up cached S3 sessions to prevent "Unclosed connector" warnings
         try:
             await cleanup_s3_sessions()
-        except BaseException as ex:
+        except Exception as ex:
             log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
