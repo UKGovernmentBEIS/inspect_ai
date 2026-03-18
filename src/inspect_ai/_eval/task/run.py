@@ -808,9 +808,10 @@ async def task_run_sample(
             results: dict[str, SampleScore] = {}
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
+            attempt_started = False
 
             async def emit_attempt_end(will_retry: bool) -> None:
-                if sample_summary is None:
+                if sample_summary is None or not attempt_started:
                     return
                 await emit_sample_attempt_end(
                     eval_set_id,
@@ -980,6 +981,7 @@ async def task_run_sample(
                                     sample_summary,
                                     attempt=len(error_retries) + 1,
                                 )
+                                attempt_started = True
 
                                 async with anyio.create_task_group() as tg:
                                     tg.start_soon(run, tg)

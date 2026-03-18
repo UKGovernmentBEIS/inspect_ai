@@ -345,9 +345,7 @@ def test_hooks_sample_uuid_stable_multiple_samples_with_retries(
     assert init_ids == end_ids
 
     # Attempt hooks are properly paired
-    starts = [
-        (e.sample_id, e.attempt) for e in mock_hooks.sample_attempt_start_events
-    ]
+    starts = [(e.sample_id, e.attempt) for e in mock_hooks.sample_attempt_start_events]
     ends = [(e.sample_id, e.attempt) for e in mock_hooks.sample_attempt_end_events]
     assert starts == ends
 
@@ -592,6 +590,27 @@ def test_sample_events_arrive_before_sample_end(mock_hooks: MockHooks) -> None:
     end_sample_id = mock_hooks.sample_end_events[0].sample_id
     for evt in mock_hooks.sample_event_events:
         assert evt.sample_id == end_sample_id
+
+
+def test_no_attempt_end_without_attempt_start(mock_hooks: MockHooks) -> None:
+    """Verify that attempt_end is NOT emitted when a failure occurs before attempt_start."""
+    with patch(
+        "inspect_ai.hooks._hooks.emit_sample_start",
+        side_effect=RuntimeError("simulated pre-attempt failure"),
+    ):
+        eval(
+            Task(dataset=[Sample("sample_1")]),
+            model="mockllm/model",
+        )
+
+    # sample_init should still have been emitted (it happens before the patched call)
+    assert len(mock_hooks.sample_init_events) == 1
+
+    # attempt_start should NOT have been emitted (failure happened before it)
+    assert len(mock_hooks.sample_attempt_start_events) == 0
+
+    # attempt_end must NOT be emitted without a matching attempt_start
+    assert len(mock_hooks.sample_attempt_end_events) == 0
 
 
 T = TypeVar("T", bound=Hooks)
