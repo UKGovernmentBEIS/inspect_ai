@@ -6,7 +6,11 @@ from typing import Literal
 
 from inspect_sandbox_tools._util.common_types import ToolException
 
+from ._output_buffer import BoundedByteBuffer, DecodingBuffer
 from .tool_types import PollResult
+
+_BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
+_MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 
 
 class Job:
@@ -73,8 +77,10 @@ class Job:
 
     def __init__(self, process: AsyncIOProcess) -> None:
         self._process = process
-        self._stdout_buffer: list[str] = []
-        self._stderr_buffer: list[str] = []
+        self._stdout_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
+        self._stderr_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
+        self._stdout_output = DecodingBuffer(self._stdout_buffer)
+        self._stderr_output = DecodingBuffer(self._stderr_buffer)
         self._state: Literal["running", "completed", "killed"] = "running"
         self._exit_code: int | None = None
 
@@ -101,11 +107,30 @@ class Job:
             # Wait for read tasks to finish draining
             await self._wait_for_readers()
 
-        stdout, stderr = self._drain_buffers()
+        # Always limit per-poll output to keep JSON-RPC responses small.
+        # Defer reporting terminal state until buffers are fully drained
+        # so the client keeps polling for remaining output.
+        stdout, stderr = self._drain_buffers(
+            final=False, max_bytes=_MAX_POLL_OUTPUT_BYTES
+        )
+
+        buffers_empty = not stdout and not stderr
+        if self._state != "running" and not buffers_empty:
+            # Report as running so client keeps polling
+            reported_state: Literal["running", "completed", "killed"] = "running"
+            reported_exit_code = None
+        elif self._state != "running" and buffers_empty:
+            # Buffers drained — flush decoder and report terminal state
+            stdout, stderr = self._drain_buffers(final=True)
+            reported_state = self._state
+            reported_exit_code = self._exit_code
+        else:
+            reported_state = self._state
+            reported_exit_code = self._exit_code
 
         return PollResult(
-            state=self._state,
-            exit_code=self._exit_code,
+            state=reported_state,
+            exit_code=reported_exit_code,
             stdout=stdout,
             stderr=stderr,
         )
@@ -142,19 +167,26 @@ class Job:
 
         await self._wait_for_readers()
 
-        return self._drain_buffers()
+        return self._drain_buffers(final=True)
 
-    def _drain_buffers(self) -> tuple[str, str]:
+    def _drain_buffers(
+        self, final: bool = False, max_bytes: int | None = None
+    ) -> tuple[str, str]:
         """Collect and clear the stdout/stderr buffers.
+
+        Args:
+            final: If True, flush any trailing partial UTF-8 sequences
+                as replacement characters.
+            max_bytes: Maximum raw bytes to drain per stream. If None,
+                drains everything.
 
         Returns:
             A tuple of (stdout, stderr) strings accumulated since the last drain.
         """
-        stdout = "".join(self._stdout_buffer)
-        stderr = "".join(self._stderr_buffer)
-        self._stdout_buffer.clear()
-        self._stderr_buffer.clear()
-        return (stdout, stderr)
+        return (
+            self._stdout_output.drain(final, max_bytes),
+            self._stderr_output.drain(final, max_bytes),
+        )
 
     async def write_stdin(self, data: str) -> tuple[str, str]:
         """Write data to the process's stdin and return buffered output.
@@ -206,18 +238,23 @@ class Job:
 
     async def _wait_for_readers(self) -> None:
         """Wait for background read tasks to complete."""
+        self._stdout_buffer.close()
+        self._stderr_buffer.close()
         for task in [self._stdout_task, self._stderr_task]:
             if not task.done():
-                task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                    await asyncio.wait_for(task, timeout=1.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
 
     async def _read_stream(
-        self, stream: asyncio.StreamReader | None, buffer: list[str]
+        self, stream: asyncio.StreamReader | None, buffer: BoundedByteBuffer
     ) -> None:
-        """Read from a stream and append to buffer."""
+        """Read from a stream and append to buffer with backpressure."""
         if stream is None:
             return
 
@@ -226,6 +263,6 @@ class Job:
                 data = await stream.read(4096)
                 if not data:
                     break
-                buffer.append(data.decode("utf-8", errors="replace"))
+                await buffer.put(data)
         except asyncio.CancelledError:
             pass

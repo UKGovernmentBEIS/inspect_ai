@@ -76,3 +76,18 @@ def test_eval_approval_override():
         approval=eval_approval,
     )[0]
     assert log.eval.config.approval == eval_approval
+
+
+def test_eval_sandbox_init_when_first_task_has_no_sandbox():
+    """Check that Sandbox initialization runs when ANY task has a sandbox, not just the first."""
+    results = eval(
+        tasks=[
+            Task(dataset=[Sample(input="x")], name="no_sandbox"),
+            Task(dataset=[Sample(input="x")], sandbox="docker", name="docker_sandbox"),
+        ],
+        model="mockllm/model",
+        max_tasks=2,
+    )
+    assert len(results) == 2
+    for r in results:
+        assert r.status == "success", f"{r.eval.task}: {r.error}"
