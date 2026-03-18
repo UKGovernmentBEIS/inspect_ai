@@ -44,6 +44,14 @@ from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
 
+
+class EventsData(TypedDict):
+    """Pooled data extracted by condense_events / condense_sample."""
+
+    messages: list[ChatMessage]
+    calls: list[JsonValue]
+
+
 EvalStatus = Literal["started", "success", "cancelled", "error"]
 """Status of an evaluation run."""
 
@@ -422,17 +430,8 @@ class EvalSample(BaseModel):
     attachment content) by passing `resolve_attachments=True` to log reading functions.
     """
 
-    message_pool: list[ChatMessage] = Field(default_factory=list)
-    """Pool of deduplicated messages referenced by model event input_refs.
-
-    Messages are referenced by ordinal index.
-    """
-
-    call_pool: list[JsonValue] = Field(default_factory=list)
-    """Pool of raw API request messages.
-
-    Referenced by ordinal index.
-    """
+    events_data: EventsData | None = Field(default=None)
+    """Pooled dedup data for condensed events (messages and calls)."""
 
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
