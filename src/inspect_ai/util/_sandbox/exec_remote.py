@@ -108,7 +108,7 @@ class ExecRemoteCommonOptions:
     """Interval between poll requests in seconds"""
 
     poll_timeout: float | None = None
-    """Timeout for individual RPC poll requests in seconds. Defaults to 30 seconds."""
+    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds."""
 
     poll_timeout_retry: bool | None = None
     """Retry individual RPC poll requests when they time out.
@@ -186,7 +186,7 @@ class _CloseStdinResult(BaseModel):
 
 MIN_POLL_INTERVAL = 5
 
-RPC_TIMEOUT = 30
+RPC_TIMEOUT = 120
 """Timeout for individual JSON-RPC calls in seconds."""
 
 T = TypeVar("T", bound=BaseModel)
