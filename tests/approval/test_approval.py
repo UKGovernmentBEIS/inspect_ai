@@ -195,5 +195,55 @@ def test_approval_context_manager():
     assert _tool_approver.get(None) is None
 
 
+async def test_execute_tools_approval():
+    """execute_tools with approval=[reject_all] should reject tool calls."""
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error=None,
+    )
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=[reject_all_policy],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "approval"
+
+
+async def test_execute_tools_approval_empty_list():
+    """execute_tools with approval=[] should behave like None (no approval)."""
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error=None,
+    )
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=[],
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    assert messages[-1].content == [ContentText(text="2")]
+
+
 if __name__ == "__main__":
     test_approve_escalate()

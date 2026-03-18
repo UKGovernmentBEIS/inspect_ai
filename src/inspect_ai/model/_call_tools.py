@@ -127,7 +127,7 @@ async def execute_tools(
 
     from inspect_ai.approval._apply import approval as approval_context
 
-    cm = approval_context(approval) if approval is not None else nullcontext()
+    cm = approval_context(approval) if approval else nullcontext()
     with cm:
         return await _execute_tools_impl(messages, tools, max_output)
 
