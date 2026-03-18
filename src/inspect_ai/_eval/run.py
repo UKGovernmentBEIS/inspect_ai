@@ -75,7 +75,7 @@ async def eval_run(
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # are sandboxes in play?
-    has_sandbox = next((task.has_sandbox for task in tasks), None)
+    has_sandbox = any(task.has_sandbox for task in tasks)
 
     # get cwd before any switching
     eval_wd = os.getcwd()
