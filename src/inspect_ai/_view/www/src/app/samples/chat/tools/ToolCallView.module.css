@@ -1,6 +1,11 @@
 .toolCallView {
   display: grid;
   row-gap: 0.5em;
+  min-width: 0;
+}
+
+.toolCallView > * {
+  min-width: 0;
 }
 
 .toolCallView:not(:first-child) {

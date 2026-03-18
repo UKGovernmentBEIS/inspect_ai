@@ -5,6 +5,7 @@
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
 - Inspect View: Improve viewer loading performance for large samples.
+- Inspect View: Ensure tool output wraps for rendered text.
 
 ## 0.3.199 (17 March 2026)
 
