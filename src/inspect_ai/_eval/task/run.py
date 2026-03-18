@@ -703,6 +703,8 @@ async def task_run_sample(
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
         drain_sample_events,
+        emit_sample_attempt_end,
+        emit_sample_attempt_start,
         emit_sample_end,
         emit_sample_event,
         emit_sample_init,
@@ -955,6 +957,15 @@ async def task_run_sample(
                                         sample_summary,
                                     )
 
+                                await emit_sample_attempt_start(
+                                    eval_set_id,
+                                    run_id,
+                                    task_id,
+                                    state.uuid,
+                                    sample_summary,
+                                    attempt=len(error_retries) + 1,
+                                )
+
                                 async with anyio.create_task_group() as tg:
                                     tg.start_soon(run, tg)
                             except Exception as ex:
@@ -1166,6 +1177,16 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
+                    await emit_sample_attempt_end(
+                        eval_set_id,
+                        run_id,
+                        task_id,
+                        state.uuid,
+                        summary=sample_summary,
+                        attempt=len(error_retries) + 1,
+                        error=error,
+                        will_retry=False,
+                    )
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
                     )
@@ -1174,6 +1195,17 @@ async def task_run_sample(
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
     if error and retry_on_error > 0 and cancelled_error is None:
+        await emit_sample_attempt_end(
+            eval_set_id,
+            run_id,
+            task_id,
+            state.uuid,
+            summary=sample_summary,
+            attempt=len(error_retries) + 1,
+            error=error,
+            will_retry=True,
+        )
+
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
