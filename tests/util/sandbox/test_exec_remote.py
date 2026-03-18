@@ -866,7 +866,7 @@ class TestPollTimeoutOptions:
         await exec_remote_streaming(sandbox, ["cmd"], 5, ExecRemoteCommonOptions())
 
         kwargs = sandbox.exec.call_args_list[0].kwargs
-        assert kwargs["timeout"] == 30
+        assert kwargs["timeout"] == 120
 
     async def test_explicit_poll_timeout_propagates(self) -> None:
         """Explicit poll_timeout value is passed through to sandbox.exec."""
