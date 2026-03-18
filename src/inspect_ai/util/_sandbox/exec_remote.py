@@ -272,16 +272,22 @@ class ExecRemoteProcess:
         self, method: str, params: dict[str, object], result_type: type[T]
     ) -> T:
         """Make an RPC call to the sandbox."""
+        extra_args: dict[str, object] = dict(
+            timeout=RPC_TIMEOUT
+            if self._options.poll_timeout is None
+            else self._options.poll_timeout,
+            user=self._options.user,
+            concurrency=self._options.concurrency,
+        )
+        if self._options.poll_timeout_retry is not None:
+            extra_args["timeout_retry"] = self._options.poll_timeout_retry
         return await exec_model_request(
             method=method,
             params=params,
             result_type=result_type,
             transport=self._transport,
             error_mapper=GenericJSONRPCErrorMapper,
-            timeout=self._options.poll_timeout or RPC_TIMEOUT,
-            timeout_retry=self._options.poll_timeout_retry,
-            user=self._options.user,
-            concurrency=self._options.concurrency,
+            **extra_args,
         )
 
     async def _start(self) -> None:

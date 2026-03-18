@@ -849,3 +849,68 @@ class TestStdinOpenStartParam:
             start_call.kwargs.get("input", start_call[1].get("input", ""))
         )
         assert "stdin_open" not in rpc_payload["params"]
+
+
+# ============================================================================
+# Poll timeout and retry option plumbing
+# ============================================================================
+
+
+class TestPollTimeoutOptions:
+    """Verify that poll_timeout and poll_timeout_retry propagate correctly."""
+
+    async def test_default_poll_timeout_uses_rpc_timeout(self) -> None:
+        """Default poll_timeout=None falls back to RPC_TIMEOUT (30)."""
+        sandbox = _make_sandbox_mock([_start_response()])
+
+        await exec_remote_streaming(sandbox, ["cmd"], 5, ExecRemoteCommonOptions())
+
+        kwargs = sandbox.exec.call_args_list[0].kwargs
+        assert kwargs["timeout"] == 30
+
+    async def test_explicit_poll_timeout_propagates(self) -> None:
+        """Explicit poll_timeout value is passed through to sandbox.exec."""
+        sandbox = _make_sandbox_mock([_start_response()])
+
+        await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout=60)
+        )
+
+        kwargs = sandbox.exec.call_args_list[0].kwargs
+        assert kwargs["timeout"] == 60
+
+    async def test_default_poll_timeout_retry_preserves_transport_default(self) -> None:
+        """Default poll_timeout_retry=None should not pass timeout_retry.
+
+        Transport uses its own default (True).
+        """
+        sandbox = _make_sandbox_mock([_start_response()])
+
+        await exec_remote_streaming(sandbox, ["cmd"], 5, ExecRemoteCommonOptions())
+
+        kwargs = sandbox.exec.call_args_list[0].kwargs
+        # timeout_retry should either not be present (transport defaults to True)
+        # or be True
+        assert kwargs.get("timeout_retry", True) is True
+
+    async def test_explicit_poll_timeout_retry_false_propagates(self) -> None:
+        """Explicit poll_timeout_retry=False disables retries."""
+        sandbox = _make_sandbox_mock([_start_response()])
+
+        await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_retry=False)
+        )
+
+        kwargs = sandbox.exec.call_args_list[0].kwargs
+        assert kwargs["timeout_retry"] is False
+
+    async def test_explicit_poll_timeout_retry_true_propagates(self) -> None:
+        """Explicit poll_timeout_retry=True is passed through."""
+        sandbox = _make_sandbox_mock([_start_response()])
+
+        await exec_remote_streaming(
+            sandbox, ["cmd"], 5, ExecRemoteCommonOptions(poll_timeout_retry=True)
+        )
+
+        kwargs = sandbox.exec.call_args_list[0].kwargs
+        assert kwargs["timeout_retry"] is True
