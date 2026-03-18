@@ -264,10 +264,10 @@ def test_hooks_with_sample_retries(mock_hooks: MockHooks) -> None:
     init_id = mock_hooks.sample_init_events[0].sample_id
     assert mock_hooks.sample_start_events[0].sample_id == init_id
     assert mock_hooks.sample_end_events[0].sample_id == init_id
-    for evt in mock_hooks.sample_attempt_start_events:
-        assert evt.sample_id == init_id
-    for evt in mock_hooks.sample_attempt_end_events:
-        assert evt.sample_id == init_id
+    for start_evt in mock_hooks.sample_attempt_start_events:
+        assert start_evt.sample_id == init_id
+    for end_evt in mock_hooks.sample_attempt_end_events:
+        assert end_evt.sample_id == init_id
 
 
 def test_hooks_sample_uuid_stable_across_multiple_retries(
@@ -290,12 +290,12 @@ def test_hooks_sample_uuid_stable_across_multiple_retries(
     assert mock_hooks.sample_start_events[0].sample_id == init_id
     assert mock_hooks.sample_end_events[0].sample_id == init_id
     # All mid-sample events also carry the same UUID
-    for evt in mock_hooks.sample_event_events:
-        assert evt.sample_id == init_id
-    for evt in mock_hooks.sample_attempt_start_events:
-        assert evt.sample_id == init_id
-    for evt in mock_hooks.sample_attempt_end_events:
-        assert evt.sample_id == init_id
+    for sample_evt in mock_hooks.sample_event_events:
+        assert sample_evt.sample_id == init_id
+    for start_evt in mock_hooks.sample_attempt_start_events:
+        assert start_evt.sample_id == init_id
+    for end_evt in mock_hooks.sample_attempt_end_events:
+        assert end_evt.sample_id == init_id
 
 
 def test_hooks_sample_uuid_stable_on_retry_then_fail(
@@ -317,10 +317,10 @@ def test_hooks_sample_uuid_stable_on_retry_then_fail(
     init_id = mock_hooks.sample_init_events[0].sample_id
     assert mock_hooks.sample_start_events[0].sample_id == init_id
     assert mock_hooks.sample_end_events[0].sample_id == init_id
-    for evt in mock_hooks.sample_attempt_start_events:
-        assert evt.sample_id == init_id
-    for evt in mock_hooks.sample_attempt_end_events:
-        assert evt.sample_id == init_id
+    for start_evt in mock_hooks.sample_attempt_start_events:
+        assert start_evt.sample_id == init_id
+    for end_evt in mock_hooks.sample_attempt_end_events:
+        assert end_evt.sample_id == init_id
 
 
 def test_hooks_sample_uuid_stable_multiple_samples_with_retries(
@@ -362,15 +362,15 @@ def test_attempt_hooks_with_retries_then_success(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.sample_attempt_end_events) == 3
 
     # attempt numbers are sequential and 1-based
-    for i, evt in enumerate(mock_hooks.sample_attempt_start_events):
-        assert evt.attempt == i + 1
-    for i, evt in enumerate(mock_hooks.sample_attempt_end_events):
-        assert evt.attempt == i + 1
+    for i, start_evt in enumerate(mock_hooks.sample_attempt_start_events):
+        assert start_evt.attempt == i + 1
+    for i, end_evt in enumerate(mock_hooks.sample_attempt_end_events):
+        assert end_evt.attempt == i + 1
 
     # first two attempts failed and will be retried
-    for evt in mock_hooks.sample_attempt_end_events[:2]:
-        assert evt.error is not None
-        assert evt.will_retry is True
+    for end_evt in mock_hooks.sample_attempt_end_events[:2]:
+        assert end_evt.error is not None
+        assert end_evt.will_retry is True
 
     # last attempt succeeded
     last = mock_hooks.sample_attempt_end_events[2]
