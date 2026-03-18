@@ -157,7 +157,10 @@ const messageRenderers: Record<string, MessageRenderer> = {
           <Fragment key={key}>
             <RenderedText
               markdown={purgeInternalContainers(c.text) || ""}
-              className={isLast ? "no-last-para-padding" : ""}
+              className={clsx(
+                isLast ? "no-last-para-padding" : "",
+                styles.breakable,
+              )}
             />
             {c.citations ? (
               <MessageCitations citations={c.citations as Citation[]} />
