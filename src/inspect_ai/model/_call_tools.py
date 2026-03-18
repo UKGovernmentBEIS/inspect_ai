@@ -10,6 +10,7 @@ from logging import getLogger
 from textwrap import dedent
 from types import UnionType
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -27,6 +28,9 @@ from typing import (
     get_origin,
     get_type_hints,
 )
+
+if TYPE_CHECKING:
+    from inspect_ai.approval import ApprovalPolicy
 
 import anyio
 import yaml
@@ -101,6 +105,7 @@ async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
+    approval: list["ApprovalPolicy"] | None = None,
 ) -> ExecuteToolsResult:
     """Perform tool calls in the last assistant message.
 
@@ -110,10 +115,28 @@ async def execute_tools(
        max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
           (16 * 1024 by default).
+       approval (list[ApprovalPolicy] | None): Approval policies to
+          use for tool calls within this execution. Temporarily
+          replaces any active approval policies for the duration
+          of the call.
 
     Returns:
        Messages added to the conversation and final model output (if any)
     """
+    from contextlib import nullcontext
+
+    from inspect_ai.approval._apply import approval as approval_context
+
+    cm = approval_context(approval) if approval is not None else nullcontext()
+    with cm:
+        return await _execute_tools_impl(messages, tools, max_output)
+
+
+async def _execute_tools_impl(
+    messages: list[ChatMessage],
+    tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
+    max_output: int | None = None,
+) -> ExecuteToolsResult:
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.event._tool import ToolEvent

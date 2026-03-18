@@ -2,7 +2,12 @@ from pathlib import Path
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
-from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
+from inspect_ai.approval import (
+    ApprovalDecision,
+    ApprovalPolicy,
+    approval,
+    auto_approver,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
@@ -163,6 +168,31 @@ def find_approval(log: EvalLog) -> ApprovalEvent | None:
         )
     else:
         return None
+
+
+def test_approval_context_manager():
+    from inspect_ai.approval._apply import _tool_approver
+
+    # no approver set initially
+    assert _tool_approver.get(None) is None
+
+    # context manager sets and restores approver
+    with approval([approve_all_policy]):
+        assert _tool_approver.get(None) is not None
+    assert _tool_approver.get(None) is None
+
+    # nested contexts
+    with approval([approve_all_policy]):
+        outer_approver = _tool_approver.get(None)
+        assert outer_approver is not None
+        with approval([reject_all_policy]):
+            inner_approver = _tool_approver.get(None)
+            assert inner_approver is not None
+            assert inner_approver is not outer_approver
+        # outer restored
+        assert _tool_approver.get(None) is outer_approver
+    # fully restored
+    assert _tool_approver.get(None) is None
 
 
 if __name__ == "__main__":
