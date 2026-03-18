@@ -28,7 +28,7 @@ There are no universally correct approaches as tool usage and semantics can vary
 
 If you do not explicitly handle errors, then Inspect provides some default error handling behaviour. Specifically, if any of the following errors are raised they will be handled and reported to the model:
 
--   `TimeoutError` — Occurs when a call to `subprocess()` or `sandbox().exec()` times out.
+-   `TimeoutError` — Occurs when a call to `subprocess()`, `sandbox().exec()`, `sandbox().read_file()`, or `sandbox().write_file()` times out.
 
 -   `PermissionError` — Occurs when there are inadequate permissions to read or write a file.
 

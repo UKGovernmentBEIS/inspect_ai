@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+- Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
+- Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
 - Inspect View: Improve viewer loading performance for large samples.
 
