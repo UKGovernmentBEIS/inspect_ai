@@ -1504,21 +1504,32 @@ async def model_proxy_server(
                     }
                     yield _sse_anthropic("message_start", message_start)
 
-                    # 2. Await the actual completion, sending pings to keep alive
+                    # 2. Await the actual completion, sending pings to keep alive.
+                    #    try/finally ensures the task is cancelled if the
+                    #    generator is abandoned (e.g. client disconnect).
                     PING_INTERVAL_S = 5.0
                     task = asyncio.create_task(
                         call_bridge_model_service_async(
                             "generate_anthropic", json_data=json_body
                         )
                     )
-                    while not task.done():
-                        try:
-                            await asyncio.wait_for(
-                                asyncio.shield(task), timeout=PING_INTERVAL_S
-                            )
-                        except asyncio.TimeoutError:
-                            yield _sse_anthropic("ping", {"type": "ping"})
-                    completion = task.result()
+                    try:
+                        while not task.done():
+                            try:
+                                await asyncio.wait_for(
+                                    asyncio.shield(task), timeout=PING_INTERVAL_S
+                                )
+                            except asyncio.TimeoutError:
+                                yield _sse_anthropic("ping", {"type": "ping"})
+                        completion = task.result()
+                    except BaseException:
+                        if not task.done():
+                            task.cancel()
+                            try:
+                                await task
+                            except asyncio.CancelledError:
+                                pass
+                        raise
 
                     try:
                         # Parse the completion as a dict
