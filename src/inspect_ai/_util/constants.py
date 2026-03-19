@@ -50,3 +50,11 @@ MESSAGE_CACHE = "message_cache"
 
 def get_deserializing_context() -> dict[str, Any]:
     return {DESERIALIZING: True, MESSAGE_CACHE: {}}
+
+
+def log_condense_enabled() -> bool:
+    """Return whether pool-based event condensing is enabled."""
+    import os
+
+    val = os.environ.get("INSPECT_LOG_CONDENSE", "")
+    return val.lower() in ("1", "true", "yes")

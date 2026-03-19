@@ -28,8 +28,10 @@ from tenacity import (
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -91,7 +93,7 @@ async def generate_responses(
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
-        background = config.extra_body.pop("background", None)
+        background = config.extra_body.get("background", None)
 
     # batch mode and background are incompatible
     if batcher:
@@ -103,14 +105,15 @@ async def generate_responses(
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
         openai_responses_tools(tools, model_name, config)
-        if len(tools) > 0
+        if len(tools) > 0 or has_image_output(config.modalities)
         else NOT_GIVEN
     )
+
     request = dict(
         input=await openai_responses_inputs(input, model_info),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
-        if isinstance(tool_params, list) and tool_choice != "auto"
+        if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0
         else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
         | (config.extra_headers or {}),
@@ -125,6 +128,7 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
+            has_computer_tool=any(is_computer_tool_info(t) for t in tools),
         ),
     )
     if isinstance(background, bool):
@@ -152,9 +156,21 @@ async def generate_responses(
 
         # check for error
         if model_response.error is not None:
-            raise OpenAIResponseError(
-                code=model_response.error.code, message=model_response.error.message
-            )
+            # check for content filter
+            if model_response.error.code == "invalid_prompt":
+                model_call.set_error(
+                    as_error_response(model_response.error),
+                    http_hooks.end_request(request_id),
+                )
+                return ModelOutput.from_content(
+                    model=model_name,
+                    content=model_response.error.message,
+                    stop_reason="content_filter",
+                ), model_call
+            else:
+                raise OpenAIResponseError(
+                    code=model_response.error.code, message=model_response.error.message
+                )
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
@@ -253,9 +269,8 @@ def completion_params_responses(
     responses_store: bool | None,
     tools: bool,
     tool_params: list[ToolParam],
+    has_computer_tool: bool,
 ) -> dict[str, Any]:
-    # TODO: we'll need a computer_use_preview bool for the 'include'
-    # and 'reasoning' parameters
     def unsupported_warning(param: str) -> None:
         warn_once(
             logger,
@@ -271,7 +286,7 @@ def completion_params_responses(
         params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if model_info.is_computer_use_preview():
+    if model_info.has_reasoning_options():
         params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
@@ -279,9 +294,16 @@ def completion_params_responses(
     if responses_store is None and config.extra_body and "store" in config.extra_body:
         responses_store = config.extra_body["store"]
 
+    if has_computer_tool and responses_store is not True:
+        warn_once(
+            logger,
+            "OpenAI computer use tool requires store=True; overriding store setting.",
+        )
+        responses_store = True
+
     if responses_store is not True:
         params["store"] = False
-        if model_info.has_reasoning_options() or model_info.is_computer_use_preview():
+        if model_info.has_reasoning_options():
             params["include"].append("reasoning.encrypted_content")
 
     if config.max_tokens is not None:

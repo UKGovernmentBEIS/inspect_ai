@@ -36,7 +36,7 @@ from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
-from inspect_ai.log._bundle import bundle_log_dir
+from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
@@ -51,7 +51,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
-from inspect_ai.model._model_config import model_roles_to_model_roles_config
+from inspect_ai.model._model_config import (
+    model_args_for_log,
+    model_roles_to_model_roles_config,
+)
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
@@ -174,6 +177,7 @@ def eval_set(
     cost_limit: float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
@@ -181,12 +185,14 @@ def eval_set(
     log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_model_api: bool | None = None,
+    log_refusals: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
+    embed_viewer: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -261,6 +267,9 @@ def eval_set(
         model_cost_config: YAML or JSON file with model prices for cost tracking.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 4 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
@@ -272,6 +281,7 @@ def eval_set(
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
         log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -286,6 +296,7 @@ def eval_set(
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
+        embed_viewer: If True, embed a log viewer into the log directory.
         **kwargs: Model generation options.
 
     Returns:
@@ -335,6 +346,7 @@ def eval_set(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -342,6 +354,7 @@ def eval_set(
             log_realtime=log_realtime,
             log_images=log_images,
             log_model_api=log_model_api,
+            log_refusals=log_refusals,
             log_buffer=log_buffer,
             log_shared=log_shared,
             log_header_only=True,
@@ -371,6 +384,7 @@ def eval_set(
         max_subprocesses=max_subprocesses,
         log_level=log_level,
         log_level_transcript=log_level_transcript,
+        log_refusals=log_refusals,
         **kwargs,
     )
 
@@ -561,6 +575,10 @@ def eval_set(
         bundle_log_dir(
             log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
         )
+
+    # if specified, embed a log viewer into the log directory
+    if embed_viewer:
+        embed_log_dir(log_dir=log_dir)
 
     # report final status
     success = all_evals_succeeded(results)
@@ -917,7 +935,7 @@ def task_identifier(
             plan, task.task.config.merge(eval_set_args.config)
         )
         additional_hash_fields = AdditionalHashFields(
-            model_args=task.model.model_args,
+            model_args=model_args_for_log(task.model.model_args),
             version=task.task.version,
             message_limit=task.task.message_limit
             if eval_set_args.message_limit is None

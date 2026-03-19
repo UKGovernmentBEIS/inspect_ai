@@ -7,6 +7,7 @@ from openai import (
     APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
+    NotFoundError,
     NotGiven,
     RateLimitError,
     omit,
@@ -18,9 +19,8 @@ from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._providers.openai_completions import (
-    completion_params_completions,
     generate_completions,
 )
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -47,7 +47,6 @@ from .._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 from ._openai_batch import OpenAIBatcher
-from .openai_o1 import generate_o1
 from .util import (
     check_azure_deployment_mismatch,
     environment_prerequisite_error,
@@ -137,15 +136,13 @@ class OpenAIAPI(ModelAPI):
 
         # is this a model we use responses api by default for?
         responses_preferred = (
-            (self.is_o_series() and not self.is_o1_early())
-            or self.is_codex()
-            or self.is_gpt_5()
+            self.is_o_series() or self.is_codex() or self.is_gpt_5()
         ) and config.num_choices is None
 
         # resolve whether we are forcing the responses api
         self.responses_api = (
             background
-            or self.is_computer_use_preview()
+            or has_image_output(config.modalities)
             or (responses_api if responses_api is not None else responses_preferred)
         )
 
@@ -284,7 +281,10 @@ class OpenAIAPI(ModelAPI):
 
         # Use native counting for responses API (required for accurate counting)
         if self.responses_api:
-            return await self._count_tokens_native(input, config)
+            try:
+                return await self._count_tokens_native(input, config)
+            except NotFoundError:
+                pass  # endpoint not available (e.g. Azure); fall through to tiktoken
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -324,7 +324,7 @@ class OpenAIAPI(ModelAPI):
 
     def has_reasoning_options(self) -> bool:
         return (
-            (self.is_o_series() and not self.is_o1_early())
+            self.is_o_series()
             or (self.is_gpt_5() and not self.is_gpt_5_chat())
             or self.is_codex()
         )
@@ -352,19 +352,11 @@ class OpenAIAPI(ModelAPI):
 
     def is_o1(self) -> bool:
         name = self.service_model_name()
-        return "o1" in name and not self.is_o1_early()
-
-    def is_o1_early(self) -> bool:
-        name = self.service_model_name()
-        return "o1-mini" in name or "o1-preview" in name
+        return "o1" in name
 
     def is_o3_mini(self) -> bool:
         name = self.service_model_name()
         return "o3-mini" in name
-
-    def is_computer_use_preview(self) -> bool:
-        name = self.service_model_name()
-        return "computer-use-preview" in name
 
     def is_codex(self) -> bool:
         name = self.service_model_name()
@@ -384,8 +376,7 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # computer_use_preview supports tool calls returning images
-        if self.is_computer_use_preview() or self.responses_api:
+        if self.responses_api:
             return True
         else:
             return False
@@ -405,17 +396,10 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # short-circuit to call o1- models that are text only
-        if self.is_o1_early():
-            return await generate_o1(
-                client=self.client,
-                input=input,
-                tools=tools,
-                **completion_params_completions(self, config, False),
-            )
-
-        use_responses = self.responses_api or is_native_tool_configured(
-            tools, self.model_name, config
+        use_responses = (
+            self.responses_api
+            or has_image_output(config.modalities)
+            or is_native_tool_configured(tools, self.model_name, config)
         )
         self._resolve_batcher(config, use_responses)
 
@@ -579,11 +563,16 @@ class OpenAIAPI(ModelAPI):
         input_params = await openai_responses_inputs(input, self)
 
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
-        response = await self.client.responses.compact(
-            model=self.service_model_name(),
-            input=input_params,
-            instructions=instructions if instructions is not None else omit,
-        )
+        try:
+            response = await self.client.responses.compact(
+                model=self.service_model_name(),
+                input=input_params,
+                instructions=instructions if instructions is not None else omit,
+            )
+        except NotFoundError:
+            raise NotImplementedError(
+                f"Native compaction endpoint not available for {self.service_model_name()}"
+            ) from None
 
         # Extract compaction item and create ChatMessage with ContentData
         compacted_messages = chat_messages_from_compact_response(

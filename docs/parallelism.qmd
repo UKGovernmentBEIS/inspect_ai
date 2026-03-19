@@ -137,6 +137,23 @@ eval(
 
 This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
 
+## Dataset Memory {#sec-dataset-memory}
+
+When you run an evaluation, the full dataset of samples is loaded into memory. For most evaluations this is fine, but for very large datasets (e.g. hundreds of thousands of samples with long inputs) the memory footprint can become significant. The `--max-dataset-memory` option lets you set a per-task budget (in MB) for dataset sample data. When the estimated memory exceeds this budget, samples are automatically paged to a temporary file on disk and read back on demand as each sample is executed.
+
+``` bash
+$ inspect eval --model openai/gpt-4 --max-dataset-memory 512
+```
+
+Or equivalently in Python:
+
+``` python
+eval("task.py", model="openai/gpt-4", max_dataset_memory=512)
+```
+
+By default, no memory limit is applied and all samples remain in memory.
+
+
 ## Sandbox Environments {#sec-parallel-tool-environments}
 
 [Sandbox Environments](sandboxing.qmd) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect `subprocess()` function for executing commands within the environment.

@@ -110,7 +110,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.11"
+    MIN_VERSION = "2.0.1"
 
     # verify we have the package
     try:
@@ -131,7 +131,7 @@ def mistral() -> type[ModelAPI]:
 def grok() -> type[ModelAPI]:
     FEATURE = "Grok API"
     PACKAGE = "xai_sdk"
-    MIN_VERSION = "1.4.0"
+    MIN_VERSION = "1.7.0"
 
     # verify we have the package
     try:
@@ -323,7 +323,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.17.0"
+    MIN_VERSION = "2.26.0"
 
     # verify we have the package
     try:
@@ -351,7 +351,7 @@ def validate_anthropic_client(feature: str) -> None:
 
 def validate_google_client(feature: str) -> None:
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.56.0"
+    MIN_VERSION = "1.62.0"
 
     # verify we have the package
     try:

@@ -16,6 +16,7 @@ import {
   LogRoot,
   LogViewAPI,
   PendingSampleResponse,
+  ProgressCallback,
   SampleDataResponse,
 } from "./types";
 
@@ -129,7 +130,7 @@ export const clientApi = (
    */
   const get_log_details = async (log_file: string): Promise<LogDetails> => {
     if (isEvalFile(log_file)) {
-      const remoteLogFile = await remoteEvalFile(log_file);
+      const remoteLogFile = await remoteEvalFile(log_file, true);
       if (remoteLogFile) {
         return await remoteLogFile.readLogSummary();
       } else {
@@ -163,6 +164,9 @@ export const clientApi = (
         results: parsed.results,
         stats: parsed.stats,
         error: parsed.error,
+        tags: parsed.tags,
+        metadata: parsed.metadata,
+        log_updates: parsed.log_updates,
         sampleSummaries,
       };
     }
@@ -175,6 +179,7 @@ export const clientApi = (
     log_file: string,
     id: string | number,
     epoch: number,
+    onProgress?: ProgressCallback,
   ): Promise<EvalSample | undefined> => {
     if (isEvalFile(log_file)) {
       async function fetchSample(useCache: boolean) {
@@ -182,7 +187,7 @@ export const clientApi = (
         if (!remoteLogFile) {
           throw new Error(`Unable to read remote eval file ${log_file}`);
         }
-        return await remoteLogFile.readSample(String(id), epoch);
+        return await remoteLogFile.readSample(String(id), epoch, onProgress);
       }
 
       function handleError(error: unknown) {

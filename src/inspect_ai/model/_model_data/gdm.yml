@@ -21,6 +21,35 @@ google:
       versions:
         gemini-3-pro-preview:
           snapshot: "preview"
+    gemini-3-flash-preview:
+      display_name: "Gemini 3.0 Flash"
+      release_date: 2025-12-17
+      knowledge_cutoff_date: 2025-01-01
+      context_length: 1048576
+      output_tokens: 65536
+      reasoning: True
+      versions:
+        gemini-3-flash-preview:
+          snapshot: "preview"
+    gemini-3.1-flash-image-preview:
+      display_name: "Gemini 3.1 Flash Image"
+      release_date: 2026-02-26
+      knowledge_cutoff_date: 2025-01-01
+      context_length: 131072
+      output_tokens: 32768
+      versions:
+        gemini-3.1-flash-image-preview:
+          snapshot: "preview"
+    gemini-3.1-flash-lite-preview:
+      display_name: "Gemini 3.1 Flash-Lite"
+      knowledge_cutoff_date: 2025-01-01
+      release_date: 2026-03-03
+      reasoning: True
+      context_length: 1048576
+      output_tokens: 65536
+      versions:
+        gemini-3.1-flash-lite-preview:
+          snapshot: "preview"
     gemini-3-pro-image:
       display_name: "Gemini 3.0 Pro Image"
       release_date: 2025-11-20
@@ -54,6 +83,13 @@ google:
       versions:
         gemini-2.5-flash-preview-05-20:
           snapshot: "2025-05-20"
+    gemini-2.5-flash-lite:
+      display_name: "Gemini 2.5 Flash Lite"
+      release_date: 2025-07-22
+      knowledge_cutoff_date: 2025-01-01
+      context_length: 1048576
+      output_tokens: 65536
+      reasoning: True
     gemini-2.0-flash:
       display_name: "Gemini 2.0 Flash"
       release_date: 2025-02-05

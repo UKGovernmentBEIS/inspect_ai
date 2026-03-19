@@ -1,15 +1,19 @@
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type, TypedDict
+from typing import Any, Literal, Type
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    JsonValue,
     PrivateAttr,
+    ValidationInfo,
+    field_serializer,
     model_validator,
 )
 from shortuuid import uuid
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
@@ -21,7 +25,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
-from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -39,6 +43,14 @@ from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
+
+
+class EventsData(TypedDict):
+    """Pooled data extracted by condense_events / condense_sample."""
+
+    messages: list[ChatMessage]
+    calls: list[JsonValue]
+
 
 EvalStatus = Literal["started", "success", "cancelled", "error"]
 """Status of an evaluation run."""
@@ -133,6 +145,10 @@ class EvalConfig(BaseModel):
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
+
+    max_dataset_memory: int | None = Field(default=None)
+    """Maximum MB of dataset sample data to hold in memory per task.
+    When exceeded, samples are paged to a temporary file on disk."""
 
     max_tasks: int | None = Field(default=None)
     """Maximum number of tasks to run in parallel."""
@@ -414,6 +430,9 @@ class EvalSample(BaseModel):
     attachment content) by passing `resolve_attachments=True` to log reading functions.
     """
 
+    events_data: EventsData | None = Field(default=None)
+    """Pooled dedup data for condensed events (messages and calls)."""
+
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
 
@@ -501,6 +520,28 @@ class EvalSample(BaseModel):
             del values["transcript"]
 
         return migrate_values(values)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _resolve_timelines(
+        cls, data: Any, handler: Any, info: ValidationInfo
+    ) -> "EvalSample":
+        raw_timelines = None
+        if isinstance(data, dict) and data.get("timelines"):
+            raw_timelines = data.pop("timelines")
+
+        sample: EvalSample = handler(data)
+
+        if raw_timelines:
+            events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}
+            ctx: dict[str, Any] = {"events_by_uuid": events_by_uuid}
+            if info.context:
+                ctx.update(info.context)
+            sample.timelines = [
+                Timeline.model_validate(t, context=ctx) for t in raw_timelines
+            ]
+
+        return sample
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -968,6 +1009,15 @@ class EvalLog(BaseModel):
     invalidated: bool = Field(default=False)
     """Whether any samples were invalidated."""
 
+    log_updates: list[LogUpdate] | None = Field(default=None)
+    """Post-eval edits to tags and metadata."""
+
+    tags: list[str] = Field(default_factory=list)
+    """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Current metadata (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
@@ -981,6 +1031,27 @@ class EvalLog(BaseModel):
     """ETag from S3 for conditional writes."""
 
     @model_validator(mode="after")
+    def _validate_tags_and_metadata(self) -> "EvalLog":
+        self.recompute_tags_and_metadata()
+        return self
+
+    def recompute_tags_and_metadata(self) -> None:
+        """Recompute tags and metadata from eval-time values + log_updates."""
+        tags = set(self.eval.tags or [])
+        metadata = dict(self.eval.metadata or {})
+        for update in self.log_updates or []:
+            for edit in update.edits:
+                if isinstance(edit, TagsEdit):
+                    tags -= set(edit.tags_remove)
+                    tags |= set(edit.tags_add)
+                elif isinstance(edit, MetadataEdit):
+                    for key in edit.metadata_remove:
+                        metadata.pop(key, None)
+                    metadata.update(edit.metadata_set)
+        self.tags = sorted(tags)
+        self.metadata = metadata
+
+    @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
             scorer_name = self.results.scores[0].name
@@ -990,6 +1061,25 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
+
+    @field_serializer("samples", "reductions")
+    @classmethod
+    def _serialize_lazy_lists(cls, value: Any) -> Any:
+        """Ensure LazyList instances are materialized before Pydantic serializes.
+
+        Pydantic v2's Rust serializer accesses the C-level list array directly,
+        bypassing Python __len__/__iter__ overrides. For empty LazyList instances
+        (not yet loaded), this means Pydantic sees an empty list and never
+        triggers the lazy load. Calling _ensure_loaded() here populates the
+        underlying C array in-place — no copy needed.
+        """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
 
     @model_validator(mode="before")
     @classmethod

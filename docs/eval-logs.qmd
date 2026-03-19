@@ -115,6 +115,16 @@ inspect eval images.py --log-format=json --no-log-images
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
+## Refusal Logging
+
+If you are concerned with proactively detecting when model refusals are occurring, you can specify the `--log-refusals` flag (or `log_refusals` option to `eval()`) to log refusals as warnings. For example:
+
+``` bash
+inspect eval ctf.py --log-refusals
+```
+
+Note that in all cases a counter of refusals during the eval or eval set is provided at the bottom right of the task display.
+
 ## Model API Logging
 
 If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the `ModelEvent`). For example:
@@ -142,6 +152,9 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 | `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
 | `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
 | `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
+| `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |
+| `metadata` | `dict[str, Any]` | Current metadata (eval-time metadata merged with any post-eval edits). |
+| `log_updates` | `list[LogUpdate]` | Post-eval edits to tags and metadata (with provenance tracking). |
 | `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
 | `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations. |
 
@@ -391,6 +404,45 @@ write_eval_log(log)
 ### Score Edit Events
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
+
+### Tags & Metadata Editing
+
+You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
+
+Use `edit_eval_log()` to add or remove tags and set or remove metadata keys:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, edit_eval_log,
+    TagsEdit, MetadataEdit, ProvenanceData,
+)
+
+# Read the log file
+log = read_eval_log("my_eval.eval")
+
+# Edit tags and metadata
+log = edit_eval_log(log, [
+    TagsEdit(tags_add=["qa_passed"], tags_remove=["needs_qa"]),
+    MetadataEdit(
+        metadata_set={"reviewer": "alice"},
+        metadata_remove=["draft_notes"],
+    ),
+], ProvenanceData(author="alice", reason="QA complete"))
+
+# Write back to the log file
+write_eval_log(log)
+```
+
+After editing, access the current tags and metadata directly on the log:
+
+``` python
+log.tags        # ["qa_passed", ...]
+log.metadata    # {"reviewer": "alice", ...}
+```
+
+The original eval-time values are always preserved in `log.eval.tags` and `log.eval.metadata`. All post-eval edits are recorded in `log.log_updates` as an append-only edit history with provenance (author and reason), providing a full audit trail.
+
+No-op edits are automatically filtered—adding a tag that already exists or removing one that doesn't will not create an edit entry.
 
 
 ## Amazon S3 {#sec-amazon-s3}

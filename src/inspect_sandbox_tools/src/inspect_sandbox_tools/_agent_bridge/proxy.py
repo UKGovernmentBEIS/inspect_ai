@@ -488,8 +488,11 @@ class AsyncHTTPServer:
                 )
             except Exception:
                 pass
-            writer.close()
-            await writer.wait_closed()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
 
     # -------- Lifecycle --------
     async def start(self) -> None:

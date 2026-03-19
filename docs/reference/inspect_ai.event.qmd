@@ -19,6 +19,7 @@ title: "inspect_ai.event"
 ## Event Tree
 
 ### event_tree
+### event_tree_walk
 ### event_sequence
 ### EventTree
 ### EventTreeSpan

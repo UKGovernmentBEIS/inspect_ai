@@ -16,6 +16,7 @@ from typing import (
     overload,
 )
 
+import anyio
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.logger import warn_once
@@ -95,6 +96,9 @@ class SandboxEnvironment(abc.ABC):
     filesystem context to copy samples files into and resolve relative paths to.
     """
 
+    def __init__(self) -> None:
+        self._inject_lock = anyio.Lock()
+
     @abc.abstractmethod
     async def exec(
         self,
@@ -156,6 +160,7 @@ class SandboxEnvironment(abc.ABC):
           contents: Text or binary file contents.
 
         Raises:
+          TimeoutError: If the operation times out.
           PermissionError: If the current user does not have permission to
             write to the specified path.
           IsADirectoryError: If the file exists already and
@@ -188,6 +193,7 @@ class SandboxEnvironment(abc.ABC):
           Contents of file (as str or bytes for binary files)
 
         Raises:
+          TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
           UnicodeDecodeError: If an encoding error occurs
             while reading the file.
@@ -299,6 +305,15 @@ class SandboxEnvironment(abc.ABC):
         Raises:
             TimeoutError: If `timeout` is specified in ExecRemoteAwaitableOptions and the command exceeds it (only applicable when `stream=False`).
         """
+        from inspect_ai.tool._sandbox_tools_utils.sandbox import (
+            sandbox_with_injected_tools,
+        )
+
+        # inject tools (use flag for fast path)
+        if not getattr(self, "_tools_injected", False):
+            await sandbox_with_injected_tools(sandbox=self)
+            self._tools_injected = True
+
         return await (exec_remote_streaming if stream else exec_remote_awaitable)(
             self, cmd, self.default_polling_interval(), options
         )

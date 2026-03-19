@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   GridColumnsChangedEvent,
   IRowNode,
   RowClickedEvent,
@@ -7,9 +8,19 @@ import type {
 import { themeBalham } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  FC,
+  KeyboardEvent as ReactKeyboardEvent,
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 
+import { FindBandUI } from "../../../components/FindBandUI";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import "../../shared/agGrid";
@@ -51,6 +62,21 @@ export const LogListGrid: FC<LogListGridProps> = ({
   const internalGridRef = useRef<AgGridReact<LogListRow>>(null);
   const gridRef = externalGridRef ?? internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Find functionality state - store row IDs instead of IRowNode references to avoid memory leaks
+  const [showFind, setShowFind] = useState(false);
+  const [findTerm, setFindTerm] = useState("");
+  const [matchIds, setMatchIds] = useState<string[]>([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const findInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to close find bar and reset state
+  const closeFind = useCallback(() => {
+    setShowFind(false);
+    setFindTerm("");
+    setMatchIds([]);
+    setCurrentMatchIndex(0);
+  }, []);
 
   const logFiles = useMemo(() => {
     return items
@@ -124,6 +150,12 @@ export const LogListGrid: FC<LogListGridProps> = ({
         }
       }
 
+      // Pre-compute searchable text for fast Cmd+F search
+      row.searchText = [row.name, row.task, row.model, row.id]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
       return row;
     });
   }, [items, logDetails]);
@@ -191,6 +223,17 @@ export const LogListGrid: FC<LogListGridProps> = ({
     };
   }, [handleKeyDown]);
 
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<LogListRow>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data?.url) {
+        mouseEvent.preventDefault();
+        window.open(`#${e.data.url}`, "_blank");
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const loadHeaders = async () => {
       const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
@@ -231,8 +274,111 @@ export const LogListGrid: FC<LogListGridProps> = ({
     resizeGridColumns();
   }, [columns, resizeGridColumns]);
 
+  // Find functionality - uses pre-computed searchText for O(1) lookup per row
+  const performSearch = useCallback(
+    (term: string) => {
+      const api = gridRef.current?.api;
+      if (!api || !term) {
+        setMatchIds([]);
+        setCurrentMatchIndex(0);
+        return;
+      }
+      const lowerTerm = term.toLowerCase();
+      const foundIds: string[] = [];
+      api.forEachNode((node) => {
+        const rowData = node.data;
+        if (!rowData?.searchText) return;
+        if (rowData.searchText.includes(lowerTerm)) {
+          foundIds.push(rowData.id);
+        }
+      });
+      setMatchIds(foundIds);
+      setCurrentMatchIndex(0);
+      if (foundIds.length > 0) {
+        const firstNode = api.getRowNode(foundIds[0]);
+        if (firstNode) {
+          api.deselectAll();
+          api.ensureNodeVisible(firstNode, "middle");
+          firstNode.setSelected(true, true);
+        }
+      }
+    },
+    [gridRef],
+  );
+
+  const goToMatch = useCallback(
+    (index: number) => {
+      if (matchIds.length === 0) return;
+      const idx =
+        ((index % matchIds.length) + matchIds.length) % matchIds.length;
+      setCurrentMatchIndex(idx);
+      const api = gridRef.current?.api;
+      if (!api) return;
+      const node = api.getRowNode(matchIds[idx]);
+      if (node) {
+        api.deselectAll();
+        api.ensureNodeVisible(node, "middle");
+        node.setSelected(true, true);
+      }
+    },
+    [matchIds, gridRef],
+  );
+
+  const handleInputKeyDown = useCallback(
+    (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Escape") {
+        closeFind();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        goToMatch(currentMatchIndex + (e.shiftKey ? -1 : 1));
+      }
+    },
+    [goToMatch, currentMatchIndex, closeFind],
+  );
+
+  useEffect(() => {
+    const handleFindKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowFind(true);
+        setTimeout(() => findInputRef.current?.focus(), 100);
+      }
+      if (e.key === "Escape" && showFind) {
+        closeFind();
+      }
+    };
+    document.addEventListener("keydown", handleFindKeyDown, true);
+    return () =>
+      document.removeEventListener("keydown", handleFindKeyDown, true);
+  }, [closeFind, showFind]);
+
+  useEffect(() => {
+    if (findTerm) {
+      performSearch(findTerm);
+    } else {
+      setMatchIds([]);
+      setCurrentMatchIndex(0);
+    }
+  }, [findTerm, performSearch]);
+
   return (
     <div className={clsx(styles.gridWrapper)}>
+      {showFind && (
+        <FindBandUI
+          inputRef={findInputRef}
+          value={findTerm}
+          onChange={() => setFindTerm(findInputRef.current?.value ?? "")}
+          onKeyDown={handleInputKeyDown}
+          onClose={closeFind}
+          onPrevious={() => goToMatch(currentMatchIndex - 1)}
+          onNext={() => goToMatch(currentMatchIndex + 1)}
+          disableNav={matchIds.length === 0}
+          noResults={!!findTerm && matchIds.length === 0}
+          matchCount={findTerm ? matchIds.length : undefined}
+          matchIndex={findTerm ? currentMatchIndex : undefined}
+        />
+      )}
       <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
         <AgGridReact<LogListRow>
           ref={gridRef}
@@ -269,6 +415,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
             }
           }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onSortChanged={handleSortChanged}
           onFilterChanged={handleFilterChanged}
           loading={data.length === 0 && (loading > 0 || syncing)}

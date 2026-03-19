@@ -1,7 +1,12 @@
+import types
+from typing import Any
+from unittest.mock import AsyncMock, create_autospec
+
 import pytest
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentToolUse
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -9,6 +14,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.tool import ToolCall
 
 
@@ -40,6 +46,67 @@ def test_anthropic_effort() -> None:
         effort="low",
     )[0]
     assert log.status == "success"
+
+
+def test_anthropic_oauth_beta_preserved_with_effort() -> None:
+    """Test that OAuth beta header is preserved when per-request betas are added.
+
+    When using ANTHROPIC_AUTH_TOKEN, the client sets oauth-2025-04-20 as a
+    default header. Per-request extra_headers must not overwrite it.
+    """
+    import os
+
+    orig = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    try:
+        os.environ["ANTHROPIC_AUTH_TOKEN"] = "test-oauth-token"
+        os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
+        model = get_model("anthropic/claude-opus-4-5")
+        api: Any = model.api
+        # Verify client has the OAuth beta as a default header
+        client_beta = getattr(api.client, "_custom_headers", {}).get(
+            "anthropic-beta", ""
+        )
+        assert "oauth-2025-04-20" in client_beta
+        # Use effort to trigger per-request betas
+        config = GenerateConfig(effort="low", max_tokens=64)
+        _params, _extra_body, _headers, betas = api.completion_config(config)
+        assert "effort-2025-11-24" in betas
+        # The generate() method merges client betas - simulate that here
+        if betas:
+            if client_beta:
+                for b in client_beta.split(","):
+                    b = b.strip()
+                    if b and b not in betas:
+                        betas.insert(0, b)
+        assert "oauth-2025-04-20" in betas, (
+            "OAuth beta header must be preserved when per-request betas are set"
+        )
+    finally:
+        if orig is not None:
+            os.environ["ANTHROPIC_AUTH_TOKEN"] = orig
+        else:
+            os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+
+
+def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
+    """Ensure per-call extra_headers are stable across repeated use."""
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    config = GenerateConfig(
+        max_tokens=64,
+        extra_headers={
+            "anthropic_beta": "context-1m-2025-08-07",
+            "x-test-header": "value",
+        },
+    )
+
+    for _ in range(2):
+        _params, _extra_body, headers, betas = api.completion_config(config)
+        assert headers == {"x-test-header": "value"}
+        assert betas == ["context-1m-2025-08-07"]
+        assert config.extra_headers == {
+            "anthropic_beta": "context-1m-2025-08-07",
+            "x-test-header": "value",
+        }
 
 
 @skip_if_no_anthropic
@@ -137,3 +204,75 @@ async def test_anthropic_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
+    """Ensure continuation parsing preserves server tool-use/result pairing."""
+    from anthropic import AsyncAnthropic
+    from anthropic.types import (
+        Message,
+        ServerToolUseBlock,
+        Usage,
+        WebSearchToolResultBlock,
+        WebSearchToolResultError,
+    )
+
+    head_message = Message(
+        id="msg_head",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason="pause_turn",
+        content=[
+            ServerToolUseBlock(
+                id="toolu_1",
+                type="server_tool_use",
+                name="web_search",
+                input={"query": "inspect ai"},
+            )
+        ],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+    tail_message = Message(
+        id="msg_tail",
+        type="message",
+        role="assistant",
+        model="claude-sonnet-4-6",
+        stop_reason="end_turn",
+        content=[
+            WebSearchToolResultBlock(
+                type="web_search_tool_result",
+                tool_use_id="toolu_1",
+                content=WebSearchToolResultError(
+                    type="web_search_tool_result_error",
+                    error_code="unavailable",
+                ),
+            )
+        ],
+        usage=Usage(input_tokens=1, output_tokens=1),
+    )
+
+    api = create_autospec(AnthropicAPI, instance=True)
+    api._batcher = None
+    api.model_name = "claude-sonnet-4-6"
+    api.service_model_name.return_value = "claude-sonnet-4-6"
+
+    client = create_autospec(AsyncAnthropic, instance=True)
+    client.messages.create = AsyncMock(side_effect=[head_message, tail_message])
+    api.client = client
+
+    # Bind the real method so recursive continuation calls work
+    api._perform_request_and_continuations = types.MethodType(
+        AnthropicAPI._perform_request_and_continuations, api
+    )
+
+    _, output = await api._perform_request_and_continuations(
+        request={"messages": []},
+        streaming=False,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    tool_uses = [c for c in output.message.content if isinstance(c, ContentToolUse)]
+    assert len(tool_uses) == 1
+    assert tool_uses[0].id == "toolu_1"

@@ -92,25 +92,14 @@ export const fetchLogFile = async (
 export const fetchManifest = async (
   log_dir: string,
 ): Promise<LogFilesFetchResponse | undefined> => {
-  const logs = await fetchFile<LogFilesFetchResponse>(
+  const parseListing = async (text: string): Promise<LogFilesFetchResponse> => {
+    const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
+    return { raw: text, parsed };
+  };
+  return await fetchFile<LogFilesFetchResponse>(
     log_dir + "/listing.json",
-    async (text) => {
-      const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
-      return {
-        raw: text,
-        parsed,
-      };
-    },
-    (response) => {
-      if (response.status === 404) {
-        // Couldn't find a header file
-        return true;
-      } else {
-        return false;
-      }
-    },
+    parseListing,
   );
-  return logs;
 };
 
 /**

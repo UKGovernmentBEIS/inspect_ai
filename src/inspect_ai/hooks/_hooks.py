@@ -2,17 +2,23 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
 
+import anyio
+from anyio.streams.memory import MemoryObjectReceiveStream
+
 from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.resolved import ResolvedTask
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
     registry_find,
     registry_name,
 )
+from inspect_ai.event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._limit import LimitExceededError
 
@@ -133,6 +139,22 @@ class SampleStart:
 
 
 @dataclass(frozen=True)
+class SampleEvent:
+    """Sample event hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    event: Event
+    """Sample events."""
+
+
+@dataclass(frozen=True)
 class SampleEnd:
     """Sample end hook event data."""
 
@@ -149,6 +171,54 @@ class SampleEnd:
 
 
 @dataclass(frozen=True)
+class SampleAttemptStart:
+    """Sample attempt start hook event data.
+
+    Fired at the beginning of every attempt (including the first).
+    Unlike on_sample_start which fires once per sample, this fires on retries too.
+    """
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    summary: EvalSampleSummary
+    """Summary of the sample to be run."""
+    attempt: int
+    """1-based attempt number."""
+
+
+@dataclass(frozen=True)
+class SampleAttemptEnd:
+    """Sample attempt end hook event data.
+
+    Fired at the end of every attempt (including the last).
+    Unlike on_sample_end which fires once per sample, this fires on retries too.
+    """
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    summary: EvalSampleSummary
+    """Summary of the sample."""
+    attempt: int
+    """1-based attempt number."""
+    error: EvalError | None
+    """The error from this attempt, if any."""
+    will_retry: bool
+    """Whether the sample will be retried after this attempt."""
+
+
+@dataclass(frozen=True)
 class ModelUsageData:
     """Model usage hook event data."""
 
@@ -160,6 +230,16 @@ class ModelUsageData:
     """The duration of the model call in seconds. If HTTP retries were made, this is the
     time taken for the successful call. This excludes retry waiting (e.g. exponential
     backoff) time."""
+    eval_set_id: str | None = None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str | None = None
+    """The globally unique identifier for the run (if any)."""
+    eval_id: str | None = None
+    """The globally unique identifier for the task execution (if any)."""
+    task_name: str | None = None
+    """The name of the task that generated this usage (if any)."""
+    retries: int = 0
+    """The number of HTTP retries made before the successful call."""
 
 
 @dataclass(frozen=True)
@@ -305,6 +385,18 @@ class Hooks:
         """
         pass
 
+    async def on_sample_event(self, data: SampleEvent) -> None:
+        """On sample event.
+
+        Called when a sample event is emmitted. Pending events are not
+        logged here (i.e. ToolEvent and ModelEvent are not logged until
+        they are complete).
+
+        Args:
+           data: Sample event.
+        """
+        pass
+
     async def on_sample_end(self, data: SampleEnd) -> None:
         """On sample end.
 
@@ -315,6 +407,28 @@ class Hooks:
 
         Args:
            data: Sample end data.
+        """
+        pass
+
+    async def on_sample_attempt_start(self, data: SampleAttemptStart) -> None:
+        """On sample attempt start.
+
+        Fired at the beginning of every attempt (including the first).
+        Unlike on_sample_start which fires once per sample, this fires on retries too.
+
+        Args:
+           data: Sample attempt start data.
+        """
+        pass
+
+    async def on_sample_attempt_end(self, data: SampleAttemptEnd) -> None:
+        """On sample attempt end.
+
+        Fired at the end of every attempt (including the last).
+        Unlike on_sample_end which fires once per sample, this fires on retries too.
+
+        Args:
+           data: Sample attempt end data.
         """
         pass
 
@@ -487,6 +601,111 @@ async def emit_sample_start(
     await _emit_to_all(lambda hook: hook.on_sample_start(data))
 
 
+def emit_sample_event(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    event: Event,
+) -> None:
+    active = sample_active()
+    if active is None or active.event_send is None:
+        return
+    if event.pending:
+        return
+    data = SampleEvent(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        event=event,
+    )
+    try:
+        active.event_send.send_nowait(data)
+    except anyio.WouldBlock:
+        logger.warning("Sample event queue full, dropping event")
+    except anyio.ClosedResourceError:
+        pass
+
+
+def start_sample_event_emitter() -> None:
+    """Start the background coroutine that emits sample events to hooks.
+
+    Must be called after active.start(tg) so that the task group is available.
+    """
+    active = sample_active()
+    if active is None or active.tg is None:
+        return
+
+    send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](1000)
+    active.event_send = send_stream
+    active.event_receive = receive_stream
+    active.event_done = anyio.Event()
+
+    async def _emit_loop(
+        receive: MemoryObjectReceiveStream[SampleEvent],
+        done: anyio.Event,
+    ) -> None:
+        try:
+            async for data in receive:
+                try:
+
+                    async def _call_hook(hook: Hooks, d: SampleEvent = data) -> None:
+                        await hook.on_sample_event(d)
+
+                    await _emit_to_all(_call_hook)
+                except Exception as ex:
+                    logger.warning(f"Exception in sample event emitter: {ex}")
+        finally:
+            done.set()
+
+    active.tg.start_soon(_emit_loop, receive_stream, active.event_done)
+
+
+async def drain_sample_events() -> None:
+    """Drain all queued sample events and wait for the emitter to finish.
+
+    Must be called before emit_sample_end() to ensure all queued events are
+    delivered before the sample end hook fires.
+    """
+    active = sample_active()
+    if active is None:
+        return
+
+    try:
+        # Close the send stream to signal no more events
+        if active.event_send is not None:
+            await active.event_send.aclose()
+
+        # Wait for the background emitter to finish processing
+        if active.event_done is not None:
+            with anyio.move_on_after(5):
+                await active.event_done.wait()
+            if not active.event_done.is_set():
+                logger.warning("Timed out waiting for sample event emitter to drain")
+
+        # Process any remaining events the background emitter didn't get to
+        # (e.g. scoring events queued after the solver task group was cancelled)
+        if active.event_receive is not None:
+            try:
+                while True:
+                    data = active.event_receive.receive_nowait()
+
+                    async def _emit_event(hook: Hooks, d: SampleEvent = data) -> None:
+                        await hook.on_sample_event(d)
+
+                    await _emit_to_all(_emit_event)
+            except (anyio.WouldBlock, anyio.EndOfStream, anyio.ClosedResourceError):
+                pass
+    except Exception as ex:
+        logger.warning(f"Exception draining sample events: {ex}")
+    finally:
+        # Clean up regardless of success/failure
+        active.event_send = None
+        active.event_receive = None
+        active.event_done = None
+
+
 async def emit_sample_end(
     eval_set_id: str | None,
     run_id: str,
@@ -504,11 +723,82 @@ async def emit_sample_end(
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
 
 
+async def emit_sample_attempt_start(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
+    attempt: int,
+) -> None:
+    data = SampleAttemptStart(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
+        attempt=attempt,
+    )
+    await _emit_to_all(lambda hook: hook.on_sample_attempt_start(data))
+
+
+async def emit_sample_attempt_end(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
+    attempt: int,
+    error: EvalError | None,
+    will_retry: bool,
+) -> None:
+    data = SampleAttemptEnd(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
+        attempt=attempt,
+        error=error,
+        will_retry=will_retry,
+    )
+    await _emit_to_all(lambda hook: hook.on_sample_attempt_end(data))
+
+
 async def emit_model_usage(
     model_name: str, usage: ModelUsage, call_duration: float
 ) -> None:
+    from inspect_ai.log._samples import sample_active
+
+    # Read eval context from the active sample contextvar (if available).
+    active = sample_active()
+    eval_set_id: str | None = None
+    run_id: str | None = None
+    eval_id: str | None = None
+    task_name: str | None = None
+    retries: int = 0
+    if active is not None:
+        eval_set_id = active.eval_set_id
+        run_id = active.run_id
+        eval_id = active.eval_id
+        task_name = active.task
+
+    # Read retry count from the active model event (if available).
+    from inspect_ai.log._samples import _active_model_event
+
+    model_event = _active_model_event.get()
+    if model_event is not None and model_event.retries is not None:
+        retries = model_event.retries
+
     data = ModelUsageData(
-        model_name=model_name, usage=usage, call_duration=call_duration
+        model_name=model_name,
+        usage=usage,
+        call_duration=call_duration,
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        task_name=task_name,
+        retries=retries,
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 

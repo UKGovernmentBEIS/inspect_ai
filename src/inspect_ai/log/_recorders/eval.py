@@ -1,10 +1,21 @@
+import copy
 import json
 import logging
 import math
 import os
 import tempfile
 from logging import getLogger
-from typing import IO, Any, BinaryIO, cast
+from typing import (
+    IO,
+    Any,
+    BinaryIO,
+    Generic,
+    Iterator,
+    SupportsIndex,
+    TypeVar,
+    cast,
+    overload,
+)
 from zipfile import ZipFile
 
 import anyio
@@ -14,14 +25,18 @@ from typing_extensions import override
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
+from inspect_ai._util.constants import (
+    LOG_SCHEMA_VERSION,
+    get_deserializing_context,
+)
 from inspect_ai._util.error import EvalError, WriteConflictError
-from inspect_ai._util.file import FileSystem, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, dirname, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
+from .._edit import LogUpdate
 from .._log import (
     EvalLog,
     EvalPlan,
@@ -34,6 +49,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
+from .._pool import resolve_sample_events_data
 from .file import FileRecorder
 
 logger = getLogger(__name__)
@@ -152,6 +168,7 @@ class EvalRecorder(FileRecorder):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
@@ -180,6 +197,7 @@ class EvalRecorder(FileRecorder):
         eval_header = EvalLog(
             version=log_start.version,
             invalidated=invalidated,
+            log_updates=log_updates,
             eval=log_start.eval,
             plan=log_start.plan,
             results=log_results.results,
@@ -413,6 +431,7 @@ async def _write_eval_log_with_recorder(
         log.reductions,
         log.error,
         invalidated=log.invalidated,
+        log_updates=log.log_updates,
     )
 
 
@@ -558,26 +577,46 @@ class ZipLogFile:
             if self._zip:
                 self._zip.close()
 
-            # read the temp_file (leaves pointer at end for subsequent appends)
+            # Stream temp file to output using the appropriate backend
+            # (native S3 multipart upload, or chunked copy via fsspec)
             self._temp_file.seek(0)
-            log_bytes = self._temp_file.read()
 
             with trace_action(logger, "Log Write", self._file):
                 try:
-                    with file(self._file, "wb") as f:
-                        f.write(log_bytes)
+                    async with AsyncFilesystem() as async_fs:
+                        await async_fs.write_file_streaming(self._file, self._temp_file)
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
-            # read the log from the temp file then close it
             try:
                 self._temp_file.seek(0)
-                return _read_log_from_bytes(
-                    self._temp_file, self._file, header_only=header_only
+                # Always read header only from temp file (fast path)
+                eval_log = _read_log_from_bytes(
+                    self._temp_file, self._file, header_only=True
                 )
+                if not header_only:
+                    # Attach lazy lists that load samples/reductions on first access.
+                    # The lazy load inspects zip contents and only populates what exists.
+                    lazy_data = _LazyLogData(self._file)
+                    samples_lazy: LazyList[EvalSample] = LazyList(lazy_data)
+                    lazy_data.samples_list = samples_lazy
+                    eval_log.samples = samples_lazy  # type: ignore[assignment]
+
+                    # Only attach lazy reductions if reductions were actually written
+                    has_reductions = (
+                        self._zip is not None
+                        and REDUCTIONS_JSON in self._zip.namelist()
+                    )
+                    if has_reductions:
+                        reductions_lazy: LazyList[EvalSampleReductions] = LazyList(
+                            lazy_data
+                        )
+                        lazy_data.reductions_list = reductions_lazy
+                        eval_log.reductions = reductions_lazy  # type: ignore[assignment]
+                return eval_log
             finally:
                 self._temp_file.close()
                 if self._zip:
@@ -600,7 +639,7 @@ class ZipLogFile:
         assert self._zip
         self._zip.writestr(
             filename,
-            to_json_safe(data),
+            to_json_safe(data, indent=None),
         )
 
 
@@ -671,7 +710,7 @@ def _read_log_from_bytes(
                             ),
                         )
             sort_samples(samples_list)
-            eval_log.samples = samples_list
+            eval_log.samples = [resolve_sample_events_data(s) for s in samples_list]
         return eval_log
 
 
@@ -789,3 +828,102 @@ def _journal_summary_path(file: str | None = None) -> str:
 
 def _journal_summary_file(index: int) -> str:
     return f"{index}.json"
+
+
+T = TypeVar("T")
+
+
+class _LazyLogData:
+    """Shared state for coordinated lazy loading of samples and reductions."""
+
+    def __init__(self, location: str) -> None:
+        self.location = location
+        self.loaded = False
+        self.samples_list: LazyList[EvalSample] | None = None
+        self.reductions_list: LazyList[EvalSampleReductions] | None = None
+
+    def load(self) -> None:
+        if self.loaded:
+            return
+        from .._file import read_eval_log
+
+        log = read_eval_log(self.location, header_only=False)
+        if self.samples_list is not None:
+            list.extend(self.samples_list, log.samples or [])
+        if self.reductions_list is not None:
+            list.extend(self.reductions_list, log.reductions or [])
+        self.loaded = True
+
+
+class LazyList(list[T], Generic[T]):
+    """A list subclass that defers loading until first access.
+
+    Used by ZipLogFile.close() to avoid deserializing all samples into memory
+    when the caller doesn't actually need them (which is the common case after
+    eval() returns).
+    """
+
+    def __init__(self, lazy_data: _LazyLogData) -> None:
+        super().__init__()
+        self._lazy_data: _LazyLogData | None = lazy_data
+
+    def _ensure_loaded(self) -> None:
+        if self._lazy_data is not None and not self._lazy_data.loaded:
+            self._lazy_data.load()
+            self._lazy_data = None
+
+    def __len__(self) -> int:
+        self._ensure_loaded()
+        return super().__len__()
+
+    def __iter__(self) -> Iterator[T]:
+        self._ensure_loaded()
+        return super().__iter__()
+
+    @overload
+    def __getitem__(self, index: SupportsIndex) -> T: ...
+    @overload
+    def __getitem__(self, index: slice) -> list[T]: ...
+    def __getitem__(self, index: SupportsIndex | slice) -> T | list[T]:
+        self._ensure_loaded()
+        return super().__getitem__(index)
+
+    def __contains__(self, item: object) -> bool:
+        self._ensure_loaded()
+        return super().__contains__(item)
+
+    def __reversed__(self) -> Iterator[T]:
+        self._ensure_loaded()
+        return super().__reversed__()
+
+    def __bool__(self) -> bool:
+        self._ensure_loaded()
+        return len(self) > 0
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> list[T]:
+        self._ensure_loaded()
+        return copy.deepcopy(list(self), memo)
+
+    def __eq__(self, other: object) -> bool:
+        self._ensure_loaded()
+        if isinstance(other, LazyList):
+            other._ensure_loaded()
+        return super().__eq__(other)
+
+    def __add__(self, other: list[Any]) -> list[Any]:
+        self._ensure_loaded()
+        if isinstance(other, LazyList):
+            other._ensure_loaded()
+        return super().__add__(other)
+
+    def __radd__(self, other: list[Any]) -> list[Any]:
+        self._ensure_loaded()
+        return other.__add__(list(self))
+
+    def __copy__(self) -> list[T]:
+        self._ensure_loaded()
+        return list(self)
+
+    def __repr__(self) -> str:
+        self._ensure_loaded()
+        return super().__repr__()

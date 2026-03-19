@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import {
   FC,
   KeyboardEvent,
@@ -8,12 +7,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
 import { findScrollableParent, scrollRangeToCenter } from "../utils/dom";
 import { debounce } from "../utils/sync";
 import { useExtendedFind } from "./ExtendedFindContext";
-import "./FindBand.css";
+import { FindBandUI } from "./FindBandUI";
 
 interface FindBandProps {}
 
@@ -334,57 +332,23 @@ export const FindBand: FC<FindBandProps> = () => {
     };
   }, [handleSearch, restoreCursor]);
 
-  const matchCountLabel = useMemo(() => {
-    if (matchCount === null) return null;
-    if (matchCount === 0) return "No results";
-    return `${currentMatchIndex} of ${matchCount}`;
-  }, [matchCount, currentMatchIndex]);
-
   return (
-    <div data-unsearchable="true" className={clsx("findBand")}>
-      <input
-        type="text"
-        ref={searchBoxRef}
-        placeholder="Find"
-        onKeyDown={handleKeyDown}
-        onBeforeInput={handleBeforeInput}
-        onChange={handleInputChange}
-      />
-      {matchCountLabel !== null && (
-        <span
-          className={clsx(
-            "findBand-match-count",
-            matchCount === 0 && "findBand-no-results",
-          )}
-        >
-          {matchCountLabel}
-        </span>
-      )}
-      <button
-        type="button"
-        title="Previous match"
-        className="btn next"
-        onClick={findPrevious}
-      >
-        <i className={ApplicationIcons.arrows.up} />
-      </button>
-      <button
-        type="button"
-        title="Next match"
-        className="btn prev"
-        onClick={findNext}
-      >
-        <i className={ApplicationIcons.arrows.down} />
-      </button>
-      <button
-        type="button"
-        title="Close"
-        className="btn close"
-        onClick={storeHideFind}
-      >
-        <i className={ApplicationIcons.close} />
-      </button>
-    </div>
+    <FindBandUI
+      inputRef={searchBoxRef}
+      onClose={storeHideFind}
+      onNext={findNext}
+      onPrevious={findPrevious}
+      onKeyDown={handleKeyDown}
+      onBeforeInput={handleBeforeInput}
+      onChange={handleInputChange}
+      noResults={matchCount !== null && matchCount === 0}
+      matchCount={matchCount ?? undefined}
+      matchIndex={
+        matchCount !== null && matchCount > 0
+          ? currentMatchIndex - 1
+          : undefined
+      }
+    />
   );
 };
 function windowFind(searchTerm: string, back: boolean): boolean {
@@ -456,6 +420,7 @@ async function findExtendedInDOM(
 
             if (foundInVirtual) {
               extendedSearchSucceeded = true;
+              await waitForTextInDOM(searchTerm);
               continue;
             }
           }
@@ -496,6 +461,7 @@ async function findExtendedInDOM(
 
       if (foundInVirtual) {
         extendedSearchSucceeded = true;
+        await waitForTextInDOM(searchTerm);
         continue;
       }
 
@@ -589,4 +555,63 @@ function selectionParentElement(range: Range) {
     element = range.commonAncestorContainer.parentElement;
   }
   return element;
+}
+
+/**
+ * Polls until the search term appears in a searchable (non-unsearchable) DOM
+ * text node. After Virtuoso scrolls a virtual list item into view, the
+ * onContentReady callback may fire before the content is actually rendered,
+ * especially for large scroll distances. This ensures we wait for the text
+ * to be present before calling window.find().
+ */
+function waitForTextInDOM(
+  searchTerm: string,
+  timeoutMs = 2000,
+): Promise<boolean> {
+  const lowerTerm = searchTerm.toLowerCase();
+
+  const isTextInSearchableDOM = () => {
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          let el = node.parentElement;
+          while (el) {
+            if (el.hasAttribute("data-unsearchable")) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            el = el.parentElement;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      },
+    );
+    while (walker.nextNode()) {
+      if (walker.currentNode.textContent?.toLowerCase().includes(lowerTerm)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return new Promise((resolve) => {
+    const interval = 50;
+    let elapsed = 0;
+
+    const check = () => {
+      if (isTextInSearchableDOM()) {
+        resolve(true);
+        return;
+      }
+      elapsed += interval;
+      if (elapsed >= timeoutMs) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, interval);
+    };
+
+    check();
+  });
 }

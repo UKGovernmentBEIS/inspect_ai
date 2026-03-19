@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlencode
 
 import anyio
 import httpx
@@ -108,8 +109,8 @@ def google_search_provider(
             "cx": google_cse_id,
             "start": start_idx,
         }
-        search_url = "https://www.googleapis.com/customsearch/v1?" + "&".join(
-            [f"{key}={value}" for key, value in search_params.items()]
+        search_url = "https://www.googleapis.com/customsearch/v1?" + urlencode(
+            search_params
         )
 
         # retry up to 5 times over a period of up to 1 minute

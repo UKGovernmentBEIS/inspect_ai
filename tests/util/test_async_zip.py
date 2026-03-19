@@ -149,7 +149,7 @@ async def test_read_s3_zip_member() -> None:
     member_name = "samples/astropy__astropy-14309_epoch_1.json"
 
     # Use anonymous S3 access for public bucket
-    async with AsyncFilesystem() as fs:
+    async with AsyncFilesystem(anonymous=True, region_name="us-east-2") as fs:
         reader = AsyncZipReader(fs, zip_url)
 
         # Read the member and collect all chunks

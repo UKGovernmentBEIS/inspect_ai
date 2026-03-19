@@ -33,13 +33,22 @@ interface TranscriptPanelProps {
   running?: boolean;
   initialEventId?: string | null;
   topOffset?: number;
+  eventsCleared?: boolean;
 }
 
 /**
  * Renders the Transcript Virtual List.
  */
 export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
-  let { id, scrollRef, events, running, initialEventId, topOffset } = props;
+  let {
+    id,
+    scrollRef,
+    events,
+    running,
+    initialEventId,
+    topOffset,
+    eventsCleared,
+  } = props;
 
   // Sort out any types that are filtered out
   const filteredEventTypes = useStore(
@@ -230,19 +239,11 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
       }
     };
 
-    const scrollElement = scrollRef.current;
-    if (scrollElement) {
-      scrollElement.addEventListener("keydown", handleKeyDown);
-      // Make the element focusable so it can receive keyboard events
-      if (!scrollElement.hasAttribute("tabIndex")) {
-        scrollElement.setAttribute("tabIndex", "0");
-      }
-
-      return () => {
-        scrollElement.removeEventListener("keydown", handleKeyDown);
-      };
-    }
-  }, [scrollRef, flattenedNodes]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [flattenedNodes]);
 
   if (sampleStatus === "loading" && flattenedNodes.length === 0) {
     return undefined;
@@ -253,7 +254,9 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
       flattenedNodes.length === 0 && events.length > 0;
     const message = isCompletedFiltered
       ? "The currently applied filter hides all events."
-      : "No events to display.";
+      : eventsCleared
+        ? "Transcript events were removed because this sample exceeds the browser's size limit. Use the Messages tab to view the conversation."
+        : "No events to display.";
     return <NoContentsPanel text={message} />;
   } else {
     return (

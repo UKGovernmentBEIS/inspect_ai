@@ -21,8 +21,15 @@ from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .service import SERVICES_DIR
 
 
+class SandboxTimeoutError(TimeoutError):
+    """Raised when a sandbox operation times out."""
+
+    pass
+
+
 class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
+        super().__init__()
         self._sandbox = sandbox
         self._events = True
 
@@ -60,7 +67,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             params["concurrency"] = concurrency
 
         # make call
-        result = await self._sandbox.exec(**params)
+        try:
+            result = await self._sandbox.exec(**params)
+        except TimeoutError as ex:
+            raise SandboxTimeoutError(str(ex)) from ex
 
         # skip sandbox service events
         if any(SERVICES_DIR in c for c in cmd):
@@ -130,7 +140,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timestamp = datetime.now(timezone.utc)
 
         # make call
-        await self._sandbox.write_file(file, contents)
+        try:
+            await self._sandbox.write_file(file, contents)
+        except TimeoutError as ex:
+            raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
         if self._events:
@@ -158,10 +171,13 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timestamp = datetime.now(timezone.utc)
 
         # make call
-        if text is True:
-            output: str | bytes = await self._sandbox.read_file(file, True)
-        else:
-            output = await self._sandbox.read_file(file, False)
+        try:
+            if text is True:
+                output: str | bytes = await self._sandbox.read_file(file, True)
+            else:
+                output = await self._sandbox.read_file(file, False)
+        except TimeoutError as ex:
+            raise SandboxTimeoutError(str(ex)) from ex
 
         # yield event
         if self._events:

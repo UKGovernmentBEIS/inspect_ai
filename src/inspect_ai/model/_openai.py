@@ -144,7 +144,9 @@ async def openai_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     elif content.type == "audio":
         audio_data_uri = await file_as_data_uri(content.audio)
@@ -287,8 +289,9 @@ def openai_completion_params(
         )
     if config.extra_body:
         # never supported for completions as requires 'store'
-        config.extra_body.pop("metadata", None)
-        params["extra_body"] = config.extra_body
+        params["extra_body"] = {
+            key: value for key, value in config.extra_body.items() if key != "metadata"
+        }
 
     return params
 
@@ -739,7 +742,7 @@ def parse_reasoning_content(
     content = (
         message.content
         if isinstance(message, ChatCompletionMessage)
-        else str(message["content"] or "")
+        else str(message.get("content") or "")
     )
     content_text, reasoning = parse_content_with_reasoning(content or "")
     if reasoning:
@@ -839,6 +842,7 @@ def openai_handle_bad_request(
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
 

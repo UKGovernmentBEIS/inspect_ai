@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Set, cast
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
+from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 
@@ -75,7 +76,7 @@ async def eval_run(
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # are sandboxes in play?
-    has_sandbox = next((task.has_sandbox for task in tasks), None)
+    has_sandbox = any(task.has_sandbox for task in tasks)
 
     # get cwd before any switching
     eval_wd = os.getcwd()
@@ -205,6 +206,9 @@ async def eval_run(
                 else:
                     task.continue_on_fail = task_eval_config.continue_on_fail
 
+                # merge eval-level and task-level tags
+                merged_tags = list(set(tags or []) | set(task.tags or [])) or None
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,
@@ -216,7 +220,7 @@ async def eval_run(
                     eval_set_id=eval_set_id,
                     run_id=run_id,
                     solver=eval_solver_spec,
-                    tags=tags,
+                    tags=merged_tags,
                     model=resolved_task.model,
                     model_roles=resolved_task.model_roles,
                     dataset=task.dataset,
@@ -247,7 +251,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         solver=eval_solver,
-                        tags=tags,
+                        tags=merged_tags,
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors,
@@ -273,6 +277,12 @@ async def eval_run(
                 log.warning(
                     f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
                 )
+
+        # clean up cached S3 sessions to prevent "Unclosed connector" warnings
+        try:
+            await cleanup_s3_sessions()
+        except Exception as ex:
+            log.warning(f"Error cleaning up S3 sessions: {exception_message(ex)}")
 
 
 # single mode -- run a single logical task (could consist of multiple

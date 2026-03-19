@@ -1,4 +1,5 @@
 import type {
+  CellMouseDownEvent,
   ColDef,
   GridApi,
   GridColumnsChangedEvent,
@@ -64,7 +65,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   );
 
   const internalGridRef = useRef<AgGridReact<SampleRow>>(null);
-  const gridRef = externalGridRef || internalGridRef;
+  const gridRef = externalGridRef ?? internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Polling for updated log files
@@ -154,7 +155,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     [gridRef, handleOpenRow],
   );
 
-  // Set up keyboard event listener
   useEffect(() => {
     const gridElement = gridContainerRef.current;
     if (!gridElement) return;
@@ -165,6 +165,22 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
       gridElement.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleKeyDown]);
+
+  const handleCellMouseDown = useCallback(
+    (e: CellMouseDownEvent<SampleRow>) => {
+      const mouseEvent = e.event as MouseEvent | undefined;
+      if (mouseEvent?.button === 1 && e.data) {
+        mouseEvent.preventDefault();
+        navigateToSampleDetail(
+          e.data.logFile,
+          e.data.sampleId,
+          e.data.epoch,
+          true,
+        );
+      }
+    },
+    [navigateToSampleDetail],
+  );
 
   const sampleRowId = (
     logFile: string,
@@ -258,6 +274,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
             }
           }}
           onRowClicked={handleRowClick}
+          onCellMouseDown={handleCellMouseDown}
           onFilterChanged={() => {
             if (gridRef.current?.api) {
               const newDisplayedSamples = gridDisplayedSamples(

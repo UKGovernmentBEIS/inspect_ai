@@ -67,12 +67,15 @@ InstallState = Literal["pypi", "clean", "edited"]
 
 
 async def sandbox_with_injected_tools(
-    *, sandbox_name: str | None = None
+    *,
+    sandbox_name: str | None = None,
+    sandbox: SandboxEnvironment | None = None,
 ) -> SandboxEnvironment:
     """Create a sandbox environment with sandbox tools injection.
 
     Args:
         sandbox_name: Optional name for the sandbox environment.
+        sandbox: Optional sandbox instance to inject into directly.
 
     Returns:
         A sandbox environment with container tools injected.
@@ -83,6 +86,7 @@ async def sandbox_with_injected_tools(
             _inject_container_tools_code,
         ),
         name=sandbox_name,
+        target=sandbox,
     )
 
 
@@ -158,7 +162,7 @@ async def _open_executable_for_arch(
                 trace_message(logger, TRACE_SANDBOX_TOOLS, f"found {executable_name}")
                 yield executable_name, f
                 return
-        except (FileNotFoundError, ModuleNotFoundError):
+        except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
             if install_state == "pypi":
                 msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
                 # TODO: once we get the github CI/CD actions robust, this should be fatal

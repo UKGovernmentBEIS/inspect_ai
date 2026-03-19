@@ -105,7 +105,9 @@ export const formatTitle = (
   title: string,
   total_tokens?: number,
   working_start?: number | null,
+  role?: string,
 ) => {
+  const titleWithRole = role ? `${title} – ${role} –` : title;
   const subItems = [];
   if (total_tokens) {
     subItems.push(`${formatNumber(total_tokens)} tokens`);
@@ -114,5 +116,5 @@ export const formatTitle = (
     subItems.push(`${formatTime(working_start)}`);
   }
   const subtitle = subItems.length > 0 ? ` (${subItems.join(", ")})` : "";
-  return `${title}${subtitle}`;
+  return `${titleWithRole}${subtitle}`;
 };

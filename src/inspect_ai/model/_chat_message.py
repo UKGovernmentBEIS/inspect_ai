@@ -3,7 +3,6 @@ import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from frozendict import deepfreeze, frozendict
 from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
@@ -65,24 +64,21 @@ class ChatMessageBase(BaseModel):
         handler: ModelWrapValidatorHandler["ChatMessageBase"],
         info: ValidationInfo,
     ) -> "ChatMessageBase":
-        # Some parts of the eval log can be very repetitive. A sequence of model events will often
-        # duplicate the same ChatMessage many times. When the log is initially generated, this is not
-        # an issue, since the data structure will just contain a reference to the same object.
-        # When deserializing, however, we want to avoid creating a new ChatMessage object for each
-        # instance of the same message.
         if info.context is None:
             return handler(data)
-        cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
+        cache: dict[Any, ChatMessageBase] | None = info.context.get(MESSAGE_CACHE)
+        if cache is None:
+            return handler(data)
         try:
-            cache_key: bytes | frozendict[str, Any] = hashlib.sha256(
+            cache_key: bytes = hashlib.sha256(
                 json.dumps(data, sort_keys=True).encode()
             ).digest()
         except Exception as ex:
             warn_once(
                 logger,
-                f"Failed to dump object with json ({ex}). Falling back to deepfreeze which is slower",
+                f"Failed to dump object with json ({ex}). Falling back to repr which is slower",
             )
-            cache_key = deepfreeze(data)
+            cache_key = hashlib.sha256(repr(data).encode()).digest()
         hit = cache.get(cache_key)
         if hit is not None:
             return hit

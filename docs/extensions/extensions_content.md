@@ -33,6 +33,12 @@
 [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb) &mdash; <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small>
 :   Integration with Weights and Biases platform.
 
+[MLflow Tracking Hook](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py) &mdash; <small><a href="https://github.com/debu-sinha" style="text-decoration:none">Debu Sinha</a></small>
+:   Log Inspect evaluations to MLflow with hierarchical run tracking, per-sample metrics, and artifact logging.
+
+[CJE](https://github.com/cimo-labs/cje) &mdash; <small><a href="https://cimolabs.com" style="text-decoration:none">CIMO Labs</a></small>
+:   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
+
 
 ## Frameworks {#sec-frameworks}
 

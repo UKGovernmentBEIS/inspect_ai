@@ -24,6 +24,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._pool import resolve_sample_events_data
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -337,12 +338,14 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_format(format)
         log = await recorder_type.read_log(log_file, header_only)
 
-    # resolve attachement if requested
-    if resolve_attachments and log.samples:
-        log.samples = [
-            resolve_sample_attachments(sample, resolve_attachments)
-            for sample in log.samples
-        ]
+    # always resolve message pool refs so ModelEvent.input is populated
+    if log.samples:
+        log.samples = [resolve_sample_events_data(sample) for sample in log.samples]
+        if resolve_attachments:
+            log.samples = [
+                resolve_sample_attachments(sample, resolve_attachments)
+                for sample in log.samples
+            ]
 
     # provide sample ids if they aren't there
     if log.eval.dataset.sample_ids is None and log.samples is not None:
@@ -416,8 +419,8 @@ def read_eval_log_sample(
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
        exclude_fields (set[str] | None): Set of field names to exclude when reading
-          the sample. Useful for reducing memory usage when reading large samples
-          with fields like 'store' or 'attachments' that aren't needed.
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        EvalSample object read from file.
@@ -480,8 +483,8 @@ async def read_eval_log_sample_async(
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
        exclude_fields (set[str] | None): Set of field names to exclude when reading
-          the sample. Useful for reducing memory usage when reading large samples
-          with fields like 'store' or 'attachments' that aren't needed.
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
        reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
@@ -509,10 +512,20 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
+    if exclude_fields:
+        if "events" not in exclude_fields:
+            # events_data is needed to resolve refs in events
+            exclude_fields = exclude_fields - {"events_data"}
+        else:
+            # no events means events_data is useless
+            exclude_fields = exclude_fields | {"events_data"}
+
     sample = await recorder_type.read_log_sample(
         log_file, id, epoch, uuid, exclude_fields, reader
     )
 
+    # always resolve message pool refs so ModelEvent.input is populated
+    sample = resolve_sample_events_data(sample)
     if resolve_attachments:
         sample = resolve_sample_attachments(sample, resolve_attachments)
 
@@ -579,6 +592,7 @@ def read_eval_log_samples(
     all_samples_required: bool = True,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.
 
@@ -593,6 +607,9 @@ def read_eval_log_samples(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -630,6 +647,7 @@ def read_eval_log_samples(
                     epoch=epoch_id,
                     resolve_attachments=resolve_attachments,
                     format=format,
+                    exclude_fields=exclude_fields,
                 )
                 yield sample
             except IndexError:
@@ -661,7 +679,7 @@ def log_files_from_ls(
         for file in (
             sorted(
                 ls,
-                key=lambda file: (file.mtime if file.mtime else 0),
+                key=lambda file: file.mtime if file.mtime else 0,
                 reverse=descending,
             )
             if sort

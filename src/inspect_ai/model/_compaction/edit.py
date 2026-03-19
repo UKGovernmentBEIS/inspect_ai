@@ -189,6 +189,11 @@ class CompactionEdit(CompactionStrategy):
         # Phase 5: Strip citations (they reference server-side tool results that may be removed)
         result = strip_citations(result)
 
+        # Strip any trailing assistant messages — some APIs (e.g. Anthropic)
+        # require the conversation to end with a user message.
+        while result and result[-1].role == "assistant":
+            result.pop()
+
         return result, None
 
 

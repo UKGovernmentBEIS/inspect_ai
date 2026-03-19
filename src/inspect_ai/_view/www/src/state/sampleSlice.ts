@@ -1,5 +1,5 @@
 import { EvalSample } from "../@types/log";
-import { Event, SampleState, SampleStatus } from "../app/types";
+import { Progress, Event, SampleState, SampleStatus } from "../app/types";
 import { kSampleMessagesTabId } from "../constants";
 import {
   cleanupSamplePolling,
@@ -36,6 +36,7 @@ export interface SampleSlice {
 
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
+    setDownloadProgress: (progress: Progress | undefined) => void;
 
     setCollapsedEvents: (
       scope: string,
@@ -85,6 +86,8 @@ const initialState: SampleState = {
   sampleInState: false,
   sampleStatus: "ok",
   sampleError: undefined,
+  eventsCleared: false,
+  downloadProgress: undefined,
 
   visiblePopover: undefined,
 
@@ -115,6 +118,12 @@ export const createSampleSlice = (
       setSelectedSample: (sample: EvalSample, logFile: string) => {
         const isLarge = isLargeSample(sample);
 
+        // Detect if events were cleared by the preprocessor:
+        // a sample with messages but no events indicates the events array
+        // was stripped to reduce memory usage.
+        const eventsCleared =
+          sample.events.length === 0 && (sample.messages?.length ?? 0) > 0;
+
         // Update state based on sample size
         set((state) => {
           state.sample.sample_identifier = {
@@ -123,6 +132,7 @@ export const createSampleSlice = (
             logFile: logFile,
           };
           state.sample.sampleInState = !isLarge;
+          state.sample.eventsCleared = eventsCleared;
 
           // Only store in state if it's small
           if (!isLarge) {
@@ -157,6 +167,7 @@ export const createSampleSlice = (
           state.sample.sampleInState = false;
           state.sample.runningEvents = [];
           state.sample.sampleStatus = "ok";
+          state.sample.downloadProgress = undefined;
           state.log.selectedSampleHandle = undefined;
         });
       },
@@ -174,7 +185,6 @@ export const createSampleSlice = (
           state.sample.sampleStatus = "loading";
           state.sample.sampleError = undefined;
           state.sample.sample_identifier = { logFile, id, epoch };
-          state.log.selectedSampleHandle = undefined;
         });
       },
       setSampleStatus: (status: SampleStatus) =>
@@ -184,6 +194,10 @@ export const createSampleSlice = (
       setSampleError: (error: Error | undefined) =>
         set((state) => {
           state.sample.sampleError = error;
+        }),
+      setDownloadProgress: (progress: Progress | undefined) =>
+        set((state) => {
+          state.sample.downloadProgress = progress;
         }),
       setCollapsedEvents: (
         scope: string,
