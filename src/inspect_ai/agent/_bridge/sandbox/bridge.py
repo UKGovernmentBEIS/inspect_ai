@@ -23,6 +23,7 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteProcess,
     ExecRemoteStreamingOptions,
     ExecStderr,
+    ExecStdout,
 )
 
 from ..._agent import AgentState
@@ -31,6 +32,8 @@ from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
 
 logger = getLogger(__name__)
+
+PROXY_TIMEOUT = 600  # seconds
 
 
 @contextlib.asynccontextmanager
@@ -159,9 +162,12 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
-                    poll_timeout=600,
+                    poll_timeout=PROXY_TIMEOUT,
                 ),
             )
+
+            # wait for proxy to signal it's listening
+            await _wait_for_proxy_started(proxy)
 
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
@@ -208,6 +214,24 @@ def _register_bridged_tools(
         url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
     )
+
+
+async def _wait_for_proxy_started(proxy: ExecRemoteProcess) -> None:
+    """Wait for the proxy to signal it's listening via stdout."""
+    stderr: list[str] = []
+    with anyio.fail_after(PROXY_TIMEOUT):
+        async for event in proxy:
+            if isinstance(event, ExecStdout) and "Server running on" in event.data:
+                return
+            if isinstance(event, ExecStderr):
+                stderr.append(event.data)
+            if isinstance(event, ExecCompleted):
+                if not event.success:
+                    raise RuntimeError(
+                        f"Model proxy process exited before becoming ready: {''.join(stderr)}"
+                    )
+                return
+    raise RuntimeError(f"Model proxy did not start within {PROXY_TIMEOUT}s")
 
 
 async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
