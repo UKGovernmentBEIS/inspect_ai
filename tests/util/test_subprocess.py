@@ -4,9 +4,11 @@ import sys
 import time
 from pathlib import Path
 from random import random
+from typing import cast
 
 import psutil
 import pytest
+from anyio.abc import ByteReceiveStream
 
 from inspect_ai.util import subprocess
 from inspect_ai.util._subprocess import _log_stream
@@ -190,7 +192,7 @@ async def test_subprocess_output_limit_no_limit():
 
 
 @pytest.mark.anyio
-async def test_subprocess_redirect_to_logger(monkeypatch):
+async def test_subprocess_redirect_to_logger(monkeypatch) -> None:
     monkeypatch.setenv("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER", "1")
     messages: list[str] = []
     monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
@@ -235,27 +237,27 @@ class _FakeStream:
 
 
 @pytest.mark.anyio
-async def test_log_stream_splits_across_chunks(monkeypatch):
+async def test_log_stream_splits_across_chunks(monkeypatch) -> None:
     messages: list[str] = []
     monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
-    stream = _FakeStream([b"line1\nli", b"ne2\nline3"])
+    stream = cast(ByteReceiveStream, _FakeStream([b"line1\nli", b"ne2\nline3"]))
     await _log_stream(stream)
     assert messages == ["line1", "line2", "line3"]
 
 
 @pytest.mark.anyio
-async def test_log_stream_trailing_without_newline(monkeypatch):
+async def test_log_stream_trailing_without_newline(monkeypatch) -> None:
     messages: list[str] = []
     monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
-    stream = _FakeStream([b"line1\nline2"])
+    stream = cast(ByteReceiveStream, _FakeStream([b"line1\nline2"]))
     await _log_stream(stream)
     assert messages == ["line1", "line2"]
 
 
 @pytest.mark.anyio
-async def test_log_stream_empty_lines(monkeypatch):
+async def test_log_stream_empty_lines(monkeypatch) -> None:
     messages: list[str] = []
     monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
-    stream = _FakeStream([b"a\n\nb\n"])
+    stream = cast(ByteReceiveStream, _FakeStream([b"a\n\nb\n"]))
     await _log_stream(stream)
     assert messages == ["a", "", "b"]
