@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Fix intermittent FAILED_PRECONDITION error when using native code execution by omitting function calling system instruction hint.
+- AzureAI: Add explicit org prefix support for AzureAI third-party models.
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
