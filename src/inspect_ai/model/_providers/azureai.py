@@ -90,6 +90,13 @@ class AzureAIAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
+        # Check for explicit org prefix: azureai/moonshotai/kimi-k2.5 -> org=moonshotai
+        # We keep the full model_name (including prefix) so it appears in logs
+        # but use service_model_name() for actual API calls
+        self.org_prefix: str | None = None
+        if "/" in model_name:
+            self.org_prefix = model_name.split("/", 1)[0]
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -204,7 +211,7 @@ class AzureAIAPI(ModelAPI):
         client = ChatCompletionsClient(
             endpoint=self.endpoint_url,
             credential=credential,
-            model=self.model_name,
+            model=self.service_model_name(),
             model_extras=self.model_args,
         )
 
@@ -254,7 +261,7 @@ class AzureAIAPI(ModelAPI):
         if config.top_p is not None:
             params["top_p"] = config.top_p
         if config.max_tokens is not None:
-            if needs_max_completion_tokens(self.model_name.lower()):
+            if needs_max_completion_tokens(self.service_model_name().lower()):
                 params["max_completion_tokens"] = config.max_tokens
             else:
                 params["max_tokens"] = config.max_tokens
@@ -302,18 +309,24 @@ class AzureAIAPI(ModelAPI):
     def connection_key(self) -> str:
         return f"{self.api_key}{self.model_name}"
 
+    def service_model_name(self) -> str:
+        """Model name without any org prefix, for API calls."""
+        if self.org_prefix:
+            return self.model_name.replace(f"{self.org_prefix}/", "", 1)
+        return self.model_name
+
     def is_llama(self) -> bool:
-        return "llama" in self.model_name.lower()
+        return "llama" in self.service_model_name().lower()
 
     def is_llama3(self) -> bool:
-        return "llama-3" in self.model_name.lower()
+        return "llama-3" in self.service_model_name().lower()
 
     def is_mistral(self) -> bool:
-        return "mistral" in self.model_name.lower()
+        return "mistral" in self.service_model_name().lower()
 
     def is_openai_model(self) -> bool:
         """Check if this is an OpenAI model (gpt-*, o1, o3, o4, etc.)."""
-        name = self.model_name.lower()
+        name = self.service_model_name().lower()
         return (
             name.startswith("gpt-")
             or name.startswith("o1")
@@ -326,14 +339,20 @@ class AzureAIAPI(ModelAPI):
         """Canonical model name for model info database lookup.
 
         Maps AzureAI model names to their organization's canonical format.
-        For example, "gpt-4o" → "openai/gpt-4o".
+        Users can explicitly specify org: azureai/moonshotai/kimi-k2.5 → moonshotai/kimi-k2.5
+        Otherwise auto-detects for known models: azureai/gpt-4o → openai/gpt-4o
         """
+        base_name = self.service_model_name()
+        # Explicit org prefix takes precedence
+        if self.org_prefix:
+            return f"{self.org_prefix}/{base_name}"
+        # Auto-detect organization from model name
         if self.is_openai_model():
-            return f"openai/{self.model_name}"
+            return f"openai/{base_name}"
         elif self.is_mistral():
-            return f"mistral/{self.model_name}"
-        # For other models (e.g., Llama), return as-is and rely on fuzzy matching
-        return self.model_name
+            return f"mistral/{base_name}"
+        # For other models, return as-is and rely on fuzzy matching
+        return base_name
 
     def handle_azure_error(self, ex: AzureError) -> ModelOutput | Exception:
         if isinstance(ex, HttpResponseError):
