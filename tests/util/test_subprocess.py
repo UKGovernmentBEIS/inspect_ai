@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import sys
@@ -9,6 +10,7 @@ import psutil
 import pytest
 
 from inspect_ai.util import subprocess
+from inspect_ai.util._subprocess import _log_stream
 
 
 @pytest.mark.anyio
@@ -185,3 +187,75 @@ async def test_subprocess_output_limit_no_limit():
     )
     assert result.success is True
     assert len(result.stdout.strip()) == 1000
+
+
+@pytest.mark.anyio
+async def test_subprocess_redirect_to_logger(monkeypatch, caplog):
+    monkeypatch.setenv("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER", "1")
+    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
+        result = await subprocess(
+            [
+                "python3",
+                "-c",
+                "import sys; print('from stdout'); print('from stderr', file=sys.stderr)",
+            ],
+            capture_output=False,
+        )
+    assert result.success is True
+    assert result.stdout == ""
+    assert result.stderr == ""
+    messages = {r.message for r in caplog.records}
+    assert "from stdout" in messages
+    assert "from stderr" in messages
+
+
+@pytest.mark.anyio
+async def test_subprocess_redirect_to_logger_does_not_affect_capture(monkeypatch):
+    monkeypatch.setenv("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER", "1")
+    result = await subprocess(
+        ["python3", "-c", "print('captured output')"],
+        capture_output=True,
+    )
+    assert result.success is True
+    assert result.stdout.strip() == "captured output"
+
+
+class _FakeStream:
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = iter(chunks)
+
+    def __aiter__(self) -> "_FakeStream":
+        return self
+
+    async def __anext__(self) -> bytes:
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration
+
+
+@pytest.mark.anyio
+async def test_log_stream_splits_across_chunks(caplog):
+    stream = _FakeStream([b"line1\nli", b"ne2\nline3"])
+    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
+        await _log_stream(stream)
+    messages = [r.message for r in caplog.records]
+    assert messages == ["line1", "line2", "line3"]
+
+
+@pytest.mark.anyio
+async def test_log_stream_trailing_without_newline(caplog):
+    stream = _FakeStream([b"line1\nline2"])
+    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
+        await _log_stream(stream)
+    messages = [r.message for r in caplog.records]
+    assert messages == ["line1", "line2"]
+
+
+@pytest.mark.anyio
+async def test_log_stream_empty_lines(caplog):
+    stream = _FakeStream([b"a\n\nb\n"])
+    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
+        await _log_stream(stream)
+    messages = [r.message for r in caplog.records]
+    assert messages == ["a", "", "b"]
