@@ -1,4 +1,3 @@
-import logging
 import os
 import shutil
 import sys
@@ -11,6 +10,7 @@ import pytest
 
 from inspect_ai.util import subprocess
 from inspect_ai.util._subprocess import _log_stream
+from inspect_ai.util._subprocess import logger as _subprocess_logger
 
 
 @pytest.mark.anyio
@@ -190,21 +190,21 @@ async def test_subprocess_output_limit_no_limit():
 
 
 @pytest.mark.anyio
-async def test_subprocess_redirect_to_logger(monkeypatch, caplog):
+async def test_subprocess_redirect_to_logger(monkeypatch):
     monkeypatch.setenv("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER", "1")
-    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
-        result = await subprocess(
-            [
-                "python3",
-                "-c",
-                "import sys; print('from stdout'); print('from stderr', file=sys.stderr)",
-            ],
-            capture_output=False,
-        )
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
+    result = await subprocess(
+        [
+            "python3",
+            "-c",
+            "import sys; print('from stdout'); print('from stderr', file=sys.stderr)",
+        ],
+        capture_output=False,
+    )
     assert result.success is True
     assert result.stdout == ""
     assert result.stderr == ""
-    messages = {r.message for r in caplog.records}
     assert "from stdout" in messages
     assert "from stderr" in messages
 
@@ -235,27 +235,27 @@ class _FakeStream:
 
 
 @pytest.mark.anyio
-async def test_log_stream_splits_across_chunks(caplog):
+async def test_log_stream_splits_across_chunks(monkeypatch):
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
     stream = _FakeStream([b"line1\nli", b"ne2\nline3"])
-    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
-        await _log_stream(stream)
-    messages = [r.message for r in caplog.records]
+    await _log_stream(stream)
     assert messages == ["line1", "line2", "line3"]
 
 
 @pytest.mark.anyio
-async def test_log_stream_trailing_without_newline(caplog):
+async def test_log_stream_trailing_without_newline(monkeypatch):
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
     stream = _FakeStream([b"line1\nline2"])
-    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
-        await _log_stream(stream)
-    messages = [r.message for r in caplog.records]
+    await _log_stream(stream)
     assert messages == ["line1", "line2"]
 
 
 @pytest.mark.anyio
-async def test_log_stream_empty_lines(caplog):
+async def test_log_stream_empty_lines(monkeypatch):
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
     stream = _FakeStream([b"a\n\nb\n"])
-    with caplog.at_level(logging.INFO, logger="inspect_ai.util._subprocess"):
-        await _log_stream(stream)
-    messages = [r.message for r in caplog.records]
+    await _log_stream(stream)
     assert messages == ["a", "", "b"]
