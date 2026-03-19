@@ -8,6 +8,7 @@
 - Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
+- Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
 - Inspect View: Improve viewer loading performance for large samples.
 - Inspect View: Ensure tool output wraps for rendered text.

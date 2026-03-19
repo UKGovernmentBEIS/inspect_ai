@@ -1,5 +1,8 @@
+import json
 import shutil
 import tempfile
+import threading
+import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -19,6 +22,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
+    _start_listing_updater,
     epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
@@ -33,7 +37,12 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
-from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    list_eval_logs,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
@@ -1287,3 +1296,68 @@ def test_epochs_changed_same_reducer():
     assert not epochs_changed(epochs_obj, config), (
         "epochs_changed should return False when reducer object matches log name"
     )
+
+
+def test_listing_updater_writes_on_change() -> None:
+    """Listing updater calls write_log_listing when log state changes."""
+    log1 = EvalLogInfo(
+        name="/dir/log1.eval",
+        type="file",
+        size=1000,
+        mtime=1.0,
+        task="task",
+        task_id="id1",
+        suffix=None,
+    )
+    write_called = threading.Event()
+
+    with (
+        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
+    ):
+        mock_list.return_value = [log1]
+        mock_write.side_effect = lambda *a, **kw: write_called.set()
+
+        stop_event = _start_listing_updater("/fake/dir", interval=0.05)
+        assert write_called.wait(timeout=2.0), "listing.json was never updated"
+        stop_event.set()
+
+    assert mock_write.call_count == 1
+    mock_write.assert_called_once_with("/fake/dir", logs=[log1])
+
+
+def test_listing_updater_skips_when_unchanged() -> None:
+    """Listing updater does not call write_log_listing when state is unchanged."""
+    with (
+        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
+    ):
+        mock_list.return_value = []  # always empty — matches initial frozenset()
+
+        stop_event = _start_listing_updater("/fake/dir", interval=0.05)
+        time.sleep(0.3)  # let several ticks pass
+        stop_event.set()
+
+    assert mock_write.call_count == 0
+
+
+def test_eval_set_embed_viewer(tmp_path: Path) -> None:
+    """Viewer assets are embedded and listing.json reflects completed logs."""
+    log_dir = str(tmp_path / "logs")
+
+    success, logs = eval_set(
+        tasks=[hello_world()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        embed_viewer=True,
+    )
+
+    assert success
+    assert logs[0].status == "success"
+
+    for filename in ["index.html", "robots.txt", "listing.json"]:
+        assert (tmp_path / "logs" / filename).exists(), f"{filename} not found"
+
+    listing = json.loads((tmp_path / "logs" / "listing.json").read_text())
+    assert len(listing) == 1
+    assert list(listing.values())[0]["status"] == "success"
