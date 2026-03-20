@@ -469,6 +469,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--do-sample",
         type=bool,
+        is_flag=False,
+        default=None,
         help="Whether to use sampling for generation. Set to false for greedy decoding. HuggingFace only (defaults to True).",
         envvar="INSPECT_EVAL_DO_SAMPLE",
     )
