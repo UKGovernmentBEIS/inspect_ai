@@ -1249,9 +1249,6 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                     value = True
                 elif value.lower() == "false":
                     value = False
-            if key == "do_sample":
-                if value is not False:
-                    value = None
             if key == "parallel_tool_calls":
                 if value is not False:
                     value = None

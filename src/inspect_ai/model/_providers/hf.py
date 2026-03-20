@@ -170,7 +170,7 @@ class HuggingFaceAPI(ModelAPI):
         )
         if config.max_tokens is not None:
             kwargs["max_new_tokens"] = config.max_tokens
-        if config.temperature is not None and kwargs["do_sample"]:
+        if config.temperature is not None:
             kwargs["temperature"] = config.temperature
         if config.top_p is not None:
             kwargs["top_p"] = config.top_p
