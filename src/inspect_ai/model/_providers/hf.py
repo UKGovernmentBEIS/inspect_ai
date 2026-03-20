@@ -99,6 +99,8 @@ class HuggingFaceAPI(ModelAPI):
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
         self.hidden_states = collect_model_arg("hidden_states")
+        do_sample = collect_model_arg("do_sample")
+        self.do_sample: bool = do_sample if do_sample is not None else True
 
         # device
         if device:
@@ -165,9 +167,7 @@ class HuggingFaceAPI(ModelAPI):
         )
 
         # prepare generator
-        kwargs: dict[str, Any] = dict(
-            do_sample=config.do_sample if config.do_sample is not None else True
-        )
+        kwargs: dict[str, Any] = dict(do_sample=self.do_sample)
         if config.max_tokens is not None:
             kwargs["max_new_tokens"] = config.max_tokens
         if config.temperature is not None:

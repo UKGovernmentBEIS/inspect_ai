@@ -467,14 +467,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_STOP_SEQS",
     )
     @click.option(
-        "--do-sample",
-        type=bool,
-        is_flag=False,
-        default=None,
-        help="Whether to use sampling for generation. Set to false for greedy decoding. HuggingFace only (defaults to True).",
-        envvar="INSPECT_EVAL_DO_SAMPLE",
-    )
-    @click.option(
         "--temperature",
         type=float,
         help="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
@@ -669,7 +661,6 @@ def eval_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    do_sample: bool | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
@@ -887,7 +878,6 @@ def eval_set_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    do_sample: bool | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
