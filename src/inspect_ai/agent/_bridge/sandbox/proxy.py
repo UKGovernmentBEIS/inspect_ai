@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import time
+import traceback
 from email.utils import formatdate
 from http import HTTPStatus
 from typing import (
@@ -29,8 +30,8 @@ MethodRoutes: TypeAlias = dict[str, RouteMap]
 # ---------- Limits / Defaults ----------
 MAX_HEADER_BYTES = 64 * 1024
 MAX_BODY_BYTES = 50 * 1024 * 1024
-READ_TIMEOUT_S = 60
-WRITE_TIMEOUT_S = 60
+READ_TIMEOUT_S = 300
+WRITE_TIMEOUT_S = 300
 STREAM_CHUNK = 8192
 
 HOP_BY_HOP = {
@@ -1867,7 +1868,8 @@ async def run_model_proxy_server(port: int) -> None:
     try:
         await server.start()
     except Exception as ex:
-        sys.stderr.write(f"Unexpected error running model proxy: {ex}")
+        sys.stderr.write(f"Unexpected error running model proxy: {ex}\n")
+        sys.stderr.write(traceback.format_exc())
         sys.stderr.flush()
         os._exit(1)
 
@@ -1887,7 +1889,8 @@ def _handle_model_proxy_error(ex: Exception) -> None:
     # returning 500 to the proxied agent. This is because we are in a
     # hard failure anyway so we need the user to see the error message
     # and have the task fail (the 500 error would just result in retries)
-    sys.stderr.write(f"Unexpected error during model proxy call: {ex}")
+    sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
+    sys.stderr.write(traceback.format_exc())
     sys.stderr.flush()
 
 

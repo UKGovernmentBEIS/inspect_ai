@@ -90,7 +90,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             await compose_build(project)
 
             # cleanup images created during build
-            await compose_cleanup_images(project, timeout=60)
+            await compose_cleanup_images(project, timeout=300)
 
             services = await compose_services(project)
             for name, service in services.items():
@@ -325,7 +325,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
         # defualt timeout for write_file operations
-        TIMEOUT = 180
+        TIMEOUT = 600
 
         # resolve relative file paths
         file = self.container_file(file)
