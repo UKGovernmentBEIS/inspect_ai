@@ -1,11 +1,14 @@
 ## Unreleased
 
 - Google: Fix intermittent FAILED_PRECONDITION error when using native code execution by omitting function calling system instruction hint.
+- AzureAI: Add explicit org prefix support for AzureAI third-party models.
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+- Bash Session: Further increase bash session transport timeout to 180s.
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
 - Sandboxes: Fix intermittent server startup failure caused by socket deletion racing with `bind()`/`listen()` in sandbox tools server.
+- Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
