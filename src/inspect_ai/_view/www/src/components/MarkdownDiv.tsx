@@ -26,12 +26,18 @@ const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
     const cacheKey = `${markdown}:${optionsKey}`;
     const cachedHtml = renderCache.get(cacheKey);
 
+    const sanitizeMarkdown = (md: string): string => {
+      // Basic sanitization to prevent script tags and event handlers
+      const escapedBr = md.replace(/\n/g, "<br/>");
+      return escapeHtmlCharacters(escapedBr);
+    };
+
     // Initialize with content (cached or unrendered markdown)
     const [renderedHtml, setRenderedHtml] = useState<string>(() => {
       if (cachedHtml) {
         return cachedHtml;
       }
-      return markdown.replace(/\n/g, "<br/>");
+      return sanitizeMarkdown(markdown);
     });
 
     useEffect(() => {
@@ -47,7 +53,7 @@ const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
       }
 
       // Reset to raw markdown text when markdown changes (keep this synchronous for immediate feedback)
-      setRenderedHtml(markdown.replace(/\n/g, "<br/>"));
+      setRenderedHtml(sanitizeMarkdown(markdown));
 
       // Process markdown asynchronously using the queue
       const { promise, cancel } = renderQueue.enqueue(async () => {
