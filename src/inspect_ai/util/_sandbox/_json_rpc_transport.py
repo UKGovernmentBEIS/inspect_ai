@@ -61,6 +61,7 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
             [self.cli, "exec"],
             input=create_json_rpc_request(method, params, is_notification),
             timeout=transport_extra_args.get("timeout", None),
+            timeout_retry=transport_extra_args.get("timeout_retry", True),
             user=transport_extra_args.get("user", None),
             concurrency=transport_extra_args.get("concurrency", True),
         )

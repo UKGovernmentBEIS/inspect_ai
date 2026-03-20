@@ -1,10 +1,19 @@
 ## Unreleased
 
+- Google: Fix intermittent FAILED_PRECONDITION error when using native code execution by omitting function calling system instruction hint.
+- AzureAI: Add explicit org prefix support for AzureAI third-party models.
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
+- Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
+- Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
+- Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
+- Hooks: Add sample attempt begin/end hooks.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
 - Inspect View: Improve viewer loading performance for large samples.
+- Inspect View: Ensure tool output wraps for rendered text.
+- Inspect View: Improve scrolling behavior when moving to next scroll result.
+- Bugfix: Don't skip sandbox init skipped when first task has no sandbox.
 
 ## 0.3.199 (17 March 2026)
 
