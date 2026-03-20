@@ -1132,6 +1132,28 @@ pre[class*="language-"] {
   .vscode-dark pre[class*="language-"] {
     text-shadow: none;
   }
+
+  html {
+    font-size: 9pt;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #app,
+  .app-main-grid {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  pre,
+  code {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    break-inside: auto;
+  }
 }
 .vscode-dark :not(pre) > code[class*="language-"],
 .vscode-dark pre[class*="language-"] {

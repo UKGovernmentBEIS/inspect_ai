@@ -1,6 +1,5 @@
 import { TabPanel, TabSet } from "../../components/TabSet";
 
-import { escapeSelector } from "../../utils/html";
 import { isVscode } from "../../utils/vscode";
 
 import { ANSIDisplay } from "../../components/AnsiDisplay";
@@ -21,7 +20,7 @@ import {
   useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { EvalSample, EvalSpec, Events } from "../../@types/log";
+import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
 import { ActivityBar } from "../../components/ActivityBar";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -45,7 +44,11 @@ import { formatDateTime, formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
-import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
+import {
+  printSampleUrl,
+  useLogOrSampleRouteParams,
+  useSampleUrlBuilder,
+} from "../routing/url";
 import { messagesToStr } from "../shared/messages";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
@@ -56,7 +59,6 @@ import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
-import { printHeadingHtml, printHtml } from "../utils/print";
 
 interface SampleDisplayProps {
   id: string;
@@ -191,7 +193,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 
   const tabsetId = `task-sample-details-tab-${id}`;
-  const targetId = `${tabsetId}-content`;
 
   const isShowing = useStore((state) => state.app.dialogs.transcriptFilter);
   const setShowing = useStore(
@@ -204,9 +205,26 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const filterRef = useRef<HTMLButtonElement | null>(null);
   const optionsRef = useRef<HTMLButtonElement | null>(null);
 
+  // Fall back to store state for single-file mode where URL doesn't contain sample ID/epoch
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
+  const printLogPath = urlLogPath || selectedLogFile;
+  const printSampleId = urlSampleId || selectedSampleHandle?.id?.toString();
+  const printEpoch = urlEpoch || selectedSampleHandle?.epoch?.toString();
+
   const handlePrintClick = useCallback(() => {
-    printSample(id, targetId, evalSpec);
-  }, [id, targetId, evalSpec]);
+    if (printLogPath && printSampleId && printEpoch) {
+      const printUrl = printSampleUrl(
+        printLogPath,
+        printSampleId,
+        printEpoch,
+        effectiveSelectedTab,
+      );
+      window.open(`#${printUrl}`, "_blank");
+    }
+  }, [printLogPath, printSampleId, printEpoch, effectiveSelectedTab]);
 
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
@@ -530,7 +548,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 };
 
-const metadataViewsForSample = (
+export const metadataViewsForSample = (
   id: string,
   scrollRef: RefObject<HTMLDivElement | null>,
   sample?: EvalSample,
@@ -656,58 +674,6 @@ const metadataViewsForSample = (
   }
 
   return sampleMetadatas;
-};
-const printSample = (id: string, targetId: string, evalSpec?: EvalSpec) => {
-  // The active tab
-  const targetTabEl = document.querySelector(
-    `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
-  );
-  if (targetTabEl) {
-    // The target element
-    const targetEl = targetTabEl.firstElementChild;
-    if (targetEl) {
-      // Get the sample heading to include
-      const headingId = `sample-heading-${id}`;
-      const headingEl = document.getElementById(headingId);
-
-      // Print the document
-      const headingHtml = printHeadingHtml(evalSpec);
-      const css = `
-      html { font-size: 9pt }
-      /* Allow content to break anywhere without any forced page breaks */
-      * {
-        break-inside: auto;  /* Let elements break anywhere */
-        page-break-inside: auto;  /* Legacy support */
-        break-before: auto;
-        page-break-before: auto;
-        break-after: auto;
-        page-break-after: auto;
-      }
-      /* Specifically disable all page breaks for divs */
-      body{
-        -webkit-print-color-adjust:exact !important;
-        print-color-adjust:exact !important;
-      }
-      /* Allow preformatted text and code blocks to break across pages */
-      pre, code {
-          white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
-          overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
-          break-inside: auto; /* Allow page breaks inside the element */
-          page-break-inside: auto; /* Older equivalent */
-      }
-
-      /* Additional control for long lines within code/preformatted blocks */
-      pre {
-          word-wrap: break-word; /* Break long words if needed */
-      }    
-          
-      `;
-      printHtml(
-        [headingHtml, headingEl?.outerHTML, targetEl.innerHTML].join("\n"),
-        css,
-      );
-    }
-  }
 };
 
 const isRunning = (
