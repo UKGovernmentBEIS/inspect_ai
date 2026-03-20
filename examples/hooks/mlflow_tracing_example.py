@@ -1,4 +1,8 @@
-"""Example: run an Inspect AI eval with MLflow tracing enabled.
+"""Example: run an Inspect AI eval with MLflow tracking and tracing.
+
+Demonstrates both hooks together:
+  - Tracking hook: MLflow runs with params, per-sample metrics, artifacts
+  - Tracing hook: MLflow traces with span tree (model calls, tool calls, scoring)
 
 Prerequisites:
     pip install mlflow
@@ -8,7 +12,7 @@ Usage:
     export OPENAI_API_KEY="sk-..."
     python examples/hooks/mlflow_tracing_example.py
 
-Then open http://127.0.0.1:5556 to see traces.
+Then open http://127.0.0.1:5556 to see runs (Experiments tab) and traces (Traces tab).
 """
 
 import os
@@ -16,12 +20,15 @@ import sys
 
 os.environ["MLFLOW_TRACKING_URI"] = "http://127.0.0.1:5556"
 os.environ["MLFLOW_INSPECT_TRACING"] = "true"
-os.environ["MLFLOW_EXPERIMENT_NAME"] = "inspect-tracing-test"
+os.environ["MLFLOW_EXPERIMENT_NAME"] = "inspect-mlflow-demo"
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import mlflow  # noqa: E402
 from examples.hooks.mlflow_tracing import MlflowTracingHooks  # noqa: E402, F401
+
+# Import both hooks (auto-register via @hooks decorator)
+from examples.hooks.mlflow_tracking import MlflowTrackingHooks  # noqa: E402, F401
 
 from inspect_ai import Task, eval  # noqa: E402
 from inspect_ai.dataset import Sample  # noqa: E402
@@ -32,9 +39,8 @@ from inspect_ai.solver import generate  # noqa: E402
 def main():
     print("Setting up MLflow experiment...")
     mlflow.set_tracking_uri("http://127.0.0.1:5556")
-    mlflow.set_experiment("inspect-tracing-test")
+    mlflow.set_experiment("inspect-mlflow-demo")
 
-    # Simple math task with 5 samples
     dataset = [
         Sample(input="What is 2 + 2?", target="4"),
         Sample(input="What is 3 * 5?", target="15"),
@@ -49,7 +55,7 @@ def main():
         scorer=match(),
     )
 
-    print("Running Inspect AI eval with MLflow tracing enabled...")
+    print("Running Inspect AI eval with MLflow tracking + tracing...")
     print("Model: openai/gpt-4o-mini")
     print(f"Samples: {len(dataset)}")
     print()
@@ -57,7 +63,7 @@ def main():
     logs = eval(
         task,
         model="openai/gpt-4o-mini",
-        log_dir="/tmp/inspect-tracing-test-logs",
+        log_dir="/tmp/inspect-mlflow-demo-logs",
     )
 
     log = logs[0]
@@ -72,32 +78,42 @@ def main():
         print(f"  Total samples: {log.results.total_samples}")
         print(f"  Completed: {log.results.completed_samples}")
 
-    # Verify traces were created
-    print("\nVerifying MLflow traces...")
-    experiment = mlflow.get_experiment_by_name("inspect-tracing-test")
+    # Verify MLflow runs (from tracking hook)
+    print("\nVerifying MLflow runs (tracking hook)...")
+    experiment = mlflow.get_experiment_by_name("inspect-mlflow-demo")
+    if experiment:
+        runs = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
+        print(f"  Runs found: {len(runs)}")
+        for _, run in runs.iterrows():
+            name = run.get("tags.mlflow.runName", "unnamed")
+            status = run.get("status", "unknown")
+            print(f"    {name}: {status}")
+
+    # Verify MLflow traces (from tracing hook)
+    print("\nVerifying MLflow traces (tracing hook)...")
     if experiment:
         traces = mlflow.search_traces(
             experiment_ids=[experiment.experiment_id],
         )
         print(f"  Traces found: {len(traces)}")
         if len(traces) > 0:
-            print(f"  First trace ID: {traces.iloc[0]['trace_id']}")
-            print(f"  Request ID: {traces.iloc[0].get('client_request_id', 'N/A')}")
-
-            # Get the full trace to inspect spans
             trace_id = traces.iloc[0]["trace_id"]
             trace = mlflow.get_trace(trace_id)
             if trace and trace.data and trace.data.spans:
                 print(f"  Spans in trace: {len(trace.data.spans)}")
                 for span in trace.data.spans:
-                    indent = "    " if span.parent_id else "  "
-                    if span.parent_id:
-                        indent = "      "
-                    print(f"{indent}{span.name} ({span.span_type}) - {span.status}")
-    else:
-        print("  No experiment found!")
+                    depth = 0
+                    pid = span.parent_id
+                    while pid:
+                        depth += 1
+                        parent = next(
+                            (s for s in trace.data.spans if s.span_id == pid), None
+                        )
+                        pid = parent.parent_id if parent else None
+                    indent = "  " * (depth + 2)
+                    print(f"{indent}{span.name} ({span.span_type})")
 
-    print("\nDone. Open http://127.0.0.1:5556 to see traces.")
+    print("\nDone. Open http://127.0.0.1:5556 to see runs and traces.")
 
 
 if __name__ == "__main__":
