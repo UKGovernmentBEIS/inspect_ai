@@ -216,10 +216,16 @@ async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
     async for event in proxy:
         if isinstance(event, ExecStderr):
             stderr.append(event.data)
+            logger.debug("model_proxy stderr: %s", event.data.rstrip())
         if isinstance(event, ExecCompleted):
             if not event.success:
                 raise RuntimeError(
                     f"Model proxy process exited unexpectedly with failure: {''.join(stderr)}."
+                )
+            if stderr:
+                logger.warning(
+                    "model_proxy stderr output on clean exit:\n%s",
+                    "".join(stderr).rstrip(),
                 )
             return
     # Stream ended without ExecCompleted
