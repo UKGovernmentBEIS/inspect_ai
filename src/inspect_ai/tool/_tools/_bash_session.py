@@ -72,7 +72,7 @@ class BashSessionParams(
 DEFAULT_WAIT_FOR_OUTPUT = 30
 DEFAULT_IDLE_TIME = 0.5
 # this is how long we're willing to wait for the basic RPC call overhead.
-TRANSPORT_TIMEOUT = 30  # Some K8's deployments can be very slow
+TRANSPORT_TIMEOUT = 180  # Some K8's deployments can be very slow
 
 
 @tool()
