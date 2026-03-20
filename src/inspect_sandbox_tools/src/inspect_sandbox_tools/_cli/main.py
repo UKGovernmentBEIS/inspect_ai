@@ -104,7 +104,7 @@ def _ensure_server_is_running() -> None:
     )
 
     # Wait for socket to become available
-    for _ in range(1200):  # Wait up to 120 seconds
+    for _ in range(6000):  # Wait up to 600 seconds
         if _can_connect_to_socket():
             return
         # Detect early crash — no point waiting 20s if the process already exited

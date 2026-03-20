@@ -339,7 +339,7 @@ async def setup_sandbox_environment(
     # execute and then remove setup script (don't retry it on timeout
     # in case it is not idempotent)
     try:
-        await env.exec(["chmod", "+x", setup_file], timeout=30)
+        await env.exec(["chmod", "+x", setup_file], timeout=120)
         timeout = int(
             os.environ.get("INSPECT_SANDBOX_SETUP_TIMEOUT", SANDBOX_SETUP_TIMEOUT)
         )
@@ -350,7 +350,7 @@ async def setup_sandbox_environment(
             raise RuntimeError(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
-        await env.exec(["rm", setup_file], timeout=30)
+        await env.exec(["rm", setup_file], timeout=120)
     except TimeoutError:
         raise RuntimeError("Timed out executing setup command in sandbox")
 
