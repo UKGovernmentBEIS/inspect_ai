@@ -25,7 +25,7 @@ from .util import TRACE_DOCKER, ComposeProject, is_inspect_project
 logger = getLogger(__name__)
 
 # How long to wait for compose environment to pass a health check
-COMPOSE_WAIT = 120
+COMPOSE_WAIT = 600
 
 
 async def compose_up(
@@ -63,8 +63,7 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
 
     # shut down docker containers. default internal timeout is 10 seconds
     # but we've seen reports of this handing, so add a proess timeout
-    # of 60 seconds for belt and suspenders
-    TIMEOUT = 60
+    TIMEOUT = 300
     try:
         result = await compose_command(
             ["down", "--volumes"],
@@ -102,7 +101,7 @@ async def compose_cp(
     result = await compose_command(
         ["cp", "-L", "--", src, dest],
         project=project,
-        timeout=120,  # 2-minute timeout for file copies
+        timeout=600,  # 10-minute timeout for file copies
         cwd=cwd,
         output_limit=output_limit,
     )
@@ -146,7 +145,7 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project, timeout=60)
+    result = await compose_command(command, project=project, timeout=300)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -208,7 +207,7 @@ async def compose_exec(
 
 
 async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:
-    result = await compose_command(["config"], project=project, timeout=60)
+    result = await compose_command(["config"], project=project, timeout=300)
     if not result.success:
         raise RuntimeError(f"Error reading docker config: {result.stderr}")
     return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
