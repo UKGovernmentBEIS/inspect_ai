@@ -317,6 +317,7 @@ def anthropic_web_search_agent() -> Agent:
                             "max_uses": 5,
                         }
                     ],
+                    tool_choice={"type": "any"},
                 )
 
             return bridge.state
