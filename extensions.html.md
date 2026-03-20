@@ -373,9 +373,10 @@ class SandboxEnvironment:
     ) -> None:
         """
         Raises:
+          TimeoutError: If the operation times out.
           PermissionError: If the user does not have
             permission to write to the specified path.
-          IsADirectoryError: If the file exists already and 
+          IsADirectoryError: If the file exists already and
             is a directory.
         """
         ...
@@ -385,8 +386,9 @@ class SandboxEnvironment:
     ) -> Union[str | bytes]:
         """
         Raises:
+          TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
-          UnicodeDecodeError: If an encoding error occurs 
+          UnicodeDecodeError: If an encoding error occurs
             while reading the file.
             (only applicable when `text = True`)
           PermissionError: If the user does not have
@@ -814,9 +816,10 @@ class WBHooks(Hooks):
 ```
 
 For a more complete example of creating hooks see the
-[wandb_weave.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/wandb_weave.py)
+[wandb_weave.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/wandb_weave.py),
+[mlflow_tracking.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py),
 and
-[mlflow_tracking.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py)
+[mlflow_tracing.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracing.py)
 examples.
 
 See the `Hooks` class for more documentation and the full list of

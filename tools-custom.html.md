@@ -127,8 +127,9 @@ If you do not explicitly handle errors, then Inspect provides some
 default error handling behaviour. Specifically, if any of the following
 errors are raised they will be handled and reported to the model:
 
-- `TimeoutError` — Occurs when a call to `subprocess()` or
-  `sandbox().exec()` times out.
+- `TimeoutError` — Occurs when a call to `subprocess()`,
+  `sandbox().exec()`, `sandbox().read_file()`, or
+  `sandbox().write_file()` times out.
 
 - `PermissionError` — Occurs when there are inadequate permissions to
   read or write a file.
@@ -266,9 +267,10 @@ class SandboxEnvironment:
     ) -> None:
         """
         Raises:
+          TimeoutError: If the operation times out.
           PermissionError: If the user does not have
             permission to write to the specified path.
-          IsADirectoryError: If the file exists already and 
+          IsADirectoryError: If the file exists already and
             is a directory.
         """
         ...
@@ -278,8 +280,9 @@ class SandboxEnvironment:
     ) -> Union[str | bytes]:
         """
         Raises:
+          TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
-          UnicodeDecodeError: If an encoding error occurs 
+          UnicodeDecodeError: If an encoding error occurs
             while reading the file.
             (only applicable when `text = True`)
           PermissionError: If the user does not have
