@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.200 (20 March 2026)
 
 - Google: Fix intermittent FAILED_PRECONDITION error when using native code execution by omitting function calling system instruction hint.
 - AzureAI: Add explicit org prefix support for AzureAI third-party models.
