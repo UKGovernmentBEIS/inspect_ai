@@ -18,7 +18,8 @@
 - Inspect View: Improve viewer loading performance for large samples.
 - Inspect View: Ensure tool output wraps for rendered text.
 - Inspect View: Improve scrolling behavior when moving to next scroll result.
-- Bugfix: Don't skip sandbox init skipped when first task has no sandbox.
+- Bugfix: Don't skip sandbox init when first task has no sandbox.
+- Bugfix: Raise `ValueError` when sandbox provider is not found.
 
 ## 0.3.199 (17 March 2026)
 
