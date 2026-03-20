@@ -6,6 +6,7 @@
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
+- Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
 - Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
