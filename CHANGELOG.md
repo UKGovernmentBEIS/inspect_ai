@@ -10,6 +10,7 @@
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
 - Sandboxes: Increase timeouts associated with Docker execution.
+- Sandboxes: Fix intermittent server startup failure caused by socket deletion racing with `bind()`/`listen()` in sandbox tools server.
 - Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
