@@ -95,6 +95,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     temperature: float | None
     """What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."""
 
+    do_sample: bool | None
+    """Whether to use sampling for generation. Set to False for greedy decoding. HuggingFace only (defaults to True)."""
+
     stop_seqs: list[str] | None
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
 
@@ -202,6 +205,9 @@ class GenerateConfig(BaseModel):
 
     temperature: float | None = Field(default=None)
     """What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic."""
+
+    do_sample: bool | None = Field(default=None)
+    """Whether to use sampling for generation. Set to False for greedy decoding. HuggingFace only (defaults to True)."""
 
     stop_seqs: list[str] | None = Field(default=None)
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""

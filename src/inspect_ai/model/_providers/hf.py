@@ -165,7 +165,9 @@ class HuggingFaceAPI(ModelAPI):
         )
 
         # prepare generator
-        kwargs: dict[str, Any] = dict(do_sample=True)
+        kwargs: dict[str, Any] = dict(
+            do_sample=config.do_sample if config.do_sample is not None else True
+        )
         if config.max_tokens is not None:
             kwargs["max_new_tokens"] = config.max_tokens
         if config.temperature is not None:
