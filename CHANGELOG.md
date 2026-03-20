@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+- Agent Bridge: Provide streaming 'ping' responses to keep Anthropic clients alive.
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
