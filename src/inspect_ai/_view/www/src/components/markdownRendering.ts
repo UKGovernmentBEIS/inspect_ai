@@ -147,10 +147,7 @@ const fixDotsNotation = (content: string): string => {
     let result = content.replace(/(\$[^$]*?)\\dots([^$]*?\$)/g, "$1\\ldots$2");
 
     // Then, fix block math expressions ($...$)
-    result = result.replace(
-      /(\$\$[^$]*?)\\dots([^$]*?\$\$)/g,
-      "$1\\ldots$2",
-    );
+    result = result.replace(/(\$\$[^$]*?)\\dots([^$]*?\$\$)/g, "$1\\ldots$2");
 
     return result;
   } catch (error) {
