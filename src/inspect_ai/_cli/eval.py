@@ -467,11 +467,9 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_STOP_SEQS",
     )
     @click.option(
-        "--do-sample/--no-do-sample",
+        "--do-sample",
         type=bool,
-        is_flag=True,
-        default=True,
-        help="Whether to use sampling for generation. Use --no-do-sample for greedy decoding. HuggingFace only (defaults to True).",
+        help="Whether to use sampling for generation. Set to false for greedy decoding. HuggingFace only (defaults to True).",
         envvar="INSPECT_EVAL_DO_SAMPLE",
     )
     @click.option(
