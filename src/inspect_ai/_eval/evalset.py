@@ -559,7 +559,7 @@ def eval_set(
     return success, results
 
 
-def _start_listing_updater(log_dir: str, interval: int = 30) -> threading.Event:
+def _start_listing_updater(log_dir: str, interval: float = 30) -> threading.Event:
     stop_event = threading.Event()
     last_state: frozenset[tuple[str, float | None]] = frozenset()
 
