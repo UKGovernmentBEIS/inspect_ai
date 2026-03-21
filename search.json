@@ -5254,7 +5254,7 @@
     "href": "extensions/extensions_content.html#sec-analysis",
     "title": "Inspect",
     "section": "Analysis",
-    "text": "Analysis\n\nInspect Scout — Meridian\n\nTranscript analysis for Inspect evaluations.\n\nInspect Viz — Meridian\n\nInteractive data visualization for Inspect evaluations.\n\nDocent — Transluce\n\nTools to summarize, cluster, and search over agent transcripts.\n\nLunette — Fulcrum Research\n\nPlatform for understanding and improving agents.\n\nInspect WandB — Arcadia\n\nIntegration with Weights and Biases platform.\n\nMLflow Tracking and Tracing Hooks — Debu Sinha\n\nLog Inspect evaluations to MLflow with hierarchical run tracking, per-sample metrics, artifact logging, and execution tracing with span-level visibility into model calls, tool usage, and scoring.\n\nCJE — CIMO Labs\n\nCalibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels."
+    "text": "Analysis\n\nInspect Scout — Meridian\n\nTranscript analysis for Inspect evaluations.\n\nInspect Viz — Meridian\n\nInteractive data visualization for Inspect evaluations.\n\nDocent — Transluce\n\nTools to summarize, cluster, and search over agent transcripts.\n\nLunette — Fulcrum Research\n\nPlatform for understanding and improving agents.\n\nInspect WandB — Arcadia\n\nIntegration with Weights and Biases platform.\n\nInspct MLFlow — Debu Sinha\n\nExperiment tracking, execution tracing, and artifact logging for Inspect AI evaluations.\n\nCJE — CIMO Labs\n\nCalibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels."
   },
   {
     "objectID": "extensions/extensions_content.html#sec-frameworks",
