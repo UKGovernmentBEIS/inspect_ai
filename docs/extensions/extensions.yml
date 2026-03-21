@@ -52,9 +52,9 @@
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
-- name: "[MLflow Tracking and Tracing Hooks](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py)"
+- name: "[Inspct MLFlow](https://github.com/debu-sinha/inspect-mlflow)"
   description: |
-    Log Inspect evaluations to MLflow with hierarchical run tracking, per-sample metrics, artifact logging, and execution tracing with span-level visibility into model calls, tool usage, and scoring.
+    Experiment tracking, execution tracing, and artifact logging for Inspect AI evaluations.
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
