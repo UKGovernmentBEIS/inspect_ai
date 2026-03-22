@@ -15,6 +15,9 @@
 [Inspect Policy Sandbox](https://github.com/Dedulus/inspect-policy-sandbox) &mdash; <small><a href="https://github.com/Dedulus" style="text-decoration:none">Arnab Mitra</a></small>
 :   Sandbox wrapper that allows fine grained control over command execution and file I/O.
 
+[Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
+:   Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
+
 
 ## Analysis {#sec-analysis}
 
@@ -32,6 +35,12 @@
 
 [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb) &mdash; <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small>
 :   Integration with Weights and Biases platform.
+
+[Inspct MLFlow](https://github.com/debu-sinha/inspect-mlflow) &mdash; <small><a href="https://github.com/debu-sinha" style="text-decoration:none">Debu Sinha</a></small>
+:   Experiment tracking, execution tracing, and artifact logging for Inspect AI evaluations.
+
+[CJE](https://github.com/cimo-labs/cje) &mdash; <small><a href="https://cimolabs.com" style="text-decoration:none">CIMO Labs</a></small>
+:   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
 
 
 ## Frameworks {#sec-frameworks}
@@ -59,6 +68,9 @@
 
 [Inspect VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect-vscode" style="text-decoration:none">Meridian</a></small>
 :   VS Code extension that assists with developing and debugging Inspect evaluations.
+
+[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
+:   Automatically load pricing data for models under test.
 
 
 ## Evals {#sec-evals}
