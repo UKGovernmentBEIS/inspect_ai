@@ -22,7 +22,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
-    _start_listing_updater,
+    _embed_viewer,
     epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
@@ -1298,7 +1298,7 @@ def test_epochs_changed_same_reducer():
     )
 
 
-def test_listing_updater_writes_on_change() -> None:
+def test_embed_viewer_writes_on_change() -> None:
     """Listing updater calls write_log_listing when log state changes."""
     log1 = EvalLogInfo(
         name="/dir/log1.eval",
@@ -1312,33 +1312,37 @@ def test_listing_updater_writes_on_change() -> None:
     write_called = threading.Event()
 
     with (
+        patch("inspect_ai._eval.evalset.embed_log_dir"),
         patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
         patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
     ):
         mock_list.return_value = [log1]
         mock_write.side_effect = lambda *a, **kw: write_called.set()
 
-        stop_event = _start_listing_updater("/fake/dir", interval=0.05)
-        assert write_called.wait(timeout=2.0), "listing.json was never updated"
-        stop_event.set()
+        with _embed_viewer("/fake/dir", interval=0.05):
+            assert write_called.wait(timeout=2.0), "listing.json was never updated"
 
-    assert mock_write.call_count == 1
-    mock_write.assert_called_once_with("/fake/dir", logs=[log1])
+    # one periodic update (with pre-fetched logs) + one final update on context exit
+    assert mock_write.call_count == 2
+    mock_write.assert_any_call("/fake/dir", logs=[log1])
+    mock_write.assert_any_call("/fake/dir")
 
 
-def test_listing_updater_skips_when_unchanged() -> None:
+def test_embed_viewer_skips_when_unchanged() -> None:
     """Listing updater does not call write_log_listing when state is unchanged."""
     with (
+        patch("inspect_ai._eval.evalset.embed_log_dir"),
         patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
         patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
     ):
         mock_list.return_value = []  # always empty — matches initial frozenset()
 
-        stop_event = _start_listing_updater("/fake/dir", interval=0.05)
-        time.sleep(0.3)  # let several ticks pass
-        stop_event.set()
+        with _embed_viewer("/fake/dir", interval=0.05):
+            time.sleep(0.3)  # let several ticks pass
 
-    assert mock_write.call_count == 0
+    # no periodic updates (state never changed), but one final update on context exit
+    assert mock_write.call_count == 1
+    mock_write.assert_called_once_with("/fake/dir")
 
 
 def test_eval_set_embed_viewer(tmp_path: Path) -> None:

@@ -1,6 +1,8 @@
+import contextlib
 import hashlib
 import logging
 import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
@@ -348,14 +350,6 @@ def eval_set(
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
 
-    # if embed_viewer, copy viewer assets upfront so the viewer is accessible
-    # while evals are running, then start a background thread to keep listing.json
-    # updated as log files are created
-    listing_stop_event: threading.Event | None = None
-    if embed_viewer:
-        embed_log_dir(log_dir=log_dir)
-        listing_stop_event = _start_listing_updater(log_dir)
-
     # get eval set id
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
@@ -515,31 +509,23 @@ def eval_set(
         before=before,
     )
 
-    # emit start event
-    run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
+        # emit start event
+        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-    # execute w/ retry
-    results = retry(try_eval)
+        # execute w/ retry
+        results = retry(try_eval)
 
-    # stop the periodic listing updater now that evals are complete
-    if listing_stop_event is not None:
-        listing_stop_event.set()
-
-    # final sweep to remove failed log files
-    if retry_cleanup:
-        task_ids = {result.eval.task_id for result in results}
-        cleanup_older_eval_logs(log_dir, task_ids)
+        # final sweep to remove failed log files
+        if retry_cleanup:
+            task_ids = {result.eval.task_id for result in results}
+            cleanup_older_eval_logs(log_dir, task_ids)
 
     # if specified, bundle the output directory
     if bundle_dir:
         bundle_log_dir(
             log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
         )
-
-    # if embed_viewer, do a final listing.json update now that all logs are complete
-    # (viewer assets were already embedded at the start of eval_set)
-    if embed_viewer:
-        write_log_listing(log_dir)
 
     # report final status
     success = all_evals_succeeded(results)
@@ -559,7 +545,10 @@ def eval_set(
     return success, results
 
 
-def _start_listing_updater(log_dir: str, interval: float = 30) -> threading.Event:
+@contextlib.contextmanager
+def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
+    embed_log_dir(log_dir=log_dir)
+
     stop_event = threading.Event()
     last_state: frozenset[tuple[str, float | None]] = frozenset()
 
@@ -576,7 +565,11 @@ def _start_listing_updater(log_dir: str, interval: float = 30) -> threading.Even
                 pass
 
     threading.Thread(target=update_listing, daemon=True, name="listing-updater").start()
-    return stop_event
+    try:
+        yield
+    finally:
+        stop_event.set()
+        write_log_listing(log_dir)
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
