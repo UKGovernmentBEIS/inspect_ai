@@ -1,11 +1,21 @@
 ## Unreleased
 
+- HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
+- Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
+
+## 0.3.200 (20 March 2026)
+
 - Google: Fix intermittent FAILED_PRECONDITION error when using native code execution by omitting function calling system instruction hint.
 - AzureAI: Add explicit org prefix support for AzureAI third-party models.
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+- Agent Bridge: Provide streaming 'ping' responses to keep Anthropic clients alive.
+- Agent Bridge: Increase timeouts associated with model proxy server.
+- Bash Session: Further increase bash session transport timeout to 180s.
 - Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
 - Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
 - Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
+- Sandboxes: Increase timeouts associated with Docker execution.
+- Sandboxes: Fix intermittent server startup failure caused by socket deletion racing with `bind()`/`listen()` in sandbox tools server.
 - Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
@@ -14,7 +24,8 @@
 - Inspect View: Improve viewer loading performance for large samples.
 - Inspect View: Ensure tool output wraps for rendered text.
 - Inspect View: Improve scrolling behavior when moving to next scroll result.
-- Bugfix: Don't skip sandbox init skipped when first task has no sandbox.
+- Bugfix: Don't skip sandbox init when first task has no sandbox.
+- Bugfix: Raise `ValueError` when sandbox provider is not found.
 
 ## 0.3.199 (17 March 2026)
 
