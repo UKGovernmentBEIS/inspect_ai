@@ -891,6 +891,15 @@ Activations are available in the “hidden_states” field of
 transformers
 [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
 
+### Sampling
+
+Pass the `do_sample` model arg to override the default sampling behavior
+(which is `do_sample=True`). For example:
+
+``` bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
+```
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face
