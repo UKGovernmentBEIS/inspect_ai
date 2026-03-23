@@ -1,5 +1,6 @@
 ## Unreleased
 
+- HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
 - Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
 
 ## 0.3.200 (20 March 2026)
