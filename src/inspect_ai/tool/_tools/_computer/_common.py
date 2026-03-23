@@ -148,7 +148,7 @@ async def hold_key(key: str, duration: int, timeout: int | None = None) -> ToolR
 
 
 async def type(text: str, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["type", "--text", text], timeout=timeout)
+    return await _send_cmd(["type", f"--text={text}"], timeout=timeout)
 
 
 async def zoom(region: list[int], timeout: int | None = None) -> ToolResult:
