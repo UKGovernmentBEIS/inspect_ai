@@ -129,3 +129,15 @@
     Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_harbor)"
   categories: ["Evals"]
+
+- name: "[Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox)"
+  description: |
+    Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
+  author: "[Jason Gwartz](https://github.com/jasongwartz)"
+  categories: ["Sandboxes"]
+
+- name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
+  description: |
+    Automatically load pricing data for models under test.
+  author: "[Jason Gwartz](https://github.com/jasongwartz)"
+  categories: ["Tooling"]
