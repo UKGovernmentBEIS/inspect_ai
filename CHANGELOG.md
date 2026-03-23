@@ -2,6 +2,7 @@
 
 - HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
 - Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
+- Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
 
 ## 0.3.200 (20 March 2026)
 
@@ -19,7 +20,6 @@
 - Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
 - Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
 - Hooks: Add sample attempt begin/end hooks.
-- Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
 - Inspect View: Improve viewer loading performance for large samples.
 - Inspect View: Ensure tool output wraps for rendered text.
