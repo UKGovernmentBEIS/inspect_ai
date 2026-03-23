@@ -27,7 +27,7 @@ const resolveApi = (): ClientAPI => {
         if (data.log_dir || data.log_file) {
           const log_dir = data.log_dir || dirname(data.log_file);
           const api = staticHttpApi(log_dir, data.log_file);
-          return clientApi(api, data.log_file, debug);
+          return clientApi(api, data.log_file, debug, data.abs_log_dir);
         }
       }
     }

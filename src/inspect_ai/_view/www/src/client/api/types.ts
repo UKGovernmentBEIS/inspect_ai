@@ -150,6 +150,7 @@ export interface Capabilities {
   webWorkers: boolean;
   streamSamples: boolean;
   streamSampleData: boolean;
+  absLogDir?: string;
 }
 
 export interface LogInfo {
@@ -259,6 +260,9 @@ export interface ClientAPI {
   ) => Promise<void>;
   download_log?: (log_file: string) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
+
+  // Absolute path/URI of the log directory (local or S3), if known
+  abs_log_dir?: string;
 }
 
 export interface ClientStorage {
