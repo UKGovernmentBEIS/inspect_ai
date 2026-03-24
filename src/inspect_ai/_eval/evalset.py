@@ -1,5 +1,8 @@
+import contextlib
 import hashlib
 import logging
+import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
@@ -42,6 +45,7 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log_headers,
     write_log_dir_manifest,
+    write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
@@ -505,26 +509,23 @@ def eval_set(
         before=before,
     )
 
-    # emit start event
-    run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
+        # emit start event
+        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-    # execute w/ retry
-    results = retry(try_eval)
+        # execute w/ retry
+        results = retry(try_eval)
 
-    # final sweep to remove failed log files
-    if retry_cleanup:
-        task_ids = {result.eval.task_id for result in results}
-        cleanup_older_eval_logs(log_dir, task_ids)
+        # final sweep to remove failed log files
+        if retry_cleanup:
+            task_ids = {result.eval.task_id for result in results}
+            cleanup_older_eval_logs(log_dir, task_ids)
 
     # if specified, bundle the output directory
     if bundle_dir:
         bundle_log_dir(
             log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
         )
-
-    # if specified, embed a log viewer into the log directory
-    if embed_viewer:
-        embed_log_dir(log_dir=log_dir)
 
     # report final status
     success = all_evals_succeeded(results)
@@ -542,6 +543,33 @@ def eval_set(
 
     # return status + results
     return success, results
+
+
+@contextlib.contextmanager
+def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
+    embed_log_dir(log_dir=log_dir)
+
+    stop_event = threading.Event()
+    last_state: frozenset[tuple[str, float | None]] = frozenset()
+
+    def update_listing() -> None:
+        nonlocal last_state
+        while not stop_event.wait(interval):
+            try:
+                logs = list_eval_logs(log_dir)
+                current_state = frozenset((log.name, log.mtime) for log in logs)
+                if current_state != last_state:
+                    write_log_listing(log_dir, logs=logs)
+                    last_state = current_state
+            except Exception:
+                pass
+
+    threading.Thread(target=update_listing, daemon=True, name="listing-updater").start()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        write_log_listing(log_dir)
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
