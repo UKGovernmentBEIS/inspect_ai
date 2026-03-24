@@ -30,7 +30,6 @@ def maybe_computer_use_tool(model_name: str, tool: ToolInfo) -> Tool | None:
         )
         if (
             "gemini-2.5-computer-use-preview" in model_name
-            or "gemini-3-pro-preview" in model_name
             or "gemini-3-flash-preview" in model_name
         )
         and is_computer_tool_info(tool)

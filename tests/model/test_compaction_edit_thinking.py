@@ -172,7 +172,7 @@ async def test_thinking_compaction_google() -> None:
     # Note: Google doesn't support thinking compaction (compact_reasoning_history returns False)
     # This test verifies the behavior is handled gracefully
     await check_thinking_compaction(
-        "google/gemini-3-pro-preview",
+        "google/gemini-3.1-pro-preview",
         GenerateConfig(reasoning_effort="low"),
     )
 
