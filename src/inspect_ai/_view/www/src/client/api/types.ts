@@ -259,7 +259,6 @@ export interface ClientAPI {
   ) => Promise<void>;
   download_log?: (log_file: string) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
-
 }
 
 export interface ClientStorage {
