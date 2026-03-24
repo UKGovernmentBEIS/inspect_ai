@@ -526,7 +526,9 @@ class TestCompletionModeInit:
 
 
 class TestGenerateCompletion:
-    def _mock_client(self, response_dict: dict[str, Any]) -> MagicMock:
+    def _mock_client(
+        self, response_dict: dict[str, Any]
+    ) -> tuple[AsyncMock, AsyncMock]:
         mock_client = AsyncMock()
         mock_body = AsyncMock()
         mock_body.read = AsyncMock(
@@ -705,8 +707,10 @@ class TestGenerateCompletion:
 class TestStreamingMetadataTracking:
     @pytest.mark.anyio
     async def test_streaming_tracks_metadata_across_chunks(self):
-        """Verify that id, model, usage, and finish_reason are tracked
-        incrementally across chunks, not just from the last chunk."""
+        """Verify that id, model, usage, and finish_reason are tracked.
+
+        Tracked incrementally across chunks, not just from the last chunk.
+        """
         api = _make_api(stream=True)
 
         # Simulate vLLM streaming: stop chunk arrives before usage chunk
@@ -716,7 +720,9 @@ class TestStreamingMetadataTracking:
                 "id": "chatcmpl-123",
                 "created": 1700000000,
                 "model": "my-model",
-                "choices": [{"index": 0, "delta": {"content": "Hello"}, "finish_reason": None}],
+                "choices": [
+                    {"index": 0, "delta": {"content": "Hello"}, "finish_reason": None}
+                ],
             },
             # Stop chunk (finish_reason set, but no usage yet)
             {
@@ -731,18 +737,28 @@ class TestStreamingMetadataTracking:
                 "created": 1700000000,
                 "model": "my-model",
                 "choices": [],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 1, "total_tokens": 11},
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 1,
+                    "total_tokens": 11,
+                },
             },
         ]
 
         # Build mock streaming response
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_response = {"Body": mock_event_stream()}
-        mock_client.invoke_endpoint_with_response_stream = AsyncMock(return_value=mock_response)
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value=mock_response
+        )
 
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
@@ -771,7 +787,13 @@ class TestStreamingMetadataTracking:
                 "id": "chatcmpl-456",
                 "created": 1700000001,
                 "model": "my-model",
-                "choices": [{"index": 0, "delta": {"content": "World"}, "finish_reason": "length"}],
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "World"},
+                        "finish_reason": "length",
+                    }
+                ],
             },
             # Final chunk with usage only
             {
@@ -779,13 +801,21 @@ class TestStreamingMetadataTracking:
                 "created": 1700000001,
                 "model": "my-model",
                 "choices": [],
-                "usage": {"prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6},
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 1,
+                    "total_tokens": 6,
+                },
             },
         ]
 
         async def mock_event_stream():
             for chunk in chunks:
-                yield {"PayloadPart": {"Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")}}
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
 
         mock_client = AsyncMock()
         mock_client.invoke_endpoint_with_response_stream = AsyncMock(
