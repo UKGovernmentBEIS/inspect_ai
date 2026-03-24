@@ -107,8 +107,18 @@ class SagemakerAPI(ModelAPI):
         )
 
         # prompt_logprobs for CPT models (vLLM-specific, not part of standard GenerateConfig)
-        prompt_logprobs_val = model_args.get("prompt_logprobs", None)
-        self.prompt_logprobs = int(str(prompt_logprobs_val)) if prompt_logprobs_val is not None else None
+        prompt_logprobs_val = model_args.get("prompt_logprobs")
+        try:
+            self.prompt_logprobs = (
+                int(str(prompt_logprobs_val))
+                if prompt_logprobs_val is not None
+                else None
+            )
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"Invalid prompt_logprobs value: {prompt_logprobs_val!r}. "
+                "Expected an integer or integer-like string."
+            )
 
     @override
     def connection_key(self) -> str:
@@ -187,12 +197,19 @@ class SagemakerAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         """Generate using /v1/completions endpoint for CPT/base models."""
-        # Build prompt from messages
+        # Build prompt from messages (completion mode only supports text)
         prompt_parts = []
         for msg in input:
             if isinstance(msg, ChatMessageSystem):
                 prompt_parts.append(msg.text)
             elif isinstance(msg, ChatMessageUser):
+                if isinstance(msg.content, list) and any(
+                    c.type == "image" for c in msg.content
+                ):
+                    logger.warning(
+                        "Image content detected in completion mode — images are not "
+                        "supported by the /v1/completions endpoint and will be ignored."
+                    )
                 prompt_parts.append(msg.text)
             elif isinstance(msg, ChatMessageAssistant):
                 prompt_parts.append(msg.text)
@@ -241,17 +258,24 @@ class SagemakerAPI(ModelAPI):
 
             for i, token in enumerate(tokens):
                 top_lps = None
-                if top_logprobs_list and i < len(top_logprobs_list) and top_logprobs_list[i]:
+                if (
+                    top_logprobs_list
+                    and i < len(top_logprobs_list)
+                    and top_logprobs_list[i]
+                ):
                     top_lps = [
                         TopLogprob(token=t, logprob=lp)
                         for t, lp in top_logprobs_list[i].items()
                     ]
 
-                content_logprobs.append(Logprob(
-                    token=token,
-                    logprob=token_logprobs[i] if i < len(token_logprobs) else 0.0,
-                    top_logprobs=top_lps,
-                ))
+                raw = token_logprobs[i] if i < len(token_logprobs) else None
+                content_logprobs.append(
+                    Logprob(
+                        token=token,
+                        logprob=raw if raw is not None else 0.0,
+                        top_logprobs=top_lps,
+                    )
+                )
 
             model_output.choices[0].logprobs = Logprobs(content=content_logprobs)
 
