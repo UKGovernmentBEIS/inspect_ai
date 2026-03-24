@@ -98,6 +98,18 @@ class SagemakerAPI(ModelAPI):
             else str(stream_val).lower() == "true"
         )
 
+        # Extract completion mode for CPT/base models (uses /v1/completions instead of /v1/chat/completions)
+        completion_mode_val = model_args.get("completion_mode", False)
+        self.completion_mode = (
+            completion_mode_val
+            if isinstance(completion_mode_val, bool)
+            else str(completion_mode_val).lower() == "true"
+        )
+
+        # prompt_logprobs for CPT models (vLLM-specific, not part of standard GenerateConfig)
+        prompt_logprobs_val = model_args.get("prompt_logprobs", None)
+        self.prompt_logprobs = int(str(prompt_logprobs_val)) if prompt_logprobs_val is not None else None
+
     @override
     def connection_key(self) -> str:
         return self.endpoint_name
@@ -137,6 +149,9 @@ class SagemakerAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        if self.completion_mode:
+            return await self._generate_completion(input, config)
+
         # Prepare request components
         config = self._prepare_vllm_config(input, config)
         tools_config = self._prepare_tools_config(tools)
@@ -164,6 +179,83 @@ class SagemakerAPI(ModelAPI):
         model_output = model_output_from_response(output, tools)
         model_call = ModelCall.create(request=request_body, response=output, time=0)
 
+        return model_output, model_call
+
+    async def _generate_completion(
+        self,
+        input: list[ChatMessage],
+        config: GenerateConfig,
+    ) -> tuple[ModelOutput | Exception, ModelCall]:
+        """Generate using /v1/completions endpoint for CPT/base models."""
+        # Build prompt from messages
+        prompt_parts = []
+        for msg in input:
+            if isinstance(msg, ChatMessageSystem):
+                prompt_parts.append(msg.text)
+            elif isinstance(msg, ChatMessageUser):
+                prompt_parts.append(msg.text)
+            elif isinstance(msg, ChatMessageAssistant):
+                prompt_parts.append(msg.text)
+        prompt = "\n".join(prompt_parts)
+
+        request_body: dict[str, Any] = {
+            "prompt": prompt,
+            "max_tokens": config.max_tokens,
+            "temperature": config.temperature,
+            "top_p": config.top_p,
+            "stream": False,
+        }
+
+        if config.logprobs and config.top_logprobs is not None:
+            request_body["logprobs"] = config.top_logprobs
+        if self.prompt_logprobs is not None:
+            request_body["prompt_logprobs"] = self.prompt_logprobs
+        if config.top_k is not None:
+            request_body["top_k"] = config.top_k
+        if config.stop_seqs is not None:
+            request_body["stop"] = config.stop_seqs
+
+        async with self._create_client() as client:
+            body_bytes = await self._invoke_endpoint(client, request_body)
+            output = json.loads(body_bytes.decode("utf-8"))
+
+        # Parse completions response
+        choices = output.get("choices", [])
+        completion_text = choices[0].get("text", "") if choices else ""
+        logprobs_data = choices[0].get("logprobs") if choices else None
+
+        model_output = ModelOutput.from_content(
+            model=self.endpoint_name,
+            content=completion_text,
+            stop_reason=choices[0].get("finish_reason", "stop") if choices else "stop",
+        )
+
+        # Parse and store logprobs in the proper Inspect AI format
+        if logprobs_data is not None:
+            from inspect_ai.model._model_output import Logprob, Logprobs, TopLogprob
+
+            content_logprobs = []
+            tokens = logprobs_data.get("tokens", [])
+            token_logprobs = logprobs_data.get("token_logprobs", [])
+            top_logprobs_list = logprobs_data.get("top_logprobs", [])
+
+            for i, token in enumerate(tokens):
+                top_lps = None
+                if top_logprobs_list and i < len(top_logprobs_list) and top_logprobs_list[i]:
+                    top_lps = [
+                        TopLogprob(token=t, logprob=lp)
+                        for t, lp in top_logprobs_list[i].items()
+                    ]
+
+                content_logprobs.append(Logprob(
+                    token=token,
+                    logprob=token_logprobs[i] if i < len(token_logprobs) else 0.0,
+                    top_logprobs=top_lps,
+                ))
+
+            model_output.choices[0].logprobs = Logprobs(content=content_logprobs)
+
+        model_call = ModelCall.create(request=request_body, response=output, time=0)
         return model_output, model_call
 
     def _prepare_vllm_config(
@@ -335,6 +427,13 @@ class SagemakerAPI(ModelAPI):
         accumulated_text = ""
         accumulated_chunks = []
         partial_content = ""  # Buffer for incomplete JSON
+        # Track metadata incrementally — the stop chunk (with finish_reason)
+        # and the usage chunk may arrive in any order in vLLM streaming.
+        final_id = ""
+        final_created = 0
+        final_model = self.endpoint_name
+        final_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        final_finish_reason = "stop"
 
         async for event in event_stream:
             # Check for error events first
@@ -365,6 +464,16 @@ class SagemakerAPI(ModelAPI):
                     partial_content = ""
                     accumulated_chunks.append(chunk_data)
 
+                    # Track metadata from each chunk
+                    if chunk_data.get("id"):
+                        final_id = chunk_data["id"]
+                    if chunk_data.get("created"):
+                        final_created = chunk_data["created"]
+                    if chunk_data.get("model"):
+                        final_model = chunk_data["model"]
+                    if chunk_data.get("usage"):
+                        final_usage = chunk_data["usage"]
+
                     if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
                         choice = chunk_data["choices"][0]
                         delta = choice.get("delta", {})
@@ -372,15 +481,19 @@ class SagemakerAPI(ModelAPI):
                         if "content" in delta and delta["content"]:
                             accumulated_text += delta["content"]
 
+                        # Track finish_reason across all chunks — only the
+                        # dedicated stop chunk has a non-null value, and it may
+                        # arrive before the usage chunk
+                        fr = choice.get("finish_reason")
+                        if fr is not None:
+                            final_finish_reason = fr
+
                 except json.JSONDecodeError:
                     # Continue accumulating content until we have valid JSON
                     continue
 
         # Build final response from accumulated chunks
         if accumulated_chunks:
-            # Use the last chunk as base (contains final metadata)
-            final_chunk = accumulated_chunks[-1]
-
             # Debug logging
             logger.info(
                 f"Streaming complete: {len(accumulated_chunks)} chunks, accumulated text length: {len(accumulated_text)}"
@@ -388,25 +501,18 @@ class SagemakerAPI(ModelAPI):
 
             # Construct complete response in OpenAI format
             final_response = {
-                "id": final_chunk.get("id", ""),
+                "id": final_id,
                 "object": "chat.completion",
-                "created": final_chunk.get("created", 0),
-                "model": final_chunk.get("model", self.endpoint_name),
+                "created": final_created,
+                "model": final_model,
                 "choices": [
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": accumulated_text},
-                        "finish_reason": final_chunk.get("choices", [{}])[0].get(
-                            "finish_reason", "stop"
-                        )
-                        if final_chunk.get("choices")
-                        else "stop",
+                        "finish_reason": final_finish_reason,
                     }
                 ],
-                "usage": final_chunk.get(
-                    "usage",
-                    {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                ),
+                "usage": final_usage,
             }
         else:
             # Fallback if no chunks received
