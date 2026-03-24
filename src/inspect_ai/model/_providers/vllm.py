@@ -126,6 +126,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         is_mistral: bool = False,
         retry_delay: int | None = None,
         lazy_init: bool = True,
+        client_timeout: float | None = None,
         **server_args: Any,
     ) -> None:
         # Parse "base-model" or "base-model:adapter-path"
@@ -147,6 +148,7 @@ class VLLMAPI(OpenAICompatibleAPI):
 
         self.is_mistral = is_mistral
         self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
+        self._client_timeout = client_timeout
         self.port = port
         self.server_args = merge_env_server_args(
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
@@ -193,6 +195,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             config=self._init_config,
             service="vLLM",
             service_base_url=server.base_url,
+            client_timeout=self._client_timeout,
         )
         self._server_resolved = True
 
