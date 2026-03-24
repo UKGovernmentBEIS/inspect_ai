@@ -438,7 +438,7 @@ The following model args are supported:
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
 | `stream` | Enable streaming responses (default: `false`). |
-| `completion_mode` | Use `/v1/completions` endpoint for CPT/base models instead of `/v1/chat/completions` (default: `false`). |
+| `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -453,7 +453,7 @@ inspect eval arc.py --model sagemaker/my-endpoint \
 
 ### Completion Mode
 
-For CPT (Continued Pre-Training) or base models that use the `/v1/completions` endpoint rather than `/v1/chat/completions`, enable `completion_mode`:
+For CPT (Continual Pre-Training) or base models that expect completions-style payloads (with a `prompt` field) rather than chat-style payloads (with a `messages` array), enable `completion_mode`:
 
 ``` bash
 inspect eval arc.py --model sagemaker/my-cpt-endpoint \

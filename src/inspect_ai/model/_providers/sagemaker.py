@@ -98,7 +98,7 @@ class SagemakerAPI(ModelAPI):
             else str(stream_val).lower() == "true"
         )
 
-        # Extract completion mode for CPT/base models (uses /v1/completions instead of /v1/chat/completions)
+        # Extract completion mode for CPT/base models (sends completions-style payload with prompt field)
         completion_mode_val = model_args.get("completion_mode", False)
         self.completion_mode = (
             completion_mode_val
@@ -196,7 +196,7 @@ class SagemakerAPI(ModelAPI):
         input: list[ChatMessage],
         config: GenerateConfig,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
-        """Generate using /v1/completions endpoint for CPT/base models."""
+        """Generate using completions-style payload for CPT/base models."""
         # Build prompt from messages (completion mode only supports text)
         prompt_parts = []
         for msg in input:
@@ -208,7 +208,7 @@ class SagemakerAPI(ModelAPI):
                 ):
                     logger.warning(
                         "Image content detected in completion mode — images are not "
-                        "supported by the /v1/completions endpoint and will be ignored."
+                        "supported by completions-style payloads and will be ignored."
                     )
                 prompt_parts.append(msg.text)
             elif isinstance(msg, ChatMessageAssistant):
