@@ -31,7 +31,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
 }) => {
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
   const downloadLogs = useStore((state) => state.capabilities.downloadLogs);
-  const absLogDir = useStore((state) => state.capabilities.absLogDir);
+  const absLogDir = useStore((state) => state.logs.absLogDir);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const logDir = useStore((state) => state.logs.logDir);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";

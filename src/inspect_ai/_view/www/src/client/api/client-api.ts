@@ -63,7 +63,6 @@ export const clientApi = (
   api: LogViewAPI,
   log_file?: string,
   debug = false,
-  abs_log_dir?: string,
 ): ClientAPI => {
   let current_log: LogContents | undefined = undefined;
   let current_path: string | undefined = undefined;
@@ -427,7 +426,6 @@ export const clientApi = (
     get_log_sample_data: api.eval_log_sample_data
       ? middleware("get_log_sample_data", get_log_sample_data)
       : undefined,
-    abs_log_dir,
   };
 };
 

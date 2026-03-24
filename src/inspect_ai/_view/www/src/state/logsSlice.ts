@@ -188,18 +188,26 @@ export const createLogsSlice = (
         }
 
         // Determine the log directory
-        const loadLogDir = async () => {
+        const loadLogInfo = async () => {
           try {
-            return await api.get_log_dir();
+            const root = await api.get_log_root();
+            return { logDir: root.log_dir, absLogDir: root.abs_log_dir };
           } catch (e) {
             console.log(e);
             get().appActions.setLoading(false, e as Error);
             return undefined;
           }
         };
-        const logDir = await loadLogDir();
+        const info = await loadLogInfo();
+        const logDir = info?.logDir;
         if (get().logs.logDir !== logDir) {
           get().logsActions.setLogDir(logDir);
+        }
+        const absLogDir = info?.absLogDir;
+        if (get().logs.absLogDir !== absLogDir) {
+          set((state) => {
+            state.logs.absLogDir = absLogDir;
+          });
         }
         return logDir;
       },
