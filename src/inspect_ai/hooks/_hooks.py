@@ -601,6 +601,9 @@ async def emit_sample_start(
     await _emit_to_all(lambda hook: hook.on_sample_start(data))
 
 
+_emitting_sample_event = False
+
+
 def emit_sample_event(
     eval_set_id: str | None,
     run_id: str,
@@ -608,6 +611,7 @@ def emit_sample_event(
     sample_id: str,
     event: Event,
 ) -> None:
+    global _emitting_sample_event
     active = sample_active()
     if active is None or active.event_send is None:
         return
@@ -623,7 +627,12 @@ def emit_sample_event(
     try:
         active.event_send.send_nowait(data)
     except anyio.WouldBlock:
-        logger.warning("Sample event queue full, dropping event")
+        if not _emitting_sample_event:
+            _emitting_sample_event = True
+            try:
+                logger.warning("Sample event queue full, dropping event")
+            finally:
+                _emitting_sample_event = False
     except anyio.ClosedResourceError:
         pass
 
