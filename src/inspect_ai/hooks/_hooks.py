@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
@@ -622,9 +623,7 @@ def emit_sample_event(
     )
     try:
         active.event_send.send_nowait(data)
-    except anyio.WouldBlock:
-        logger.warning("Sample event queue full, dropping event")
-    except anyio.ClosedResourceError:
+    except (anyio.ClosedResourceError, anyio.BrokenResourceError):
         pass
 
 
@@ -637,7 +636,9 @@ def start_sample_event_emitter() -> None:
     if active is None or active.tg is None:
         return
 
-    send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](1000)
+    send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](
+        math.inf
+    )
     active.event_send = send_stream
     active.event_receive = receive_stream
     active.event_done = anyio.Event()
