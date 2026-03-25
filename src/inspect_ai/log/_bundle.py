@@ -120,7 +120,11 @@ def bundle_log_dir(
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
             # prepare viewer assets
             log_dir_name = "logs"
-            _prepare_viewer(working_dir, log_dir=log_dir_name)
+            _prepare_viewer(
+                working_dir,
+                log_dir=log_dir_name,
+                abs_log_dir=absolute_file_path(log_dir),
+            )
             p.update(25)
 
             # create a logs dir and copy logs into it
@@ -157,16 +161,24 @@ def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
             shutil.copy2(src_file_path, dest_file_path)
 
 
-def inject_configuration(html_file: str, log_dir: str) -> None:
+def inject_configuration(
+    html_file: str, log_dir: str, abs_log_dir: str | None = None
+) -> None:
     # update the index html to embed the log_dir
     with open(html_file, "r") as file:
         index_contents = file.read()
 
     # inject the log dir information into the viewer html
     # so it will load directly
+    context: dict[str, str] = {"log_dir": log_dir}
+    if abs_log_dir is not None:
+        context["abs_log_dir"] = abs_log_dir
+    import json
+
+    context_json = json.dumps(context)
     content = index_contents.replace(
         "</head>",
-        f'  <script id="log_dir_context" type="application/json">{{"log_dir": "{log_dir}"}}</script>\n  </head>',
+        f'  <script id="log_dir_context" type="application/json">{context_json}</script>\n  </head>',
     )
 
     # Open the file for writing to save the updated content
@@ -188,10 +200,16 @@ Disallow: /
         f.write(content)
 
 
-def _prepare_viewer(working_dir: str, log_dir: str) -> None:
+def _prepare_viewer(
+    working_dir: str, log_dir: str, abs_log_dir: str | None = None
+) -> None:
     """Prepare viewer assets in a working directory."""
     copy_dir_contents(DIST_DIR, working_dir)
-    inject_configuration(os.path.join(working_dir, "index.html"), log_dir=log_dir)
+    inject_configuration(
+        os.path.join(working_dir, "index.html"),
+        log_dir=log_dir,
+        abs_log_dir=abs_log_dir,
+    )
     write_robots_txt(working_dir)
 
 
@@ -373,7 +391,7 @@ def embed_log_dir(
     display().print(f"Embedding viewer in '{log_dir}'")
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
-        _prepare_viewer(working_dir, log_dir=".")
+        _prepare_viewer(working_dir, log_dir=".", abs_log_dir=log_dir)
         write_log_listing(log_dir, output_dir=working_dir)
         _copy_viewer_to_log_dir(working_dir, log_dir, log_fs)
 

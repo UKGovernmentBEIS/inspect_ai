@@ -199,3 +199,57 @@ async def test_initialize_recreates_closed_http_client() -> None:
     assert api.http_client.is_closed
     api.initialize()
     assert not api.http_client.is_closed
+
+
+def test_client_timeout_sets_http_timeout() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        client_timeout=1800.0,
+    )
+    timeout = api.http_client.timeout
+    assert timeout.read == 1800.0
+    assert timeout.write == 1800.0
+    assert timeout.pool == 1800.0
+    assert timeout.connect == 5.0
+
+
+def test_client_timeout_default_uses_sdk_default() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+    )
+    # SDK default is 600s
+    assert api.http_client.timeout.read == 600.0
+
+
+@pytest.mark.anyio
+async def test_client_timeout_preserved_after_reinitialize() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        client_timeout=1800.0,
+    )
+    await api.http_client.aclose()
+    assert api.http_client.is_closed
+    api.initialize()
+    assert not api.http_client.is_closed
+    assert api.http_client.timeout.read == 1800.0
+    assert api.http_client.timeout.connect == 5.0
+
+
+def test_user_supplied_http_client_not_overridden() -> None:
+    custom_client = httpx.AsyncClient(timeout=httpx.Timeout(42.0))
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        client_timeout=1800.0,
+        http_client=custom_client,
+    )
+    # user-supplied client should be used as-is
+    assert api.http_client is custom_client
+    assert api.http_client.timeout.read == 42.0

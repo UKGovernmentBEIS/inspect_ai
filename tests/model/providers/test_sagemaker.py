@@ -443,3 +443,395 @@ class TestGenerate:
         assert sent_body["max_tokens"] == 100
         assert sent_body["temperature"] == 0
         assert sent_body["stream"] is False
+
+
+# -- Completion mode (CPT) tests ---------------------------------------------
+
+COMPLETION_RESPONSE = {
+    "id": "cmpl-abc123",
+    "object": "text_completion",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {
+            "index": 0,
+            "text": "The answer is 42",
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 8,
+        "completion_tokens": 5,
+        "total_tokens": 13,
+    },
+}
+
+COMPLETION_RESPONSE_WITH_LOGPROBS = {
+    "id": "cmpl-abc123",
+    "object": "text_completion",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {
+            "index": 0,
+            "text": "The answer",
+            "finish_reason": "stop",
+            "logprobs": {
+                "tokens": ["The", " answer"],
+                "token_logprobs": [-0.5, -1.2],
+                "top_logprobs": [
+                    {"The": -0.5, "A": -1.0, "An": -2.0},
+                    {" answer": -1.2, " result": -1.5, " value": -2.5},
+                ],
+            },
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 8,
+        "completion_tokens": 2,
+        "total_tokens": 10,
+    },
+}
+
+
+class TestCompletionModeInit:
+    def test_completion_mode_default_false(self):
+        api = _make_api()
+        assert api.completion_mode is False
+
+    def test_completion_mode_bool(self):
+        api = _make_api(completion_mode=True)
+        assert api.completion_mode is True
+
+    def test_completion_mode_string_true(self):
+        api = _make_api(completion_mode="True")
+        assert api.completion_mode is True
+
+    def test_completion_mode_string_false(self):
+        api = _make_api(completion_mode="false")
+        assert api.completion_mode is False
+
+    def test_prompt_logprobs(self):
+        api = _make_api(prompt_logprobs=1)
+        assert api.prompt_logprobs == 1
+
+    def test_prompt_logprobs_string_coercion(self):
+        api = _make_api(prompt_logprobs="3")
+        assert api.prompt_logprobs == 3
+        assert isinstance(api.prompt_logprobs, int)
+
+    def test_prompt_logprobs_default_none(self):
+        api = _make_api()
+        assert api.prompt_logprobs is None
+
+
+class TestGenerateCompletion:
+    def _mock_client(
+        self, response_dict: dict[str, Any]
+    ) -> tuple[AsyncMock, AsyncMock]:
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(response_dict).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        return mock_ctx, mock_client
+
+    @pytest.mark.anyio
+    async def test_completion_mode_routes_to_generate_completion(self):
+        api = _make_api(completion_mode=True)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="What is the meaning of life?")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, model_call = result
+
+        assert model_output.completion == "The answer is 42"
+
+        # Verify it sent a prompt (completions format), not messages (chat format)
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert "prompt" in sent_body
+        assert "messages" not in sent_body
+        assert sent_body["stream"] is False
+
+    @pytest.mark.anyio
+    async def test_completion_prompt_built_from_messages(self):
+        api = _make_api(completion_mode=True)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [
+            ChatMessageSystem(content="You are helpful"),
+            ChatMessageUser(content="Hello"),
+            ChatMessageAssistant(content="Hi"),
+            ChatMessageUser(content="Bye"),
+        ]
+        config = GenerateConfig(max_tokens=50, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert sent_body["prompt"] == "You are helpful\nHello\nHi\nBye"
+
+    @pytest.mark.anyio
+    async def test_completion_with_logprobs(self):
+        api = _make_api(completion_mode=True)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE_WITH_LOGPROBS)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(
+            max_tokens=100, temperature=0, logprobs=True, top_logprobs=3
+        )
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, _ = result
+
+        # Verify logprobs were parsed
+        assert model_output.choices[0].logprobs is not None
+        content_lps = model_output.choices[0].logprobs.content
+        assert len(content_lps) == 2
+        assert content_lps[0].token == "The"
+        assert content_lps[0].logprob == -0.5
+        assert content_lps[1].token == " answer"
+        assert content_lps[1].logprob == -1.2
+
+        # Verify top_logprobs
+        assert content_lps[0].top_logprobs is not None
+        assert len(content_lps[0].top_logprobs) == 3
+
+        # Verify request body included logprobs param
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert sent_body["logprobs"] == 3
+
+    @pytest.mark.anyio
+    async def test_completion_without_logprobs(self):
+        api = _make_api(completion_mode=True)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, _ = result
+
+        assert model_output.choices[0].logprobs is None
+
+        # Verify request body did NOT include logprobs param
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert "logprobs" not in sent_body
+
+    @pytest.mark.anyio
+    async def test_completion_logprobs_requires_both_flags(self):
+        """logprobs=True without top_logprobs should not send logprobs param."""
+        api = _make_api(completion_mode=True)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, logprobs=True)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert "logprobs" not in sent_body
+
+    @pytest.mark.anyio
+    async def test_completion_with_prompt_logprobs(self):
+        api = _make_api(completion_mode=True, prompt_logprobs=1)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert sent_body["prompt_logprobs"] == 1
+
+    @pytest.mark.anyio
+    async def test_completion_with_optional_params(self):
+        api = _make_api(completion_mode=True)
+        mock_ctx, mock_client = self._mock_client(COMPLETION_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(
+            max_tokens=100, temperature=0, top_k=50, stop_seqs=["END"]
+        )
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert sent_body["top_k"] == 50
+        assert sent_body["stop"] == ["END"]
+
+    @pytest.mark.anyio
+    async def test_non_completion_mode_uses_chat(self):
+        """Verify that without completion_mode, generate uses chat format."""
+        api = _make_api()  # completion_mode defaults to False
+        mock_ctx, mock_client = self._mock_client(OPENAI_RESPONSE)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, _ = result
+
+        call_args = mock_client.invoke_endpoint.call_args
+        sent_body = json.loads(call_args.kwargs["Body"])
+        assert "messages" in sent_body
+        assert "prompt" not in sent_body
+
+
+# -- Streaming metadata tracking tests ---------------------------------------
+
+
+class TestStreamingMetadataTracking:
+    @pytest.mark.anyio
+    async def test_streaming_tracks_metadata_across_chunks(self):
+        """Verify that id, model, usage, and finish_reason are tracked.
+
+        Tracked incrementally across chunks, not just from the last chunk.
+        """
+        api = _make_api(stream=True)
+
+        # Simulate vLLM streaming: stop chunk arrives before usage chunk
+        chunks = [
+            # Content chunk
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [
+                    {"index": 0, "delta": {"content": "Hello"}, "finish_reason": None}
+                ],
+            },
+            # Stop chunk (finish_reason set, but no usage yet)
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            },
+            # Usage chunk (arrives last, no choices)
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 1,
+                    "total_tokens": 11,
+                },
+            },
+        ]
+
+        # Build mock streaming response
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_response = {"Body": mock_event_stream()}
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value=mock_response
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hi")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, model_call = result
+
+        assert model_output.completion == "Hello"
+        assert model_output.stop_reason == "stop"
+        assert model_output.usage is not None
+        assert model_output.usage.input_tokens == 10
+        assert model_output.usage.output_tokens == 1
+
+    @pytest.mark.anyio
+    async def test_streaming_finish_reason_from_middle_chunk(self):
+        """finish_reason in a non-last chunk should still be captured."""
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-456",
+                "created": 1700000001,
+                "model": "my-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"content": "World"},
+                        "finish_reason": "length",
+                    }
+                ],
+            },
+            # Final chunk with usage only
+            {
+                "id": "chatcmpl-456",
+                "created": 1700000001,
+                "model": "my-model",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 1,
+                    "total_tokens": 6,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hi")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output, _ = result
+
+        assert model_output.completion == "World"
+        assert model_output.stop_reason == "max_tokens"

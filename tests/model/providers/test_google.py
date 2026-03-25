@@ -911,7 +911,7 @@ def test_google_streaming_captures_reasoning_summaries():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-3-pro-preview",
+        model="google/gemini-3.1-pro-preview",
         model_args=dict(streaming=True),
     )[0]
 

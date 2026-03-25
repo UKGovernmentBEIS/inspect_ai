@@ -31,9 +31,20 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
 }) => {
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
   const downloadLogs = useStore((state) => state.capabilities.downloadLogs);
+  const absLogDir = useStore((state) => state.logs.absLogDir);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const logDir = useStore((state) => state.logs.logDir);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
   const isEvalFile = selectedLogFile?.endsWith(".eval");
+
+  const copyValue = (() => {
+    if (!absLogDir || !selectedLogFile || !logDir) return selectedLogFile;
+    const prefix = logDir + "/";
+    const relFile = selectedLogFile.startsWith(prefix)
+      ? selectedLogFile.slice(prefix.length)
+      : selectedLogFile;
+    return absLogDir.replace(/\/?$/, "/") + relFile;
+  })();
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
@@ -82,7 +93,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
               {logFileName}
             </div>
             <div className={styles.buttonGroup}>
-              {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
+              {copyValue ? <CopyButton value={copyValue} /> : ""}
               {downloadLogs && selectedLogFile && isEvalFile ? (
                 <DownloadLogButton log_file={selectedLogFile} />
               ) : null}

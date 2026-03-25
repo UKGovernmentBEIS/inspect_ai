@@ -1,6 +1,5 @@
 from typing import Callable, Type, TypeVar, cast
 
-from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -59,8 +58,14 @@ def registry_find_sandboxenv(envtype: str) -> type[SandboxEnvironment]:
     else:
         package = _SANDBOX_PACKAGES.get(envtype)
         if package:
-            raise pip_dependency_error(f"Sandbox environment '{envtype}'", [package])
-        raise ValueError(f"SandboxEnvironment type '{envtype}' not recognized.")
+            package_msg = (
+                f". Please install the '{package}' package to use this sandbox."
+            )
+        else:
+            package_msg = ""
+        raise ValueError(
+            f"SandboxEnvironment type '{envtype}' not recognized.{package_msg}"
+        )
 
 
 def registry_has_sandboxenv(envtype: str) -> bool:

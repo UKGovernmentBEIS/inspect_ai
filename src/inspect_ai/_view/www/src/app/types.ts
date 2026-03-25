@@ -70,6 +70,7 @@ export interface DisplayedSample {
 
 export interface LogsState {
   logDir?: string;
+  absLogDir?: string;
   logs: LogHandle[];
   logPreviews: Record<string, LogPreview>;
   logDetails: Record<string, LogDetails>;
