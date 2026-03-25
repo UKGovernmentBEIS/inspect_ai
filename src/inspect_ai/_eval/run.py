@@ -406,9 +406,11 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 except Exception as ex:
                     # errors generally don't escape from tasks (the exception being if an error
                     # occurs during the final write of the log)
+                    inner = ex.exceptions[0] if isinstance(ex, ExceptionGroup) else ex
                     log.error(
-                        f"Task '{task_options.task.name}' encountered an error during finalisation: {ex}"
+                        f"Task '{task_options.task.name}' encountered an error during finalisation: {inner}"
                     )
+                    raise
 
                 # tracking
                 tasks_completed += 1

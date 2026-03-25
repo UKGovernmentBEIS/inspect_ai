@@ -7,6 +7,7 @@
 - VLLM: Add `client_timeout` to OpenAICompatibleAPI and VLLMAPI.
 - Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
 - Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
+- Eval Set: Fix `run_multiple` silently swallowing task finalisation errors and returning `success=True` with no results.
 - Inspect View: Copy button for log files now copies the absolute path (or S3 URI) rather than the relative serving path.
 - Model API: Handle `tool_calls` and `source` when combining assistant messages.
 - Hooks: Increase event buffer to `math.inf` so it never blocks.
