@@ -1828,31 +1828,50 @@ def consecutive_message_reducer(
 def combine_messages(
     a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
 ) -> ChatMessage:
-    # TODO: Although unlikely to happen based on the current call sites, these
-    # fabricated messages drop interesting fields from the source messages -
-    # such as `internal_name`, `tool_calls`, etc.
-    # To be more specific, since all `ChatMessageXxx` fields other than `id` and
-    # `content` have default values, it's more the case that they're reset to
-    # default values rather than dropped.
-
-    # track combination
-    metadata = {"combined_from": [a.id, b.id]}
-
+    # merge content
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
+        content: str | list[Content] = f"{a.content}\n{b.content}"
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content, metadata=metadata)
+        content = a.content + b.content
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(
-            content=[ContentText(text=a.content), *b.content], metadata=metadata
-        )
+        content = [ContentText(text=a.content), *b.content]
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(
-            content=a.content + [ContentText(text=b.content)], metadata=metadata
-        )
+        content = a.content + [ContentText(text=b.content)]
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
+        )
+
+    # merge metadata (later message wins on conflicts)
+    merged_metadata: dict[str, Any] = {}
+    if a.metadata:
+        merged_metadata.update(a.metadata)
+    if b.metadata:
+        merged_metadata.update(b.metadata)
+
+    # type-specific field merging
+    if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
+        merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
+        return ChatMessageAssistant(
+            content=content,
+            tool_calls=merged_tool_calls or None,
+            model=b.model or a.model,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
+        merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
+        return ChatMessageUser(
+            content=content,
+            tool_call_id=merged_tool_call_id or None,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    else:
+        return message_type(
+            content=content,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
         )
 
 
