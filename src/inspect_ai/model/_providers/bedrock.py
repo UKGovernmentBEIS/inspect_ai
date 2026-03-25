@@ -272,6 +272,10 @@ class BedrockAPI(ModelAPI):
                 "ERROR: The bedrock provider does not work with the trio async backend."
             )
 
+        # extract timeout settings from model_args (coerce CLI strings to int)
+        self.read_timeout: int = int(str(model_args.pop("read_timeout", 60)))
+        self.connect_timeout: int = int(str(model_args.pop("connect_timeout", 60)))
+
         # save model_args (filter out inference params that shouldn't go to session.client)
         _CLIENT_EXCLUDED_KEYS = {
             "max_tokens",
@@ -416,6 +420,8 @@ class BedrockAPI(ModelAPI):
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
+                read_timeout=self.read_timeout,
+                connect_timeout=self.connect_timeout,
                 retries=dict(mode="adaptive"),
                 user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),

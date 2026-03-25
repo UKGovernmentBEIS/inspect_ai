@@ -405,7 +405,7 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
