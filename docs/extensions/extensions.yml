@@ -136,6 +136,12 @@
   author: "[Jason Gwartz](https://github.com/jasongwartz)"
   categories: ["Sandboxes"]
 
+- name: "[Podman Sandbox](https://github.com/VectorInstitute/inspect-podman)"
+  description: |
+    Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
+  author: "[Vector Institute and National Research Council of Canada](https://github.com/VectorInstitute/inspect-podman)"
+  categories: ["Sandboxes"]
+
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
     Automatically load pricing data for models under test.
