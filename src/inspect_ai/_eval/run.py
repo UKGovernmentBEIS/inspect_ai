@@ -9,6 +9,7 @@ from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
+from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -406,9 +407,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 except Exception as ex:
                     # errors generally don't escape from tasks (the exception being if an error
                     # occurs during the final write of the log)
-                    inner = ex.exceptions[0] if isinstance(ex, ExceptionGroup) else ex
                     log.error(
-                        f"Task '{task_options.task.name}' encountered an error during finalisation: {inner}"
+                        f"Task '{task_options.task.name}' encountered an error during finalisation: {inner_exception(ex)}"
                     )
                     raise
 
