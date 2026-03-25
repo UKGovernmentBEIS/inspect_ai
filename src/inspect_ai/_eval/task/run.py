@@ -115,6 +115,7 @@ from inspect_ai.util._limit import (
 )
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
+from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._span import span
@@ -702,6 +703,8 @@ async def task_run_sample(
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
         drain_sample_events,
+        emit_sample_attempt_end,
+        emit_sample_attempt_start,
         emit_sample_end,
         emit_sample_event,
         emit_sample_init,
@@ -786,6 +789,9 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            eval_set_id=eval_set_id,
+            run_id=run_id,
+            eval_id=task_id,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:
@@ -801,6 +807,22 @@ async def task_run_sample(
             cancelled_error: BaseException | None = None
             results: dict[str, SampleScore] = {}
             limit: EvalSampleLimit | None = None
+            sample_summary: EvalSampleSummary | None = None
+            attempt_started = False
+
+            async def emit_attempt_end(will_retry: bool) -> None:
+                if sample_summary is None or not attempt_started:
+                    return
+                await emit_sample_attempt_end(
+                    eval_set_id,
+                    run_id,
+                    task_id,
+                    state.uuid,
+                    summary=sample_summary,
+                    attempt=len(error_retries) + 1,
+                    error=error,
+                    will_retry=will_retry,
+                )
 
             # begin init
             init_span = span("init", type="init")
@@ -951,6 +973,16 @@ async def task_run_sample(
                                         sample_summary,
                                     )
 
+                                await emit_sample_attempt_start(
+                                    eval_set_id,
+                                    run_id,
+                                    task_id,
+                                    state.uuid,
+                                    sample_summary,
+                                    attempt=len(error_retries) + 1,
+                                )
+                                attempt_started = True
+
                                 async with anyio.create_task_group() as tg:
                                     tg.start_soon(run, tg)
                             except Exception as ex:
@@ -960,6 +992,9 @@ async def task_run_sample(
                                 record_sample_limit_data(
                                     len((sample_state() or state).messages)
                                 )
+
+                    except SandboxTimeoutError as ex:
+                        raise RuntimeError(str(ex)) from ex
 
                     except TimeoutError:
                         # Scoped time limits manifest themselves as LimitExceededError, not
@@ -1159,6 +1194,7 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
+                    await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
                     )
@@ -1167,6 +1203,8 @@ async def task_run_sample(
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
     if error and retry_on_error > 0 and cancelled_error is None:
+        await emit_attempt_end(will_retry=True)
+
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)

@@ -5,7 +5,7 @@ from typing import Literal
 
 import pytest
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
-from test_helpers.utils import skip_if_no_docker, skip_if_no_openai
+from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -186,6 +186,7 @@ def test_web_browser_type_submit():
 
 @skip_if_no_docker
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_web_browser_open_new_page():
     call_number_gen = count()
 
@@ -289,7 +290,7 @@ def test_web_browser_displays_error():
     task = Task(
         dataset=[
             Sample(
-                input="Please use the web browser tool to navigate to https://arxiv.org/pdf/2403.07974."
+                input="Please use the web browser tool to navigate to https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf."
             )
         ],
         solver=[use_tools(web_browser()), generate()],

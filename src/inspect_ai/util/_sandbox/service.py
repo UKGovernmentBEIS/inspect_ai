@@ -388,7 +388,7 @@ class SandboxService:
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
             return await self._sandbox.exec(
-                cmd, user=self._user, input=input, timeout=120, concurrency=False
+                cmd, user=self._user, input=input, timeout=600, concurrency=False
             )
         except TimeoutError:
             raise RuntimeError(

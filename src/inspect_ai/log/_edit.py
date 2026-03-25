@@ -29,9 +29,6 @@ class ProvenanceData(BaseModel):
 class LogEdit(BaseModel):
     """A single edit action on log tags and/or metadata."""
 
-    type: str
-    """Edit type discriminator."""
-
 
 class TagsEdit(LogEdit):
     """Edit action for tags."""
@@ -72,18 +69,10 @@ class LogUpdate(BaseModel):
 
 def edit_eval_log(
     log: EvalLog,
-    edits: list[LogEdit],
+    edits: Sequence[LogEdit],
     provenance: ProvenanceData,
 ) -> EvalLog:
     """Apply edits to a log.
-
-    ::: {.callout-note}
-    Support for `edit_eval_log()` is available only in the development version of Inspect. Install the development version from GitHub with:
-
-    ```python
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai.git
-    ```
-    :::
 
     Creates a LogUpdate from the edits and provenance, appends it to
     log.log_updates, and recomputes cached tags/metadata.

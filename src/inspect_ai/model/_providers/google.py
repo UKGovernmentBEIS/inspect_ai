@@ -7,7 +7,7 @@ from copy import copy
 from io import BytesIO
 from logging import getLogger
 from textwrap import dedent
-from typing import Any, NamedTuple, cast
+from typing import Any, Literal, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
@@ -90,7 +90,7 @@ from inspect_ai.model import (
     TopLogprob,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._generate_config import normalized_batch_config
+from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
@@ -311,8 +311,18 @@ class GoogleGenAIAPI(ModelAPI):
                 else None
             )
             system_instruction = await extract_system_message_as_parts(
-                client, input, tools
+                client, input, tools, include_function_calling_hint=not has_native_tools
             )
+            # Map modalities to Google's response_modalities
+            response_modalities = None
+            if config.modalities:
+                if has_image_output(config.modalities):
+                    response_modalities = ["TEXT", "IMAGE"]
+                else:
+                    raise PrerequisiteError(
+                        f"Unsupported modalities for Google: {config.modalities}"
+                    )
+
             parameters = GenerateContentConfig(
                 http_options=HttpOptions(
                     headers={HttpHooks.REQUEST_ID_HEADER: request_id}
@@ -333,6 +343,7 @@ class GoogleGenAIAPI(ModelAPI):
                 tool_config=gemini_tool_config,
                 system_instruction=system_instruction,  # type: ignore[arg-type]
                 thinking_config=self.chat_thinking_config(config),
+                response_modalities=response_modalities,
             )
             if config.response_schema is not None:
                 parameters.response_mime_type = "application/json"
@@ -1190,7 +1201,10 @@ async def chat_content_to_part(
 
 
 async def extract_system_message_as_parts(
-    client: Client, messages: list[ChatMessage], tools: list[ToolInfo]
+    client: Client,
+    messages: list[ChatMessage],
+    tools: list[ToolInfo],
+    include_function_calling_hint: bool = True,
 ) -> list[File | Part | Image | str] | None:
     system_parts: list[File | Part | Image | str] = []
     for message in messages:
@@ -1205,9 +1219,11 @@ async def extract_system_message_as_parts(
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
 
-    # if there are tools then inject a message to prevent MALFORMED_FUNCTION_CALL
+    # if there are function declaration tools then inject a hint to prevent
+    # MALFORMED_FUNCTION_CALL. skipped for native-only tools (e.g. code execution)
+    # as sending it causes FAILED_PRECONDITION from the API.
     # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
-    if len(tools) > 0:
+    if len(tools) > 0 and include_function_calling_hint:
         system_parts.append(
             Part(
                 text=dedent("""
@@ -1256,6 +1272,38 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
         )
 
 
+def _consolidate_thought_signature(
+    signature: bytes,
+    working_reasoning_block: ContentReasoning | None,
+    content: list[
+        ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentToolUse
+        | ContentAudio
+        | ContentVideo
+        | ContentData
+        | ContentDocument
+    ],
+) -> ContentReasoning | None:
+    """Consolidate a thought_signature into the working reasoning block or create a new one.
+
+    Returns the updated working_reasoning_block (None after consolidation).
+    """
+    if working_reasoning_block is None:
+        content.append(
+            ContentReasoning(
+                reasoning=base64.b64encode(signature).decode(),
+                redacted=True,
+            )
+        )
+    else:
+        working_reasoning_block.summary = working_reasoning_block.reasoning
+        working_reasoning_block.reasoning = base64.b64encode(signature).decode()
+        working_reasoning_block.redacted = True
+    return None
+
+
 def completion_choice_from_candidate(
     model: str, candidate: Candidate, computer_use: bool = False
 ) -> ChatCompletionChoice:
@@ -1283,7 +1331,41 @@ def completion_choice_from_candidate(
         parts = candidate.content.parts
         for i, part in enumerate(parts):
             if part.text is None and part.executable_code is None:
-                continue  # We only care about text and executable_code here
+                # Handle inline_data parts (images, audio)
+                if part.inline_data is not None:
+                    # Process thought_signature before appending media content
+                    # so that the ContentReasoning precedes the media in the list
+                    # (on replay, the signature is applied to the next part)
+                    if part.thought_signature is not None:
+                        working_reasoning_block = _consolidate_thought_signature(
+                            part.thought_signature, working_reasoning_block, content
+                        )
+                    blob = part.inline_data
+                    if blob.data is not None:
+                        b64 = base64.b64encode(blob.data).decode()
+                        data_uri = f"data:{blob.mime_type};base64,{b64}"
+                        mime = blob.mime_type or ""
+                        if mime.startswith("image/"):
+                            content.append(ContentImage(image=data_uri))
+                        elif mime.startswith("audio/"):
+                            if "wav" in mime:
+                                fmt: Literal["wav", "mp3"] = "wav"
+                            elif "mp3" in mime or "mpeg" in mime:
+                                fmt = "mp3"
+                            else:
+                                logger.warning(
+                                    f"Unsupported audio MIME type '{mime}', "
+                                    f"skipping audio content."
+                                )
+                                continue
+                            content.append(ContentAudio(audio=data_uri, format=fmt))
+                    else:
+                        logger.warning(
+                            f"Received inline_data part with mime_type "
+                            f"'{blob.mime_type}' but data was None — "
+                            f"content dropped (intermittent API issue)."
+                        )
+                continue  # Skip other non-text/non-executable_code parts
 
             if part.code_execution_result is not None:
                 continue  # We pickup code execution results with part.executable_code
@@ -1302,27 +1384,9 @@ def completion_choice_from_candidate(
                 # Check if this block has an associated thought_signature and
                 # whether it corresponds to the previous ContentReasoning block.
                 if part.thought_signature is not None:
-                    if working_reasoning_block is None:
-                        # append the reasoning block to the list
-                        content.append(
-                            ContentReasoning(
-                                reasoning=base64.b64encode(
-                                    part.thought_signature
-                                ).decode(),
-                                redacted=True,
-                            )
-                        )
-                    else:
-                        # attach the though_signature to the previous reasoning block
-                        working_reasoning_block.summary = (
-                            working_reasoning_block.reasoning
-                        )
-                        working_reasoning_block.reasoning = base64.b64encode(
-                            part.thought_signature
-                        ).decode()
-                        working_reasoning_block.redacted = True
-                        # clear it out
-                        working_reasoning_block = None
+                    working_reasoning_block = _consolidate_thought_signature(
+                        part.thought_signature, working_reasoning_block, content
+                    )
 
                 if part.text is not None:
                     content.append(ContentText(text=part.text))

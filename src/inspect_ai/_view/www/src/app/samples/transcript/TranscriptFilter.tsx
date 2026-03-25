@@ -19,8 +19,10 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
   const {
     isDefaultFilter,
     isDebugFilter,
+    isNoneFilter,
     setDefaultFilter,
     setDebugFilter,
+    setNoneFilter,
     filterEventType,
     eventTypes,
     filtered,
@@ -55,6 +57,16 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
           onClick={() => setDebugFilter()}
         >
           Debug
+        </a>
+        |
+        <a
+          className={clsx(
+            styles.link,
+            isNoneFilter ? styles.selected : undefined,
+          )}
+          onClick={() => setNoneFilter()}
+        >
+          None
         </a>
       </div>
 

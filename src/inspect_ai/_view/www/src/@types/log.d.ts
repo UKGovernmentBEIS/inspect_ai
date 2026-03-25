@@ -96,6 +96,12 @@ export type ExtraHeaders = {
 export type ExtraBody = {
   [k: string]: unknown;
 } | null;
+export type Modalities = ("image" | ImageOutput)[] | null;
+export type Options = {
+  [k: string]: {
+    [k: string]: unknown;
+  };
+} | null;
 export type Cache = boolean | CachePolicy | null;
 export type Expiry = string | null;
 export type PerEpoch = boolean;
@@ -156,7 +162,7 @@ export type Metadata = {
 } | null;
 export type Scorers = EvalScorer[] | null;
 export type Name3 = string;
-export type Options = {
+export type Options1 = {
   [k: string]: unknown;
 } | null;
 export type Metrics =
@@ -171,7 +177,7 @@ export type Metrics =
     }
   | null;
 export type Name4 = string;
-export type Options1 = {
+export type Options2 = {
   [k: string]: unknown;
 } | null;
 export type Metadata1 = {
@@ -528,7 +534,7 @@ export type Pending2 = boolean | null;
 export type Event2 = "sandbox";
 export type Action = "exec" | "read_file" | "write_file";
 export type Cmd = string | null;
-export type Options2 = {
+export type Options3 = {
   [k: string]: JsonValue;
 } | null;
 export type File = string | null;
@@ -582,7 +588,7 @@ export type Description2 = string;
 export type Type20 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = JSONSchema | boolean | null;
-export type Options3 = {
+export type Options4 = {
   [k: string]: unknown;
 } | null;
 export type Tools1 = ToolInfo[];
@@ -622,7 +628,14 @@ export type Result2 =
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
+  | ContentDocument
+  | (
+      | ContentText
+      | ContentImage
+      | ContentAudio
+      | ContentVideo
+      | ContentDocument
+    )[];
 export type Truncated = [unknown, unknown] | null;
 export type Events1 = unknown[];
 export type Completed2 = string | null;
@@ -858,13 +871,13 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid19 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type MessagePool = (
+export type Messages1 = (
   | ChatMessageSystem
   | ChatMessageUser
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type CallPool = JsonValue[];
+export type Calls = JsonValue[];
 export type Type29 =
   | "context"
   | "time"
@@ -1027,6 +1040,7 @@ export interface GenerateConfig {
   response_schema: ResponseSchema | null;
   extra_headers: ExtraHeaders;
   extra_body: ExtraBody;
+  modalities: Modalities;
   cache: Cache;
   batch: Batch;
 }
@@ -1056,6 +1070,15 @@ export interface JSONSchema {
 }
 export interface Default {
   [k: string]: unknown;
+}
+/**
+ * Image output configuration.
+ *
+ * Use the `options` field to pass provider-specific options directly
+ * to the underlying API (e.g. OpenAI image_generation tool parameters).
+ */
+export interface ImageOutput {
+  options: Options;
 }
 /**
  * Caching options for model generation.
@@ -1167,13 +1190,13 @@ export interface Packages {
 }
 export interface EvalScorer {
   name: Name3;
-  options: Options;
+  options: Options1;
   metrics: Metrics;
   metadata: Metadata1;
 }
 export interface EvalMetricDefinition {
   name: Name4;
-  options: Options1;
+  options: Options2;
 }
 /**
  * Plan (solvers) used in evaluation.
@@ -1233,6 +1256,7 @@ export interface GenerateConfig1 {
   response_schema: ResponseSchema | null;
   extra_headers: ExtraHeaders;
   extra_body: ExtraBody;
+  modalities: Modalities;
   cache: Cache;
   batch: Batch;
 }
@@ -1403,8 +1427,7 @@ export interface EvalSample {
   error: EvalError | null;
   error_retries: ErrorRetries;
   attachments: Attachments;
-  message_pool: MessagePool;
-  call_pool: CallPool;
+  events_data: EventsData | null;
   limit: EvalSampleLimit | null;
 }
 /**
@@ -1722,7 +1745,7 @@ export interface SandboxEvent {
   event: Event2;
   action: Action;
   cmd: Cmd;
-  options: Options2;
+  options: Options3;
   file: File;
   input: Input2;
   result: Result1;
@@ -1827,7 +1850,7 @@ export interface ToolInfo {
   name: Name9;
   description: Description2;
   parameters: ToolParams;
-  options: Options3;
+  options: Options4;
 }
 /**
  * Description of tool parameters object in JSON Schema format.
@@ -2165,6 +2188,13 @@ export interface RoleUsage2 {
 }
 export interface Attachments {
   [k: string]: string;
+}
+/**
+ * Pooled data extracted by condense_events / condense_sample.
+ */
+export interface EventsData {
+  messages: Messages1;
+  calls: Calls;
 }
 /**
  * Limit encountered by sample.

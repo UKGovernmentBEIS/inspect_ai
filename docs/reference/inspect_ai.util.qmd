@@ -40,6 +40,7 @@ title: "inspect_ai.util"
 ## Utilities
 
 ### span
+### current_span_id
 ### collect
 ### resource
 ### throttle

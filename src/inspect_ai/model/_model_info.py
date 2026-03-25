@@ -312,6 +312,15 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
         return None
 
 
+def get_model_input_tokens(model: Model) -> int | None:
+    model_name = model.input_tokens_name()
+    model_info = get_model_info(model_name)
+    if model_info:
+        return model_info.input_tokens
+    else:
+        return None
+
+
 def set_model_info(model: str, info: ModelInfo) -> None:
     """Set custom model information for models not in the database.
 

@@ -83,6 +83,32 @@ class JsonWorkerPool {
     });
   }
 
+  async parseBytes(data: Uint8Array): Promise<any> {
+    this.ensureWorkers();
+
+    const requestId = this.nextRequestId++;
+
+    // Ensure we own the full buffer before transferring
+    const ownedData =
+      data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
+        ? data
+        : data.slice();
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(requestId, { resolve, reject });
+
+      const worker = this.workers[requestId % this.workers.length];
+      worker?.postMessage(
+        {
+          type: "parse",
+          requestId,
+          encodedText: ownedData,
+        },
+        [ownedData.buffer],
+      );
+    });
+  }
+
   terminate() {
     this.workers.forEach((w) => w.terminate());
     this.workers = [];
@@ -111,6 +137,24 @@ export const asyncJsonParse = async <T>(text: string): Promise<T> => {
     return Promise.resolve(result) as T;
   } else {
     return workerPool.parse(text);
+  }
+};
+
+/**
+ * Parse JSON from raw UTF-8 bytes, avoiding redundant main-thread
+ * string allocation for large payloads.
+ *
+ * For small data (<50KB) decodes and parses on the main thread.
+ * For large data, transfers the bytes directly to a Web Worker,
+ * skipping the main-thread TextDecoder.decode + TextEncoder.encode
+ * round-trip that asyncJsonParse(string) would require.
+ */
+export const asyncJsonParseBytes = async <T>(data: Uint8Array): Promise<T> => {
+  if (data.length < 50000) {
+    const text = new TextDecoder("utf-8").decode(data);
+    return jsonParse<T>(text);
+  } else {
+    return workerPool.parseBytes(data);
   }
 };
 

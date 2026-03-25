@@ -21,8 +21,9 @@ import {
   useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { EvalSample, Events } from "../../@types/log";
+import { EvalSample, EvalSpec, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
+import { ActivityBar } from "../../components/ActivityBar";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { JSONPanel } from "../../components/JsonPanel";
 import { NoContentsPanel } from "../../components/NoContentsPanel";
@@ -42,7 +43,6 @@ import {
 import { useStore } from "../../state/store";
 import { formatDateTime, formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
-import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
 import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
@@ -56,12 +56,13 @@ import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
-import { ActivityBar } from "../../components/ActivityBar";
+import { printHeadingHtml, printHtml } from "../utils/print";
 
 interface SampleDisplayProps {
   id: string;
   scrollRef: RefObject<HTMLDivElement | null>;
   showActivity: boolean;
+  progress?: number;
   focusOnLoad?: boolean;
 }
 
@@ -72,6 +73,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   scrollRef,
   showActivity,
+  progress,
   focusOnLoad,
 }) => {
   // Tab ids
@@ -136,6 +138,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     }
   }, [sample?.messages, runningSampleData]);
 
+  const hasSampleData =
+    sample !== undefined ||
+    sampleEvents !== undefined ||
+    sampleMessages !== undefined;
+
   // Get all URL parameters at component level
   const {
     logPath: urlLogPath,
@@ -198,8 +205,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const optionsRef = useRef<HTMLButtonElement | null>(null);
 
   const handlePrintClick = useCallback(() => {
-    printSample(id, targetId);
-  }, [id, targetId]);
+    printSample(id, targetId, evalSpec);
+  }, [id, targetId, evalSpec]);
 
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
@@ -222,7 +229,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
   }, [collapsedMode, setCollapsedMode]);
 
-  const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
+  const { isDebugFilter, isDefaultFilter, isNoneFilter } =
+    useTranscriptFilter();
 
   const api = useStore((state) => state.api);
   const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
@@ -284,11 +292,13 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }
 
   if (selectedTab === kSampleTranscriptTabId) {
-    const label = isDebugFilter
-      ? "Debug"
-      : isDefaultFilter
-        ? "Default"
-        : "Custom";
+    const label = isNoneFilter
+      ? "None"
+      : isDebugFilter
+        ? "Debug"
+        : isDefaultFilter
+          ? "Default"
+          : "Custom";
 
     tools.push(
       <ToolButton
@@ -348,9 +358,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       {selectedSampleSummary ? (
         <SampleSummaryView parent_id={id} sample={selectedSampleSummary} />
       ) : undefined}
-      <ActivityBar animating={showActivity} />
+      <ActivityBar animating={showActivity} progress={progress} />
 
-      {sample && (
+      {hasSampleData && (
         <TabSet
           id={tabsetId}
           tabsRef={tabsRef}
@@ -440,12 +450,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={effectiveSelectedTab === kSampleMetdataTabId}
           >
-            {!sample || sampleMetadatas.length > 0 ? (
+            {sampleMetadatas.length > 0 ? (
               <div className={clsx(styles.padded, styles.fullWidth)}>
                 {sampleMetadatas}
               </div>
             ) : (
-              <NoContentsPanel text="No metadata" />
+              <NoContentsPanel text="No sample metadata available" />
             )}
           </TabPanel>
           {sample?.error ||
@@ -647,7 +657,7 @@ const metadataViewsForSample = (
 
   return sampleMetadatas;
 };
-const printSample = (id: string, targetId: string) => {
+const printSample = (id: string, targetId: string, evalSpec?: EvalSpec) => {
   // The active tab
   const targetTabEl = document.querySelector(
     `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
@@ -661,7 +671,7 @@ const printSample = (id: string, targetId: string) => {
       const headingEl = document.getElementById(headingId);
 
       // Print the document
-      const headingHtml = printHeadingHtml();
+      const headingHtml = printHeadingHtml(evalSpec);
       const css = `
       html { font-size: 9pt }
       /* Allow content to break anywhere without any forced page breaks */
@@ -674,13 +684,6 @@ const printSample = (id: string, targetId: string) => {
         page-break-after: auto;
       }
       /* Specifically disable all page breaks for divs */
-      div {
-        break-inside: auto;
-        page-break-inside: auto;
-      }
-      body > .transcript-step {
-        break-inside: avoid;
-      }
       body{
         -webkit-print-color-adjust:exact !important;
         print-color-adjust:exact !important;

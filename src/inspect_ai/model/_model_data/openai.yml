@@ -319,6 +319,17 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+    gpt-5.3-chat:
+      display_name: GPT-5.3 Chat
+      release_date: 2026-03-03
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 128000
+      output_tokens: 16384
+      input_tokens: 111616
+      reasoning: False
+      versions:
+        latest:
+          snapshot: "2026-03-03"
     gpt-5.4:
       display_name: GPT-5.4
       release_date: 2026-03-05
@@ -341,3 +352,26 @@ openai:
       versions:
         gpt-5.4-pro-2026-03-05:
           snapshot: "2026-03-05"
+    gpt-5.4-mini:
+      display_name: GPT-5.4 Mini
+      release_date: 2026-03-17
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      versions:
+        gpt-5.4-mini-2026-03-17:
+          snapshot: "2026-03-17"
+    gpt-5.4-nano:
+      display_name: GPT-5.4 Nano
+      release_date: 2026-03-17
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      versions:
+        gpt-5.4-nano-2026-03-17:
+          snapshot: "2026-03-17"
+

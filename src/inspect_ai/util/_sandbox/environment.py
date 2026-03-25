@@ -97,7 +97,6 @@ class SandboxEnvironment(abc.ABC):
     """
 
     def __init__(self) -> None:
-        self._tools_injected = False
         self._inject_lock = anyio.Lock()
 
     @abc.abstractmethod
@@ -161,6 +160,7 @@ class SandboxEnvironment(abc.ABC):
           contents: Text or binary file contents.
 
         Raises:
+          TimeoutError: If the operation times out.
           PermissionError: If the current user does not have permission to
             write to the specified path.
           IsADirectoryError: If the file exists already and
@@ -193,6 +193,7 @@ class SandboxEnvironment(abc.ABC):
           Contents of file (as str or bytes for binary files)
 
         Raises:
+          TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
           UnicodeDecodeError: If an encoding error occurs
             while reading the file.
@@ -308,15 +309,10 @@ class SandboxEnvironment(abc.ABC):
             sandbox_with_injected_tools,
         )
 
-        # belt and suspenders in case subclasses forget to call __init__
-        if not hasattr(self, "_inject_lock"):
-            self._inject_lock = anyio.Lock()
-            self._tools_injected = False
-
-        async with self._inject_lock:
-            if not self._tools_injected:
-                await sandbox_with_injected_tools(sandbox=self)
-                self._tools_injected = True
+        # inject tools (use flag for fast path)
+        if not getattr(self, "_tools_injected", False):
+            await sandbox_with_injected_tools(sandbox=self)
+            self._tools_injected = True
 
         return await (exec_remote_streaming if stream else exec_remote_awaitable)(
             self, cmd, self.default_polling_interval(), options

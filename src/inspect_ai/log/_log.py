@@ -1,6 +1,6 @@
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type, TypedDict
+from typing import Any, Literal, Type
 
 from pydantic import (
     BaseModel,
@@ -8,10 +8,12 @@ from pydantic import (
     Field,
     JsonValue,
     PrivateAttr,
+    ValidationInfo,
     field_serializer,
     model_validator,
 )
 from shortuuid import uuid
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
@@ -41,6 +43,14 @@ from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
+
+
+class EventsData(TypedDict):
+    """Pooled data extracted by condense_events / condense_sample."""
+
+    messages: list[ChatMessage]
+    calls: list[JsonValue]
+
 
 EvalStatus = Literal["started", "success", "cancelled", "error"]
 """Status of an evaluation run."""
@@ -420,17 +430,8 @@ class EvalSample(BaseModel):
     attachment content) by passing `resolve_attachments=True` to log reading functions.
     """
 
-    message_pool: list[ChatMessage] = Field(default_factory=list)
-    """Pool of deduplicated messages referenced by model event input_refs.
-
-    Messages are referenced by ordinal index.
-    """
-
-    call_pool: list[JsonValue] = Field(default_factory=list)
-    """Pool of raw API request messages.
-
-    Referenced by ordinal index.
-    """
+    events_data: EventsData | None = Field(default=None)
+    """Pooled dedup data for condensed events (messages and calls)."""
 
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
@@ -519,6 +520,28 @@ class EvalSample(BaseModel):
             del values["transcript"]
 
         return migrate_values(values)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _resolve_timelines(
+        cls, data: Any, handler: Any, info: ValidationInfo
+    ) -> "EvalSample":
+        raw_timelines = None
+        if isinstance(data, dict) and data.get("timelines"):
+            raw_timelines = data.pop("timelines")
+
+        sample: EvalSample = handler(data)
+
+        if raw_timelines:
+            events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}
+            ctx: dict[str, Any] = {"events_by_uuid": events_by_uuid}
+            if info.context:
+                ctx.update(info.context)
+            sample.timelines = [
+                Timeline.model_validate(t, context=ctx) for t in raw_timelines
+            ]
+
+        return sample
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())

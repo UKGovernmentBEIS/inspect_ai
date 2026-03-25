@@ -289,8 +289,9 @@ def openai_completion_params(
         )
     if config.extra_body:
         # never supported for completions as requires 'store'
-        config.extra_body.pop("metadata", None)
-        params["extra_body"] = config.extra_body
+        params["extra_body"] = {
+            key: value for key, value in config.extra_body.items() if key != "metadata"
+        }
 
     return params
 
@@ -741,7 +742,7 @@ def parse_reasoning_content(
     content = (
         message.content
         if isinstance(message, ChatCompletionMessage)
-        else str(message["content"] or "")
+        else str(message.get("content") or "")
     )
     content_text, reasoning = parse_content_with_reasoning(content or "")
     if reasoning:

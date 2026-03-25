@@ -2442,6 +2442,7 @@
             "response_schema": null,
             "extra_headers": null,
             "extra_body": null,
+            "modalities": null,
             "cache": null,
             "batch": null
           }
@@ -2938,32 +2939,16 @@
           "title": "Attachments",
           "type": "object"
         },
-        "message_pool": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ChatMessageSystem"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageUser"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageAssistant"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageTool"
-              }
-            ]
-          },
-          "title": "Message Pool",
-          "type": "array"
-        },
-        "call_pool": {
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          },
-          "title": "Call Pool",
-          "type": "array"
+        "events_data": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventsData"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "limit": {
           "anyOf": [
@@ -3004,8 +2989,7 @@
         "error",
         "error_retries",
         "attachments",
-        "message_pool",
-        "call_pool",
+        "events_data",
         "limit"
       ],
       "title": "EvalSample",
@@ -3757,6 +3741,45 @@
       ],
       "additionalProperties": false
     },
+    "EventsData": {
+      "description": "Pooled data extracted by condense_events / condense_sample.",
+      "properties": {
+        "messages": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "calls": {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Calls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "messages",
+        "calls"
+      ],
+      "title": "EventsData",
+      "type": "object",
+      "additionalProperties": false
+    },
     "GenerateConfig": {
       "description": "Model generation options.",
       "properties": {
@@ -4176,6 +4199,29 @@
           "default": null,
           "title": "Extra Body"
         },
+        "modalities": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "const": "image",
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/ImageOutput"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Modalities"
+        },
         "cache": {
           "anyOf": [
             {
@@ -4244,8 +4290,39 @@
         "response_schema",
         "extra_headers",
         "extra_body",
+        "modalities",
         "cache",
         "batch"
+      ],
+      "additionalProperties": false
+    },
+    "ImageOutput": {
+      "description": "Image output configuration.\n\nUse the `options` field to pass provider-specific options directly\nto the underlying API (e.g. OpenAI image_generation tool parameters).",
+      "properties": {
+        "options": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "propertyNames": {
+                "const": "openai"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        }
+      },
+      "title": "ImageOutput",
+      "type": "object",
+      "required": [
+        "options"
       ],
       "additionalProperties": false
     },
@@ -7890,6 +7967,9 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
+              "$ref": "#/$defs/ContentDocument"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -7903,6 +7983,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },

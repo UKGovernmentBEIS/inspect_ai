@@ -420,6 +420,7 @@ async function findExtendedInDOM(
 
             if (foundInVirtual) {
               extendedSearchSucceeded = true;
+              await waitForTextInDOM(searchTerm);
               continue;
             }
           }
@@ -460,6 +461,7 @@ async function findExtendedInDOM(
 
       if (foundInVirtual) {
         extendedSearchSucceeded = true;
+        await waitForTextInDOM(searchTerm);
         continue;
       }
 
@@ -553,4 +555,63 @@ function selectionParentElement(range: Range) {
     element = range.commonAncestorContainer.parentElement;
   }
   return element;
+}
+
+/**
+ * Polls until the search term appears in a searchable (non-unsearchable) DOM
+ * text node. After Virtuoso scrolls a virtual list item into view, the
+ * onContentReady callback may fire before the content is actually rendered,
+ * especially for large scroll distances. This ensures we wait for the text
+ * to be present before calling window.find().
+ */
+function waitForTextInDOM(
+  searchTerm: string,
+  timeoutMs = 2000,
+): Promise<boolean> {
+  const lowerTerm = searchTerm.toLowerCase();
+
+  const isTextInSearchableDOM = () => {
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          let el = node.parentElement;
+          while (el) {
+            if (el.hasAttribute("data-unsearchable")) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            el = el.parentElement;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        },
+      },
+    );
+    while (walker.nextNode()) {
+      if (walker.currentNode.textContent?.toLowerCase().includes(lowerTerm)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return new Promise((resolve) => {
+    const interval = 50;
+    let elapsed = 0;
+
+    const check = () => {
+      if (isTextInSearchableDOM()) {
+        resolve(true);
+        return;
+      }
+      elapsed += interval;
+      if (elapsed >= timeoutMs) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, interval);
+    };
+
+    check();
+  });
 }

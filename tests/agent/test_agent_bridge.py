@@ -230,6 +230,22 @@ def responses_code_interpreter_agent() -> Agent:
 
 
 @agent
+def responses_computer_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
+            async with AsyncOpenAI() as client:
+                await client.responses.create(
+                    model="inspect",
+                    input=user_prompt(state.messages).text,
+                    tools=[{"type": "computer"}],
+                )
+
+        return state
+
+    return execute
+
+
+@agent
 def anthropic_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         def tools_param() -> Any:
@@ -301,6 +317,7 @@ def anthropic_web_search_agent() -> Agent:
                             "max_uses": 5,
                         }
                     ],
+                    tool_choice={"type": "any"},
                 )
 
             return bridge.state
@@ -329,6 +346,36 @@ def anthropic_code_execution_agent() -> Agent:
                         }
                     ],
                     extra_headers={"anthropic-beta": "code-execution-2025-08-25"},
+                )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_computer_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                await client.messages.create(
+                    model="inspect",
+                    max_tokens=1024,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                    tools=[
+                        {  # type: ignore[list-item]
+                            "type": "computer_20250124",
+                            "name": "computer",
+                            "display_width_px": 1366,
+                            "display_height_px": 768,
+                            "display_number": 1,
+                        }
+                    ],
                 )
 
             return bridge.state
@@ -442,6 +489,30 @@ def google_code_execution_agent() -> Agent:
                 ],
                 config=genai.types.GenerateContentConfig(
                     tools=[{"code_execution": {}}],  # type: ignore[list-item]
+                ),
+            )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def google_computer_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            await client.aio.models.generate_content(
+                model="inspect",
+                contents=[  # type: ignore[arg-type]
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_prompt(state.messages).text}],
+                    }
+                ],
+                config=genai.types.GenerateContentConfig(
+                    tools=[{"computerUse": {}}],  # type: ignore[list-item]
                 ),
             )
 
@@ -601,6 +672,17 @@ def test_bridged_code_execution_tool_openai():
         model="openai/gpt-5-mini",
     )[0]
     check_server_tool_use(log, "code_execution")
+
+
+@skip_if_no_openai
+def test_responses_bridge_computer_use_incompatible_model():
+    log = eval(
+        bridged_task(responses_computer_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "error"
+    assert log.error
+    assert "computer use with the OpenAI Responses agent bridge" in log.error.message
 
 
 @skip_if_no_anthropic
@@ -765,6 +847,16 @@ def test_bridged_code_execution_tool_google():
     # not ContentToolUse objects, so we don't call check_server_tool_use() here
 
 
+def test_google_bridge_computer_use_incompatible_model():
+    log = eval(
+        bridged_task(google_computer_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "error"
+    assert log.error
+    assert "computer use with the Google agent bridge" in log.error.message
+
+
 @skip_if_no_anthropic
 @skip_if_no_openai
 def test_anthropic_bridged_agent():
@@ -772,6 +864,16 @@ def test_anthropic_bridged_agent():
         "anthropic/claude-sonnet-4-5", agent=completions_agent(False)
     )
     check_anthropic_log_json(log_json)
+
+
+def test_anthropic_bridge_computer_use_incompatible_model():
+    log = eval(
+        bridged_task(anthropic_computer_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "error"
+    assert log.error
+    assert "computer use with the Anthropic agent bridge" in log.error.message
 
 
 @skip_if_no_anthropic

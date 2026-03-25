@@ -34,7 +34,7 @@ DEFAULT_LOG_FORMAT: Literal["eval", "json"] = "eval"
 JSON_LOG_FORMAT = "json"
 EVAL_LOG_FORMAT = "eval"
 DEFAULT_DISPLAY = "full"
-LOG_SCHEMA_VERSION = 3
+LOG_SCHEMA_VERSION = 2
 SCORED_SUFFIX = "-scored"
 CONSOLE_DISPLAY_WIDTH = 120
 BASE_64_DATA_REMOVED = "<base64-data-removed>"
@@ -52,9 +52,9 @@ def get_deserializing_context() -> dict[str, Any]:
     return {DESERIALIZING: True, MESSAGE_CACHE: {}}
 
 
-def log_schema_version() -> int:
-    """Return the log schema version to use for writing."""
+def log_condense_enabled() -> bool:
+    """Return whether pool-based event condensing is enabled."""
     import os
 
-    val = os.environ.get("INSPECT_LOG_FORMAT_V3", "")
-    return 3 if val.lower() in ("1", "true", "yes") else 2
+    val = os.environ.get("INSPECT_LOG_CONDENSE", "")
+    return val.lower() in ("1", "true", "yes")

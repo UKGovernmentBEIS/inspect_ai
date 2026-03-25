@@ -91,6 +91,7 @@ from anthropic.types.beta import (
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
     BetaThinkingBlock,
+    BetaToolBash20250124Param,
     BetaToolComputerUse20250124Param,
     BetaToolComputerUse20251124Param,
     BetaToolTextEditor20241022Param,
@@ -390,7 +391,9 @@ class AnthropicAPI(ModelAPI):
                 betas.append("mcp-client-2025-04-04")
 
             # beta param for interleaved thinking
-            if self.is_using_thinking(config) and self.is_claude_4():
+            if self.is_using_thinking(config) and (
+                self.is_claude_4() or self.is_claude_latest()
+            ):
                 betas.append("interleaved-thinking-2025-05-14")
 
             # extra headers (for time tracker and computer use)
@@ -429,7 +432,11 @@ class AnthropicAPI(ModelAPI):
             if _input_has_compaction(input) and not _request_has_edit_compaction(
                 request
             ):
-                _add_edit_compation(request, betas)
+                _add_edit_compaction(
+                    request=request,
+                    betas=betas,
+                    has_1mm_context=self.is_claude_4_6(),
+                )
 
             # add compaction beta header if required
             if _request_has_edit_compaction(request):
@@ -593,20 +600,22 @@ class AnthropicAPI(ModelAPI):
 
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
-            if _message_has_compaction(output.message):
+            compaction = _compaction_from_message(output.message)
+            if compaction is not None and compaction["content"] is not None:
                 # Strip reasoning blocks from the compacted output — they're
                 # from the compaction inference, not the task, and would waste
                 # input tokens on subsequent turns.
                 message = _strip_reasoning(output.message)
-                return [message], output.usage
-            else:
-                raise RuntimeError(
-                    f"Anthropic native compaction did not trigger. "
-                    f"This can occur when the total input tokens (including tools) "
-                    f"is below Anthropic's {MIN_COMPACTION_TOKENS} token minimum for compaction. "
-                    f"Consider increasing the compaction threshold or using a "
-                    f"non-native compaction strategy."
+                return [
+                    message,
+                    ChatMessageUser(content="Please continue working."),
+                ], output.usage
+            elif compaction is not None:
+                raise NotImplementedError(
+                    "Anthropic compaction triggered but failed to compact."
                 )
+            else:
+                raise NotImplementedError("Anthropic compaction did not trigger.")
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
@@ -712,7 +721,7 @@ class AnthropicAPI(ModelAPI):
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
-        headers: dict[str, str] = config.extra_headers or {}
+        headers: dict[str, str] = (config.extra_headers or {}).copy()
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
@@ -746,7 +755,9 @@ class AnthropicAPI(ModelAPI):
             betas.append("effort-2025-11-24")
             effort = config.effort
             # max is claude 4.6 only
-            if effort == "max" and not self.is_claude_4_6():
+            if effort == "max" and not (
+                self.is_claude_4_6() or self.is_claude_latest()
+            ):
                 effort = "high"
             params["output_config"] = OutputConfigParam(effort=effort)
 
@@ -823,7 +834,9 @@ class AnthropicAPI(ModelAPI):
                 max_tokens = max_tokens + config.reasoning_tokens
 
         # apply caps after bumping for reasoning
-        if self.is_claude_4_6() and self.is_claude_4_opus():
+        if (
+            self.is_claude_4_6() and self.is_claude_4_opus()
+        ) or self.is_claude_latest():
             # Opus 4.6 only
             max_tokens = min(max_tokens, 128000)
         elif self.is_claude_4_5() or self.is_claude_4_6():
@@ -865,14 +878,52 @@ class AnthropicAPI(ModelAPI):
     def is_claude_4(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
 
+    def is_claude_4_0(self) -> bool:
+        return self._is_claude_4_x(0) or (
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.service_model_name())
+            is not None
+        )
+
+    def is_claude_4_1(self) -> bool:
+        return self._is_claude_4_x(1)
+
+    def is_claude_4_5(self) -> bool:
+        return self._is_claude_4_x(5)
+
+    def is_claude_4_6(self) -> bool:
+        return self._is_claude_4_x(6)
+
     def is_claude_4_opus(self) -> bool:
         return self.is_claude_4() and "opus" in self.service_model_name()
 
-    def is_claude_4_5(self) -> bool:
-        return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
+    def _is_claude_4_x(self, x: int) -> bool:
+        return (
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.service_model_name())
+            is not None
+        )
 
-    def is_claude_4_6(self) -> bool:
-        return re.search(r"claude-[a-zA-Z]+-4-6", self.service_model_name()) is not None
+    # attempt to not require an inspect package update for new models
+    # (assume that all capabilities of claude 4.6 are available in
+    # future model versions)
+    def is_claude_latest(self) -> bool:
+        # future minor version
+        if self.is_claude_4() and not (
+            self.is_claude_4_0()
+            or self.is_claude_4_1()
+            or self.is_claude_4_5()
+            or self.is_claude_4_6()
+        ):
+            return True
+        # future major version
+        elif (
+            not self.is_claude_3()
+            and not self.is_claude_3_5()
+            and not self.is_claude_3_7()
+            and not self.is_claude_4()
+        ):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -885,6 +936,15 @@ class AnthropicAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"anthropic/{self.service_model_name()}"
+
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        if "context-1m-2025-08-07" in self.betas:
+            return "anthropic/claude-opus-4-6"  # 1MM
+        elif self.is_claude_latest():
+            return "anthropic/claude-haiku-4-5"  # 200K
+        else:
+            return self.canonical_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -932,6 +992,10 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
+        return True
+
+    @override
+    def tool_result_documents(self) -> bool:
         return True
 
     @override
@@ -1160,8 +1224,10 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
-            if self.is_claude_4_6() or (
-                self.is_claude_4_5() and self.is_claude_4_opus()
+            if (
+                self.is_claude_4_6()
+                or self.is_claude_latest()
+                or (self.is_claude_4_5() and self.is_claude_4_opus())
             ):
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
@@ -1216,7 +1282,7 @@ class AnthropicAPI(ModelAPI):
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
                 )
-                if self.is_claude_4()
+                if self.is_claude_4() or self.is_claude_latest()
                 else BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
                 )
@@ -1294,7 +1360,7 @@ class AnthropicAPI(ModelAPI):
         if (
             config.reasoning_effort is not None
             and config.reasoning_effort != "none"
-            and self.is_claude_4_6()
+            and (self.is_claude_4_6() or self.is_claude_latest())
         ):
             match config.reasoning_effort:
                 case "low" | "minimal":
@@ -1460,6 +1526,12 @@ def is_web_fetch_tool(param: ToolParamDef) -> TypeGuard[BetaWebFetchTool20250910
 
 def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:
     return param.get("name") == "memory" and not is_tool_param(param)
+
+
+def is_bash_tool(
+    param: ToolParamDef,
+) -> TypeGuard[BetaToolBash20250124Param]:
+    return param.get("name") == "bash" and not is_tool_param(param)
 
 
 def is_code_execution_tool(
@@ -1646,7 +1718,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             content = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
         else:
             content = [
-                item
+                _strip_text_block_citations(item)
                 for content in message.content
                 for item in await message_block_params(content)
             ]
@@ -1726,6 +1798,18 @@ MessageBlockParam = Union[
     | BetaTextEditorCodeExecutionToolResultBlockParam
     | BetaWebFetchToolResultBlockParam
 ]
+
+
+def _strip_text_block_citations(block: MessageBlockParam) -> MessageBlockParam:
+    """Strip citations from TextBlockParam.
+
+    Citations are not allowed inside tool result blocks — they are only
+    valid on top-level text blocks in the message content.
+    """
+    if isinstance(block, dict) and block.get("type") == "text" and "citations" in block:
+        block = cast(TextBlockParam | DocumentBlockParam, block.copy())
+        del block["citations"]
+    return block
 
 
 async def assistant_message_blocks(
@@ -2270,7 +2354,9 @@ CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 
 
-def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
+def _add_edit_compaction(
+    request: dict[str, Any], betas: list[str], has_1mm_context: bool = False
+) -> None:
     """Add compaction edit to request without triggering new compaction.
 
     When messages already contain compaction blocks, we need to include
@@ -2279,7 +2365,7 @@ def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
     (user controls compaction via their own threshold).
     """
     # Determine max trigger based on context window
-    if "context-1m-2025-08-07" in betas:
+    if ("context-1m-2025-08-07" in betas) or has_1mm_context:
         max_trigger = 990_000  # Just below 1M context
     else:
         max_trigger = 190_000  # Just above default 150k trigger
@@ -2312,15 +2398,7 @@ def _input_has_compaction(input: list[ChatMessage]) -> bool:
 
 
 def _message_has_compaction(message: ChatMessageAssistant) -> bool:
-    if isinstance(message.content, list):
-        for c in message.content:
-            if (
-                isinstance(c, ContentData)
-                and _compaction_from_content_data(c) is not None
-            ):
-                return True
-
-    return False
+    return _compaction_from_message(message) is not None
 
 
 def _content_data_for_compaction(block: BetaCompactionBlock) -> ContentData:
@@ -2341,10 +2419,30 @@ def _compaction_from_content_data(
     if isinstance(compaction_metadata, dict):
         if compaction_metadata.get("type") == "anthropic_compact":
             compaction_content = compaction_metadata.get("content", None)
-            if isinstance(compaction_content, str):
-                return BetaCompactionBlockParam(
-                    type="compaction", content=compaction_content
+            if compaction_content is not None and not isinstance(
+                compaction_content, str
+            ):
+                logger.warning(
+                    f"Unexpected compaction content type: {type(compaction_content).__name__}"
                 )
+                compaction_content = None
+            return BetaCompactionBlockParam(
+                type="compaction",
+                content=compaction_content,
+            )
+
+    return None
+
+
+def _compaction_from_message(
+    message: ChatMessageAssistant,
+) -> BetaCompactionBlockParam | None:
+    if isinstance(message.content, list):
+        for c in message.content:
+            if isinstance(c, ContentData):
+                result = _compaction_from_content_data(c)
+                if result is not None:
+                    return result
 
     return None
 

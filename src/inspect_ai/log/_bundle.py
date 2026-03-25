@@ -117,36 +117,28 @@ def bundle_log_dir(
 
     display().print(f"Creating view bundle in '{output_dir}'")
     with display().progress(total=500) as p:
-        # Work in a temporary working directory
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
-            # copy dist to output_dir
-            copy_dir_contents(DIST_DIR, working_dir)
+            # prepare viewer assets
+            log_dir_name = "logs"
+            _prepare_viewer(
+                working_dir,
+                log_dir=log_dir_name,
+                abs_log_dir=absolute_file_path(log_dir),
+            )
             p.update(25)
 
-            # create a logs dir
-            log_dir_name = "logs"
+            # create a logs dir and copy logs into it
             view_logs_dir = os.path.join(working_dir, log_dir_name)
             os.makedirs(view_logs_dir)
-            p.update(25)
-
-            # Copy the logs to the log dir
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
-
-            # Always write the log overviews
-            write_log_listing(view_logs_dir)
             p.update(25)
 
-            # update the index html to embed the log_dir
-            inject_configuration(
-                os.path.join(working_dir, "index.html"), log_dir=log_dir_name
-            )
-            write_robots_txt(working_dir)
+            write_log_listing(view_logs_dir)
             p.update(25)
 
             if output_dir.startswith("hf/"):
                 _push_bundle_to_hf(working_dir, output_dir, fs_options)
             else:
-                # Now move the contents of the working directory to the output directory
                 move_output(working_dir, output_dir, p.update, fs_options)
             p.complete()
     display().print(f"View bundle '{output_dir}' created")
@@ -169,16 +161,24 @@ def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
             shutil.copy2(src_file_path, dest_file_path)
 
 
-def inject_configuration(html_file: str, log_dir: str) -> None:
+def inject_configuration(
+    html_file: str, log_dir: str, abs_log_dir: str | None = None
+) -> None:
     # update the index html to embed the log_dir
     with open(html_file, "r") as file:
         index_contents = file.read()
 
     # inject the log dir information into the viewer html
     # so it will load directly
+    context: dict[str, str] = {"log_dir": log_dir}
+    if abs_log_dir is not None:
+        context["abs_log_dir"] = abs_log_dir
+    import json
+
+    context_json = json.dumps(context)
     content = index_contents.replace(
         "</head>",
-        f'  <script id="log_dir_context" type="application/json">{{"log_dir": "{log_dir}"}}</script>\n  </head>',
+        f'  <script id="log_dir_context" type="application/json">{context_json}</script>\n  </head>',
     )
 
     # Open the file for writing to save the updated content
@@ -198,6 +198,19 @@ Disallow: /
     # Write the content to the file
     with open(file_path, "w") as f:
         f.write(content)
+
+
+def _prepare_viewer(
+    working_dir: str, log_dir: str, abs_log_dir: str | None = None
+) -> None:
+    """Prepare viewer assets in a working directory."""
+    copy_dir_contents(DIST_DIR, working_dir)
+    inject_configuration(
+        os.path.join(working_dir, "index.html"),
+        log_dir=log_dir,
+        abs_log_dir=abs_log_dir,
+    )
+    write_robots_txt(working_dir)
 
 
 def copy_file_to_bundle(
@@ -323,15 +336,38 @@ def progress_adapter(
     yield tick
 
 
+def _copy_viewer_to_log_dir(from_dir: str, to_dir: str, output_fs: Any) -> None:
+    """Copy viewer files from a local temp directory into the log directory.
+
+    Unlike move_output, this does not remove existing files in the target
+    directory, so log files are preserved.
+    """
+    for root, _dirs, files in os.walk(from_dir):
+        relative_dir = os.path.relpath(root, from_dir)
+
+        # ensure target subdirectory exists
+        if relative_dir != ".":
+            dir_path = os.path.join(to_dir, relative_dir)
+            if not output_fs.exists(dir_path):
+                output_fs.mkdir(dir_path)
+
+        # copy files
+        for file in files:
+            src = os.path.join(root, file)
+            target = os.path.join(relative_dir, file) if relative_dir != "." else file
+            dest = os.path.join(to_dir, target)
+            output_fs.put_file(src, dest)
+
+
 def embed_log_dir(
     log_dir: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
     r"""Embed a log viewer into a log_dir.
 
-    Creates a 'viewer' subdirectory inside the log_dir containing the
-    viewer JS/HTML, and writes listing.json to the log_dir. The viewer
-    is configured with log_dir=".." to read logs from the parent directory.
+    Places the viewer HTML, assets, listing.json, and robots.txt directly
+    in the log_dir alongside the log files. The viewer is configured with
+    log_dir="." to read logs from the same directory.
     Requires an HTTP server to function (file:// won't work due to CORS).
 
     Args:
@@ -347,7 +383,6 @@ def embed_log_dir(
     # resolve paths
     log_dir = absolute_file_path(log_dir)
     log_fs = filesystem(log_dir, fs_options)
-    viewer_dir = f"{log_dir.rstrip(log_fs.sep)}{log_fs.sep}viewer"
 
     # check that log_dir exists
     if not log_fs.exists(log_dir):
@@ -355,25 +390,11 @@ def embed_log_dir(
 
     display().print(f"Embedding viewer in '{log_dir}'")
 
-    # remove existing viewer dir
-    if log_fs.exists(viewer_dir):
-        log_fs.rm(viewer_dir, recursive=True)
-
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
-        # copy dist files to temp dir
-        copy_dir_contents(DIST_DIR, working_dir)
-
-        # inject log_dir as ".." so the viewer reads logs from the parent dir
-        inject_configuration(os.path.join(working_dir, "index.html"), log_dir="..")
-        write_robots_txt(working_dir)
-
-        # write listing.json to the viewer dir (the viewer falls back to
-        # ./listing.json when {log_dir}/listing.json is not found)
+        _prepare_viewer(working_dir, log_dir=".", abs_log_dir=log_dir)
         write_log_listing(log_dir, output_dir=working_dir)
-
-        # move viewer files to the viewer dir
-        move_output(working_dir, viewer_dir, lambda _: None, fs_options)
+        _copy_viewer_to_log_dir(working_dir, log_dir, log_fs)
 
     if log_fs.is_local():
         display().print(f"Run: cd '{log_dir}' && python -m RangeHTTPServer")
-        display().print("View: http://localhost:8000/viewer/index.html")
+        display().print("View: http://localhost:8000/index.html")

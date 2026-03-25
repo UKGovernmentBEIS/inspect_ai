@@ -1,4 +1,4 @@
-from typing import Awaitable, Callable, TypedDict
+from typing import Awaitable, Callable
 
 from tenacity import (
     RetryCallState,
@@ -11,6 +11,7 @@ from tenacity import (
 from tenacity.retry import RetryBaseT
 from tenacity.stop import StopBaseT
 from tenacity.wait import WaitBaseT
+from typing_extensions import TypedDict
 
 
 class ModelRetryConfig(TypedDict):

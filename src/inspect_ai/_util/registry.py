@@ -7,7 +7,6 @@ from typing import (
     Any,
     Callable,
     Literal,
-    TypedDict,
     TypeGuard,
     cast,
     overload,
@@ -15,6 +14,7 @@ from typing import (
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
+from typing_extensions import TypedDict
 
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.package import get_installed_package_name

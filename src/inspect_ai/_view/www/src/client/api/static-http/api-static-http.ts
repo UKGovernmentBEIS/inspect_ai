@@ -1,5 +1,6 @@
 import { EvalSet } from "../../../@types/log";
-import { fetchRange, fetchSize } from "../../remote/remoteZipFile";
+import { fetchRange } from "../../../utils/http";
+import { fetchSize } from "../../remote/remoteZipFile";
 import { download_file } from "../shared/api-shared";
 import { Capabilities, LogPreview, LogRoot, LogViewAPI } from "../types";
 import {
@@ -19,12 +20,14 @@ import {
 export default function staticHttpApi(
   log_dir?: string,
   log_file?: string,
+  abs_log_dir?: string,
 ): LogViewAPI {
   const resolved_log_dir = log_dir?.replace(" ", "+");
   const resolved_log_path = log_file ? log_file.replace(" ", "+") : undefined;
   return staticHttpApiForLog({
     log_file: resolved_log_path,
     log_dir: resolved_log_dir,
+    abs_log_dir,
   });
 }
 
@@ -34,8 +37,10 @@ export default function staticHttpApi(
 function staticHttpApiForLog(logInfo: {
   log_dir?: string;
   log_file?: string;
+  abs_log_dir?: string;
 }): LogViewAPI {
   const log_dir = logInfo.log_dir;
+  const abs_log_dir = logInfo.abs_log_dir;
   let manifest: Record<string, LogPreview> | undefined = undefined;
   let manifestPromise: Promise<Record<string, LogPreview>> | undefined =
     undefined;
@@ -77,6 +82,7 @@ function staticHttpApiForLog(logInfo: {
           return Promise.resolve({
             logs: logs,
             log_dir,
+            abs_log_dir,
           });
         }
       }
@@ -145,8 +151,9 @@ function staticHttpApiForLog(logInfo: {
         throw new Error(`"Unable to load eval log ${log_file}`);
       }
     },
-    get_log_size: async (log_file: string) => {
-      return await fetchSize(log_file);
+    get_log_info: async (log_file: string) => {
+      const size = await fetchSize(log_file);
+      return { size };
     },
     get_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);

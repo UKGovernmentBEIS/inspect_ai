@@ -1,5 +1,6 @@
 """Tests for message pool deduplication in .eval files."""
 
+import json
 import os
 import tempfile
 from typing import Literal
@@ -11,7 +12,9 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._condense import (
+    condense_events,
     condense_sample,
+    expand_events,
     resolve_sample_attachments,
 )
 from inspect_ai.log._file import read_eval_log, write_eval_log
@@ -28,7 +31,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._pool import (
     _compress_refs,
     _expand_refs,
-    resolve_sample_message_pool,
+    resolve_sample_events_data,
 )
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
@@ -43,7 +46,7 @@ from inspect_ai.model._model_output import ModelOutput
 @pytest.fixture(autouse=True)
 def _enable_v3_format(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pool tests require v3 format to be enabled."""
-    monkeypatch.setenv("INSPECT_LOG_FORMAT_V3", "1")
+    monkeypatch.setenv("INSPECT_LOG_CONDENSE", "1")
 
 
 def _make_sample_with_repeated_inputs() -> EvalSample:
@@ -90,13 +93,13 @@ def _make_sample_with_repeated_inputs() -> EvalSample:
 
 
 def test_condense_builds_message_pool():
-    """condense_sample should extract messages into message_pool."""
+    """condense_sample should extract messages into events_data."""
     sample = _make_sample_with_repeated_inputs()
     condensed = condense_sample(sample)
 
-    # message_pool should contain all unique messages
-    assert isinstance(condensed.message_pool, list)
-    assert len(condensed.message_pool) > 0
+    # events_data should contain all unique messages
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) > 0
 
     # Each model event should have input_refs
     model_events = [e for e in condensed.events if isinstance(e, ModelEvent)]
@@ -111,10 +114,11 @@ def test_condense_message_pool_no_duplication():
     condensed = condense_sample(sample)
 
     # 5 unique messages across 3 events
-    assert len(condensed.message_pool) == 5
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) == 5
 
     # Verify dedup by resolving: events should have 2 + 4 + 5 = 11 total messages
-    resolved = resolve_sample_message_pool(condensed)
+    resolved = resolve_sample_events_data(condensed)
     model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
     total_msgs = sum(len(e.input) for e in model_events)
     assert total_msgs == 11
@@ -138,8 +142,8 @@ def test_resolve_reconstructs_model_event_inputs():
     for event in model_events:
         assert event.input_refs is None
 
-    # message_pool should be cleared
-    assert resolved.message_pool == []
+    # events_data should be cleared
+    assert resolved.events_data is None
 
 
 def test_condense_resolve_round_trip():
@@ -171,7 +175,7 @@ def test_read_v2_eval_file():
     assert log.version >= 2
     if log.samples:
         sample = log.samples[0]
-        assert not sample.message_pool  # empty (list or dict)
+        assert sample.events_data is None
         model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
         for event in model_events:
             assert event.input_refs is None
@@ -229,12 +233,12 @@ def test_write_read_round_trip(
             read_log = read_eval_log(path, resolve_attachments=resolve_attachments)
         else:
             read_log = read_eval_log(path)
-        assert read_log.version == 3
+        assert read_log.version == 2
         assert read_log.samples is not None
         assert len(read_log.samples) == 1
 
         sample = read_log.samples[0]
-        assert not sample.message_pool  # resolved to empty
+        assert sample.events_data is None  # resolved
 
         model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
         assert len(model_events[0].input) == 2
@@ -262,8 +266,8 @@ def test_condense_anonymous_message_ids():
     sample = EvalSample(id="test", epoch=1, input="test", target="test", events=[event])
     condensed = condense_sample(sample)
 
-    assert isinstance(condensed.message_pool, list)
-    assert len(condensed.message_pool) == 2
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) == 2
 
 
 def _make_sample_with_call_messages() -> EvalSample:
@@ -314,8 +318,8 @@ def test_condense_call_request_messages():
     sample = _make_sample_with_call_messages()
     condensed = condense_sample(sample)
 
-    assert isinstance(condensed.call_pool, list)
-    assert len(condensed.call_pool) == 3
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["calls"]) == 3
 
     model_events = [e for e in condensed.events if isinstance(e, ModelEvent)]
     for event in model_events:
@@ -341,7 +345,7 @@ def test_resolve_call_request_messages():
     assert len(model_events[1].call.request["messages"]) == 3
     assert model_events[0].call.call_refs is None
     assert model_events[1].call.call_refs is None
-    assert not resolved.call_pool  # resolved to empty
+    assert resolved.events_data is None
 
 
 def test_call_pool_round_trip_content_preserved():
@@ -382,7 +386,7 @@ def test_condense_call_no_messages_key():
     )
     condensed = condense_sample(sample)
 
-    assert not condensed.call_pool  # empty list
+    assert condensed.events_data is None or not condensed.events_data["calls"]
     model_events = [e for e in condensed.events if isinstance(e, ModelEvent)]
     assert model_events[0].call.call_refs is None
     assert model_events[0].call.request["prompt"] == "hello"
@@ -415,8 +419,9 @@ def test_condense_call_request_contents_key():
     )
     condensed = condense_sample(sample)
 
-    # Should extract into call_pool with call_key="contents"
-    assert len(condensed.call_pool) == 2
+    # Should extract into events_data calls with call_key="contents"
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["calls"]) == 2
     model_events = [e for e in condensed.events if isinstance(e, ModelEvent)]
     assert model_events[0].call.call_key == "contents"
     assert model_events[0].call.call_refs is not None
@@ -427,7 +432,7 @@ def test_condense_call_request_contents_key():
     resolved_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert resolved_events[0].call.request["contents"] == [msg1, msg2]
     assert resolved_events[0].call.call_refs is None
-    assert not resolved.call_pool
+    assert resolved.events_data is None
 
 
 def test_write_read_round_trip_call_pool():
@@ -463,8 +468,8 @@ def test_write_read_round_trip_call_pool():
         assert read_log.samples is not None
         sample = read_log.samples[0]
 
-        # call_pool resolved (empty)
-        assert not sample.call_pool
+        # events_data resolved
+        assert sample.events_data is None
 
         # call.request.messages restored
         model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
@@ -473,12 +478,12 @@ def test_write_read_round_trip_call_pool():
         assert model_events[0].call.call_refs is None
 
 
-def test_read_sample_exclude_fields_preserves_call_pool():
-    """Excluding call_pool should be silently ignored (needed for resolution)."""
+def test_read_sample_exclude_fields_preserves_events_data():
+    """Excluding events_data should be silently ignored (needed for resolution)."""
     sample = _make_sample_with_call_messages()
     condensed = condense_sample(sample)
     log = _make_eval_log_with_model_events()
-    # Replace sample with one that has call_pool
+    # Replace sample with one that has events_data
     log.samples = [condensed]
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -487,9 +492,9 @@ def test_read_sample_exclude_fields_preserves_call_pool():
 
         from inspect_ai.log._file import read_eval_log_sample
 
-        sample = read_eval_log_sample(path, id="test", exclude_fields={"call_pool"})
-        # call_pool should have been resolved despite exclude_fields
-        assert not sample.call_pool
+        sample = read_eval_log_sample(path, id="test", exclude_fields={"events_data"})
+        # events_data should have been resolved despite exclude_fields
+        assert sample.events_data is None
         model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
         assert len(model_events[0].call.request["messages"]) == 1
         assert len(model_events[1].call.request["messages"]) == 3
@@ -502,8 +507,14 @@ def test_condense_is_idempotent():
     condensed_twice = condense_sample(condensed_once)
 
     # Pools should be identical
-    assert len(condensed_twice.message_pool) == len(condensed_once.message_pool)
-    assert len(condensed_twice.call_pool) == len(condensed_once.call_pool)
+    assert condensed_once.events_data is not None
+    assert condensed_twice.events_data is not None
+    assert len(condensed_twice.events_data["messages"]) == len(
+        condensed_once.events_data["messages"]
+    )
+    assert len(condensed_twice.events_data["calls"]) == len(
+        condensed_once.events_data["calls"]
+    )
 
     # Events should still have refs
     model_events = [e for e in condensed_twice.events if isinstance(e, ModelEvent)]
@@ -518,7 +529,11 @@ def test_condense_is_idempotent_call_pool():
     condensed_once = condense_sample(sample)
     condensed_twice = condense_sample(condensed_once)
 
-    assert len(condensed_twice.call_pool) == len(condensed_once.call_pool)
+    assert condensed_once.events_data is not None
+    assert condensed_twice.events_data is not None
+    assert len(condensed_twice.events_data["calls"]) == len(
+        condensed_once.events_data["calls"]
+    )
 
     model_events = [e for e in condensed_twice.events if isinstance(e, ModelEvent)]
     for event in model_events:
@@ -637,7 +652,7 @@ def test_resolve_range_encoded_input_refs():
         epoch=1,
         input="test",
         target="test",
-        message_pool=[msg1, msg2, msg3],
+        events_data={"messages": [msg1, msg2, msg3], "calls": []},
         events=[
             ModelEvent(
                 model="test-model",
@@ -650,7 +665,7 @@ def test_resolve_range_encoded_input_refs():
             )
         ],
     )
-    resolved = resolve_sample_message_pool(sample)
+    resolved = resolve_sample_events_data(sample)
     model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert len(model_events[0].input) == 3
     assert model_events[0].input[0].content == "System"
@@ -673,7 +688,7 @@ def test_resolve_range_encoded_call_refs():
         epoch=1,
         input="test",
         target="test",
-        call_pool=[m1, m2],
+        events_data={"messages": [], "calls": [m1, m2]},
         events=[
             ModelEvent(
                 model="test-model",
@@ -686,7 +701,7 @@ def test_resolve_range_encoded_call_refs():
             )
         ],
     )
-    resolved = resolve_sample_message_pool(sample)
+    resolved = resolve_sample_events_data(sample)
     model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert model_events[0].call.request["messages"] == [m1, m2]
     assert model_events[0].call.call_refs is None
@@ -739,10 +754,11 @@ def test_condense_same_id_different_content_gets_separate_pool_entries():
     condensed = condense_sample(sample)
 
     # user_msg + two different assistant versions = 3 pool entries
-    assert len(condensed.message_pool) == 3
+    assert condensed.events_data is not None
+    assert len(condensed.events_data["messages"]) == 3
 
     # Round-trip: resolve and verify content is preserved
-    resolved = resolve_sample_message_pool(condensed)
+    resolved = resolve_sample_events_data(condensed)
     resolved_event1_input = resolved.events[0].input
     resolved_event2_input = resolved.events[1].input
 
@@ -759,3 +775,136 @@ def test_condense_same_id_different_content_gets_separate_pool_entries():
         if isinstance(msg.content, list)
         for c in msg.content
     )
+
+
+def test_resolve_shares_message_instances():
+    """Resolved events share the same ChatMessage objects — no N² duplication."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed = condense_sample(sample)
+    resolved = resolve_sample_events_data(condensed)
+
+    model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
+    # Events 0, 1, 2 all start with the same system + user prefix
+    assert model_events[0].input[0] is model_events[1].input[0]
+    assert model_events[0].input[0] is model_events[2].input[0]
+    assert model_events[0].input[1] is model_events[1].input[1]
+    assert model_events[1].input[2] is model_events[2].input[2]
+    assert model_events[1].input[3] is model_events[2].input[3]
+
+
+def test_condense_expand_events_round_trip():
+    """condense_events + expand_events should preserve message content."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed, data = condense_events(sample.events)
+
+    assert len(data["messages"]) == 5
+    assert isinstance(data["calls"], list)
+
+    expanded = expand_events(condensed, data)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].input) == 2
+    assert len(model_events[1].input) == 4
+    assert len(model_events[2].input) == 5
+
+
+def test_condense_expand_events_call_pool_round_trip():
+    """condense_events + expand_events round-trips call pools."""
+    sample = _make_sample_with_call_messages()
+    condensed, data = condense_events(sample.events)
+
+    assert len(data["calls"]) == 3
+
+    expanded = expand_events(condensed, data)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].call.request["messages"]) == 1
+    assert len(model_events[1].call.request["messages"]) == 3
+
+
+def test_expand_events_json_string_events():
+    """expand_events accepts events as a JSON string."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed, data = condense_events(sample.events)
+    events_json = json.dumps([e.model_dump() for e in condensed])
+
+    expanded = expand_events(events_json, data)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].input) == 2
+    assert len(model_events[1].input) == 4
+    assert len(model_events[2].input) == 5
+
+
+def test_expand_events_json_string_data():
+    """expand_events accepts data as a JSON string."""
+    sample = _make_sample_with_repeated_inputs()
+    condensed, data = condense_events(sample.events)
+    data_json = json.dumps(
+        {
+            "messages": [m.model_dump() for m in data["messages"]],
+            "calls": data["calls"],
+        }
+    )
+
+    expanded = expand_events(condensed, data_json)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].input) == 2
+    assert len(model_events[1].input) == 4
+    assert len(model_events[2].input) == 5
+
+
+def test_expand_events_both_json_strings():
+    """expand_events accepts both params as JSON strings."""
+    sample = _make_sample_with_call_messages()
+    condensed, data = condense_events(sample.events)
+    events_json = json.dumps([e.model_dump() for e in condensed])
+    data_json = json.dumps(
+        {
+            "messages": [m.model_dump() for m in data["messages"]],
+            "calls": data["calls"],
+        }
+    )
+
+    expanded = expand_events(events_json, data_json)
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert len(model_events[0].call.request["messages"]) == 1
+    assert len(model_events[1].call.request["messages"]) == 3
+
+
+def test_expand_events_empty_pools_is_noop():
+    """expand_events with empty pools returns events unchanged."""
+    sample = _make_sample_with_repeated_inputs()
+    result = expand_events(sample.events, {"messages": [], "calls": []})
+    assert len(result) == len(sample.events)
+
+
+def test_resolve_call_empty_refs_preserves_request():
+    """Resolve must not corrupt call.request when call_refs is [] (deserialized as empty).
+
+    Regression: if persistence stores call_refs as [] instead of null,
+    resolve_model_event_calls fires ([] is not None), expands to no messages,
+    then sets request[default_key] = [], adding a spurious 'messages' key
+    and potentially masking the original 'input' field.
+    """
+    from inspect_ai.log._pool import resolve_model_event_calls
+
+    call = ModelCall(
+        request={"model": "test", "input": "What is 2+2?"},
+        response={"choices": []},
+        call_refs=[],  # simulates deserialization storing [] instead of null
+        call_key=None,
+    )
+    event = ModelEvent(
+        model="test-model",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        call=call,
+    )
+
+    resolved = resolve_model_event_calls([event], call_pool=["dummy"])
+    resolved_call = resolved[0].call
+
+    # request must be unchanged — no spurious keys, 'input' preserved
+    assert resolved_call.request == {"model": "test", "input": "What is 2+2?"}
+    assert "messages" not in resolved_call.request

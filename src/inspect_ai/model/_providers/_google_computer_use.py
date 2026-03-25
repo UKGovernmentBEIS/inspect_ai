@@ -30,7 +30,6 @@ def maybe_computer_use_tool(model_name: str, tool: ToolInfo) -> Tool | None:
         )
         if (
             "gemini-2.5-computer-use-preview" in model_name
-            or "gemini-3-pro-preview" in model_name
             or "gemini-3-flash-preview" in model_name
         )
         and is_computer_tool_info(tool)
@@ -107,11 +106,7 @@ def gemini_action_from_tool_call(
 
     elif action == "type":
         text = str(arguments.get("text", ""))
-        coordinate = arguments.get("coordinate")
-        if coordinate:
-            x, y = _normalize_coordinate(coordinate)
-        else:
-            x, y = 0, 0
+        x, y = _normalize_coordinate(arguments.get("coordinate", [0, 0]))
         return "type_text_at", {"text": text, "x": x, "y": y}
 
     elif action == "scroll":
