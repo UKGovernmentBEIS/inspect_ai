@@ -44,6 +44,7 @@ from inspect_ai.log._file import (
     write_eval_log,
 )
 from inspect_ai.log._log import EvalConfig, EvalLog
+from inspect_ai.log._recorders.eval import ZipLogFile
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
@@ -1365,3 +1366,54 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
     listing = json.loads((tmp_path / "logs" / "listing.json").read_text())
     assert len(listing) == 1
     assert list(listing.values())[0]["status"] == "success"
+
+
+def test_eval_set_single_flush_error() -> None:
+    """run_single must propagate task exceptions (baseline — should already pass)."""
+
+    async def broken_flush(self: ZipLogFile) -> None:
+        raise OSError("Simulated S3 write failure")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ZipLogFile, "flush", broken_flush):
+            with pytest.raises(Exception):
+                eval_set(
+                    tasks=[
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_a",
+                        ),
+                    ],
+                    log_dir=log_dir,
+                    model="mockllm/model",
+                    retry_attempts=0,
+                )
+
+
+def test_eval_set_parallel_flush_error() -> None:
+    """run_parallel must not swallow task exceptions and return success=True."""
+
+    async def broken_flush(self: ZipLogFile) -> None:
+        raise OSError("Simulated S3 write failure")
+
+    # With 2 tasks run_parallel is used. The bug was that the worker caught the
+    # exception, left result as None, and eval_set got an empty list where
+    # all([]) == True, silently reporting success.
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ZipLogFile, "flush", broken_flush):
+            with pytest.raises(Exception):
+                eval_set(
+                    tasks=[
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_a",
+                        ),
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_b",
+                        ),
+                    ],
+                    log_dir=log_dir,
+                    model="mockllm/model",
+                    retry_attempts=0,
+                )
