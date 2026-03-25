@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Remove deprecated `gemini-3-pro-preview` from computer use model check and replace with `gemini-3.1-pro-preview` in tests and docs.
 - SageMaker: Add `completion_mode` for CPT/base models, sending completions-style request payloads with logprobs and `prompt_logprobs` support.
 - SageMaker: Fix streaming metadata tracking to accumulate across chunks instead of relying on the last chunk.
 - HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
