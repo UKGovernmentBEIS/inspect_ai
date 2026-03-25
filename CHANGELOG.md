@@ -8,7 +8,7 @@
 - Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
 - Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
 - Model API: Handle `tool_calls` and `source` when combining assistant messages.
-- Hooks: Increase event buffer to `math.inf` so it never blcoks.
+- Hooks: Increase event buffer to `math.inf` so it never blocks.
 
 ## 0.3.200 (20 March 2026)
 
