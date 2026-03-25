@@ -20,12 +20,14 @@ import {
 export default function staticHttpApi(
   log_dir?: string,
   log_file?: string,
+  abs_log_dir?: string,
 ): LogViewAPI {
   const resolved_log_dir = log_dir?.replace(" ", "+");
   const resolved_log_path = log_file ? log_file.replace(" ", "+") : undefined;
   return staticHttpApiForLog({
     log_file: resolved_log_path,
     log_dir: resolved_log_dir,
+    abs_log_dir,
   });
 }
 
@@ -35,8 +37,10 @@ export default function staticHttpApi(
 function staticHttpApiForLog(logInfo: {
   log_dir?: string;
   log_file?: string;
+  abs_log_dir?: string;
 }): LogViewAPI {
   const log_dir = logInfo.log_dir;
+  const abs_log_dir = logInfo.abs_log_dir;
   let manifest: Record<string, LogPreview> | undefined = undefined;
   let manifestPromise: Promise<Record<string, LogPreview>> | undefined =
     undefined;
@@ -78,6 +82,7 @@ function staticHttpApiForLog(logInfo: {
           return Promise.resolve({
             logs: logs,
             log_dir,
+            abs_log_dir,
           });
         }
       }

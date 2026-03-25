@@ -308,6 +308,7 @@ export interface LogPreview {
 export interface LogRoot {
   logs: LogHandle[];
   log_dir?: string;
+  abs_log_dir?: string;
 }
 
 export interface LogHandle {
