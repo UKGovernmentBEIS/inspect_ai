@@ -65,6 +65,39 @@ def test_collapse_consecutive_user_messages_with_image_message(
     )
 
 
+def test_collapse_user_messages_preserves_fields():
+    msg_a = ChatMessageUser(
+        content="First",
+        tool_call_id=["tc_1"],
+        source="generate",
+        metadata={"key1": "val1", "shared": "from_a"},
+    )
+    msg_b = ChatMessageUser(
+        content="Second",
+        tool_call_id=["tc_2", "tc_3"],
+        source="input",
+        metadata={"key2": "val2", "shared": "from_b"},
+    )
+
+    result = collapse_consecutive_user_messages([msg_a, msg_b])
+    assert len(result) == 1
+    combined = result[0]
+    assert isinstance(combined, ChatMessageUser)
+
+    # tool_call_id lists are concatenated
+    assert combined.tool_call_id == ["tc_1", "tc_2", "tc_3"]
+
+    # later message's source wins
+    assert combined.source == "input"
+
+    # metadata is merged (later wins on conflicts), combined_from is set
+    assert combined.metadata is not None
+    assert combined.metadata["key1"] == "val1"
+    assert combined.metadata["key2"] == "val2"
+    assert combined.metadata["shared"] == "from_b"
+    assert combined.metadata["combined_from"] == [msg_a.id, msg_b.id]
+
+
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_user_tool_messages() -> None:
