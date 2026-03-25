@@ -1849,6 +1849,9 @@ def combine_messages(
     if b.metadata:
         merged_metadata.update(b.metadata)
 
+    # track which messages were combined
+    merged_metadata["combined_from"] = [a.id, b.id]
+
     # type-specific field merging
     if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
         merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
