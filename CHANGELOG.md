@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.201 (25 March 2026)
 
 - Google: Remove deprecated `gemini-3-pro-preview` from computer use model check and replace with `gemini-3.1-pro-preview` in tests and docs.
 - SageMaker: Add `completion_mode` for CPT/base models, sending completions-style request payloads with logprobs and `prompt_logprobs` support.
