@@ -1,5 +1,7 @@
 ## Unreleased
 
+- SageMaker: Add `completion_mode` for CPT/base models, sending completions-style request payloads with logprobs and `prompt_logprobs` support.
+- SageMaker: Fix streaming metadata tracking to accumulate across chunks instead of relying on the last chunk.
 - HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
 - VLLM: Add `client_timeout` to OpenAICompatibleAPI and VLLMAPI.
 - Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
