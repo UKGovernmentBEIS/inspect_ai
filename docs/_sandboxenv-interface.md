@@ -47,9 +47,10 @@ class SandboxEnvironment:
     ) -> None:
         """
         Raises:
+          TimeoutError: If the operation times out.
           PermissionError: If the user does not have
             permission to write to the specified path.
-          IsADirectoryError: If the file exists already and 
+          IsADirectoryError: If the file exists already and
             is a directory.
         """
         ...
@@ -59,8 +60,9 @@ class SandboxEnvironment:
     ) -> Union[str | bytes]:
         """
         Raises:
+          TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
-          UnicodeDecodeError: If an encoding error occurs 
+          UnicodeDecodeError: If an encoding error occurs
             while reading the file.
             (only applicable when `text = True`)
           PermissionError: If the user does not have

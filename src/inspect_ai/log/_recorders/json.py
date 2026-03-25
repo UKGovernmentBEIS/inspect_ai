@@ -12,7 +12,6 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
     get_deserializing_context,
-    log_schema_version,
 )
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem
@@ -260,7 +259,7 @@ def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     _validate_version(log.version)
 
     # set the version to the schema version we'll be returning
-    log.version = log_schema_version()
+    log.version = LOG_SCHEMA_VERSION
 
     # prune if header_only
     if header_only:
@@ -316,7 +315,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             raise ValueError("Unable to read version of log format.")
 
         _validate_version(version)
-        version = log_schema_version()
+        version = LOG_SCHEMA_VERSION
 
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)

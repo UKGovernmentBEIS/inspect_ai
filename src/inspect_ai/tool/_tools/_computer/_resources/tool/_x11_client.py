@@ -6,8 +6,10 @@ import logging
 import os
 import shlex
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal
 from uuid import uuid4
+
+from typing_extensions import TypedDict
 
 from _run import run
 from _tool_result import ToolResult

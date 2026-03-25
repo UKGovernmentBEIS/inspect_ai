@@ -18,10 +18,10 @@ from typing import (
     get_args,
     get_origin,
     get_type_hints,
-    is_typeddict,
 )
 
 from pydantic import BaseModel, Field, create_model
+from typing_extensions import is_typeddict
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""

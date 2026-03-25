@@ -742,7 +742,7 @@ def parse_reasoning_content(
     content = (
         message.content
         if isinstance(message, ChatCompletionMessage)
-        else str(message["content"] or "")
+        else str(message.get("content") or "")
     )
     content_text, reasoning = parse_content_with_reasoning(content or "")
     if reasoning:

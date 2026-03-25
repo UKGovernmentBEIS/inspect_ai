@@ -152,11 +152,37 @@ def test_api_log(test_client: TestClient, mock_s3_eval_file: str):
     assert api_log["eval"]["task"] == "task"
 
 
-def test_api_log_size(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+def test_api_log_info(test_client: TestClient, mock_s3_eval_file: str):
+    response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
     response.raise_for_status()
-    api_log_size = response.text
-    assert int(api_log_size) >= 100
+    log_info = response.json()
+    assert "size" in log_info
+    assert log_info["size"] >= 100
+    # No direct_url when generate_direct_urls is False (default)
+    assert "direct_url" not in log_info
+
+
+def test_api_log_info_no_direct_url_for_non_s3(mock_s3_eval_file: str):
+    """generate_direct_urls=True doesn't add direct_url for non-S3 files."""
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            mapping_policy=mapping_policy(),
+            generate_direct_urls=True,
+        )
+    ) as client:
+        response = client.request("GET", f"/log-info/{mock_s3_eval_file}")
+        response.raise_for_status()
+        log_info = response.json()
+        assert "size" in log_info
+        assert "direct_url" not in log_info
 
 
 def test_api_log_delete(test_client: TestClient, mock_s3_eval_file: str):
@@ -188,10 +214,16 @@ def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
 def test_api_log_bytes_beyond_file_size(
     test_client: TestClient, mock_s3_eval_file: str
 ):
-    """Test that requesting bytes beyond file size returns actual bytes, not requested range."""
-    size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+    """Test that requesting bytes beyond file size returns correct Content-Length.
+
+    This test verifies the fix for the bug where Content-Length was calculated
+    from requested range (end - start + 1) rather than actual bytes returned,
+    causing 'Response content shorter than Content-Length' errors.
+    """
+    # First, get the actual file size
+    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
     size_response.raise_for_status()
-    file_size = int(size_response.text)
+    file_size = size_response.json()["size"]
 
     requested_end = file_size + 1000
     response = test_client.request(
@@ -214,9 +246,9 @@ def test_api_log_bytes_start_beyond_file_size(
     test_client: TestClient, mock_s3_eval_file: str
 ):
     """Test that requesting bytes starting beyond file size returns 416."""
-    size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
     size_response.raise_for_status()
-    file_size = int(size_response.text)
+    file_size = size_response.json()["size"]
 
     response = test_client.request(
         "GET",

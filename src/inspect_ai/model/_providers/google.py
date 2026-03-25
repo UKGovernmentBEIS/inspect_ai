@@ -311,7 +311,7 @@ class GoogleGenAIAPI(ModelAPI):
                 else None
             )
             system_instruction = await extract_system_message_as_parts(
-                client, input, tools
+                client, input, tools, include_function_calling_hint=not has_native_tools
             )
             # Map modalities to Google's response_modalities
             response_modalities = None
@@ -1201,7 +1201,10 @@ async def chat_content_to_part(
 
 
 async def extract_system_message_as_parts(
-    client: Client, messages: list[ChatMessage], tools: list[ToolInfo]
+    client: Client,
+    messages: list[ChatMessage],
+    tools: list[ToolInfo],
+    include_function_calling_hint: bool = True,
 ) -> list[File | Part | Image | str] | None:
     system_parts: list[File | Part | Image | str] = []
     for message in messages:
@@ -1216,9 +1219,11 @@ async def extract_system_message_as_parts(
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
 
-    # if there are tools then inject a message to prevent MALFORMED_FUNCTION_CALL
+    # if there are function declaration tools then inject a hint to prevent
+    # MALFORMED_FUNCTION_CALL. skipped for native-only tools (e.g. code execution)
+    # as sending it causes FAILED_PRECONDITION from the API.
     # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
-    if len(tools) > 0:
+    if len(tools) > 0 and include_function_calling_hint:
         system_parts.append(
             Part(
                 text=dedent("""
@@ -1354,6 +1359,12 @@ def completion_choice_from_candidate(
                                 )
                                 continue
                             content.append(ContentAudio(audio=data_uri, format=fmt))
+                    else:
+                        logger.warning(
+                            f"Received inline_data part with mime_type "
+                            f"'{blob.mime_type}' but data was None — "
+                            f"content dropped (intermittent API issue)."
+                        )
                 continue  # Skip other non-text/non-executable_code parts
 
             if part.code_execution_result is not None:

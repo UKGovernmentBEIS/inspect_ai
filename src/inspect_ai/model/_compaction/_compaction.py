@@ -8,7 +8,7 @@ from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageUser
 from .._model import Model, get_model
-from .._model_info import get_model_info
+from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
 from .types import Compact, CompactionStrategy
@@ -273,11 +273,12 @@ async def _perform_compaction(
     Raises:
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
+    MAX_ITERATIONS = 3
     c_input, c_message = await strategy.compact(model, messages, tools)
     compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
-    for _ in range(strategy.retries):
+    for _ in range(MAX_ITERATIONS):
         if total_compacted <= threshold:
             break  # Success
 
@@ -292,15 +293,15 @@ async def _perform_compaction(
         if compacted_tokens >= prev_tokens:
             break
 
-    # Final validation — only warn for strategies that retry (non-native).
-    # Native compaction (retries == 0) handles its own logging.
-    if total_compacted > threshold and strategy.retries > 0:
-        logger.warning(
+    # Final validation
+    if total_compacted > threshold:
+        raise RuntimeError(
             f"Compaction insufficient: {total_compacted:,} tokens "
             f"still exceeds threshold of {threshold:,} "
             f"(tools: {tool_tokens:,}, prefix: {prefix_tokens:,}, "
             f"messages: {compacted_tokens:,}). "
-            f"Proceeding with oversized input."
+            f"Consider using a lower compaction threshold to accommodate "
+            f"tool definitions and prefix."
         )
 
     return c_input, c_message
@@ -320,10 +321,8 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
         return int(threshold)
     else:
         # Look up the model's input token capacity
-        info = get_model_info(model)
-        if info and info.input_tokens:
-            context_window = info.input_tokens
-        else:
+        context_window = get_model_input_tokens(model)
+        if context_window is None:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"
             )

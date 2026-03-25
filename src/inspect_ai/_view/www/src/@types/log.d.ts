@@ -628,7 +628,14 @@ export type Result2 =
   | ContentImage
   | ContentAudio
   | ContentVideo
-  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
+  | ContentDocument
+  | (
+      | ContentText
+      | ContentImage
+      | ContentAudio
+      | ContentVideo
+      | ContentDocument
+    )[];
 export type Truncated = [unknown, unknown] | null;
 export type Events1 = unknown[];
 export type Completed2 = string | null;
@@ -864,13 +871,13 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid19 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type MessagePool = (
+export type Messages1 = (
   | ChatMessageSystem
   | ChatMessageUser
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type CallPool = JsonValue[];
+export type Calls = JsonValue[];
 export type Type29 =
   | "context"
   | "time"
@@ -1420,8 +1427,7 @@ export interface EvalSample {
   error: EvalError | null;
   error_retries: ErrorRetries;
   attachments: Attachments;
-  message_pool: MessagePool;
-  call_pool: CallPool;
+  events_data: EventsData | null;
   limit: EvalSampleLimit | null;
 }
 /**
@@ -2182,6 +2188,13 @@ export interface RoleUsage2 {
 }
 export interface Attachments {
   [k: string]: string;
+}
+/**
+ * Pooled data extracted by condense_events / condense_sample.
+ */
+export interface EventsData {
+  messages: Messages1;
+  calls: Calls;
 }
 /**
  * Limit encountered by sample.

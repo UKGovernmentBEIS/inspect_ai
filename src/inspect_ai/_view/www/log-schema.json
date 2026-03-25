@@ -2939,32 +2939,16 @@
           "title": "Attachments",
           "type": "object"
         },
-        "message_pool": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ChatMessageSystem"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageUser"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageAssistant"
-              },
-              {
-                "$ref": "#/$defs/ChatMessageTool"
-              }
-            ]
-          },
-          "title": "Message Pool",
-          "type": "array"
-        },
-        "call_pool": {
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          },
-          "title": "Call Pool",
-          "type": "array"
+        "events_data": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventsData"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "limit": {
           "anyOf": [
@@ -3005,8 +2989,7 @@
         "error",
         "error_retries",
         "attachments",
-        "message_pool",
-        "call_pool",
+        "events_data",
         "limit"
       ],
       "title": "EvalSample",
@@ -3756,6 +3739,45 @@
         "model_usage",
         "role_usage"
       ],
+      "additionalProperties": false
+    },
+    "EventsData": {
+      "description": "Pooled data extracted by condense_events / condense_sample.",
+      "properties": {
+        "messages": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ChatMessageSystem"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageUser"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageAssistant"
+              },
+              {
+                "$ref": "#/$defs/ChatMessageTool"
+              }
+            ]
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "calls": {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Calls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "messages",
+        "calls"
+      ],
+      "title": "EventsData",
+      "type": "object",
       "additionalProperties": false
     },
     "GenerateConfig": {
@@ -7945,6 +7967,9 @@
               "$ref": "#/$defs/ContentVideo"
             },
             {
+              "$ref": "#/$defs/ContentDocument"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -7958,6 +7983,9 @@
                   },
                   {
                     "$ref": "#/$defs/ContentVideo"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentDocument"
                   }
                 ]
               },

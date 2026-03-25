@@ -45,10 +45,11 @@ export const ChatView: FC<ChatViewProps> = ({
       {collapsedMessages.map((msg, index) => {
         const number =
           collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+        const rowId = (id || "chat-view") + `-msg-${index}`;
         return (
           <ChatMessageRow
             key={`${id}-msg-${index}`}
-            parentName={id || "chat-view"}
+            id={rowId}
             number={number}
             resolvedMessage={msg}
             indented={indented}

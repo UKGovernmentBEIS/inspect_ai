@@ -26,7 +26,7 @@ const resolveApi = (): ClientAPI => {
         const data = JSON5.parse(context);
         if (data.log_dir || data.log_file) {
           const log_dir = data.log_dir || dirname(data.log_file);
-          const api = staticHttpApi(log_dir, data.log_file);
+          const api = staticHttpApi(log_dir, data.log_file, data.abs_log_dir);
           return clientApi(api, data.log_file, debug);
         }
       }

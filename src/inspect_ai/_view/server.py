@@ -35,6 +35,7 @@ from .common import (
     get_log_dir,
     get_log_file,
     get_log_files,
+    get_log_info,
     get_log_size,
     get_logs,
     normalize_uri,
@@ -53,6 +54,7 @@ def view_server(
     port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
 ) -> None:
     # route table
     routes = web.RouteTableDef()
@@ -88,11 +90,17 @@ def view_server(
 
     @routes.get("/api/log-size/{log}")
     async def api_log_size(request: web.Request) -> web.Response:
-        # log file requested
         file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
         size = await get_log_size(file)
         return web.json_response(size)
+
+    @routes.get("/api/log-info/{log}")
+    async def api_log_info(request: web.Request) -> web.Response:
+        file = normalize_uri(request.match_info["log"])
+        validate_log_file_request(file)
+        info = await get_log_info(file, generate_direct_url=generate_direct_urls)
+        return web.json_response(info)
 
     @routes.get("/api/log-delete/{log}")
     async def api_log_delete(request: web.Request) -> web.Response:

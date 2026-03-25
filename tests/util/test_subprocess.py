@@ -4,11 +4,15 @@ import sys
 import time
 from pathlib import Path
 from random import random
+from typing import cast
 
 import psutil
 import pytest
+from anyio.abc import ByteReceiveStream
 
 from inspect_ai.util import subprocess
+from inspect_ai.util._subprocess import _log_stream
+from inspect_ai.util._subprocess import logger as _subprocess_logger
 
 
 @pytest.mark.anyio
@@ -185,3 +189,75 @@ async def test_subprocess_output_limit_no_limit():
     )
     assert result.success is True
     assert len(result.stdout.strip()) == 1000
+
+
+@pytest.mark.anyio
+async def test_subprocess_redirect_to_logger(monkeypatch) -> None:
+    monkeypatch.setenv("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER", "1")
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
+    result = await subprocess(
+        [
+            "python3",
+            "-c",
+            "import sys; print('from stdout'); print('from stderr', file=sys.stderr)",
+        ],
+        capture_output=False,
+    )
+    assert result.success is True
+    assert result.stdout == ""
+    assert result.stderr == ""
+    assert "from stdout" in messages
+    assert "from stderr" in messages
+
+
+@pytest.mark.anyio
+async def test_subprocess_redirect_to_logger_does_not_affect_capture(monkeypatch):
+    monkeypatch.setenv("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER", "1")
+    result = await subprocess(
+        ["python3", "-c", "print('captured output')"],
+        capture_output=True,
+    )
+    assert result.success is True
+    assert result.stdout.strip() == "captured output"
+
+
+class _FakeStream:
+    def __init__(self, chunks: list[bytes]) -> None:
+        self._chunks = iter(chunks)
+
+    def __aiter__(self) -> "_FakeStream":
+        return self
+
+    async def __anext__(self) -> bytes:
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration
+
+
+@pytest.mark.anyio
+async def test_log_stream_splits_across_chunks(monkeypatch) -> None:
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
+    stream = cast(ByteReceiveStream, _FakeStream([b"line1\nli", b"ne2\nline3"]))
+    await _log_stream(stream)
+    assert messages == ["line1", "line2", "line3"]
+
+
+@pytest.mark.anyio
+async def test_log_stream_trailing_without_newline(monkeypatch) -> None:
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
+    stream = cast(ByteReceiveStream, _FakeStream([b"line1\nline2"]))
+    await _log_stream(stream)
+    assert messages == ["line1", "line2"]
+
+
+@pytest.mark.anyio
+async def test_log_stream_empty_lines(monkeypatch) -> None:
+    messages: list[str] = []
+    monkeypatch.setattr(_subprocess_logger, "info", lambda msg: messages.append(msg))
+    stream = cast(ByteReceiveStream, _FakeStream([b"a\n\nb\n"]))
+    await _log_stream(stream)
+    assert messages == ["a", "", "b"]

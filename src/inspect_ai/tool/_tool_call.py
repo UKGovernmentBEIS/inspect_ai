@@ -1,9 +1,10 @@
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, TypedDict
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
 

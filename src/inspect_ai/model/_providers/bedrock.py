@@ -276,8 +276,19 @@ class BedrockAPI(ModelAPI):
         self.read_timeout: int = int(str(model_args.pop("read_timeout", 60)))
         self.connect_timeout: int = int(str(model_args.pop("connect_timeout", 60)))
 
-        # save remaining model_args
-        self.model_args = model_args
+        # save model_args (filter out inference params that shouldn't go to session.client)
+        _CLIENT_EXCLUDED_KEYS = {
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "stop_seqs",
+            "reasoning_tokens",
+            "reasoning_effort",
+        }
+        self.model_args = {
+            k: v for k, v in model_args.items() if k not in _CLIENT_EXCLUDED_KEYS
+        }
 
         # import aioboto3 on demand
         try:
@@ -330,6 +341,7 @@ class BedrockAPI(ModelAPI):
                 "TransactionInProgressException",
                 "RequestTimeout",
                 "ServiceUnavailable",
+                "ServiceUnavailableException",
             ]
         else:
             return False
@@ -433,8 +445,12 @@ class BedrockAPI(ModelAPI):
             additionalModelRequestFields: dict[str, Any] = {}
             if config.top_k:
                 additionalModelRequestFields["top_k"] = config.top_k
-            additionalModelRequestFields = (
-                additionalModelRequestFields | self.reasoning_config(config)
+            reasoning_cfg = self.reasoning_config(config)
+            additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
+
+            # Nova with reasoning enabled requires maxTokens to be unset
+            nova_reasoning_enabled = (
+                self.is_nova() and "reasoningConfig" in reasoning_cfg
             )
 
             # Make the request
@@ -443,7 +459,7 @@ class BedrockAPI(ModelAPI):
                 messages=messages,
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=config.max_tokens,
+                    maxTokens=None if nova_reasoning_enabled else config.max_tokens,
                     temperature=config.temperature,
                     topP=config.top_p,
                     stopSequences=config.stop_seqs,

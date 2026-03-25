@@ -5,7 +5,6 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 
 from ._bundle import bundle_log_dir
 from ._condense import (
-    EventsData,
     condense_events,
     condense_sample,
     expand_events,
@@ -52,9 +51,10 @@ from ._log import (
     EvalSpec,
     EvalStats,
     EvalStatus,
+    EventsData,
 )
 from ._metric import recompute_metrics
-from ._pool import resolve_sample_message_pool
+from ._pool import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
@@ -97,7 +97,7 @@ __all__ = [
     "EventsData",
     "expand_events",
     "resolve_sample_attachments",
-    "resolve_sample_message_pool",
+    "resolve_sample_events_data",
     "write_eval_log",
     "write_eval_log_async",
     "write_log_dir_manifest",

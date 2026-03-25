@@ -79,7 +79,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           } else if (event.key === "ArrowDown") {
             if (useVirtuoso) {
               listHandle.current?.scrollToIndex({
-                index: Math.min(messages.length - 5, 0),
+                index: Math.max(messages.length - 5, 0),
                 align: "center",
               });
 
@@ -103,18 +103,10 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         }
       };
 
-      const scrollElement = scrollRef?.current;
-      if (scrollElement) {
-        scrollElement.addEventListener("keydown", handleKeyDown);
-        // Make the element focusable so it can receive keyboard events
-        if (!scrollElement.hasAttribute("tabIndex")) {
-          scrollElement.setAttribute("tabIndex", "0");
-        }
-
-        return () => {
-          scrollElement.removeEventListener("keydown", handleKeyDown);
-        };
-      }
+      document.addEventListener("keydown", handleKeyDown);
+      return () => {
+        document.removeEventListener("keydown", handleKeyDown);
+      };
     }, [scrollRef, messages, useVirtuoso]);
 
     if (!useVirtuoso) {
@@ -195,9 +187,10 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
         (index: number, item: ResolvedMessage): ReactNode => {
           const number =
             collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+          const rowId = `${id}-msg-${index}`;
           return (
             <ChatMessageRow
-              parentName={id || "chat-virtual-list"}
+              id={rowId}
               number={number}
               resolvedMessage={item}
               indented={indented}
