@@ -689,11 +689,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash">Gemini 2.5 Flash</a>: <code>google/gemini-2.5-flash</code></p></li>
 <li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro</code></p></li>
-<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro">Gemini 3.0 Pro</a>: <code>google/gemini-3-pro-preview</code></p></li>
+<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro">Gemini 3.1 Pro</a>: <code>google/gemini-3.1-pro-preview</code></p></li>
 </ul>
-<p>For Gemini 3.0, you can use the <code>--reasoning-effort</code> option to control the amount of reasoning used by the model. For example:</p>
+<p>For Gemini 3, you can use the <code>--reasoning-effort</code> option to control the amount of reasoning used by the model. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-3-pro-preview <span class="dt">\</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-3.1-pro-preview <span class="dt">\</span></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-effort</span> low</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Gemini 3 Pro supports <code>thinking_level</code>s “low” and “high”, so Inspect maps reasoning effort levels “minimal” or “low” to “low” and “medium”, “high”, “xhigh” to “high”. Gemini 3 Flash supports “minimal”, “low”, “medium”, and “high” so the only mapping done there is from “xhigh” to “high”.</p>
 <p>For Gemini 2.5, you can use the <code>--reasoning-tokens</code> option to control the amount of reasoning used by these models (this option is deprecated for Gemini 3 models). For example:</p>

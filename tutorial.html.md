@@ -642,7 +642,7 @@ that do most of the heavy lifting:
 1)  `read_dataset()`, which reads samples from the file system. Note
     that samples include both instructions and files to copy into the
     secure sandbox. See the [full source
-    code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf)
+    code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_intercode_ctf)
     of this example for details.
 
 &nbsp;

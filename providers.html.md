@@ -533,7 +533,9 @@ inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
 For the `bedrock` provider, custom model args (`-M`) are forwarded to
-the `client` method of the `aioboto3.Session` class.
+the `client` method of the `aioboto3.Session` class, save for the
+`read_timeout` and `connect_timeout` args which are passed in the
+`config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model
 access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)
@@ -578,6 +580,7 @@ The following model args are supported:
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
 | `stream` | Enable streaming responses (default: `false`). |
+| `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 
 For example:
 
@@ -587,6 +590,34 @@ inspect eval arc.py --model sagemaker/my-endpoint \
   -M read_timeout=300 \
   -M stream=true
 ```
+
+### Completion Mode
+
+For CPT (Continual Pre-Training) or base models that expect
+completions-style payloads (with a `prompt` field) rather than
+chat-style payloads (with a `messages` array), enable `completion_mode`:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true
+```
+
+Completion mode supports logprobs via the standard CLI flags:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  --logprobs \
+  --top-logprobs 5
+```
+
+> [!NOTE]
+>
+> Completion mode builds a plain text prompt from chat messages. Image
+> content is not supported in this mode and will be ignored with a
+> warning.
 
 Authentication uses your standard AWS credentials
 (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The

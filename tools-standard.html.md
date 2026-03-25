@@ -403,7 +403,7 @@ for computer use include:
 |-----------|------------------------------------------------------------|
 | Anthropic | `claude-opus-4-6` , `claude-opus-4-5`, `claude-sonnet-4-6` |
 | Open AI   | `gpt-5.4`, `gpt-5.4-pro`                                   |
-| Google    | `gemini-3-pro-preview`, `gemini-3-flash-preview`           |
+| Google    | `gemini-3-flash-preview`                                   |
 
 ### Configuration
 
@@ -471,8 +471,8 @@ def computer_task():
 To evaluate the task with models tuned for computer use:
 
 ``` bash
-inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
-inspect eval computer.py --model openai/computer-use-preview
+inspect eval computer.py --model anthropic/claude-sonnet-4-6
+inspect eval computer.py --model openai/gpt-5.4
 inspect eval computer.py --model google/gemini-3-flash-preview
 ```
 
