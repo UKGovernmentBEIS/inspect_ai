@@ -25,6 +25,7 @@ select = [
     "SIM101", # duplicate isinstance
     # "RET", # flake8-return
     # "RUF", # ruff rules
+    "PLE",     # pylint errors
 ]
 ignore = ["E203", "E501", "D10", "D212", "D415"]
 

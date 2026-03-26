@@ -13,7 +13,6 @@ mypy:
 
 .PHONY: check
 check: ruff mypy
-	pylint src
 
 .PHONY: test
 test:
