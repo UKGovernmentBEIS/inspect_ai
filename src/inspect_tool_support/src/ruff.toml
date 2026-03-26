@@ -17,7 +17,7 @@ select = [
     "PLW",     # pylint warnings
     "PLR",     # pylint refactoring
 ]
-ignore = ["E203", "E501", "D10", "D212", "D415", "PLR2004"]
+ignore = ["E203", "E501", "D10", "D212", "D415", "PLR0911", "PLR0913", "PLR2004"]
 
 [lint.pydocstyle]
 convention = "google"
