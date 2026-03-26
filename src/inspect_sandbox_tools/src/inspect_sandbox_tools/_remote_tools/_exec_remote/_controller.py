@@ -37,10 +37,10 @@ class Controller:
         self._jobs[job.pid] = job
         return job.pid
 
-    async def poll(self, pid: int) -> PollResult:
+    async def poll(self, pid: int, ack_seq: int) -> PollResult:
         """Get job state and incremental output. Auto-cleanup on terminal state."""
         job = self._get_job(pid)
-        result = await job.poll()
+        result = await job.poll(ack_seq)
 
         # Auto-cleanup after terminal state. Use pop to avoid KeyError if a
         # concurrent kill() already removed the job between our await and here.
@@ -50,27 +50,27 @@ class Controller:
 
         return result
 
-    async def kill(self, pid: int) -> KillResult:
+    async def kill(self, pid: int, ack_seq: int) -> KillResult:
         """Terminate a running job and return any remaining buffered output."""
         job = self._get_job(pid)
-        stdout, stderr = await job.kill()
+        seq, stdout, stderr = await job.kill(ack_seq)
         # Use pop to avoid KeyError if a concurrent poll() already removed the
         # job between our await and here.
         if self._jobs.pop(pid, None) is not None:
             await job.cleanup()
-        return KillResult(stdout=stdout, stderr=stderr)
+        return KillResult(seq=seq, stdout=stdout, stderr=stderr)
 
-    async def write_stdin(self, pid: int, data: str) -> WriteStdinResult:
+    async def write_stdin(self, pid: int, data: str, ack_seq: int) -> WriteStdinResult:
         """Write data to stdin of a running job and return buffered output."""
         job = self._get_job(pid)
-        stdout, stderr = await job.write_stdin(data)
-        return WriteStdinResult(stdout=stdout, stderr=stderr)
+        seq, stdout, stderr = await job.write_stdin(data, ack_seq)
+        return WriteStdinResult(seq=seq, stdout=stdout, stderr=stderr)
 
-    async def close_stdin(self, pid: int) -> CloseStdinResult:
+    async def close_stdin(self, pid: int, ack_seq: int) -> CloseStdinResult:
         """Close stdin of a running job and return buffered output."""
         job = self._get_job(pid)
-        stdout, stderr = await job.close_stdin()
-        return CloseStdinResult(stdout=stdout, stderr=stderr)
+        seq, stdout, stderr = await job.close_stdin(ack_seq)
+        return CloseStdinResult(seq=seq, stdout=stdout, stderr=stderr)
 
     def _get_job(self, pid: int) -> Job:
         """Get job by PID or raise error."""

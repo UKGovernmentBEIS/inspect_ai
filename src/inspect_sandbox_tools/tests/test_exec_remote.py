@@ -26,6 +26,7 @@ def poll_until_complete(
     pid: int,
     timeout: float = DEFAULT_POLL_TIMEOUT,
     poll_interval: float = DEFAULT_POLL_INTERVAL,
+    ack_seq: int = 0,
 ) -> dict[str, Any]:
     """Poll an exec_remote job until it completes or times out.
 
@@ -34,6 +35,7 @@ def poll_until_complete(
         pid: The process ID to poll.
         timeout: Maximum time to wait for completion in seconds.
         poll_interval: Time between poll requests in seconds.
+        ack_seq: Initial ack_seq to send (should match last received seq).
 
     Returns:
         A dictionary containing:
@@ -54,7 +56,7 @@ def poll_until_complete(
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_poll",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": ack_seq},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -64,6 +66,7 @@ def poll_until_complete(
             pytest.fail(f"Poll failed: {response['error']}")
 
         result = response["result"]
+        ack_seq = result["seq"]
         stdout_parts.append(result["stdout"])
         stderr_parts.append(result["stderr"])
 
@@ -223,7 +226,7 @@ class TestExecRemotePoll:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_poll",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -236,7 +239,7 @@ class TestExecRemotePoll:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 3,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -265,7 +268,7 @@ class TestExecRemoteKill:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -299,7 +302,7 @@ class TestExecRemoteKill:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -328,7 +331,7 @@ class TestNonexistentJobErrors:
             {
                 "jsonrpc": "2.0",
                 "method": method,
-                "params": {"pid": NONEXISTENT_PID},
+                "params": {"pid": NONEXISTENT_PID, "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -448,7 +451,7 @@ class TestProcessLifecycle:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_poll",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -477,7 +480,7 @@ class TestProcessLifecycle:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -503,7 +506,7 @@ class TestProcessLifecycle:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -515,7 +518,7 @@ class TestProcessLifecycle:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 3,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -583,7 +586,7 @@ class TestProcessTreeManagement:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -597,7 +600,7 @@ class TestProcessTreeManagement:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_poll",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 3,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -627,7 +630,7 @@ class TestProcessTreeManagement:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 2,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -639,7 +642,7 @@ class TestProcessTreeManagement:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_poll",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 3,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -702,12 +705,13 @@ class TestIncrementalOutput:
 
         # Collect output from multiple polls
         all_stdout = []
+        ack_seq = 0
         for _ in range(20):  # Poll multiple times
             poll_response = rpc_client(
                 {
                     "jsonrpc": "2.0",
                     "method": "exec_remote_poll",
-                    "params": {"pid": pid},
+                    "params": {"pid": pid, "ack_seq": ack_seq},
                     "id": 2,
                 },
                 DEFAULT_RPC_TIMEOUT,
@@ -717,6 +721,7 @@ class TestIncrementalOutput:
                 break
 
             result = poll_response["result"]
+            ack_seq = result["seq"]
             if result["stdout"]:
                 all_stdout.append(result["stdout"])
 
@@ -759,7 +764,7 @@ class TestParameterValidation:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_poll",
-                "params": {"pid": "not_an_integer"},
+                "params": {"pid": "not_an_integer", "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -815,8 +820,11 @@ class TestWriteStdinAndCloseStdin:
     # prefixed with "GOT:" so we can verify delivery. Exits on EOF.
     ECHO_STDIN_SCRIPT = 'while IFS= read -r line; do echo "GOT:$line"; done'
 
+    _ack_seq: int = 0
+
     def _start_with_stdin_open(self, rpc_client: RpcClient, command: str) -> int:
         """Start a command with stdin_open=True and return the pid."""
+        self._ack_seq = 0
         response = rpc_client(
             {
                 "jsonrpc": "2.0",
@@ -837,12 +845,13 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_write_stdin",
-                "params": {"pid": pid, "data": data},
+                "params": {"pid": pid, "data": data, "ack_seq": self._ack_seq},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
         )
         assert "result" in response, f"write_stdin failed: {response}"
+        self._ack_seq = response["result"]["seq"]
         return response["result"]
 
     def _close_stdin(self, rpc_client: RpcClient, pid: int) -> dict[str, Any]:
@@ -851,12 +860,13 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_close_stdin",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": self._ack_seq},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
         )
         assert "result" in response, f"close_stdin failed: {response}"
+        self._ack_seq = response["result"]["seq"]
         return response["result"]
 
     def test_write_then_close_produces_output(self, rpc_client: RpcClient) -> None:
@@ -868,7 +878,7 @@ class TestWriteStdinAndCloseStdin:
         stdout_parts.append(self._write_stdin(rpc_client, pid, "world\n")["stdout"])
         stdout_parts.append(self._close_stdin(rpc_client, pid)["stdout"])
 
-        result = poll_until_complete(rpc_client, pid)
+        result = poll_until_complete(rpc_client, pid, ack_seq=self._ack_seq)
         stdout_parts.append(result["stdout"])
         all_stdout = "".join(stdout_parts)
 
@@ -885,7 +895,7 @@ class TestWriteStdinAndCloseStdin:
         stdout_parts.append(self._write_stdin(rpc_client, pid, "some data\n")["stdout"])
         stdout_parts.append(self._close_stdin(rpc_client, pid)["stdout"])
 
-        result = poll_until_complete(rpc_client, pid)
+        result = poll_until_complete(rpc_client, pid, ack_seq=self._ack_seq)
         stdout_parts.append(result["stdout"])
         all_stdout = "".join(stdout_parts)
 
@@ -904,7 +914,7 @@ class TestWriteStdinAndCloseStdin:
             )
         stdout_parts.append(self._close_stdin(rpc_client, pid)["stdout"])
 
-        result = poll_until_complete(rpc_client, pid)
+        result = poll_until_complete(rpc_client, pid, ack_seq=self._ack_seq)
         stdout_parts.append(result["stdout"])
         all_stdout = "".join(stdout_parts)
 
@@ -916,6 +926,7 @@ class TestWriteStdinAndCloseStdin:
 
     def test_initial_input_with_stdin_open(self, rpc_client: RpcClient) -> None:
         """Initial input and subsequent write_stdin both arrive."""
+        self._ack_seq = 0
         response = rpc_client(
             {
                 "jsonrpc": "2.0",
@@ -936,7 +947,7 @@ class TestWriteStdinAndCloseStdin:
         stdout_parts.append(self._write_stdin(rpc_client, pid, "second\n")["stdout"])
         stdout_parts.append(self._close_stdin(rpc_client, pid)["stdout"])
 
-        result = poll_until_complete(rpc_client, pid)
+        result = poll_until_complete(rpc_client, pid, ack_seq=self._ack_seq)
         stdout_parts.append(result["stdout"])
         all_stdout = "".join(stdout_parts)
 
@@ -973,7 +984,7 @@ class TestWriteStdinAndCloseStdin:
         close_result = self._close_stdin(rpc_client, pid)
 
         # Combine output from write_stdin + close_stdin + final poll
-        result = poll_until_complete(rpc_client, pid)
+        result = poll_until_complete(rpc_client, pid, ack_seq=self._ack_seq)
         all_stdout = write_result["stdout"] + close_result["stdout"] + result["stdout"]
         assert "GOT:first" in all_stdout
         assert "GOT:second" in all_stdout
@@ -986,7 +997,7 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_write_stdin",
-                "params": {"pid": NONEXISTENT_PID, "data": "hello\n"},
+                "params": {"pid": NONEXISTENT_PID, "data": "hello\n", "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -1001,7 +1012,7 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_close_stdin",
-                "params": {"pid": NONEXISTENT_PID},
+                "params": {"pid": NONEXISTENT_PID, "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -1027,7 +1038,7 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_write_stdin",
-                "params": {"pid": pid, "data": "hello\n"},
+                "params": {"pid": pid, "data": "hello\n", "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -1039,7 +1050,7 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_kill",
-                "params": {"pid": pid},
+                "params": {"pid": pid, "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
@@ -1055,7 +1066,7 @@ class TestWriteStdinAndCloseStdin:
             {
                 "jsonrpc": "2.0",
                 "method": "exec_remote_write_stdin",
-                "params": {"pid": pid, "data": "too late\n"},
+                "params": {"pid": pid, "data": "too late\n", "ack_seq": 0},
                 "id": 1,
             },
             DEFAULT_RPC_TIMEOUT,
