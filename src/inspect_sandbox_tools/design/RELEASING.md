@@ -50,17 +50,13 @@ Tests both executables across Ubuntu, Debian, and Kali Linux containers.
 
 ### 5. Upload to S3
 
-Manually upload the built binaries to the S3 bucket:
-
 ```bash
-aws s3 cp src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v{VERSION} s3://inspect-sandbox-tools/ --acl public-read
-aws s3 cp src/inspect_ai/binaries/inspect-sandbox-tools-arm64-v{VERSION} s3://inspect-sandbox-tools/ --acl public-read
+python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {VERSION}
 ```
 
-- **Bucket:** `inspect-sandbox-tools`
-- **Region:** `us-east-2`
-- **URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}-v{version}`
-- Files must be world-readable (`--acl public-read`) so runtime S3 downloads work without credentials
+Uploads both amd64 and arm64 binaries to the `inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3 downloads work without credentials.
+
+**URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}-v{version}`
 
 ### 6. Merge the PR
 
