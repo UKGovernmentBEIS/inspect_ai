@@ -43,6 +43,14 @@ from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._tool import ToolEvent
 from ._log import EvalSample, EventsData
+from ._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
 
 
 @lru_cache(maxsize=1)
@@ -53,14 +61,7 @@ def _events_adapter() -> TypeAdapter[list[Event]]:
 @lru_cache(maxsize=1)
 def _chat_messages_adapter() -> TypeAdapter[list[ChatMessage]]:
     return TypeAdapter(list[ChatMessage])
-from ._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-    resolve_model_event_calls,
-    resolve_model_event_inputs,
-)
+
 
 logger = getLogger(__name__)
 
@@ -112,9 +113,7 @@ def expand_events(
     if isinstance(data, str):
         raw = json.loads(data)
         data = EventsData(
-            messages=_chat_messages_adapter().validate_python(
-                raw.get("messages", [])
-            ),
+            messages=_chat_messages_adapter().validate_python(raw.get("messages", [])),
             calls=raw.get("calls", []),
         )
     result = resolve_model_event_inputs(list(events), data["messages"])
