@@ -5,6 +5,7 @@ is applied to the same sample with the same output. Follows the same
 patterns as model/_cache.py for generate() caching.
 """
 
+import json
 import logging
 import os
 import pickle
@@ -77,28 +78,44 @@ class ScoreCacheEntry:
         self.epoch = epoch
 
 
+def _canonical(obj: Any) -> str:
+    """Deterministic string representation of an object for cache keys.
+
+    Uses json.dumps with sort_keys for dicts to ensure consistent ordering.
+    Falls back to str() for non-JSON-serializable objects.
+    """
+    try:
+        return json.dumps(obj, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return str(obj)
+
+
 def _score_cache_key(entry: ScoreCacheEntry) -> str:
-    """Compute MD5 cache key from all entry components."""
-    components: list[Any] = [
+    """Compute MD5 cache key from all entry components.
+
+    Note: expiry is NOT included in the key (unlike model cache). Expiry is
+    stored in the pickle payload and checked at fetch time. This avoids cache
+    misses when re-running with a different --cache duration.
+    """
+    components: list[str] = [
         entry.scorer_name,
-        str(entry.scorer_args),
+        _canonical(entry.scorer_args),
         entry.eval_model,
-        str(entry.model_roles),
-        str(entry.input),
-        ",".join(str(m) for m in entry.messages),
-        str(entry.output),
-        str(entry.target),
-        str(entry.choices),
-        str(entry.metadata),
-        _parse_expiry(entry.policy.expiry) if entry.policy.expiry is not None else None,
-        entry.policy.scopes,
+        _canonical(entry.model_roles),
+        _canonical(entry.input),
+        ",".join(entry.messages),
+        _canonical(entry.output),
+        _canonical(entry.target),
+        _canonical(entry.choices),
+        _canonical(entry.metadata),
+        _canonical(entry.policy.scopes),
     ]
 
     if entry.policy.per_epoch and entry.epoch is not None:
-        components.append(entry.epoch)
+        components.append(str(entry.epoch))
 
-    base_string = "|".join(str(c) for c in components)
-    trace(_score_cache_key_debug_string([str(c) for c in components]))
+    base_string = "|".join(components)
+    trace(_score_cache_key_debug_string(components))
     return md5(base_string.encode("utf-8")).hexdigest()
 
 
@@ -162,11 +179,10 @@ def score_cache_store(entry: ScoreCacheEntry, score: Score) -> bool:
             os.rename(tmp_path, filename)
         except Exception:
             # Clean up temp file on failure
-            with open(os.devnull, "w"):
-                try:
-                    os.unlink(tmp_path)
-                except OSError:
-                    pass
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
             raise
 
         return True

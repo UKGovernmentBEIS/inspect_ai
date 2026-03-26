@@ -31,15 +31,18 @@ def _readable_size(size: int) -> str:
     return f"{size / (1024 * 1024):.2f} MB"
 
 
-def _print_table(title: str, paths: list[tuple[str, int]]) -> None:
-    """Lists all current model caches with their sizes.
+def _print_table(
+    title: str, paths: list[tuple[str, int]], name_column: str = "Model"
+) -> None:
+    """Lists all current caches with their sizes.
 
     Args:
         title(str): Title of the table.
         paths(list[tuple[str, int]]): List of paths and their sizes (in bytes).
+        name_column(str): Header for the name column (e.g. "Model" or "Scorer").
     """
     table = Table(title=title)
-    table.add_column("Model")
+    table.add_column(name_column)
     table.add_column("Size", justify="right")
     for model, size in paths:
         table.add_row(model, _readable_size(size))
@@ -88,6 +91,7 @@ def clear(all: bool, model: tuple[str, ...], scores: bool, log_level: str) -> No
             _print_table(
                 title="Clearing the following score caches",
                 paths=sizes,
+                name_column="Scorer",
             )
         score_cache_clear()
     elif model:
@@ -104,6 +108,7 @@ def clear(all: bool, model: tuple[str, ...], scores: bool, log_level: str) -> No
             _print_table(
                 title="Clearing the following score caches",
                 paths=sizes,
+                name_column="Scorer",
             )
         score_cache_clear()
     else:
@@ -149,13 +154,16 @@ def list_caches(pruneable: bool, scores: bool) -> None:
                 _print_table(
                     title="The following score caches can be pruned due to expiry",
                     paths=score_cache_size(files=expired),
+                    name_column="Scorer",
                 )
             else:
                 print("No expired score cache entries.")
         else:
             sizes = score_cache_size()
             if sizes:
-                _print_table(title="Score Cache Sizes", paths=sizes)
+                _print_table(
+                    title="Score Cache Sizes", paths=sizes, name_column="Scorer"
+                )
             else:
                 print("No score cache entries.")
     else:
@@ -203,6 +211,7 @@ def prune(log_level: str, model: tuple[str, ...], scores: bool) -> None:
             _print_table(
                 title="Pruning the following score caches",
                 paths=score_cache_size(files=expired),
+                name_column="Scorer",
             )
             score_cache_prune(expired)
         else:

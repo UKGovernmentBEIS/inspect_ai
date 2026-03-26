@@ -410,12 +410,11 @@ async def _run_score_task(
                     try:
                         spec = as_scorer_spec(scorer)
                         # Serialize messages for cache key (exclude ids)
+                        # Use model_dump_json for deterministic serialization
                         serialized_messages = [
-                            str(
-                                m.model_dump(exclude={"id"})
-                                if hasattr(m, "model_dump")
-                                else m
-                            )
+                            m.model_dump_json(exclude={"id"})
+                            if hasattr(m, "model_dump_json")
+                            else str(m)
                             for m in state.messages
                         ]
                         cache_entry = ScoreCacheEntry(
@@ -425,13 +424,13 @@ async def _run_score_task(
                             model_roles=log_header.eval.model_roles,
                             input=state.input
                             if isinstance(state.input, str)
-                            else str(
-                                state.input.model_dump()
-                                if hasattr(state.input, "model_dump")
-                                else state.input
+                            else (
+                                state.input.model_dump_json()
+                                if hasattr(state.input, "model_dump_json")
+                                else str(state.input)
                             ),
                             messages=serialized_messages,
-                            output=str(state.output.model_dump())
+                            output=state.output.model_dump_json()
                             if state.output is not None
                             else "",
                             target=target.target,
