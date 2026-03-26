@@ -10,6 +10,7 @@ from ._acked_chunk_buffer import AckedChunkBuffer
 from ._output_buffer import BoundedByteBuffer, DecodingBuffer
 from .tool_types import PollResult
 
+
 class OutputChunk(NamedTuple):
     """Sequence number and incremental stdout/stderr from a job operation."""
 
