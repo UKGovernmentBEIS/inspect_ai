@@ -24,10 +24,13 @@ def main() -> None:
             sys.exit(1)
 
         cmd = [
-            "aws", "s3", "cp",
+            "aws",
+            "s3",
+            "cp",
             str(filepath),
             S3_BUCKET,
-            "--acl", "public-read",
+            "--acl",
+            "public-read",
         ]
         print(f"Uploading {filename}...")
         subprocess.run(cmd, check=True)
