@@ -41,14 +41,14 @@ def get_screen_scale_factor() -> float:
             result = subprocess.run(
                 ["gsettings", "get", "org.gnome.desktop.interface", "scaling-factor"],
                 capture_output=True,
-                text=True,
+                text=True, check=False,
             )
             if result.returncode == 0:
                 return float(result.stdout.strip())
 
             # Try to get scaling from xrandr (X11)
             result = subprocess.run(
-                ["xrandr", "--current"], capture_output=True, text=True
+                ["xrandr", "--current"], capture_output=True, text=True, check=False
             )
             if result.returncode == 0:
                 # Parse xrandr output to find scaling

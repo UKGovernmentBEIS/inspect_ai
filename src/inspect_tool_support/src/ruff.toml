@@ -1,0 +1,23 @@
+extend-exclude = ["docs"]
+src = ["."]
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # flake8
+    "D",      # pydocstyle
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "SIM101", # duplicate isinstance
+    # "RET", # flake8-return
+    # "RUF", # ruff rules
+    "PLE",     # pylint errors
+    "PLC",     # pylint conventions
+    "PLW",     # pylint warnings
+    "PLR",     # pylint refactoring
+]
+ignore = ["E203", "E501", "D10", "D212", "D415", "PLR2004"]
+
+[lint.pydocstyle]
+convention = "google"
