@@ -1,6 +1,7 @@
-import { FC, useEffect, useMemo, useRef } from "react";
+import React, { FC, useEffect, useMemo, useRef } from "react";
+import { VirtuosoHandle } from "react-virtuoso";
 import { useSearchParams } from "react-router-dom";
-import { JSONPanel } from "../../../components/JsonPanel";
+import { EvalSample } from "../../../@types/log";
 import { NoContentsPanel } from "../../../components/NoContentsPanel";
 import {
   kSampleJsonTabId,
@@ -13,13 +14,18 @@ import { useSampleData } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { useLoadSample } from "../../../state/useLoadSample";
 import { usePollSample } from "../../../state/usePollSample";
-import { estimateSize } from "../../../utils/json";
+import { formatDateTime, formatTime } from "../../../utils/format";
 import { useLogRouteParams } from "../../routing/url";
 import { printHeadingHtml } from "../../utils/print";
-import { metadataViewsForSample } from "../SampleDisplay";
+import { MetaDataGrid } from "../../content/MetaDataGrid";
+import { Card, CardBody, CardHeader } from "../../../components/Card";
+import { ModelTokenTable } from "../../usage/ModelTokenTable";
 import { ChatView } from "../chat/ChatView";
 import { SampleScoresView } from "../scores/SampleScoresView";
-import { PrintTranscript } from "./PrintTranscript";
+import { SampleJSONView } from "../SampleJSONView";
+import { TranscriptVirtualListComponent } from "../transcript/TranscriptVirtualListComponent";
+import { useEventNodes } from "../transcript/transform/hooks";
+import { flatTree } from "../transcript/transform/flatten";
 import styles from "./SamplePrintView.module.css";
 
 /**
@@ -76,6 +82,14 @@ export const SamplePrintView: FC = () => {
 
   const evalSpec = useStore((state) => state.log.selectedLogDetails?.eval);
 
+  // Transcript: process events through the same pipeline, all expanded
+  const sampleEvents = sample?.events || [];
+  const { eventNodes } = useEventNodes(sampleEvents, false);
+  const flattenedNodes = useMemo(() => {
+    return flatTree(eventNodes, null);
+  }, [eventNodes]);
+  const listHandle = useRef<VirtuosoHandle | null>(null);
+
   // Auto-print once content has finished rendering.
   // Uses a MutationObserver to detect when the DOM stops changing,
   // then triggers print after a settling period.
@@ -89,7 +103,9 @@ export const SamplePrintView: FC = () => {
       if (hasPrinted.current) return;
       hasPrinted.current = true;
       observer.disconnect();
+      window.focus();
       window.print();
+      window.close();
     };
 
     const observer = new MutationObserver(() => {
@@ -121,10 +137,8 @@ export const SamplePrintView: FC = () => {
     );
   }
 
-  const sampleEvents = sample.events || [];
   const sampleMessages = sample.messages || [];
   const headingHtml = printHeadingHtml(evalSpec);
-  const sampleMetadatas = metadataViewsForSample("print", contentRef, sample);
 
   return (
     <div className={styles.container} ref={contentRef}>
@@ -138,7 +152,12 @@ export const SamplePrintView: FC = () => {
       </div>
 
       {view === kSampleTranscriptTabId && (
-        <PrintTranscript events={sampleEvents} />
+        <TranscriptVirtualListComponent
+          id="print-transcript"
+          listHandle={listHandle}
+          eventNodes={flattenedNodes}
+          disableVirtualization={true}
+        />
       )}
 
       {view === kSampleMessagesTabId && (
@@ -153,19 +172,114 @@ export const SamplePrintView: FC = () => {
         <SampleScoresView sample={sample} scrollRef={contentRef} />
       )}
 
-      {view === kSampleMetdataTabId &&
-        (sampleMetadatas.length > 0 ? (
-          <div>{sampleMetadatas}</div>
-        ) : (
-          <NoContentsPanel text="No sample metadata available" />
-        ))}
+      {view === kSampleMetdataTabId && <PrintMetadata sample={sample} />}
 
-      {view === kSampleJsonTabId &&
-        (estimateSize(sample.events) > 25 * 1024 * 1024 ? (
-          <NoContentsPanel text="JSON too large to display" />
-        ) : (
-          <JSONPanel data={sample} simple={true} />
-        ))}
+      {view === kSampleJsonTabId && <SampleJSONView sample={sample} />}
     </div>
   );
+};
+
+/**
+ * Renders sample metadata using MetadataGrid (non-virtualized)
+ * instead of RecordTree for print-friendly output.
+ */
+const PrintMetadata: FC<{ sample: EvalSample }> = ({ sample }) => {
+  const sampleMetadatas: React.JSX.Element[] = [];
+
+  if (sample.invalidation) {
+    const formatTimestamp = (timestamp: string) => {
+      try {
+        return formatDateTime(new Date(timestamp));
+      } catch {
+        return timestamp;
+      }
+    };
+
+    const invalidationRecord: Record<string, unknown> = {};
+    if (sample.invalidation.author) {
+      invalidationRecord["Author"] = sample.invalidation.author;
+    }
+    if (sample.invalidation.timestamp) {
+      invalidationRecord["Timestamp"] = formatTimestamp(
+        sample.invalidation.timestamp,
+      );
+    }
+    if (sample.invalidation.reason) {
+      invalidationRecord["Reason"] = sample.invalidation.reason;
+    }
+    if (
+      sample.invalidation.metadata &&
+      Object.keys(sample.invalidation.metadata).length > 0
+    ) {
+      invalidationRecord["Metadata"] = sample.invalidation.metadata;
+    }
+    sampleMetadatas.push(
+      <Card key="print-invalidation">
+        <CardHeader label="Invalidation" />
+        <CardBody>
+          <MetaDataGrid entries={invalidationRecord} />
+        </CardBody>
+      </Card>,
+    );
+  }
+
+  if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
+    sampleMetadatas.push(
+      <Card key="print-usage">
+        <CardHeader label="Usage" />
+        <CardBody>
+          <ModelTokenTable model_usage={sample.model_usage} />
+        </CardBody>
+      </Card>,
+    );
+  }
+
+  if (
+    sample.total_time !== undefined &&
+    sample.total_time !== null &&
+    sample.working_time !== undefined &&
+    sample.working_time !== null
+  ) {
+    sampleMetadatas.push(
+      <Card key="print-time">
+        <CardHeader label="Time" />
+        <CardBody>
+          <MetaDataGrid
+            entries={{
+              Working: formatTime(sample.working_time),
+              Total: formatTime(sample.total_time),
+            }}
+          />
+        </CardBody>
+      </Card>,
+    );
+  }
+
+  if (Object.keys(sample?.metadata).length > 0) {
+    sampleMetadatas.push(
+      <Card key="print-metadata">
+        <CardHeader label="Metadata" />
+        <CardBody>
+          <MetaDataGrid entries={sample?.metadata as Record<string, unknown>} />
+        </CardBody>
+      </Card>,
+    );
+  }
+
+  if (Object.keys(sample?.store).length > 0) {
+    sampleMetadatas.push(
+      <Card key="print-store">
+        <CardHeader label="Store" />
+        <CardBody>
+          <MetaDataGrid entries={sample?.store as Record<string, unknown>} />
+        </CardBody>
+      </Card>,
+    );
+  }
+
+  if (sampleMetadatas.length === 0) {
+    return <NoContentsPanel text="No sample metadata available" />;
+  }
+
+  return <div>{sampleMetadatas}</div>;
 };

@@ -24,7 +24,6 @@ import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
 import { ActivityBar } from "../../components/ActivityBar";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { JSONPanel } from "../../components/JsonPanel";
 import { NoContentsPanel } from "../../components/NoContentsPanel";
 import {
   kSampleErrorTabId,
@@ -41,7 +40,6 @@ import {
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatDateTime, formatTime } from "../../utils/format";
-import { estimateSize } from "../../utils/json";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
 import {
@@ -55,6 +53,7 @@ import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
+import { SampleJSONView } from "./SampleJSONView";
 import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
@@ -226,6 +225,24 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     }
   }, [printLogPath, printSampleId, printEpoch, effectiveSelectedTab]);
 
+  // Intercept Cmd+P / Ctrl+P to use custom print route
+  useEffect(() => {
+    if (isVscode() || !printLogPath || !printSampleId || !printEpoch) return;
+
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrintClick();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [handlePrintClick, printLogPath, printSampleId, printEpoch]);
+
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
   }, [setShowing, isShowing]);
@@ -353,7 +370,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     />,
   );
 
-  if (!isVscode()) {
+  if (!isVscode() && printLogPath && printSampleId && printEpoch) {
     tools.push(
       <ToolButton
         key="sample-print-tool"
@@ -530,13 +547,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
           >
             {!sample ? (
               <NoContentsPanel text="JSON not available" />
-            ) : estimateSize(sample.events) > 25 * 1024 * 1024 ? (
-              <NoContentsPanel text="JSON too large to display" />
             ) : (
               <div className={clsx(styles.padded, styles.fullWidth)}>
-                <JSONPanel
-                  data={sample}
-                  simple={true}
+                <SampleJSONView
+                  sample={sample}
                   className={clsx("text-size-small")}
                 />
               </div>
@@ -548,7 +562,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 };
 
-export const metadataViewsForSample = (
+const metadataViewsForSample = (
   id: string,
   scrollRef: RefObject<HTMLDivElement | null>,
   sample?: EvalSample,

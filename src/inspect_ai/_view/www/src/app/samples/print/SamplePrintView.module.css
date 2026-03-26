@@ -16,8 +16,8 @@
 }
 
 .sampleInfo {
-  font-size: 0.9em;
-  color: var(--bs-secondary);
+  font-size: 1.1em;
+  font-weight: 600;
   margin-top: 0.25em;
 }
 

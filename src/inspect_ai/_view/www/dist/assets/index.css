@@ -19840,11 +19840,11 @@ thead th {
 ._code_ovp9s_12 {
   background: transparent !important;
 }
-._container_109up_1 {
+._container_15zex_1 {
   padding: 1em;
 }
 
-._loading_109up_5 {
+._loading_15zex_5 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19853,22 +19853,22 @@ thead th {
   color: var(--bs-secondary);
 }
 
-._header_109up_14 {
+._header_15zex_14 {
   margin-bottom: 1em;
 }
 
-._sampleInfo_109up_18 {
-  font-size: 0.9em;
-  color: var(--bs-secondary);
+._sampleInfo_15zex_18 {
+  font-size: 1.1em;
+  font-weight: 600;
   margin-top: 0.25em;
 }
 
 @media print {
-  ._loading_109up_5 {
+  ._loading_15zex_5 {
     display: none;
   }
 
-  ._container_109up_1 {
+  ._container_15zex_1 {
     padding: 0;
   }
 
