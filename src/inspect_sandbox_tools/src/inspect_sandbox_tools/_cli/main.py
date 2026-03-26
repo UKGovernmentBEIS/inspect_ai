@@ -37,6 +37,8 @@ def main() -> None:
     match args.command:
         case "healthcheck":
             healthcheck()
+        case "start-server":
+            start_server()
         case "exec":
             asyncio.run(_exec(args.request))
         case "server":
@@ -48,6 +50,12 @@ def main() -> None:
 def healthcheck():
     asyncio.run(_exec('{"jsonrpc": "2.0", "method": "version", "id": 666}'))
     asyncio.run(_exec('{"jsonrpc": "2.0", "method": "remote_version", "id": 667}'))
+
+
+def start_server() -> None:
+    """Start the sandbox tools server and validate it is responsive."""
+    _ensure_server_is_running()
+    healthcheck()
 
 
 # Example/testing requests
@@ -183,6 +191,7 @@ def _parse_args() -> argparse.Namespace:
     exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("server")
     subparsers.add_parser("healthcheck")
+    subparsers.add_parser("start-server")
     subparsers.add_parser("model_proxy")
 
     return parser.parse_args()

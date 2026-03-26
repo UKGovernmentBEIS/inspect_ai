@@ -114,7 +114,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # If root isn't available, fall back to the sandbox's default user —
         # user-switching will be disabled (auto-detected by the server).
         result = await sandbox.exec(
-            [SANDBOX_CLI, "healthcheck"], user=sandbox._tools_user
+            [SANDBOX_CLI, "start-server"], user=sandbox._tools_user
         )
         if not result.success:
             raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
