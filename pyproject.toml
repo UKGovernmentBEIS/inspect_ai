@@ -42,6 +42,7 @@ select = [
   # "RUF", # ruff rules
   "DTZ",
   "TID251",  # banned-api
+  "PLE",     # pylint errors
 ]
 ignore = [
   "E203",
@@ -180,7 +181,6 @@ dev = [
   "pip",
   "pre-commit",
   "pyarrow>=10.0.1",
-  "pylint",
   "pytest",
   "pytest-cov",
   "pytest-dotenv",
