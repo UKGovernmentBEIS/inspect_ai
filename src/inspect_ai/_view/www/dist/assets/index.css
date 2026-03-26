@@ -15424,6 +15424,28 @@ pre[class*="language-"] {
   .vscode-dark pre[class*="language-"] {
     text-shadow: none;
   }
+
+  html {
+    font-size: 9pt;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #app,
+  .app-main-grid {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  pre,
+  code {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    break-inside: auto;
+  }
 }
 .vscode-dark :not(pre) > code[class*="language-"],
 .vscode-dark pre[class*="language-"] {
@@ -19817,6 +19839,42 @@ thead th {
 
 ._code_ovp9s_12 {
   background: transparent !important;
+}
+._container_15zex_1 {
+  padding: 1em;
+}
+
+._loading_15zex_5 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 1.2em;
+  color: var(--bs-secondary);
+}
+
+._header_15zex_14 {
+  margin-bottom: 1em;
+}
+
+._sampleInfo_15zex_18 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-top: 0.25em;
+}
+
+@media print {
+  ._loading_15zex_5 {
+    display: none;
+  }
+
+  ._container_15zex_1 {
+    padding: 0;
+  }
+
+  html {
+    font-size: 9pt;
+  }
 }
 ._panel_18nhs_1 {
   height: 100vh;
