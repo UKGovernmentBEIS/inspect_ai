@@ -1,6 +1,5 @@
 import { TabPanel, TabSet } from "../../components/TabSet";
 
-import { escapeSelector } from "../../utils/html";
 import { isVscode } from "../../utils/vscode";
 
 import { ANSIDisplay } from "../../components/AnsiDisplay";
@@ -23,8 +22,8 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
+import { ActivityBar } from "../../components/ActivityBar";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { JSONPanel } from "../../components/JsonPanel";
 import { NoContentsPanel } from "../../components/NoContentsPanel";
 import {
   kSampleErrorTabId,
@@ -41,17 +40,20 @@ import {
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatDateTime, formatTime } from "../../utils/format";
-import { estimateSize } from "../../utils/json";
-import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
-import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
+import {
+  printSampleUrl,
+  useLogOrSampleRouteParams,
+  useSampleUrlBuilder,
+} from "../routing/url";
 import { messagesToStr } from "../shared/messages";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
+import { SampleJSONView } from "./SampleJSONView";
 import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
@@ -60,6 +62,8 @@ import { TranscriptPanel } from "./transcript/TranscriptPanel";
 interface SampleDisplayProps {
   id: string;
   scrollRef: RefObject<HTMLDivElement | null>;
+  showActivity: boolean;
+  progress?: number;
   focusOnLoad?: boolean;
 }
 
@@ -69,6 +73,8 @@ interface SampleDisplayProps {
 export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   scrollRef,
+  showActivity,
+  progress,
   focusOnLoad,
 }) => {
   // Tab ids
@@ -133,6 +139,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     }
   }, [sample?.messages, runningSampleData]);
 
+  const hasSampleData =
+    sample !== undefined ||
+    sampleEvents !== undefined ||
+    sampleMessages !== undefined;
+
   // Get all URL parameters at component level
   const {
     logPath: urlLogPath,
@@ -181,7 +192,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 
   const tabsetId = `task-sample-details-tab-${id}`;
-  const targetId = `${tabsetId}-content`;
 
   const isShowing = useStore((state) => state.app.dialogs.transcriptFilter);
   const setShowing = useStore(
@@ -194,9 +204,44 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const filterRef = useRef<HTMLButtonElement | null>(null);
   const optionsRef = useRef<HTMLButtonElement | null>(null);
 
+  // Fall back to store state for single-file mode where URL doesn't contain sample ID/epoch
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
+  const printLogPath = urlLogPath || selectedLogFile;
+  const printSampleId = urlSampleId || selectedSampleHandle?.id?.toString();
+  const printEpoch = urlEpoch || selectedSampleHandle?.epoch?.toString();
+
   const handlePrintClick = useCallback(() => {
-    printSample(id, targetId);
-  }, [id, targetId]);
+    if (printLogPath && printSampleId && printEpoch) {
+      const printUrl = printSampleUrl(
+        printLogPath,
+        printSampleId,
+        printEpoch,
+        effectiveSelectedTab,
+      );
+      window.open(`#${printUrl}`, "_blank");
+    }
+  }, [printLogPath, printSampleId, printEpoch, effectiveSelectedTab]);
+
+  // Intercept Cmd+P / Ctrl+P to use custom print route
+  useEffect(() => {
+    if (isVscode() || !printLogPath || !printSampleId || !printEpoch) return;
+
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrintClick();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [handlePrintClick, printLogPath, printSampleId, printEpoch]);
 
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
@@ -219,7 +264,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
   }, [collapsedMode, setCollapsedMode]);
 
-  const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
+  const { isDebugFilter, isDefaultFilter, isNoneFilter } =
+    useTranscriptFilter();
 
   const api = useStore((state) => state.api);
   const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
@@ -281,11 +327,13 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }
 
   if (selectedTab === kSampleTranscriptTabId) {
-    const label = isDebugFilter
-      ? "Debug"
-      : isDefaultFilter
-        ? "Default"
-        : "Custom";
+    const label = isNoneFilter
+      ? "None"
+      : isDebugFilter
+        ? "Debug"
+        : isDefaultFilter
+          ? "Default"
+          : "Custom";
 
     tools.push(
       <ToolButton
@@ -322,7 +370,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     />,
   );
 
-  if (!isVscode()) {
+  if (!isVscode() && printLogPath && printSampleId && printEpoch) {
     tools.push(
       <ToolButton
         key="sample-print-tool"
@@ -339,142 +387,128 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }, [selectedSampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
-  const displaySample = sample || selectedSampleSummary;
 
   return (
     <Fragment>
-      {displaySample ? (
-        <SampleSummaryView parent_id={id} sample={displaySample} />
+      {selectedSampleSummary ? (
+        <SampleSummaryView parent_id={id} sample={selectedSampleSummary} />
       ) : undefined}
-      <TabSet
-        id={tabsetId}
-        tabsRef={tabsRef}
-        className={clsx(styles.tabControls)}
-        tabControlsClassName={clsx("text-size-base")}
-        tabPanelsClassName={clsx(styles.tabPanel)}
-        tools={tools}
-      >
-        <TabPanel
-          key={kSampleTranscriptTabId}
-          id={kSampleTranscriptTabId}
-          className={clsx(
-            "sample-tab",
-            styles.transcriptContainer,
-            styles.overflowVisible,
-          )}
-          title="Transcript"
-          onSelected={onSelectedTab}
-          selected={
-            effectiveSelectedTab === kSampleTranscriptTabId ||
-            effectiveSelectedTab === undefined
-          }
-          scrollable={false}
-        >
-          <TranscriptFilterPopover
-            showing={isShowing}
-            setShowing={setShowing}
-            positionEl={filterRef.current}
-          />
+      <ActivityBar animating={showActivity} progress={progress} />
 
-          <TranscriptPanel
-            key={`${baseId}-transcript-display-${id}`}
-            id={`${baseId}-transcript-display-${id}`}
-            events={sampleEvents || []}
-            eventsCleared={eventsCleared}
-            initialEventId={sampleDetailNavigation.event}
-            topOffset={tabsHeight}
-            running={running}
-            scrollRef={scrollRef}
-          />
-        </TabPanel>
-        <TabPanel
-          key={kSampleMessagesTabId}
-          id={kSampleMessagesTabId}
-          className={clsx(
-            "sample-tab",
-            styles.fullWidth,
-            styles.chat,
-            styles.overflowVisible,
-          )}
-          title="Messages"
-          onSelected={onSelectedTab}
-          selected={effectiveSelectedTab === kSampleMessagesTabId}
-          scrollable={false}
+      {hasSampleData && (
+        <TabSet
+          id={tabsetId}
+          tabsRef={tabsRef}
+          className={clsx(styles.tabControls)}
+          tabControlsClassName={clsx("text-size-base")}
+          tabPanelsClassName={clsx(styles.tabPanel)}
+          tools={tools}
         >
-          <ChatViewVirtualList
-            key={`${baseId}-chat-${id}`}
-            id={`${baseId}-chat-${id}`}
-            messages={sampleMessages}
-            initialMessageId={sampleDetailNavigation.message}
-            topOffset={tabsHeight}
-            indented={true}
-            scrollRef={scrollRef}
-            toolCallStyle="complete"
-            running={running}
-            className={styles.fullWidth}
-          />
-        </TabPanel>
-        <TabPanel
-          key={kSampleScoringTabId}
-          id={kSampleScoringTabId}
-          className="sample-tab"
-          title="Scoring"
-          onSelected={onSelectedTab}
-          selected={effectiveSelectedTab === kSampleScoringTabId}
-        >
-          <SampleScoresView
-            sample={sample}
-            className={styles.padded}
-            scrollRef={scrollRef}
-          />
-        </TabPanel>
-        <TabPanel
-          id={kSampleMetdataTabId}
-          className={clsx("sample-tab")}
-          title="Metadata"
-          onSelected={onSelectedTab}
-          selected={effectiveSelectedTab === kSampleMetdataTabId}
-        >
-          {!sample || sampleMetadatas.length > 0 ? (
-            <div className={clsx(styles.padded, styles.fullWidth)}>
-              {sampleMetadatas}
-            </div>
-          ) : (
-            <NoContentsPanel text="No metadata" />
-          )}
-        </TabPanel>
-        {sample?.error ||
-        (sample?.error_retries && sample?.error_retries.length > 0) ? (
           <TabPanel
-            id={kSampleErrorTabId}
-            className="sample-tab"
-            title="Errors"
+            key={kSampleTranscriptTabId}
+            id={kSampleTranscriptTabId}
+            className={clsx(
+              "sample-tab",
+              styles.transcriptContainer,
+              styles.overflowVisible,
+            )}
+            title="Transcript"
             onSelected={onSelectedTab}
-            selected={effectiveSelectedTab === kSampleErrorTabId}
+            selected={
+              effectiveSelectedTab === kSampleTranscriptTabId ||
+              effectiveSelectedTab === undefined
+            }
+            scrollable={false}
           >
-            <div className={clsx(styles.error)}>
-              {sample?.error ? (
-                <Card key={`sample-error}`}>
-                  <CardHeader label={`Sample Error`} />
-                  <CardBody>
-                    <ANSIDisplay
-                      output={sample.error.traceback_ansi}
-                      className={clsx("text-size-small", styles.ansi)}
-                      style={{
-                        fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
-                        margin: "0.5em 0",
-                      }}
-                    />
-                  </CardBody>
-                </Card>
-              ) : undefined}
-              {sample.error_retries?.map((retry, index) => {
-                return (
-                  <Card key={`sample-retry-error-${index}`}>
-                    <CardHeader label={`Attempt ${index + 1}`} />
+            <TranscriptFilterPopover
+              showing={isShowing}
+              setShowing={setShowing}
+              positionEl={filterRef.current}
+            />
+
+            <TranscriptPanel
+              key={`${baseId}-transcript-display-${id}`}
+              id={`${baseId}-transcript-display-${id}`}
+              events={sampleEvents || []}
+              eventsCleared={eventsCleared}
+              initialEventId={sampleDetailNavigation.event}
+              topOffset={tabsHeight}
+              running={running}
+              scrollRef={scrollRef}
+            />
+          </TabPanel>
+          <TabPanel
+            key={kSampleMessagesTabId}
+            id={kSampleMessagesTabId}
+            className={clsx(
+              "sample-tab",
+              styles.fullWidth,
+              styles.chat,
+              styles.overflowVisible,
+            )}
+            title="Messages"
+            onSelected={onSelectedTab}
+            selected={effectiveSelectedTab === kSampleMessagesTabId}
+            scrollable={false}
+          >
+            <ChatViewVirtualList
+              key={`${baseId}-chat-${id}`}
+              id={`${baseId}-chat-${id}`}
+              messages={sampleMessages}
+              initialMessageId={sampleDetailNavigation.message}
+              topOffset={tabsHeight}
+              indented={true}
+              scrollRef={scrollRef}
+              toolCallStyle="complete"
+              running={running}
+              className={styles.fullWidth}
+            />
+          </TabPanel>
+          <TabPanel
+            key={kSampleScoringTabId}
+            id={kSampleScoringTabId}
+            className="sample-tab"
+            title="Scoring"
+            onSelected={onSelectedTab}
+            selected={effectiveSelectedTab === kSampleScoringTabId}
+          >
+            <SampleScoresView
+              sample={sample}
+              className={styles.padded}
+              scrollRef={scrollRef}
+            />
+          </TabPanel>
+          <TabPanel
+            id={kSampleMetdataTabId}
+            className={clsx("sample-tab")}
+            title="Metadata"
+            onSelected={onSelectedTab}
+            selected={effectiveSelectedTab === kSampleMetdataTabId}
+          >
+            {sampleMetadatas.length > 0 ? (
+              <div className={clsx(styles.padded, styles.fullWidth)}>
+                {sampleMetadatas}
+              </div>
+            ) : (
+              <NoContentsPanel text="No sample metadata available" />
+            )}
+          </TabPanel>
+          {sample?.error ||
+          (sample?.error_retries && sample?.error_retries.length > 0) ? (
+            <TabPanel
+              id={kSampleErrorTabId}
+              className="sample-tab"
+              title="Errors"
+              onSelected={onSelectedTab}
+              selected={effectiveSelectedTab === kSampleErrorTabId}
+            >
+              <div className={clsx(styles.error)}>
+                {sample?.error ? (
+                  <Card key={`sample-error}`}>
+                    <CardHeader label={`Sample Error`} />
                     <CardBody>
                       <ANSIDisplay
-                        output={retry.traceback_ansi}
+                        output={sample.error.traceback_ansi}
                         className={clsx("text-size-small", styles.ansi)}
                         style={{
                           fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
@@ -483,33 +517,47 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
                       />
                     </CardBody>
                   </Card>
-                );
-              })}
-            </div>
+                ) : undefined}
+                {sample.error_retries?.map((retry, index) => {
+                  return (
+                    <Card key={`sample-retry-error-${index}`}>
+                      <CardHeader label={`Attempt ${index + 1}`} />
+                      <CardBody>
+                        <ANSIDisplay
+                          output={retry.traceback_ansi}
+                          className={clsx("text-size-small", styles.ansi)}
+                          style={{
+                            fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
+                            margin: "0.5em 0",
+                          }}
+                        />
+                      </CardBody>
+                    </Card>
+                  );
+                })}
+              </div>
+            </TabPanel>
+          ) : null}
+          <TabPanel
+            id={kSampleJsonTabId}
+            className={"sample-tab"}
+            title="JSON"
+            onSelected={onSelectedTab}
+            selected={effectiveSelectedTab === kSampleJsonTabId}
+          >
+            {!sample ? (
+              <NoContentsPanel text="JSON not available" />
+            ) : (
+              <div className={clsx(styles.padded, styles.fullWidth)}>
+                <SampleJSONView
+                  sample={sample}
+                  className={clsx("text-size-small")}
+                />
+              </div>
+            )}
           </TabPanel>
-        ) : null}
-        <TabPanel
-          id={kSampleJsonTabId}
-          className={"sample-tab"}
-          title="JSON"
-          onSelected={onSelectedTab}
-          selected={effectiveSelectedTab === kSampleJsonTabId}
-        >
-          {!sample ? (
-            <NoContentsPanel text="JSON not available" />
-          ) : estimateSize(sample.events) > 25 * 1024 * 1024 ? (
-            <NoContentsPanel text="JSON too large to display" />
-          ) : (
-            <div className={clsx(styles.padded, styles.fullWidth)}>
-              <JSONPanel
-                data={sample}
-                simple={true}
-                className={clsx("text-size-small")}
-              />
-            </div>
-          )}
-        </TabPanel>
-      </TabSet>
+        </TabSet>
+      )}
     </Fragment>
   );
 };
@@ -640,65 +688,6 @@ const metadataViewsForSample = (
   }
 
   return sampleMetadatas;
-};
-const printSample = (id: string, targetId: string) => {
-  // The active tab
-  const targetTabEl = document.querySelector(
-    `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
-  );
-  if (targetTabEl) {
-    // The target element
-    const targetEl = targetTabEl.firstElementChild;
-    if (targetEl) {
-      // Get the sample heading to include
-      const headingId = `sample-heading-${id}`;
-      const headingEl = document.getElementById(headingId);
-
-      // Print the document
-      const headingHtml = printHeadingHtml();
-      const css = `
-      html { font-size: 9pt }
-      /* Allow content to break anywhere without any forced page breaks */
-      * {
-        break-inside: auto;  /* Let elements break anywhere */
-        page-break-inside: auto;  /* Legacy support */
-        break-before: auto;
-        page-break-before: auto;
-        break-after: auto;
-        page-break-after: auto;
-      }
-      /* Specifically disable all page breaks for divs */
-      div {
-        break-inside: auto;
-        page-break-inside: auto;
-      }
-      body > .transcript-step {
-        break-inside: avoid;
-      }
-      body{
-        -webkit-print-color-adjust:exact !important;
-        print-color-adjust:exact !important;
-      }
-      /* Allow preformatted text and code blocks to break across pages */
-      pre, code {
-          white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
-          overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
-          break-inside: auto; /* Allow page breaks inside the element */
-          page-break-inside: auto; /* Older equivalent */
-      }
-
-      /* Additional control for long lines within code/preformatted blocks */
-      pre {
-          word-wrap: break-word; /* Break long words if needed */
-      }    
-          
-      `;
-      printHtml(
-        [headingHtml, headingEl?.outerHTML, targetEl.innerHTML].join("\n"),
-        css,
-      );
-    }
-  }
 };
 
 const isRunning = (

@@ -1,21 +1,20 @@
 ---
 name: network-info
-description: Gather network configuration and connectivity information including interfaces, routes, and DNS
+description: Gather network configuration and connectivity details on Linux including interfaces, IP addresses, routing tables, DNS settings, and listening ports. Use when the user asks about IP configuration, network interfaces, connection issues, DNS resolution, open ports, routing, or network troubleshooting.
 ---
 
 # Network Information Skill
 
-Use this skill to explore network configuration and connectivity on Linux systems.
+Explores network configuration and connectivity on Linux systems.
 
-## Quick Start
+## Suggested Workflow
 
-Run the included script for a network overview:
+1. Run `./scripts/netinfo.sh` for a structured overview of interfaces, IPs, routes, DNS, and listening ports.
+2. Check `ip addr` for interface status and assigned addresses.
+3. Verify routing with `ip route` and DNS with `cat /etc/resolv.conf`.
+4. Inspect listening services with `ss -tuln` to identify open ports.
 
-```bash
-./scripts/netinfo.sh
-```
-
-## Manual Commands
+## Commands Reference
 
 ### Network Interfaces
 - `ip addr` or `ip a` - Show all network interfaces and IP addresses

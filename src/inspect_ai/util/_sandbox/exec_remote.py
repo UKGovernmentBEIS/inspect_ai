@@ -107,6 +107,14 @@ class ExecRemoteCommonOptions:
     poll_interval: float | None = None
     """Interval between poll requests in seconds"""
 
+    poll_timeout: float | None = None
+    """Timeout for individual RPC poll requests in seconds. Defaults to 120 seconds."""
+
+    poll_timeout_retry: bool | None = None
+    """Retry individual RPC poll requests when they time out.
+    Requests will be retried up to twice, with a timeout of no greater
+    than 60 seconds for the first retry and 30 for the second."""
+
     concurrency: bool = True
     """For sandboxes that run locally, request that the `concurrency()`
     function be used to throttle concurrent subprocesses."""
@@ -124,14 +132,9 @@ class ExecRemoteStreamingOptions(ExecRemoteCommonOptions):
 
 @dataclass
 class ExecRemoteAwaitableOptions(ExecRemoteCommonOptions):
-    """Options for exec_remote() in awaitable mode (stream=False).
+    """Options for exec_remote() in awaitable mode (stream=False)."""
 
-    Not yet implemented:
-        timeout_retry: Retry logic on timeout (as in exec()) is not yet
-            supported. When added, it will only apply to awaitable mode.
-    """
-
-    timeout: int | None = None
+    timeout: float | None = None
     """Maximum execution time in seconds. On timeout, the process is killed and
     TimeoutError is raised"""
 
@@ -152,6 +155,7 @@ class _PollResult(BaseModel):
 
     state: Literal["running", "completed", "killed"]
     exit_code: int | None = None
+    seq: int
     stdout: str
     stderr: str
 
@@ -159,6 +163,7 @@ class _PollResult(BaseModel):
 class _KillResult(BaseModel):
     """Result from exec_remote_kill."""
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -166,6 +171,7 @@ class _KillResult(BaseModel):
 class _WriteStdinResult(BaseModel):
     """Result from exec_remote_write_stdin."""
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -173,6 +179,7 @@ class _WriteStdinResult(BaseModel):
 class _CloseStdinResult(BaseModel):
     """Result from exec_remote_close_stdin."""
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -183,7 +190,7 @@ class _CloseStdinResult(BaseModel):
 
 MIN_POLL_INTERVAL = 5
 
-RPC_TIMEOUT = 30
+RPC_TIMEOUT = 120
 """Timeout for individual JSON-RPC calls in seconds."""
 
 T = TypeVar("T", bound=BaseModel)
@@ -248,6 +255,7 @@ class ExecRemoteProcess:
             MIN_POLL_INTERVAL, options.poll_interval or sandbox_default_poll_interval
         )
         self._pid: int | None = None
+        self._last_seq: int = 0
         self._killed = False
         self._completed = False
         self._iteration_started = False
@@ -269,15 +277,22 @@ class ExecRemoteProcess:
         self, method: str, params: dict[str, object], result_type: type[T]
     ) -> T:
         """Make an RPC call to the sandbox."""
+        extra_args: dict[str, object] = dict(
+            timeout=RPC_TIMEOUT
+            if self._options.poll_timeout is None
+            else self._options.poll_timeout,
+            user=self._options.user,
+            concurrency=self._options.concurrency,
+        )
+        if self._options.poll_timeout_retry is not None:
+            extra_args["timeout_retry"] = self._options.poll_timeout_retry
         return await exec_model_request(
             method=method,
             params=params,
             result_type=result_type,
             transport=self._transport,
             error_mapper=GenericJSONRPCErrorMapper,
-            timeout=RPC_TIMEOUT,
-            user=self._options.user,
-            concurrency=self._options.concurrency,
+            **extra_args,
         )
 
     async def _start(self) -> None:
@@ -397,9 +412,13 @@ class ExecRemoteProcess:
 
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
-                return await self._rpc(
-                    "exec_remote_poll", {"pid": self._pid}, _PollResult
+                result = await self._rpc(
+                    "exec_remote_poll",
+                    {"pid": self._pid, "ack_seq": self._last_seq},
+                    _PollResult,
                 )
+            self._last_seq = result.seq
+            return result
 
         return await poll()
 
@@ -440,9 +459,10 @@ class ExecRemoteProcess:
 
         result = await self._rpc(
             "exec_remote_write_stdin",
-            {"pid": self._pid, "data": data},
+            {"pid": self._pid, "data": data, "ack_seq": self._last_seq},
             _WriteStdinResult,
         )
+        self._last_seq = result.seq
         self._enqueue_output(result.stdout, result.stderr)
 
     async def close_stdin(self) -> None:
@@ -470,9 +490,10 @@ class ExecRemoteProcess:
 
         result = await self._rpc(
             "exec_remote_close_stdin",
-            {"pid": self._pid},
+            {"pid": self._pid, "ack_seq": self._last_seq},
             _CloseStdinResult,
         )
+        self._last_seq = result.seq
         self._enqueue_output(result.stdout, result.stderr)
 
     async def kill(self) -> None:
@@ -489,8 +510,11 @@ class ExecRemoteProcess:
         self._killed = True
         try:
             result = await self._rpc(
-                "exec_remote_kill", {"pid": self._pid}, _KillResult
+                "exec_remote_kill",
+                {"pid": self._pid, "ack_seq": self._last_seq},
+                _KillResult,
             )
+            self._last_seq = result.seq
             self._enqueue_output(result.stdout, result.stderr)
         except Exception:
             logging.debug(

@@ -1,4 +1,8 @@
+import { fetchRange } from "../../utils/http";
+import { ProgressCallback } from "../api/types";
 import { decompressData } from "./decompression";
+
+export type { ProgressCallback };
 
 export interface ZipFileEntry {
   versionNeeded: number;
@@ -18,6 +22,7 @@ export interface CentralDirectoryEntry {
   compressedSize: number;
   uncompressedSize: number;
   fileOffset: number;
+  filenameLength: number;
 }
 
 /**
@@ -39,13 +44,75 @@ export class FileSizeLimitError extends Error {
   }
 }
 
+const PARALLEL_CHUNK_THRESHOLD = 8 * 1024 * 1024; // 8MB
+const PARALLEL_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB per chunk
+const MAX_PARALLEL_CHUNKS = 10;
+
+const fetchBytesParallel = async (
+  fetchFn: (url: string, start: number, end: number) => Promise<Uint8Array>,
+  url: string,
+  start: number,
+  end: number,
+  onProgress?: ProgressCallback,
+): Promise<Uint8Array> => {
+  const totalSize = end - start + 1;
+
+  if (totalSize <= PARALLEL_CHUNK_THRESHOLD) {
+    return fetchFn(url, start, end);
+  }
+
+  // Split into chunks
+  const chunks: { start: number; end: number; index: number }[] = [];
+  let offset = start;
+  while (offset <= end) {
+    const chunkEnd = Math.min(offset + PARALLEL_CHUNK_SIZE - 1, end);
+    chunks.push({ start: offset, end: chunkEnd, index: chunks.length });
+    offset = chunkEnd + 1;
+  }
+
+  // Cap concurrency
+  const concurrency = Math.min(chunks.length, MAX_PARALLEL_CHUNKS);
+
+  // Fetch chunks with bounded concurrency
+  const results = new Array<Uint8Array>(chunks.length);
+  let nextChunk = 0;
+  let bytesLoaded = 0;
+
+  if (onProgress) {
+    onProgress(0, totalSize);
+  }
+
+  const worker = async () => {
+    while (nextChunk < chunks.length) {
+      const idx = nextChunk++;
+      const chunk = chunks[idx];
+      results[idx] = await fetchFn(url, chunk.start, chunk.end);
+      if (onProgress) {
+        bytesLoaded += results[idx].length;
+        onProgress(bytesLoaded, totalSize);
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  // Concatenate
+  const combined = new Uint8Array(totalSize);
+  let pos = 0;
+  for (const chunk of results) {
+    combined.set(chunk, pos);
+    pos += chunk.length;
+  }
+  return combined;
+};
+
 /**
  * Opens a remote ZIP file from the specified URL, fetches and parses the central directory,
  * and provides a method to read files within the ZIP.
  */
 export const openRemoteZipFile = async (
   url: string,
-  fetchContentLength: (url: string) => Promise<number> = fetchSize,
+  contentLength?: number,
   fetchBytes: (
     url: string,
     start: number,
@@ -53,9 +120,13 @@ export const openRemoteZipFile = async (
   ) => Promise<Uint8Array> = fetchRange,
 ): Promise<{
   centralDirectory: Map<string, CentralDirectoryEntry>;
-  readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>;
+  readFile: (
+    file: string,
+    maxBytes?: number,
+    onProgress?: ProgressCallback,
+  ) => Promise<Uint8Array>;
 }> => {
-  const contentLength = await fetchContentLength(url);
+  contentLength = contentLength ?? (await fetchSize(url));
 
   // Read the end of central directory record
   const eocdrBuffer = await fetchBytes(
@@ -123,7 +194,8 @@ export const openRemoteZipFile = async (
   }
 
   // Fetch and parse the central directory
-  const centralDirBuffer = await fetchBytes(
+  const centralDirBuffer = await fetchBytesParallel(
+    fetchBytes,
     url,
     centralDirOffset,
     centralDirOffset + centralDirSize - 1,
@@ -132,42 +204,65 @@ export const openRemoteZipFile = async (
 
   return {
     centralDirectory: centralDirectory,
-    readFile: async (file, maxBytes): Promise<Uint8Array> => {
+    readFile: async (file, maxBytes, onProgress?): Promise<Uint8Array> => {
       const entry = centralDirectory.get(file);
       if (!entry) {
         throw new Error(`File not found: ${file}`);
       }
 
-      // Local file header is 30 bytes long by spec
       const headerSize = 30;
-      const headerData = await fetchBytes(
-        url,
-        entry.fileOffset,
-        entry.fileOffset + headerSize - 1,
-      );
+      // 256 bytes covers ZIP64 extended info (28 bytes), timestamps, and
+      // other common extra field extensions.
+      const extraFieldPadding = 256;
+      const estimatedSize =
+        headerSize +
+        entry.filenameLength +
+        extraFieldPadding +
+        entry.compressedSize;
 
-      // Parse the local file header to get the filename length and extra field length
-      // 26-27 bytes in local header
-      const filenameLength = headerData[26] + (headerData[27] << 8);
-
-      // 28-29 bytes in local header
-      const extraFieldLength = headerData[28] + (headerData[29] << 8);
-
-      // Use the entry's compressed size from the central directory
-      const totalSizeToFetch =
-        headerSize + filenameLength + extraFieldLength + entry.compressedSize;
-
-      // Throw an error if this request exceeds our maximum size
-      if (maxBytes && totalSizeToFetch > maxBytes) {
+      // Check maxBytes against the compressedSize lower bound before fetching
+      if (
+        maxBytes &&
+        headerSize + entry.filenameLength + entry.compressedSize > maxBytes
+      ) {
         throw new FileSizeLimitError(file, maxBytes);
       }
 
-      // Use the total size to fetch the compressed data
-      const fileData = await fetchBytes(
+      // Single fetch with estimated size
+      let fileData = await fetchBytesParallel(
+        fetchBytes,
         url,
         entry.fileOffset,
-        entry.fileOffset + totalSizeToFetch - 1,
+        entry.fileOffset + estimatedSize - 1,
+        onProgress,
       );
+
+      // Parse actual extraFieldLength from the fetched header
+      if (fileData.length < headerSize) {
+        throw new Error(`File entry header is truncated for ${file}`);
+      }
+      const actualExtraFieldLength = fileData[28] + (fileData[29] << 8);
+      const actualTotal =
+        headerSize +
+        entry.filenameLength +
+        actualExtraFieldLength +
+        entry.compressedSize;
+
+      // Exact maxBytes check with real extra field length
+      if (maxBytes && actualTotal > maxBytes) {
+        throw new FileSizeLimitError(file, maxBytes);
+      }
+
+      // Re-fetch only if actual size exceeds our estimate (rare).
+      // Pass undefined for onProgress to avoid double-counting.
+      if (actualTotal > estimatedSize) {
+        fileData = await fetchBytesParallel(
+          fetchBytes,
+          url,
+          entry.fileOffset,
+          entry.fileOffset + actualTotal - 1,
+        );
+      }
 
       // Parse and decompress the entry
       const zipFileEntry = await parseZipFileEntry(file, fileData);
@@ -216,20 +311,7 @@ export const fetchSize = async (url: string): Promise<number> => {
   throw new Error(`Could not determine content length for ${url}`);
 };
 
-/**
- * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.
- */
-export const fetchRange = async (
-  url: string,
-  start: number,
-  end: number,
-): Promise<Uint8Array> => {
-  const response = await fetch(`${url}`, {
-    headers: { Range: `bytes=${start}-${end}` },
-  });
-  const arrayBuffer = await response.arrayBuffer();
-  return new Uint8Array(arrayBuffer);
-};
+export { fetchRange };
 
 /**
  * Extracts and parses the header and data of a compressed ZIP entry from raw binary data.
@@ -406,6 +488,7 @@ const parseCentralDirectory = (buffer: Uint8Array) => {
       compressedSize,
       uncompressedSize,
       fileOffset,
+      filenameLength,
     };
 
     entries.set(filename, entry);

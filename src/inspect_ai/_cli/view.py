@@ -7,7 +7,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._view.view import view
-from inspect_ai.log._bundle import bundle_log_dir
+from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 
 from .common import CommonOptions, common_options, process_common_options
 
@@ -110,3 +110,14 @@ def bundle_command(
     bundle_log_dir(
         output_dir=output_dir, log_dir=common["log_dir"], overwrite=overwrite
     )
+
+
+@view_command.command("embed")
+@common_options
+def embed_command(
+    **common: Unpack[CommonOptions],
+) -> None:
+    """Embed a lightweight viewer into a log directory."""
+    process_common_options(common)
+
+    embed_log_dir(log_dir=common["log_dir"])

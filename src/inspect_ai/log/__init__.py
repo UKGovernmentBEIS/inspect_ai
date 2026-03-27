@@ -4,10 +4,20 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
 from ._bundle import bundle_log_dir
-from ._condense import condense_sample, resolve_sample_attachments
+from ._condense import (
+    condense_events,
+    condense_sample,
+    expand_events,
+    resolve_sample_attachments,
+)
 from ._convert import convert_eval_logs
 from ._edit import (
+    LogEdit,
+    LogUpdate,
+    MetadataEdit,
     ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
     invalidate_samples,
     uninvalidate_samples,
 )
@@ -41,8 +51,10 @@ from ._log import (
     EvalSpec,
     EvalStats,
     EvalStatus,
+    EventsData,
 )
 from ._metric import recompute_metrics
+from ._pool import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
@@ -81,7 +93,11 @@ __all__ = [
     "read_eval_log_samples",
     "read_eval_log_sample_summaries",
     "condense_sample",
+    "condense_events",
+    "EventsData",
+    "expand_events",
     "resolve_sample_attachments",
+    "resolve_sample_events_data",
     "write_eval_log",
     "write_eval_log_async",
     "write_log_dir_manifest",
@@ -90,6 +106,11 @@ __all__ = [
     "edit_score",
     "recompute_metrics",
     "ProvenanceData",
+    "LogEdit",
+    "LogUpdate",
+    "MetadataEdit",
+    "TagsEdit",
+    "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
 ]

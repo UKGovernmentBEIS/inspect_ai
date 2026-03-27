@@ -1,4 +1,5 @@
 import asyncio
+import io
 import tempfile
 from pathlib import Path
 
@@ -350,6 +351,52 @@ async def test_write_file_local():
         with open(temp_path, "rb") as f:
             content = f.read()
             assert content == test_data
+
+
+# =============================================================================
+# Tests for write_file_streaming
+# =============================================================================
+
+
+async def test_write_file_streaming_local():
+    """Test AsyncFilesystem.write_file_streaming with local files."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Small data
+        small_data = b"Hello streaming world!" * 100
+        small_path = str(Path(temp_dir) / "small.bin")
+        source = io.BytesIO(small_data)
+
+        async with AsyncFilesystem() as fs:
+            await fs.write_file_streaming(small_path, source)
+
+        with open(small_path, "rb") as f:
+            assert f.read() == small_data
+
+        # Large data exceeding _STREAMING_COPY_BUFSIZE (16MB)
+        large_data = b"\xab" * (20 * 1024 * 1024)  # 20MB
+        large_path = str(Path(temp_dir) / "large.bin")
+        source = io.BytesIO(large_data)
+
+        async with AsyncFilesystem() as fs:
+            await fs.write_file_streaming(large_path, source)
+
+        with open(large_path, "rb") as f:
+            assert f.read() == large_data
+
+
+def test_write_file_streaming_s3(mock_s3: None) -> None:
+    """Test AsyncFilesystem.write_file_streaming with mock S3."""
+    test_data = b"\xab" * (10 * 1024 * 1024)  # 10MB, exceeds 8MB multipart threshold
+    s3_path = f"{S3_BUCKET}/streaming_test/file.bin"
+
+    async def run() -> None:
+        source = io.BytesIO(test_data)
+        async with AsyncFilesystem() as fs:
+            await fs.write_file_streaming(s3_path, source)
+            result = await fs.read_file(s3_path)
+            assert result == test_data
+
+    asyncio.run(run())
 
 
 # =============================================================================

@@ -3,23 +3,31 @@ import { FlowPanel } from "../flow/FlowPanel";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogSampleDetailView } from "../log-view/LogSampleDetailView";
 import { LogViewContainer } from "../log-view/LogViewContainer";
+import { SamplePrintView } from "../samples/print/SamplePrintView";
 import { useLogRouteParams } from "./url";
 
 /**
  * RouteDispatcher component that determines which view to show based on the route params.
  *
  * Routes to:
+ * - SamplePrintView: for print URLs (/logs/path/samples/sample/id/epoch/print)
  * - LogSampleDetailView: for sample detail URLs (/logs/path/samples/sample/id/epoch)
  * - FlowPanel: for flow files (.yaml/.yml)
  * - LogViewContainer: for log files (.eval/.json)
  * - LogsPanel: for directory views
  */
 export const RouteDispatcher: FC = () => {
-  const { logPath, sampleId, epoch, sampleUuid } = useLogRouteParams();
+  const { logPath, sampleId, epoch, sampleTabId, sampleUuid } =
+    useLogRouteParams();
 
   // If no logPath is provided, show the logs directory view
   if (!logPath) {
     return <LogsPanel />;
+  }
+
+  // Check for print route (must come before general sample detail check)
+  if (sampleId && epoch && sampleTabId === "print") {
+    return <SamplePrintView />;
   }
 
   // Check if this is a sample detail URL

@@ -2,47 +2,25 @@ import { filename } from "../../../utils/path";
 
 import clsx from "clsx";
 import { FC, MouseEvent, useMemo } from "react";
-import {
-  EvalError,
-  EvalPlan,
-  EvalResults,
-  EvalSpec,
-  EvalStats,
-  Status,
-} from "../../../@types/log";
 import { DownloadPanel } from "../../../components/DownloadPanel";
 import { JSONPanel } from "../../../components/JsonPanel";
 import { ToolButton } from "../../../components/ToolButton";
 import { kLogViewJsonTabId } from "../../../constants";
 import { useStore } from "../../../state/store";
+import { LogDetails } from "../../../client/api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;
 
 // Individual hook for JSON tab
-export const useJsonTabConfig = (
-  evalVersion: number | undefined,
-  evalStatus: Status | undefined,
-  evalSpec: EvalSpec | undefined,
-  evalPlan: EvalPlan | undefined,
-  evalError: EvalError | undefined | null,
-  evalResults: EvalResults | undefined | null,
-  evalStats: EvalStats | undefined,
-) => {
+export const useJsonTabConfig = (logDetails: LogDetails | undefined) => {
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const selectedTab = useStore((state) => state.app.tabs.workspace);
 
   return useMemo(() => {
-    const evalHeader = {
-      version: evalVersion,
-      status: evalStatus,
-      eval: evalSpec,
-      plan: evalPlan,
-      error: evalError,
-      results: evalResults,
-      stats: evalStats,
-    };
+    // Show all LogDetails fields except samples/sampleSummaries
+    const { sampleSummaries: _, ...header } = logDetails ?? {};
 
     return {
       id: kLogViewJsonTabId,
@@ -51,7 +29,7 @@ export const useJsonTabConfig = (
       component: JsonTab,
       componentProps: {
         logFile: selectedLogFile,
-        json: JSON.stringify(evalHeader, null, 2),
+        json: JSON.stringify(header, null, 2),
         selected: selectedTab === kLogViewJsonTabId,
       },
       tools: () => [
@@ -65,17 +43,7 @@ export const useJsonTabConfig = (
         />,
       ],
     };
-  }, [
-    selectedLogFile,
-    evalVersion,
-    evalStatus,
-    evalSpec,
-    evalPlan,
-    evalError,
-    evalResults,
-    evalStats,
-    selectedTab,
-  ]);
+  }, [selectedLogFile, logDetails, selectedTab]);
 };
 
 // Helper function for copy feedback

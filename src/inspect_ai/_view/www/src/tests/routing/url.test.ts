@@ -662,6 +662,24 @@ function samplesSampleUrl(
   );
 }
 
+/**
+ * URL construction function copied from src/app/routing/url.ts
+ */
+function printSampleUrl(
+  logPath: string,
+  sampleId: string | number,
+  epoch: string | number,
+  view: string,
+): string {
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  const encodedSampleId = encodeURIComponent(String(sampleId));
+  return (
+    encodePathParts(
+      `/logs/${decodedLogPath}/samples/sample/${encodedSampleId}/${epoch}/print`,
+    ) + `?view=${view}`
+  );
+}
+
 describe("sample IDs with slashes", () => {
   test("logSamplesUrl encodes slashes in sample IDs", () => {
     const url = logSamplesUrl(
@@ -683,6 +701,17 @@ describe("sample IDs with slashes", () => {
     );
     // The slash in "ascii/car" should be encoded as %2F
     expect(url).toContain("ascii%2Fcar");
+  });
+
+  test("printSampleUrl encodes slashes in sample IDs", () => {
+    const url = printSampleUrl(
+      "path/to/file.eval",
+      "ascii/car",
+      1,
+      "transcript",
+    );
+    expect(url).toContain("ascii%2Fcar");
+    expect(url).toContain("?view=transcript");
   });
 
   test("parseLogRouteParams decodes slashes in sample IDs", () => {
@@ -716,6 +745,22 @@ describe("sample IDs with slashes", () => {
     const result = parseLogRouteParams(path);
     expect(result.sampleId).toBe("ascii/car");
     expect(result.epoch).toBe("1");
+    expect(result.logPath).toBe("path/to/file.eval");
+  });
+
+  test("round-trip: printSampleUrl then parseLogRouteParams", () => {
+    const url = printSampleUrl(
+      "path/to/file.eval",
+      "ascii/car",
+      1,
+      "transcript",
+    );
+    // Extract the path portion after /logs/, stripping query params
+    const path = url.split("?")[0].replace(/^\/logs\//, "");
+    const result = parseLogRouteParams(path);
+    expect(result.sampleId).toBe("ascii/car");
+    expect(result.epoch).toBe("1");
+    expect(result.sampleTabId).toBe("print");
     expect(result.logPath).toBe("path/to/file.eval");
   });
 

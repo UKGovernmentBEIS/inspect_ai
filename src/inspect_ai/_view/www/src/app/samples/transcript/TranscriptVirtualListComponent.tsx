@@ -27,6 +27,7 @@ interface TranscriptVirtualListComponentProps {
   running?: boolean;
   className?: string | string[];
   turnMap?: Map<string, { turnNumber: number; totalTurns: number }>;
+  disableVirtualization?: boolean;
 }
 
 /**
@@ -44,8 +45,10 @@ export const TranscriptVirtualListComponent: FC<
   offsetTop,
   className,
   turnMap,
+  disableVirtualization,
 }) => {
-  const useVirtualization = running || eventNodes.length > 100;
+  const useVirtualization =
+    !disableVirtualization && (running || eventNodes.length > 100);
   const setNativeFind = useStore((state) => state.appActions.setNativeFind);
   useEffect(() => {
     setNativeFind(!useVirtualization);

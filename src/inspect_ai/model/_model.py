@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 import anyio
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 from tenacity import (
     RetryCallState,
     retry,
@@ -219,6 +220,10 @@ class ModelAPI(abc.ABC):
         """Canonical model name for querying results."""
         return self.model_name
 
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        return self.canonical_name()
+
     @abc.abstractmethod
     async def generate(
         self,
@@ -355,6 +360,10 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
+    def tool_result_documents(self) -> bool:
+        """Tool results can be replayed to the model with documents."""
+        return False
+
     def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False
@@ -486,6 +495,10 @@ class Model:
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return self.api.canonical_name()
+
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens."""
+        return self.api.input_tokens_name()
 
     @property
     def explicit_base_url(self) -> str | None:
@@ -844,10 +857,13 @@ class Model:
             ),
         )
 
-        # break tool image content out into user messages if the model doesn't
-        # support tools returning images
+        extract_types: list[type] = []
         if not self.api.tool_result_images():
-            input = tool_result_images_as_user_message(input)
+            extract_types.append(ContentImage)
+        if not self.api.tool_result_documents():
+            extract_types.append(ContentDocument)
+        if extract_types:
+            input = tool_result_media_as_user_message(input, tuple(extract_types))
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -1607,15 +1623,15 @@ def resolve_reasoning_history(
                 # remove it unless we are in "last" mode and haven't yet found last
                 if has_reasoning:
                     if reasoning_history == "none" or found_last:
-                        message = message.model_copy(
-                            update={
-                                "content": [
-                                    content
-                                    for content in message.content
-                                    if not isinstance(content, ContentReasoning)
-                                ]
-                            }
-                        )
+                        filtered = [
+                            content
+                            for content in message.content
+                            if not isinstance(content, ContentReasoning)
+                        ]
+                        if len(filtered) != len(message.content):
+                            message = message.model_copy(
+                                update={"id": uuid(), "content": filtered}
+                            )
                     found_last = True
 
             resolved_messages.append(message)
@@ -1653,107 +1669,105 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
+            original_content = message.content
             message.content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
+            if message.content is not original_content:
+                message.id = uuid()
 
     # return modified messages
     return messages
 
 
-def tool_result_images_as_user_message(
-    messages: list[ChatMessage],
-) -> list[ChatMessage]:
-    """
-    To conform to models lacking support for images in tool responses, create an alternate message history that moves images into a fabricated user message.
+MEDIA_PLACEHOLDERS: dict[type, str] = {
+    ContentImage: "Image content is included below.",
+    ContentDocument: "Document content is included below.",
+}
 
-    Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
+MediaAccumulator: TypeAlias = tuple[list[ChatMessage], list[Content], list[str]]
+MediaContentAccumulator: TypeAlias = tuple[list[Content], list[Content]]
+
+
+def tool_result_media_as_user_message(
+    messages: list[ChatMessage],
+    extract_types: tuple[type, ...],
+) -> list[ChatMessage]:
+    """Move media content out of tool results into fabricated user messages.
+
+    Tool responses will have matching media replaced with placeholder text,
+    and the extracted content will appear in a new user message.
     """
+    message_reducer = _make_message_reducer(extract_types)
     chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        tool_result_images_reducer,
+        message_reducer,
         messages,
         (list[ChatMessage](), list[Content](), list[str]()),
     )
-    # if the last message was a tool result, we may need to flush the pending stuff here
     return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
 
 
-ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
-"""
-ImagesAccumulator is a tuple containing three lists:
-- The first list contains ChatMessages that are the result of processing.
-- The second list contains ContentImages that need to be inserted into a fabricated user message.
-- The third list contains the tool_call_id's associated with the tool responses.
-"""
+def _make_content_reducer(
+    extract_types: tuple[type, ...],
+) -> Callable[[MediaContentAccumulator, Content], MediaContentAccumulator]:
+    """Return a content-level reducer that extracts the given media types."""
 
-
-def tool_result_images_reducer(
-    accum: ImagesAccumulator,
-    message: ChatMessage,
-) -> ImagesAccumulator:
-    messages, pending_content, tool_call_ids = accum
-    # if there are tool result images, pull them out into a ChatUserMessage
-    if (
-        isinstance(message, ChatMessageTool)
-        and isinstance(message.content, list)
-        and any([isinstance(c, ContentImage) for c in message.content])
-    ):
-        new_user_message_content, edited_tool_message_content = functools.reduce(
-            tool_result_image_content_reducer,
-            message.content,
-            (list[Content](), list[Content]()),
-        )
-
-        return (
-            messages
-            + [
-                ChatMessageTool(
-                    id=message.id,
-                    content=edited_tool_message_content,
-                    tool_call_id=message.tool_call_id,
-                    function=message.function,
-                )
-            ],
-            pending_content + new_user_message_content,
-            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
-        )
-
-    else:
-        return (
-            maybe_adding_user_message(messages, pending_content, tool_call_ids)
-            + [message],
-            [],
-            [],
-        )
-
-
-ImageContentAccumulator = tuple[list[Content], list[Content]]
-"""
-ImageContentAccumulator is a tuple containing two lists of Content objects:
-- The first list contains ContentImages that will be included in a fabricated user message.
-- The second list contains modified content for the tool message with images replaced with text.
-"""
-
-
-def tool_result_image_content_reducer(
-    acc: ImageContentAccumulator, content: Content
-) -> ImageContentAccumulator:
-    """
-    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and one for modified tool message with the images replaced with text.
-
-    Returns:
-      ImageContentReducer: A tuple containing two lists of Content objects.
-        - The first list contains the images that will be included in a fabricated user message.
-        - The second list contains modified content for the tool message with images replaced with text.
-    """
-    new_user_message_content, edited_tool_message_content = acc
-    if isinstance(content, ContentImage):
-        return new_user_message_content + [content], edited_tool_message_content + [
-            ContentText(text="Image content is included below.")
-        ]
-
-    else:
+    def reducer(
+        acc: MediaContentAccumulator, content: Content
+    ) -> MediaContentAccumulator:
+        new_user_message_content, edited_tool_message_content = acc
+        for media_type, placeholder in MEDIA_PLACEHOLDERS.items():
+            if isinstance(content, media_type) and media_type in extract_types:
+                return new_user_message_content + [
+                    content
+                ], edited_tool_message_content + [ContentText(text=placeholder)]
         return new_user_message_content, edited_tool_message_content + [content]
+
+    return reducer
+
+
+def _make_message_reducer(
+    extract_types: tuple[type, ...],
+) -> Callable[[MediaAccumulator, ChatMessage], MediaAccumulator]:
+    """Return a message-level reducer that extracts the given media types."""
+    content_reducer = _make_content_reducer(extract_types)
+
+    def reducer(accum: MediaAccumulator, message: ChatMessage) -> MediaAccumulator:
+        messages, pending_content, tool_call_ids = accum
+        if (
+            isinstance(message, ChatMessageTool)
+            and isinstance(message.content, list)
+            and any(isinstance(c, extract_types) for c in message.content)
+        ):
+            new_user_message_content, edited_tool_message_content = functools.reduce(
+                content_reducer,
+                message.content,
+                (list[Content](), list[Content]()),
+            )
+
+            return (
+                messages
+                + [
+                    ChatMessageTool(
+                        content=edited_tool_message_content,
+                        tool_call_id=message.tool_call_id,
+                        function=message.function,
+                    )
+                ],
+                pending_content + new_user_message_content,
+                tool_call_ids
+                + ([message.tool_call_id] if message.tool_call_id else []),
+            )
+
+        else:
+            return (
+                maybe_adding_user_message(messages, pending_content, tool_call_ids)
+                + [message],
+                [],
+                [],
+            )
+
+    return reducer
 
 
 def maybe_adding_user_message(
@@ -1814,31 +1828,53 @@ def consecutive_message_reducer(
 def combine_messages(
     a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
 ) -> ChatMessage:
-    # TODO: Although unlikely to happen based on the current call sites, these
-    # fabricated messages drop interesting fields from the source messages -
-    # such as `internal_name`, `tool_calls`, etc.
-    # To be more specific, since all `ChatMessageXxx` fields other than `id` and
-    # `content` have default values, it's more the case that they're reset to
-    # default values rather than dropped.
-
-    # track combination
-    metadata = {"combined_from": [a.id, b.id]}
-
+    # merge content
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
+        content: str | list[Content] = f"{a.content}\n{b.content}"
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content, metadata=metadata)
+        content = a.content + b.content
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(
-            content=[ContentText(text=a.content), *b.content], metadata=metadata
-        )
+        content = [ContentText(text=a.content), *b.content]
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(
-            content=a.content + [ContentText(text=b.content)], metadata=metadata
-        )
+        content = a.content + [ContentText(text=b.content)]
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
+        )
+
+    # merge metadata (later message wins on conflicts)
+    merged_metadata: dict[str, Any] = {}
+    if a.metadata:
+        merged_metadata.update(a.metadata)
+    if b.metadata:
+        merged_metadata.update(b.metadata)
+
+    # track which messages were combined
+    merged_metadata["combined_from"] = [a.id, b.id]
+
+    # type-specific field merging
+    if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
+        merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
+        return ChatMessageAssistant(
+            content=content,
+            tool_calls=merged_tool_calls or None,
+            model=b.model or a.model,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
+        merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
+        return ChatMessageUser(
+            content=content,
+            tool_call_id=merged_tool_call_id or None,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    else:
+        return message_type(
+            content=content,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
         )
 
 

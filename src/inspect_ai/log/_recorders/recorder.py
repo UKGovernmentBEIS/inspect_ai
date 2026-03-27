@@ -3,6 +3,7 @@ from typing import IO
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
     EvalPlan,
@@ -54,6 +55,7 @@ class Recorder(abc.ABC):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog: ...
 
     @classmethod

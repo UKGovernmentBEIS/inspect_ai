@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
+from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
@@ -14,6 +14,7 @@ from inspect_ai.tool import Tool, tool
 
 @skip_if_no_anthropic
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_anthropic_native_compaction_context_preservation() -> None:
     check_native_compaction_context_preservation("anthropic/claude-opus-4-6")
 
@@ -28,6 +29,7 @@ def test_anthropic_native_compaction_context_preservation_reasoning() -> None:
 
 @skip_if_no_anthropic
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_anthropic_native_compaction_multiple_events() -> None:
     # Note: reasoning_effort cannot be used here because Anthropic's API
     # doesn't support tool_choice (and thus disable_parallel_tool_use) with
@@ -39,12 +41,14 @@ def test_anthropic_native_compaction_multiple_events() -> None:
 
 @skip_if_no_openai
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_openai_native_compaction_context_preservation() -> None:
     check_native_compaction_context_preservation("openai/gpt-5.2")
 
 
 @skip_if_no_openai
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_openai_native_compaction_multiple_events() -> None:
     check_native_compaction_multiple_events(
         "openai/gpt-5.2", config=GenerateConfig(reasoning_effort="medium")

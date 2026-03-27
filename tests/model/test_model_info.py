@@ -2,8 +2,8 @@
 
 import pytest
 
-from inspect_ai.model import ModelInfo, get_model_info, set_model_info
-from inspect_ai.model._model_info import clear_model_info_cache
+from inspect_ai.model import ModelInfo, get_model, get_model_info, set_model_info
+from inspect_ai.model._model_info import clear_model_info_cache, get_model_input_tokens
 
 
 @pytest.fixture(autouse=True)
@@ -57,6 +57,18 @@ class TestGetModelInfo:
         info_mixed = get_model_info("anthropic/CLAUDE-SONNET-4")
         assert info_mixed is not None
         assert info_mixed.context_length == info_correct.context_length
+
+    def test_claude_opus_4_6_context_length(self):
+        """Test that Claude Opus 4.6 has 1MM context window."""
+        info = get_model_info("anthropic/claude-opus-4-6")
+        assert info is not None
+        assert info.context_length == 1_000_000
+
+    def test_claude_sonnet_4_6_context_length(self):
+        """Test that Claude Sonnet 4.6 has 1MM context window."""
+        info = get_model_info("anthropic/claude-sonnet-4-6")
+        assert info is not None
+        assert info.context_length == 1_000_000
 
     def test_underscore_hyphen_normalization(self):
         """Test that underscores and hyphens are treated equivalently."""
@@ -142,7 +154,14 @@ class TestModelInfoFields:
         test_models = [
             "anthropic/claude-sonnet-4",
             "openai/gpt-4o",
+            "openai/gpt-5.3-chat",
+            "openai/gpt-5.4-mini",
+            "openai/gpt-5.4-nano",
             "google/gemini-2.5-flash-preview-05-20",
+            "google/gemini-2.5-flash-lite",
+            "google/gemini-3-flash-preview",
+            "google/gemini-3.1-flash-image-preview",
+            "google/gemini-3.1-flash-lite-preview",
         ]
 
         for model in test_models:
@@ -150,3 +169,35 @@ class TestModelInfoFields:
             if info is not None:  # Model may not exist in database
                 assert info.context_length is not None, f"{model} has no context_length"
                 assert info.context_length > 0, f"{model} has invalid context_length"
+
+
+class TestGetModelInputTokens:
+    """Tests for get_model_input_tokens function."""
+
+    def test_claude_sonnet_4_6(self):
+        """Test that Claude Sonnet 4.6 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-sonnet-4-6")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_opus_4_6(self):
+        """Test that Claude Opus 4.6 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-4-6")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_latest_defaults_to_200k(self):
+        """Test that a future Claude model (is_claude_latest) maps to haiku-4-5 (200K)."""
+        # Use a hypothetical future model name that triggers is_claude_latest()
+        model = get_model("anthropic/claude-sonnet-4-9")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 200_000
+
+    def test_claude_latest_with_1m_beta(self):
+        """Test that a future Claude model with 1M beta maps to opus-4-6 (1MM)."""
+        model = get_model(
+            "anthropic/claude-sonnet-4-9",
+            betas=["context-1m-2025-08-07"],
+        )
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000

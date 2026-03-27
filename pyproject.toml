@@ -41,6 +41,8 @@ select = [
   # "RET", # flake8-return
   # "RUF", # ruff rules
   "DTZ",
+  "TID251",  # banned-api
+  "PLE",     # pylint errors
 ]
 ignore = [
   "E203",
@@ -61,6 +63,10 @@ ignore = [
   "B904",
   "B905",
 ]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
+"typing.is_typeddict".msg = "Use typing_extensions.is_typeddict (typing.is_typeddict doesn't recognize typing_extensions.TypedDict subclasses)"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -156,7 +162,7 @@ dev = [
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
-  "google-genai>=1.56.0",
+  "google-genai>=1.62.0",
   "griffe<=1.14.0",
   "groq>=0.28.0",
   "huggingface_hub>=1.0.0",
@@ -165,7 +171,7 @@ dev = [
   "jsonpath-ng",
   "markdown",
   "mcp>=1.10.0",
-  "mistralai>=1.9.11",
+  "mistralai>=2.0.0",
   "moto[server]",
   "mypy>=1.17.0",
   "nbformat",
@@ -175,7 +181,6 @@ dev = [
   "pip",
   "pre-commit",
   "pyarrow>=10.0.1",
-  "pylint",
   "pytest",
   "pytest-cov",
   "pytest-dotenv",

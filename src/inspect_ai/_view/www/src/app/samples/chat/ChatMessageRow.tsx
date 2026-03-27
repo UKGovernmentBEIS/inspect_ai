@@ -7,7 +7,7 @@ import { ResolvedMessage } from "./messages";
 import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageRowProps {
-  parentName: string;
+  id: string;
   number?: number;
   resolvedMessage: ResolvedMessage;
   toolCallStyle: ChatViewToolCallStyle;
@@ -22,7 +22,7 @@ interface ChatMessageRowProps {
  * Renders the ChatMessage component.
  */
 export const ChatMessageRow: FC<ChatMessageRowProps> = ({
-  parentName,
+  id,
   number,
   resolvedMessage,
   toolCallStyle,
@@ -53,7 +53,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
             {number}
           </div>
           <ChatMessage
-            id={`${parentName}-chat-messages`}
+            id={`${id}-chat-messages`}
             message={resolvedMessage.message}
             toolMessages={resolvedMessage.toolMessages}
             indented={indented}
@@ -76,7 +76,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
         )}
       >
         <ChatMessage
-          id={`${parentName}-chat-messages`}
+          id={`${id}-chat-messages`}
           message={resolvedMessage.message}
           toolMessages={resolvedMessage.toolMessages}
           indented={indented}

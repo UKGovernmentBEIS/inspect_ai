@@ -528,7 +528,7 @@ The [InterCode CTF](https://intercode-benchmark.github.io/#ctf) dataset contains
 
 The definition of the task calls out to a couple of helper functions that do most of the heavy lifting:
 
-1) `read_dataset()`, which reads samples from the file system. Note that samples include both instructions and files to copy into the secure sandbox. See the [full source code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf) of this example for details.
+1) `read_dataset()`, which reads samples from the file system. Note that samples include both instructions and files to copy into the secure sandbox. See the [full source code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_intercode_ctf) of this example for details.
 
 2. `ctf_agent()`, which defines an agent that will be use as the task's solver. The agent consists principally of using `bash()` and `python()` tools in a loop until the flag is discovered. We'll describe this function in more detail below.
 

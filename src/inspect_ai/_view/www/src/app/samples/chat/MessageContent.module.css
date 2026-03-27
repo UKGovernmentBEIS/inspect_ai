@@ -17,3 +17,8 @@
   padding: 1em;
   margin-bottom: 0.5em;
 }
+
+.breakable {
+  overflow-wrap: break-word;
+  min-width: 0;
+}

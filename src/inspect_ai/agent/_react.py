@@ -3,6 +3,7 @@ from typing import Literal, Sequence
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
+from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -55,6 +56,7 @@ def react(
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
+    approval: list[ApprovalPolicy] | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -102,6 +104,9 @@ def react(
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
           `MessageFilter` function to do custom truncation.
+       approval: Approval policies to use for tool calls within this agent.
+          Temporarily replaces any active approval policies for the duration
+          of tool execution.
 
     Returns:
         ReAct agent.
@@ -126,6 +131,7 @@ def react(
             retry_refusals=retry_refusals,
             compaction=compaction,
             truncation=truncation,
+            approval=approval,
         )
 
     # if submit is True or None then use default AgentSubmit
@@ -225,7 +231,9 @@ def react(
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:
                     # call tool functions
-                    messages, output = await execute_tools(state.messages, tools)
+                    messages, output = await execute_tools(
+                        state.messages, tools, approval=approval
+                    )
                     state.messages.extend(messages)
                     if output:
                         state.output = output
@@ -341,6 +349,7 @@ def react_no_submit(
     retry_refusals: int | None,
     compaction: CompactionStrategy | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
+    approval: list[ApprovalPolicy] | None,
 ) -> Agent:
     # resolve tools
     tools = list(tools) if tools is not None else []
@@ -390,7 +399,9 @@ def react_no_submit(
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:
                     # call tool functions
-                    messages, output = await execute_tools(state.messages, tools)
+                    messages, output = await execute_tools(
+                        state.messages, tools, approval=approval
+                    )
                     state.messages.extend(messages)
                     if output:
                         state.output = output

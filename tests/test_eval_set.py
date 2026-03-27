@@ -1,5 +1,8 @@
+import json
 import shutil
 import tempfile
+import threading
+import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -19,6 +22,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
+    _embed_viewer,
     epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
@@ -33,8 +37,14 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
-from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    list_eval_logs,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalConfig, EvalLog
+from inspect_ai.log._recorders.eval import ZipLogFile
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
@@ -451,6 +461,26 @@ def test_task_identifier_with_model_configs():
     ) != task_identifier(
         resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
     )
+    run_eval_set(create_resolved_tasks)
+
+
+def test_task_identifier_with_redacted_model_args():
+    model1 = get_model(
+        "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
+    )
+    model2 = get_model(
+        "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value2"
+    )
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+            model_roles={"my_role": model2},
+        )
+        return resolve_tasks([task1], {}, model1, None, None, None)
+
     run_eval_set(create_resolved_tasks)
 
 
@@ -1176,6 +1206,39 @@ def test_invalidation(tmp_path: Path):
     assert reused_sample_uuids == old_sample_uuids - {invalidated_sample}
 
 
+def test_eval_set_retry_on_error_with_epochs():
+    """Verify sample_source cache reuse works with retry_on_error + epochs."""
+    task1 = hello_world()
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # First run: epochs=2, retry_on_error=1 (no actual failures with hello_world)
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=2,
+            retry_on_error=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
+        location = logs[0].location
+
+        # Second run: same params — should reuse cached samples via sample_source
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:01"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=2,
+                retry_on_error=1,
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=2)
+            # Same log file means samples were served from cache
+            assert basename(logs[0].location) == basename(location)
+
+
 def test_epochs_changed_same_reducer():
     """Test that epochs_changed returns False when the reducer is the same.
 
@@ -1234,3 +1297,123 @@ def test_epochs_changed_same_reducer():
     assert not epochs_changed(epochs_obj, config), (
         "epochs_changed should return False when reducer object matches log name"
     )
+
+
+def test_embed_viewer_writes_on_change() -> None:
+    """Listing updater calls write_log_listing when log state changes."""
+    log1 = EvalLogInfo(
+        name="/dir/log1.eval",
+        type="file",
+        size=1000,
+        mtime=1.0,
+        task="task",
+        task_id="id1",
+        suffix=None,
+    )
+    write_called = threading.Event()
+
+    with (
+        patch("inspect_ai._eval.evalset.embed_log_dir"),
+        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
+    ):
+        mock_list.return_value = [log1]
+        mock_write.side_effect = lambda *a, **kw: write_called.set()
+
+        with _embed_viewer("/fake/dir", interval=0.05):
+            assert write_called.wait(timeout=2.0), "listing.json was never updated"
+
+    # one periodic update (with pre-fetched logs) + one final update on context exit
+    assert mock_write.call_count == 2
+    mock_write.assert_any_call("/fake/dir", logs=[log1])
+    mock_write.assert_any_call("/fake/dir")
+
+
+def test_embed_viewer_skips_when_unchanged() -> None:
+    """Listing updater does not call write_log_listing when state is unchanged."""
+    with (
+        patch("inspect_ai._eval.evalset.embed_log_dir"),
+        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
+    ):
+        mock_list.return_value = []  # always empty — matches initial frozenset()
+
+        with _embed_viewer("/fake/dir", interval=0.05):
+            time.sleep(0.3)  # let several ticks pass
+
+    # no periodic updates (state never changed), but one final update on context exit
+    assert mock_write.call_count == 1
+    mock_write.assert_called_once_with("/fake/dir")
+
+
+def test_eval_set_embed_viewer(tmp_path: Path) -> None:
+    """Viewer assets are embedded and listing.json reflects completed logs."""
+    log_dir = str(tmp_path / "logs")
+
+    success, logs = eval_set(
+        tasks=[hello_world()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        embed_viewer=True,
+    )
+
+    assert success
+    assert logs[0].status == "success"
+
+    for filename in ["index.html", "robots.txt", "listing.json"]:
+        assert (tmp_path / "logs" / filename).exists(), f"{filename} not found"
+
+    listing = json.loads((tmp_path / "logs" / "listing.json").read_text())
+    assert len(listing) == 1
+    assert list(listing.values())[0]["status"] == "success"
+
+
+def test_eval_set_single_flush_error() -> None:
+    """run_single must propagate task exceptions (baseline — should already pass)."""
+
+    async def broken_flush(self: ZipLogFile) -> None:
+        raise OSError("Simulated S3 write failure")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ZipLogFile, "flush", broken_flush):
+            with pytest.raises(Exception):
+                eval_set(
+                    tasks=[
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_a",
+                        ),
+                    ],
+                    log_dir=log_dir,
+                    model="mockllm/model",
+                    retry_attempts=0,
+                )
+
+
+def test_eval_set_parallel_flush_error() -> None:
+    """run_parallel must not swallow task exceptions and return success=True."""
+
+    async def broken_flush(self: ZipLogFile) -> None:
+        raise OSError("Simulated S3 write failure")
+
+    # With 2 tasks run_parallel is used. The bug was that the worker caught the
+    # exception, left result as None, and eval_set got an empty list where
+    # all([]) == True, silently reporting success.
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ZipLogFile, "flush", broken_flush):
+            with pytest.raises(Exception):
+                eval_set(
+                    tasks=[
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_a",
+                        ),
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_b",
+                        ),
+                    ],
+                    log_dir=log_dir,
+                    model="mockllm/model",
+                    retry_attempts=0,
+                )

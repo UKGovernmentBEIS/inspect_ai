@@ -1,5 +1,8 @@
+import contextlib
 import hashlib
 import logging
+import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
@@ -35,13 +38,14 @@ from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
-from inspect_ai.log._bundle import bundle_log_dir
+from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
     list_eval_logs,
     read_eval_log_headers,
     write_log_dir_manifest,
+    write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
@@ -50,7 +54,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
-from inspect_ai.model._model_config import model_roles_to_model_roles_config
+from inspect_ai.model._model_config import (
+    model_args_for_log,
+    model_roles_to_model_roles_config,
+)
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
@@ -128,6 +135,7 @@ def eval_set(
     cost_limit: float | None = None,
     model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
+    max_dataset_memory: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
@@ -144,6 +152,7 @@ def eval_set(
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
+    embed_viewer: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -218,6 +227,9 @@ def eval_set(
         model_cost_config: YAML or JSON file with model prices for cost tracking.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
+        max_dataset_memory: Maximum MB of dataset sample data to hold in
+            memory per task. When exceeded, samples are paged to a temporary
+            file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to the greater of 4 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
@@ -248,6 +260,7 @@ def eval_set(
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
         eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
+        embed_viewer: If True, embed a log viewer into the log directory.
         **kwargs: Model generation options.
 
     Returns:
@@ -297,6 +310,7 @@ def eval_set(
             cost_limit=cost_limit,
             model_cost_config=model_cost_config,
             max_samples=max_samples,
+            max_dataset_memory=max_dataset_memory,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
@@ -503,16 +517,17 @@ def eval_set(
         before=before,
     )
 
-    # emit start event
-    run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
+        # emit start event
+        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-    # execute w/ retry
-    results = retry(try_eval)
+        # execute w/ retry
+        results = retry(try_eval)
 
-    # final sweep to remove failed log files
-    if retry_cleanup:
-        task_ids = {result.eval.task_id for result in results}
-        cleanup_older_eval_logs(log_dir, task_ids)
+        # final sweep to remove failed log files
+        if retry_cleanup:
+            task_ids = {result.eval.task_id for result in results}
+            cleanup_older_eval_logs(log_dir, task_ids)
 
     # if specified, bundle the output directory
     if bundle_dir:
@@ -536,6 +551,33 @@ def eval_set(
 
     # return status + results
     return success, results
+
+
+@contextlib.contextmanager
+def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
+    embed_log_dir(log_dir=log_dir)
+
+    stop_event = threading.Event()
+    last_state: frozenset[tuple[str, float | None]] = frozenset()
+
+    def update_listing() -> None:
+        nonlocal last_state
+        while not stop_event.wait(interval):
+            try:
+                logs = list_eval_logs(log_dir)
+                current_state = frozenset((log.name, log.mtime) for log in logs)
+                if current_state != last_state:
+                    write_log_listing(log_dir, logs=logs)
+                    last_state = current_state
+            except Exception:
+                pass
+
+    threading.Thread(target=update_listing, daemon=True, name="listing-updater").start()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        write_log_listing(log_dir)
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
@@ -875,7 +917,7 @@ def task_identifier(
             plan, task.task.config.merge(eval_set_args.config)
         )
         additional_hash_fields = AdditionalHashFields(
-            model_args=task.model.model_args,
+            model_args=model_args_for_log(task.model.model_args),
             version=task.task.version,
             message_limit=task.task.message_limit
             if eval_set_args.message_limit is None

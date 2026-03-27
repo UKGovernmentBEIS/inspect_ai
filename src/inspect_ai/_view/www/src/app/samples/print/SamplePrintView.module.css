@@ -1,0 +1,36 @@
+.container {
+  padding: 1em;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 1.2em;
+  color: var(--bs-secondary);
+}
+
+.header {
+  margin-bottom: 1em;
+}
+
+.sampleInfo {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-top: 0.25em;
+}
+
+@media print {
+  .loading {
+    display: none;
+  }
+
+  .container {
+    padding: 0;
+  }
+
+  html {
+    font-size: 9pt;
+  }
+}

@@ -32,22 +32,22 @@ async def exec_remote_start(params: SubmitParams) -> SubmitResult:
 @validated_json_rpc_method(PollParams)
 async def exec_remote_poll(params: PollParams) -> PollResult:
     """Poll job state and get incremental output."""
-    return await controller.poll(params.pid)
+    return await controller.poll(params.pid, params.ack_seq)
 
 
 @validated_json_rpc_method(KillParams)
 async def exec_remote_kill(params: KillParams) -> KillResult:
     """Kill a running job."""
-    return await controller.kill(params.pid)
+    return await controller.kill(params.pid, params.ack_seq)
 
 
 @validated_json_rpc_method(WriteStdinParams)
 async def exec_remote_write_stdin(params: WriteStdinParams) -> WriteStdinResult:
     """Write data to stdin of a running job."""
-    return await controller.write_stdin(params.pid, params.data)
+    return await controller.write_stdin(params.pid, params.data, params.ack_seq)
 
 
 @validated_json_rpc_method(CloseStdinParams)
 async def exec_remote_close_stdin(params: CloseStdinParams) -> CloseStdinResult:
     """Close stdin of a running job to signal EOF."""
-    return await controller.close_stdin(params.pid)
+    return await controller.close_stdin(params.pid, params.ack_seq)

@@ -53,6 +53,21 @@ class BatchConfig(BaseModel):
     """Maximum number of consecutive check failures before failing a batch (defaults to 1000)."""
 
 
+class ImageOutput(BaseModel):
+    """Image output configuration.
+
+    Use the `options` field to pass provider-specific options directly
+    to the underlying API (e.g. OpenAI image_generation tool parameters).
+    """
+
+    options: dict[Literal["openai"], dict[str, Any]] | None = Field(default=None)
+    """Provider-specific image output options, keyed by provider name."""
+
+
+OutputModality = Union[Literal["image"], ImageOutput]
+"""Output modality type. Either a literal string or an ImageOutput configuration."""
+
+
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
@@ -150,6 +165,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    modalities: list[OutputModality] | None
+    """Additional output modalities to enable beyond text (e.g. ["image"]). OpenAI and Google only."""
 
     cache: bool | CachePolicy | None
     """Policy for caching of model generations."""
@@ -260,6 +278,9 @@ class GenerateConfig(BaseModel):
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
+    modalities: list[OutputModality] | None = Field(default=None)
+    """Additional output modalities to enable beyond text (e.g. ["image"]). OpenAI and Google only."""
+
     cache: bool | CachePolicy | None = Field(default=None)
     """Policy for caching of model generate output."""
 
@@ -298,7 +319,7 @@ class GenerateConfig(BaseModel):
         for key in config_keys:
             value = getattr(other, key, None)
             if value is not None:
-                setattr(config, key, value)
+                setattr(config, key, deepcopy(value))
         return config
 
 
@@ -313,6 +334,33 @@ def set_active_generate_config(config: GenerateConfig) -> None:
 active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
     "generate_config", default=GenerateConfig()
 )
+
+
+def has_image_output(modalities: list[OutputModality] | None) -> bool:
+    """Check if modalities include image output."""
+    return image_output_config(modalities) is not None
+
+
+def image_output_config(
+    modalities: list[OutputModality] | None,
+) -> ImageOutput | None:
+    """Return the last ImageOutput from modalities.
+
+    Returns a default ImageOutput if only string "image" entries exist,
+    or None if no image output is present.
+    """
+    if modalities is None:
+        return None
+    last: ImageOutput | None = None
+    found = False
+    for m in modalities:
+        if m == "image" or isinstance(m, ImageOutput):
+            found = True
+            if isinstance(m, ImageOutput):
+                last = m
+    if not found:
+        return None
+    return last if last is not None else ImageOutput()
 
 
 def normalized_batch_config(

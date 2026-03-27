@@ -29,7 +29,7 @@ class TestControllerConcurrentPollAndKill:
         pid = 42
 
         completed_result = PollResult(
-            state="completed", exit_code=0, stdout="", stderr=""
+            state="completed", exit_code=0, seq=1, stdout="", stderr=""
         )
 
         # Create a mock job whose poll() and kill() yield control via
@@ -39,13 +39,13 @@ class TestControllerConcurrentPollAndKill:
         job.pid = pid
         job.cleanup = AsyncMock()
 
-        async def mock_poll() -> PollResult:
+        async def mock_poll(ack_seq: int) -> PollResult:
             await asyncio.sleep(0)
             return completed_result
 
-        async def mock_kill() -> tuple[str, str]:
+        async def mock_kill(ack_seq: int) -> tuple[int, str, str]:
             await asyncio.sleep(0)
-            return ("", "")
+            return (1, "", "")
 
         job.poll = mock_poll
         job.kill = mock_kill
@@ -56,8 +56,8 @@ class TestControllerConcurrentPollAndKill:
         # Both poll and kill will try to del self._jobs[pid].
         # Run them concurrently — only one should do the deletion.
         poll_result, kill_result = await asyncio.gather(
-            controller.poll(pid),
-            controller.kill(pid),
+            controller.poll(pid, ack_seq=0),
+            controller.kill(pid, ack_seq=0),
         )
 
         # Both should complete without error.

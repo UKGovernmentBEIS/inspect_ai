@@ -162,7 +162,7 @@ async def _open_executable_for_arch(
                 trace_message(logger, TRACE_SANDBOX_TOOLS, f"found {executable_name}")
                 yield executable_name, f
                 return
-        except (FileNotFoundError, ModuleNotFoundError):
+        except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
             if install_state == "pypi":
                 msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
                 # TODO: once we get the github CI/CD actions robust, this should be fatal

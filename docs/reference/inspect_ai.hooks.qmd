@@ -18,5 +18,8 @@ title: "inspect_ai.hooks"
 ### SampleEnd
 ### SampleInit
 ### SampleStart
+### SampleAttemptStart
+### SampleAttemptEnd
+### SampleEvent
 ### TaskEnd
 ### TaskStart

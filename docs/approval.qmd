@@ -109,6 +109,47 @@ def linux_task():
 
 Note that as with all of the other `Task` options, an `approval` policy defined at the eval-level will override a task-level approval policy.
 
+## Context Manager {#approval-context}
+
+You can temporarily override approval policies within a running evaluation using the `approval()` context manager. This is useful when a solver or agent needs different approval policies for a specific section of tool calls:
+
+```python
+from inspect_ai.approval import approval, ApprovalPolicy, human_approver, auto_approver
+
+async def my_solver(state):
+    # Use human approval for a critical section
+    with approval([ApprovalPolicy(human_approver(), "*")]):
+        # tool calls within this block require human approval
+        ...
+
+    # Outside the block, previous approval policies are restored
+    ...
+```
+
+The context manager replaces the current approval policies for its duration and restores the previous ones on exit. Nesting is supported—each nested `approval()` context sets its own policies and correctly restores the outer policies when it exits.
+
+The `execute_tools()` function and the `react()` agent also accept an `approval` parameter for convenience, which applies approval policies for the duration of tool execution:
+
+```python
+from inspect_ai.model import execute_tools
+from inspect_ai.approval import ApprovalPolicy, human_approver
+
+result = await execute_tools(
+    messages, tools,
+    approval=[ApprovalPolicy(human_approver(), "*")]
+)
+```
+
+```python
+from inspect_ai.agent import react
+from inspect_ai.approval import ApprovalPolicy, human_approver
+
+agent = react(
+    tools=[bash(), python()],
+    approval=[ApprovalPolicy(human_approver(), "*")]
+)
+```
+
 ## Custom Approvers
 
 Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
