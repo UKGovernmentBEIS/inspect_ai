@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 

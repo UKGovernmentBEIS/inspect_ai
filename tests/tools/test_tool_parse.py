@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 from inspect_ai.tool._tool_info import (
+    _tool_info_cache,
     parse_docstring,
     parse_tool_info,
 )
@@ -410,3 +411,33 @@ def test_optional_fields() -> None:
     assert len(age_prop.anyOf) == 2
     assert any(prop.type == "integer" for prop in age_prop.anyOf)
     assert any(prop.type == "null" for prop in age_prop.anyOf)
+
+
+def test_parse_tool_info_caching() -> None:
+    def cached_func(x: int, y: str = "hello") -> bool:
+        """A cacheable function.
+
+        Args:
+            x: An integer
+            y: A string
+        """
+        return True
+
+    # first call populates cache
+    info1 = parse_tool_info(cached_func)
+    assert id(cached_func) in _tool_info_cache
+
+    # second call should return equivalent result from cache
+    info2 = parse_tool_info(cached_func)
+    assert info1.name == info2.name
+    assert info1.description == info2.description
+    assert list(info1.parameters.properties.keys()) == list(
+        info2.parameters.properties.keys()
+    )
+
+    # mutating one result must not affect subsequent calls
+    info1.description = "MUTATED"
+    info1.parameters.properties["x"].description = "MUTATED"
+    info3 = parse_tool_info(cached_func)
+    assert info3.description == "A cacheable function."
+    assert info3.parameters.properties["x"].description == "An integer"
