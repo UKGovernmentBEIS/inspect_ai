@@ -59,26 +59,27 @@ class ToolInfo(BaseModel):
 
 
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
-    # check cache (callers mutate the result so we return a deep copy)
-    func_id = id(func)
-    cached = _tool_info_cache.get(func_id)
-    if cached is not None and cached[0] is func:
-        return cached[1].model_copy(deep=True)
-
-    # tool may already have registry attributes w/ tool info
+    # tool may already have registry attributes w/ tool info — these can be
+    # updated at any time via set_tool_description / tool_with, so always
+    # check them fresh (no caching for this path).
     description = tool_description(func)
     if (
         description.name
         and description.description
         and description.parameters is not None
     ):
-        info = ToolInfo(
+        return ToolInfo(
             name=description.name,
             description=description.description,
             parameters=description.parameters,
         )
-        _tool_info_cache[func_id] = (func, info)
-        return info.model_copy(deep=True)
+
+    # check cache for the expensive reflection/docstring work
+    # (callers mutate the result so we return a deep copy)
+    func_id = id(func)
+    cached = _tool_info_cache.get(func_id)
+    if cached is not None and cached[0] is func:
+        return cached[1].model_copy(deep=True)
 
     # get_type_hints requires a function, method, module, or class
     # For callable instances (objects with __call__),
