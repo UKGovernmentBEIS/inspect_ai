@@ -383,8 +383,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   // Is the sample running?
   const running = useMemo(() => {
-    return isRunning(selectedSampleSummary, runningSampleData);
-  }, [selectedSampleSummary, runningSampleData]);
+    return isRunning(
+      selectedSampleSummary,
+      runningSampleData,
+      sampleData.status,
+    );
+  }, [selectedSampleSummary, runningSampleData, sampleData.status]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
 
@@ -693,7 +697,13 @@ const metadataViewsForSample = (
 const isRunning = (
   sampleSummary?: SampleSummary,
   runningSampleData?: Events,
+  sampleStatus?: string,
 ): boolean => {
+  // If a completed sample has been loaded, it's not running
+  if (sampleStatus === "ok") {
+    return false;
+  }
+
   if (sampleSummary && sampleSummary.completed === false) {
     // An explicitly incomplete sample summary
     return true;
