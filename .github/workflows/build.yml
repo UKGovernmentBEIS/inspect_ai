@@ -100,6 +100,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          submodules: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
