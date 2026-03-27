@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-BINARIES_DIR = Path(__file__).parent.parent / "binaries"
+BINARIES_DIR = Path(__file__).parent.parent.parent / "binaries"
 S3_BUCKET = "s3://inspect-sandbox-tools/"  # Region: us-east-2
 ARCHS = ["amd64", "arm64"]
 
