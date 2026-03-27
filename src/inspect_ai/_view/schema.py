@@ -8,9 +8,7 @@ from inspect_ai._eval.evalset import EvalSet
 from inspect_ai.log import EvalLog
 
 VIEW_DIR = Path(__file__).parent
-APP_DIR = os.path.abspath(
-    (VIEW_DIR / "ts-mono" / "apps" / "inspect").as_posix()
-)
+APP_DIR = os.path.abspath((VIEW_DIR / "ts-mono" / "apps" / "inspect").as_posix())
 
 
 def sync_view_schema() -> None:
