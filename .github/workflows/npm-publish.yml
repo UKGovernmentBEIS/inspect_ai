@@ -57,7 +57,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Sync version from git tag
-        run: npm version from-git --no-git-tag-version
+        run: |
+          VERSION=$(git -C ${{ github.workspace }} describe --tags --abbrev=0 --match='[0-9]*.[0-9]*.[0-9]*')
+          npm version "$VERSION" --no-git-tag-version
 
       - name: Bump to prerelease version
         if: ${{ inputs.prerelease }}
