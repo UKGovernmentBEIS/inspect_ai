@@ -56,6 +56,9 @@ jobs:
         working-directory: src/inspect_ai/_view/ts-mono
         run: pnpm install --frozen-lockfile
 
+      # Must run before publish: the submodule has no tags, so we resolve
+      # the version from the parent repo and write it into package.json.
+      # prepublishOnly in package.json expects this has already been done.
       - name: Sync version from git tag
         run: |
           VERSION=$(git -C ${{ github.workspace }} describe --tags --abbrev=0 --match='[0-9]*.[0-9]*.[0-9]*')
