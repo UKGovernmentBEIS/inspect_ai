@@ -100,6 +100,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          submodules: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -128,10 +129,5 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-
-        # Without this step, the build fails due to these static assets
-        # being duplicated into the `dist` folder.
-      - name: Delete knowingly duplicated files
-        run: rm src/inspect_ai/_view/www/favicon.svg
 
       - uses: hynek/build-and-inspect-python-package@v2

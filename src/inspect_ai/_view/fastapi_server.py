@@ -487,7 +487,7 @@ def view_server(
     app = FastAPI()
     app.mount("/api", api)
 
-    dist = Path(__file__).parent / "www" / "dist"
+    dist = Path(__file__).parent / "dist"
     app.mount("/", StaticFiles(directory=dist.as_posix(), html=True), name="static")
 
     if authorization:

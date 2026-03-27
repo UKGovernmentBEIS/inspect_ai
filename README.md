@@ -33,6 +33,12 @@ make test
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
 
+### Frontend development (TypeScript)
+
+The web UI lives in a git submodule at `src/inspect_ai/_view/ts-mono/`. **These steps are only needed if you plan to work on the TypeScript/React frontend** — Python-only contributors can skip this entirely.
+
+Initialize the submodule and install dependencies — see the [one-time setup guide](src/inspect_ai/_view/ts-mono/docs/submodule-guide.md#one-time-setup).
+
 ***
 
 To work on the Inspect documentation, install the optional `[doc]` dependencies with the `-e` flag and build the docs:
