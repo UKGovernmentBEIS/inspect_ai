@@ -516,7 +516,11 @@ def view_server(
 
     app = FastAPI()
     app.mount("/api", api)
-    app.mount("/", _InspectStaticFiles(directory=dist_dir.as_posix(), html=True), name="static")
+    app.mount(
+        "/",
+        _InspectStaticFiles(directory=dist_dir.as_posix(), html=True),
+        name="static",
+    )
 
     if authorization:
         app.add_middleware(authorization_middleware(authorization))
