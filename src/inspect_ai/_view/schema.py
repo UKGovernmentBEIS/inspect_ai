@@ -7,8 +7,9 @@ from typing import Any
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai.log import EvalLog
 
+VIEW_DIR = Path(__file__).parent
 APP_DIR = os.path.abspath(
-    (Path(__file__).parent / "ts-mono" / "apps" / "inspect").as_posix()
+    (VIEW_DIR / "ts-mono" / "apps" / "inspect").as_posix()
 )
 
 
@@ -19,7 +20,7 @@ def sync_view_schema() -> None:
     in sync w/ Python development
     """
     # export schema file
-    schema_path = Path(APP_DIR, "log-schema.json")
+    schema_path = VIEW_DIR / "log-schema.json"
 
     with open(schema_path, "w", encoding="utf-8") as f:
         # make everything required
