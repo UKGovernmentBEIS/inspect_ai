@@ -15,6 +15,11 @@ from inspect_ai.util._json import JSONType, json_schema
 from ._tool_description import tool_description
 from ._tool_params import ToolParam, ToolParams
 
+# Cache for parse_tool_info results, keyed on function id.
+# We store (func, ToolInfo) tuples so the strong reference to func prevents
+# id reuse while the entry exists, and we can validate identity on lookup.
+_tool_info_cache: dict[int, tuple[Any, "ToolInfo"]] = {}
+
 
 class ToolInfo(BaseModel):
     """Specification of a tool (JSON Schema compatible)
@@ -54,6 +59,12 @@ class ToolInfo(BaseModel):
 
 
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
+    # check cache (callers mutate the result so we return a deep copy)
+    func_id = id(func)
+    cached = _tool_info_cache.get(func_id)
+    if cached is not None and cached[0] is func:
+        return cached[1].model_copy(deep=True)
+
     # tool may already have registry attributes w/ tool info
     description = tool_description(func)
     if (
@@ -61,11 +72,13 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
         and description.description
         and description.parameters is not None
     ):
-        return ToolInfo(
+        info = ToolInfo(
             name=description.name,
             description=description.description,
             parameters=description.parameters,
         )
+        _tool_info_cache[func_id] = (func, info)
+        return info.model_copy(deep=True)
 
     # get_type_hints requires a function, method, module, or class
     # For callable instances (objects with __call__),
@@ -81,13 +94,22 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
     docstring = inspect.getdoc(func)
     parsed_docstring: Docstring | None = parse(docstring) if docstring else None
 
+    # build a lookup of docstring param info (parse once, not per-parameter)
+    docstring_params: dict[str, Dict[str, str]] = {}
+    if parsed_docstring:
+        for ds_param in parsed_docstring.params:
+            schema: Dict[str, str] = {"description": ds_param.description or ""}
+            if ds_param.type_name:
+                schema["docstring_type"] = ds_param.type_name
+            docstring_params[ds_param.arg_name] = schema
+
     info = ToolInfo(name=func_name, description="")
 
     for param_name, param in signature.parameters.items():
         tool_param = ToolParam()
 
-        # Parse docstring
-        docstring_info = parse_docstring(docstring, param_name)
+        # Look up docstring info from pre-built dict
+        docstring_info = docstring_params.get(param_name, {})
 
         # Get type information from type annotations
         if param_name in type_hints:
@@ -129,7 +151,8 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             )
             info.description = f"{info.description}\n\nExamples\n\n{examples}"
 
-    return info
+    _tool_info_cache[func_id] = (func, info)
+    return info.model_copy(deep=True)
 
 
 def parse_docstring(docstring: str | None, param_name: str) -> Dict[str, str]:
