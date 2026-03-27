@@ -52,7 +52,11 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
           ? content.trim().length > 0
           : Array.isArray(content) &&
             content.some((c) => c.type !== "tool_use");
-      if (!hasVisibleContent) {
+      const hasToolCalls =
+        "tool_calls" in message &&
+        Array.isArray(message.tool_calls) &&
+        message.tool_calls.length > 0;
+      if (!hasVisibleContent && !hasToolCalls) {
         return null;
       }
     }
