@@ -348,6 +348,21 @@ export const logSamplesUrl = (
   }
 };
 
+export const printSampleUrl = (
+  logPath: string,
+  sampleId: string | number,
+  epoch: string | number,
+  view: string,
+) => {
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  const encodedSampleId = encodeURIComponent(String(sampleId));
+  return (
+    encodePathParts(
+      `/logs/${decodedLogPath}/samples/sample/${encodedSampleId}/${epoch}/print`,
+    ) + `?view=${view}`
+  );
+};
+
 export const samplesSampleUrl = (
   logPath: string,
   sampleId: string | number,
