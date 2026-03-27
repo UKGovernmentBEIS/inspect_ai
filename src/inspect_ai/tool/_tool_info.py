@@ -72,7 +72,7 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             name=description.name,
             description=description.description,
             parameters=description.parameters,
-        )
+        ).model_copy(deep=True)
 
     # check cache for the expensive reflection/docstring work
     # (callers mutate the result so we return a deep copy)
