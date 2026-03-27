@@ -59,7 +59,7 @@ class ScoreCacheEntry:
         messages: list[Any],
         output: Any,
         target: str | list[str],
-        choices: list[str] | None,
+        choices: list[Any] | None,
         metadata: dict[str, Any] | None,
         policy: CachePolicy,
         epoch: int | None = None,

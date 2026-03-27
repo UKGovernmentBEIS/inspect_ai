@@ -434,7 +434,9 @@ async def _run_score_task(
                             if state.output is not None
                             else "",
                             target=target.target,
-                            choices=state.choices,
+                            choices=list(state.choices)
+                            if state.choices is not None
+                            else None,
                             metadata=state.metadata,
                             policy=cache_policy,
                             epoch=state.epoch,
