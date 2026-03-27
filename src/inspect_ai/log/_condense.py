@@ -1,4 +1,5 @@
 import json
+from functools import lru_cache
 from logging import getLogger
 from typing import (
     Callable,
@@ -51,6 +52,17 @@ from ._pool import (
     resolve_model_event_inputs,
 )
 
+
+@lru_cache(maxsize=1)
+def _events_adapter() -> TypeAdapter[list[Event]]:
+    return TypeAdapter(list[Event])
+
+
+@lru_cache(maxsize=1)
+def _chat_messages_adapter() -> TypeAdapter[list[ChatMessage]]:
+    return TypeAdapter(list[ChatMessage])
+
+
 logger = getLogger(__name__)
 
 
@@ -97,13 +109,11 @@ def expand_events(
         Events with full message inputs and call request messages restored.
     """
     if isinstance(events, str):
-        events = TypeAdapter(list[Event]).validate_json(events)
+        events = _events_adapter().validate_json(events)
     if isinstance(data, str):
         raw = json.loads(data)
         data = EventsData(
-            messages=TypeAdapter(list[ChatMessage]).validate_python(
-                raw.get("messages", [])
-            ),
+            messages=_chat_messages_adapter().validate_python(raw.get("messages", [])),
             calls=raw.get("calls", []),
         )
     result = resolve_model_event_inputs(list(events), data["messages"])

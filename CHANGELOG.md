@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Cache Pydantic TypeAdapters in condense_events for performance.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 
 ## 0.3.201 (25 March 2026)
