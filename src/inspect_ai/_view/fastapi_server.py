@@ -28,6 +28,7 @@ from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
+from inspect_ai._view._dist import resolve_dist_directory
 from inspect_ai._view.common import (
     delete_log,
     get_log_dir,
@@ -484,11 +485,15 @@ def view_server(
         fs_options=fs_options,
     )
 
+    dist_dir = resolve_dist_directory()
+
+    @api.get("/dist")
+    async def api_dist() -> dict[str, str]:
+        return {"path": dist_dir.as_posix()}
+
     app = FastAPI()
     app.mount("/api", api)
-
-    dist = Path(__file__).parent / "dist"
-    app.mount("/", StaticFiles(directory=dist.as_posix(), html=True), name="static")
+    app.mount("/", StaticFiles(directory=dist_dir.as_posix(), html=True), name="static")
 
     if authorization:
         app.add_middleware(authorization_middleware(authorization))
