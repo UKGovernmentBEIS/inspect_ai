@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import urllib.parse
 from io import BytesIO
 from logging import getLogger
@@ -20,6 +21,7 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
+from starlette.types import Scope
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
@@ -444,6 +446,27 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
+_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+
+
+class _InspectStaticFiles(StaticFiles):
+    """StaticFiles with cache headers for hashed assets."""
+
+    def file_response(
+        self,
+        full_path: str | os.PathLike[str],
+        stat_result: os.stat_result,
+        scope: Scope,
+        status_code: int = 200,
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if "/assets/" in str(full_path):
+            response.headers["cache-control"] = _IMMUTABLE_CACHE
+        else:
+            response.headers["cache-control"] = "no-cache"
+        return response
+
+
 class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
@@ -493,7 +516,7 @@ def view_server(
 
     app = FastAPI()
     app.mount("/api", api)
-    app.mount("/", StaticFiles(directory=dist_dir.as_posix(), html=True), name="static")
+    app.mount("/", _InspectStaticFiles(directory=dist_dir.as_posix(), html=True), name="static")
 
     if authorization:
         app.add_middleware(authorization_middleware(authorization))
