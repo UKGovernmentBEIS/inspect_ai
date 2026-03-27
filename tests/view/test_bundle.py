@@ -42,7 +42,9 @@ def test_s3_bundle(mock_s3) -> None:
 
     # hashed asset filenames
     assets = s3_fs.ls(os.path.join(output_dir, "assets"))
-    asset_names = [os.path.basename(a.name if hasattr(a, "name") else a) for a in assets]
+    asset_names = [
+        os.path.basename(a.name if hasattr(a, "name") else a) for a in assets
+    ]
     assert any(f.endswith(".js") and f.startswith("index-") for f in asset_names)
     assert any(f.endswith(".css") and f.startswith("index-") for f in asset_names)
 
@@ -110,7 +112,9 @@ def test_s3_embed(mock_s3) -> None:
 
     # hashed asset filenames
     assets = s3_fs.ls(os.path.join(log_dir, "assets"))
-    asset_names = [os.path.basename(a.name if hasattr(a, "name") else a) for a in assets]
+    asset_names = [
+        os.path.basename(a.name if hasattr(a, "name") else a) for a in assets
+    ]
     assert any(f.endswith(".js") and f.startswith("index-") for f in asset_names)
     assert any(f.endswith(".css") and f.startswith("index-") for f in asset_names)
 
