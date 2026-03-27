@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import os
 import socket
 import subprocess
@@ -16,6 +17,7 @@ from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
 from inspect_sandbox_tools._util.constants import SOCKET_PATH
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
+from inspect_sandbox_tools._util.user_switch import switch_user
 
 
 class JSONRPCIncoming(BaseModel):
@@ -59,6 +61,17 @@ async def _exec(request: str | None) -> None:
     request_json_str = request or sys.stdin.read().strip()
     tool_name = JSONRPCIncoming.model_validate_json(request_json_str).method
     assert isinstance(tool_name, str)
+
+    # For in-process tools, extract _run_as_user and setuid before dispatching.
+    # The CLI is short-lived (one invocation per request), so in-process setuid is safe.
+    if tool_name in in_process_tools:
+        request_data = json.loads(request_json_str)
+        run_as_user = None
+        if isinstance(request_data.get("params"), dict):
+            run_as_user = request_data["params"].pop("_run_as_user", None)
+        if run_as_user is not None:
+            request_json_str = json.dumps(request_data)
+            switch_user(run_as_user)
 
     print(
         await (
