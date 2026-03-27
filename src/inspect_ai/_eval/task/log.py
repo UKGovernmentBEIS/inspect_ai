@@ -137,6 +137,7 @@ class TaskLogger:
         model_args: dict[str, Any],
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
+        environment: dict[str, str] | None,
         recorder: Recorder,
         header_only: bool,
     ) -> None:
@@ -232,6 +233,7 @@ class TaskLogger:
             revision=revision,
             packages=packages,
             metadata=metadata,
+            environment=environment,
         )
 
         # stack recorder and location

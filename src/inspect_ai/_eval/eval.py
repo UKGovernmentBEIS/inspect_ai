@@ -96,6 +96,7 @@ def eval(
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    environment: dict[str, str] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -159,6 +160,8 @@ def eval(
             Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
+        environment: Environment variables to preserve for eval retry.
+            Specify as a dict mapping variable names to values
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -254,6 +257,7 @@ def eval(
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
+                environment=environment,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -318,6 +322,7 @@ async def eval_async(
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    environment: dict[str, str] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -373,6 +378,8 @@ async def eval_async(
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
+        environment: Environment variables to preserve for eval retry.
+            Specify as a dict mapping variable names to values.
         approval: Tool use approval policies.
           Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
           Defaults to no approval policy.
@@ -451,6 +458,7 @@ async def eval_async(
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
+                environment=environment,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -520,6 +528,7 @@ async def _eval_async_inner(
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    environment: dict[str, str] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -755,6 +764,7 @@ async def _eval_async_inner(
                         solver=solver,
                         tags=tags,
                         metadata=metadata,
+                        environment=environment,
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
@@ -783,6 +793,7 @@ async def _eval_async_inner(
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
+                environment=environment,
                 run_samples=run_samples,
                 score=score,
                 **kwargs,
@@ -1088,6 +1099,11 @@ async def eval_retry_async(
         task_args = eval_log.eval.task_args_passed
         tags = eval_log.eval.tags
         metadata = eval_log.eval.metadata
+        environment = eval_log.eval.environment
+        if environment:
+            for key, value in environment.items():
+                os.environ[key] = value
+
         limit = eval_log.eval.config.limit
         # try to match log format of retried log
         if log_format is None and eval_log.location:
@@ -1214,6 +1230,7 @@ async def eval_retry_async(
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
+                environment=environment,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,

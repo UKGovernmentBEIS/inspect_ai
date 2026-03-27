@@ -892,6 +892,9 @@ class EvalSpec(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
 
+    environment: dict[str, str] | None = Field(default=None)
+    """Environment variables to preserve for eval retry."""
+
     scorers: list[EvalScorer] | None = Field(default=None)
     """Scorers and args for this eval"""
 
