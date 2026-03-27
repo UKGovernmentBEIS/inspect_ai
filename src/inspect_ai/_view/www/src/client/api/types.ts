@@ -225,7 +225,7 @@ export interface ClientAPI {
   get_flow: (dir?: string) => Promise<string | undefined>;
 
   get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
-  get_log_details: (log_file: string) => Promise<LogDetails>;
+  get_log_details: (log_file: string, cached?: boolean) => Promise<LogDetails>;
 
   // Sample retrieval
   get_log_sample: (

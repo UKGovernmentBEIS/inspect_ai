@@ -302,6 +302,17 @@ class SampleBufferDatabase(SampleBuffer):
 
         try:
             with self._get_connection() as conn:
+                # This should be checking whether the sample data actually
+                # exists in the database, otherwise once the sample is deleted
+                # this will just return no events and no attachments until the
+                # entire task is completed.
+                row = conn.execute(
+                    "SELECT 1 FROM samples WHERE id = ? AND epoch = ?",
+                    (str(id), epoch),
+                ).fetchone()
+                if row is None:
+                    return None
+
                 return SampleData(
                     events=list(self._get_events(conn, id, epoch, after_event_id)),
                     attachments=list(

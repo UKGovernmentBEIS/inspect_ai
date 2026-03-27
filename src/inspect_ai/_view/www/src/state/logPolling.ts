@@ -35,7 +35,9 @@ export function createLogPolling(
     log.debug(`refresh: ${selectedLogFile}`);
 
     try {
-      const logDetails = await api.get_log_details(selectedLogFile);
+      // Pass cached=false so the eval file is re-read from disk,
+      // picking up any newly flushed samples.
+      const logDetails = await api.get_log_details(selectedLogFile, false);
 
       set((state) => {
         // Set the log summary

@@ -14,8 +14,11 @@ export const mergeSampleSummaries = (
   const uniquePendingSamples = pendingSamples
     .filter((sample) => !existingSampleIds.has(`${sample.id}-${sample.epoch}`))
     .map((sample) => {
-      // Always mark pending items as incomplete to be sure we trigger polling
-      return { ...sample, completed: false };
+      // Pass through the server's completed status. Samples start with
+      // completed=false and transition to completed=true when they finish.
+      // This allows the UI to detect completion (e.g. stop showing progress
+      // indicators) even while the sample is still in the pending buffer.
+      return { ...sample, completed: sample.completed ?? false };
     });
 
   // Combine and return all samples
