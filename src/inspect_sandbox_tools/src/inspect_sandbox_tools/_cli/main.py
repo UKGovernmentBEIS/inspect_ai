@@ -70,6 +70,10 @@ async def _exec(request: str | None) -> None:
         if isinstance(request_data.get("params"), dict):
             run_as_user = request_data["params"].pop("_run_as_user", None)
         if run_as_user is not None:
+            if not isinstance(run_as_user, str):
+                raise TypeError(
+                    f"_run_as_user must be a string, got {type(run_as_user).__name__}"
+                )
             request_json_str = json.dumps(request_data)
             switch_user(run_as_user)
 

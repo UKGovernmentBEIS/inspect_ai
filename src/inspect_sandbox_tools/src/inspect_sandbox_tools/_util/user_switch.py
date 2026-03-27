@@ -23,8 +23,10 @@ def set_oom_score_adj() -> None:
 def switch_user(username: str) -> None:
     """Switch the current process to the given user via setuid/setgid/initgroups.
 
-    This is irreversible and should only be used in short-lived CLI processes.
-    Raises RuntimeError if the user doesn't exist or permission is denied.
+    Also updates HOME, USER, and LOGNAME environment variables to match the
+    target user. This is irreversible and should only be used in short-lived
+    CLI processes. Raises RuntimeError if the user doesn't exist or permission
+    is denied.
     """
     try:
         pw = pwd.getpwnam(username)
@@ -39,6 +41,9 @@ def switch_user(username: str) -> None:
             f"Permission denied switching to user {username!r} "
             "(process may lack CAP_SETUID/CAP_SETGID)"
         ) from None
+    os.environ["HOME"] = pw.pw_dir
+    os.environ["USER"] = username
+    os.environ["LOGNAME"] = username
 
 
 def make_preexec(username: str | None) -> Callable[[], None]:
