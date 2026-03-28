@@ -8,6 +8,18 @@ To get started with Inspect, please see the documentation at <https://inspect.ai
 
 Inspect also includes a collection of over 100 pre-built evaluations ready to run on any model (learn more at [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/))
 
+Inspect can also ship package-native tasks directly from `inspect_ai.tasks`. For example, the built-in HarmActionsEval task can be evaluated from Python as follows:
+
+```python
+from inspect_ai import eval
+from inspect_ai.tasks import harmactionseval
+
+logs = eval(
+    harmactionseval(k=3, limit=25),
+    model="openai/gpt-5",
+)
+```
+
 ***
 
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:

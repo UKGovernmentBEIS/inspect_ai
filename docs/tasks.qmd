@@ -338,6 +338,20 @@ inspect eval inspect_evals/gaia
 inspect eval inspect_evals/swe_bench
 ```
 
+Package tasks can also be exposed as ordinary Python imports without adding a CLI registry entry. Inspect itself does this for built-in tasks under `inspect_ai.tasks`. For example, HarmActionsEval can be imported and evaluated directly:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.tasks import harmactionseval
+
+logs = eval(
+    harmactionseval(k=3, limit=25),
+    model="openai/gpt-5"
+)
+```
+
+This pattern is useful when you want package compatibility, packaged assets, and a stable import path without requiring users to install a separate eval collection.
+
 ### Example
 
 Here's an example that walks through all of the requirements for registering tasks in packages. Let's say your package is named `evals` and has a task named `mytask` in the `tasks.py` file:
