@@ -162,7 +162,7 @@ dev = [
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
-  "google-genai>=1.62.0",
+  "google-genai>=1.69.0",
   "griffe<=1.14.0",
   "groq>=0.28.0",
   "huggingface_hub>=1.0.0",

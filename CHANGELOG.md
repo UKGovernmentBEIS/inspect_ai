@@ -1,11 +1,12 @@
 ## Unreleased
 
-- Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
+- Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).
 - Approval: New `read_approval_policies()` function for reading approval policies from a config file.
 - Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
 - Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
+- Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
 
 ## 0.3.201 (25 March 2026)
 
