@@ -29,14 +29,22 @@ class ApprovalPolicy:
     """Tools to use this approver for (can be full tool names or globs)."""
 
 
-def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
-    # if policies is a str, it is a config file or an approver
-    if isinstance(policies, str):
-        policies = approval_policies_from_config(policies)
+def policy_approver(approval: str | list[ApprovalPolicy]) -> Approver:
+    """Approver based on a list of approval policies.
+
+    Args:
+        approval: Either a path to an approval policy config file or a list of approval policies.
+
+    Returns:
+        Approver that enforces the chain of specified approval policies.
+    """
+    # if policies is a str, it is a config file
+    if isinstance(approval, str):
+        approval = approval_policies_from_config(approval)
 
     # compile policy into approvers and regexes for matching
     policy_matchers: list[tuple[list[str], Approver]] = []
-    for policy in policies:
+    for policy in approval:
         tools = [policy.tools] if isinstance(policy.tools, str) else policy.tools
         globs = [f"{tool}*" for tool in tools]
         policy_matchers.append((globs, policy.approver))

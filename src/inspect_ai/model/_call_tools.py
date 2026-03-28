@@ -31,6 +31,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from inspect_ai.approval import ApprovalPolicy
+    from inspect_ai.approval._approver import Approver
 
 import anyio
 import yaml
@@ -105,7 +106,7 @@ async def execute_tools(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
-    approval: list["ApprovalPolicy"] | None = None,
+    approval: Optional[Union[list["ApprovalPolicy"], "Approver"]] = None,
 ) -> ExecuteToolsResult:
     """Perform tool calls in the last assistant message.
 

@@ -69,14 +69,16 @@ def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
 
 @contextlib.contextmanager
 def approval(
-    policies: list[ApprovalPolicy],
+    approval: list[ApprovalPolicy] | Approver,
 ) -> Iterator[None]:
     """Context manager to temporarily replace tool approval policies.
 
     Args:
-        policies: Approval policies to use within the context.
+        approval: Approval policies or approver to use within the context.
     """
-    token = _tool_approver.set(policy_approver(policies))
+    if isinstance(approval, list):
+        approval = policy_approver(approval)
+    token = _tool_approver.set(approval)
     try:
         yield
     finally:

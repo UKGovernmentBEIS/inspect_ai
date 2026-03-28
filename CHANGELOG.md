@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Approval: Enable passing `Approver` directly to `appoval()` context manager and `execute_tools()`. 
+- Approval: Export `policy_approver()` function for creating approvers from a list of policies.
 - Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
