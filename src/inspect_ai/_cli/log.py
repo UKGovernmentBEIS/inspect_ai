@@ -256,8 +256,7 @@ def types() -> None:
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
 
 _SUBMODULE_MSG = (
-    "ts-mono submodule not initialized. "
-    "Run 'git submodule update --init' to set it up."
+    "ts-mono submodule not initialized. Run 'git submodule update --init' to set it up."
 )
 
 
