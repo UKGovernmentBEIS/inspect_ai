@@ -39,7 +39,7 @@ The web UI lives in a git submodule at `src/inspect_ai/_view/ts-mono/`. **These 
 
 Initialize the submodule and install dependencies — see the [one-time setup guide](src/inspect_ai/_view/ts-mono/docs/submodule-guide.md#one-time-setup).
 
-***
+### Documentation
 
 To work on the Inspect documentation, install the optional `[doc]` dependencies with the `-e` flag and build the docs:
 
