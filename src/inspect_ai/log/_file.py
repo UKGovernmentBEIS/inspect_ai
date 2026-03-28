@@ -690,6 +690,7 @@ def log_files_from_ls(
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
+_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}")
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
@@ -715,8 +716,7 @@ def _try_parse_filename(
     if len(parts) < 2:
         return None, None, None
 
-    # Validate that parts[0] looks like an ISO timestamp prefix
-    if not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}", parts[0]):
+    if not _timestamp_prefix_re.match(parts[0]):
         return None, None, None
 
     if len(parts) == 2:
@@ -756,7 +756,6 @@ def _try_read_header(
 
 
 def log_file_info(info: FileInfo) -> "EvalLogInfo":
-    # extract the basename and split into parts
     basename = os.path.splitext(info.name)[0]
     parts = basename.split("/").pop().split("_")
 
