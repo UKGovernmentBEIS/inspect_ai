@@ -13,7 +13,7 @@ from inspect_ai.tool._tool_call import (
 )
 
 from ._approver import Approver
-from ._policy import ApprovalPolicy, is_policy_approver, policy_approver
+from ._policy import ApprovalPolicy, policy_approver
 
 
 async def apply_tool_approval(
@@ -69,21 +69,14 @@ def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
 
 @contextlib.contextmanager
 def approval(
-    approval: list[ApprovalPolicy] | Approver,
+    policies: list[ApprovalPolicy],
 ) -> Iterator[None]:
     """Context manager to temporarily replace tool approval policies.
 
     Args:
-        approval: Approval policies or  approver created with `policy_approver()` to use within the context.
+        policies: Approval policies to use within the context.
     """
-    if isinstance(approval, list):
-        approval = policy_approver(approval)
-    elif not is_policy_approver(approval):
-        raise ValueError(
-            "Approver must be created with policy_approver(). "
-            "Pass a list[ApprovalPolicy] or use policy_approver() directly."
-        )
-    token = _tool_approver.set(approval)
+    token = _tool_approver.set(policy_approver(policies))
     try:
         yield
     finally:
