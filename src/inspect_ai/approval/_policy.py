@@ -136,8 +136,10 @@ def read_approval_policies(file: str) -> list[ApprovalPolicy]:
     """Read approval policies from a JSON or YAML config file.
 
     Args:
-        file: JSON or YAML config with with approval policies.
+        file: JSON or YAML config file with approval policies.
     """
+    if not Path(file).exists():
+        raise FileNotFoundError(f"Approval policy file not found: {file}")
     return approval_policies_from_config(file)
 
 
