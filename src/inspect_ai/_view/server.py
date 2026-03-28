@@ -478,7 +478,7 @@ async def log_headers_response(files: list[str]) -> web.Response:
 class WWWResource(web.StaticResource):
     def __init__(self) -> None:
         super().__init__(
-            "", os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
+            "", os.path.abspath((Path(__file__).parent / "dist").as_posix())
         )
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:

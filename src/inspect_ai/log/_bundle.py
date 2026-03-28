@@ -17,7 +17,7 @@ from ._file import log_files_from_ls, write_log_listing
 logger = logging.getLogger(__name__)
 
 
-DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "www", "dist")
+DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "dist")
 
 
 def _push_bundle_to_hf(
