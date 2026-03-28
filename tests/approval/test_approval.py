@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai.approval import (
@@ -7,7 +9,9 @@ from inspect_ai.approval import (
     ApprovalPolicy,
     approval,
     auto_approver,
+    policy_approver,
 )
+from inspect_ai.approval._policy import is_policy_approver
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
@@ -243,6 +247,84 @@ async def test_execute_tools_approval_empty_list():
     assert isinstance(messages[-1], ChatMessageTool)
     assert messages[-1].error is None
     assert messages[-1].content == [ContentText(text="2")]
+
+
+def test_approval_context_manager_with_policy_approver():
+    from inspect_ai.approval._apply import _tool_approver
+
+    approver = policy_approver([approve_all_policy])
+    assert is_policy_approver(approver)
+
+    # context manager accepts policy approver directly
+    with approval(approver):
+        assert _tool_approver.get(None) is approver
+    assert _tool_approver.get(None) is None
+
+
+def test_approval_context_manager_rejects_raw_approver():
+    async def raw_approver(message, call, view, history):
+        from inspect_ai.approval import Approval
+
+        return Approval(decision="approve")
+
+    assert not is_policy_approver(raw_approver)
+
+    with pytest.raises(ValueError, match="policy_approver"):
+        with approval(raw_approver):
+            pass
+
+
+async def test_execute_tools_with_policy_approver():
+    """execute_tools with a policy_approver(reject) should reject tool calls."""
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error=None,
+    )
+    approver = policy_approver([reject_all_policy])
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=approver,
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "approval"
+
+
+async def test_execute_tools_rejects_raw_approver():
+    """execute_tools should reject a raw Approver that isn't a policy approver."""
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    async def raw_approver(message, call, view, history):
+        from inspect_ai.approval import Approval
+
+        return Approval(decision="approve")
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error=None,
+    )
+    with pytest.raises(ValueError, match="policy_approver"):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool_def],
+            approval=raw_approver,
+        )
 
 
 if __name__ == "__main__":
