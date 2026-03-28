@@ -132,6 +132,15 @@ def approver_from_config(policy_config: str) -> Approver:
     return policy_approver(policies)
 
 
+def read_approval_policies(file: str) -> list[ApprovalPolicy]:
+    """Read approval policies from a JSON or YAML config file.
+
+    Args:
+        file: JSON or YAML config with with approval policies.
+    """
+    return approval_policies_from_config(file)
+
+
 def approval_policies_from_config(
     policy_config: str | ApprovalPolicyConfig,
 ) -> list[ApprovalPolicy]:
