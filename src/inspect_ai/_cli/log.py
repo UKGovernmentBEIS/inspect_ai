@@ -253,15 +253,28 @@ def types() -> None:
     print(view_type_resource("log.d.ts"))
 
 
+_TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
+
+_SUBMODULE_MSG = (
+    "ts-mono submodule not initialized. "
+    "Run 'git submodule update --init' to set it up."
+)
+
+
+def _require_submodule() -> None:
+    if not (_TS_MONO_APP / "src").exists():
+        raise RuntimeError(_SUBMODULE_MSG)
+
+
 def view_resource(file: str) -> str:
-    resource = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect" / file
+    _require_submodule()
+    resource = _TS_MONO_APP / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
 
 
 def view_type_resource(file: str) -> str:
-    resource = (
-        PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect" / "src" / "@types" / file
-    )
+    _require_submodule()
+    resource = _TS_MONO_APP / "src" / "@types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
