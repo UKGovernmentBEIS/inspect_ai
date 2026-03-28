@@ -10,6 +10,7 @@
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
 - Inspect View: Fix regression that could hide assistant messages with only tool calls.
 - Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
+- Bugfix: Handle recursive references when resolving $ref targets in JSON schema.
 
 ## 0.3.201 (25 March 2026)
 
