@@ -2,6 +2,7 @@
 
 - Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
+- Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 
 ## 0.3.201 (25 March 2026)
@@ -81,7 +82,6 @@
 - Compaction: Prevent trailing assistant messages for `CompactionEdit` and `CompactionNative` strategies.
 - Agents: Strip citations from content returned via `as_tool()` agent wrapper.
 - Agent Bridge: Print errors which occur in model proxy to stderr.
-- Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Sandbox Tools: Prevent race conditions when multiple coroutines attempt to inject sandbox tools.
 - Eval Logs: Use async S3 interface when flushing log buffer.
 - Eval Logs: Stream writes when flushing log buffer (reduces memory utilization by not fully materializing the log).
