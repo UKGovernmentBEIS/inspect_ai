@@ -295,7 +295,11 @@ class GoogleGenAIAPI(ModelAPI):
         client = self.model_client(http_options)
         async with client.aio:
             # create hooks and allocate request
-            http_hooks = HttpxHooks(client._api_client._async_httpx_client)
+            async_httpx_client = client._api_client._async_httpx_client
+            if async_httpx_client is not None:
+                http_hooks: HttpHooks = HttpxHooks(async_httpx_client)
+            else:
+                http_hooks = HttpHooks()
             request_id = http_hooks.start_request()
 
             # Create google-genai types.
