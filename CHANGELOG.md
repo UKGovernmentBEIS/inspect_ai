@@ -7,7 +7,7 @@
 - Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
-- Inspect View: Fix regression that could hide assistant messsages with only tool calls.
+- Inspect View: Fix regression that could hide assistant messages with only tool calls.
 
 ## 0.3.201 (25 March 2026)
 
