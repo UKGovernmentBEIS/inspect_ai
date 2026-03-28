@@ -29,6 +29,11 @@ class ApprovalPolicy:
     """Tools to use this approver for (can be full tool names or globs)."""
 
 
+def is_policy_approver(approver: Approver) -> bool:
+    """Check if an approver was created by `policy_approver()`."""
+    return getattr(approver, "_is_policy_approver", False)
+
+
 def policy_approver(approval: str | list[ApprovalPolicy]) -> Approver:
     """Approver based on a list of approval policies.
 
@@ -86,6 +91,7 @@ def policy_approver(approval: str | list[ApprovalPolicy]) -> Approver:
         record_approval("policy", message, call, view, reject)
         return reject
 
+    approve._is_policy_approver = True  # type: ignore[attr-defined]
     return approve
 
 
