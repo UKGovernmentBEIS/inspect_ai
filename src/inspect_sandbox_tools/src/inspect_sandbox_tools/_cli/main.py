@@ -17,7 +17,7 @@ from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
 from inspect_sandbox_tools._util.constants import SOCKET_PATH
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
-from inspect_sandbox_tools._util.user_switch import switch_user
+from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
 
 
 class JSONRPCIncoming(BaseModel):
@@ -76,6 +76,7 @@ async def _exec(request: str | None) -> None:
                 )
             request_json_str = json.dumps(request_data)
             switch_user(run_as_user)
+            os.environ["HOME"] = get_home_dir(run_as_user)
 
     print(
         await (
