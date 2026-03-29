@@ -49,9 +49,10 @@ def main() -> None:
             asyncio.run(run_model_proxy_server())
 
 
-def start_server():
-    """Start the background server process (called by the server manager)."""
-    server_main()
+def start_server() -> None:
+    """Start the sandbox tools server and validate it is responsive."""
+    _ensure_server_is_running()
+    healthcheck()
 
 
 def healthcheck():
@@ -124,7 +125,7 @@ def _ensure_server_is_running() -> None:
     process = subprocess.Popen(
         (
             # Production staticx mode
-            [executable_path, "start-server"]
+            [executable_path, "server"]
             # Get the correct executable path for staticx bundled executables. When
             # running under staticx, sys.argv[0] points to the extracted temp executable
             # which gets deleted when the parent process exits, breaking the server.
@@ -132,12 +133,7 @@ def _ensure_server_is_running() -> None:
             # being executed.
             if (executable_path := os.environ.get("STATICX_PROG_PATH"))
             # Dev/test mode: use Python interpreter with module invocation
-            else [
-                sys.executable,
-                "-m",
-                "inspect_sandbox_tools._cli.main",
-                "start-server",
-            ]
+            else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
         ),
         stdout=stdout_log,
         stderr=stderr_log,
