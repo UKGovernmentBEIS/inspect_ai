@@ -97,10 +97,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         async with _open_executable_for_arch(info["architecture"]) as (_, f):
             # TODO: The first tuple member, filename, isn't currently used, but it will be
             await sandbox.write_file(SANDBOX_CLI, f.read())
-            # .write_file used `tee` which dropped execute permissions.
-            # Try root-only (0o700) first so the agent can't execute the binary;
-            # fall back to world-executable (+x) for sandboxes without root.
-            result = await sandbox.exec(["chmod", "700", SANDBOX_CLI], user="root")
+            # .write_file used `tee` which dropped execute permissions
+            result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI], user="root")
             if result.success:
                 sandbox._tools_user = "root"
             else:
