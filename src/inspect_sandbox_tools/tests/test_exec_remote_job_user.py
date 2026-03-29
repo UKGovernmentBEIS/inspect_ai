@@ -123,7 +123,7 @@ class TestJobCreateHomeEnv:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 
         job = await Job.create("echo hi", user=None, can_switch_user=False)
-        await job.kill()
+        await job.kill(ack_seq=0)
         # No assertion on env needed — just verify it doesn't crash.
         # The subprocess inherits os.environ unchanged when env=None.
 
@@ -182,7 +182,7 @@ class TestJobCreateUserValidation:
 
         job = await Job.create("echo hello", user=None, can_switch_user=False)
         assert job.pid > 0
-        await job.kill()
+        await job.kill(ack_seq=0)
 
     async def test_current_user_without_can_switch_works(self) -> None:
         """Requesting the current user should succeed even without root."""
@@ -193,7 +193,7 @@ class TestJobCreateUserValidation:
         current_user = getpass.getuser()
         job = await Job.create("echo hello", user=current_user, can_switch_user=False)
         assert job.pid > 0
-        await job.kill()
+        await job.kill(ack_seq=0)
 
 
 class TestExecRemoteUserIntegration:
@@ -204,12 +204,12 @@ class TestExecRemoteUserIntegration:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 
         job = await Job.create("id -un", user="nobody", can_switch_user=True)
-        result = await job.poll()
+        result = await job.poll(ack_seq=0)
         for _ in range(50):
             if result.state == "completed":
                 break
             await asyncio.sleep(0.1)
-            result = await job.poll()
+            result = await job.poll(ack_seq=result.seq)
         assert result.state == "completed"
         assert result.exit_code == 0
         assert result.stdout.strip() == "nobody"
