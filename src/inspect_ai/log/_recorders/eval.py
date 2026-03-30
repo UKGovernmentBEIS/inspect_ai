@@ -315,10 +315,16 @@ class EvalRecorder(FileRecorder):
                 epoch = sample.epoch
 
             if exclude_fields:
-                # Use streaming JSON parser to skip large fields
-                # This significantly reduces memory usage for large samples
+                # Use streaming JSON parser to skip large fields.
+                # This significantly reduces memory usage for large samples.
+                #
+                # We use parse_async + ObjectBuilder rather than kvitems_async
+                # so that excluded fields are never materialised into Python
+                # objects. kvitems_async builds the full value before yielding
+                # it, meaning large excluded fields (e.g. store, events) still
+                # spike memory transiently even though they are discarded.
                 import ijson  # type: ignore
-                from ijson import IncompleteJSONError
+                from ijson import IncompleteJSONError, ObjectBuilder
                 from ijson.backends.python import (  # type: ignore[import-untyped]
                     UnexpectedSymbol,
                 )
@@ -328,11 +334,35 @@ class EvalRecorder(FileRecorder):
                     async with await reader.open_member(
                         _sample_filename(id, epoch)
                     ) as f:
-                        async for key, value in ijson.kvitems_async(
-                            adapt_to_reader(f), "", use_float=True
+                        depth = 0
+                        current_key: str | None = None
+                        builder: ObjectBuilder | None = None
+                        async for prefix, event, value in ijson.parse_async(
+                            adapt_to_reader(f), use_float=True
                         ):
-                            if key not in exclude_fields:
-                                data[key] = value
+                            # Update depth before the completion check so that
+                            # end_map/end_array returning us to depth 1 is
+                            # detected correctly.
+                            if event in ("start_map", "start_array"):
+                                depth += 1
+                            elif event in ("end_map", "end_array"):
+                                depth -= 1
+
+                            if depth == 1 and event == "map_key":
+                                # Start of a new top-level field.
+                                current_key = value
+                                builder = (
+                                    None
+                                    if current_key in exclude_fields
+                                    else ObjectBuilder()
+                                )
+                            elif builder is not None:
+                                builder.event(event, value)
+                                # Value is complete once depth returns to 1
+                                # (covers both scalars and nested structures).
+                                if depth == 1:
+                                    data[current_key] = builder.value  # type: ignore[index]
+                                    builder = None
                 except (
                     ValueError,
                     IncompleteJSONError,
