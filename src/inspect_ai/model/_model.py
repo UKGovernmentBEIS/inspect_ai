@@ -1904,6 +1904,10 @@ def init_model_roles(roles: dict[str, Model]) -> None:
 
 
 def model_roles() -> dict[str, Model]:
+    """Model roles.
+
+    Get the model roles defined for the current task. Call this method only within a running solver or agent execution (it's not available during task construction).
+    """
     return _model_roles.get()
 
 

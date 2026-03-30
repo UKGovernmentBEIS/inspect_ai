@@ -66,6 +66,7 @@ from ._model import (
     ModelAPI,
     ModelName,
     get_model,
+    model_roles,
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
@@ -164,6 +165,7 @@ __all__ = [
     "get_model_info",
     "set_model_cost",
     "set_model_info",
+    "model_roles",
     "ModelInfo",
     "modelapi",
     "Citation",
