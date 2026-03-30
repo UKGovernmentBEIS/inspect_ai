@@ -1,5 +1,3 @@
-import os
-
 from ..._util.json_rpc_helpers import validated_json_rpc_method
 from ._controller import Controller
 from .tool_types import (
@@ -16,7 +14,6 @@ from .tool_types import (
 )
 
 controller = Controller()
-_can_switch_user = os.getuid() == 0
 
 
 @validated_json_rpc_method(SubmitParams)
@@ -28,8 +25,6 @@ async def exec_remote_start(params: SubmitParams) -> SubmitResult:
         stdin_open=params.stdin_open,
         env=params.env,
         cwd=params.cwd,
-        user=params.user,
-        can_switch_user=_can_switch_user,
     )
     return SubmitResult(pid=pid)
 
