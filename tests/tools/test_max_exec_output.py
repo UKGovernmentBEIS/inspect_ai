@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import flaky_retry, skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
@@ -43,7 +43,7 @@ for _ in range(1000):
 # e.g. systemd-run --user --scope -p MemoryMax=200M pytest tests/tools/test_max_exec_output.py --capture=no --runslow
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.flaky
+@flaky_retry(max_retries=3)
 def test_max_exec_output():
     task = Task(
         dataset=[
