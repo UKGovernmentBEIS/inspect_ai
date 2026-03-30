@@ -5,11 +5,11 @@
 - Approval: Add `metadata` field to `Approval` which is in turn forwarded to `ApprovalEvent`.
 - Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
-- Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
 - Inspect View: Fix regression that could hide assistant messages with only tool calls.
 - Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
+- Inspect View: Built TypeScript code is now minified and committed via git lfs.
 - Bugfix: Handle recursive references when resolving $ref targets in JSON schema.
 
 ## 0.3.201 (25 March 2026)
