@@ -335,7 +335,7 @@ class EvalRecorder(FileRecorder):
                         _sample_filename(id, epoch)
                     ) as f:
                         depth = 0
-                        current_key: str | None = None
+                        current_key: str = ""
                         builder: ObjectBuilder | None = None
                         async for prefix, event, value in ijson.parse_async(
                             adapt_to_reader(f), use_float=True
@@ -361,7 +361,7 @@ class EvalRecorder(FileRecorder):
                                 # Value is complete once depth returns to 1
                                 # (covers both scalars and nested structures).
                                 if depth == 1:
-                                    data[current_key] = builder.value  # type: ignore[index]
+                                    data[current_key] = builder.value
                                     builder = None
                 except (
                     ValueError,
