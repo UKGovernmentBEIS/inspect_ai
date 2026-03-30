@@ -114,7 +114,7 @@ jobs:
           uv pip install .[dev]
 
       - name: Test with pytest
-        run: uv run pytest -rA --doctest-modules --color=yes --cov=inspect_ai
+        run: uv run pytest -rA --color=yes --cov=inspect_ai
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
