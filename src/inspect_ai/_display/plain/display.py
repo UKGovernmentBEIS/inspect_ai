@@ -8,7 +8,7 @@ from inspect_ai._display.core.rich import rich_initialise
 from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai._util.text import truncate
-from inspect_ai._util.throttle import throttle
+from inspect_ai.util._throttle import throttle
 
 from ...util._concurrency import concurrency_status_display
 from ..core.config import task_config
