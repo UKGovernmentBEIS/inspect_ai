@@ -149,6 +149,9 @@ jobs:
           fetch-tags: true
           submodules: true
 
+      - name: Create local main ref
+        run: git branch main origin/main
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
