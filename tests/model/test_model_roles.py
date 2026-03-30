@@ -1,9 +1,11 @@
 import tempfile
 
+import pytest
 from test_helpers.utils import failing_solver, skip_if_no_google, skip_if_no_openai
 
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai._eval.evalset import eval_set
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
@@ -259,6 +261,39 @@ def multi_role_solver():
         return state
 
     return solve
+
+
+def test_model_role_required_raises_when_not_specified() -> None:
+    """get_model with required=True should raise when the role is not specified."""
+    with pytest.raises(PrerequisiteError, match="required"):
+        get_model(role="nonexistent_role", required=True)
+
+
+def test_model_role_required_succeeds_when_specified() -> None:
+    """get_model with required=True should succeed when the role is provided."""
+
+    @solver
+    def required_role_solver():
+        async def solve(state, generate):
+            model = get_model(role=GRADER, required=True)
+            state.output = await model.generate(state.messages)
+            state.messages.append(state.output.message)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(solver=required_role_solver()),
+        model_roles={GRADER: MOCK_A},
+    )[0]
+    assert log.status == "success"
+    check_model_role(log, GRADER, MOCK_A)
+
+
+def test_model_role_required_falls_back_to_default() -> None:
+    """get_model with required=True but a default should use the default, not raise."""
+    model = get_model(role="missing_role", required=True, default="mockllm/model")
+    assert model is not None
 
 
 def test_model_role_merge_eval_overrides_task() -> None:
