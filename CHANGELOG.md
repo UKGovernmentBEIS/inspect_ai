@@ -6,6 +6,7 @@
 - Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
 - Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
+- Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
 - Model API: Export `model_roles()` function to get model roles for the active task.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
