@@ -177,7 +177,7 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
-        run: uv run pytest --runslow -m slow tests/tools/ -x
+        run: uv run pytest --runslow -m slow tests/tools/ -x -n auto
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
