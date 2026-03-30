@@ -315,14 +315,11 @@ class EvalRecorder(FileRecorder):
                 epoch = sample.epoch
 
             if exclude_fields:
-                # Use streaming JSON parser to skip large fields.
-                # This significantly reduces memory usage for large samples.
-                #
-                # We use parse_async + ObjectBuilder rather than kvitems_async
-                # so that excluded fields are never materialised into Python
-                # objects. kvitems_async builds the full value before yielding
-                # it, meaning large excluded fields (e.g. store, events) still
-                # spike memory transiently even though they are discarded.
+                # Stream the sample JSON using low-level parse events.
+                # An ObjectBuilder accumulates events only for included fields;
+                # excluded fields are read as raw events and never allocated
+                # as Python objects, keeping peak memory proportional to the
+                # data we actually keep.
                 import ijson  # type: ignore
                 from ijson import IncompleteJSONError, ObjectBuilder
                 from ijson.backends.python import (  # type: ignore[import-untyped]
@@ -340,16 +337,15 @@ class EvalRecorder(FileRecorder):
                         async for prefix, event, value in ijson.parse_async(
                             adapt_to_reader(f), use_float=True
                         ):
-                            # Update depth before the completion check so that
-                            # end_map/end_array returning us to depth 1 is
-                            # detected correctly.
+                            # Depth must be updated before the completion check
+                            # so that a closing bracket that returns depth to 1
+                            # is recognised as completing the current value.
                             if event in ("start_map", "start_array"):
                                 depth += 1
                             elif event in ("end_map", "end_array"):
                                 depth -= 1
 
                             if depth == 1 and event == "map_key":
-                                # Start of a new top-level field.
                                 current_key = value
                                 builder = (
                                     None
@@ -358,8 +354,8 @@ class EvalRecorder(FileRecorder):
                                 )
                             elif builder is not None:
                                 builder.event(event, value)
-                                # Value is complete once depth returns to 1
-                                # (covers both scalars and nested structures).
+                                # Depth 1 means we have returned to the top-level
+                                # object, so the current field's value is complete.
                                 if depth == 1:
                                     data[current_key] = builder.value
                                     builder = None
