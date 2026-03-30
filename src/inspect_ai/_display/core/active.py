@@ -8,6 +8,7 @@ from inspect_ai.util._display import display_type
 from ..log.display import LogDisplay
 from ..plain.display import PlainDisplay
 from ..rich.display import RichDisplay
+from ..socket.display import SocketDisplay
 from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
 
@@ -22,7 +23,9 @@ def active_display() -> Display | None:
 def display() -> Display:
     global _active_display
     if _active_display is None:
-        if display_type() == "plain":
+        if display_type() == "socket":
+            _active_display = SocketDisplay()
+        elif display_type() == "plain":
             _active_display = PlainDisplay()
         elif (
             display_type() == "full"
