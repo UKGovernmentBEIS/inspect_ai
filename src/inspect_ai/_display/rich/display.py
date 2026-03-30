@@ -150,6 +150,8 @@ class RichDisplay(Display):
 
     @throttle(1)
     def _update_display(self) -> None:
+        # These guards are load-bearing: trailing-edge throttle may fire a
+        # deferred call after task_screen teardown has nulled these fields.
         if (
             display_type() != "conversation"
             and self.tasks is not None
