@@ -183,12 +183,6 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
-      - name: Cleanup Docker resources
-        if: always()
-        run: |
-          docker system prune -f
-          docker volume prune -f
-
   package:
     name: Build & inspect the package.
     runs-on: ubuntu-latest
