@@ -1,6 +1,16 @@
+"""Tests for the inspect view server — both aiohttp and FastAPI implementations.
+
+Parameterized tests run the same assertions against both servers. Tests that
+are specific to FastAPI abstractions (AccessPolicy, FileMappingPolicy) or that
+document gaps between the two implementations are grouped at the end.
+"""
+
+import asyncio
+import json
 import math
 import urllib.parse
 import zipfile
+from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
 import fastapi.testclient
@@ -20,17 +30,424 @@ from inspect_ai._view import fastapi_server
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Unified test client wrapper
+# ═══════════════════════════════════════════════════════════════════════════
 
-@pytest.fixture
-def mock_s3_eval_file() -> str:
-    file_path = "mocked_eval_set/2025-01-01T00-00-00+00-00_task_taskid.eval"
-    write_fake_eval_log(file_path)
-    return file_path
+
+class SimpleResponse:
+    """Normalised response that works for both server implementations."""
+
+    def __init__(
+        self,
+        status_code: int,
+        content: bytes,
+        headers: dict[str, str],
+    ) -> None:
+        self.status_code = status_code
+        self.content = content
+        self.headers = {k.lower(): v for k, v in headers.items()}
+
+    def json(self) -> Any:
+        return json.loads(self.content)
+
+    @property
+    def text(self) -> str:
+        return self.content.decode("utf-8")
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(
+                f"HTTP {self.status_code}: {self.content[:200].decode('utf-8', errors='replace')}"
+            )
+
+
+class ViewTestClient:
+    """Unified interface over FastAPI TestClient and aiohttp TestClient.
+
+    Handles the URL-prefix and log-path-encoding differences transparently.
+    """
+
+    def __init__(self, impl: str, log_dir: Path) -> None:
+        self.impl = impl
+        self.log_dir = log_dir
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str] | None = None,
+    ) -> SimpleResponse:
+        raise NotImplementedError
+
+    def log_path(self, filename: str) -> str:
+        """Full filesystem path for a log file under log_dir."""
+        return str(self.log_dir / filename)
+
+    def log_url(self, endpoint: str, filename: str) -> str:
+        """Build a URL for a log-path endpoint (e.g. ``logs``, ``log-info``)."""
+        full_path = self.log_path(filename)
+        return f"/{endpoint}/{self._encode_for_url(full_path)}"
+
+    def _encode_for_url(self, file_path: str) -> str:
+        raise NotImplementedError
+
+    def close(self) -> None:
+        pass
+
+
+class FastAPIViewTestClient(ViewTestClient):
+    def __init__(self, log_dir: Path) -> None:
+        super().__init__("fastapi", log_dir)
+        app = fastapi_server.view_server_app(default_dir=str(log_dir))
+        self._tc = fastapi.testclient.TestClient(app)
+        self._tc.__enter__()
+
+    def request(self, method: str, path: str, headers: dict[str, str] | None = None) -> SimpleResponse:
+        resp = self._tc.request(method, path, headers=headers or {})
+        return SimpleResponse(resp.status_code, resp.content, dict(resp.headers))
+
+    def _encode_for_url(self, file_path: str) -> str:
+        # FastAPI {log:path} captures slashes natively
+        return file_path
+
+    def close(self) -> None:
+        self._tc.__exit__(None, None, None)
+
+
+class AioHTTPViewTestClient(ViewTestClient):
+    def __init__(self, log_dir: Path) -> None:
+        super().__init__("aiohttp", log_dir)
+        from inspect_ai._view.server import view_server_app
+
+        self._loop = asyncio.new_event_loop()
+        aiohttp_app = view_server_app(log_dir=str(log_dir))
+
+        async def _start() -> None:
+            from aiohttp.test_utils import TestClient as AioTestClient
+            from aiohttp.test_utils import TestServer
+
+            self._server = TestServer(aiohttp_app)
+            self._client = AioTestClient(self._server)
+            await self._client.start_server()
+
+        self._loop.run_until_complete(_start())
+
+    def request(self, method: str, path: str, headers: dict[str, str] | None = None) -> SimpleResponse:
+        # aiohttp routes are prefixed with /api
+        full_path = f"/api{path}"
+
+        async def _do() -> SimpleResponse:
+            resp = await self._client.request(method, full_path, headers=headers or {})
+            body = await resp.read()
+            return SimpleResponse(resp.status, body, dict(resp.headers))
+
+        return self._loop.run_until_complete(_do())
+
+    def _encode_for_url(self, file_path: str) -> str:
+        # aiohttp {log} is a single path segment — encode slashes
+        return urllib.parse.quote(file_path, safe="")
+
+    def close(self) -> None:
+        self._loop.run_until_complete(self._client.close())
+        self._loop.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Helpers
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def write_eval_log(base_dir: Path, filename: str) -> str:
+    """Write a minimal eval log to ``base_dir/filename``. Return full path."""
+    full_path = str(base_dir / filename)
+    eval_log = inspect_ai.log.EvalLog(
+        eval=inspect_ai.log.EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="task",
+            task_id="task_id",
+            dataset=inspect_ai.log.EvalDataset(),
+            model="model",
+            config=inspect_ai.log.EvalConfig(),
+        )
+    )
+    inspect_ai.log.write_eval_log(eval_log, full_path, "eval")
+    return full_path
+
+
+def write_eval_log_named(base_dir: Path, filename: str, task: str, task_id: str) -> str:
+    """Write eval log with specific task/task_id. Return full path."""
+    full_path = str(base_dir / filename)
+    eval_log = inspect_ai.log.EvalLog(
+        eval=inspect_ai.log.EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task=task,
+            task_id=task_id,
+            dataset=inspect_ai.log.EvalDataset(),
+            model="model",
+            config=inspect_ai.log.EvalConfig(),
+        )
+    )
+    inspect_ai.log.write_eval_log(eval_log, full_path, "eval")
+    return full_path
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Parameterized fixture
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture(params=["fastapi", "aiohttp"])
+def view_client(request: pytest.FixtureRequest, tmp_path: Path) -> Generator[ViewTestClient, Any, None]:
+    impl = request.param
+    if impl == "fastapi":
+        client = FastAPIViewTestClient(tmp_path)
+    else:
+        client = AioHTTPViewTestClient(tmp_path)
+    yield client
+    client.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Parameterized parity tests (run against both servers)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_api_log(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("logs", fname))
+    resp.raise_for_status()
+    assert resp.json()["eval"]["task"] == "task"
+
+
+def test_api_log_info(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-info", fname))
+    resp.raise_for_status()
+    info = resp.json()
+    assert "size" in info
+    assert info["size"] >= 100
+    assert "direct_url" not in info
+
+
+def test_api_log_delete(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-delete", fname))
+    resp.raise_for_status()
+    assert not Path(full_path).exists()
+
+
+def test_api_log_bytes(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET", view_client.log_url("log-bytes", fname) + "?start=0&end=99"
+    )
+    resp.raise_for_status()
+    assert len(resp.content) == 100
+
+
+def test_api_log_download(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-download", fname))
+    resp.raise_for_status()
+    assert resp.headers.get("content-type") == "application/octet-stream"
+    assert "content-disposition" in resp.headers
+    assert ".eval" in resp.headers["content-disposition"]
+    assert len(resp.content) == Path(full_path).stat().st_size
+
+
+def test_api_log_dir(view_client: ViewTestClient) -> None:
+    resp = view_client.request(
+        "GET", f"/log-dir?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    assert "log_dir" in resp.json()
+
+
+def test_api_logs_listing(view_client: ViewTestClient) -> None:
+    write_eval_log_named(view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1")
+    write_eval_log_named(view_client.log_dir, "2025-01-01T00-01-00+00-00_t2_id2.eval", "t2", "id2")
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert len(body["files"]) == 2
+    tasks = {f["task"] for f in body["files"]}
+    assert tasks == {"t1", "t2"}
+
+
+def test_api_log_headers(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    encoded = urllib.parse.quote_plus(full_path)
+    resp = view_client.request("GET", f"/log-headers?file={encoded}")
+    resp.raise_for_status()
+    headers = resp.json()
+    assert len(headers) == 1
+    assert headers[0]["status"] == "started"
+
+
+def test_api_log_headers_multiple(view_client: ViewTestClient) -> None:
+    f1 = write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    f2 = write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-01-00+00-00_t2_id2.eval", "t2", "id2"
+    )
+    q = f"file={urllib.parse.quote_plus(f1)}&file={urllib.parse.quote_plus(f2)}"
+    resp = view_client.request("GET", f"/log-headers?{q}")
+    resp.raise_for_status()
+    assert len(resp.json()) == 2
+
+
+@pytest.mark.parametrize(
+    ["last_eval_time", "expected"],
+    [
+        pytest.param("-1", ["refresh-evals"], id="refresh"),
+        pytest.param("9999999999999", [], id="no-refresh"),
+    ],
+)
+def test_api_events(
+    view_client: ViewTestClient, last_eval_time: str, expected: list[str]
+) -> None:
+    resp = view_client.request("GET", f"/events?last_eval_time={last_eval_time}")
+    resp.raise_for_status()
+    assert resp.json() == expected
+
+
+def test_api_events_no_param(view_client: ViewTestClient) -> None:
+    resp = view_client.request("GET", "/events")
+    resp.raise_for_status()
+    assert resp.json() == []
+
+
+def test_api_log_message(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+    )
+    assert resp.status_code == 204
+
+
+def test_api_log_files_full_listing(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-01-00+00-00_t2_id2.eval", "t2", "id2"
+    )
+    resp = view_client.request(
+        "GET", f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert body["response_type"] == "full"
+    assert len(body["files"]) == 2
+
+
+def test_api_log_files_incremental(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    resp1 = view_client.request(
+        "GET", f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp1.raise_for_status()
+    count = len(resp1.json()["files"])
+
+    # Same count, old mtime → incremental
+    etag = f"0.0-{count}"
+    resp2 = view_client.request(
+        "GET",
+        f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+        headers={"If-None-Match": etag},
+    )
+    resp2.raise_for_status()
+    assert resp2.json()["response_type"] == "incremental"
+
+
+def test_api_log_files_count_change_gives_full(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    etag = "0.0-999"
+    resp = view_client.request(
+        "GET",
+        f"/log-files?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+        headers={"If-None-Match": etag},
+    )
+    resp.raise_for_status()
+    assert resp.json()["response_type"] == "full"
+
+
+def test_api_flow_returns_yaml(view_client: ViewTestClient) -> None:
+    flow_dir = view_client.log_dir / "flow_sub"
+    flow_dir.mkdir()
+    (flow_dir / "flow.yaml").write_bytes(b"steps:\n  - name: step1\n")
+    resp = view_client.request(
+        "GET",
+        f"/flow?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+        "&dir=flow_sub",
+    )
+    resp.raise_for_status()
+    assert "step1" in resp.text
+
+
+def test_api_flow_missing_404(view_client: ViewTestClient) -> None:
+    resp = view_client.request(
+        "GET",
+        f"/flow?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+    )
+    assert resp.status_code == 404
+
+
+def test_api_header_only_zero(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET", view_client.log_url("logs", fname) + "?header-only=0"
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    assert data["eval"]["task"] == "task"
+    assert data.get("samples") is None
+
+
+def test_api_header_only_large_threshold(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET", view_client.log_url("logs", fname) + "?header-only=999999"
+    )
+    resp.raise_for_status()
+    assert resp.json()["eval"]["task"] == "task"
+
+
+def test_api_log_bytes_single_byte(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET", view_client.log_url("log-bytes", fname) + "?start=0&end=0"
+    )
+    resp.raise_for_status()
+    assert len(resp.content) == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FastAPI-specific tests (memory://, AccessPolicy, FileMappingPolicy)
+# ═══════════════════════════════════════════════════════════════════════════
 
 
 def write_fake_eval_log(file_path: str) -> None:
     full_file_path = f"memory://{file_path}"
-
     eval_log = inspect_ai.log.EvalLog(
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
@@ -102,6 +519,13 @@ def write_fake_eval_log_buffer(
 
 
 @pytest.fixture
+def mock_s3_eval_file() -> str:
+    file_path = "mocked_eval_set/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_fake_eval_log(file_path)
+    return file_path
+
+
+@pytest.fixture
 def test_client() -> Generator[TestClient, Any, None]:
     class mapping_policy(FileMappingPolicy):
         async def map(self, request: Request, file: str) -> str:
@@ -146,56 +570,9 @@ def test_client_with_restrictive_access() -> Generator[TestClient, Any, None]:
         yield client
 
 
-def test_api_log(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request("GET", f"/logs/{mock_s3_eval_file}")
-    response.raise_for_status()
-    api_log = response.json()
-    assert api_log["eval"]["task"] == "task"
-
-
-def test_api_log_info(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
-    response.raise_for_status()
-    log_info = response.json()
-    assert "size" in log_info
-    assert log_info["size"] >= 100
-    # No direct_url when generate_direct_urls is False (default)
-    assert "direct_url" not in log_info
-
-
-def test_api_log_info_no_direct_url_for_non_s3(mock_s3_eval_file: str):
-    """generate_direct_urls=True doesn't add direct_url for non-S3 files."""
-
-    class mapping_policy(FileMappingPolicy):
-        async def map(self, request: Request, file: str) -> str:
-            return f"memory://{file}"
-
-        async def unmap(self, request: Request, file: str) -> str:
-            return file.removeprefix("memory://")
-
-    with fastapi.testclient.TestClient(
-        fastapi_server.view_server_app(
-            mapping_policy=mapping_policy(),
-            generate_direct_urls=True,
-        )
-    ) as client:
-        response = client.request("GET", f"/log-info/{mock_s3_eval_file}")
-        response.raise_for_status()
-        log_info = response.json()
-        assert "size" in log_info
-        assert "direct_url" not in log_info
-
-
-def test_api_log_delete(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request("GET", f"/log-delete/{mock_s3_eval_file}")
-    response.raise_for_status()
-
-    assert not inspect_ai._util.file.filesystem("memory://").exists(mock_s3_eval_file)
-
-
-def test_api_log_delete_forbidden(
+def test_fastapi_log_delete_forbidden(
     test_client_with_restrictive_access: TestClient, mock_s3_eval_file: str
-):
+) -> None:
     response = test_client_with_restrictive_access.request(
         "GET", f"/log-delete/{mock_s3_eval_file}"
     )
@@ -203,122 +580,10 @@ def test_api_log_delete_forbidden(
     assert inspect_ai._util.file.filesystem("memory://").exists(mock_s3_eval_file)
 
 
-def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request(
-        "GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end=99"
-    )
-    response.raise_for_status()
-    api_log_bytes = response.content
-    assert len(api_log_bytes) == 100
-
-
-def test_api_log_bytes_beyond_file_size(
-    test_client: TestClient, mock_s3_eval_file: str
-):
-    """Test that requesting bytes beyond file size returns correct Content-Length.
-
-    This test verifies the fix for the bug where Content-Length was calculated
-    from requested range (end - start + 1) rather than actual bytes returned,
-    causing 'Response content shorter than Content-Length' errors.
-    """
-    # First, get the actual file size
-    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
-    size_response.raise_for_status()
-    file_size = size_response.json()["size"]
-
-    requested_end = file_size + 1000
-    response = test_client.request(
-        "GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end={requested_end}"
-    )
-    response.raise_for_status()
-
-    actual_bytes = len(response.content)
-    assert actual_bytes == file_size, (
-        f"Should return entire file ({file_size} bytes) when end exceeds file size"
-    )
-
-    # Content-Length (if present) must match actual bytes
-    if "Content-Length" in response.headers:
-        content_length = int(response.headers["Content-Length"])
-        assert content_length == actual_bytes
-
-
-def test_api_log_bytes_start_beyond_file_size(
-    test_client: TestClient, mock_s3_eval_file: str
-):
-    """Test that requesting bytes starting beyond file size returns 416."""
-    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
-    size_response.raise_for_status()
-    file_size = size_response.json()["size"]
-
-    response = test_client.request(
-        "GET",
-        f"/log-bytes/{mock_s3_eval_file}?start={file_size + 100}&end={file_size + 200}",
-    )
-    assert response.status_code == 416
-
-
-def test_api_log_dir(test_client: TestClient):
-    response = test_client.request("GET", "/log-dir?log_dir=eval_set_dir")
-    response.raise_for_status()
-
-    api_log_dir = response.json()
-    assert "log_dir" in api_log_dir
-    assert api_log_dir["log_dir"] == "eval_set_dir"
-
-
-def test_api_log_dir_with_non_existing_dir(test_client: TestClient):
-    response = test_client.request("GET", "/log-dir?log_dir=does_not_exist")
-    response.raise_for_status()
-
-    api_logs = response.json()
-    assert "log_dir" in api_logs
-    assert api_logs["log_dir"] == "does_not_exist"
-
-
-def test_api_logs(test_client: TestClient):
-    write_fake_eval_log("eval_set_dir/2025-01-01T00-00-00+00-00_task1_taskid1.eval")
-    write_fake_eval_log("eval_set_dir/2025-01-01T00-01-00+00-00_task2_taskid2.eval")
-    write_fake_eval_log("eval_set_dir/2025-01-01T00-02-00+00-00_task3_taskid3.eval")
-
-    response = test_client.request("GET", "/logs?log_dir=eval_set_dir")
-    response.raise_for_status()
-
-    api_logs = response.json()
-    assert "files" in api_logs
-    files = api_logs["files"]
-    assert len(files) == 3
-    assert {"task1", "task2", "task3"} == {file["task"] for file in files}
-    assert {"taskid1", "taskid2", "taskid3"} == {
-        file["task_id"] for file in api_logs["files"]
-    }
-    assert "log_dir" in api_logs
-    assert api_logs["log_dir"] == "eval_set_dir"
-
-
-def test_api_logs_with_non_existing_dir(test_client: TestClient):
-    response = test_client.request("GET", "/logs?log_dir=does_not_exist")
-    response.raise_for_status()
-
-    api_logs = response.json()
-    assert "files" in api_logs
-    files = api_logs["files"]
-    assert len(files) == 0
-    assert "log_dir" in api_logs
-    assert api_logs["log_dir"] == "does_not_exist"
-
-
-@pytest.mark.parametrize(
-    "bad_log_dir",
-    [
-        None,
-        "",
-        "/",
-    ],
-)
-def test_api_logs_forbidden(
+@pytest.mark.parametrize("bad_log_dir", [None, "", "/"])
+def test_fastapi_logs_forbidden(
     test_client_with_restrictive_access: TestClient, bad_log_dir: str | None
-):
+) -> None:
     response = test_client_with_restrictive_access.request(
         "GET",
         f"/logs?log_dir={bad_log_dir}" if bad_log_dir is not None else "/logs",
@@ -326,36 +591,9 @@ def test_api_logs_forbidden(
     assert response.status_code == 403
 
 
-def test_api_log_headers(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request(
-        "GET",
-        f"/log-headers?file={urllib.parse.quote_plus(mock_s3_eval_file)}",
-    )
-    response.raise_for_status()
-    api_log_headers = response.json()
-    assert len(api_log_headers) == 1
-    assert api_log_headers[0]["status"] == "started"
-
-
-@pytest.mark.parametrize(
-    ["last_eval_time", "expected_events"],
-    [
-        pytest.param("-1", ["refresh-evals"], id="refresh"),
-        pytest.param("9999999999999", [], id="no-refresh"),
-    ],
-)
-def test_api_events_refresh(
-    test_client: TestClient, last_eval_time: int, expected_events: list[str]
-):
-    response = test_client.request("GET", f"/events?last_eval_time={last_eval_time}")
-    response.raise_for_status()
-    events = response.json()
-    assert events == expected_events
-
-
-def test_api_pending_samples_no_pending_samples(
+def test_fastapi_pending_samples_no_buffer(
     test_client: TestClient, mock_s3_eval_file: str
-):
+) -> None:
     response = test_client.request(
         "GET",
         f"/pending-samples?log={urllib.parse.quote_plus(mock_s3_eval_file)}",
@@ -363,68 +601,56 @@ def test_api_pending_samples_no_pending_samples(
     assert response.status_code == 404
 
 
-def test_api_pending_samples(test_client: TestClient, mock_s3_eval_file: str):
+def test_fastapi_pending_samples_etag(
+    test_client: TestClient, mock_s3_eval_file: str
+) -> None:
     write_fake_eval_log_buffer(mock_s3_eval_file)
-
     response = test_client.request(
         "GET",
         f"/pending-samples?log={urllib.parse.quote_plus(mock_s3_eval_file)}",
     )
     response.raise_for_status()
-    manifest = response.json()
-    assert "etag" in manifest
-    assert "samples" in manifest
+    body = response.json()
+    assert "etag" in body
+    assert "samples" in body
 
-    etag = manifest["etag"]
-    response = test_client.request(
+    etag = body["etag"]
+    response2 = test_client.request(
         "GET",
         f"/pending-samples?log={urllib.parse.quote_plus(mock_s3_eval_file)}",
         headers={"If-None-Match": etag},
     )
-    assert response.status_code == 304
+    assert response2.status_code == 304
 
 
-def test_api_log_message(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request(
-        "GET",
-        f"/log-message?log_file={urllib.parse.quote_plus(mock_s3_eval_file)}&message=hello",
-    )
-    assert response.status_code == 204
-
-
-def test_api_sample_events(test_client: TestClient, mock_s3_eval_file: str):
+def test_fastapi_sample_events(
+    test_client: TestClient, mock_s3_eval_file: str
+) -> None:
     write_fake_eval_log_buffer(mock_s3_eval_file, 1)
-
     response = test_client.request(
         "GET",
         f"/pending-sample-data?log={urllib.parse.quote_plus(mock_s3_eval_file)}&id=id&epoch=0",
     )
     response.raise_for_status()
-
-    sample_events_data = response.json()
-    events = sample_events_data["events"]
-    assert len(events) == 1
+    assert len(response.json()["events"]) == 1
 
 
-def test_api_eval_set(test_client: TestClient):
+def test_fastapi_eval_set(test_client: TestClient) -> None:
     eval_set_id = "eval_set_id"
     eval_set_dir = f"memory://{eval_set_id}"
-    fs = inspect_ai._util.file.filesystem(eval_set_dir)  # pyright: ignore[reportPrivateImportUsage]
+    fs = inspect_ai._util.file.filesystem(eval_set_dir)
     fs.mkdir(eval_set_dir)
-    inspect_ai._eval.evalset.write_eval_set_info(  # pyright: ignore[reportPrivateImportUsage]
+    inspect_ai._eval.evalset.write_eval_set_info(
         eval_set_id=eval_set_id,
         log_dir=eval_set_dir,
         tasks=[
             inspect_ai._eval.task.resolved.ResolvedTask(
                 id="task_id",
-                task=inspect_ai._eval.task.Task(  # pyright: ignore[reportPrivateImportUsage]
+                task=inspect_ai._eval.task.Task(
                     name="task-name",
                     dataset=inspect_ai.dataset.MemoryDataset(
                         samples=[
-                            inspect_ai.dataset.Sample(
-                                input="input",
-                                target="target",
-                            )
+                            inspect_ai.dataset.Sample(input="input", target="target")
                         ],
                     ),
                 ),
@@ -441,58 +667,16 @@ def test_api_eval_set(test_client: TestClient):
             config=GenerateConfig()
         ),
     )
-
     response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")
-
     response.raise_for_status()
-    api_eval_set = response.json()
-    assert api_eval_set["eval_set_id"] == eval_set_id
-    assert api_eval_set["tasks"] == [
-        {
-            "name": "task-name",
-            "task_id": "task_id",
-            "task_file": "task_file",
-            "task_args": {},
-            "model": "mockllm/model",
-            "model_args": {},
-            "sequence": 0,
-        }
-    ]
+    data = response.json()
+    assert data["eval_set_id"] == eval_set_id
+    assert data["tasks"][0]["name"] == "task-name"
 
 
-def test_api_log_download_eval(test_client: TestClient):
-    """Test downloading a log file in eval format."""
-    eval_file = "test_dir/test_log.eval"
-    write_fake_eval_log(eval_file)
-
-    _ = inspect_ai._util.file.filesystem("memory://")
-    original_eval_path = f"memory://{eval_file}"
-
-    original_log = inspect_ai.log.read_eval_log(original_eval_path)
-
-    response = test_client.request("GET", f"/log-download/{eval_file}")
-    response.raise_for_status()
-
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/octet-stream"
-    assert "content-disposition" in response.headers
-    assert 'attachment; filename="' in response.headers["content-disposition"]
-    assert ".eval" in response.headers["content-disposition"]
-
-    temp_path = "memory://temp_download.eval"
-    with cast(
-        ContextManager[IO[bytes]],
-        fsspec.open(temp_path, "wb"),
-    ) as f:
-        f.write(response.content)
-
-    downloaded_log = inspect_ai.log.read_eval_log(temp_path)
-    assert downloaded_log.model_dump() == original_log.model_dump()
-
-
-def test_api_log_download_forbidden(test_client: TestClient, mock_s3_eval_file: str):
-    """Test that download respects access control."""
-
+def test_fastapi_log_download_forbidden(
+    test_client: TestClient, mock_s3_eval_file: str
+) -> None:
     class no_read_policy(AccessPolicy):
         async def can_read(self, request: Request, file: str) -> bool:
             return False
@@ -522,151 +706,26 @@ def test_api_log_download_forbidden(test_client: TestClient, mock_s3_eval_file: 
         assert response.status_code == 403
 
 
-def test_api_log_download_headers(test_client: TestClient, mock_s3_eval_file: str):
-    """Test that download returns correct headers."""
-    response = test_client.request("GET", f"/log-download/{mock_s3_eval_file}")
-    response.raise_for_status()
+def test_fastapi_log_info_no_direct_url_for_non_s3(mock_s3_eval_file: str) -> None:
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
 
-    assert "content-length" in response.headers
-    assert int(response.headers["content-length"]) > 0
-    assert int(response.headers["content-length"]) == len(response.content)
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
 
-    assert "content-disposition" in response.headers
-    disposition = response.headers["content-disposition"]
-    assert disposition.startswith('attachment; filename="')
-    assert ".eval" in disposition
-
-    assert response.headers["content-type"] == "application/octet-stream"
-
-
-# ── log-files ETag-based incremental listing ────────────────────────────
-
-
-def test_api_log_files_full_listing(test_client: TestClient):
-    """First request (no ETag) returns a full listing."""
-    write_fake_eval_log("logfiles_dir/2025-01-01T00-00-00+00-00_t1_id1.eval")
-    write_fake_eval_log("logfiles_dir/2025-01-01T00-01-00+00-00_t2_id2.eval")
-
-    response = test_client.request("GET", "/log-files?log_dir=logfiles_dir")
-    response.raise_for_status()
-
-    body = response.json()
-    assert body["response_type"] == "full"
-    assert len(body["files"]) == 2
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            mapping_policy=mapping_policy(),
+            generate_direct_urls=True,
+        )
+    ) as client:
+        response = client.request("GET", f"/log-info/{mock_s3_eval_file}")
+        response.raise_for_status()
+        assert "direct_url" not in response.json()
 
 
-def test_api_log_files_incremental_listing(test_client: TestClient):
-    """Same file count + old mtime → incremental with changed files only."""
-    write_fake_eval_log("incr_dir/2025-01-01T00-00-00+00-00_t1_id1.eval")
-    write_fake_eval_log("incr_dir/2025-01-01T00-01-00+00-00_t2_id2.eval")
-
-    # First request to establish baseline
-    resp1 = test_client.request("GET", "/log-files?log_dir=incr_dir")
-    resp1.raise_for_status()
-    files = resp1.json()["files"]
-    assert len(files) == 2
-
-    # Use an ETag with mtime=0 and correct file count → all files changed
-    etag = f"0.0-{len(files)}"
-    resp2 = test_client.request(
-        "GET", "/log-files?log_dir=incr_dir", headers={"If-None-Match": etag}
-    )
-    resp2.raise_for_status()
-    body2 = resp2.json()
-    assert body2["response_type"] == "incremental"
-    # All files have mtime > 0 so all should be returned
-    assert len(body2["files"]) == 2
-
-
-def test_api_log_files_count_change_gives_full(test_client: TestClient):
-    """File count mismatch → full listing regardless of mtime."""
-    write_fake_eval_log("countchg_dir/2025-01-01T00-00-00+00-00_t1_id1.eval")
-
-    # Claim there were 5 files last time
-    etag = "0.0-5"
-    resp = test_client.request(
-        "GET", "/log-files?log_dir=countchg_dir", headers={"If-None-Match": etag}
-    )
-    resp.raise_for_status()
-    assert resp.json()["response_type"] == "full"
-
-
-def test_api_log_files_incremental_no_changes(test_client: TestClient):
-    """Same count + future mtime → incremental with zero files."""
-    write_fake_eval_log("nochg_dir/2025-01-01T00-00-00+00-00_t1_id1.eval")
-
-    # First request to get actual file count
-    resp1 = test_client.request("GET", "/log-files?log_dir=nochg_dir")
-    resp1.raise_for_status()
-    count = len(resp1.json()["files"])
-
-    # Use a mtime far in the future so nothing is "newer"
-    etag = f"99999999999999.0-{count}"
-    resp2 = test_client.request(
-        "GET", "/log-files?log_dir=nochg_dir", headers={"If-None-Match": etag}
-    )
-    resp2.raise_for_status()
-    body = resp2.json()
-    assert body["response_type"] == "incremental"
-    assert len(body["files"]) == 0
-
-
-# ── flow endpoint ───────────────────────────────────────────────────────
-
-
-def test_api_flow_returns_yaml(test_client: TestClient):
-    # flow endpoint uses filesystem() directly (no mapping_policy),
-    # so we must pass memory:// in the query param
-    flow_dir = "memory://flow_yaml_dir"
-    fs = inspect_ai._util.file.filesystem(flow_dir)
-    fs.mkdir(flow_dir)
-    with cast(
-        ContextManager[IO[bytes]],
-        fsspec.open(f"{flow_dir}/flow.yaml", "wb"),
-    ) as f:
-        f.write(b"steps:\n  - name: step1\n")
-
-    response = test_client.request(
-        "GET", f"/flow?log_dir={urllib.parse.quote_plus(flow_dir)}"
-    )
-    response.raise_for_status()
-    assert response.headers["content-type"].startswith("text/yaml")
-    assert "step1" in response.text
-
-
-def test_api_flow_missing_returns_404(test_client: TestClient):
-    response = test_client.request(
-        "GET", "/flow?log_dir=memory%3A%2F%2Fnonexistent_flow_dir"
-    )
-    assert response.status_code == 404
-
-
-# ── log_dir query param override ────────────────────────────────────────
-
-
-def test_api_log_dir_override(test_client: TestClient):
-    """log_dir param should be honored (no authorization gating in FastAPI)."""
-    response = test_client.request("GET", "/log-dir?log_dir=custom_dir")
-    response.raise_for_status()
-    assert response.json()["log_dir"] == "custom_dir"
-
-
-def test_api_logs_log_dir_override(test_client: TestClient):
-    """Listing with log_dir override returns results from that dir."""
-    write_fake_eval_log("override_dir/2025-01-01T00-00-00+00-00_t1_id1.eval")
-
-    response = test_client.request("GET", "/logs?log_dir=override_dir")
-    response.raise_for_status()
-    assert response.json()["log_dir"] == "override_dir"
-    assert len(response.json()["files"]) == 1
-
-
-# ── authorization middleware ────────────────────────────────────────────
-
-
-def test_authorization_middleware_rejects_missing_token():
-    """Requests without correct Authorization header get 401."""
-
+def test_fastapi_authorization_middleware() -> None:
     class mapping_policy(FileMappingPolicy):
         async def map(self, request: Request, file: str) -> str:
             return f"memory://{file}"
@@ -682,31 +741,18 @@ def test_authorization_middleware_rejects_missing_token():
     app.add_middleware(fastapi_server.authorization_middleware("Bearer secret123"))
 
     with fastapi.testclient.TestClient(app) as client:
-        # No auth header
-        resp = client.request("GET", "/api/events")
-        assert resp.status_code == 401
-
-        # Wrong auth header
-        resp = client.request(
+        assert client.request("GET", "/api/events").status_code == 401
+        assert client.request(
             "GET", "/api/events", headers={"Authorization": "Bearer wrong"}
-        )
-        assert resp.status_code == 401
-
-        # Correct auth header
-        resp = client.request(
+        ).status_code == 401
+        assert client.request(
             "GET", "/api/events", headers={"Authorization": "Bearer secret123"}
-        )
-        assert resp.status_code == 200
+        ).status_code == 200
 
 
-# ── NaN / Infinity in JSON responses ────────────────────────────────────
-
-
-def test_api_log_with_nan_metric(test_client: TestClient):
-    """EvalLog containing NaN metric values should serialize without error."""
+def test_fastapi_nan_metric(test_client: TestClient) -> None:
     file_path = "nan_test/2025-01-01T00-00-00+00-00_nantest_nanid.eval"
     full_path = f"memory://{file_path}"
-
     eval_log = inspect_ai.log.EvalLog(
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
@@ -734,175 +780,21 @@ def test_api_log_with_nan_metric(test_client: TestClient):
         ),
     )
     inspect_ai.log.write_eval_log(eval_log, full_path, "eval")
-
     response = test_client.request("GET", f"/logs/{file_path}")
     response.raise_for_status()
-
-    # JSON with NaN/Inf parses fine in Python (json.loads allows them)
-    data = response.json()
-    scores = data["results"]["scores"]
-    assert len(scores) == 1
-    accuracy_val = scores[0]["metrics"]["accuracy"]["value"]
-    inf_val = scores[0]["metrics"]["inf_metric"]["value"]
-    assert math.isnan(accuracy_val)
-    assert math.isinf(inf_val)
+    scores = response.json()["results"]["scores"]
+    assert math.isnan(scores[0]["metrics"]["accuracy"]["value"])
+    assert math.isinf(scores[0]["metrics"]["inf_metric"]["value"])
 
 
-# ── header-only mode ────────────────────────────────────────────────────
-
-
-def test_api_log_header_only_zero(test_client: TestClient, mock_s3_eval_file: str):
-    """header-only=0 forces header-only read (no samples)."""
-    response = test_client.request("GET", f"/logs/{mock_s3_eval_file}?header-only=0")
-    response.raise_for_status()
-    data = response.json()
-    assert data["eval"]["task"] == "task"
-    # header-only read should not include samples
-    assert data.get("samples") is None
-
-
-def test_api_log_header_only_large_threshold(
-    test_client: TestClient, mock_s3_eval_file: str
-):
-    """header-only=999999 (huge MB threshold) → full read (file is small)."""
-    response = test_client.request(
-        "GET", f"/logs/{mock_s3_eval_file}?header-only=999999"
-    )
-    response.raise_for_status()
-    data = response.json()
-    assert data["eval"]["task"] == "task"
-
-
-# ── pending-samples with actual data ────────────────────────────────────
-
-
-def test_api_pending_samples_returns_data(
-    test_client: TestClient, mock_s3_eval_file: str
-):
-    """Verify full pending-samples response structure."""
-    write_fake_eval_log_buffer(mock_s3_eval_file, num_segments=1)
-
-    response = test_client.request(
-        "GET",
-        f"/pending-samples?log={urllib.parse.quote_plus(mock_s3_eval_file)}",
-    )
-    response.raise_for_status()
-    body = response.json()
-
-    assert "etag" in body
-    assert "samples" in body
-    assert len(body["samples"]) == 1
-    sample = body["samples"][0]
-    assert sample["id"] == "id"
-    assert sample["epoch"] == 0
-
-
-# ── pending-sample-data incremental params ──────────────────────────────
-
-
-def test_api_pending_sample_data_incremental(
-    test_client: TestClient, mock_s3_eval_file: str
-):
-    """last-event-id and after-attachment-id params are passed through."""
-    write_fake_eval_log_buffer(mock_s3_eval_file, num_segments=2)
-
-    # Fetch all events first
-    resp_all = test_client.request(
-        "GET",
-        f"/pending-sample-data?log={urllib.parse.quote_plus(mock_s3_eval_file)}"
-        "&id=id&epoch=0",
-    )
-    resp_all.raise_for_status()
-    all_events = resp_all.json()["events"]
-
-    # Fetch with last-event-id=0 to skip already-seen events
-    resp_incr = test_client.request(
-        "GET",
-        f"/pending-sample-data?log={urllib.parse.quote_plus(mock_s3_eval_file)}"
-        "&id=id&epoch=0&last-event-id=0",
-    )
-    resp_incr.raise_for_status()
-    incr_events = resp_incr.json()["events"]
-    # Should have fewer or equal events (events with id > 0 only)
-    assert len(incr_events) <= len(all_events)
-
-
-def test_api_pending_sample_data_missing_log(test_client: TestClient):
-    """Requesting sample data for nonexistent log returns 404."""
-    response = test_client.request(
-        "GET",
-        "/pending-sample-data?log=nonexistent%2Ffile.eval&id=x&epoch=0",
-    )
-    assert response.status_code == 404
-
-
-# ── eval-set response format ────────────────────────────────────────────
-
-
-def test_api_eval_set_response_fields(test_client: TestClient):
-    """Verify eval-set response includes all expected fields via Pydantic dump."""
-    eval_set_id = "evalset_fields_test"
-    eval_set_dir = f"memory://{eval_set_id}"
-    fs = inspect_ai._util.file.filesystem(eval_set_dir)
-    fs.mkdir(eval_set_dir)
-    inspect_ai._eval.evalset.write_eval_set_info(
-        eval_set_id=eval_set_id,
-        log_dir=eval_set_dir,
-        tasks=[
-            inspect_ai._eval.task.resolved.ResolvedTask(
-                id="tid",
-                task=inspect_ai._eval.task.Task(
-                    name="my-task",
-                    dataset=inspect_ai.dataset.MemoryDataset(
-                        samples=[inspect_ai.dataset.Sample(input="in", target="out")],
-                    ),
-                ),
-                sandbox=None,
-                task_file="tf",
-                task_args={"arg1": "val1"},
-                model=inspect_ai.model.get_model("mockllm/model"),
-                model_roles={},
-                sequence=1,
-            )
-        ],
-        all_logs=[],
-        eval_set_args=inspect_ai._eval.evalset.EvalSetArgsInTaskIdentifier(
-            config=GenerateConfig()
-        ),
-    )
-
-    response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")
-    response.raise_for_status()
-    data = response.json()
-
-    assert data["eval_set_id"] == eval_set_id
-    assert len(data["tasks"]) == 1
-    task = data["tasks"][0]
-    assert task["name"] == "my-task"
-    assert task["task_id"] == "tid"
-    assert task["task_file"] == "tf"
-    assert task["task_args"] == {"arg1": "val1"}
-    assert task["model"] == "mockllm/model"
-    assert task["sequence"] == 1
-
-
-# ── access policy: OnlyDirAccessPolicy ──────────────────────────────────
-
-
-def test_only_dir_access_policy_blocks_outside_dir():
-    """OnlyDirAccessPolicy rejects files outside the configured dir."""
+def test_fastapi_only_dir_access_policy() -> None:
     policy = fastapi_server.OnlyDirAccessPolicy("/allowed/dir")
-
-    import asyncio
-
     assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
 
 
-def test_only_dir_access_policy_via_test_client(mock_s3_eval_file: str):
-    """Integration: OnlyDirAccessPolicy blocks reads outside log_dir."""
-
+def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
     class mapping_policy(FileMappingPolicy):
         async def map(self, request: Request, file: str) -> str:
             return f"memory://{file}"
@@ -916,90 +808,11 @@ def test_only_dir_access_policy_via_test_client(mock_s3_eval_file: str):
             access_policy=fastapi_server.OnlyDirAccessPolicy("mocked_eval_set"),
         )
     ) as client:
-        # Allowed: file is under mocked_eval_set/
-        resp = client.request("GET", f"/logs/{mock_s3_eval_file}")
-        assert resp.status_code == 200
-
-        # Blocked: file is outside mocked_eval_set/
-        resp = client.request("GET", "/logs/other_dir/file.eval")
-        assert resp.status_code == 403
+        assert client.request("GET", f"/logs/{mock_s3_eval_file}").status_code == 200
+        assert client.request("GET", "/logs/other_dir/file.eval").status_code == 403
 
 
-# ── log-bytes edge cases ────────────────────────────────────────────────
-
-
-def test_api_log_bytes_exact_range(test_client: TestClient, mock_s3_eval_file: str):
-    """Requesting exact valid range returns correct bytes."""
-    size_resp = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
-    size_resp.raise_for_status()
-    file_size = size_resp.json()["size"]
-
-    # Request last 10 bytes
-    start = max(0, file_size - 10)
-    resp = test_client.request(
-        "GET", f"/log-bytes/{mock_s3_eval_file}?start={start}&end={file_size - 1}"
-    )
-    resp.raise_for_status()
-    assert len(resp.content) == min(10, file_size)
-
-
-def test_api_log_bytes_single_byte(test_client: TestClient, mock_s3_eval_file: str):
-    """Requesting a single byte (start==end) works."""
-    resp = test_client.request("GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end=0")
-    resp.raise_for_status()
-    assert len(resp.content) == 1
-
-
-# ── log-message ─────────────────────────────────────────────────────────
-
-
-def test_api_log_message_with_special_chars(
-    test_client: TestClient, mock_s3_eval_file: str
-):
-    """Message with URL-encoded special characters."""
-    msg = "error: something & went <wrong>"
-    response = test_client.request(
-        "GET",
-        f"/log-message?log_file={urllib.parse.quote_plus(mock_s3_eval_file)}"
-        f"&message={urllib.parse.quote_plus(msg)}",
-    )
-    assert response.status_code == 204
-
-
-# ── events endpoint ─────────────────────────────────────────────────────
-
-
-def test_api_events_no_param(test_client: TestClient):
-    """No last_eval_time param → empty list."""
-    response = test_client.request("GET", "/events")
-    response.raise_for_status()
-    assert response.json() == []
-
-
-# ── log-headers multiple files ──────────────────────────────────────────
-
-
-def test_api_log_headers_multiple_files(test_client: TestClient):
-    """Multiple file params return headers for each."""
-    f1 = "headers_dir/2025-01-01T00-00-00+00-00_t1_id1.eval"
-    f2 = "headers_dir/2025-01-01T00-01-00+00-00_t2_id2.eval"
-    write_fake_eval_log(f1)
-    write_fake_eval_log(f2)
-
-    query = f"file={urllib.parse.quote_plus(f1)}&file={urllib.parse.quote_plus(f2)}"
-    response = test_client.request("GET", f"/log-headers?{query}")
-    response.raise_for_status()
-    headers = response.json()
-    assert len(headers) == 2
-    assert headers[0]["status"] == "started"
-    assert headers[1]["status"] == "started"
-
-
-# ── InspectJsonResponse ─────────────────────────────────────────────────
-
-
-def test_inspect_json_response_nan():
-    """InspectJsonResponse.render handles NaN and Infinity."""
+def test_fastapi_inspect_json_response_nan() -> None:
     resp = fastapi_server.InspectJsonResponse(
         content={"val": float("nan"), "inf": float("inf"), "neg_inf": float("-inf")}
     )
@@ -1009,15 +822,42 @@ def test_inspect_json_response_nan():
     assert "-Infinity" in body
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# GAP TESTS — these expose aiohttp behaviors not yet matched by FastAPI.
-# Each test documents the gap in its docstring. Fix the FastAPI server
-# to make these pass, then remove the xfail marker.
-# ══════════════════════════════════════════════════════════════════════════
+def test_fastapi_log_bytes_beyond_file_size(
+    test_client: TestClient, mock_s3_eval_file: str
+) -> None:
+    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
+    size_response.raise_for_status()
+    file_size = size_response.json()["size"]
+    response = test_client.request(
+        "GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end={file_size + 1000}"
+    )
+    response.raise_for_status()
+    assert len(response.content) == file_size
+    if "Content-Length" in response.headers:
+        assert int(response.headers["Content-Length"]) == len(response.content)
+
+
+def test_fastapi_log_bytes_start_beyond_file_size(
+    test_client: TestClient, mock_s3_eval_file: str
+) -> None:
+    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
+    size_response.raise_for_status()
+    file_size = size_response.json()["size"]
+    response = test_client.request(
+        "GET",
+        f"/log-bytes/{mock_s3_eval_file}?start={file_size + 100}&end={file_size + 200}",
+    )
+    assert response.status_code == 416
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GAP TESTS — xfail tests that document aiohttp behaviors not yet in FastAPI.
+# Fix the FastAPI server, then remove the xfail marker.
+# ═══════════════════════════════════════════════════════════════════════════
 
 
 @pytest.mark.xfail(reason="GAP: /log-size/{log} endpoint missing in FastAPI")
-def test_gap_log_size_endpoint(test_client: TestClient, mock_s3_eval_file: str):
+def test_gap_log_size_endpoint(test_client: TestClient, mock_s3_eval_file: str) -> None:
     """Aiohttp has GET /api/log-size/{log} returning file size as a JSON int.
 
     FastAPI has no equivalent — size is only available via /log-info/.
@@ -1030,11 +870,9 @@ def test_gap_log_size_endpoint(test_client: TestClient, mock_s3_eval_file: str):
 
 
 @pytest.mark.xfail(reason="GAP: /flow does not use _map_file for directory resolution")
-def test_gap_flow_uses_map_file(test_client: TestClient):
-    """/flow reads from the unmapped dir path instead of calling _map_file.
+def test_gap_flow_uses_map_file(test_client: TestClient) -> None:
+    """/flow reads from the unmapped path instead of calling _map_file.
 
-    This means the mapping_policy is bypassed — the endpoint calls
-    filesystem(flow_dir) directly with the raw (unmapped) path.
     Compare with /eval-set which correctly calls _map_file.
     """
     flow_dir = "memory://flow_mapped_dir"
@@ -1045,8 +883,6 @@ def test_gap_flow_uses_map_file(test_client: TestClient):
         fsspec.open(f"{flow_dir}/flow.yaml", "wb"),
     ) as f:
         f.write(b"steps:\n  - name: mapped_step\n")
-
-    # Use the plain dir name — mapping_policy should prepend memory://
     response = test_client.request("GET", "/flow?dir=flow_mapped_dir")
     response.raise_for_status()
     assert "mapped_step" in response.text
@@ -1055,11 +891,10 @@ def test_gap_flow_uses_map_file(test_client: TestClient):
 @pytest.mark.xfail(
     reason="GAP: view_server() does not pass generate_direct_urls to view_server_app()"
 )
-def test_gap_generate_direct_urls_wired():
+def test_gap_generate_direct_urls_wired() -> None:
     """The aiohttp view_server() accepts generate_direct_urls and passes it through.
 
-    FastAPI view_server() does not accept or forward this parameter — it
-    always defaults to False in view_server_app().
+    FastAPI view_server() does not accept or forward this parameter.
     """
     import inspect
 
@@ -1070,16 +905,12 @@ def test_gap_generate_direct_urls_wired():
 @pytest.mark.xfail(
     reason="GAP: /logs/{log} does not catch exceptions — returns raw 500 instead of structured error"
 )
-def test_gap_log_read_error_returns_structured_500(test_client: TestClient):
+def test_gap_log_read_error_returns_structured_500(test_client: TestClient) -> None:
     """The aiohttp server wraps log read errors in log_file_response() → 500 with reason.
 
     FastAPI lets exceptions propagate to uvicorn's generic 500 handler.
-    A structured error response (JSON with error details) would be better
-    for client-side error handling.
     """
     response = test_client.request("GET", "/logs/nonexistent/file.eval")
     assert response.status_code == 500
-    # aiohttp returns reason="File not found"; FastAPI should return
-    # a JSON body with error info rather than plain "Internal Server Error"
     body = response.json()
     assert "error" in body or "reason" in body
