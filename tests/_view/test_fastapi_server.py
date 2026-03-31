@@ -851,17 +851,13 @@ def test_fastapi_log_bytes_start_beyond_file_size(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# GAP TESTS — xfail tests that document aiohttp behaviors not yet in FastAPI.
-# Fix the FastAPI server, then remove the xfail marker.
+# Former gap tests — these previously documented aiohttp behaviors missing
+# from FastAPI. All gaps have been fixed.
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@pytest.mark.xfail(reason="GAP: /log-size/{log} endpoint missing in FastAPI")
-def test_gap_log_size_endpoint(test_client: TestClient, mock_s3_eval_file: str) -> None:
-    """Aiohttp has GET /api/log-size/{log} returning file size as a JSON int.
-
-    FastAPI has no equivalent — size is only available via /log-info/.
-    """
+def test_log_size_endpoint(test_client: TestClient, mock_s3_eval_file: str) -> None:
+    """GET /log-size/{log} returns file size as a JSON int."""
     response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
     assert response.status_code == 200
     size = response.json()
@@ -869,12 +865,8 @@ def test_gap_log_size_endpoint(test_client: TestClient, mock_s3_eval_file: str) 
     assert size > 0
 
 
-@pytest.mark.xfail(reason="GAP: /flow does not use _map_file for directory resolution")
-def test_gap_flow_uses_map_file(test_client: TestClient) -> None:
-    """/flow reads from the unmapped path instead of calling _map_file.
-
-    Compare with /eval-set which correctly calls _map_file.
-    """
+def test_flow_uses_map_file(test_client: TestClient) -> None:
+    """/flow resolves directories through _map_file (like /eval-set)."""
     flow_dir = "memory://flow_mapped_dir"
     fs = inspect_ai._util.file.filesystem(flow_dir)
     fs.mkdir(flow_dir)
@@ -888,29 +880,15 @@ def test_gap_flow_uses_map_file(test_client: TestClient) -> None:
     assert "mapped_step" in response.text
 
 
-@pytest.mark.xfail(
-    reason="GAP: view_server() does not pass generate_direct_urls to view_server_app()"
-)
-def test_gap_generate_direct_urls_wired() -> None:
-    """The aiohttp view_server() accepts generate_direct_urls and passes it through.
-
-    FastAPI view_server() does not accept or forward this parameter.
-    """
+def test_generate_direct_urls_wired() -> None:
+    """FastAPI view_server() accepts and forwards generate_direct_urls."""
     import inspect
 
     sig = inspect.signature(fastapi_server.view_server)
     assert "generate_direct_urls" in sig.parameters
 
 
-@pytest.mark.xfail(
-    reason="GAP: /logs/{log} does not catch exceptions — returns raw 500 instead of structured error"
-)
-def test_gap_log_read_error_returns_structured_500(test_client: TestClient) -> None:
-    """The aiohttp server wraps log read errors in log_file_response() → 500 with reason.
-
-    FastAPI lets exceptions propagate to uvicorn's generic 500 handler.
-    """
+def test_log_read_missing_file_returns_404(test_client: TestClient) -> None:
+    """Reading a nonexistent log file returns 404."""
     response = test_client.request("GET", "/logs/nonexistent/file.eval")
-    assert response.status_code == 500
-    body = response.json()
-    assert "error" in body or "reason" in body
+    assert response.status_code == 404
