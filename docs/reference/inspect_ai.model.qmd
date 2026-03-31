@@ -77,6 +77,7 @@ title: "inspect_ai.model"
 ### set_model_cost
 ### ModelInfo
 ### ModelCost
+### model_roles
 
 ## Logprobs
 
