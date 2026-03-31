@@ -73,41 +73,42 @@ class SocketHooks(Hooks):
             )
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
+        # _active_model_event is NOT available here (reset before emit_model_usage).
+        # Instead, read the active sample's transcript for the latest ModelEvent.
+        completion = None
+        last_user_msg = None
         try:
-            from inspect_ai.log._samples import _active_model_event
-            model_event = _active_model_event.get()
+            from inspect_ai.log._samples import sample_active
+            active = sample_active()
+            if active and active.transcript:
+                events = active.transcript._events
+                for ev in reversed(events):
+                    if hasattr(ev, 'event') and ev.event == 'model':
+                        if ev.output and ev.output.completion:
+                            completion = ev.output.completion[:100]
+                        if ev.input:
+                            for m in reversed(ev.input):
+                                role = getattr(m, 'role', None)
+                                if role == 'user':
+                                    c = getattr(m, 'content', None)
+                                    if isinstance(c, str):
+                                        last_user_msg = c[:100]
+                                    elif isinstance(c, list) and c:
+                                        last_user_msg = getattr(c[0], 'text', str(c[0]))[:100]
+                                    break
+                        break
         except Exception:
-            model_event = None
+            pass
 
-        if model_event is not None and model_event.output and model_event.output.completion:
-            # Show user input (last user message)
-            try:
-                if model_event.input:
-                    for m in reversed(model_event.input):
-                        role = getattr(m, 'role', None)
-                        if role == 'user':
-                            text = getattr(m, 'text', None) or ""
-                            if not text:
-                                c = getattr(m, 'content', None)
-                                if isinstance(c, str):
-                                    text = c
-                                elif isinstance(c, list) and c:
-                                    text = getattr(c[0], 'text', str(c[0]))
-                            if text:
-                                await self._server.broadcast(
-                                    PrintMessage(message=f"  👤 → {text[:100]}")
-                                )
-                            break
-            except Exception:
-                pass
-
-            # Show model reply
-            reply = model_event.output.completion[:100]
+        if completion:
+            if last_user_msg:
+                await self._server.broadcast(
+                    PrintMessage(message=f"  👤 → {last_user_msg}")
+                )
             await self._server.broadcast(
-                PrintMessage(message=f"  🤖 ← {reply}")
+                PrintMessage(message=f"  🤖 ← {completion}")
             )
         else:
-            # Fallback: just show token counts
             await self._server.broadcast(
                 PrintMessage(
                     message=f"  🤖 {data.model_name}: "
