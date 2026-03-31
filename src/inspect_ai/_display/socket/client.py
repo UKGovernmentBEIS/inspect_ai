@@ -161,7 +161,7 @@ class RemoteTaskScreenApp(App[None]):
 
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("q", "quit", "Detach"),
-        Binding("r", "respond", "Respond to Input"),
+        Binding("r", "respond_to_input", "Respond"),
     ]
 
     def __init__(self, socket_path: str) -> None:
@@ -322,18 +322,17 @@ class RemoteTaskScreenApp(App[None]):
         elif isinstance(msg, InputRequestedMessage):
             self._pending_input_id = msg.request_id
             self._pending_input_prompt = msg.prompt
-            self._write_console(f"⏸ WAITING FOR INPUT: {msg.prompt}")
-            self._write_console("  Press 'r' to respond")
-            header = self.query_one(AppTitlebar)
-            header.title = f"⏸ Waiting for input — press r to respond" 
+            self._write_console(f"")
+            self._write_console(f"━━━ ⏸ AGENT WAITING FOR INPUT ━━━")
+            self._write_console(f"  {msg.prompt}")
+            self._write_console(f"  Press 'r' to respond")
+            self._write_console(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         elif isinstance(msg, InputResolvedMessage):
             if self._pending_input_id == msg.request_id:
-                self._write_console("Input resolved by another client")
+                self._write_console("✓ Input resolved")
                 self._pending_input_id = None
                 self._pending_input_prompt = ""
-                header = self.query_one(AppTitlebar)
-                header.title = f"Remote: {self._socket_path}"
                 try:
                     self.pop_screen()
                 except Exception:
@@ -410,10 +409,11 @@ class RemoteTaskScreenApp(App[None]):
             for pi in msg.pending_inputs:
                 self._pending_input_id = pi.request_id
                 self._pending_input_prompt = pi.prompt
-                self._write_console(f"⏸ WAITING FOR INPUT: {pi.prompt}")
-                self._write_console("  Press 'r' to respond")
-                header = self.query_one(AppTitlebar)
-                header.title = f"⏸ Waiting for input — press r to respond" 
+                self._write_console(f"")
+                self._write_console(f"━━━ ⏸ AGENT WAITING FOR INPUT ━━━")
+                self._write_console(f"  {pi.prompt}")
+                self._write_console(f"  Press 'r' to respond")
+                self._write_console(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         self._write_console(
             f"Snapshot: {len(msg.tasks)} task(s), "
@@ -455,7 +455,7 @@ class RemoteTaskScreenApp(App[None]):
             self._writer.write(data)
             self._write_console(f"Cancel requested: {sample_id}")
 
-    def action_respond(self) -> None:
+    def action_respond_to_input(self) -> None:
         if not self._pending_input_id:
             self._write_console("No pending input request")
             return
@@ -466,8 +466,6 @@ class RemoteTaskScreenApp(App[None]):
                 self._write_console(f"Response sent: {text}")
                 self._pending_input_id = None
                 self._pending_input_prompt = ""
-                header = self.query_one(AppTitlebar)
-                header.title = f"Remote: {self._socket_path}"
         self.push_screen(InputModal(self._pending_input_prompt, self._pending_input_id), callback=on_response)
 
     async def action_quit(self) -> None:

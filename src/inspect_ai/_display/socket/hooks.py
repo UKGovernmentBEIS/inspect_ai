@@ -42,6 +42,13 @@ class SocketHooks(Hooks):
             model=model,
         )
         await self._server.broadcast(msg)
+        # Also send the sample input as a print message
+        if data.summary and hasattr(data.summary, 'input'):
+            input_text = str(data.summary.input)[:100] if data.summary.input else ""
+            if input_text:
+                await self._server.broadcast(
+                    PrintMessage(message=f"  Input: {input_text}")
+                )
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         scores: dict[str, Any] | None = None
@@ -57,6 +64,17 @@ class SocketHooks(Hooks):
             scores=scores,
         )
         await self._server.broadcast(msg)
+        # Show the model output and score
+        if data.sample and data.sample.output and data.sample.output.completion:
+            output_text = data.sample.output.completion[:100]
+            await self._server.broadcast(
+                PrintMessage(message=f"  Output: {output_text}")
+            )
+        if scores:
+            score_str = ", ".join(f"{k}={v}" for k, v in scores.items())
+            await self._server.broadcast(
+                PrintMessage(message=f"  Score: {score_str}")
+            )
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         msg = PrintMessage(
