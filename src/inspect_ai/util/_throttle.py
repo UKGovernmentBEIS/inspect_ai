@@ -6,7 +6,7 @@ from typing import Any, ParamSpec, TypeVar
 import anyio
 
 from inspect_ai._util._async import current_async_backend
-from inspect_ai._util.background import run_in_background
+from inspect_ai._util.background import background_task_group, run_in_background
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -83,7 +83,10 @@ def throttle(seconds: float) -> Callable[[Callable[P, R]], Callable[P, R]]:
             else:
                 # Within window — save as pending
                 pending = (args, kwargs)
-                if not deferred_scheduled and current_async_backend() is not None:
+                if not deferred_scheduled and (
+                    background_task_group() is not None
+                    or current_async_backend() == "asyncio"
+                ):
                     deferred_scheduled = True
                     run_in_background(_deferred_fire)
 

@@ -4,7 +4,6 @@ from collections.abc import Callable
 from unittest.mock import patch
 
 import anyio
-import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.background import (
@@ -497,8 +496,8 @@ class TestThrottleAsyncNoTaskGroup:
             assert len(calls) == 2
             assert calls[1][1] == ("trailing",)
 
-    async def test_trio_no_task_group_does_not_throw(self) -> None:
-        """Trio without task group: run_in_background raises — documents current behavior."""
+    async def test_trio_no_task_group_falls_back_to_sync(self) -> None:
+        """Trio without task group: no deferred scheduled, falls back to sync behavior."""
         clock = FakeClock()
         with (
             patch("inspect_ai.util._throttle.time") as mock_time,
@@ -506,14 +505,14 @@ class TestThrottleAsyncNoTaskGroup:
                 "inspect_ai.util._throttle.current_async_backend",
                 return_value="trio",
             ),
-            patch(
-                "inspect_ai.util._throttle.run_in_background",
-                side_effect=RuntimeError("no task group under trio"),
-            ),
+            patch("inspect_ai.util._throttle.background_task_group", return_value=None),
         ):
             mock_time.time = clock.time
-            fn, _ = _make_recorder(1.0, clock)
+            fn, calls = _make_recorder(1.0, clock)
             fn("first")
-            # Currently propagates — fix should make this not raise
-            with pytest.raises(RuntimeError, match="no task group under trio"):
-                fn("trailing")
+            fn("trailing")  # saved as pending, no deferred scheduled
+            assert len(calls) == 1
+            clock.advance(1.5)
+            fn("trigger")  # fires "trailing" via sync path
+            assert len(calls) == 2
+            assert calls[1][1] == ("trailing",)
