@@ -35,6 +35,12 @@ class MetricValue(BaseModel):
     reducer: str | None = None
 
 
+class PendingInputInfo(BaseModel):
+    request_id: str
+    prompt: str
+    sample_id: str | None = None
+
+
 class SampleInfo(BaseModel):
     sample_id: str | int
     task_name: str = ""
@@ -51,6 +57,7 @@ class SnapshotMessage(BaseModel):
     type: Literal["snapshot"] = "snapshot"
     tasks: list[TaskProgress] = Field(default_factory=list)
     active_samples: list[SampleInfo] = Field(default_factory=list)
+    pending_inputs: list[PendingInputInfo] = Field(default_factory=list)
     recent_events: list[dict[str, Any]] = Field(default_factory=list)
 
 

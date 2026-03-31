@@ -10,6 +10,8 @@ from pydantic import BaseModel
 
 from .protocol import (
     CancelSampleCommand,
+    InputResolvedMessage,
+    InputResponseCommand,
     ServerMessage,
     parse_client_message,
     to_json_line,
@@ -25,10 +27,13 @@ class SocketServer:
         state: StateManager,
         on_cancel_sample: Callable[[str | int], Coroutine[Any, Any, None]]
         | None = None,
+        on_input_response: Callable[[str, str], Coroutine[Any, Any, None]]
+        | None = None,
         socket_path: str | None = None,
     ) -> None:
         self._state = state
         self._on_cancel_sample = on_cancel_sample
+        self._on_input_response = on_input_response
         self._clients: set[asyncio.StreamWriter] = set()
         self._server: asyncio.AbstractServer | None = None
         self._client_tasks: set[asyncio.Task[None]] = set()
@@ -126,6 +131,8 @@ class SocketServer:
                     msg = parse_client_message(line)
                     if isinstance(msg, CancelSampleCommand) and self._on_cancel_sample:
                         await self._on_cancel_sample(msg.sample_id)
+                    elif isinstance(msg, InputResponseCommand) and self._on_input_response:
+                        await self._on_input_response(msg.request_id, msg.text)
                 except Exception as e:
                     logger.warning(f"Invalid client message: {e}")
         except (ConnectionError, asyncio.CancelledError):

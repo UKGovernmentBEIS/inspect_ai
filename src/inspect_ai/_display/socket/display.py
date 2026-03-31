@@ -45,6 +45,7 @@ class SocketDisplay(Display):
         self._server = SocketServer(
             state=self._state,
             on_cancel_sample=self._handle_cancel,
+            on_input_response=self._handle_input_response,
         )
         self._tasks: list[TaskWithResult] = []
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -56,6 +57,14 @@ class SocketDisplay(Display):
     @property
     def socket_path(self) -> str:
         return self._server.socket_path
+
+    async def _handle_input_response(self, request_id: str, text: str) -> None:
+        if hasattr(self, '_input_manager') and self._input_manager:
+            resolved = self._input_manager.resolve(request_id, text)
+            if resolved:
+                from inspect_ai._event_bus.protocol import InputResolvedMessage
+                msg = InputResolvedMessage(request_id=request_id)
+                await self._server.broadcast(msg)
 
     async def _handle_cancel(self, sample_id: str | int) -> None:
         self._cancel_manager.cancel(sample_id)
