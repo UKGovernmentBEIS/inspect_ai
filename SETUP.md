@@ -132,4 +132,5 @@ uv run python scripts/pli/prompt_robustness.py --baseline-latest --baseline-log-
 - Determine if some of these outputs (e.g. consistency) can end up in the epoch_reducer built-in tool
 - Expand to non-mulitple choice
 - Expand to agentic
-- Dive deeper into confidence methods
+- Dive deeper into confidence methods for non-reasoning models
+- All other methods from the paper
