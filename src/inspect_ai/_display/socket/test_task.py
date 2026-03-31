@@ -53,3 +53,22 @@ def slow_counting(
         solver=[slow_solver(delay=delay, steps=steps)],
         scorer=match(),
     )
+
+
+@task
+def interactive_counting(
+    num_samples: int = 8,
+    delay: float = DELAY_PER_SAMPLE,
+    steps: int = STEPS_PER_SAMPLE,
+) -> Task:
+    from inspect_ai._event_bus.ask_human import ask_human
+
+    return Task(
+        dataset=_make_samples(num_samples),
+        solver=[
+            slow_solver(delay=delay, steps=steps),
+            ask_human("The agent has processed some samples. Should it continue with the same approach, or try something different?"),
+            slow_solver(delay=delay, steps=steps),
+        ],
+        scorer=match(),
+    )

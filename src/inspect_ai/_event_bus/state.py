@@ -11,6 +11,7 @@ from .protocol import (
     MetricsUpdateMessage,
     ProgressUpdateMessage,
     SampleCancelledMessage,
+    PendingInputInfo,
     SampleInfo,
     SampleCompleteMessage,
     SampleEndMessage,
@@ -31,6 +32,7 @@ class StateManager:
         self._lock = asyncio.Lock()
         self._tasks: dict[str, TaskProgress] = {}
         self._active_samples: dict[str, SampleInfo] = {}
+        self._input_manager: Any = None
         self._recent_events: deque[dict[str, Any]] = deque(maxlen=MAX_RECENT_EVENTS)
 
     def _task_key(self, task_name: str, model: str) -> str:
@@ -156,8 +158,19 @@ class StateManager:
 
     async def snapshot(self) -> SnapshotMessage:
         async with self._lock:
+            pending_inputs: list[PendingInputInfo] = []
+            if self._input_manager:
+                pending_inputs = [
+                    PendingInputInfo(
+                        request_id=p.request_id,
+                        prompt=p.prompt,
+                        sample_id=p.sample_id,
+                    )
+                    for p in self._input_manager.pending_requests()
+                ]
             return SnapshotMessage(
                 tasks=list(self._tasks.values()),
                 active_samples=list(self._active_samples.values()),
+                pending_inputs=pending_inputs,
                 recent_events=list(self._recent_events),
             )
