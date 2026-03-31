@@ -42,12 +42,11 @@ class SocketHooks(Hooks):
             model=model,
         )
         await self._server.broadcast(msg)
-        # Also send the sample input as a print message
         if data.summary and hasattr(data.summary, 'input'):
             input_text = str(data.summary.input)[:100] if data.summary.input else ""
             if input_text:
                 await self._server.broadcast(
-                    PrintMessage(message=f"  Input: {input_text}")
+                    PrintMessage(message=f"  📝 Input: {input_text}")
                 )
 
     async def on_sample_end(self, data: SampleEnd) -> None:
@@ -64,29 +63,30 @@ class SocketHooks(Hooks):
             scores=scores,
         )
         await self._server.broadcast(msg)
-        # Show the model output and score
         if data.sample and data.sample.output and data.sample.output.completion:
             output_text = data.sample.output.completion[:100]
             await self._server.broadcast(
-                PrintMessage(message=f"  Output: {output_text}")
+                PrintMessage(message=f"  💬 Output: {output_text}")
             )
         if scores:
             score_str = ", ".join(f"{k}={v}" for k, v in scores.items())
+            correct = any(v == "C" for v in (scores or {}).values())
+            icon = "✅" if correct else "❌"
             await self._server.broadcast(
-                PrintMessage(message=f"  Score: {score_str}")
+                PrintMessage(message=f"  {icon} Score: {score_str}")
             )
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         msg = PrintMessage(
-            message=f"Model usage: {data.model_name} "
-            f"({data.usage.input_tokens}in/{data.usage.output_tokens}out, "
-            f"{data.call_duration:.1f}s)"
+            message=f"  🤖 {data.model_name}: "
+            f"{data.usage.input_tokens} tokens in → {data.usage.output_tokens} tokens out "
+            f"({data.call_duration:.1f}s)"
         )
         await self._server.broadcast(msg)
 
     async def on_sample_scoring(self, data: SampleScoring) -> None:
         msg = PrintMessage(
-            message=f"Scoring sample: {data.sample_id}"
+            message=f"  ⚖️ Scoring..."
         )
         await self._server.broadcast(msg)
 

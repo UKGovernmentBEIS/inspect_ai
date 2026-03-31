@@ -1,7 +1,8 @@
-"""Long-running test task for exercising the socket display attach/detach lifecycle.
+"""Test tasks for the socket display spike.
 
-Uses mockllm with artificial delays — no API keys needed.
-Run with: inspect eval src/inspect_ai/_display/socket/test_task.py --model mockllm/model --display=socket --max-samples=1
+Run with:
+  cd ~/code/inspect_ai
+  inspect eval "src/inspect_ai/_display/socket/test_task.py@interactive_counting" --model mockllm/model --display=socket --max-samples=1
 """
 
 import asyncio
@@ -67,7 +68,7 @@ def interactive_counting(
         dataset=_make_samples(num_samples),
         solver=[
             slow_solver(delay=delay, steps=steps),
-            ask_human("The agent has processed some samples. Should it continue with the same approach, or try something different?"),
+            ask_human("The agent has processed this sample. Should it continue with the same approach, or try something different?"),
             slow_solver(delay=delay, steps=steps),
         ],
         scorer=match(),
