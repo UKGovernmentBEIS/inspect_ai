@@ -1607,6 +1607,7 @@ wheels = [
 
 [[package]]
 name = "inspect-ai"
+version = "0.3.999.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "aioboto3" },

@@ -142,7 +142,12 @@ authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT License" }
-dynamic = ["version", "dependencies"]
+# Static dev version so local installs satisfy transitive pins (e.g. inspect-evals
+# requires inspect-ai>=0.3.137). setuptools_scm can emit 0.1.dev*, which breaks
+# `uv run --with . --with inspect-evals`. Restore dynamic versioning for releases
+# if you merge upstream.
+version = "0.3.999.dev0"
+dynamic = ["dependencies"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",

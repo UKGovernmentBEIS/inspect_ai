@@ -2,6 +2,7 @@ import logging
 import re
 from enum import Enum
 from random import Random
+from typing import Any
 
 from typing_extensions import TypedDict, Unpack
 
@@ -238,6 +239,8 @@ def multiple_choice(
     cot: bool = False,
     multiple_correct: bool = False,
     max_tokens: int | None = None,
+    logprobs: bool = False,
+    top_logprobs: int | None = None,
     **kwargs: Unpack[DeprecatedArgs],
 ) -> Solver:
     """Multiple choice question solver. Formats a multiple choice question prompt, then calls `generate()`.
@@ -266,6 +269,10 @@ def multiple_choice(
         available. NOTE: this has no effect if you provide a custom template.
       max_tokens: Default `None`. Controls the number of tokens generated through the call
         to generate().
+      logprobs: If ``True``, request token logprobs from the model (passed through to
+        ``generate()``).
+      top_logprobs: When set with ``logprobs=True``, passed to ``generate()`` to
+        request up to this many alternative tokens per position.
       **kwargs (Any): Deprecated arguments for backward compatibility.
 
     #### Shuffling
@@ -322,7 +329,14 @@ def multiple_choice(
             template=str(template),
         )
 
-        state = await generate(state, max_tokens=max_tokens)
+        gen_kwargs: dict[str, Any] = {}
+        if max_tokens is not None:
+            gen_kwargs["max_tokens"] = max_tokens
+        if logprobs:
+            gen_kwargs["logprobs"] = True
+        if top_logprobs is not None:
+            gen_kwargs["top_logprobs"] = top_logprobs
+        state = await generate(state, **gen_kwargs)
 
         answers = parse_answers(state, multiple_correct)
         if answers:
