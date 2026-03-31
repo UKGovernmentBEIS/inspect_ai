@@ -753,9 +753,7 @@ def test_api_log_with_nan_metric(test_client: TestClient):
 
 def test_api_log_header_only_zero(test_client: TestClient, mock_s3_eval_file: str):
     """header-only=0 forces header-only read (no samples)."""
-    response = test_client.request(
-        "GET", f"/logs/{mock_s3_eval_file}?header-only=0"
-    )
+    response = test_client.request("GET", f"/logs/{mock_s3_eval_file}?header-only=0")
     response.raise_for_status()
     data = response.json()
     assert data["eval"]["task"] == "task"
@@ -856,9 +854,7 @@ def test_api_eval_set_response_fields(test_client: TestClient):
                 task=inspect_ai._eval.task.Task(
                     name="my-task",
                     dataset=inspect_ai.dataset.MemoryDataset(
-                        samples=[
-                            inspect_ai.dataset.Sample(input="in", target="out")
-                        ],
+                        samples=[inspect_ai.dataset.Sample(input="in", target="out")],
                     ),
                 ),
                 sandbox=None,
@@ -949,9 +945,7 @@ def test_api_log_bytes_exact_range(test_client: TestClient, mock_s3_eval_file: s
 
 def test_api_log_bytes_single_byte(test_client: TestClient, mock_s3_eval_file: str):
     """Requesting a single byte (start==end) works."""
-    resp = test_client.request(
-        "GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end=0"
-    )
+    resp = test_client.request("GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end=0")
     resp.raise_for_status()
     assert len(resp.content) == 1
 
@@ -992,9 +986,7 @@ def test_api_log_headers_multiple_files(test_client: TestClient):
     write_fake_eval_log(f1)
     write_fake_eval_log(f2)
 
-    query = (
-        f"file={urllib.parse.quote_plus(f1)}&file={urllib.parse.quote_plus(f2)}"
-    )
+    query = f"file={urllib.parse.quote_plus(f1)}&file={urllib.parse.quote_plus(f2)}"
     response = test_client.request("GET", f"/log-headers?{query}")
     response.raise_for_status()
     headers = response.json()
