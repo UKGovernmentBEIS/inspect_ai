@@ -27,11 +27,13 @@ class SocketHooks(Hooks):
     def __init__(self, state: StateManager, server: SocketServer) -> None:
         self._state = state
         self._server = server
+        self._sample_call_count: dict[str, int] = {}
 
     def enabled(self) -> bool:
         return True
 
     async def on_sample_start(self, data: SampleStart) -> None:
+        self._sample_call_count[data.sample_id] = 0
         task_name = ""
         model = ""
         msg = await self._state.on_sample_start(
@@ -101,7 +103,23 @@ class SocketHooks(Hooks):
             pass
 
         if completion:
-            if last_user_msg:
+            # Figure out which sample this is for
+            sample_id = None
+            try:
+                from inspect_ai.log._samples import sample_active
+                a = sample_active()
+                if a and a.sample:
+                    sample_id = str(a.sample.id) if hasattr(a.sample, 'id') else None
+            except Exception:
+                pass
+            
+            call_num = 0
+            if sample_id:
+                call_num = self._sample_call_count.get(sample_id, 0)
+                self._sample_call_count[sample_id] = call_num + 1
+
+            # Show user message only on first model call per sample
+            if call_num == 0 and last_user_msg:
                 await self._server.broadcast(
                     PrintMessage(message=f"  👤 → {last_user_msg}")
                 )
