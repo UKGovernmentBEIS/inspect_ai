@@ -113,6 +113,19 @@ class SampleCancelledMessage(BaseModel):
     reason: str | None = None
 
 
+class InputRequestedMessage(BaseModel):
+    type: Literal["input_requested"] = "input_requested"
+    request_id: str
+    prompt: str
+    sample_id: str | None = None
+
+
+class InputResolvedMessage(BaseModel):
+    type: Literal["input_resolved"] = "input_resolved"
+    request_id: str
+    responded_by: str | None = None
+
+
 class ProgressUpdateMessage(BaseModel):
     type: Literal["progress_update"] = "progress_update"
     task_name: str
@@ -133,6 +146,8 @@ ServerMessage = Union[
     PrintMessage,
     SampleCancelledMessage,
     ProgressUpdateMessage,
+    InputRequestedMessage,
+    InputResolvedMessage,
 ]
 
 # --- Client → Server messages ---
@@ -143,7 +158,13 @@ class CancelSampleCommand(BaseModel):
     sample_id: str | int
 
 
-ClientMessage = Union[CancelSampleCommand]
+class InputResponseCommand(BaseModel):
+    type: Literal["input_response"] = "input_response"
+    request_id: str
+    text: str
+
+
+ClientMessage = Union[CancelSampleCommand, InputResponseCommand]
 
 
 # --- Serialization helpers ---
@@ -160,10 +181,13 @@ _SERVER_MESSAGE_TYPES: dict[str, type[BaseModel]] = {
     "print": PrintMessage,
     "sample_cancelled": SampleCancelledMessage,
     "progress_update": ProgressUpdateMessage,
+    "input_requested": InputRequestedMessage,
+    "input_resolved": InputResolvedMessage,
 }
 
 _CLIENT_MESSAGE_TYPES: dict[str, type[BaseModel]] = {
     "cancel_sample": CancelSampleCommand,
+    "input_response": InputResponseCommand,
 }
 
 
