@@ -26,14 +26,14 @@ from ..core.display import (
     TaskWithResult,
 )
 from .cancel import CancelManager, SocketEarlyStopping
-from .protocol import (
+from inspect_ai._event_bus.protocol import (
     EvalCompleteMessage,
     MetricValue,
     PrintMessage,
     TaskInfo,
 )
-from .server import SocketServer
-from .state import StateManager
+from inspect_ai._event_bus.server import SocketServer
+from inspect_ai._event_bus.state import StateManager
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class SocketDisplay(Display):
         )
 
         self._run_async(self._state.on_task_start(task_info))
-        from .protocol import TaskStartMessage
+        from inspect_ai._event_bus.protocol import TaskStartMessage
         self._broadcast_sync(TaskStartMessage(task=task_info))
 
         task_with_result = TaskWithResult(profile, None)
@@ -176,7 +176,7 @@ class SocketProgress(Progress):
 
     def update(self, n: int = 1) -> None:
         self.current += n
-        from .protocol import ProgressUpdateMessage
+        from inspect_ai._event_bus.protocol import ProgressUpdateMessage
 
         self._broadcast_sync(
             ProgressUpdateMessage(
@@ -222,7 +222,7 @@ class SocketTaskDisplay(TaskDisplay):
             self._task.profile.name, str(self._task.profile.model), complete, total
         )
         self._run_async(coro)
-        from .protocol import SampleCompleteMessage
+        from inspect_ai._event_bus.protocol import SampleCompleteMessage
 
         msg = SampleCompleteMessage(
             task_name=self._task.profile.name,
@@ -246,7 +246,7 @@ class SocketTaskDisplay(TaskDisplay):
             self._task.profile.name, str(self._task.profile.model), metrics
         )
         self._run_async(coro)
-        from .protocol import MetricsUpdateMessage
+        from inspect_ai._event_bus.protocol import MetricsUpdateMessage
 
         msg = MetricsUpdateMessage(
             task_name=self._task.profile.name,
@@ -276,7 +276,7 @@ class SocketTaskDisplay(TaskDisplay):
             error_str,
         )
         self._run_async(coro)
-        from .protocol import TaskCompleteMessage
+        from inspect_ai._event_bus.protocol import TaskCompleteMessage
 
         msg = TaskCompleteMessage(
             task_name=self._task.profile.name,

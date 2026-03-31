@@ -12,13 +12,13 @@ from inspect_ai.hooks._hooks import (
     SampleStart,
 )
 
-from .protocol import (
+from inspect_ai._event_bus.protocol import (
     PrintMessage,
     SampleEndMessage,
     SampleStartMessage,
 )
-from .server import SocketServer
-from .state import StateManager
+from inspect_ai._event_bus.server import SocketServer
+from inspect_ai._event_bus.state import StateManager
 
 logger = logging.getLogger(__name__)
 

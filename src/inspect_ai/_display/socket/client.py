@@ -36,7 +36,7 @@ from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.model import GenerateConfig, ModelName
 
-from .protocol import (
+from inspect_ai._event_bus.protocol import (
     CancelSampleCommand,
     EvalCompleteMessage,
     MetricsUpdateMessage,
