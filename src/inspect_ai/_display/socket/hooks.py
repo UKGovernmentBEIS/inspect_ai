@@ -103,26 +103,6 @@ class SocketHooks(Hooks):
             pass
 
         if completion:
-            # Figure out which sample this is for
-            sample_id = None
-            try:
-                from inspect_ai.log._samples import sample_active
-                a = sample_active()
-                if a and a.sample:
-                    sample_id = str(a.sample.id) if hasattr(a.sample, 'id') else None
-            except Exception:
-                pass
-            
-            call_num = 0
-            if sample_id:
-                call_num = self._sample_call_count.get(sample_id, 0)
-                self._sample_call_count[sample_id] = call_num + 1
-
-            # Show user message only on first model call per sample
-            if call_num == 0 and last_user_msg:
-                await self._server.broadcast(
-                    PrintMessage(message=f"  👤 → {last_user_msg}")
-                )
             await self._server.broadcast(
                 PrintMessage(message=f"  🤖 ← {completion}")
             )
