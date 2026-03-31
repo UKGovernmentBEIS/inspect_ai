@@ -103,7 +103,9 @@ class FastAPIViewTestClient(ViewTestClient):
         self._tc = fastapi.testclient.TestClient(app)
         self._tc.__enter__()
 
-    def request(self, method: str, path: str, headers: dict[str, str] | None = None) -> SimpleResponse:
+    def request(
+        self, method: str, path: str, headers: dict[str, str] | None = None
+    ) -> SimpleResponse:
         resp = self._tc.request(method, path, headers=headers or {})
         return SimpleResponse(resp.status_code, resp.content, dict(resp.headers))
 
@@ -133,7 +135,9 @@ class AioHTTPViewTestClient(ViewTestClient):
 
         self._loop.run_until_complete(_start())
 
-    def request(self, method: str, path: str, headers: dict[str, str] | None = None) -> SimpleResponse:
+    def request(
+        self, method: str, path: str, headers: dict[str, str] | None = None
+    ) -> SimpleResponse:
         # aiohttp routes are prefixed with /api
         full_path = f"/api{path}"
 
@@ -198,7 +202,9 @@ def write_eval_log_named(base_dir: Path, filename: str, task: str, task_id: str)
 
 
 @pytest.fixture(params=["fastapi", "aiohttp"])
-def view_client(request: pytest.FixtureRequest, tmp_path: Path) -> Generator[ViewTestClient, Any, None]:
+def view_client(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> Generator[ViewTestClient, Any, None]:
     impl = request.param
     if impl == "fastapi":
         client = FastAPIViewTestClient(tmp_path)
@@ -270,8 +276,12 @@ def test_api_log_dir(view_client: ViewTestClient) -> None:
 
 
 def test_api_logs_listing(view_client: ViewTestClient) -> None:
-    write_eval_log_named(view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1")
-    write_eval_log_named(view_client.log_dir, "2025-01-01T00-01-00+00-00_t2_id2.eval", "t2", "id2")
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-01-00+00-00_t2_id2.eval", "t2", "id2"
+    )
     resp = view_client.request(
         "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
     )
@@ -623,9 +633,7 @@ def test_fastapi_pending_samples_etag(
     assert response2.status_code == 304
 
 
-def test_fastapi_sample_events(
-    test_client: TestClient, mock_s3_eval_file: str
-) -> None:
+def test_fastapi_sample_events(test_client: TestClient, mock_s3_eval_file: str) -> None:
     write_fake_eval_log_buffer(mock_s3_eval_file, 1)
     response = test_client.request(
         "GET",
@@ -742,12 +750,18 @@ def test_fastapi_authorization_middleware() -> None:
 
     with fastapi.testclient.TestClient(app) as client:
         assert client.request("GET", "/api/events").status_code == 401
-        assert client.request(
-            "GET", "/api/events", headers={"Authorization": "Bearer wrong"}
-        ).status_code == 401
-        assert client.request(
-            "GET", "/api/events", headers={"Authorization": "Bearer secret123"}
-        ).status_code == 200
+        assert (
+            client.request(
+                "GET", "/api/events", headers={"Authorization": "Bearer wrong"}
+            ).status_code
+            == 401
+        )
+        assert (
+            client.request(
+                "GET", "/api/events", headers={"Authorization": "Bearer secret123"}
+            ).status_code
+            == 200
+        )
 
 
 def test_fastapi_nan_metric(test_client: TestClient) -> None:
