@@ -8,6 +8,7 @@
 - Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
 - Model API: Export `model_roles()` function to get model roles for the active task.
+- Installation: Ensure that textual .tcss files are included when installing from git.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
 - Inspect View: Fix regression that could hide assistant messages with only tool calls.
