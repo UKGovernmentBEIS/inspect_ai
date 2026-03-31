@@ -276,6 +276,12 @@ class BeforeModelGenerate:
     """The generation configuration."""
     cache: Literal["write"] | None
     """Cache mode: 'write' if caching is enabled, None otherwise."""
+    eval_set_id: str | None = None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str | None = None
+    """The globally unique identifier for the run (if any)."""
+    eval_id: str | None = None
+    """The globally unique identifier for the task execution (if any)."""
     sample_id: str | None = None
     """The globally unique identifier for the sample execution (if any)."""
     task_name: str | None = None
@@ -783,6 +789,9 @@ async def emit_before_model_generate(
         tool_choice=tool_choice,
         config=config,
         cache=cache,
+        eval_set_id=active.eval_set_id if active else None,
+        run_id=active.run_id if active else None,
+        eval_id=active.eval_id if active else None,
         sample_id=active.id if active else None,
         task_name=active.task if active else None,
     )
