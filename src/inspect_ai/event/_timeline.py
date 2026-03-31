@@ -964,10 +964,13 @@ def _find_forked_at(
     agent_content: list[TimelineEvent | TimelineSpan],
     branch_input: list[ChatMessage],
 ) -> str:
-    """Determine the fork point by matching the last shared input message.
+    """Determine the fork point by matching shared input messages.
 
-    Examines the last message in branch_input and matches it back to an event
-    in the parent's content.
+    Iterates backwards through branch_input to find the last message
+    that can be matched to a parent event (assistant or tool messages).
+    User and system messages are skipped since they cannot be matched
+    to parent events — this handles replay-based branching where new
+    user messages are appended after the fork point.
 
     Args:
         agent_content: The parent agent's content list.
@@ -979,49 +982,46 @@ def _find_forked_at(
     if not branch_input:
         return ""
 
-    last_msg = branch_input[-1]
+    for msg in reversed(branch_input):
+        if isinstance(msg, ChatMessageTool):
+            tool_call_id = msg.tool_call_id
+            if tool_call_id:
+                for item in agent_content:
+                    if (
+                        isinstance(item, TimelineEvent)
+                        and isinstance(item.event, ToolEvent)
+                        and item.event.id == tool_call_id
+                    ):
+                        return item.event.uuid or ""
 
-    if isinstance(last_msg, ChatMessageTool):
-        # Match tool_call_id to a ToolEvent.id
-        tool_call_id = last_msg.tool_call_id
-        if tool_call_id:
-            for item in agent_content:
-                if (
-                    isinstance(item, TimelineEvent)
-                    and isinstance(item.event, ToolEvent)
-                    and item.event.id == tool_call_id
-                ):
-                    return item.event.uuid or ""
-        return ""
+        elif isinstance(msg, ChatMessageAssistant):
+            # Match message id to ModelEvent.output.message.id
+            msg_id = msg.id
+            if msg_id:
+                for item in agent_content:
+                    if isinstance(item, TimelineEvent) and isinstance(
+                        item.event, ModelEvent
+                    ):
+                        output = item.event.output
+                        if output.choices:
+                            out_msg = output.choices[0].message
+                            if out_msg.id == msg_id:
+                                return item.event.uuid or ""
+            # Fallback: compare content
+            msg_content = msg.content
+            if msg_content:
+                for item in agent_content:
+                    if isinstance(item, TimelineEvent) and isinstance(
+                        item.event, ModelEvent
+                    ):
+                        output = item.event.output
+                        if output.choices:
+                            out_msg = output.choices[0].message
+                            if out_msg.content == msg_content:
+                                return item.event.uuid or ""
 
-    if isinstance(last_msg, ChatMessageAssistant):
-        # Match message id to ModelEvent.output.message.id
-        msg_id = last_msg.id
-        if msg_id:
-            for item in agent_content:
-                if isinstance(item, TimelineEvent) and isinstance(
-                    item.event, ModelEvent
-                ):
-                    output = item.event.output
-                    if output.choices:
-                        out_msg = output.choices[0].message
-                        if out_msg.id == msg_id:
-                            return item.event.uuid or ""
-        # Fallback: compare content
-        msg_content = last_msg.content
-        if msg_content:
-            for item in agent_content:
-                if isinstance(item, TimelineEvent) and isinstance(
-                    item.event, ModelEvent
-                ):
-                    output = item.event.output
-                    if output.choices:
-                        out_msg = output.choices[0].message
-                        if out_msg.content == msg_content:
-                            return item.event.uuid or ""
-        return ""
+        # Skip ChatMessageUser / ChatMessageSystem — try previous message
 
-    # ChatMessageUser / ChatMessageSystem - fork at beginning
     return ""
 
 

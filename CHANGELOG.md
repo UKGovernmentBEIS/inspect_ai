@@ -7,6 +7,7 @@
 - Cache Pydantic TypeAdapters in condense_events for performance.
 - Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
 - Model API: Export `model_roles()` function to get model roles for the active task.
+- Timelines: Improved `forked_at` detection for forking on non-assistant messages.
 - Installation: Ensure that all required static assets are included in bundle.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
