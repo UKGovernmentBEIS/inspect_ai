@@ -73,40 +73,41 @@ class SocketHooks(Hooks):
             )
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
-        from inspect_ai.log._samples import _active_model_event
+        try:
+            from inspect_ai.log._samples import _active_model_event
+            model_event = _active_model_event.get()
+        except Exception:
+            model_event = None
 
-        model_event = _active_model_event.get()
-        if model_event is not None:
-            # Show the last user message (what was sent to the model)
-            if model_event.input:
-                last_user = None
-                for m in reversed(model_event.input):
-                    if hasattr(m, 'role') and m.role == 'user':
-                        text = ""
-                        if hasattr(m, 'text') and m.text:
-                            text = m.text
-                        elif hasattr(m, 'content'):
-                            c = m.content
-                            if isinstance(c, str):
-                                text = c
-                            elif isinstance(c, list) and len(c) > 0:
-                                first = c[0]
-                                text = first.text if hasattr(first, 'text') else str(first)
-                        if text:
-                            last_user = text[:100]
+        if model_event is not None and model_event.output and model_event.output.completion:
+            # Show user input (last user message)
+            try:
+                if model_event.input:
+                    for m in reversed(model_event.input):
+                        role = getattr(m, 'role', None)
+                        if role == 'user':
+                            text = getattr(m, 'text', None) or ""
+                            if not text:
+                                c = getattr(m, 'content', None)
+                                if isinstance(c, str):
+                                    text = c
+                                elif isinstance(c, list) and c:
+                                    text = getattr(c[0], 'text', str(c[0]))
+                            if text:
+                                await self._server.broadcast(
+                                    PrintMessage(message=f"  👤 → {text[:100]}")
+                                )
                             break
-                if last_user:
-                    await self._server.broadcast(
-                        PrintMessage(message=f"  👤 → {last_user}")
-                    )
+            except Exception:
+                pass
 
-            # Show the model's response
-            if model_event.output and model_event.output.completion:
-                reply = model_event.output.completion[:100]
-                await self._server.broadcast(
-                    PrintMessage(message=f"  🤖 ← {reply}")
-                )
+            # Show model reply
+            reply = model_event.output.completion[:100]
+            await self._server.broadcast(
+                PrintMessage(message=f"  🤖 ← {reply}")
+            )
         else:
+            # Fallback: just show token counts
             await self._server.broadcast(
                 PrintMessage(
                     message=f"  🤖 {data.model_name}: "
