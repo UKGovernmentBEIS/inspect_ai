@@ -1,4 +1,88 @@
-## Unreleased
+## 0.3.202 (31 March 2026)
+
+- Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).
+- Approval: New `read_approval_policies()` function for reading approval policies from a config file.
+- Approval: Add `metadata` field to `Approval` which is in turn forwarded to `ApprovalEvent`.
+- Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
+- Cache Pydantic TypeAdapters in condense_events for performance.
+- Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
+- Model API: Export `model_roles()` function to get model roles for the active task.
+- Timelines: Improved `forked_at` detection for forking on non-assistant messages.
+- Installation: Ensure that all required static assets are included in bundle.
+- Inspect View: Fix printing for samples with large transcripts or many messages.
+- Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
+- Inspect View: Fix regression that could hide assistant messages with only tool calls.
+- Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
+- Inspect View: Built TypeScript code is now minified and committed via git lfs.
+- Bugfix: Handle recursive references when resolving $ref targets in JSON schema.
+- Bugfix: Accept numeric cpus in compose deploy resources.
+
+
+## 0.3.201 (25 March 2026)
+
+- Google: Remove deprecated `gemini-3-pro-preview` from computer use model check and replace with `gemini-3.1-pro-preview` in tests and docs.
+- SageMaker: Add `completion_mode` for CPT/base models, sending completions-style request payloads with logprobs and `prompt_logprobs` support.
+- SageMaker: Fix streaming metadata tracking to accumulate across chunks instead of relying on the last chunk.
+- Bedrock: Add `read_timeout` and `connect_timeout` model args.
+- HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
+- VLLM: Add `client_timeout` to OpenAICompatibleAPI and VLLMAPI.
+- Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
+- Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
+- Eval Set: Fix `run_multiple` silently swallowing task finalisation errors and returning `success=True` with no results.
+- Model API: Handle `tool_calls` and `source` when combining assistant messages.
+- Hooks: Increase event buffer to `math.inf` so it never blocks.
+- Inspect View: Copy button for log files now copies the absolute path (or S3 URI) rather than the relative serving path.
+
+## 0.3.200 (20 March 2026)
+
+- Google: Fix intermittent FAILED_PRECONDITION error when using native code execution by omitting function calling system instruction hint.
+- AzureAI: Add explicit org prefix support for AzureAI third-party models.
+- Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
+- Agent Bridge: Provide streaming 'ping' responses to keep Anthropic clients alive.
+- Agent Bridge: Increase timeouts associated with model proxy server.
+- Bash Session: Further increase bash session transport timeout to 180s.
+- Sandboxes: Fail the sample when sandbox timeout errors occur outside of the context of tool calls.
+- Sandboxes: Bounded output buffering in `exec_remote` to prevent OOM from unbounded subprocess output.
+- Sandboxes: Enable specification of `timeout` and `timeout_retry` for `exec_remote()` requests.
+- Sandboxes: Increase timeouts associated with Docker execution.
+- Sandboxes: Fix intermittent server startup failure caused by socket deletion racing with `bind()`/`listen()` in sandbox tools server.
+- Logging: INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER env var to pipe subprocess output to logging.
+- Approval: New `approval()` context manager and `approval` arguments to `execute_tools()` and `react()` agent.
+- Hooks: Add sample attempt begin/end hooks.
+- Inspect View: Improve reliability of scrolling to bottom of long transcripts.
+- Inspect View: Improve viewer loading performance for large samples.
+- Inspect View: Ensure tool output wraps for rendered text.
+- Inspect View: Improve scrolling behavior when moving to next scroll result.
+- Bugfix: Don't skip sandbox init when first task has no sandbox.
+- Bugfix: Raise `ValueError` when sandbox provider is not found.
+
+## 0.3.199 (17 March 2026)
+
+- OpenAI: Store readable reasoning text in `summary` when both text and encrypted reasoning content are provided.
+- Eval Logs: Replace '+' with '-' in eval log filenames.
+- Google: Log warning when image generation returns inline_data with null data (intermittent API issue).
+- Inspect View: Fix error that prevented samples from being printed.
+- Inspect View: Always render `<think>` tags that appear in assistant messages.
+- Inspect View: Improve nested list formatting in rendered markdown content.
+- Inspect View: Correct display of nested solver > agent in transcripts.
+
+## 0.3.197 (16 March 2026)
+
+- Anthropic: Agent bridge now maps native bash tool to standard `bash()` tool.
+- Google: Update to `google-genai` v1.62.0 to fix issue with error handling in proxy configurations.
+- Hooks: Add eval context id fields to `ModelUsageData` hook.
+
+## 0.3.196 (16 March 2026)
+
+- Support for `ContentDocument` as a result type for tool calls.
+- Events: Added `event_tree_walk()` function for enumerating tree items with an optional filter.
+- Events: Provide `current_span_id()` function to get the current span id (if any).
+- Timelines: Enable specifying `name` and/or `description` when calling `timeline_build()`
+- Timelines: Correct deserialization behavior for timelines in `read_eval_log()`, etc.
+- Inspect View: Add 'None' preset when choosing transcript events to display.
+- Inspect View: Add middle-click support to open tasks and samples in a new browser tab.
+
+## 0.3.195 (14 March 2026)
 
 - OpenAI: Support for image output for multimodal modals.
 - OpenAI: Support for the updated OpenAI computer tool released with GPT 5.4.
@@ -135,6 +219,7 @@
 - Testing: Migrate async tests from pytest-asyncio to anyio, enabling dual-backend (asyncio/trio) test execution via `--runtrio` flag.
 - Testing: Run `--runtrio` as trio-only in a separate process to prevent cross-backend global state contamination; convert batch tests from asyncio to anyio.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
+- Inspect View: Presigned URL support for S3 log files, enabling direct browser-to-S3 byte-range fetches with parallel chunk downloads and a determinate progress bar for large samples.
 
 ## 0.3.183 (24 February 2026)
 

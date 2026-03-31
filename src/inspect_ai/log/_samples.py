@@ -39,6 +39,9 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
+        eval_set_id: str | None = None,
+        run_id: str | None = None,
+        eval_id: str | None = None,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
@@ -60,6 +63,9 @@ class ActiveSample:
         self.total_cost: float | None = None
         self.transcript = transcript
         self.sandboxes = sandboxes
+        self.eval_set_id = eval_set_id
+        self.run_id = run_id
+        self.eval_id = eval_id
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -129,6 +135,9 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
+    eval_set_id: str | None = None,
+    run_id: str | None = None,
+    eval_id: str | None = None,
 ) -> AsyncGenerator[ActiveSample, None]:
     # create the sample
     active = ActiveSample(
@@ -145,6 +154,9 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
     )
 
     _active_samples.append(active)

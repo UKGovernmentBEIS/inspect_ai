@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import time
+import traceback
 from email.utils import formatdate
 from http import HTTPStatus
 from typing import (
@@ -29,8 +30,8 @@ MethodRoutes: TypeAlias = dict[str, RouteMap]
 # ---------- Limits / Defaults ----------
 MAX_HEADER_BYTES = 64 * 1024
 MAX_BODY_BYTES = 50 * 1024 * 1024
-READ_TIMEOUT_S = 60
-WRITE_TIMEOUT_S = 60
+READ_TIMEOUT_S = 300
+WRITE_TIMEOUT_S = 300
 STREAM_CHUNK = 8192
 
 HOP_BY_HOP = {
@@ -488,8 +489,11 @@ class AsyncHTTPServer:
                 )
             except Exception:
                 pass
-            writer.close()
-            await writer.wait_closed()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
 
     # -------- Lifecycle --------
     async def start(self) -> None:
@@ -1472,13 +1476,62 @@ async def model_proxy_server(
             json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
 
-            completion = await call_bridge_model_service_async(
-                "generate_anthropic", json_data=json_body
-            )
-
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
+                    def _sse_anthropic(event_type: str, data: dict[str, Any]) -> bytes:
+                        # Anthropic uses both event: and data: lines
+                        return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode(
+                            "utf-8"
+                        )
+
+                    # 1. Send message_start immediately (before awaiting completion)
+                    #    so clients see data on the connection right away.
+                    message_start = {
+                        "type": "message_start",
+                        "message": {
+                            "id": f"msg_{os.urandom(12).hex()}",
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [],
+                            "model": json_body.get("model", "unknown"),
+                            "stop_reason": None,
+                            "stop_sequence": None,
+                            "usage": {
+                                "input_tokens": 0,
+                                "output_tokens": 0,
+                            },
+                        },
+                    }
+                    yield _sse_anthropic("message_start", message_start)
+
+                    # 2. Await the actual completion, sending pings to keep alive.
+                    #    try/finally ensures the task is cancelled if the
+                    #    generator is abandoned (e.g. client disconnect).
+                    PING_INTERVAL_S = 5.0
+                    task = asyncio.create_task(
+                        call_bridge_model_service_async(
+                            "generate_anthropic", json_data=json_body
+                        )
+                    )
+                    try:
+                        while not task.done():
+                            try:
+                                await asyncio.wait_for(
+                                    asyncio.shield(task), timeout=PING_INTERVAL_S
+                                )
+                            except asyncio.TimeoutError:
+                                yield _sse_anthropic("ping", {"type": "ping"})
+                        completion = task.result()
+                    except BaseException:
+                        if not task.done():
+                            task.cancel()
+                            try:
+                                await task
+                            except asyncio.CancelledError:
+                                pass
+                        raise
+
                     try:
                         # Parse the completion as a dict
                         message = (
@@ -1499,33 +1552,6 @@ async def model_proxy_server(
                             "utf-8"
                         )
                         return
-
-                    def _sse_anthropic(event_type: str, data: dict[str, Any]) -> bytes:
-                        # Anthropic uses both event: and data: lines
-                        return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode(
-                            "utf-8"
-                        )
-
-                    # 1. message_start event
-                    message_start = {
-                        "type": "message_start",
-                        "message": {
-                            "id": message.get("id"),
-                            "type": "message",
-                            "role": message.get("role", "assistant"),
-                            "content": [],
-                            "model": message.get("model"),
-                            "stop_reason": None,
-                            "stop_sequence": None,
-                            "usage": {
-                                "input_tokens": message.get("usage", {}).get(
-                                    "input_tokens", 0
-                                ),
-                                "output_tokens": 1,
-                            },
-                        },
-                    }
-                    yield _sse_anthropic("message_start", message_start)
 
                     # 2. Process content blocks
                     content = message.get("content", [])
@@ -1728,6 +1754,9 @@ async def model_proxy_server(
                     "chunked": True,
                 }
             else:
+                completion = await call_bridge_model_service_async(
+                    "generate_anthropic", json_data=json_body
+                )
                 return {"status": 200, "body": completion}
         except Exception as ex:
             _handle_model_proxy_error(ex)
@@ -1916,7 +1945,8 @@ async def run_model_proxy_server() -> None:
     try:
         await server.start()
     except Exception as ex:
-        sys.stderr.write(f"Unexpected error running model proxy: {ex}")
+        sys.stderr.write(f"Unexpected error running model proxy: {ex}\n")
+        sys.stderr.write(traceback.format_exc())
         sys.stderr.flush()
         os._exit(1)
 
@@ -1936,7 +1966,8 @@ def _handle_model_proxy_error(ex: Exception) -> None:
     # returning 500 to the proxied agent. This is because we are in a
     # hard failure anyway so we need the user to see the error message
     # and have the task fail (the 500 error would just result in retries)
-    sys.stderr.write(f"Unexpected error during model proxy call: {ex}")
+    sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
+    sys.stderr.write(traceback.format_exc())
     sys.stderr.flush()
 
 

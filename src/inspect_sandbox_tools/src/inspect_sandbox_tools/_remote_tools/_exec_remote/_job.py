@@ -2,11 +2,40 @@ import asyncio
 import os
 import signal
 from asyncio.subprocess import Process as AsyncIOProcess
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from inspect_sandbox_tools._util.common_types import ToolException
 
+from ._acked_chunk_buffer import AckedChunkBuffer
+from ._output_buffer import BoundedByteBuffer, DecodingBuffer
 from .tool_types import PollResult
+
+
+class OutputChunk(NamedTuple):
+    """Sequence number and incremental stdout/stderr from a job operation."""
+
+    seq: int
+    stdout: str
+    stderr: str
+
+
+_BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
+_MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
+
+
+def _set_oom_score_adj() -> None:
+    """Set oom_score_adj in the child process before exec.
+
+    Called via preexec_fn so it runs after fork() but before exec(),
+    ensuring the shell and all its descendants inherit the adjusted score.
+    This makes child processes the preferred OOM-kill target, protecting the
+    sandbox tools server from the OOM killer.
+    """
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("1000")
+    except OSError:
+        pass
 
 
 class Job:
@@ -55,6 +84,7 @@ class Job:
             start_new_session=True,
             env=subprocess_env,
             cwd=cwd,
+            preexec_fn=_set_oom_score_adj,
         )
 
         job = cls(process)
@@ -73,10 +103,13 @@ class Job:
 
     def __init__(self, process: AsyncIOProcess) -> None:
         self._process = process
-        self._stdout_buffer: list[str] = []
-        self._stderr_buffer: list[str] = []
+        self._stdout_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
+        self._stderr_buffer = BoundedByteBuffer(_BACKPRESSURE_BUFFER_SIZE)
+        self._stdout_output = DecodingBuffer(self._stdout_buffer)
+        self._stderr_output = DecodingBuffer(self._stderr_buffer)
         self._state: Literal["running", "completed", "killed"] = "running"
         self._exit_code: int | None = None
+        self._acked_buffer: AckedChunkBuffer[tuple[str, str]] = AckedChunkBuffer()
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
@@ -92,7 +125,7 @@ class Job:
         assert self._process.pid is not None
         return self._process.pid
 
-    async def poll(self) -> PollResult:
+    async def poll(self, ack_seq: int) -> PollResult:
         """Return current state and incremental output, clearing buffers."""
         # Check if process has finished
         if self._state == "running" and self._process.returncode is not None:
@@ -101,28 +134,50 @@ class Job:
             # Wait for read tasks to finish draining
             await self._wait_for_readers()
 
-        stdout, stderr = self._drain_buffers()
-
-        return PollResult(
-            state=self._state,
-            exit_code=self._exit_code,
-            stdout=stdout,
-            stderr=stderr,
+        # Always limit per-poll output to keep JSON-RPC responses small.
+        # Defer reporting terminal state until buffers are fully drained
+        # so the client keeps polling for remaining output.
+        stdout, stderr = self._drain_buffers(
+            final=False, max_bytes=_MAX_POLL_OUTPUT_BYTES
         )
 
-    async def kill(self, timeout: int = 5) -> tuple[str, str]:
+        buffers_empty = not stdout and not stderr
+        if self._state != "running" and not buffers_empty:
+            # Report as running so client keeps polling
+            reported_state: Literal["running", "completed", "killed"] = "running"
+            reported_exit_code = None
+        elif self._state != "running" and buffers_empty:
+            # Buffers drained — flush decoder and report terminal state
+            stdout, stderr = self._drain_buffers(final=True)
+            reported_state = self._state
+            reported_exit_code = self._exit_code
+        else:
+            reported_state = self._state
+            reported_exit_code = self._exit_code
+
+        self._acked_buffer.push((stdout, stderr))
+        seq, chunks = self._acked_buffer.collect(ack_seq)
+        combined_out, combined_err = self._combine_chunks(chunks)
+
+        return PollResult(
+            state=reported_state,
+            exit_code=reported_exit_code,
+            seq=seq,
+            stdout=combined_out,
+            stderr=combined_err,
+        )
+
+    async def kill(self, ack_seq: int, timeout: int = 5) -> OutputChunk:
         """Terminate the process and return any remaining buffered output.
 
         Since the subprocess was started with start_new_session=True, it is the
         leader of its own process group. We use os.killpg() to send signals to
         the entire group, ensuring child processes are also terminated.
-
-        Returns:
-            A tuple of (stdout, stderr) containing any output buffered since
-            the last poll.
         """
         if self._state != "running":
-            return ("", "")
+            self._acked_buffer.push(("", ""))
+            seq, chunks = self._acked_buffer.collect(ack_seq)
+            return OutputChunk(seq, *self._combine_chunks(chunks))
 
         self._state = "killed"
         pgid = self._process.pid
@@ -142,25 +197,32 @@ class Job:
 
         await self._wait_for_readers()
 
-        return self._drain_buffers()
+        stdout, stderr = self._drain_buffers(final=True)
+        self._acked_buffer.push((stdout, stderr))
+        seq, chunks = self._acked_buffer.collect(ack_seq)
+        return OutputChunk(seq, *self._combine_chunks(chunks))
 
-    def _drain_buffers(self) -> tuple[str, str]:
+    def _drain_buffers(
+        self, final: bool = False, max_bytes: int | None = None
+    ) -> tuple[str, str]:
         """Collect and clear the stdout/stderr buffers.
+
+        Args:
+            final: If True, flush any trailing partial UTF-8 sequences
+                as replacement characters.
+            max_bytes: Maximum raw bytes to drain per stream. If None,
+                drains everything.
 
         Returns:
             A tuple of (stdout, stderr) strings accumulated since the last drain.
         """
-        stdout = "".join(self._stdout_buffer)
-        stderr = "".join(self._stderr_buffer)
-        self._stdout_buffer.clear()
-        self._stderr_buffer.clear()
-        return (stdout, stderr)
+        return (
+            self._stdout_output.drain(final, max_bytes),
+            self._stderr_output.drain(final, max_bytes),
+        )
 
-    async def write_stdin(self, data: str) -> tuple[str, str]:
+    async def write_stdin(self, data: str, ack_seq: int) -> OutputChunk:
         """Write data to the process's stdin and return buffered output.
-
-        Returns:
-            A tuple of (stdout, stderr) accumulated since the last read.
 
         Raises:
             ToolException: If stdin is not available or already closed.
@@ -176,15 +238,15 @@ class Job:
 
         self._process.stdin.write(data.encode("utf-8"))
         await self._process.stdin.drain()
-        return self._drain_buffers()
+        stdout, stderr = self._drain_buffers()
+        self._acked_buffer.push((stdout, stderr))
+        seq, chunks = self._acked_buffer.collect(ack_seq)
+        return OutputChunk(seq, *self._combine_chunks(chunks))
 
-    async def close_stdin(self) -> tuple[str, str]:
+    async def close_stdin(self, ack_seq: int) -> OutputChunk:
         """Close the process's stdin pipe to signal EOF and return buffered output.
 
         This is idempotent — calling it when stdin is already closed is a no-op.
-
-        Returns:
-            A tuple of (stdout, stderr) accumulated since the last read.
 
         Raises:
             ToolException: If stdin is not available.
@@ -194,11 +256,23 @@ class Job:
                 "stdin is not available (process started without stdin_open=True)"
             )
         if self._process.stdin.is_closing():
-            return self._drain_buffers()
+            stdout, stderr = self._drain_buffers()
+        else:
+            self._process.stdin.close()
+            await self._process.stdin.wait_closed()
+            stdout, stderr = self._drain_buffers()
 
-        self._process.stdin.close()
-        await self._process.stdin.wait_closed()
-        return self._drain_buffers()
+        self._acked_buffer.push((stdout, stderr))
+        seq, chunks = self._acked_buffer.collect(ack_seq)
+        return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    @staticmethod
+    def _combine_chunks(chunks: list[tuple[str, str]]) -> tuple[str, str]:
+        """Concatenate a list of (stdout, stderr) chunks."""
+        return (
+            "".join(c[0] for c in chunks),
+            "".join(c[1] for c in chunks),
+        )
 
     async def cleanup(self) -> None:
         """Clean up resources. Called after job is removed from controller."""
@@ -206,18 +280,23 @@ class Job:
 
     async def _wait_for_readers(self) -> None:
         """Wait for background read tasks to complete."""
+        self._stdout_buffer.close()
+        self._stderr_buffer.close()
         for task in [self._stdout_task, self._stderr_task]:
             if not task.done():
-                task.cancel()
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+                    await asyncio.wait_for(task, timeout=1.0)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
 
     async def _read_stream(
-        self, stream: asyncio.StreamReader | None, buffer: list[str]
+        self, stream: asyncio.StreamReader | None, buffer: BoundedByteBuffer
     ) -> None:
-        """Read from a stream and append to buffer."""
+        """Read from a stream and append to buffer with backpressure."""
         if stream is None:
             return
 
@@ -226,6 +305,6 @@ class Job:
                 data = await stream.read(4096)
                 if not data:
                     break
-                buffer.append(data.decode("utf-8", errors="replace"))
+                await buffer.put(data)
         except asyncio.CancelledError:
             pass

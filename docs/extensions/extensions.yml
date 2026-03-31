@@ -52,9 +52,9 @@
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
-- name: "[MLflow Tracking Hook](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py)"
+- name: "[Inspect MLflow](https://github.com/debu-sinha/inspect-mlflow)"
   description: |
-    Log Inspect evaluations to MLflow with hierarchical run tracking, per-sample metrics, and artifact logging.
+    Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations. Published on [PyPI](https://pypi.org/project/inspect-mlflow/).
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
@@ -129,3 +129,21 @@
     Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_harbor)"
   categories: ["Evals"]
+
+- name: "[Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox)"
+  description: |
+    Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
+  author: "[Jason Gwartz](https://github.com/jasongwartz)"
+  categories: ["Sandboxes"]
+
+- name: "[Podman Sandbox](https://github.com/VectorInstitute/inspect-podman)"
+  description: |
+    Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
+  author: "[Vector Institute and National Research Council of Canada](https://github.com/VectorInstitute/inspect-podman)"
+  categories: ["Sandboxes"]
+
+- name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
+  description: |
+    Automatically load pricing data for models under test.
+  author: "[Jason Gwartz](https://github.com/jasongwartz)"
+  categories: ["Tooling"]

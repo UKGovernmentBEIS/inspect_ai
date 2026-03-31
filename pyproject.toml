@@ -22,7 +22,16 @@ where = ["src"]
 include = ["inspect_ai*"]
 
 [tool.setuptools.package-data]
-inspect_ai = ["binaries/*", "tool/sandbox_tools/sandbox_tools_version.txt"]
+inspect_ai = [
+    "binaries/*",
+    "tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    "**/*.tcss",
+    "**/*.yml",
+    "_view/dist/**/*",
+    "**/*.jsonl",
+    "_view/log-schema.json",
+    "py.typed",
+]
 
 
 [tool.ruff]
@@ -41,6 +50,8 @@ select = [
   # "RET", # flake8-return
   # "RUF", # ruff rules
   "DTZ",
+  "TID251",  # banned-api
+  "PLE",     # pylint errors
 ]
 ignore = [
   "E203",
@@ -61,6 +72,10 @@ ignore = [
   "B904",
   "B905",
 ]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
+"typing.is_typeddict".msg = "Use typing_extensions.is_typeddict (typing.is_typeddict doesn't recognize typing_extensions.TypedDict subclasses)"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -156,7 +171,7 @@ dev = [
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
-  "google-genai>=1.56.0",
+  "google-genai>=1.69.0",
   "griffe<=1.14.0",
   "groq>=0.28.0",
   "huggingface_hub>=1.0.0",
@@ -175,7 +190,6 @@ dev = [
   "pip",
   "pre-commit",
   "pyarrow>=10.0.1",
-  "pylint",
   "pytest",
   "pytest-cov",
   "pytest-dotenv",

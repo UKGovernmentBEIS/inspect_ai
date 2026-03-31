@@ -12,98 +12,6 @@ env:
   UV_VERSION: 0.9.4
 
 jobs:
-  typecheck:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/inspect_ai/_view/www
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Run tsc
-        run: yarn tsc
-
-  prettier:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/inspect_ai/_view/www
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Check prettier
-        run: yarn prettier:check
-
-  lint:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/inspect_ai/_view/www
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Run eslint
-        run: yarn eslint
-
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/inspect_ai/_view/www
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Run tests
-        run: yarn test
-
-  build-library:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: src/inspect_ai/_view/www
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-      - name: Install dependencies
-        run: yarn install
-
-      - name: Build library package
-        run: yarn build:lib
-
-      - name: Test NPM publish (dry-run)
-        run: npm publish --dry-run --ignore-scripts
-        env:
-          NPM_TOKEN: "dummy-token-for-dry-run"
-
   check-schema-and-types:
     runs-on: ubuntu-latest
     steps:
@@ -111,6 +19,8 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          submodules: recursive
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -123,16 +33,21 @@ jobs:
           enable-cache: true
           version: "${{ env.UV_VERSION }}"
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: uv pip install --system .[dev]
 
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/inspect_ai/_view/ts-mono/package.json
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
+          cache: pnpm
+          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
       - name: Install Node.js dependencies
-        working-directory: src/inspect_ai/_view/www
-        run: yarn install --frozen-lockfile
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm install --frozen-lockfile
 
       - name: Update schema and types
         run: python src/inspect_ai/_view/schema.py
@@ -147,31 +62,65 @@ jobs:
             exit 1
           fi
 
-  # TODO: This is failing even with a freshly generated build.js file
-  # Need to debug or better understand the cause
-  # build:
-  #   runs-on: ubuntu-latest
-  #   defaults:
-  #     run:
-  #       working-directory: src/inspect_ai/_view/www
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Set up Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: "22.x"
-  #     - name: Install dependencies
-  #       run: yarn install
+  submodule-on-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Build log viewer
-  #       run: yarn build
+      - name: Verify submodule commit is on ts-mono main
+        run: |
+          SUBMODULE_SHA=$(git ls-tree HEAD src/inspect_ai/_view/ts-mono | awk '{print $3}')
+          echo "Submodule points to: $SUBMODULE_SHA"
 
-  #     - name: Ensure dist changes are checked in
-  #       run: |
-  #         if [[ $(git status --porcelain) != "" ]]
-  #         then
-  #           echo "Log viewer dist files have not been updated, please run yarn build and check in the changes."
-  #           git status
-  #           git diff dist/assets/index.js
-  #           exit 1
-  #         fi
+          git fetch https://github.com/meridianlabs-ai/ts-mono.git main
+          MAIN_SHA=$(git rev-parse FETCH_HEAD)
+          echo "ts-mono main is at: $MAIN_SHA"
+
+          if git merge-base --is-ancestor "$SUBMODULE_SHA" "$MAIN_SHA"; then
+            echo "✓ Submodule commit is on ts-mono main"
+          else
+            echo "✗ Submodule commit $SUBMODULE_SHA is not on ts-mono main."
+            echo "  Merge the submodule PR first, then update the pointer."
+            exit 1
+          fi
+
+  dist-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/inspect_ai/_view/ts-mono/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: pnpm
+          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm --filter inspect build
+
+      - name: Check dist is up-to-date
+        run: |
+          if ! git diff --exit-code src/inspect_ai/_view/dist
+          then
+            echo "❌ dist/ is out of sync with the frontend source!"
+            echo ""
+            echo "The build output has changed. Run:"
+            echo "  cd src/inspect_ai/_view/ts-mono"
+            echo "  pnpm --filter inspect build"
+            echo ""
+            echo "Then commit the updated dist/ directory."
+            exit 1
+          fi

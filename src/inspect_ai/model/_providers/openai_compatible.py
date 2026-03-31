@@ -2,6 +2,7 @@ import os
 from logging import getLogger
 from typing import Any, cast
 
+import httpx
 from openai import (
     APIStatusError,
     AsyncOpenAI,
@@ -66,6 +67,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_store: bool | None = None,
         stream: bool | None = None,
         strict_tools: bool = True,
+        client_timeout: float | None = None,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -121,25 +123,38 @@ class OpenAICompatibleAPI(ModelAPI):
         self.stream = False if stream is None else stream
         self.strict_tools = strict_tools
 
+        # store client_timeout for http client creation
+        self.client_timeout = client_timeout
+
         # store http_client and model_args for reinitialization
-        self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
+        self.http_client = model_args.pop("http_client", self._create_http_client())
         self.model_args = model_args
 
         # create client
         self.initialize()
+
+    def _create_http_client(self) -> OpenAIAsyncHttpxClient:
+        if self.client_timeout is not None:
+            return OpenAIAsyncHttpxClient(
+                timeout=httpx.Timeout(timeout=self.client_timeout, connect=5.0)
+            )
+        return OpenAIAsyncHttpxClient()
 
     def _create_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
             http_client=self.http_client,
+            timeout=self.client_timeout
+            if self.client_timeout is not None
+            else NOT_GIVEN,
             **self.model_args,
         )
 
     def initialize(self) -> None:
         super().initialize()
         if self.http_client.is_closed:
-            self.http_client = OpenAIAsyncHttpxClient()
+            self.http_client = self._create_http_client()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 

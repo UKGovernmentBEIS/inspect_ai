@@ -390,6 +390,8 @@ website:
           href: reference/inspect_ai.model.qmd#modelinfo
         - text: ModelCost
           href: reference/inspect_ai.model.qmd#modelcost
+        - text: model_roles
+          href: reference/inspect_ai.model.qmd#model_roles
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -456,6 +458,10 @@ website:
           href: reference/inspect_ai.approval.qmd#auto_approver
         - text: human_approver
           href: reference/inspect_ai.approval.qmd#human_approver
+        - text: read_approval_policies
+          href: reference/inspect_ai.approval.qmd#read_approval_policies
+        - text: approval
+          href: reference/inspect_ai.approval.qmd#approval
         - text: Approver
           href: reference/inspect_ai.approval.qmd#approver
         - text: Approval
@@ -671,6 +677,8 @@ website:
           href: reference/inspect_ai.event.qmd#spanendevent
         - text: event_tree
           href: reference/inspect_ai.event.qmd#event_tree
+        - text: event_tree_walk
+          href: reference/inspect_ai.event.qmd#event_tree_walk
         - text: event_sequence
           href: reference/inspect_ai.event.qmd#event_sequence
         - text: EventTree
@@ -766,6 +774,8 @@ website:
           href: reference/inspect_ai.util.qmd#input_screen
         - text: span
           href: reference/inspect_ai.util.qmd#span
+        - text: current_span_id
+          href: reference/inspect_ai.util.qmd#current_span_id
         - text: collect
           href: reference/inspect_ai.util.qmd#collect
         - text: resource
@@ -865,6 +875,10 @@ website:
           href: reference/inspect_ai.hooks.qmd#sampleinit
         - text: SampleStart
           href: reference/inspect_ai.hooks.qmd#samplestart
+        - text: SampleAttemptStart
+          href: reference/inspect_ai.hooks.qmd#sampleattemptstart
+        - text: SampleAttemptEnd
+          href: reference/inspect_ai.hooks.qmd#sampleattemptend
         - text: SampleEvent
           href: reference/inspect_ai.hooks.qmd#sampleevent
         - text: TaskEnd
