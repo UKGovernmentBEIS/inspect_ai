@@ -14,6 +14,8 @@
 - Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
 - Inspect View: Built TypeScript code is now minified and committed via git lfs.
 - Bugfix: Handle recursive references when resolving $ref targets in JSON schema.
+- Bugfix: Accept numeric cpus in compose deploy resources.
+
 
 ## 0.3.201 (25 March 2026)
 
