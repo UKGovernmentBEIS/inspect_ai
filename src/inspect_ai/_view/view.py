@@ -49,7 +49,8 @@ def view(
     init_logger(log_level)
 
     # initialize the log_dir
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
