@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+from string import Formatter
 
 from inspect_ai.model import (
     ContentReasoning,
@@ -20,10 +21,13 @@ Estimate the probability that the answer is correct.
 Question:
 {question}
 
+Reasoning (from the model that produced the answer):
+{reasoning}
+
 Answer:
 {answer}
 
-Return ONLY a single number between 0 and 1 (for example: 0.73).
+Return ONLY a single number between 0 and 1.
 """
 
 
@@ -57,7 +61,8 @@ def confidence_generate(
         confidence_key: Metadata key written on ``TaskState.metadata``.
         confidence_model: Model for ``scored_confidence`` only; defaults to active eval model.
         confidence_prompt: Optional template path or string; must include ``{question}`` and
-            ``{answer}`` for ``scored_confidence``. The ``{question}`` value is the text of
+            ``{answer}`` for ``scored_confidence``. You may include ``{reasoning}`` (reasoning
+            from the answer-generating call, if any). The ``{question}`` value is the text of
             the last user message (after running the task generator), so for multiple-choice
             tasks it includes the formatted options when ``multiple_choice`` has run.
         choice_template: For samples with ``choices`` (e.g. GPQA), template passed to
@@ -219,9 +224,12 @@ async def _confidence_from_scored_call(
 ) -> float:
     resolved = model if isinstance(model, Model) else get_model(model)
     answer_text = _task_answer_text(state)
+    reasoning_text = _reasoning_from_output(state.output)
     # Last user message after `multiple_choice` includes formatted MC options.
     question_text = state.user_prompt.text
-    prompt = template.format(question=question_text, answer=answer_text)
+    prompt = _format_confidence_template(
+        template, question_text, answer_text, reasoning_text
+    )
 
     budgets = [max_tokens, max(max_tokens * 2, 1024)]
     last_raw = ""
@@ -253,6 +261,38 @@ async def _confidence_from_scored_call(
         "model for -S confidence_model=, or simplify the prompt so the model returns "
         "only one number in [0, 1]."
     )
+
+
+def _format_confidence_template(
+    template: str, question: str, answer: str, reasoning: str
+) -> str:
+    """Apply ``template`` with optional ``{reasoning}`` for older custom prompts."""
+    names: set[str] = set()
+    for _, field_name, _, _ in Formatter().parse(template):
+        if field_name:
+            root = field_name.split(".", 1)[0].split("[", 1)[0]
+            names.add(root)
+    kwargs: dict[str, str] = {"question": question, "answer": answer}
+    if "reasoning" in names:
+        kwargs["reasoning"] = reasoning
+    return template.format(**kwargs)
+
+
+def _reasoning_from_output(output: ModelOutput) -> str:
+    """Extract assistant reasoning blocks from the first completion choice, if present."""
+    if not output.choices:
+        return ""
+    msg = output.choices[0].message
+    if isinstance(msg.content, str):
+        return ""
+    parts: list[str] = []
+    for block in msg.content_list:
+        if isinstance(block, ContentReasoning):
+            if block.summary and block.summary.strip():
+                parts.append(block.summary.strip())
+            elif not block.redacted and block.reasoning.strip():
+                parts.append(block.reasoning.strip())
+    return "\n".join(parts).strip()
 
 
 def _task_answer_text(state: TaskState) -> str:

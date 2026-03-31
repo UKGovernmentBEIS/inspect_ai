@@ -53,21 +53,23 @@ uv run inspect view
 
 ## Running to generate consistency logs (agent-agnostic)
 
+Writes `.eval` logs under `logs/baseline` (same layout as the prompt-robustness baseline run).
+
 ```bash
-uv run --with inspect-evals --with openai inspect eval inspect_evals/gpqa_diamond -T epochs=2 --limit 2 --max-connections 5
+uv run --with . --with inspect-evals --with openai inspect eval inspect_evals/gpqa_diamond -T epochs=2 --limit 2 --max-connections 5 --log-dir logs/baseline
 ```
 
 
 ## Outcome consistency
 
 ```bash
-uv run python scripts/pli/outcome_consistency.py --latest
+uv run python scripts/pli/outcome_consistency.py --latest --log-dir logs/baseline
 ```
 
 ## Resource consistency
 
 ```bash
-uv run python scripts/pli/resource_consistency.py --latest
+uv run python scripts/pli/resource_consistency.py --latest --log-dir logs/baseline
 ```
 
 # Predictability (`scripts/pli`)
