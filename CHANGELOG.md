@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.202 (31 March 2026)
 
 - Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).
 - Approval: New `read_approval_policies()` function for reading approval policies from a config file.
