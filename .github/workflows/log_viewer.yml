@@ -50,12 +50,17 @@ jobs:
 
       - name: Update schema and types
         run: python src/inspect_ai/_view/schema.py
+      - name: Update inspect-common generated types
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm --filter @tsmono/inspect-common types:generate
 
       - name: Ensure schema and types changes are checked in
         run: |
           if [[ $(git status --porcelain) != "" ]]
           then
-            echo "Log format JSON Schema and TypeScript types are out of date. Please run python src/inspect_ai/_view/schema.py and check in the changes."
+            echo "Schemas or generated types are out of date. Please run:"
+            echo "  python src/inspect_ai/_view/schema.py"
+            echo "  cd src/inspect_ai/_view/ts-mono && pnpm --filter @tsmono/inspect-common types:generate"
             git status
             git diff
             exit 1
