@@ -64,31 +64,6 @@ class SocketHooks(Hooks):
         )
         await self._server.broadcast(msg)
 
-        # Stream the actual conversation
-        if data.sample and data.sample.messages:
-            for m in data.sample.messages:
-                role = m.role if hasattr(m, 'role') else '?'
-                text = ""
-                if hasattr(m, 'text'):
-                    text = m.text[:120] if m.text else ""
-                elif hasattr(m, 'content'):
-                    c = m.content
-                    if isinstance(c, str):
-                        text = c[:120]
-                    elif isinstance(c, list) and len(c) > 0:
-                        first = c[0]
-                        if hasattr(first, 'text'):
-                            text = first.text[:120]
-                        else:
-                            text = str(first)[:120]
-                if text:
-                    if role == 'user':
-                        await self._server.broadcast(PrintMessage(message=f"  👤 User: {text}"))
-                    elif role == 'assistant':
-                        await self._server.broadcast(PrintMessage(message=f"  🤖 Assistant: {text}"))
-                    elif role == 'system':
-                        await self._server.broadcast(PrintMessage(message=f"  ⚙️ System: {text}"))
-
         if scores:
             score_str = ", ".join(f"{k}={v}" for k, v in scores.items())
             correct = any(v == "C" for v in (scores or {}).values())
@@ -98,12 +73,46 @@ class SocketHooks(Hooks):
             )
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
-        msg = PrintMessage(
-            message=f"  🤖 {data.model_name}: "
-            f"{data.usage.input_tokens} tokens in → {data.usage.output_tokens} tokens out "
-            f"({data.call_duration:.1f}s)"
-        )
-        await self._server.broadcast(msg)
+        from inspect_ai.log._samples import _active_model_event
+
+        model_event = _active_model_event.get()
+        if model_event is not None:
+            # Show the last user message (what was sent to the model)
+            if model_event.input:
+                last_user = None
+                for m in reversed(model_event.input):
+                    if hasattr(m, 'role') and m.role == 'user':
+                        text = ""
+                        if hasattr(m, 'text') and m.text:
+                            text = m.text
+                        elif hasattr(m, 'content'):
+                            c = m.content
+                            if isinstance(c, str):
+                                text = c
+                            elif isinstance(c, list) and len(c) > 0:
+                                first = c[0]
+                                text = first.text if hasattr(first, 'text') else str(first)
+                        if text:
+                            last_user = text[:100]
+                            break
+                if last_user:
+                    await self._server.broadcast(
+                        PrintMessage(message=f"  👤 → {last_user}")
+                    )
+
+            # Show the model's response
+            if model_event.output and model_event.output.completion:
+                reply = model_event.output.completion[:100]
+                await self._server.broadcast(
+                    PrintMessage(message=f"  🤖 ← {reply}")
+                )
+        else:
+            await self._server.broadcast(
+                PrintMessage(
+                    message=f"  🤖 {data.model_name}: "
+                    f"{data.usage.input_tokens}in → {data.usage.output_tokens}out"
+                )
+            )
 
     async def on_sample_scoring(self, data: SampleScoring) -> None:
         msg = PrintMessage(
