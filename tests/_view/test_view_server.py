@@ -206,6 +206,7 @@ def view_client(
     request: pytest.FixtureRequest, tmp_path: Path
 ) -> Generator[ViewTestClient, Any, None]:
     impl = request.param
+    client: ViewTestClient
     if impl == "fastapi":
         client = FastAPIViewTestClient(tmp_path)
     else:
@@ -830,6 +831,7 @@ def test_fastapi_inspect_json_response_nan() -> None:
     resp = fastapi_server.InspectJsonResponse(
         content={"val": float("nan"), "inf": float("inf"), "neg_inf": float("-inf")}
     )
+    assert isinstance(resp.body, bytes)
     body = resp.body.decode("utf-8")
     assert "NaN" in body
     assert "Infinity" in body
