@@ -92,6 +92,13 @@ class SocketDisplay(Display):
             from .hooks import register_socket_hooks
 
             register_socket_hooks(self._state, self._server)
+
+            from inspect_ai._event_bus.input_manager import InputManager
+            from inspect_ai._event_bus.ask_human import set_bus
+
+            self._input_manager = InputManager()
+            self._state._input_manager = self._input_manager
+            set_bus(self._server, self._input_manager)
             try:
                 return await main()
             finally:
