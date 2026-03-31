@@ -36,6 +36,9 @@ from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.model import GenerateConfig, ModelName
 
+from textual.screen import ModalScreen
+from textual.widgets import Input, Label
+
 from inspect_ai._event_bus.protocol import (
     CancelSampleCommand,
     EvalCompleteMessage,
@@ -51,6 +54,9 @@ from inspect_ai._event_bus.protocol import (
     TaskCompleteMessage,
     TaskInfo,
     TaskStartMessage,
+    InputRequestedMessage,
+    InputResolvedMessage,
+    InputResponseCommand,
     SampleInfo,
     parse_server_message,
     to_json_line,
@@ -117,6 +123,39 @@ def _make_active_sample(
 
 
 
+class InputModal(ModalScreen[str | None]):
+    DEFAULT_CSS = """
+    #input-dialog {
+        width: 70;
+        height: auto;
+        max-height: 12;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+        align: center middle;
+    }
+    """
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("escape", "dismiss_modal", "Dismiss"),
+    ]
+
+    def __init__(self, prompt: str, request_id: str) -> None:
+        super().__init__()
+        self._prompt = prompt
+        self._request_id = request_id
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="input-dialog"):
+            yield Label(f"Agent asks: {self._prompt}")
+            yield Input(placeholder="Type your response...", id="human-input")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value.strip() or None)
+
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(None)
+
+
 class RemoteTaskScreenApp(App[None]):
     CSS_PATH = "../textual/app.tcss"
 
@@ -134,6 +173,7 @@ class RemoteTaskScreenApp(App[None]):
         self._active_samples: dict[str, ActiveSample] = {}
         self._current_task_name = ""
         self._current_model = ""
+        self._pending_input_id: str | None = None
         rich_initialise()
 
     def compose(self) -> ComposeResult:
@@ -277,6 +317,26 @@ class RemoteTaskScreenApp(App[None]):
             if s:
                 s.complete()
 
+        elif isinstance(msg, InputRequestedMessage):
+            self._pending_input_id = msg.request_id
+            self._write_console(f"Agent asks: {msg.prompt}")
+            def on_response(text: str | None) -> None:
+                if text and self._writer and self._connected:
+                    cmd = InputResponseCommand(request_id=msg.request_id, text=text)
+                    self._writer.write(to_json_line(cmd))
+                    self._write_console(f"Response sent: {text}")
+                    self._pending_input_id = None
+            self.push_screen(InputModal(msg.prompt, msg.request_id), callback=on_response)
+
+        elif isinstance(msg, InputResolvedMessage):
+            if self._pending_input_id == msg.request_id:
+                self._write_console("Input resolved by another client")
+                self._pending_input_id = None
+                try:
+                    self.pop_screen()
+                except Exception:
+                    pass
+
         elif isinstance(msg, ProgressUpdateMessage):
             key = self._task_key(msg.task_name, msg.model)
             td = self._task_displays.get(key)
@@ -343,6 +403,17 @@ class RemoteTaskScreenApp(App[None]):
                 if s.started_at:
                     active.started = s.started_at
                 self._active_samples[str(s.sample_id)] = active
+
+        if hasattr(msg, 'pending_inputs') and msg.pending_inputs:
+            for pi in msg.pending_inputs:
+                self._write_console(f"Pending input: {pi.prompt} (id: {pi.request_id})")
+                self._pending_input_id = pi.request_id
+                def on_response(text: str | None, rid: str = pi.request_id) -> None:
+                    if text and self._writer and self._connected:
+                        cmd = InputResponseCommand(request_id=rid, text=text)
+                        self._writer.write(to_json_line(cmd))
+                        self._write_console(f"Response sent: {text}")
+                self.push_screen(InputModal(pi.prompt, pi.request_id), callback=on_response)
 
         self._write_console(
             f"Snapshot: {len(msg.tasks)} task(s), "
