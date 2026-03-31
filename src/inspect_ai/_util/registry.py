@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import inspect
 from inspect import get_annotations, isclass
 from typing import (
@@ -9,6 +10,7 @@ from typing import (
     Literal,
     TypeGuard,
     cast,
+    get_type_hints,
     overload,
 )
 
@@ -344,6 +346,9 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
     # instantiate registry and model objects
     kwargs = registry_kwargs(**kwargs)
 
+    # coerce dict values to typed parameters (BaseModel, dataclass, TypedDict)
+    kwargs = _coerce_kwargs(obj, kwargs)
+
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
     elif callable(obj):
@@ -567,6 +572,37 @@ def registry_arg(arg: Any) -> Any:
 def registry_kwargs(**kwargs: Any) -> dict[str, Any]:
     """Resolve any registry and model dicts in the given kwargs."""
     return {k: registry_arg(v) for k, v in kwargs.items()}
+
+
+def _coerce_kwargs(obj: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Coerce dict values to match typed parameters (BaseModel, dataclass)."""
+    try:
+        hints = get_type_hints(obj)
+    except Exception:
+        return kwargs
+
+    coerced = dict(kwargs)
+    for name, value in kwargs.items():
+        if not isinstance(value, dict) or name not in hints:
+            continue
+        target_type = hints[name]
+        # unwrap Optional/Union if needed (get the non-None type)
+        origin = getattr(target_type, "__origin__", None)
+        if origin is not None:
+            # skip generic types like dict[str, Any], list[int], etc.
+            continue
+        try:
+            if isinstance(target_type, type) and issubclass(target_type, BaseModel):
+                coerced[name] = target_type.model_validate(value)
+            elif dataclasses.is_dataclass(target_type) and isinstance(
+                target_type, type
+            ):
+                coerced[name] = target_type(**value)
+        except Exception:
+            # if coercion fails, pass the raw dict through and let
+            # the function call raise its own error
+            pass
+    return coerced
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:
