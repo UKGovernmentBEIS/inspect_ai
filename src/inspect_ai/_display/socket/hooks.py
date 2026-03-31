@@ -63,11 +63,32 @@ class SocketHooks(Hooks):
             scores=scores,
         )
         await self._server.broadcast(msg)
-        if data.sample and data.sample.output and data.sample.output.completion:
-            output_text = data.sample.output.completion[:100]
-            await self._server.broadcast(
-                PrintMessage(message=f"  💬 Output: {output_text}")
-            )
+
+        # Stream the actual conversation
+        if data.sample and data.sample.messages:
+            for m in data.sample.messages:
+                role = m.role if hasattr(m, 'role') else '?'
+                text = ""
+                if hasattr(m, 'text'):
+                    text = m.text[:120] if m.text else ""
+                elif hasattr(m, 'content'):
+                    c = m.content
+                    if isinstance(c, str):
+                        text = c[:120]
+                    elif isinstance(c, list) and len(c) > 0:
+                        first = c[0]
+                        if hasattr(first, 'text'):
+                            text = first.text[:120]
+                        else:
+                            text = str(first)[:120]
+                if text:
+                    if role == 'user':
+                        await self._server.broadcast(PrintMessage(message=f"  👤 User: {text}"))
+                    elif role == 'assistant':
+                        await self._server.broadcast(PrintMessage(message=f"  🤖 Assistant: {text}"))
+                    elif role == 'system':
+                        await self._server.broadcast(PrintMessage(message=f"  ⚙️ System: {text}"))
+
         if scores:
             score_str = ", ".join(f"{k}={v}" for k, v in scores.items())
             correct = any(v == "C" for v in (scores or {}).values())
