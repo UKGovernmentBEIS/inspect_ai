@@ -138,6 +138,17 @@ def parse_cli_args(
                     value = value.split(",")
                     value = value if len(value) > 1 else value[0]
                 params[key] = str(value) if force_str else value
+
+    # consolidate dot-prefixed keys into nested objects
+    dotted_keys = [k for k in params if "." in k]
+    for key in dotted_keys:
+        prefix, suffix = key.split(".", maxsplit=1)
+        if prefix not in params:
+            params[prefix] = {}
+        elif not isinstance(params[prefix], dict):
+            continue
+        params[prefix][suffix] = params.pop(key)
+
     return params
 
 
