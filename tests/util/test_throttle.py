@@ -4,6 +4,8 @@ from collections.abc import Callable
 from unittest.mock import patch
 
 import anyio
+import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.background import (
     background_task_group,
@@ -458,3 +460,60 @@ class TestThrottleAsync:
                 assert calls[1][2] == {"key": "deferred_val"}
 
         await self._with_task_group(run)
+
+
+# ---------------------------------------------------------------------------
+# Async tests WITHOUT background task group
+# ---------------------------------------------------------------------------
+
+
+class TestThrottleAsyncNoTaskGroup:
+    """Trailing-edge throttle with async context but no background task group.
+
+    Under asyncio, run_in_background falls back to asyncio.create_task.
+    Under trio, run_in_background raises RuntimeError — the throttle must
+    not blow up in that case.
+    """
+
+    @skip_if_trio
+    async def test_asyncio_deferred_fires_without_task_group(self) -> None:
+        """Asyncio without task group: deferred fires via asyncio.create_task."""
+        clock = FakeClock()
+        with (
+            patch("inspect_ai.util._throttle.time") as mock_time,
+            patch("inspect_ai.util._throttle.anyio") as mock_anyio,
+        ):
+            mock_time.time = clock.time
+
+            async def fake_sleep(secs):
+                clock.advance(secs)
+
+            mock_anyio.sleep = fake_sleep
+            fn, calls = _make_recorder(1.0, clock)
+            fn("first")
+            fn("trailing")
+            assert len(calls) == 1
+            await _flush_background()
+            assert len(calls) == 2
+            assert calls[1][1] == ("trailing",)
+
+    async def test_trio_no_task_group_does_not_throw(self) -> None:
+        """Trio without task group: run_in_background raises — documents current behavior."""
+        clock = FakeClock()
+        with (
+            patch("inspect_ai.util._throttle.time") as mock_time,
+            patch(
+                "inspect_ai.util._throttle.current_async_backend",
+                return_value="trio",
+            ),
+            patch(
+                "inspect_ai.util._throttle.run_in_background",
+                side_effect=RuntimeError("no task group under trio"),
+            ),
+        ):
+            mock_time.time = clock.time
+            fn, _ = _make_recorder(1.0, clock)
+            fn("first")
+            # Currently propagates — fix should make this not raise
+            with pytest.raises(RuntimeError, match="no task group under trio"):
+                fn("trailing")
