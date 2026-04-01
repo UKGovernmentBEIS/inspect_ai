@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Add `cyber_policy` to "content_filter" stop reason
+- Timelines: New `BranchEvent` to delineate timeline branches.
 
 ## 0.3.202 (31 March 2026)
 

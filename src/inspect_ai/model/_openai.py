@@ -320,7 +320,7 @@ def openai_assistant_content(
             if c.type == "reasoning":
                 c_reasoning = reasoning_handler(c)
                 if isinstance(c_reasoning, dict):
-                    extra_body = extra_body | c_reasoning
+                    extra_body = {**extra_body, **c_reasoning}
                 else:
                     content = f"{content}\n{c_reasoning}\n"
 
