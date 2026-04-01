@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from inspect_ai.event import timeline_build
+from inspect_ai.event import Event, timeline_build
 from inspect_ai.event._branch import BranchEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
@@ -39,8 +39,7 @@ def _model_event(
         tools=[],
         tool_choice="auto",
         config=GenerateConfig(),
-        input=input_messages
-        or [ChatMessageUser(content="hello", id="user-1")],
+        input=input_messages or [ChatMessageUser(content="hello", id="user-1")],
         output=ModelOutput(
             model="test-model",
             choices=[
@@ -104,11 +103,9 @@ def _branch_event(
 
 def test_branch_with_branch_event_creates_timeline_branch() -> None:
     """A type='branch' span containing a BranchEvent becomes a TimelineBranch."""
-    events = [
+    events: list[Event] = [
         # Agent span
-        _span_begin(
-            uuid="sb1", id="agent", ts=0, name="main", span_type="agent"
-        ),
+        _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
         _model_event(uuid="m2", span_id="agent", ts=2, output_message_id="msg-2"),
         # Branch span (child of agent)
@@ -146,10 +143,8 @@ def test_branch_with_branch_event_creates_timeline_branch() -> None:
 
 def test_branch_without_branch_event_becomes_content() -> None:
     """A type='branch' span without a BranchEvent is processed as normal content."""
-    events = [
-        _span_begin(
-            uuid="sb1", id="agent", ts=0, name="main", span_type="agent"
-        ),
+    events: list[Event] = [
+        _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
         # Branch span without BranchEvent
         _span_begin(
@@ -184,11 +179,9 @@ def test_branch_without_branch_event_becomes_content() -> None:
 
 def test_nested_branch_relocated_to_parent_branch() -> None:
     """Branch 2 forking from branch 1 is nested inside branch 1."""
-    events = [
+    events: list[Event] = [
         # Agent span
-        _span_begin(
-            uuid="sb1", id="agent", ts=0, name="main", span_type="agent"
-        ),
+        _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
         # Branch 1 — forks from agent
         _span_begin(
@@ -250,10 +243,8 @@ def test_nested_branch_relocated_to_parent_branch() -> None:
 
 def test_forked_at_resolves_via_message_lookup() -> None:
     """forked_at correctly maps message_id to event UUID."""
-    events = [
-        _span_begin(
-            uuid="sb1", id="agent", ts=0, name="main", span_type="agent"
-        ),
+    events: list[Event] = [
+        _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-A"),
         _model_event(uuid="m2", span_id="agent", ts=2, output_message_id="msg-B"),
         _model_event(uuid="m3", span_id="agent", ts=3, output_message_id="msg-C"),
