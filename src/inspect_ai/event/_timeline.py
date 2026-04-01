@@ -269,27 +269,28 @@ class TimelineBranch(BaseModel):
 
     type: Literal["branch"] = "branch"
     forked_at: str
-    content: list[TimelineContentItem] = Field(default_factory=list)
+    from_span: str = ""
+    content: "TimelineSpan"
 
     @property
     def start_time(self) -> datetime:
         """Earliest start time among content."""
-        return _min_start_time(self.content)
+        return self.content.start_time
 
     @property
     def end_time(self) -> datetime:
         """Latest end time among content."""
-        return _max_end_time(self.content)
+        return self.content.end_time
 
     @property
     def total_tokens(self) -> int:
         """Sum of tokens from all content."""
-        return _sum_tokens(self.content)
+        return self.content.total_tokens
 
     @property
     def idle_time(self) -> float:
         """Seconds of idle time within this branch."""
-        return _compute_idle_time(self.content, self.start_time, self.end_time)
+        return self.content.idle_time
 
 
 class OutlineNode(BaseModel):
@@ -550,6 +551,7 @@ def _classify_spans(root: TimelineSpan) -> None:
     _wrap_utility_events(root)
     _classify_utility_agents(root)
     _classify_branches(root)
+    _relocate_branches(root)
     _extract_agent_results(root)
 
 
@@ -914,7 +916,18 @@ def _process_children(
             if not branch_content:
                 continue
             forked_at = _resolve_forked_at(message_lookup, branch_event)
-            result.append(TimelineBranch(forked_at=forked_at, content=branch_content))
+            result.append(
+                TimelineBranch(
+                    forked_at=forked_at,
+                    from_span=branch_event.from_span,
+                    content=TimelineSpan(
+                        id=span.id,
+                        name=span.name or "branch",
+                        span_type="branch",
+                        content=branch_content,
+                    ),
+                )
+            )
         return result
 
     for item in children:
@@ -1036,11 +1049,66 @@ def _classify_branches(agent: TimelineSpan) -> None:
         if isinstance(item, TimelineSpan):
             _classify_branches(item)
 
-    # Recurse into spans within branches
+    # Recurse into branches (and their child spans)
     for branch in agent.branches:
-        for item in branch.content:
+        _classify_branches(branch.content)
+        for item in branch.content.content:
             if isinstance(item, TimelineSpan):
                 _classify_branches(item)
+
+
+# =============================================================================
+# Branch Relocation
+# =============================================================================
+
+
+def _collect_spans(span: TimelineSpan, span_map: dict[str, TimelineSpan]) -> None:
+    """Recursively collect all TimelineSpans into a span_id → span map."""
+    span_map[span.id] = span
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            _collect_spans(item, span_map)
+    for branch in span.branches:
+        _collect_spans(branch.content, span_map)
+
+
+def _relocate_branches(root: TimelineSpan) -> None:
+    """Relocate branches to the span identified by from_span.
+
+    After initial discovery, all branches from the same _process_children
+    call are flat siblings. If a branch's from_span points to a span
+    inside a sibling branch, move it there.
+
+    Args:
+        root: The root TimelineSpan to process.
+    """
+    # Build span_id → TimelineSpan map from entire tree
+    span_map: dict[str, TimelineSpan] = {}
+    _collect_spans(root, span_map)
+
+    # Relocate branches whose from_span differs from their current parent
+    _do_relocate(root, span_map)
+
+
+def _do_relocate(span: TimelineSpan, span_map: dict[str, TimelineSpan]) -> None:
+    """Recursively relocate branches in a span and its children."""
+    # Recurse into child spans first (depth-first)
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            _do_relocate(item, span_map)
+    for branch in span.branches:
+        _do_relocate(branch.content, span_map)
+
+    # Now relocate: check each branch's from_span
+    remaining: list[TimelineBranch] = []
+    for branch in span.branches:
+        target_span = span_map.get(branch.from_span)
+        if target_span is not None and target_span is not span:
+            # Move branch to the target span
+            target_span.branches.append(branch)
+        else:
+            remaining.append(branch)
+    span.branches = remaining
 
 
 # =============================================================================
@@ -1214,7 +1282,8 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
             if isinstance(item, TimelineSpan):
                 _wrap_utility_events(item)
         for branch in agent.branches:
-            for item in branch.content:
+            _wrap_utility_events(branch.content)
+            for item in branch.content.content:
                 if isinstance(item, TimelineSpan):
                     _wrap_utility_events(item)
         return
@@ -1260,7 +1329,8 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
         if isinstance(item, TimelineSpan):
             _wrap_utility_events(item)
     for branch in agent.branches:
-        for item in branch.content:
+        _wrap_utility_events(branch.content)
+        for item in branch.content.content:
             if isinstance(item, TimelineSpan):
                 _wrap_utility_events(item)
 

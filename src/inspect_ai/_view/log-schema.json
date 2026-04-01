@@ -7563,24 +7563,19 @@
           "title": "Forked At",
           "type": "string"
         },
+        "from_span": {
+          "default": "",
+          "title": "From Span",
+          "type": "string"
+        },
         "content": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/$defs/TimelineEvent"
-              },
-              {
-                "$ref": "#/$defs/TimelineSpan"
-              }
-            ]
-          },
-          "title": "Content",
-          "type": "array"
+          "$ref": "#/$defs/TimelineSpan"
         }
       },
       "required": [
         "type",
         "forked_at",
+        "from_span",
         "content"
       ],
       "title": "TimelineBranch",
