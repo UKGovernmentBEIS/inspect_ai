@@ -230,15 +230,17 @@ def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
     schema = deepcopy(schema)
     definitions = schema.pop("$defs", {})
 
-    def _resolve_refs(obj: Any) -> Any:
+    def _resolve_refs(obj: Any, expanding: frozenset[str] = frozenset()) -> Any:
         if isinstance(obj, dict):
             if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
                 ref_key = obj["$ref"].split("/")[-1]
                 if ref_key in definitions:
                     # Replace with a deep copy of the definition
                     resolved = deepcopy(definitions[ref_key])
-                    # Process any nested references in the definition
-                    resolved = _resolve_refs(resolved)
+                    if ref_key not in expanding:
+                        # Safe to recurse — not yet expanding this def
+                        resolved = _resolve_refs(resolved, expanding | {ref_key})
+                    # else: self-referential — skip recursion to break cycle
 
                     # Merge in the current object fields, which should take priority
                     # This means that if you have e.g.
@@ -250,9 +252,9 @@ def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
                     return resolved | {k: o for k, o in obj.items() if k != "$ref"}
 
             # Process all entries in the dictionary
-            return {k: _resolve_refs(v) for k, v in obj.items()}
+            return {k: _resolve_refs(v, expanding) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [_resolve_refs(item) for item in obj]
+            return [_resolve_refs(item, expanding) for item in obj]
         else:
             return obj
 

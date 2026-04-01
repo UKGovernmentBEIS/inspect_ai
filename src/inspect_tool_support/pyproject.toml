@@ -10,27 +10,6 @@ include = ["inspect_tool_support*"]
 "inspect_tool_support" = ["**/*.svg", "**/*.md"]
 
 
-[tool.ruff]
-extend-exclude = ["docs"]
-src = ["."]
-
-[tool.ruff.lint]
-select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # flake8
-    "D",      # pydocstyle
-    "I",      # isort
-    "B",      # flake8-bugbear
-    "SIM101", # duplicate isinstance
-    # "RET", # flake8-return
-    # "RUF", # ruff rules
-]
-ignore = ["E203", "E501", "D10", "D212", "D415"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
 [tool.mypy]
 exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge"]
 warn_unused_ignores = true

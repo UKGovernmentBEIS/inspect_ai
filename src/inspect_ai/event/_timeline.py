@@ -22,16 +22,14 @@ from pydantic import (
 )
 
 from inspect_ai.model import (
-    ChatMessage,
-    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
 )
 
+from ._branch import BranchEvent
 from ._event import Event
 from ._model import ModelEvent
-from ._span import SpanBeginEvent
 from ._tool import ToolEvent
 from ._tree import EventTreeSpan, event_sequence, event_tree
 
@@ -271,27 +269,28 @@ class TimelineBranch(BaseModel):
 
     type: Literal["branch"] = "branch"
     forked_at: str
-    content: list[TimelineContentItem] = Field(default_factory=list)
+    from_span: str = ""
+    content: "TimelineSpan"
 
     @property
     def start_time(self) -> datetime:
         """Earliest start time among content."""
-        return _min_start_time(self.content)
+        return self.content.start_time
 
     @property
     def end_time(self) -> datetime:
         """Latest end time among content."""
-        return _max_end_time(self.content)
+        return self.content.end_time
 
     @property
     def total_tokens(self) -> int:
         """Sum of tokens from all content."""
-        return _sum_tokens(self.content)
+        return self.content.total_tokens
 
     @property
     def idle_time(self) -> float:
         """Seconds of idle time within this branch."""
-        return _compute_idle_time(self.content, self.start_time, self.end_time)
+        return self.content.idle_time
 
 
 class OutlineNode(BaseModel):
@@ -444,10 +443,8 @@ def timeline_build(
             root=TimelineSpan(id="root", name="main", span_type=None),
         )
 
-    # Detect explicit branches globally
-    has_explicit_branches = any(
-        isinstance(e, SpanBeginEvent) and e.type == "branch" for e in events
-    )
+    # Build message_id → event UUID lookup for branch resolution
+    message_lookup = _build_message_lookup(events)
 
     # Use event_tree to get hierarchical structure
     tree = event_tree(events)
@@ -490,7 +487,7 @@ def timeline_build(
 
         # Build agent node from solvers
         agent_node = (
-            _build_agent_from_solvers_span(solvers_span, has_explicit_branches)
+            _build_agent_from_solvers_span(solvers_span, message_lookup)
             if solvers_span
             else None
         )
@@ -513,7 +510,7 @@ def timeline_build(
         if agent_node is not None:
             agent_node.name = "main"
 
-            _classify_spans(agent_node, has_explicit_branches)
+            _classify_spans(agent_node)
 
             # Prepend init span to agent content
             if init_span_obj:
@@ -540,20 +537,21 @@ def timeline_build(
             )
     else:
         # No phase spans - treat entire tree as agent
-        root = _build_agent_from_tree(tree, has_explicit_branches)
-        _classify_spans(root, has_explicit_branches)
+        root = _build_agent_from_tree(tree, message_lookup)
+        _classify_spans(root)
 
     return Timeline(name=name, description=description, root=root)
 
 
-def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
+def _classify_spans(root: TimelineSpan) -> None:
     """Run all span classification passes on a root span.
 
     Classifies utility agents and branch structure.
     """
     _wrap_utility_events(root)
     _classify_utility_agents(root)
-    _classify_branches(root, has_explicit_branches)
+    _classify_branches(root)
+    _relocate_branches(root)
     _extract_agent_results(root)
 
 
@@ -577,7 +575,7 @@ def _unwrap_solver_span(span: EventTreeSpan) -> EventTreeSpan:
 
 
 def _build_agent_from_solvers_span(
-    solvers_span: EventTreeSpan, has_explicit_branches: bool
+    solvers_span: EventTreeSpan, message_lookup: dict[str, str]
 ) -> TimelineSpan | None:
     """Build agent hierarchy from the solvers span.
 
@@ -587,7 +585,7 @@ def _build_agent_from_solvers_span(
 
     Args:
         solvers_span: The top-level solvers EventTreeSpan.
-        has_explicit_branches: Whether explicit branch spans exist globally.
+        message_lookup: Global message_id → event UUID mapping.
 
     Returns:
         A TimelineSpan representing the agent hierarchy, or None if empty.
@@ -610,24 +608,22 @@ def _build_agent_from_solvers_span(
         if len(agent_spans) == 1:
             # Unwrap solver spans that merely wrap a single agent child
             target = _unwrap_solver_span(agent_spans[0])
-            return _build_span_from_agent_span(
-                target, has_explicit_branches, other_items
-            )
+            return _build_span_from_agent_span(target, message_lookup, other_items)
         else:
             # Multiple agent spans - create root containing all
             children: list[TimelineEvent | TimelineSpan] = [
-                _build_span_from_agent_span(span, has_explicit_branches, [])
+                _build_span_from_agent_span(span, message_lookup, [])
                 for span in agent_spans
             ]
             # Add any orphan events
             for item in other_items:
                 if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
                     orphan_content: list[TimelineEvent | TimelineSpan] = []
-                    _unroll_span(item, orphan_content, has_explicit_branches)
+                    _unroll_span(item, orphan_content, message_lookup)
                     for orphan in reversed(orphan_content):
                         children.insert(0, orphan)
                 else:
-                    children.insert(0, _tree_item_to_node(item, has_explicit_branches))
+                    children.insert(0, _tree_item_to_node(item, message_lookup))
             return TimelineSpan(
                 id="root",
                 name="main",
@@ -636,9 +632,7 @@ def _build_agent_from_solvers_span(
             )
     else:
         # No explicit agent spans - use solvers span itself as the agent container
-        content, branches = _process_children(
-            solvers_span.children, has_explicit_branches
-        )
+        content, branches = _process_children(solvers_span.children, message_lookup)
 
         return TimelineSpan(
             id=solvers_span.id,
@@ -651,14 +645,14 @@ def _build_agent_from_solvers_span(
 
 def _build_span_from_agent_span(
     span: EventTreeSpan,
-    has_explicit_branches: bool,
+    message_lookup: dict[str, str],
     extra_items: list[TreeItem] | None = None,
 ) -> TimelineSpan:
     """Build a TimelineSpan from a EventTreeSpan with type='agent'.
 
     Args:
         span: The agent EventTreeSpan to convert.
-        has_explicit_branches: Whether explicit branch spans exist globally.
+        message_lookup: Global message_id → event UUID mapping.
         extra_items: Additional tree items (orphan events) to include
             at the start of the span's content.
 
@@ -671,12 +665,12 @@ def _build_span_from_agent_span(
     if extra_items:
         for item in extra_items:
             if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
-                _unroll_span(item, content, has_explicit_branches)
+                _unroll_span(item, content, message_lookup)
             else:
-                content.append(_tree_item_to_node(item, has_explicit_branches))
+                content.append(_tree_item_to_node(item, message_lookup))
 
     # Process span children with branch awareness
-    child_content, branches = _process_children(span.children, has_explicit_branches)
+    child_content, branches = _process_children(span.children, message_lookup)
     content.extend(child_content)
 
     description = (span.begin.metadata or {}).get("description") if span.begin else None
@@ -713,7 +707,7 @@ def _is_agent_span(span: EventTreeSpan) -> bool:
 
 
 def _tree_item_to_node(
-    item: TreeItem, has_explicit_branches: bool
+    item: TreeItem, message_lookup: dict[str, str]
 ) -> TimelineEvent | TimelineSpan:
     """Convert a tree item (EventTreeSpan or Event) to a TimelineEvent or TimelineSpan.
 
@@ -724,16 +718,16 @@ def _tree_item_to_node(
 
     Args:
         item: A tree item from event_tree() (EventTreeSpan or Event).
-        has_explicit_branches: Whether explicit branch spans exist globally.
+        message_lookup: Global message_id → event UUID mapping.
 
     Returns:
         A TimelineEvent or TimelineSpan representing the item.
     """
     if isinstance(item, EventTreeSpan):
         if item.type in ("agent", "solver"):
-            return _build_span_from_agent_span(item, has_explicit_branches)
+            return _build_span_from_agent_span(item, message_lookup)
         else:
-            return _build_span_from_generic_span(item, has_explicit_branches)
+            return _build_span_from_generic_span(item, message_lookup)
     else:
         return _event_to_node(item)
 
@@ -764,14 +758,14 @@ def _event_to_node(event: Event) -> TimelineEvent | TimelineSpan:
 
 
 def _build_span_from_generic_span(
-    span: EventTreeSpan, has_explicit_branches: bool
+    span: EventTreeSpan, message_lookup: dict[str, str]
 ) -> TimelineSpan:
     """Build a TimelineSpan from a non-agent EventTreeSpan.
 
     If the span is a tool span (type="tool") containing model events,
     we treat it as a tool-spawned agent (span_type="agent").
     """
-    content, branches = _process_children(span.children, has_explicit_branches)
+    content, branches = _process_children(span.children, message_lookup)
 
     # Determine the span_type based on span type and content
     span_type: str | None
@@ -808,7 +802,7 @@ def _contains_model_events(span: EventTreeSpan) -> bool:
 
 
 def _build_agent_from_tree(
-    tree: list[TreeItem], has_explicit_branches: bool
+    tree: list[TreeItem], message_lookup: dict[str, str]
 ) -> TimelineSpan:
     """Build agent from a list of tree items when no explicit phase spans exist.
 
@@ -816,12 +810,12 @@ def _build_agent_from_tree(
 
     Args:
         tree: List of tree items from event_tree().
-        has_explicit_branches: Whether explicit branch spans exist globally.
+        message_lookup: Global message_id → event UUID mapping.
 
     Returns:
         A TimelineSpan with id="main" containing all items.
     """
-    content, branches = _process_children(tree, has_explicit_branches)
+    content, branches = _process_children(tree, message_lookup)
 
     return TimelineSpan(
         id="main",
@@ -840,7 +834,7 @@ def _build_agent_from_tree(
 def _unroll_span(
     span: EventTreeSpan,
     into: list[TimelineEvent | TimelineSpan],
-    has_explicit_branches: bool,
+    message_lookup: dict[str, str],
 ) -> None:
     """Dissolve a non-agent span, emitting its begin/end as regular events.
 
@@ -850,7 +844,7 @@ def _unroll_span(
     Args:
         span: The non-agent EventTreeSpan to unroll.
         into: The content list to append results to.
-        has_explicit_branches: Whether explicit branch spans exist globally.
+        message_lookup: Global message_id → event UUID mapping.
     """
     # Emit span begin event
     into.append(TimelineEvent(event=span.begin))
@@ -859,13 +853,13 @@ def _unroll_span(
     for child in span.children:
         if isinstance(child, EventTreeSpan):
             if _is_agent_span(child):
-                node = _tree_item_to_node(child, has_explicit_branches)
+                node = _tree_item_to_node(child, message_lookup)
                 if isinstance(node, TimelineSpan) and not node.content:
                     pass  # skip empty agent spans
                 else:
                     into.append(node)
             else:
-                _unroll_span(child, into, has_explicit_branches)
+                _unroll_span(child, into, message_lookup)
         else:
             into.append(_event_to_node(child))
 
@@ -875,39 +869,22 @@ def _unroll_span(
 
 
 def _process_children(
-    children: list[TreeItem], has_explicit_branches: bool
+    children: list[TreeItem], message_lookup: dict[str, str]
 ) -> tuple[list[TimelineEvent | TimelineSpan], list[TimelineBranch]]:
     """Process a span's children with branch awareness.
 
-    When explicit branches are active, collects adjacent type="branch" EventTreeSpan
-    runs and builds TimelineBranch objects from them. Otherwise, standard processing.
+    Collects adjacent type="branch" EventTreeSpan runs and builds
+    TimelineBranch objects from those that contain a BranchEvent.
+    Branch spans without a BranchEvent are processed as normal content.
 
     Args:
         children: List of tree items to process.
-        has_explicit_branches: Whether explicit branch spans exist globally.
+        message_lookup: Global message_id → event UUID mapping.
 
     Returns:
         Tuple of (content nodes, branch list).
     """
-    if not has_explicit_branches:
-        # Standard processing - no branch detection at build time
-        content: list[TimelineEvent | TimelineSpan] = []
-        for item in children:
-            if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
-                # Unroll: dissolve non-agent span wrapper into parent.
-                # Emits span begin/end as regular events and recursively
-                # unrolls nested non-agent spans, but preserves any nested
-                # agent spans as TimelineSpan nodes.
-                _unroll_span(item, content, has_explicit_branches)
-            else:
-                node = _tree_item_to_node(item, has_explicit_branches)
-                if isinstance(node, TimelineSpan) and not node.content:
-                    continue
-                content.append(node)
-        return content, []
-
-    # Explicit branch mode: collect branch spans and build TimelineBranch objects
-    content = []
+    content: list[TimelineEvent | TimelineSpan] = []
     branches: list[TimelineBranch] = []
     branch_run: list[EventTreeSpan] = []
 
@@ -915,27 +892,42 @@ def _process_children(
         branch_run: list[EventTreeSpan],
         parent_content: list[TimelineEvent | TimelineSpan],
     ) -> list[TimelineBranch]:
-        """Convert accumulated branch spans into TimelineBranch objects."""
+        """Convert accumulated branch spans into TimelineBranch objects.
+
+        Branch spans that contain a BranchEvent are converted to TimelineBranch.
+        Those without a BranchEvent have their content merged into parent_content.
+        """
         result: list[TimelineBranch] = []
         for span in branch_run:
+            branch_event = _find_branch_event(span)
+            if branch_event is None:
+                # No BranchEvent — process as normal content
+                _process_span_as_content(span, parent_content, message_lookup)
+                continue
             branch_content: list[TimelineEvent | TimelineSpan] = []
             for child in span.children:
                 if isinstance(child, EventTreeSpan) and not _is_agent_span(child):
-                    _unroll_span(child, branch_content, has_explicit_branches)
+                    _unroll_span(child, branch_content, message_lookup)
                 else:
-                    node = _tree_item_to_node(child, has_explicit_branches)
+                    node = _tree_item_to_node(child, message_lookup)
                     if isinstance(node, TimelineSpan) and not node.content:
                         continue
                     branch_content.append(node)
             if not branch_content:
                 continue
-            branch_input = _get_branch_input(branch_content)
-            forked_at = (
-                _find_forked_at(parent_content, branch_input)
-                if branch_input is not None
-                else ""
+            forked_at = _resolve_forked_at(message_lookup, branch_event)
+            result.append(
+                TimelineBranch(
+                    forked_at=forked_at,
+                    from_span=branch_event.from_span,
+                    content=TimelineSpan(
+                        id=span.id,
+                        name=span.name or "branch",
+                        span_type="branch",
+                        content=branch_content,
+                    ),
+                )
             )
-            result.append(TimelineBranch(forked_at=forked_at, content=branch_content))
         return result
 
     for item in children:
@@ -947,9 +939,9 @@ def _process_children(
                 branch_run = []
             if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
                 # Unroll: dissolve non-agent span wrapper into parent
-                _unroll_span(item, content, has_explicit_branches)
+                _unroll_span(item, content, message_lookup)
             else:
-                node = _tree_item_to_node(item, has_explicit_branches)
+                node = _tree_item_to_node(item, message_lookup)
                 if isinstance(node, TimelineSpan) and not node.content:
                     continue
                 content.append(node)
@@ -960,110 +952,163 @@ def _process_children(
     return content, branches
 
 
-def _find_forked_at(
-    agent_content: list[TimelineEvent | TimelineSpan],
-    branch_input: list[ChatMessage],
-) -> str:
-    """Determine the fork point by matching the last shared input message.
+def _build_message_lookup(events: Sequence[Event]) -> dict[str, str]:
+    """Build message_id → event UUID mapping from all events.
 
-    Examines the last message in branch_input and matches it back to an event
-    in the parent's content.
-
-    Args:
-        agent_content: The parent agent's content list.
-        branch_input: The shared input messages of the branching ModelEvent.
-
-    Returns:
-        UUID of the event at the fork point, or "" if at the beginning.
-    """
-    if not branch_input:
-        return ""
-
-    last_msg = branch_input[-1]
-
-    if isinstance(last_msg, ChatMessageTool):
-        # Match tool_call_id to a ToolEvent.id
-        tool_call_id = last_msg.tool_call_id
-        if tool_call_id:
-            for item in agent_content:
-                if (
-                    isinstance(item, TimelineEvent)
-                    and isinstance(item.event, ToolEvent)
-                    and item.event.id == tool_call_id
-                ):
-                    return item.event.uuid or ""
-        return ""
-
-    if isinstance(last_msg, ChatMessageAssistant):
-        # Match message id to ModelEvent.output.message.id
-        msg_id = last_msg.id
-        if msg_id:
-            for item in agent_content:
-                if isinstance(item, TimelineEvent) and isinstance(
-                    item.event, ModelEvent
-                ):
-                    output = item.event.output
-                    if output.choices:
-                        out_msg = output.choices[0].message
-                        if out_msg.id == msg_id:
-                            return item.event.uuid or ""
-        # Fallback: compare content
-        msg_content = last_msg.content
-        if msg_content:
-            for item in agent_content:
-                if isinstance(item, TimelineEvent) and isinstance(
-                    item.event, ModelEvent
-                ):
-                    output = item.event.output
-                    if output.choices:
-                        out_msg = output.choices[0].message
-                        if out_msg.content == msg_content:
-                            return item.event.uuid or ""
-        return ""
-
-    # ChatMessageUser / ChatMessageSystem - fork at beginning
-    return ""
-
-
-def _get_branch_input(
-    content: list[TimelineEvent | TimelineSpan],
-) -> list[ChatMessage] | None:
-    """Extract the input from the first ModelEvent in branch content.
+    Scans all events to map message IDs to the UUID of the event
+    that produced them:
+    - ModelEvent: output message id → event UUID (assistant messages)
+    - ToolEvent: message_id field → event UUID (tool response messages)
 
     Args:
-        content: The branch's content nodes.
+        events: Flat list of Events from a transcript.
 
     Returns:
-        The input message list, or None if no ModelEvent found.
+        Dict mapping message_id to the UUID of the event that produced it.
     """
-    for item in content:
-        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            return list(item.event.input)
+    lookup: dict[str, str] = {}
+    for e in events:
+        if isinstance(e, ModelEvent):
+            # Map output assistant message id
+            if e.output and e.output.choices:
+                msg = e.output.choices[0].message
+                if msg.id and e.uuid:
+                    lookup[msg.id] = e.uuid
+        elif isinstance(e, ToolEvent):
+            if e.message_id and e.uuid:
+                lookup[e.message_id] = e.uuid
+    return lookup
+
+
+def _find_branch_event(span: EventTreeSpan) -> BranchEvent | None:
+    """Find a BranchEvent in a branch span's direct children.
+
+    Args:
+        span: The branch EventTreeSpan to search.
+
+    Returns:
+        The BranchEvent if found, None otherwise.
+    """
+    for child in span.children:
+        if isinstance(child, BranchEvent):
+            return child
     return None
 
 
-def _classify_branches(
-    agent: TimelineSpan, has_explicit_branches: bool, *, _is_root: bool = True
+def _resolve_forked_at(
+    message_lookup: dict[str, str],
+    branch_event: BranchEvent,
+) -> str:
+    """Resolve forked_at UUID from BranchEvent.from_message.
+
+    Uses the global message_id → event UUID lookup to find the event
+    that produced the message the branch forked from.
+
+    Args:
+        message_lookup: Global message_id → event UUID mapping.
+        branch_event: The BranchEvent containing from_message.
+
+    Returns:
+        UUID of the event at the fork point, or "" if not found.
+    """
+    return message_lookup.get(branch_event.from_message, "")
+
+
+def _process_span_as_content(
+    span: EventTreeSpan,
+    into: list[TimelineEvent | TimelineSpan],
+    message_lookup: dict[str, str],
 ) -> None:
+    """Process a branch span as normal content when it has no BranchEvent.
+
+    Args:
+        span: The branch span to process.
+        into: The content list to append results to.
+        message_lookup: Global message_id → event UUID mapping.
+    """
+    for child in span.children:
+        if isinstance(child, EventTreeSpan) and not _is_agent_span(child):
+            _unroll_span(child, into, message_lookup)
+        else:
+            node = _tree_item_to_node(child, message_lookup)
+            if isinstance(node, TimelineSpan) and not node.content:
+                continue
+            into.append(node)
+
+
+def _classify_branches(agent: TimelineSpan) -> None:
     """Recursively classify branches in the agent tree.
 
     Recurses into child spans in both content and branches.
 
     Args:
         agent: The span node to process.
-        has_explicit_branches: Whether explicit branch spans exist globally.
-        _is_root: Internal flag (kept for API compatibility).
     """
     # Recurse into child spans in content
     for item in agent.content:
         if isinstance(item, TimelineSpan):
-            _classify_branches(item, has_explicit_branches, _is_root=False)
+            _classify_branches(item)
 
-    # Recurse into spans within branches
+    # Recurse into branches (and their child spans)
     for branch in agent.branches:
-        for item in branch.content:
+        _classify_branches(branch.content)
+        for item in branch.content.content:
             if isinstance(item, TimelineSpan):
-                _classify_branches(item, has_explicit_branches, _is_root=False)
+                _classify_branches(item)
+
+
+# =============================================================================
+# Branch Relocation
+# =============================================================================
+
+
+def _collect_spans(span: TimelineSpan, span_map: dict[str, TimelineSpan]) -> None:
+    """Recursively collect all TimelineSpans into a span_id → span map."""
+    span_map[span.id] = span
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            _collect_spans(item, span_map)
+    for branch in span.branches:
+        _collect_spans(branch.content, span_map)
+
+
+def _relocate_branches(root: TimelineSpan) -> None:
+    """Relocate branches to the span identified by from_span.
+
+    After initial discovery, all branches from the same _process_children
+    call are flat siblings. If a branch's from_span points to a span
+    inside a sibling branch, move it there.
+
+    Args:
+        root: The root TimelineSpan to process.
+    """
+    # Build span_id → TimelineSpan map from entire tree
+    span_map: dict[str, TimelineSpan] = {}
+    _collect_spans(root, span_map)
+
+    # Relocate branches whose from_span differs from their current parent
+    _do_relocate(root, span_map)
+
+
+def _do_relocate(span: TimelineSpan, span_map: dict[str, TimelineSpan]) -> None:
+    """Recursively relocate branches in a span and its children."""
+    # Recurse into child spans first (depth-first)
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            _do_relocate(item, span_map)
+    for branch in span.branches:
+        _do_relocate(branch.content, span_map)
+
+    # Now relocate: check each branch's from_span
+    remaining: list[TimelineBranch] = []
+    for branch in span.branches:
+        target_span = span_map.get(branch.from_span)
+        if target_span is not None and target_span is not span:
+            # Move branch to the target span
+            target_span.branches.append(branch)
+        else:
+            remaining.append(branch)
+    span.branches = remaining
 
 
 # =============================================================================
@@ -1237,7 +1282,8 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
             if isinstance(item, TimelineSpan):
                 _wrap_utility_events(item)
         for branch in agent.branches:
-            for item in branch.content:
+            _wrap_utility_events(branch.content)
+            for item in branch.content.content:
                 if isinstance(item, TimelineSpan):
                     _wrap_utility_events(item)
         return
@@ -1283,7 +1329,8 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
         if isinstance(item, TimelineSpan):
             _wrap_utility_events(item)
     for branch in agent.branches:
-        for item in branch.content:
+        _wrap_utility_events(branch.content)
+        for item in branch.content.content:
             if isinstance(item, TimelineSpan):
                 _wrap_utility_events(item)
 

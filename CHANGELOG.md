@@ -1,9 +1,42 @@
 ## Unreleased
 
+- OpenAI: Add `cyber_policy` to "content_filter" stop reason
+- Timelines: New `BranchEvent` to delineate timeline branches.
+
+## 0.3.202 (31 March 2026)
+
+- Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).
+- Approval: New `read_approval_policies()` function for reading approval policies from a config file.
+- Approval: Add `metadata` field to `Approval` which is in turn forwarded to `ApprovalEvent`.
+- Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
+- Cache Pydantic TypeAdapters in condense_events for performance.
+- Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
+- Model API: Export `model_roles()` function to get model roles for the active task.
+- Timelines: Improved `forked_at` detection for forking on non-assistant messages.
+- Installation: Ensure that all required static assets are included in bundle.
+- Inspect View: Fix printing for samples with large transcripts or many messages.
+- Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
+- Inspect View: Fix regression that could hide assistant messages with only tool calls.
+- Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
+- Inspect View: Built TypeScript code is now minified and committed via git lfs.
+- Bugfix: Handle recursive references when resolving $ref targets in JSON schema.
+- Bugfix: Accept numeric cpus in compose deploy resources.
+
+
+## 0.3.201 (25 March 2026)
+
+- Google: Remove deprecated `gemini-3-pro-preview` from computer use model check and replace with `gemini-3.1-pro-preview` in tests and docs.
+- SageMaker: Add `completion_mode` for CPT/base models, sending completions-style request payloads with logprobs and `prompt_logprobs` support.
+- SageMaker: Fix streaming metadata tracking to accumulate across chunks instead of relying on the last chunk.
+- Bedrock: Add `read_timeout` and `connect_timeout` model args.
 - HuggingFace: Add `do_sample` model arg for overriding default sampling behavior.
 - VLLM: Add `client_timeout` to OpenAICompatibleAPI and VLLMAPI.
 - Computer Use: Fix argparse error when typing non-numeric text starting with `-` (e.g. `-0.07"`) by using the `=` form for the `--text` argument.
 - Eval Set: Embed viewer before evals run when using `embed_viewer=True`, and keep `listing.json` updated as logs are created.
+- Eval Set: Fix `run_multiple` silently swallowing task finalisation errors and returning `success=True` with no results.
+- Model API: Handle `tool_calls` and `source` when combining assistant messages.
+- Hooks: Increase event buffer to `math.inf` so it never blocks.
+- Inspect View: Copy button for log files now copies the absolute path (or S3 URI) rather than the relative serving path.
 
 ## 0.3.200 (20 March 2026)
 

@@ -6,6 +6,7 @@ title: "inspect_ai.approval"
 
 ### auto_approver
 ### human_approver
+### read_approval_policies
 ### approval
 
 ## Types

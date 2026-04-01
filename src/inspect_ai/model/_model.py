@@ -50,7 +50,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -1331,6 +1331,7 @@ def get_model(
     model: str | Model | None = None,
     *,
     role: str | None = None,
+    required: bool = False,
     default: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
@@ -1365,6 +1366,10 @@ def get_model(
        role: Optional named role for model (e.g. for roles specified
           at the task or eval level). Provide a `default` as a fallback
           in the case where the `role` hasn't been externally specified.
+          Pass `required` to raise an error if the role has not been specified.
+       required: If a model role is specified, is it required? If required
+          and not present, an error is raised. Otherwise, the current
+          default model is returned.
        default: Optional. Fallback model in case the specified
           `model` or `role` is not found.
        config: Configuration for model.
@@ -1394,6 +1399,12 @@ def get_model(
         model_for_role = model_roles().get(role, None)
         if model_for_role is not None:
             return model_for_role
+
+        # raise if required and not found
+        elif required is True and default is None:
+            raise PrerequisiteError(
+                f"Model role '{role}' is required and was not specified."
+            )
 
     # if a default was specified then use it as the model if
     # no model was passed
@@ -1828,31 +1839,53 @@ def consecutive_message_reducer(
 def combine_messages(
     a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
 ) -> ChatMessage:
-    # TODO: Although unlikely to happen based on the current call sites, these
-    # fabricated messages drop interesting fields from the source messages -
-    # such as `internal_name`, `tool_calls`, etc.
-    # To be more specific, since all `ChatMessageXxx` fields other than `id` and
-    # `content` have default values, it's more the case that they're reset to
-    # default values rather than dropped.
-
-    # track combination
-    metadata = {"combined_from": [a.id, b.id]}
-
+    # merge content
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
+        content: str | list[Content] = f"{a.content}\n{b.content}"
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content, metadata=metadata)
+        content = a.content + b.content
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(
-            content=[ContentText(text=a.content), *b.content], metadata=metadata
-        )
+        content = [ContentText(text=a.content), *b.content]
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(
-            content=a.content + [ContentText(text=b.content)], metadata=metadata
-        )
+        content = a.content + [ContentText(text=b.content)]
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
+        )
+
+    # merge metadata (later message wins on conflicts)
+    merged_metadata: dict[str, Any] = {}
+    if a.metadata:
+        merged_metadata.update(a.metadata)
+    if b.metadata:
+        merged_metadata.update(b.metadata)
+
+    # track which messages were combined
+    merged_metadata["combined_from"] = [a.id, b.id]
+
+    # type-specific field merging
+    if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
+        merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
+        return ChatMessageAssistant(
+            content=content,
+            tool_calls=merged_tool_calls or None,
+            model=b.model or a.model,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
+        merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
+        return ChatMessageUser(
+            content=content,
+            tool_call_id=merged_tool_call_id or None,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    else:
+        return message_type(
+            content=content,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
         )
 
 
@@ -1882,6 +1915,10 @@ def init_model_roles(roles: dict[str, Model]) -> None:
 
 
 def model_roles() -> dict[str, Model]:
+    """Model roles.
+
+    Get the model roles defined for the current task. Call this method only within a running solver or agent execution (it's not available during task construction).
+    """
     return _model_roles.get()
 
 

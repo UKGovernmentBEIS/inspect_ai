@@ -52,9 +52,9 @@
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
-- name: "[Inspct MLFlow](https://github.com/debu-sinha/inspect-mlflow)"
+- name: "[Inspect MLflow](https://github.com/debu-sinha/inspect-mlflow)"
   description: |
-    Experiment tracking, execution tracing, and artifact logging for Inspect AI evaluations.
+    Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations. Published on [PyPI](https://pypi.org/project/inspect-mlflow/).
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
@@ -134,6 +134,12 @@
   description: |
     Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
   author: "[Jason Gwartz](https://github.com/jasongwartz)"
+  categories: ["Sandboxes"]
+
+- name: "[Podman Sandbox](https://github.com/VectorInstitute/inspect-podman)"
+  description: |
+    Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
+  author: "[Vector Institute and National Research Council of Canada](https://github.com/VectorInstitute/inspect-podman)"
   categories: ["Sandboxes"]
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"

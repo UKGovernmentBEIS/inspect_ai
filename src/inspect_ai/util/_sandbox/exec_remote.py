@@ -155,6 +155,7 @@ class _PollResult(BaseModel):
 
     state: Literal["running", "completed", "killed"]
     exit_code: int | None = None
+    seq: int
     stdout: str
     stderr: str
 
@@ -162,6 +163,7 @@ class _PollResult(BaseModel):
 class _KillResult(BaseModel):
     """Result from exec_remote_kill."""
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -169,6 +171,7 @@ class _KillResult(BaseModel):
 class _WriteStdinResult(BaseModel):
     """Result from exec_remote_write_stdin."""
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -176,6 +179,7 @@ class _WriteStdinResult(BaseModel):
 class _CloseStdinResult(BaseModel):
     """Result from exec_remote_close_stdin."""
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -251,6 +255,7 @@ class ExecRemoteProcess:
             MIN_POLL_INTERVAL, options.poll_interval or sandbox_default_poll_interval
         )
         self._pid: int | None = None
+        self._last_seq: int = 0
         self._killed = False
         self._completed = False
         self._iteration_started = False
@@ -407,9 +412,13 @@ class ExecRemoteProcess:
 
             sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
             with sandbox_proxy.no_events():
-                return await self._rpc(
-                    "exec_remote_poll", {"pid": self._pid}, _PollResult
+                result = await self._rpc(
+                    "exec_remote_poll",
+                    {"pid": self._pid, "ack_seq": self._last_seq},
+                    _PollResult,
                 )
+            self._last_seq = result.seq
+            return result
 
         return await poll()
 
@@ -450,9 +459,10 @@ class ExecRemoteProcess:
 
         result = await self._rpc(
             "exec_remote_write_stdin",
-            {"pid": self._pid, "data": data},
+            {"pid": self._pid, "data": data, "ack_seq": self._last_seq},
             _WriteStdinResult,
         )
+        self._last_seq = result.seq
         self._enqueue_output(result.stdout, result.stderr)
 
     async def close_stdin(self) -> None:
@@ -480,9 +490,10 @@ class ExecRemoteProcess:
 
         result = await self._rpc(
             "exec_remote_close_stdin",
-            {"pid": self._pid},
+            {"pid": self._pid, "ack_seq": self._last_seq},
             _CloseStdinResult,
         )
+        self._last_seq = result.seq
         self._enqueue_output(result.stdout, result.stderr)
 
     async def kill(self) -> None:
@@ -499,8 +510,11 @@ class ExecRemoteProcess:
         self._killed = True
         try:
             result = await self._rpc(
-                "exec_remote_kill", {"pid": self._pid}, _KillResult
+                "exec_remote_kill",
+                {"pid": self._pid, "ack_seq": self._last_seq},
+                _KillResult,
             )
+            self._last_seq = result.seq
             self._enqueue_output(result.stdout, result.stderr)
         except Exception:
             logging.debug(

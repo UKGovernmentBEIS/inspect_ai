@@ -36,7 +36,6 @@ Respect existing code patterns when modifying files. Run linting before committi
 Additional files provide context when working in specific areas:
 
 - [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/CLAUDE.md)
-- [View UI (TypeScript): build/lint/test commands for the frontend](src/inspect_ai/_view/www/CLAUDE.md)
 
 ## Design Documentation
 

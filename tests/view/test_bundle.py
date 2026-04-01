@@ -1,3 +1,4 @@
+import glob
 import os
 import tempfile
 
@@ -35,17 +36,15 @@ def test_s3_bundle(mock_s3) -> None:
     bundle_log_dir(log_dir, output_dir)
 
     # ensure files are what we expect
-    expected = [
-        "index.html",
-        "assets",
-        "assets/index.js",
-        "assets/index.css",
-        "logs",
-        "logs/listing.json",
-    ]
-
-    for exp in expected:
+    expected_exact = ["index.html", "assets", "logs", "logs/listing.json"]
+    for exp in expected_exact:
         assert s3_fs.exists(os.path.join(output_dir, exp))
+
+    # hashed asset filenames
+    assets = s3_fs.ls(os.path.join(output_dir, "assets"))
+    asset_names = [os.path.basename(a.name) for a in assets]
+    assert any(f.endswith(".js") and f.startswith("index-") for f in asset_names)
+    assert any(f.endswith(".css") and f.startswith("index-") for f in asset_names)
 
 
 def test_bundle() -> None:
@@ -69,17 +68,13 @@ def test_bundle() -> None:
         bundle_log_dir(log_dir, output_dir)
 
         # ensure files are what we expect
-        expected = [
-            "index.html",
-            "assets",
-            "assets/index.js",
-            "assets/index.css",
-            "logs",
-            "logs/listing.json",
-        ]
-        for exp in expected:
-            abs = os.path.join(output_dir, exp)
-            assert os.path.exists(abs)
+        expected_exact = ["index.html", "assets", "logs", "logs/listing.json"]
+        for exp in expected_exact:
+            assert os.path.exists(os.path.join(output_dir, exp))
+
+        # hashed asset filenames
+        assert glob.glob(os.path.join(output_dir, "assets", "index-*.js"))
+        assert glob.glob(os.path.join(output_dir, "assets", "index-*.css"))
 
         # ensure there is a non-listing.json log file present in logs
         non_manifest_logs = [
@@ -109,16 +104,15 @@ def test_s3_embed(mock_s3) -> None:
     embed_log_dir(log_dir)
 
     # ensure viewer files are present directly in the log dir
-    viewer_expected = [
-        "index.html",
-        "assets",
-        "assets/index.js",
-        "assets/index.css",
-        "robots.txt",
-        "listing.json",
-    ]
+    viewer_expected = ["index.html", "assets", "robots.txt", "listing.json"]
     for exp in viewer_expected:
         assert s3_fs.exists(os.path.join(log_dir, exp))
+
+    # hashed asset filenames
+    assets = s3_fs.ls(os.path.join(log_dir, "assets"))
+    asset_names = [os.path.basename(a.name) for a in assets]
+    assert any(f.endswith(".js") and f.startswith("index-") for f in asset_names)
+    assert any(f.endswith(".css") and f.startswith("index-") for f in asset_names)
 
     # ensure old viewer/ subdirectory was not created
     assert not s3_fs.exists(os.path.join(log_dir, "viewer"))
@@ -143,16 +137,13 @@ def test_embed() -> None:
         embed_log_dir(log_dir)
 
         # ensure viewer files are present directly in the log dir
-        viewer_expected = [
-            "index.html",
-            "assets",
-            "assets/index.js",
-            "assets/index.css",
-            "robots.txt",
-            "listing.json",
-        ]
+        viewer_expected = ["index.html", "assets", "robots.txt", "listing.json"]
         for exp in viewer_expected:
             assert os.path.exists(os.path.join(log_dir, exp))
+
+        # hashed asset filenames
+        assert glob.glob(os.path.join(log_dir, "assets", "index-*.js"))
+        assert glob.glob(os.path.join(log_dir, "assets", "index-*.css"))
 
         # ensure old viewer/ subdirectory was not created
         assert not os.path.exists(os.path.join(log_dir, "viewer"))

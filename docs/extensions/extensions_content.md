@@ -18,6 +18,9 @@
 [Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
 :   Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
 
+[Podman Sandbox](https://github.com/VectorInstitute/inspect-podman) &mdash; <small><a href="https://github.com/VectorInstitute/inspect-podman" style="text-decoration:none">Vector Institute and National Research Council of Canada</a></small>
+:   Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
+
 
 ## Analysis {#sec-analysis}
 
@@ -36,8 +39,8 @@
 [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb) &mdash; <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small>
 :   Integration with Weights and Biases platform.
 
-[Inspct MLFlow](https://github.com/debu-sinha/inspect-mlflow) &mdash; <small><a href="https://github.com/debu-sinha" style="text-decoration:none">Debu Sinha</a></small>
-:   Experiment tracking, execution tracing, and artifact logging for Inspect AI evaluations.
+[Inspect MLflow](https://github.com/debu-sinha/inspect-mlflow) &mdash; <small><a href="https://github.com/debu-sinha" style="text-decoration:none">Debu Sinha</a></small>
+:   Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations. Published on [PyPI](https://pypi.org/project/inspect-mlflow/).
 
 [CJE](https://github.com/cimo-labs/cje) &mdash; <small><a href="https://cimolabs.com" style="text-decoration:none">CIMO Labs</a></small>
 :   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
