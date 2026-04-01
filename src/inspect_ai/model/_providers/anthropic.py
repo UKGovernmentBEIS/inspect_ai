@@ -1033,8 +1033,14 @@ class AnthropicAPI(ModelAPI):
         elif "content filtering" in error:
             content = "Sorry, but I am unable to help with that request."
             stop_reason = "content_filter"
+        elif "prefill" in error:
+            # Models that don't support assistant message prefill reject
+            # requests ending with an assistant message. Return an empty
+            # response so the caller can continue rather than crashing.
+            content = ""
+            stop_reason = "stop"
 
-        if content and stop_reason:
+        if content is not None and stop_reason:
             return ModelOutput.from_content(
                 model=self.service_model_name(),
                 content=content,

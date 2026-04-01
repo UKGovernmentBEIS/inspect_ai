@@ -135,6 +135,45 @@ def test_anthropic_should_retry():
     model.api.should_retry(ex)
 
 
+def test_anthropic_handle_bad_request_prefill_error() -> None:
+    """handle_bad_request returns a graceful ModelOutput for prefill errors.
+
+    When the API rejects a request because the conversation ends with an
+    assistant message (prefill not supported), the provider should return
+    an empty ModelOutput instead of propagating the exception.
+    """
+    import httpx
+    from anthropic import BadRequestError
+
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    response = httpx.Response(
+        status_code=400, request=httpx.Request("POST", "https://example.com")
+    )
+    ex = BadRequestError(
+        "This model does not support assistant message prefill. "
+        "The conversation must end with a user message.",
+        response=response,
+        body={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": (
+                    "This model does not support assistant message prefill. "
+                    "The conversation must end with a user message."
+                ),
+            },
+        },
+    )
+
+    result = api.handle_bad_request(ex)
+    # Should return ModelOutput, not the exception
+    from inspect_ai.model import ModelOutput
+
+    assert isinstance(result, ModelOutput)
+    assert result.stop_reason == "stop"
+    assert result.error is not None
+
+
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
