@@ -7,9 +7,9 @@ Uses inspect_ai's event_tree() to parse span structure.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import contextlib
 from datetime import datetime
-from typing import Annotated, Any, Callable, Literal
+from typing import Annotated, Any, AsyncIterator, Callable, Literal, Sequence
 
 from pydantic import (
     BaseModel,
@@ -43,7 +43,7 @@ TreeItem = EventTreeSpan | Event
 
 
 def _min_start_time(
-    nodes: Sequence["TimelineEvent | TimelineSpan | TimelineBranch"],
+    nodes: Sequence[TimelineEvent | TimelineSpan],
 ) -> datetime:
     """Return the earliest start time among nodes.
 
@@ -59,7 +59,7 @@ def _min_start_time(
 
 
 def _max_end_time(
-    nodes: Sequence["TimelineEvent | TimelineSpan | TimelineBranch"],
+    nodes: Sequence[TimelineEvent | TimelineSpan],
 ) -> datetime:
     """Return the latest end time among nodes.
 
@@ -75,7 +75,7 @@ def _max_end_time(
 
 
 def _sum_tokens(
-    nodes: Sequence["TimelineEvent | TimelineSpan | TimelineBranch"],
+    nodes: Sequence[TimelineEvent | TimelineSpan],
 ) -> int:
     """Sum total tokens across all nodes.
 
@@ -157,7 +157,7 @@ _IDLE_THRESHOLD_SECS = 300.0  # 5 minutes
 
 
 def _compute_idle_time(
-    content: Sequence["TimelineEvent | TimelineSpan | TimelineBranch"],
+    content: Sequence[TimelineEvent | TimelineSpan],
     start_time: datetime,
     end_time: datetime,
 ) -> float:
@@ -202,7 +202,7 @@ def _compute_idle_time(
 
 
 def _timeline_content_discriminator(v: Any) -> str:
-    """Discriminator function for TimelineSpan.content and TimelineBranch.content."""
+    """Discriminator function for TimelineSpan.content and TimelineSpan.content."""
     if isinstance(v, dict):
         return str(v.get("type", "event"))
     return str(getattr(v, "type", "event"))
@@ -223,7 +223,8 @@ class TimelineSpan(BaseModel):
     name: str
     span_type: str | None
     content: list[TimelineContentItem] = Field(default_factory=list)
-    branches: list["TimelineBranch"] = Field(default_factory=list)
+    branches: list["TimelineSpan"] = Field(default_factory=list)
+    forked_at: str | None = Field(default=None)
     description: str | None = None
     utility: bool = False
     agent_result: str | None = None
@@ -236,8 +237,8 @@ class TimelineSpan(BaseModel):
 
     def _content_and_branches(
         self,
-    ) -> list[TimelineEvent | "TimelineSpan | TimelineBranch"]:
-        items: list[TimelineEvent | TimelineSpan | TimelineBranch] = list(self.content)
+    ) -> list[TimelineEvent | TimelineSpan]:
+        items: list[TimelineEvent | TimelineSpan] = list(self.content)
         items.extend(self.branches)
         return items
 
@@ -262,34 +263,6 @@ class TimelineSpan(BaseModel):
         return _compute_idle_time(
             self._content_and_branches(), self.start_time, self.end_time
         )
-
-
-class TimelineBranch(BaseModel):
-    """A discarded alternative path from a branch point."""
-
-    type: Literal["branch"] = "branch"
-    forked_at: str
-    content: list[TimelineContentItem] = Field(default_factory=list)
-
-    @property
-    def start_time(self) -> datetime:
-        """Earliest start time among content."""
-        return _min_start_time(self.content)
-
-    @property
-    def end_time(self) -> datetime:
-        """Latest end time among content."""
-        return _max_end_time(self.content)
-
-    @property
-    def total_tokens(self) -> int:
-        """Sum of tokens from all content."""
-        return _sum_tokens(self.content)
-
-    @property
-    def idle_time(self) -> float:
-        """Seconds of idle time within this branch."""
-        return _compute_idle_time(self.content, self.start_time, self.end_time)
 
 
 class OutlineNode(BaseModel):
@@ -445,6 +418,9 @@ def timeline_build(
     # Build message_id → event UUID lookup for branch resolution
     message_lookup = _build_message_lookup(events)
 
+    # Build branch span_id → from_span mapping for relocation
+    from_spans = _build_from_spans(events)
+
     # Use event_tree to get hierarchical structure
     tree = event_tree(events)
 
@@ -509,7 +485,7 @@ def timeline_build(
         if agent_node is not None:
             agent_node.name = "main"
 
-            _classify_spans(agent_node)
+            _classify_spans(agent_node, from_spans)
 
             # Prepend init span to agent content
             if init_span_obj:
@@ -537,19 +513,41 @@ def timeline_build(
     else:
         # No phase spans - treat entire tree as agent
         root = _build_agent_from_tree(tree, message_lookup)
-        _classify_spans(root)
+        _classify_spans(root, from_spans)
 
     return Timeline(name=name, description=description, root=root)
 
 
-def _classify_spans(root: TimelineSpan) -> None:
+@contextlib.asynccontextmanager
+async def timeline_branch(
+    *, name: str, from_span: str, from_message: str, id: str | None = None
+) -> AsyncIterator[None]:
+    """Context manager for creating a timeline branch.
+
+    Args:
+        name (str): Name of branch span.
+        from_span: Span where the branch originated.
+        from_message: Message id at the branch point.
+        id (str | None): Optional span ID. Generated if not provided.
+    """
+    from inspect_ai.event._branch import BranchEvent
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.util._span import span
+
+    async with span(name=name, type="branch", id=id):
+        transcript()._event(BranchEvent(from_span=from_span, from_message=from_message))
+        yield
+
+
+def _classify_spans(root: TimelineSpan, from_spans: dict[str, str]) -> None:
     """Run all span classification passes on a root span.
 
-    Classifies utility agents and branch structure.
+    Classifies utility agents, branch structure, and relocates branches.
     """
     _wrap_utility_events(root)
     _classify_utility_agents(root)
     _classify_branches(root)
+    _relocate_branches(root, from_spans)
     _extract_agent_results(root)
 
 
@@ -825,7 +823,7 @@ def _build_agent_from_tree(
 
 
 # =============================================================================
-# TimelineBranch Processing
+# TimelineSpan Processing
 # =============================================================================
 
 
@@ -867,35 +865,40 @@ def _unroll_span(
 
 
 def _process_children(
-    children: list[TreeItem], message_lookup: dict[str, str]
-) -> tuple[list[TimelineEvent | TimelineSpan], list[TimelineBranch]]:
+    children: list[TreeItem],
+    message_lookup: dict[str, str],
+    from_spans: dict[str, str] | None = None,
+) -> tuple[list[TimelineEvent | TimelineSpan], list[TimelineSpan]]:
     """Process a span's children with branch awareness.
 
     Collects adjacent type="branch" EventTreeSpan runs and builds
-    TimelineBranch objects from those that contain a BranchEvent.
+    branch TimelineSpan objects from those that contain a BranchEvent.
     Branch spans without a BranchEvent are processed as normal content.
 
     Args:
         children: List of tree items to process.
         message_lookup: Global message_id → event UUID mapping.
+        from_spans: Optional dict to accumulate branch span_id → from_span
+            mappings for later relocation.
 
     Returns:
         Tuple of (content nodes, branch list).
     """
     content: list[TimelineEvent | TimelineSpan] = []
-    branches: list[TimelineBranch] = []
+    branches: list[TimelineSpan] = []
     branch_run: list[EventTreeSpan] = []
 
     def _flush_branch_run(
         branch_run: list[EventTreeSpan],
         parent_content: list[TimelineEvent | TimelineSpan],
-    ) -> list[TimelineBranch]:
-        """Convert accumulated branch spans into TimelineBranch objects.
+    ) -> list[TimelineSpan]:
+        """Convert accumulated branch spans into branch TimelineSpan objects.
 
-        Branch spans that contain a BranchEvent are converted to TimelineBranch.
-        Those without a BranchEvent have their content merged into parent_content.
+        Branch spans that contain a BranchEvent are converted to TimelineSpan
+        with span_type="branch". Those without a BranchEvent have their
+        content merged into parent_content.
         """
-        result: list[TimelineBranch] = []
+        result: list[TimelineSpan] = []
         for span in branch_run:
             branch_event = _find_branch_event(span)
             if branch_event is None:
@@ -914,7 +917,17 @@ def _process_children(
             if not branch_content:
                 continue
             forked_at = _resolve_forked_at(message_lookup, branch_event)
-            result.append(TimelineBranch(forked_at=forked_at, content=branch_content))
+            if from_spans is not None:
+                from_spans[span.id] = branch_event.from_span
+            result.append(
+                TimelineSpan(
+                    id=span.id,
+                    name=span.name or "branch",
+                    span_type="branch",
+                    forked_at=forked_at,
+                    content=branch_content,
+                )
+            )
         return result
 
     for item in children:
@@ -1041,6 +1054,88 @@ def _classify_branches(agent: TimelineSpan) -> None:
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _classify_branches(item)
+
+
+# =============================================================================
+# Branch Relocation
+# =============================================================================
+
+
+def _build_from_spans(events: Sequence[Event]) -> dict[str, str]:
+    """Build branch span_id → from_span mapping from BranchEvents.
+
+    Each BranchEvent's span_id identifies the branch span it belongs to,
+    and from_span identifies the span it was forked from.
+
+    Args:
+        events: Flat list of Events from a transcript.
+
+    Returns:
+        Dict mapping branch span_id to the from_span value.
+    """
+    from_spans: dict[str, str] = {}
+    for e in events:
+        if isinstance(e, BranchEvent) and e.span_id:
+            from_spans[e.span_id] = e.from_span
+    return from_spans
+
+
+def _collect_spans(span: TimelineSpan, span_map: dict[str, TimelineSpan]) -> None:
+    """Recursively collect all TimelineSpans into a span_id → span map."""
+    span_map[span.id] = span
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            _collect_spans(item, span_map)
+    for branch in span.branches:
+        _collect_spans(branch, span_map)
+
+
+def _relocate_branches(root: TimelineSpan, from_spans: dict[str, str]) -> None:
+    """Relocate branches to the span identified by from_span.
+
+    After initial discovery, all branches from the same _process_children
+    call are flat siblings. If a branch's from_span points to a span
+    inside a sibling branch, move it there.
+
+    Args:
+        root: The root TimelineSpan to process.
+        from_spans: Mapping of branch span_id → from_span (target span_id).
+    """
+    if not from_spans:
+        return
+
+    # Build span_id → TimelineSpan map from entire tree
+    span_map: dict[str, TimelineSpan] = {}
+    _collect_spans(root, span_map)
+
+    # Relocate branches depth-first
+    _do_relocate(root, span_map, from_spans)
+
+
+def _do_relocate(
+    span: TimelineSpan,
+    span_map: dict[str, TimelineSpan],
+    from_spans: dict[str, str],
+) -> None:
+    """Recursively relocate branches in a span and its children."""
+    # Recurse into child spans first (depth-first)
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            _do_relocate(item, span_map, from_spans)
+    for branch in span.branches:
+        _do_relocate(branch, span_map, from_spans)
+
+    # Check each branch's from_span and relocate if needed
+    remaining: list[TimelineSpan] = []
+    for branch in span.branches:
+        target_id = from_spans.get(branch.id)
+        target_span = span_map.get(target_id) if target_id else None
+        if target_span is not None and target_span is not span:
+            # Move branch to the target span
+            target_span.branches.append(branch)
+        else:
+            remaining.append(branch)
+    span.branches = remaining
 
 
 # =============================================================================
