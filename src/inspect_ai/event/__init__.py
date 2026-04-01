@@ -23,9 +23,9 @@ from ._timeline import (
     Outline,
     OutlineNode,
     Timeline,
-    TimelineBranch,
     TimelineEvent,
     TimelineSpan,
+    timeline_branch,
     timeline_build,
     timeline_dump,
     timeline_filter,
@@ -72,7 +72,6 @@ __all__ = [
     "EventTreeSpan",
     "EventTreeNode",
     "Timeline",
-    "TimelineBranch",
     "TimelineEvent",
     "TimelineSpan",
     "Outline",
@@ -81,6 +80,7 @@ __all__ = [
     "timeline_dump",
     "timeline_filter",
     "timeline_load",
+    "timeline_branch",
 ]
 
 _EVENT_TREE_VERSION_0_3_180 = "0.3.180"
