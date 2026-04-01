@@ -50,7 +50,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -1331,6 +1331,7 @@ def get_model(
     model: str | Model | None = None,
     *,
     role: str | None = None,
+    required: bool = False,
     default: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
@@ -1365,6 +1366,10 @@ def get_model(
        role: Optional named role for model (e.g. for roles specified
           at the task or eval level). Provide a `default` as a fallback
           in the case where the `role` hasn't been externally specified.
+          Pass `required` to raise an error if the role has not been specified.
+       required: If a model role is specified, is it required? If required
+          and not present, an error is raised. Otherwise, the current
+          default model is returned.
        default: Optional. Fallback model in case the specified
           `model` or `role` is not found.
        config: Configuration for model.
@@ -1394,6 +1399,12 @@ def get_model(
         model_for_role = model_roles().get(role, None)
         if model_for_role is not None:
             return model_for_role
+
+        # raise if required and not found
+        elif required is True and default is None:
+            raise PrerequisiteError(
+                f"Model role '{role}' is required and was not specified."
+            )
 
     # if a default was specified then use it as the model if
     # no model was passed
@@ -1904,6 +1915,10 @@ def init_model_roles(roles: dict[str, Model]) -> None:
 
 
 def model_roles() -> dict[str, Model]:
+    """Model roles.
+
+    Get the model roles defined for the current task. Call this method only within a running solver or agent execution (it's not available during task construction).
+    """
     return _model_roles.get()
 
 

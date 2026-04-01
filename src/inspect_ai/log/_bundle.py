@@ -4,7 +4,6 @@ import os
 import shutil
 import tempfile
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
@@ -17,7 +16,10 @@ from ._file import log_files_from_ls, write_log_listing
 logger = logging.getLogger(__name__)
 
 
-DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "dist")
+def _dist_dir() -> str:
+    from inspect_ai._view._dist import resolve_dist_directory
+
+    return resolve_dist_directory().as_posix()
 
 
 def _push_bundle_to_hf(
@@ -83,12 +85,12 @@ def bundle_log_dir(
             to the filesystem provider (e.g. `S3FileSystem`).
     """
     # resolve the log directory
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve the output directory
-    output_dir = (
-        output_dir if output_dir else os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
-    )
+    if not output_dir:
+        output_dir = os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
@@ -204,7 +206,7 @@ def _prepare_viewer(
     working_dir: str, log_dir: str, abs_log_dir: str | None = None
 ) -> None:
     """Prepare viewer assets in a working directory."""
-    copy_dir_contents(DIST_DIR, working_dir)
+    copy_dir_contents(_dist_dir(), working_dir)
     inject_configuration(
         os.path.join(working_dir, "index.html"),
         log_dir=log_dir,
@@ -378,7 +380,8 @@ def embed_log_dir(
     from inspect_ai._display import display
 
     # resolve the log directory
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve paths
     log_dir = absolute_file_path(log_dir)

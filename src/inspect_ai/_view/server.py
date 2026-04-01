@@ -28,6 +28,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
+from ._dist import resolve_dist_directory
 from .common import (
     async_connection,
     delete_log,
@@ -58,6 +59,9 @@ def view_server(
 ) -> None:
     # route table
     routes = web.RouteTableDef()
+
+    # resolve dist directory (downloads LFS objects if needed)
+    dist_dir = resolve_dist_directory()
 
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
@@ -384,6 +388,10 @@ def view_server(
         else:
             return web.Response(body=sample_data.model_dump_json())
 
+    @routes.get("/api/dist")
+    async def api_dist(request: web.Request) -> web.Response:
+        return web.json_response({"path": dist_dir.as_posix()})
+
     # optional auth middleware
     @web.middleware
     async def authorize(
@@ -398,7 +406,7 @@ def view_server(
     # setup server
     app = web.Application(middlewares=[authorize] if authorization else [])
     app.router.add_routes(routes)
-    app.router.register_resource(WWWResource())
+    app.router.register_resource(WWWResource(dist_dir))
 
     # filter request log (remove /api/events)
     filter_aiohttp_log()
@@ -475,11 +483,12 @@ async def log_headers_response(files: list[str]) -> web.Response:
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
 
 
+_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+
+
 class WWWResource(web.StaticResource):
-    def __init__(self) -> None:
-        super().__init__(
-            "", os.path.abspath((Path(__file__).parent / "dist").as_posix())
-        )
+    def __init__(self, dist_dir: Path) -> None:
+        super().__init__("", os.path.abspath(dist_dir.as_posix()))
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
         # serve /index.html for /
@@ -487,20 +496,14 @@ class WWWResource(web.StaticResource):
         if not filename:
             request.match_info["filename"] = "index.html"
 
-        # call super
         response = await super()._handle(request)
 
-        # disable caching as this is only ever served locally
-        # and w/ caching sometimes we get stale assets
-        response.headers.update(
-            {
-                "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
-                "Pragma": "no-cache",
-                "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
-            }
-        )
+        # Hashed assets are immutable; everything else (index.html) must revalidate.
+        if "/assets/" in request.path:
+            response.headers["Cache-Control"] = _IMMUTABLE_CACHE
+        else:
+            response.headers["Cache-Control"] = "no-cache"
 
-        # return response
         return response
 
 

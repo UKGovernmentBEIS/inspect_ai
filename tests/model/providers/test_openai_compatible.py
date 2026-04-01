@@ -155,6 +155,15 @@ def test_handle_bad_request(
         ),
         pytest.param(
             {
+                "message": "This request has been flagged for potentially high-risk cyber activity.",
+                "code": "cyber_policy",
+                "type": "invalid_request",  # This is the error type for 5.4
+            },
+            "content_filter",
+            id="cyber_policy",
+        ),
+        pytest.param(
+            {
                 "message": "Something else entirely",
                 "code": "some_other_code",
                 "type": "invalid_request_error",

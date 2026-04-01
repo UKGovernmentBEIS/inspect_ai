@@ -6,6 +6,7 @@ title: "inspect_ai.event"
 
 ### ModelEvent
 ### ToolEvent
+### BranchEvent
 ### CompactionEvent
 ### ApprovalEvent
 ### SandboxEvent
@@ -31,8 +32,8 @@ title: "inspect_ai.event"
 ### timeline_dump
 ### timeline_filter
 ### timeline_load
+### timeline_branch
 ### Timeline
-### TimelineBranch
 ### TimelineEvent
 ### TimelineSpan
 ### Outline

@@ -98,6 +98,7 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                             continue
                         raise last_exception
 
+            async_wrapper._flaky_retry = True  # type: ignore[attr-defined]
             return async_wrapper  # type: ignore
 
         @functools.wraps(func)
@@ -113,6 +114,7 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                         continue
                     raise last_exception
 
+        wrapper._flaky_retry = True  # type: ignore[attr-defined]
         return wrapper  # type: ignore
 
     return decorator
@@ -133,6 +135,7 @@ def skip_if_env_var(var: str, exists=True):
 
 
 def skip_if_no_groq(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GROQ_API_KEY", exists=False)(func))
 
 
@@ -176,6 +179,7 @@ def skip_if_no_nnterp(func):
 
 
 def skip_if_no_openai(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         pytest.mark.skipif(
             importlib.util.find_spec("openai") is None
@@ -186,6 +190,7 @@ def skip_if_no_openai(func):
 
 
 def skip_if_no_openai_azure(func):
+    func._needs_flaky_retry = True
     return pytest.mark.skipif(
         importlib.util.find_spec("openai") is None
         or os.environ.get("AZUREAI_OPENAI_API_KEY") is None
@@ -195,6 +200,7 @@ def skip_if_no_openai_azure(func):
 
 
 def skip_if_no_mistral_azure(func):
+    func._needs_flaky_retry = True
     return pytest.mark.skipif(
         importlib.util.find_spec("mistral") is None
         or os.environ.get("AZUREAI_MISTRAL_BASE_URL") is None,
@@ -207,20 +213,24 @@ def skip_if_no_openai_package(func):
 
 
 def skip_if_no_openai_reasoning_summaries(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         skip_if_env_var("ENABLE_OPENAI_REASONING_SUMMARIES", exists=False)(func)
     )
 
 
 def skip_if_no_anthropic(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 
 
 def skip_if_no_google(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_mistral(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
 
 
@@ -230,36 +240,44 @@ def skip_if_no_mistral_package(func):
 
 def skip_if_no_grok(func):
     # gRPC is asyncio-only, so always skip under trio
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         skip_if_env_var("GROK_API_KEY", exists=False)(skip_if_trio(func))
     )
 
 
 def skip_if_no_cloudflare(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_together(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("TOGETHER_API_KEY", exists=False)(func))
 
 
 def skip_if_no_openrouter(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("OPENROUTER_API_KEY", exists=False)(func))
 
 
 def skip_if_no_together_base_url(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("TOGETHER_BASE_URL", exists=False)(func))
 
 
 def skip_if_no_fireworks(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
 
 
 def skip_if_no_sambanova(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
 
 
 def skip_if_no_perplexity(func):
+    func._needs_flaky_retry = True
     missing_requirements = []
     if importlib.util.find_spec("openai") is None:
         missing_requirements.append("openai package")
@@ -279,24 +297,29 @@ def skip_if_no_perplexity_package(func):
 
 
 def skip_if_no_azureai(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("AZUREAI_API_KEY", exists=False)(func))
 
 
 def skip_if_no_llama_cpp_python(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(
         skip_if_env_var("ENABLE_LLAMA_CPP_PYTHON_TESTS", exists=False)(func)
     )
 
 
 def skip_if_no_bedrock(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ENABLE_BEDROCK_TESTS", exists=False)(func))
 
 
 def skip_if_no_vertex(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func))
 
 
 def skip_if_no_hf_token(func):
+    func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("HF_TOKEN", exists=False)(func))
 
 
@@ -318,6 +341,7 @@ def skip_if_no_docker(func):
     except FileNotFoundError:
         is_docker_installed = False
 
+    func._needs_flaky_retry = True
     return pytest.mark.skipif(
         not is_docker_installed, reason="Test doesn't work without Docker installed."
     )(func)
