@@ -956,9 +956,12 @@ def _build_message_lookup(events: Sequence[Event]) -> dict[str, str]:
     """Build message_id → event UUID mapping from all events.
 
     Scans all events to map message IDs to the UUID of the event
-    that produced them:
-    - ModelEvent: output message id → event UUID (assistant messages)
-    - ToolEvent: message_id field → event UUID (tool response messages)
+    that produced or consumed them. Priority order:
+    1. ModelEvent output message id → event UUID (assistant messages)
+    2. ToolEvent message_id → event UUID (tool response messages)
+    3. ModelEvent input message ids → event UUID (user/system messages, fallback)
+
+    Higher-priority mappings are not overwritten by lower-priority ones.
 
     Args:
         events: Flat list of Events from a transcript.
@@ -967,9 +970,9 @@ def _build_message_lookup(events: Sequence[Event]) -> dict[str, str]:
         Dict mapping message_id to the UUID of the event that produced it.
     """
     lookup: dict[str, str] = {}
+    # Pass 1: high-priority — output messages and tool messages
     for e in events:
         if isinstance(e, ModelEvent):
-            # Map output assistant message id
             if e.output and e.output.choices:
                 msg = e.output.choices[0].message
                 if msg.id and e.uuid:
@@ -977,6 +980,12 @@ def _build_message_lookup(events: Sequence[Event]) -> dict[str, str]:
         elif isinstance(e, ToolEvent):
             if e.message_id and e.uuid:
                 lookup[e.message_id] = e.uuid
+    # Pass 2: fallback — input messages (user/system) that weren't already mapped
+    for e in events:
+        if isinstance(e, ModelEvent) and e.uuid:
+            for input_msg in e.input:
+                if input_msg.id and input_msg.id not in lookup:
+                    lookup[input_msg.id] = e.uuid
     return lookup
 
 
