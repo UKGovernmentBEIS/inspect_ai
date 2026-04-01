@@ -244,25 +244,23 @@ class TimelineSpan(BaseModel):
 
     @property
     def start_time(self) -> datetime:
-        """Earliest start time among content and branches."""
-        return _min_start_time(self._content_and_branches())
+        """Earliest start time among direct content (excludes branches)."""
+        return _min_start_time(self.content)
 
     @property
     def end_time(self) -> datetime:
-        """Latest end time among content and branches."""
-        return _max_end_time(self._content_and_branches())
+        """Latest end time among direct content (excludes branches)."""
+        return _max_end_time(self.content)
 
     @property
     def total_tokens(self) -> int:
         """Sum of tokens from all content and branches."""
-        return _sum_tokens(self._content_and_branches())
+        return _sum_tokens(self.content)
 
     @property
     def idle_time(self) -> float:
-        """Seconds of idle time within this span."""
-        return _compute_idle_time(
-            self._content_and_branches(), self.start_time, self.end_time
-        )
+        """Seconds of idle time within this span (excludes branches)."""
+        return _compute_idle_time(self.content, self.start_time, self.end_time)
 
 
 class OutlineNode(BaseModel):
