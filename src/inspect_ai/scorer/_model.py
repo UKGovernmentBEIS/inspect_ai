@@ -338,6 +338,11 @@ def chat_history(state: TaskState) -> str:
     return "\n\n".join(history)
 
 
+def _escape_braces(text: str) -> str:
+    """Escape curly braces so str.format() treats them as literals."""
+    return text.replace("{", "{{").replace("}", "}}")
+
+
 def model_scoring_prompt(
     *,
     template: str,
@@ -347,8 +352,16 @@ def model_scoring_prompt(
     instructions: str,
     metadata: dict[str, Any],
 ) -> ChatMessageUser:
-    # we need to remove media objects from output and reference them as attachements in the answer
-    answer = output.completion
+    # Escape curly braces in external inputs before template.format().
+    # Model output, dataset questions, targets, and metadata may contain
+    # braces that would cause unintended variable substitution or KeyError.
+    question = _escape_braces(question)
+    criterion = _escape_braces(criterion)
+    metadata = {
+        k: _escape_braces(str(v)) if isinstance(v, str) else v
+        for k, v in metadata.items()
+    }
+    answer = _escape_braces(output.completion)
     media: list[Content] = (
         [
             content
