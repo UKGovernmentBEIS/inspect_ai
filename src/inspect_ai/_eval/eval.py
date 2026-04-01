@@ -134,6 +134,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    push_hub_results: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -227,6 +228,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        push_hub_results: If `True`, push the result to the model repo on HF Hub and open a PR.
         **kwargs: Model generation options.
 
     Returns:
@@ -290,6 +292,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                push_hub_results=push_hub_results,
                 **kwargs,
             )
         # exceptions can escape when debug_errors is True and that's okay
@@ -354,6 +357,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    push_hub_results: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -428,6 +432,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        push_hub_results: If `True`, push the result to the model repo on HF Hub and open a PR.
         **kwargs: Model generation options.
 
     Returns:
@@ -487,6 +492,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                push_hub_results=push_hub_results,
                 **kwargs,
             )
         finally:
@@ -556,6 +562,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    push_hub_results: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
@@ -758,6 +765,7 @@ async def _eval_async_inner(
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
+                        push_hub_results=push_hub_results,
                         **kwargs,
                     )
                 )
@@ -785,6 +793,7 @@ async def _eval_async_inner(
                 metadata=metadata,
                 run_samples=run_samples,
                 score=score,
+                push_hub_results=push_hub_results,
                 **kwargs,
             )
             logs = EvalLogs(results)
