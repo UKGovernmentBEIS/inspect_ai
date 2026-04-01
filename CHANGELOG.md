@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Add `cyber_policy` to "content_filter" stop reason
+- Bash tool: Change name of argument from `cmd` to `command`.
 - Timelines: `BranchEvent` and `timeline_branch()` to delineate timeline branches.
 - Timelines: Consolidate `TimelineBranch` into `TimelineSpan` via `forked_at` property.
 
