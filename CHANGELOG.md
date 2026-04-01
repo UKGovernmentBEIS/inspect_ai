@@ -1,3 +1,8 @@
+## Unreleased
+
+- OpenAI: Add `cyber_policy` to "content_filter" stop reason
+- Timelines: New `BranchEvent` to delineate timeline branches.
+
 ## 0.3.202 (31 March 2026)
 
 - Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).

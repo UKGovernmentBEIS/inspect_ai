@@ -85,12 +85,12 @@ def bundle_log_dir(
             to the filesystem provider (e.g. `S3FileSystem`).
     """
     # resolve the log directory
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve the output directory
-    output_dir = (
-        output_dir if output_dir else os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
-    )
+    if not output_dir:
+        output_dir = os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
@@ -380,7 +380,8 @@ def embed_log_dir(
     from inspect_ai._display import display
 
     # resolve the log directory
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve paths
     log_dir = absolute_file_path(log_dir)

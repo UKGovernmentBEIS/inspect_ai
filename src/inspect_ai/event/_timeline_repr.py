@@ -352,7 +352,8 @@ def _emit_branch_rows(
     from ._timeline import TimelineSpan as TSpan
 
     # Derive label
-    child_spans = [item for item in branch.content if isinstance(item, TSpan)]
+    branch_span = branch.content
+    child_spans = [item for item in branch_span.content if isinstance(item, TSpan)]
     if len(child_spans) == 1:
         label = f"\u21b3 {child_spans[0].name}"
     else:
@@ -362,7 +363,7 @@ def _emit_branch_rows(
     from ._timeline import TimelineEvent
 
     markers: list[tuple[datetime, str]] = []
-    for item in branch.content:
+    for item in branch_span.content:
         if isinstance(item, TimelineEvent):
             event_type = item.event.event
             if event_type == "compaction":
@@ -388,6 +389,10 @@ def _emit_branch_rows(
                 rows.extend(child_rows[1:])
             else:
                 rows.extend(child_rows)
+
+    # Recurse into nested branches
+    for i, sub_branch in enumerate(branch_span.branches):
+        _emit_branch_rows(sub_branch, i, depth + 1, view_start, view_end, rows)
 
 
 # =============================================================================
