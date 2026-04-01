@@ -7550,38 +7550,6 @@
       "type": "object",
       "additionalProperties": false
     },
-    "TimelineBranch": {
-      "description": "A discarded alternative path from a branch point.",
-      "properties": {
-        "type": {
-          "const": "branch",
-          "default": "branch",
-          "title": "Type",
-          "type": "string"
-        },
-        "forked_at": {
-          "title": "Forked At",
-          "type": "string"
-        },
-        "from_span": {
-          "default": "",
-          "title": "From Span",
-          "type": "string"
-        },
-        "content": {
-          "$ref": "#/$defs/TimelineSpan"
-        }
-      },
-      "required": [
-        "type",
-        "forked_at",
-        "from_span",
-        "content"
-      ],
-      "title": "TimelineBranch",
-      "type": "object",
-      "additionalProperties": false
-    },
     "TimelineEvent": {
       "description": "Wraps a single Event.",
       "properties": {
@@ -7709,10 +7677,22 @@
         },
         "branches": {
           "items": {
-            "$ref": "#/$defs/TimelineBranch"
+            "$ref": "#/$defs/TimelineSpan"
           },
           "title": "Branches",
           "type": "array"
+        },
+        "forked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Forked At"
         },
         "description": {
           "anyOf": [
@@ -7762,6 +7742,7 @@
         "span_type",
         "content",
         "branches",
+        "forked_at",
         "description",
         "utility",
         "agent_result",

@@ -1,4 +1,4 @@
-"""Tests for TimelineBranch discovery, forked_at resolution, and relocation."""
+"""Tests for branch discovery, forked_at resolution, and relocation."""
 
 from datetime import datetime, timezone
 
@@ -6,7 +6,7 @@ from inspect_ai.event import Event, timeline_build
 from inspect_ai.event._branch import BranchEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
-from inspect_ai.event._timeline import TimelineBranch, TimelineSpan
+from inspect_ai.event._timeline import TimelineSpan
 from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageUser,
@@ -101,14 +101,28 @@ def _branch_event(
     )
 
 
-def test_branch_with_branch_event_creates_timeline_branch() -> None:
-    """A type='branch' span containing a BranchEvent becomes a TimelineBranch."""
+def _find_span(span: TimelineSpan, span_id: str) -> TimelineSpan | None:
+    """Recursively find a TimelineSpan by id."""
+    if span.id == span_id:
+        return span
+    for item in span.content:
+        if isinstance(item, TimelineSpan):
+            result = _find_span(item, span_id)
+            if result:
+                return result
+    for branch in span.branches:
+        result = _find_span(branch, span_id)
+        if result:
+            return result
+    return None
+
+
+def test_branch_with_branch_event_creates_branch_span() -> None:
+    """A type='branch' span containing a BranchEvent becomes a branch in branches."""
     events: list[Event] = [
-        # Agent span
         _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
         _model_event(uuid="m2", span_id="agent", ts=2, output_message_id="msg-2"),
-        # Branch span (child of agent)
         _span_begin(
             uuid="sb2",
             id="branch-1",
@@ -130,15 +144,13 @@ def test_branch_with_branch_event_creates_timeline_branch() -> None:
     ]
 
     timeline = timeline_build(events)
-    root = timeline.root
+    agent = _find_span(timeline.root, "agent")
+    assert agent is not None
 
-    # Find the agent span (may be root or nested)
-    agent = _find_span(root, "agent")
-    assert agent is not None, "Agent span not found"
     assert len(agent.branches) == 1
     branch = agent.branches[0]
-    assert isinstance(branch, TimelineBranch)
-    assert branch.forked_at == "m1"  # resolved from msg-1 → model event m1
+    assert branch.span_type == "branch"
+    assert branch.forked_at == "m1"
 
 
 def test_branch_without_branch_event_becomes_content() -> None:
@@ -146,7 +158,6 @@ def test_branch_without_branch_event_becomes_content() -> None:
     events: list[Event] = [
         _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
-        # Branch span without BranchEvent
         _span_begin(
             uuid="sb2",
             id="branch-1",
@@ -161,14 +172,10 @@ def test_branch_without_branch_event_becomes_content() -> None:
     ]
 
     timeline = timeline_build(events)
-    root = timeline.root
+    agent = _find_span(timeline.root, "agent")
+    assert agent is not None
 
-    # Find the agent span
-    agent = _find_span(root, "agent")
-    assert agent is not None, "Agent span not found"
-    # No branches — content absorbed into parent
     assert len(agent.branches) == 0
-    # Both model events should be in content
     model_events = [
         item
         for item in agent.content
@@ -180,10 +187,8 @@ def test_branch_without_branch_event_becomes_content() -> None:
 def test_nested_branch_relocated_to_parent_branch() -> None:
     """Branch 2 forking from branch 1 is nested inside branch 1."""
     events: list[Event] = [
-        # Agent span
         _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
-        # Branch 1 — forks from agent
         _span_begin(
             uuid="sb2",
             id="branch-1",
@@ -201,7 +206,6 @@ def test_nested_branch_relocated_to_parent_branch() -> None:
         ),
         _model_event(uuid="m2", span_id="branch-1", ts=3, output_message_id="msg-2"),
         _span_end(uuid="se2", id="branch-1", parent_id="agent", ts=4),
-        # Branch 2 — forks from branch-1
         _span_begin(
             uuid="sb3",
             id="branch-2",
@@ -223,21 +227,17 @@ def test_nested_branch_relocated_to_parent_branch() -> None:
     ]
 
     timeline = timeline_build(events)
-    root = timeline.root
-
-    # Find the agent span
-    agent = _find_span(root, "agent")
-    assert agent is not None, "Agent span not found"
+    agent = _find_span(timeline.root, "agent")
+    assert agent is not None
 
     # Agent should have 1 branch (branch 1); branch 2 was relocated
     assert len(agent.branches) == 1
     branch1 = agent.branches[0]
     assert branch1.forked_at == "m1"
 
-    # Branch 1's content span should have 1 nested branch (branch 2)
-    assert isinstance(branch1.content, TimelineSpan)
-    assert len(branch1.content.branches) == 1
-    branch2 = branch1.content.branches[0]
+    # Branch 1 should have 1 nested branch (branch 2)
+    assert len(branch1.branches) == 1
+    branch2 = branch1.branches[0]
     assert branch2.forked_at == "m2"
 
 
@@ -248,7 +248,6 @@ def test_forked_at_resolves_via_message_lookup() -> None:
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-A"),
         _model_event(uuid="m2", span_id="agent", ts=2, output_message_id="msg-B"),
         _model_event(uuid="m3", span_id="agent", ts=3, output_message_id="msg-C"),
-        # Branch forking from the second model event
         _span_begin(
             uuid="sb2",
             id="branch-1",
@@ -270,22 +269,8 @@ def test_forked_at_resolves_via_message_lookup() -> None:
     ]
 
     timeline = timeline_build(events)
-    root = timeline.root
+    agent = _find_span(timeline.root, "agent")
+    assert agent is not None
 
-    agent = _find_span(root, "agent")
-    assert agent is not None, "Agent span not found"
     assert len(agent.branches) == 1
-    # forked_at should be "m2" (the event that produced msg-B)
     assert agent.branches[0].forked_at == "m2"
-
-
-def _find_span(span: TimelineSpan, span_id: str) -> TimelineSpan | None:
-    """Recursively find a TimelineSpan by id."""
-    if span.id == span_id:
-        return span
-    for item in span.content:
-        if isinstance(item, TimelineSpan):
-            result = _find_span(item, span_id)
-            if result:
-                return result
-    return None
