@@ -285,6 +285,97 @@
       ],
       "additionalProperties": false
     },
+    "BranchEvent": {
+      "description": "Branch in conversation history.",
+      "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "branch",
+          "default": "branch",
+          "title": "Event",
+          "type": "string"
+        },
+        "from_span": {
+          "title": "From Span",
+          "type": "string"
+        },
+        "from_message": {
+          "title": "From Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uuid",
+        "span_id",
+        "timestamp",
+        "working_start",
+        "metadata",
+        "pending",
+        "event",
+        "from_span",
+        "from_message"
+      ],
+      "title": "BranchEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "CachePolicy": {
       "description": "Caching options for model generation.",
       "properties": {
@@ -2767,6 +2858,9 @@
               },
               {
                 "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
+                "$ref": "#/$defs/BranchEvent"
               },
               {
                 "$ref": "#/$defs/CompactionEvent"
@@ -7456,43 +7550,6 @@
       "type": "object",
       "additionalProperties": false
     },
-    "TimelineBranch": {
-      "description": "A discarded alternative path from a branch point.",
-      "properties": {
-        "type": {
-          "const": "branch",
-          "default": "branch",
-          "title": "Type",
-          "type": "string"
-        },
-        "forked_at": {
-          "title": "Forked At",
-          "type": "string"
-        },
-        "content": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/$defs/TimelineEvent"
-              },
-              {
-                "$ref": "#/$defs/TimelineSpan"
-              }
-            ]
-          },
-          "title": "Content",
-          "type": "array"
-        }
-      },
-      "required": [
-        "type",
-        "forked_at",
-        "content"
-      ],
-      "title": "TimelineBranch",
-      "type": "object",
-      "additionalProperties": false
-    },
     "TimelineEvent": {
       "description": "Wraps a single Event.",
       "properties": {
@@ -7527,6 +7584,9 @@
             },
             {
               "$ref": "#/$defs/ApprovalEvent"
+            },
+            {
+              "$ref": "#/$defs/BranchEvent"
             },
             {
               "$ref": "#/$defs/CompactionEvent"
@@ -7617,10 +7677,22 @@
         },
         "branches": {
           "items": {
-            "$ref": "#/$defs/TimelineBranch"
+            "$ref": "#/$defs/TimelineSpan"
           },
           "title": "Branches",
           "type": "array"
+        },
+        "forked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Forked At"
         },
         "description": {
           "anyOf": [
@@ -7670,6 +7742,7 @@
         "span_type",
         "content",
         "branches",
+        "forked_at",
         "description",
         "utility",
         "agent_result",

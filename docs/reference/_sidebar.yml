@@ -390,6 +390,8 @@ website:
           href: reference/inspect_ai.model.qmd#modelinfo
         - text: ModelCost
           href: reference/inspect_ai.model.qmd#modelcost
+        - text: model_roles
+          href: reference/inspect_ai.model.qmd#model_roles
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -456,6 +458,8 @@ website:
           href: reference/inspect_ai.approval.qmd#auto_approver
         - text: human_approver
           href: reference/inspect_ai.approval.qmd#human_approver
+        - text: read_approval_policies
+          href: reference/inspect_ai.approval.qmd#read_approval_policies
         - text: approval
           href: reference/inspect_ai.approval.qmd#approval
         - text: Approver
@@ -653,6 +657,8 @@ website:
           href: reference/inspect_ai.event.qmd#modelevent
         - text: ToolEvent
           href: reference/inspect_ai.event.qmd#toolevent
+        - text: BranchEvent
+          href: reference/inspect_ai.event.qmd#branchevent
         - text: CompactionEvent
           href: reference/inspect_ai.event.qmd#compactionevent
         - text: ApprovalEvent
@@ -691,10 +697,10 @@ website:
           href: reference/inspect_ai.event.qmd#timeline_filter
         - text: timeline_load
           href: reference/inspect_ai.event.qmd#timeline_load
+        - text: timeline_branch
+          href: reference/inspect_ai.event.qmd#timeline_branch
         - text: Timeline
           href: reference/inspect_ai.event.qmd#timeline
-        - text: TimelineBranch
-          href: reference/inspect_ai.event.qmd#timelinebranch
         - text: TimelineEvent
           href: reference/inspect_ai.event.qmd#timelineevent
         - text: TimelineSpan

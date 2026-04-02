@@ -114,6 +114,19 @@ def pytest_collection_modifyitems(config, items):
             if "flaky" in item.keywords:
                 item.add_marker(skip_flaky)
 
+    # Auto-apply flaky_retry(max_retries=3) to tests that hit external services
+    # (model providers or Docker). Decorators opt in via func._needs_flaky_retry.
+    from test_helpers.utils import flaky_retry
+
+    _retry = flaky_retry(max_retries=3)
+    for item in items:
+        fn = item.obj
+        if getattr(fn, "_needs_flaky_retry", False) and not getattr(
+            fn, "_flaky_retry", False
+        ):
+            fn._flaky_retry = True  # prevent re-wrap for parametrized variants
+            item.obj = _retry(fn)
+
 
 @pytest.fixture(scope="module")
 def mock_s3():
