@@ -1,3 +1,7 @@
+## Unreleased
+
+- Timelines: Improved detection of `forked_at` for branches from user or system messages.
+
 ## 0.3.203 (01 April 2026)
 
 - OpenAI: Add `cyber_policy` to "content_filter" stop reason
