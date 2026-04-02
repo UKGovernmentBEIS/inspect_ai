@@ -7682,7 +7682,7 @@
           "title": "Branches",
           "type": "array"
         },
-        "forked_at": {
+        "branched_from": {
           "anyOf": [
             {
               "type": "string"
@@ -7692,7 +7692,7 @@
             }
           ],
           "default": null,
-          "title": "Forked At"
+          "title": "Branched From"
         },
         "description": {
           "anyOf": [
@@ -7742,7 +7742,7 @@
         "span_type",
         "content",
         "branches",
-        "forked_at",
+        "branched_from",
         "description",
         "utility",
         "agent_result",
