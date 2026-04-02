@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Timelines: Improved detection of `forked_at` for branches from user or system messages.
+
+## 0.3.203 (01 April 2026)
+
+- OpenAI: Add `cyber_policy` to "content_filter" stop reason
+- Timelines: `BranchEvent` and `timeline_branch()` to delineate timeline branches.
+- Timelines: Consolidate `TimelineBranch` into `TimelineSpan` via `forked_at` property.
+
+## 0.3.202 (31 March 2026)
+
 - Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).
 - Approval: New `read_approval_policies()` function for reading approval policies from a config file.
 - Approval: Add `metadata` field to `Approval` which is in turn forwarded to `ApprovalEvent`.
@@ -7,6 +17,7 @@
 - Cache Pydantic TypeAdapters in condense_events for performance.
 - Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
 - Model API: Export `model_roles()` function to get model roles for the active task.
+- Timelines: Improved `forked_at` detection for forking on non-assistant messages.
 - Installation: Ensure that all required static assets are included in bundle.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.

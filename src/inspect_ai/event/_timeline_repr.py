@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ._timeline import (
         Timeline,
-        TimelineBranch,
         TimelineSpan,
     )
 
@@ -332,7 +331,7 @@ def _collect_rows(
 
 
 def _emit_branch_rows(
-    branch: "TimelineBranch",
+    branch: "TimelineSpan",
     index: int,
     depth: int,
     view_start: datetime,
@@ -342,7 +341,7 @@ def _emit_branch_rows(
     """Emit rows for a branch and its children.
 
     Args:
-        branch: The branch to process.
+        branch: The branch span (span_type="branch") to process.
         index: Branch index (for labeling).
         depth: Current indentation depth.
         view_start: Global view start time.
@@ -388,6 +387,10 @@ def _emit_branch_rows(
                 rows.extend(child_rows[1:])
             else:
                 rows.extend(child_rows)
+
+    # Recurse into nested branches
+    for i, sub_branch in enumerate(branch.branches):
+        _emit_branch_rows(sub_branch, i, depth + 1, view_start, view_end, rows)
 
 
 # =============================================================================

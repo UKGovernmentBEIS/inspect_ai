@@ -320,7 +320,7 @@ def openai_assistant_content(
             if c.type == "reasoning":
                 c_reasoning = reasoning_handler(c)
                 if isinstance(c_reasoning, dict):
-                    extra_body = extra_body | c_reasoning
+                    extra_body = {**extra_body, **c_reasoning}
                 else:
                     content = f"{content}\n{c_reasoning}\n"
 
@@ -842,6 +842,7 @@ def openai_handle_bad_request(
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or e.code == "cyber_policy"  # seems to happen for 5.4
         or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
