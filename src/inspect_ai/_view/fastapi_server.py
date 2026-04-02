@@ -120,8 +120,18 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        body = await get_log_file(await _map_file(request, file), header_only)
+        try:
+            body = await get_log_file(await _map_file(request, file), header_only)
+        except FileNotFoundError:
+            return Response(status_code=HTTP_404_NOT_FOUND)
         return Response(content=body, media_type="application/json")
+
+    @app.get("/log-size/{log:path}")
+    async def api_log_size(request: Request, log: str) -> Response:
+        file = normalize_uri(log)
+        await _validate_read(request, file)
+        size = await get_log_size(await _map_file(request, file))
+        return InspectJsonResponse(content=size)
 
     @app.get("/log-info/{log:path}")
     async def api_log_info(request: Request, log: str) -> Response:
@@ -323,8 +333,9 @@ def view_server_app(
         # validate that the directory can be listed
         await _validate_list(request, flow_dir)
 
-        fs = filesystem(flow_dir)
-        flow_file = f"{flow_dir}{fs.sep}flow.yaml"
+        mapped_dir = await _map_file(request, flow_dir)
+        fs = filesystem(mapped_dir)
+        flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
         if fs.exists(flow_file):
             bytes = fs.read_bytes(flow_file)
 
@@ -492,6 +503,7 @@ def view_server(
     port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
 ) -> None:
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
@@ -506,6 +518,7 @@ def view_server(
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
     )
 
     dist_dir = resolve_dist_directory()

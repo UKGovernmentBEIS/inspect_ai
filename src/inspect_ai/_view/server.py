@@ -48,33 +48,21 @@ from .notify import view_last_eval_time
 logger = getLogger(__name__)
 
 
-def view_server(
+def view_server_app(
     log_dir: str,
     recursive: bool = True,
-    host: str = DEFAULT_SERVER_HOST,
-    port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
-) -> None:
+    dist_dir: Path | None = None,
+) -> web.Application:
+    """Create the aiohttp view server application without running it.
+
+    This factory is analogous to ``fastapi_server.view_server_app`` and
+    is used both by ``view_server`` (production) and by the test suite.
+    """
     # route table
     routes = web.RouteTableDef()
-
-    # resolve dist directory (downloads LFS objects if needed)
-    dist_dir = resolve_dist_directory()
-
-    # get filesystem and resolve log_dir to full path
-    fs = filesystem(log_dir)
-    if is_azure_path(log_dir):
-        try:
-            azure_debug_exists(fs, log_dir, display().print)
-            # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
-        except Exception as ex:  # provide actionable guidance for Azure failures
-            raise RuntimeError(azure_runtime_hint(ex)) from ex
-    else:
-        if not fs.exists(log_dir):
-            fs.mkdir(log_dir, True)
-        log_dir = fs.info(log_dir).name
 
     # validate log file requests (must be in the log_dir
     # unless authorization has been provided)
@@ -388,9 +376,11 @@ def view_server(
         else:
             return web.Response(body=sample_data.model_dump_json())
 
-    @routes.get("/api/dist")
-    async def api_dist(request: web.Request) -> web.Response:
-        return web.json_response({"path": dist_dir.as_posix()})
+    if dist_dir is not None:
+
+        @routes.get("/api/dist")
+        async def api_dist(request: web.Request) -> web.Response:
+            return web.json_response({"path": dist_dir.as_posix()})
 
     # optional auth middleware
     @web.middleware
@@ -406,7 +396,45 @@ def view_server(
     # setup server
     app = web.Application(middlewares=[authorize] if authorization else [])
     app.router.add_routes(routes)
-    app.router.register_resource(WWWResource(dist_dir))
+    if dist_dir is not None:
+        app.router.register_resource(WWWResource(dist_dir))
+
+    return app
+
+
+def view_server(
+    log_dir: str,
+    recursive: bool = True,
+    host: str = DEFAULT_SERVER_HOST,
+    port: int = DEFAULT_VIEW_PORT,
+    authorization: str | None = None,
+    fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
+) -> None:
+    # resolve dist directory (downloads LFS objects if needed)
+    dist_dir = resolve_dist_directory()
+
+    # get filesystem and resolve log_dir to full path
+    fs = filesystem(log_dir)
+    if is_azure_path(log_dir):
+        try:
+            azure_debug_exists(fs, log_dir, display().print)
+            # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
+        except Exception as ex:  # provide actionable guidance for Azure failures
+            raise RuntimeError(azure_runtime_hint(ex)) from ex
+    else:
+        if not fs.exists(log_dir):
+            fs.mkdir(log_dir, True)
+        log_dir = fs.info(log_dir).name
+
+    app = view_server_app(
+        log_dir=log_dir,
+        recursive=recursive,
+        authorization=authorization,
+        fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
+        dist_dir=dist_dir,
+    )
 
     # filter request log (remove /api/events)
     filter_aiohttp_log()
