@@ -978,12 +978,20 @@ def _build_message_lookup(events: Sequence[Event]) -> dict[str, str]:
         elif isinstance(e, ToolEvent):
             if e.message_id and e.uuid:
                 lookup[e.message_id] = e.uuid
-    # Pass 2: fallback — input messages (user/system) that weren't already mapped
+    # Pass 2: fallback — input messages (user/system) that weren't already mapped.
+    # Map to the *preceding* model event in the same span rather than the
+    # consuming model.  With rollback semantics, forkedAt should point to the
+    # last model whose output is shared — that is the model *before* the one
+    # that consumed the user/system message.  Tracking per-span avoids
+    # cross-branch contamination in the flat event list.
+    prev_model_by_span: dict[str | None, str] = {}
     for e in events:
         if isinstance(e, ModelEvent) and e.uuid:
+            target = prev_model_by_span.get(e.span_id, e.uuid)
             for input_msg in e.input:
                 if input_msg.id and input_msg.id not in lookup:
-                    lookup[input_msg.id] = e.uuid
+                    lookup[input_msg.id] = target
+            prev_model_by_span[e.span_id] = e.uuid
     return lookup
 
 
