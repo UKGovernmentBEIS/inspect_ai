@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Timelines: Improved detection of `forked_at` for branches from user or system messages.
+- Timelines: Provide option to include or exclude branches when computing span time and token usage.
 
 ## 0.3.203 (01 April 2026)
 

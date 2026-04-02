@@ -55,7 +55,7 @@ def _min_start_time(
     Returns:
         The minimum start_time.
     """
-    return min(node.start_time for node in nodes)
+    return min(node.start_time() for node in nodes)
 
 
 def _max_end_time(
@@ -71,7 +71,7 @@ def _max_end_time(
     Returns:
         The maximum end_time.
     """
-    return max(node.end_time for node in nodes)
+    return max(node.end_time() for node in nodes)
 
 
 def _sum_tokens(
@@ -85,7 +85,7 @@ def _sum_tokens(
     Returns:
         Total token count from all nodes.
     """
-    return sum(node.total_tokens for node in nodes)
+    return sum(node.total_tokens() for node in nodes)
 
 
 class TimelineEvent(BaseModel):
@@ -115,20 +115,17 @@ class TimelineEvent(BaseModel):
             return data
         return data
 
-    @property
     def start_time(self) -> datetime:
         """Event timestamp (required field on all events)."""
         return self.event.timestamp
 
-    @property
     def end_time(self) -> datetime:
         """Event completion time if available, else timestamp."""
         if isinstance(self.event, (ModelEvent, ToolEvent)):
             if self.event.completed is not None:
                 return self.event.completed
-        return self.start_time
+        return self.start_time()
 
-    @property
     def total_tokens(self) -> int:
         """Tokens from this event (ModelEvent only).
 
@@ -147,7 +144,6 @@ class TimelineEvent(BaseModel):
                 return input_tokens + cache_read + cache_write + output_tokens
         return 0
 
-    @property
     def idle_time(self) -> float:
         """Seconds of idle time (always 0 for a single event)."""
         return 0.0
@@ -177,24 +173,24 @@ def _compute_idle_time(
     if not content:
         return 0.0
 
-    sorted_children = sorted(content, key=lambda c: c.start_time)
-    idle = sum(child.idle_time for child in sorted_children)
+    sorted_children = sorted(content, key=lambda c: c.start_time())
+    idle = sum(child.idle_time() for child in sorted_children)
 
     # Gap: span start → first child
-    gap = (sorted_children[0].start_time - start_time).total_seconds()
+    gap = (sorted_children[0].start_time() - start_time).total_seconds()
     if gap > _IDLE_THRESHOLD_SECS:
         idle += gap
 
     # Gaps between consecutive children
     for i in range(1, len(sorted_children)):
         gap = (
-            sorted_children[i].start_time - sorted_children[i - 1].end_time
+            sorted_children[i].start_time() - sorted_children[i - 1].end_time()
         ).total_seconds()
         if gap > _IDLE_THRESHOLD_SECS:
             idle += gap
 
     # Gap: last child → span end
-    gap = (end_time - sorted_children[-1].end_time).total_seconds()
+    gap = (end_time - sorted_children[-1].end_time()).total_seconds()
     if gap > _IDLE_THRESHOLD_SECS:
         idle += gap
 
@@ -242,25 +238,27 @@ class TimelineSpan(BaseModel):
         items.extend(self.branches)
         return items
 
-    @property
-    def start_time(self) -> datetime:
-        """Earliest start time among direct content (excludes branches)."""
-        return _min_start_time(self.content)
+    def start_time(self, include_branches: bool = True) -> datetime:
+        """Earliest start time among content (and optionally branches)."""
+        items = self._content_and_branches() if include_branches else self.content
+        return _min_start_time(items)
 
-    @property
-    def end_time(self) -> datetime:
-        """Latest end time among direct content (excludes branches)."""
-        return _max_end_time(self.content)
+    def end_time(self, include_branches: bool = True) -> datetime:
+        """Latest end time among content (and optionally branches)."""
+        items = self._content_and_branches() if include_branches else self.content
+        return _max_end_time(items)
 
-    @property
-    def total_tokens(self) -> int:
-        """Sum of tokens from all content and branches."""
-        return _sum_tokens(self.content)
+    def total_tokens(self, include_branches: bool = True) -> int:
+        """Sum of tokens from content (and optionally branches)."""
+        items = self._content_and_branches() if include_branches else self.content
+        return _sum_tokens(items)
 
-    @property
-    def idle_time(self) -> float:
-        """Seconds of idle time within this span (excludes branches)."""
-        return _compute_idle_time(self.content, self.start_time, self.end_time)
+    def idle_time(self, include_branches: bool = True) -> float:
+        """Seconds of idle time within this span (and optionally branches)."""
+        items = self._content_and_branches() if include_branches else self.content
+        return _compute_idle_time(
+            items, self.start_time(include_branches), self.end_time(include_branches)
+        )
 
 
 class OutlineNode(BaseModel):
