@@ -1,3 +1,30 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:1bf9b98bc9f5e75d370c7a99f0b5c19503288a76eb4c164fbf9f9c2f796114a7
-size 1258
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,noai,noimageai" />
+    <title>Inspect View</title>
+    <link rel="icon" href="./assets/favicon-C7mgxpZz.svg" />
+
+    <script>
+      // Forward the theme (dark or light) onto the root html element
+      // this parameter will tend to appear when the view is hosted within
+      // an iframe (e.g. in vscode)
+      const urlParams = new URLSearchParams(window.location.search);
+      const theme = urlParams.get("inspectLogviewThemeCategory");
+      if (theme) {
+        document.documentElement.setAttribute("data-text-highlight", theme);
+        document.documentElement.setAttribute("data-bs-theme", theme);
+      }
+    </script>
+    <script type="module" crossorigin src="./assets/index-ClCKrGp8.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/_commonjsHelpers-Cpj98o6Y.js">
+    <link rel="modulepreload" crossorigin href="./assets/chunk-DfAF0w94-qwHW_6P2.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-CJqqymCn.css">
+  </head>
+
+  <body style="min-width: 450px">
+    <div id="app"></div>
+  </body>
+</html>
