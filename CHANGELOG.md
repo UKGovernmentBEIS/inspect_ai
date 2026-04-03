@@ -1,3 +1,7 @@
+## Unreleased
+
+- Ensure that `condense_events()` is called when re-writing eval logs.
+
 ## 0.3.204 (02 April 2026)
 
 - Timelines: Improved detection of `forked_at` for branches from user or system messages.

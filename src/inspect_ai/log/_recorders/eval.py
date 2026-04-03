@@ -36,6 +36,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
+from .._condense import condense_sample
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -448,6 +449,7 @@ async def _write_eval_log_with_recorder(
     await recorder.log_init(log.eval, output_file, clean=True)
     await recorder.log_start(log.eval, log.plan)
     for sample in log.samples or []:
+        sample = condense_sample(sample)
         await recorder.log_sample(log.eval, sample)
     await recorder.log_finish(
         log.eval,

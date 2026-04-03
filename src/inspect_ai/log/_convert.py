@@ -97,8 +97,6 @@ def convert_eval_logs(
             )
         else:
             log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
-            if log.samples:
-                log.samples = [condense_sample(sample) for sample in log.samples]
             write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":
