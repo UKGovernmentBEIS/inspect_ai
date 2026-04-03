@@ -29,8 +29,7 @@ def convert_eval_logs(
 ) -> None:
     """Convert between log file formats.
 
-    Convert log file(s) to a target format. If a file is already in the target
-    format it will just be copied to the output dir.
+    Convert log file(s) to a target format.
 
     Args:
         path (str): Path to source log file(s). Should be either a single
