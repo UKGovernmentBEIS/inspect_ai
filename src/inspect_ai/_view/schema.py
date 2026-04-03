@@ -34,6 +34,12 @@ from inspect_ai.model import ChatMessage as _ChatMessage
 from inspect_ai.model import Content as _Content
 from inspect_ai.tool._tool_choice import ToolChoice as _ToolChoice
 
+# RootModel wrappers give stable schema names to type aliases (unions, literals)
+# that would otherwise be inlined with auto-generated, unstable names. The class
+# name becomes the key in components/schemas. Original types are imported with _
+# prefix aliases above to free up the bare names.
+# See design/type-generation-pipeline.md.
+
 
 class Content(RootModel[_Content]):
     pass
@@ -118,6 +124,8 @@ def _generate_new() -> None:
     See design/type-generation-pipeline.md for the full pipeline docs.
     """
     app = FastAPI(title="inspect_ai types", version="0.1.0")
+
+    # Stub endpoints for schema generation — not served by the real API.
 
     @app.get("/eval-log")
     def _eval_log() -> EvalLog:
