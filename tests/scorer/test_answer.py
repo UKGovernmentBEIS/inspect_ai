@@ -56,6 +56,7 @@ async def test_word_unicode_symbols(model_output: str, target: str):
     state = simple_task_state(model_output=model_output)
     result = await scorer(state, Target([target]))
 
+    assert result is not None
     assert result.text == CORRECT
 
 
