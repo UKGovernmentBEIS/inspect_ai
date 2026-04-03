@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Ensure that `condense_events()` is called when re-writing eval logs.
+- Eval Logs: Ensure that `condense_events()` is called when re-writing eval logs.
+- Eval Logs: Correct import ordering for patching use of zstd compressions.
 
 ## 0.3.204 (02 April 2026)
 
