@@ -1,4 +1,3 @@
-import glob
 import os
 import tempfile
 
@@ -40,11 +39,11 @@ def test_s3_bundle(mock_s3) -> None:
     for exp in expected_exact:
         assert s3_fs.exists(os.path.join(output_dir, exp))
 
-    # hashed asset filenames
+    # asset filenames
     assets = s3_fs.ls(os.path.join(output_dir, "assets"))
     asset_names = [os.path.basename(a.name) for a in assets]
-    assert any(f.endswith(".js") and f.startswith("index-") for f in asset_names)
-    assert any(f.endswith(".css") and f.startswith("index-") for f in asset_names)
+    assert "index.js" in asset_names
+    assert "index.css" in asset_names
 
 
 def test_bundle() -> None:
@@ -72,9 +71,9 @@ def test_bundle() -> None:
         for exp in expected_exact:
             assert os.path.exists(os.path.join(output_dir, exp))
 
-        # hashed asset filenames
-        assert glob.glob(os.path.join(output_dir, "assets", "index-*.js"))
-        assert glob.glob(os.path.join(output_dir, "assets", "index-*.css"))
+        # asset filenames
+        assert os.path.exists(os.path.join(output_dir, "assets", "index.js"))
+        assert os.path.exists(os.path.join(output_dir, "assets", "index.css"))
 
         # ensure there is a non-listing.json log file present in logs
         non_manifest_logs = [
@@ -108,11 +107,11 @@ def test_s3_embed(mock_s3) -> None:
     for exp in viewer_expected:
         assert s3_fs.exists(os.path.join(log_dir, exp))
 
-    # hashed asset filenames
+    # asset filenames
     assets = s3_fs.ls(os.path.join(log_dir, "assets"))
     asset_names = [os.path.basename(a.name) for a in assets]
-    assert any(f.endswith(".js") and f.startswith("index-") for f in asset_names)
-    assert any(f.endswith(".css") and f.startswith("index-") for f in asset_names)
+    assert "index.js" in asset_names
+    assert "index.css" in asset_names
 
     # ensure old viewer/ subdirectory was not created
     assert not s3_fs.exists(os.path.join(log_dir, "viewer"))
@@ -141,9 +140,9 @@ def test_embed() -> None:
         for exp in viewer_expected:
             assert os.path.exists(os.path.join(log_dir, exp))
 
-        # hashed asset filenames
-        assert glob.glob(os.path.join(log_dir, "assets", "index-*.js"))
-        assert glob.glob(os.path.join(log_dir, "assets", "index-*.css"))
+        # asset filenames
+        assert os.path.exists(os.path.join(log_dir, "assets", "index.js"))
+        assert os.path.exists(os.path.join(log_dir, "assets", "index.css"))
 
         # ensure old viewer/ subdirectory was not created
         assert not os.path.exists(os.path.join(log_dir, "viewer"))

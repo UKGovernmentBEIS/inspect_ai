@@ -457,11 +457,8 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
-_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
-
-
 class _InspectStaticFiles(StaticFiles):
-    """StaticFiles with cache headers for hashed assets."""
+    """StaticFiles with no-cache headers to avoid stale assets."""
 
     def file_response(
         self,
@@ -471,10 +468,11 @@ class _InspectStaticFiles(StaticFiles):
         status_code: int = 200,
     ) -> Response:
         response = super().file_response(full_path, stat_result, scope, status_code)
-        if "/assets/" in str(full_path):
-            response.headers["cache-control"] = _IMMUTABLE_CACHE
-        else:
-            response.headers["cache-control"] = "no-cache"
+        response.headers["expires"] = "Fri, 01 Jan 1990 00:00:00 GMT"
+        response.headers["pragma"] = "no-cache"
+        response.headers["cache-control"] = (
+            "no-cache, no-store, max-age=0, must-revalidate"
+        )
         return response
 
 

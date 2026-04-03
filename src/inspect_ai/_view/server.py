@@ -511,9 +511,6 @@ async def log_headers_response(files: list[str]) -> web.Response:
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
 
 
-_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
-
-
 class WWWResource(web.StaticResource):
     def __init__(self, dist_dir: Path) -> None:
         super().__init__("", os.path.abspath(dist_dir.as_posix()))
@@ -526,11 +523,15 @@ class WWWResource(web.StaticResource):
 
         response = await super()._handle(request)
 
-        # Hashed assets are immutable; everything else (index.html) must revalidate.
-        if "/assets/" in request.path:
-            response.headers["Cache-Control"] = _IMMUTABLE_CACHE
-        else:
-            response.headers["Cache-Control"] = "no-cache"
+        # disable caching as this is only ever served locally
+        # and w/ caching sometimes we get stale assets
+        response.headers.update(
+            {
+                "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
+                "Pragma": "no-cache",
+                "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+            }
+        )
 
         return response
 
