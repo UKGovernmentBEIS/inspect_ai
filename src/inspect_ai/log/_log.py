@@ -202,12 +202,15 @@ class EvalConfig(BaseModel):
         return values
 
 
+EvalSampleLimitType = Literal[
+    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+]
+
+
 class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
-    type: Literal[
-        "context", "time", "working", "message", "token", "cost", "operator", "custom"
-    ]
+    type: EvalSampleLimitType
     """The type of limit"""
 
     limit: float
