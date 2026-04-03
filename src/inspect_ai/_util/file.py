@@ -397,6 +397,13 @@ def to_uri(path_or_uri: str) -> str:
     return path_obj.as_uri()
 
 
+def local_path(filename: str) -> str:
+    """Convert a file:// URL to a local path, or return as-is."""
+    if filename.startswith("file://"):
+        return urlparse(filename).path
+    return filename
+
+
 def default_fs_options(file: str) -> dict[str, Any]:
     scheme = urlparse(file).scheme
     if (

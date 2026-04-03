@@ -1,3 +1,7 @@
+## Unreleased
+
+- Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
+
 ## 0.3.204 (02 April 2026)
 
 - Timelines: Improved detection of `forked_at` for branches from user or system messages.
