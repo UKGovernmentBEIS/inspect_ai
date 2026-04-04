@@ -60,6 +60,24 @@ class JSONSchema(BaseModel):
     required: list[str] | None = Field(default=None)
     """Required fields for object parameters."""
 
+    pattern: str | None = Field(default=None)
+    """Regex pattern for string parameters."""
+
+    minLength: int | None = Field(default=None)
+    """Minimum length for string parameters."""
+
+    maxLength: int | None = Field(default=None)
+    """Maximum length for string parameters."""
+
+    minimum: int | float | None = Field(default=None)
+    """Minimum value for numeric parameters."""
+
+    maximum: int | float | None = Field(default=None)
+    """Maximum value for numeric parameters."""
+
+    examples: list[Any] | None = Field(default=None)
+    """Example values for the parameter."""
+
 
 def json_schema(t: Type[Any]) -> JSONSchema:
     """Provide a JSON Schema for the specified type.
