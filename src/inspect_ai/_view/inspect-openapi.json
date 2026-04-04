@@ -1077,14 +1077,6 @@
         "title": "ContentAudio",
         "type": "object"
       },
-      "ContentAudioFormat": {
-        "enum": [
-          "wav",
-          "mp3"
-        ],
-        "title": "ContentAudioFormat",
-        "type": "string"
-      },
       "ContentCitation": {
         "description": "A generic content citation.",
         "properties": {
@@ -1514,15 +1506,6 @@
         ],
         "title": "ContentVideo",
         "type": "object"
-      },
-      "ContentVideoFormat": {
-        "enum": [
-          "mp4",
-          "mpeg",
-          "mov"
-        ],
-        "title": "ContentVideoFormat",
-        "type": "string"
       },
       "DocumentCitation": {
         "description": "A citation that refers to a page range in a document.",
@@ -2996,20 +2979,6 @@
         ],
         "title": "EvalSampleLimit",
         "type": "object"
-      },
-      "EvalSampleLimitType": {
-        "enum": [
-          "context",
-          "time",
-          "working",
-          "message",
-          "token",
-          "cost",
-          "operator",
-          "custom"
-        ],
-        "title": "EvalSampleLimitType",
-        "type": "string"
       },
       "EvalSampleReductions": {
         "description": "Score reductions.",
@@ -4691,18 +4660,6 @@
         ],
         "title": "JsonChange",
         "type": "object"
-      },
-      "JsonChangeOp": {
-        "enum": [
-          "remove",
-          "add",
-          "replace",
-          "move",
-          "test",
-          "copy"
-        ],
-        "title": "JsonChangeOp",
-        "type": "string"
       },
       "JsonValue": {},
       "LogUpdate": {
@@ -7967,42 +7924,6 @@
         "summary": " Content"
       }
     },
-    "/content-audio-format": {
-      "get": {
-        "operationId": "_content_audio_format_content_audio_format_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContentAudioFormat"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Content Audio Format"
-      }
-    },
-    "/content-video-format": {
-      "get": {
-        "operationId": "_content_video_format_content_video_format_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContentVideoFormat"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Content Video Format"
-      }
-    },
     "/eval-log": {
       "get": {
         "operationId": "_eval_log_eval_log_get",
@@ -8019,24 +7940,6 @@
           }
         },
         "summary": " Eval Log"
-      }
-    },
-    "/eval-sample-limit-type": {
-      "get": {
-        "operationId": "_eval_sample_limit_type_eval_sample_limit_type_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvalSampleLimitType"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Eval Sample Limit Type"
       }
     },
     "/eval-set": {
@@ -8073,24 +7976,6 @@
           }
         },
         "summary": " Event"
-      }
-    },
-    "/json-change-op": {
-      "get": {
-        "operationId": "_json_change_op_json_change_op_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonChangeOp"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Json Change Op"
       }
     },
     "/tool-choice": {

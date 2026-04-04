@@ -17,17 +17,9 @@ from pydantic import RootModel
 
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util.citation import Citation as _Citation
-from inspect_ai._util.content import (
-    ContentAudioFormat as _ContentAudioFormat,
-)
-from inspect_ai._util.content import (
-    ContentVideoFormat as _ContentVideoFormat,
-)
-from inspect_ai._util.json import JsonChangeOp as _JsonChangeOp
 from inspect_ai._view._openapi import build_openapi_schema
 from inspect_ai.event._event import Event as _Event
 from inspect_ai.log import EvalLog
-from inspect_ai.log._log import EvalSampleLimitType as _EvalSampleLimitType
 from inspect_ai.model import ChatMessage as _ChatMessage
 from inspect_ai.model import Content as _Content
 from inspect_ai.tool._tool_choice import ToolChoice as _ToolChoice
@@ -59,20 +51,6 @@ class ToolChoice(RootModel[_ToolChoice]):
     pass
 
 
-class JsonChangeOp(RootModel[_JsonChangeOp]):
-    pass
-
-
-class EvalSampleLimitType(RootModel[_EvalSampleLimitType]):
-    pass
-
-
-class ContentAudioFormat(RootModel[_ContentAudioFormat]):
-    pass
-
-
-class ContentVideoFormat(RootModel[_ContentVideoFormat]):
-    pass
 
 
 VIEW_DIR = Path(__file__).parent
@@ -118,22 +96,6 @@ def _generate_new() -> None:
 
     @app.get("/tool-choice")
     def _tool_choice() -> ToolChoice:
-        raise NotImplementedError
-
-    @app.get("/json-change-op")
-    def _json_change_op() -> JsonChangeOp:
-        raise NotImplementedError
-
-    @app.get("/eval-sample-limit-type")
-    def _eval_sample_limit_type() -> EvalSampleLimitType:
-        raise NotImplementedError
-
-    @app.get("/content-audio-format")
-    def _content_audio_format() -> ContentAudioFormat:
-        raise NotImplementedError
-
-    @app.get("/content-video-format")
-    def _content_video_format() -> ContentVideoFormat:
         raise NotImplementedError
 
     schema = build_openapi_schema(app)
