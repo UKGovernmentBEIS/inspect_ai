@@ -2284,6 +2284,17 @@
             "$ref": "#/components/schemas/EvalPlan"
           },
           "reductions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EvalSampleReductions"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Reductions"
           },
           "results": {
@@ -2297,6 +2308,17 @@
             ]
           },
           "samples": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EvalSample"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Samples"
           },
           "stats": {

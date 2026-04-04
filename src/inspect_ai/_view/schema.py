@@ -1,8 +1,7 @@
 """Generate TypeScript types from inspect_ai Python models.
 
-Runs both type generation pipelines:
-  1. Old: EvalLog → log-schema.json → json-schema-to-typescript → log.d.ts
-  2. New: EvalLog → inspect-openapi.json → openapi-typescript → generated.ts
+Generates OpenAPI schema and TypeScript types:
+  EvalLog → inspect-openapi.json → openapi-typescript → generated.ts
 
 Usage:
     python src/inspect_ai/_view/schema.py
@@ -12,7 +11,6 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from fastapi import FastAPI
 from pydantic import RootModel
@@ -79,40 +77,7 @@ class ContentVideoFormat(RootModel[_ContentVideoFormat]):
 
 VIEW_DIR = Path(__file__).parent
 TS_MONO_DIR = os.path.abspath((VIEW_DIR / "ts-mono").as_posix())
-APP_DIR = os.path.abspath((VIEW_DIR / "ts-mono" / "apps" / "inspect").as_posix())
 OUTPUT_PATH = VIEW_DIR / "inspect-openapi.json"
-
-
-def _generate_old() -> None:
-    """Generate JSON schema and TypeScript types for EvalLog via json-schema-to-typescript."""
-    schema_path = VIEW_DIR / "log-schema.json"
-
-    with open(schema_path, "w", encoding="utf-8") as f:
-        eval_set = EvalSet.model_json_schema()
-        schema = EvalLog.model_json_schema()
-        defs: dict[str, Any] = schema["$defs"]
-
-        defs["EvalSetInfo"] = eval_set
-        if "$defs" in eval_set:
-            defs.update(eval_set["$defs"])
-
-        if "properties" not in schema:
-            schema["properties"] = {}
-        schema["properties"]["eval_set_info"] = {
-            "anyOf": [{"$ref": "#/$defs/EvalSetInfo"}, {"type": "null"}],
-            "default": None,
-        }
-
-        for key in defs.keys():
-            defs[key] = _schema_to_strict(defs[key])
-        f.write(json.dumps(schema, indent=2))
-        f.write("\n")
-
-        subprocess.run(
-            ["pnpm", "types:generate"],
-            cwd=APP_DIR,
-            check=True,
-        )
 
 
 def _generate_new() -> None:
@@ -186,14 +151,5 @@ def _generate_new() -> None:
     )
 
 
-def _schema_to_strict(schema: dict[str, Any]) -> dict[str, Any]:
-    properties = schema.get("properties", None)
-    if properties:
-        schema["required"] = list(properties.keys())
-        schema["additionalProperties"] = False
-    return schema
-
-
 if __name__ == "__main__":
-    _generate_old()
     _generate_new()
