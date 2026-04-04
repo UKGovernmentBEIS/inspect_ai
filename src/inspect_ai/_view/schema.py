@@ -51,8 +51,6 @@ class ToolChoice(RootModel[_ToolChoice]):
     pass
 
 
-
-
 VIEW_DIR = Path(__file__).parent
 TS_MONO_DIR = os.path.abspath((VIEW_DIR / "ts-mono").as_posix())
 OUTPUT_PATH = VIEW_DIR / "inspect-openapi.json"
