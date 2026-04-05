@@ -1,3 +1,9 @@
+## Unreleased
+
+- Hooks: Add `on_before_model_generate()` hook.
+- Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
+- Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
+
 ## 0.3.205 (04 April 2026)
 
 - Eval Logs: Ensure that `condense_events()` is called when re-writing eval logs.
