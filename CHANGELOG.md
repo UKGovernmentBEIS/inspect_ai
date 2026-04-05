@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
 - Hooks: Add `on_before_model_generate()` hook.
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
