@@ -1,3 +1,7 @@
+## Unreleased
+
+- Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
+
 ## 0.3.205 (04 April 2026)
 
 - Eval Logs: Ensure that `condense_events()` is called when re-writing eval logs.
