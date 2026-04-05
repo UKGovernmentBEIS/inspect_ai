@@ -554,7 +554,7 @@ def test_json_schema_dump_excludes_extended_fields():
     assert result["type"] == "string"
 
 
-def test_json_schema_dump_recursive_exclude():
+def test_json_schema_dump_recursive_exclude() -> None:
     """Extended fields in nested properties should also be stripped."""
 
     class UserProfile(BaseModel):
