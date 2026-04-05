@@ -1,4 +1,4 @@
-"""Tests for branch discovery, forked_at resolution, and relocation."""
+"""Tests for branch discovery, branched_from, and relocation."""
 
 from datetime import datetime, timezone
 
@@ -150,7 +150,7 @@ def test_branch_with_branch_event_creates_branch_span() -> None:
     assert len(agent.branches) == 1
     branch = agent.branches[0]
     assert branch.span_type == "branch"
-    assert branch.forked_at == "m1"
+    assert branch.branched_from == "msg-1"
 
 
 def test_branch_without_branch_event_becomes_content() -> None:
@@ -233,16 +233,16 @@ def test_nested_branch_relocated_to_parent_branch() -> None:
     # Agent should have 1 branch (branch 1); branch 2 was relocated
     assert len(agent.branches) == 1
     branch1 = agent.branches[0]
-    assert branch1.forked_at == "m1"
+    assert branch1.branched_from == "msg-1"
 
     # Branch 1 should have 1 nested branch (branch 2)
     assert len(branch1.branches) == 1
     branch2 = branch1.branches[0]
-    assert branch2.forked_at == "m2"
+    assert branch2.branched_from == "msg-2"
 
 
-def test_forked_at_resolves_via_message_lookup() -> None:
-    """forked_at correctly maps message_id to event UUID."""
+def test_branched_from_stores_message_id() -> None:
+    """branched_from stores the message_id directly from BranchEvent."""
     events: list[Event] = [
         _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
         _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-A"),
@@ -273,4 +273,4 @@ def test_forked_at_resolves_via_message_lookup() -> None:
     assert agent is not None
 
     assert len(agent.branches) == 1
-    assert agent.branches[0].forked_at == "m2"
+    assert agent.branches[0].branched_from == "msg-B"

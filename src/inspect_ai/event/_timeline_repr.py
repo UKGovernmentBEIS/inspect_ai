@@ -156,7 +156,7 @@ def _collect_markers(span: "TimelineSpan") -> list[tuple[datetime, str]]:
         event_type = item.event.event
         # Compaction marker
         if event_type == "compaction":
-            markers.append((item.start_time, "┊"))
+            markers.append((item.start_time(), "┊"))
     return markers
 
 
@@ -171,8 +171,8 @@ def _spans_overlap(a: "TimelineSpan", b: "TimelineSpan") -> bool:
         True if the spans overlap.
     """
     return (
-        max(a.start_time, b.start_time)
-        < min(a.end_time, b.end_time) + _OVERLAP_TOLERANCE
+        max(a.start_time(), b.start_time())
+        < min(a.end_time(), b.end_time()) + _OVERLAP_TOLERANCE
     )
 
 
@@ -195,7 +195,7 @@ def _cluster_spans(
         return []
 
     # Sort by start time
-    sorted_spans = sorted(spans, key=lambda s: s.start_time)
+    sorted_spans = sorted(spans, key=lambda s: s.start_time())
     clusters: list[list["TimelineSpan"]] = [[sorted_spans[0]]]
 
     for span in sorted_spans[1:]:
@@ -239,8 +239,8 @@ def _collect_rows(
         _Row(
             depth=depth,
             name="main" if depth == 0 else span.name,
-            segments=[(span.start_time, span.end_time)],
-            tokens=span.total_tokens,
+            segments=[(span.start_time(), span.end_time())],
+            tokens=span.total_tokens(),
             markers=markers,
         )
     )
@@ -262,7 +262,7 @@ def _collect_rows(
         groups[key].append(child)
 
     # Sort groups by earliest start time
-    group_order.sort(key=lambda k: min(s.start_time for s in groups[k]))
+    group_order.sort(key=lambda k: min(s.start_time() for s in groups[k]))
 
     for key in group_order:
         group = groups[key]
@@ -276,8 +276,8 @@ def _collect_rows(
                 _Row(
                     depth=depth + 1,
                     name=display_name,
-                    segments=[(s.start_time, s.end_time)],
-                    tokens=s.total_tokens,
+                    segments=[(s.start_time(), s.end_time())],
+                    tokens=s.total_tokens(),
                     markers=group_markers,
                 )
             )
@@ -290,17 +290,17 @@ def _collect_rows(
             clusters = _cluster_spans(group)
             segments: list[tuple[datetime, datetime]] = []
             all_markers: list[tuple[datetime, str]] = []
-            total_tokens = sum(s.total_tokens for s in group)
+            total_tokens = sum(s.total_tokens() for s in group)
 
             for cluster in clusters:
                 for s in cluster:
                     all_markers.extend(_collect_markers(s))
                 if len(cluster) == 1:
                     s = cluster[0]
-                    segments.append((s.start_time, s.end_time))
+                    segments.append((s.start_time(), s.end_time()))
                 else:
-                    envelope_start = min(s.start_time for s in cluster)
-                    envelope_end = max(s.end_time for s in cluster)
+                    envelope_start = min(s.start_time() for s in cluster)
+                    envelope_end = max(s.end_time() for s in cluster)
                     segments.append((envelope_start, envelope_end))
                     # Add count marker at envelope start
                     glyph = _count_glyph(len(cluster))
@@ -365,14 +365,14 @@ def _emit_branch_rows(
         if isinstance(item, TimelineEvent):
             event_type = item.event.event
             if event_type == "compaction":
-                markers.append((item.start_time, "┊"))
+                markers.append((item.start_time(), "┊"))
 
     rows.append(
         _Row(
             depth=depth + 1,
             name=label,
-            segments=[(branch.start_time, branch.end_time)],
-            tokens=branch.total_tokens,
+            segments=[(branch.start_time(), branch.end_time())],
+            tokens=branch.total_tokens(),
             markers=markers,
         )
     )
@@ -421,8 +421,8 @@ def render_timeline(timeline: "Timeline", width: int | None = None) -> str:
     if not root.content:
         return "main"
 
-    view_start = root.start_time
-    view_end = root.end_time
+    view_start = root.start_time()
+    view_end = root.end_time()
 
     rows = _collect_rows(root, 0, view_start, view_end)
 
