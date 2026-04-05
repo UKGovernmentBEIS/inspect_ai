@@ -107,6 +107,11 @@ class TogetherAIAPI(OpenAICompatibleAPI):
     def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
 
+    @property
+    @override
+    def schema_exclude_fields(self) -> set[str] | None:
+        return None
+
     @override
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup.

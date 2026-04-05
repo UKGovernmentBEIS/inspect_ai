@@ -160,6 +160,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ._providers._openai_computer_use import (
     computer_call_output,
@@ -1282,7 +1283,7 @@ def _tool_param_for_tool_info(
             type="function",
             name=_responses_tool_alias(tool.name),
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=json_schema_dump(tool.parameters),
             strict=False,  # default parameters don't work in strict mode
         )
 
