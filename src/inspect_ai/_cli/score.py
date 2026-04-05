@@ -27,6 +27,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.scorer._metric import Metric, MetricSpec
 
 from .common import CommonOptions, common_options, process_common_options
@@ -83,6 +84,15 @@ from .common import CommonOptions, common_options, process_common_options
     help="Stream the samples through the scoring process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being scored.",
     envvar="INSPECT_SCORE_STREAM",
 )
+@click.option(
+    "--cache",
+    type=str,
+    is_flag=False,
+    flag_value="true",
+    default=None,
+    envvar="INSPECT_SCORE_CACHE",
+    help="Cache scorer outputs for faster re-scoring. Pass --cache for default (1W expiry) or --cache=DURATION (e.g. 1D, 12h, 1M).",
+)
 @common_options
 def score_command(
     log_file: str,
@@ -93,10 +103,24 @@ def score_command(
     metric: tuple[str, ...] | None,
     action: ScoreAction | None,
     stream: int | bool = False,
+    cache: str | None = None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
     process_common_options(common)
+
+    # Resolve cache policy from CLI arg
+    cache_policy: bool | CachePolicy = False
+    if cache is not None:
+        if cache == "true":
+            cache_policy = True
+        else:
+            policy = CachePolicy.from_string(cache)
+            if policy is None:
+                raise click.ClickException(
+                    f"Invalid cache duration: {cache}. Use format like 1W, 12h, 1D, 1M."
+                )
+            cache_policy = policy
 
     async def run_score() -> None:
         return await score(
@@ -110,6 +134,7 @@ def score_command(
             action=action,
             log_level=common["log_level"],
             stream=stream,
+            cache=cache_policy,
         )
 
     anyio.run(run_score, backend=configured_async_backend())
@@ -126,6 +151,7 @@ async def score(
     log_level: str | None,
     output_file: str | None = None,
     stream: int | bool = False,
+    cache: bool | CachePolicy = False,
 ) -> None:
     platform_init()
 
@@ -186,6 +212,7 @@ async def score(
         action=action,
         copy=False,
         samples=read_sample,
+        cache=cache,
     )
 
     if stream:

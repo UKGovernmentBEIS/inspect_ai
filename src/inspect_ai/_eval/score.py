@@ -25,6 +25,7 @@ from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.event._event import Event
@@ -42,9 +43,15 @@ from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
+from inspect_ai.scorer._cache import (
+    ScoreCacheEntry,
+    score_cache_fetch,
+    score_cache_store,
+)
 from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
@@ -52,7 +59,7 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
+from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
@@ -77,6 +84,7 @@ def score(
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
+    cache: bool | CachePolicy = False,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -92,6 +100,8 @@ def score(
        action: Whether to append or overwrite this score
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
+       cache: Enable score caching. True uses default CachePolicy (1W expiry).
+           Pass a CachePolicy for custom expiry/scopes. Default is False (no caching).
 
     Returns:
        Log with scores yielded by scorer.
@@ -107,11 +117,13 @@ def score(
 
     if running_in_notebook():
         return run_coroutine(
-            score_async(log, scorers, metrics, epochs_reducer, action, copy=copy)
+            score_async(
+                log, scorers, metrics, epochs_reducer, action, copy=copy, cache=cache
+            )
         )
     else:
         return anyio.run(
-            functools.partial(score_async, copy=copy),
+            functools.partial(score_async, copy=copy, cache=cache),
             log,
             scorers,
             metrics,
@@ -190,6 +202,7 @@ async def score_async(
     display: DisplayType | None = None,
     copy: bool = True,
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
+    cache: bool | CachePolicy = False,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -211,12 +224,21 @@ async def score_async(
          Function to read samples from the log, which accepts the
          sample index and async yields an EvalSample. Can be used to
          stream samples without loading the entire log into memory.
+       cache: Enable score caching. True uses default CachePolicy (1W expiry).
+           Pass a CachePolicy for custom expiry/scopes. Default is False (no caching).
 
     Returns:
        Log with scores yielded by scorer.
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
+
+    # resolve cache policy
+    cache_policy: CachePolicy | None = None
+    if cache is True:
+        cache_policy = CachePolicy()
+    elif isinstance(cache, CachePolicy):
+        cache_policy = cache
 
     # resolve scorers
     resolved_scorers = resolve_scorer(scorers)
@@ -266,7 +288,7 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, action
+                    log, sample, resolved_scorers, action, cache_policy
                 )
 
             assert sample.scores is not None
@@ -331,6 +353,7 @@ async def _run_score_task(
     sample: EvalSample,
     scorers: list[Scorer],
     action: ScoreAction,
+    cache_policy: CachePolicy | None = None,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     target = Target(sample.target)
     state = TaskState(
@@ -379,7 +402,56 @@ async def _run_score_task(
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type="scorer"):
-                score_result = await scorer(state, target)
+                score_result: Score | None = None
+                cache_entry: ScoreCacheEntry | None = None
+
+                # Try to fetch from cache
+                if cache_policy is not None:
+                    try:
+                        spec = as_scorer_spec(scorer)
+                        # Serialize messages for cache key (exclude ids)
+                        # Use model_dump_json for deterministic serialization
+                        serialized_messages = [
+                            m.model_dump_json(exclude={"id"})
+                            if hasattr(m, "model_dump_json")
+                            else str(m)
+                            for m in state.messages
+                        ]
+                        cache_entry = ScoreCacheEntry(
+                            scorer_name=spec.scorer,
+                            scorer_args=spec.args,
+                            eval_model=log_header.eval.model,
+                            model_roles=log_header.eval.model_roles,
+                            input=state.input
+                            if isinstance(state.input, str)
+                            else (
+                                state.input.model_dump_json()
+                                if hasattr(state.input, "model_dump_json")
+                                else str(state.input)
+                            ),
+                            messages=serialized_messages,
+                            output=state.output.model_dump_json()
+                            if state.output is not None
+                            else "",
+                            target=target.target,
+                            choices=list(state.choices)
+                            if state.choices is not None
+                            else None,
+                            metadata=state.metadata,
+                            policy=cache_policy,
+                            epoch=state.epoch,
+                        )
+                        score_result = score_cache_fetch(cache_entry)
+                    except PrerequisiteError:
+                        # Non-registry scorer, skip caching
+                        cache_entry = None
+
+                if score_result is None:
+                    score_result = await scorer(state, target)
+                    # Store in cache if we have a cache entry and got a result
+                    if cache_entry is not None and score_result is not None:
+                        score_cache_store(cache_entry, score_result)
+
                 if scorer_name in state.scores:
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
