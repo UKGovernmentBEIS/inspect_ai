@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Awaitable, Callable, Type, TypeVar, cast
+from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream
@@ -20,7 +20,11 @@ from inspect_ai.event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from inspect_ai.log._samples import sample_active
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 
 logger = getLogger(__name__)
@@ -257,6 +261,34 @@ class ModelCacheUsageData:
 
 
 @dataclass(frozen=True)
+class BeforeModelGenerate:
+    """Data provided before a model generate() call."""
+
+    model_name: str
+    """The name of the model about to be called."""
+    input: list[ChatMessage]
+    """The chat messages about to be sent to the model."""
+    tools: list[ToolInfo]
+    """The tools available for the model to call."""
+    tool_choice: ToolChoice
+    """Directives to the model as to which tools to prefer."""
+    config: GenerateConfig
+    """The generation configuration."""
+    cache: Literal["write"] | None
+    """Cache mode: 'write' if caching is enabled, None otherwise."""
+    eval_set_id: str | None = None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str | None = None
+    """The globally unique identifier for the run (if any)."""
+    eval_id: str | None = None
+    """The globally unique identifier for the task execution (if any)."""
+    sample_id: str | None = None
+    """The globally unique identifier for the sample execution (if any)."""
+    task_name: str | None = None
+    """The name of the task that triggered this generate call (if any)."""
+
+
+@dataclass(frozen=True)
 class SampleScoring:
     """Sample scoring hook event data."""
 
@@ -408,6 +440,20 @@ class Hooks:
 
         Args:
            data: Sample end data.
+        """
+        pass
+
+    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+        """Called before a model's generate() method is invoked.
+
+        This is called after cache lookup (only fires on cache miss) and
+        after model API access verification, right before the actual API call.
+
+        Note that this fires inside the retry wrapper, so it will be called
+        on each retry attempt, not just the first.
+
+        Args:
+           data: Pre-generation data including input messages, tools, and config.
         """
         pass
 
@@ -722,6 +768,34 @@ async def emit_sample_end(
         sample=sample,
     )
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
+
+
+async def emit_before_model_generate(
+    model_name: str,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice,
+    config: GenerateConfig,
+    cache: Literal["write"] | None,
+) -> None:
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+
+    data = BeforeModelGenerate(
+        model_name=model_name,
+        input=input,
+        tools=tools,
+        tool_choice=tool_choice,
+        config=config,
+        cache=cache,
+        eval_set_id=active.eval_set_id if active else None,
+        run_id=active.run_id if active else None,
+        eval_id=active.eval_id if active else None,
+        sample_id=active.id if active else None,
+        task_name=active.task if active else None,
+    )
+    await _emit_to_all(lambda hook: hook.on_before_model_generate(data))
 
 
 async def emit_sample_attempt_start(

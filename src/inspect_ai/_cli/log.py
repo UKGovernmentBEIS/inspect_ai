@@ -240,7 +240,9 @@ def schema_command() -> None:
 
 
 def schema() -> None:
-    print(view_resource("log-schema.json"))
+    resource = PKG_PATH / "_view" / "inspect-openapi.json"
+    with open(resource, "r", encoding="utf-8") as f:
+        print(f.read())
 
 
 @log_command.command("types", hidden=True)
@@ -250,7 +252,7 @@ def types_command() -> None:
 
 
 def types() -> None:
-    print(view_type_resource("log.d.ts"))
+    print(view_type_resource("generated.ts"))
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
@@ -272,8 +274,11 @@ def view_resource(file: str) -> str:
         return f.read()
 
 
+_TS_MONO_INSPECT_COMMON = PKG_PATH / "_view" / "ts-mono" / "packages" / "inspect-common"
+
+
 def view_type_resource(file: str) -> str:
     _require_submodule()
-    resource = _TS_MONO_APP / "src" / "@types" / file
+    resource = _TS_MONO_INSPECT_COMMON / "src" / "types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
