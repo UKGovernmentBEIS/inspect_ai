@@ -364,17 +364,20 @@ class SagemakerAPI(ModelAPI):
 
         # Add response schema
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = {
+                "name": config.response_schema.name,
+                "schema": json_schema_dump(
+                    config.response_schema.json_schema,
+                    exclude=JSON_SCHEMA_EXTENDED_FIELDS,
+                ),
+            }
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             request_body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {
-                    "name": config.response_schema.name,
-                    "schema": json_schema_dump(
-                        config.response_schema.json_schema,
-                        exclude=JSON_SCHEMA_EXTENDED_FIELDS,
-                    ),
-                    "description": config.response_schema.description,
-                    "strict": config.response_schema.strict,
-                },
+                "json_schema": json_schema_dict,
             }
 
         # Add extra body parameters
