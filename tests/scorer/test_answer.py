@@ -43,6 +43,24 @@ async def test_word_failure():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output,target",
+    [
+        ("ANSWER: ☆", "☆"),
+        ("ANSWER: ○", "○"),
+        ("ANSWER: ◎", "◎"),
+    ],
+)
+async def test_word_unicode_symbols(model_output: str, target: str):
+    scorer = answer("word")
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target([target]))
+
+    assert result is not None
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
 async def test_line_success():
     scorer = answer("line")
     state = simple_task_state(model_output="ANSWER:\nThis is a whole new line")
