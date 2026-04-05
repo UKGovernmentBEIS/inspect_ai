@@ -1,6 +1,21 @@
 ## Unreleased
 
+- Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
+- Hooks: Add `on_before_model_generate()` hook.
+- Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
+- Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
+
+## 0.3.205 (04 April 2026)
+
+- Eval Logs: Ensure that `condense_events()` is called when re-writing eval logs.
+- Eval Logs: Correct import ordering for patching use of zstd compressions.
+- Scorers: Return `NOANSWER` instead of `INCORRECT` when the `pattern` scorer fails to match.
+
+## 0.3.204 (02 April 2026)
+
 - Timelines: Improved detection of `forked_at` for branches from user or system messages.
+- Timelines: Provide option to include or exclude branches when computing span time and token usage.
+- Inspect View: Inline application assets.
 
 ## 0.3.203 (01 April 2026)
 

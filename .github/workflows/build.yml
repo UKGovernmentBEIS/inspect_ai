@@ -101,7 +101,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           submodules: true
-          lfs: true
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -193,6 +192,5 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-          lfs: true
 
       - uses: hynek/build-and-inspect-python-package@v2

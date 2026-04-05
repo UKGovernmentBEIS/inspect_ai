@@ -248,6 +248,49 @@ def test_write_read_round_trip(
             assert event.input_refs is None
 
 
+def test_write_eval_log_applies_condensing():
+    """write_eval_log should apply condense_sample even when given uncondensed samples."""
+    sample = _make_sample_with_repeated_inputs()
+    # Verify sample is NOT pre-condensed
+    assert sample.events_data is None
+
+    log = EvalLog(
+        version=LOG_SCHEMA_VERSION,
+        status="success",
+        eval=EvalSpec(
+            task="test_task",
+            task_version=0,
+            task_id="test",
+            model="test-model",
+            dataset=EvalDataset(name="test", samples=1),
+            config=EvalConfig(),
+            created="2025-01-01T00:00:00Z",
+        ),
+        plan=EvalPlan(),
+        results=EvalResults(total_samples=1, completed_samples=1),
+        stats=EvalStats(
+            started_at="2025-01-01T00:00:00Z",
+            completed_at="2025-01-01T00:01:00Z",
+        ),
+        samples=[sample],
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "test.eval")
+        write_eval_log(log, path)
+
+        # Read raw zip to verify condensing was applied at write time
+        import zipfile
+
+        with zipfile.ZipFile(path) as zf:
+            sample_files = [n for n in zf.namelist() if n.startswith("samples/")]
+            assert len(sample_files) == 1
+            raw = json.loads(zf.read(sample_files[0]))
+            # events_data should be populated (condensing was applied)
+            assert raw.get("events_data") is not None
+            assert len(raw["events_data"]["messages"]) > 0
+
+
 def test_condense_anonymous_message_ids():
     """Messages without IDs should still be deduplicated into the pool."""
     msg1 = ChatMessageUser(content="Hello")
