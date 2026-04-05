@@ -657,6 +657,8 @@ website:
           href: reference/inspect_ai.event.qmd#modelevent
         - text: ToolEvent
           href: reference/inspect_ai.event.qmd#toolevent
+        - text: BranchEvent
+          href: reference/inspect_ai.event.qmd#branchevent
         - text: CompactionEvent
           href: reference/inspect_ai.event.qmd#compactionevent
         - text: ApprovalEvent
@@ -695,10 +697,10 @@ website:
           href: reference/inspect_ai.event.qmd#timeline_filter
         - text: timeline_load
           href: reference/inspect_ai.event.qmd#timeline_load
+        - text: timeline_branch
+          href: reference/inspect_ai.event.qmd#timeline_branch
         - text: Timeline
           href: reference/inspect_ai.event.qmd#timeline
-        - text: TimelineBranch
-          href: reference/inspect_ai.event.qmd#timelinebranch
         - text: TimelineEvent
           href: reference/inspect_ai.event.qmd#timelineevent
         - text: TimelineSpan

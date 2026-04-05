@@ -120,8 +120,18 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        body = await get_log_file(await _map_file(request, file), header_only)
+        try:
+            body = await get_log_file(await _map_file(request, file), header_only)
+        except FileNotFoundError:
+            return Response(status_code=HTTP_404_NOT_FOUND)
         return Response(content=body, media_type="application/json")
+
+    @app.get("/log-size/{log:path}")
+    async def api_log_size(request: Request, log: str) -> Response:
+        file = normalize_uri(log)
+        await _validate_read(request, file)
+        size = await get_log_size(await _map_file(request, file))
+        return InspectJsonResponse(content=size)
 
     @app.get("/log-info/{log:path}")
     async def api_log_info(request: Request, log: str) -> Response:
@@ -323,8 +333,9 @@ def view_server_app(
         # validate that the directory can be listed
         await _validate_list(request, flow_dir)
 
-        fs = filesystem(flow_dir)
-        flow_file = f"{flow_dir}{fs.sep}flow.yaml"
+        mapped_dir = await _map_file(request, flow_dir)
+        fs = filesystem(mapped_dir)
+        flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
         if fs.exists(flow_file):
             bytes = fs.read_bytes(flow_file)
 
@@ -446,11 +457,8 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
-_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
-
-
 class _InspectStaticFiles(StaticFiles):
-    """StaticFiles with cache headers for hashed assets."""
+    """StaticFiles with no-cache headers to avoid stale assets."""
 
     def file_response(
         self,
@@ -460,10 +468,11 @@ class _InspectStaticFiles(StaticFiles):
         status_code: int = 200,
     ) -> Response:
         response = super().file_response(full_path, stat_result, scope, status_code)
-        if "/assets/" in str(full_path):
-            response.headers["cache-control"] = _IMMUTABLE_CACHE
-        else:
-            response.headers["cache-control"] = "no-cache"
+        response.headers["expires"] = "Fri, 01 Jan 1990 00:00:00 GMT"
+        response.headers["pragma"] = "no-cache"
+        response.headers["cache-control"] = (
+            "no-cache, no-store, max-age=0, must-revalidate"
+        )
         return response
 
 
@@ -492,6 +501,7 @@ def view_server(
     port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
 ) -> None:
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
@@ -506,6 +516,7 @@ def view_server(
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
     )
 
     dist_dir = resolve_dist_directory()

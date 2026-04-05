@@ -101,6 +101,9 @@ class ContentImage(ContentBase):
     """
 
 
+ContentAudioFormat = Literal["wav", "mp3"]
+
+
 class ContentAudio(ContentBase):
     """Audio content."""
 
@@ -110,8 +113,11 @@ class ContentAudio(ContentBase):
     audio: str
     """Audio file path or base64 encoded data URL."""
 
-    format: Literal["wav", "mp3"]
+    format: ContentAudioFormat
     """Format of audio data ('mp3' or 'wav')"""
+
+
+ContentVideoFormat = Literal["mp4", "mpeg", "mov"]
 
 
 class ContentVideo(ContentBase):
@@ -123,7 +129,7 @@ class ContentVideo(ContentBase):
     video: str
     """Video file path or base64 encoded data URL."""
 
-    format: Literal["mp4", "mpeg", "mov"]
+    format: ContentVideoFormat
     """Format of video data ('mp4', 'mpeg', or 'mov')"""
 
 
