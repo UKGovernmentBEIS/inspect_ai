@@ -1065,10 +1065,12 @@ class EvalLog(BaseModel):
 
         return self
 
-    @field_serializer("samples", "reductions")
+    @field_serializer("samples")
     @classmethod
-    def _serialize_lazy_lists(cls, value: Any) -> Any:
-        """Ensure LazyList instances are materialized before Pydantic serializes.
+    def _serialize_samples(
+        cls, value: list[EvalSample] | None
+    ) -> list[EvalSample] | None:
+        """Ensure LazyList is materialized before Pydantic serializes.
 
         Pydantic v2's Rust serializer accesses the C-level list array directly,
         bypassing Python __len__/__iter__ overrides. For empty LazyList instances
@@ -1076,6 +1078,20 @@ class EvalLog(BaseModel):
         triggers the lazy load. Calling _ensure_loaded() here populates the
         underlying C array in-place — no copy needed.
         """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
+
+    @field_serializer("reductions")
+    @classmethod
+    def _serialize_reductions(
+        cls, value: list[EvalSampleReductions] | None
+    ) -> list[EvalSampleReductions] | None:
+        """Ensure LazyList is materialized before Pydantic serializes."""
         if value is None:
             return value
         from ._recorders.eval import LazyList
