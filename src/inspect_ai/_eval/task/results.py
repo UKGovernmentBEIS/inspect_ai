@@ -133,7 +133,7 @@ def eval_results(
             # otherwise, generate a unique name for the scorer)
             scorer_name = (
                 scorer_names[index]
-                if scorer_names
+                if scorer_names and index < len(scorer_names)
                 else unique_scorer_name(
                     scorer_info.name, [eval_score.name for eval_score in result_scores]
                 )
@@ -145,8 +145,8 @@ def eval_results(
             ]
 
             # Group the scores by sample_id
-            reducers, use_reducer_name = resolve_reducer(reducers)
-            if len(reducers) == 0:
+            resolved_reducers, use_reducer_name = resolve_reducer(reducers)
+            if len(resolved_reducers) == 0:
                 # Compute metrics without reduction since no reducers were
                 # explicitly specified
                 eval_scores = compute_eval_scores(
@@ -159,7 +159,7 @@ def eval_results(
                 result_scores.extend(eval_scores)
 
             else:
-                for reducer in reducers:
+                for reducer in resolved_reducers:
                     reducer_display_nm = (
                         reducer_log_name(reducer) if use_reducer_name else None
                     )
