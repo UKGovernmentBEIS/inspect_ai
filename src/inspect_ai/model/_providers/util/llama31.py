@@ -23,7 +23,7 @@ logger = getLogger(__name__)
 
 
 # Llama 3.1 handler is based primarily on the tool calling conventions used by Ollama:
-# (https://github.com/ollama/ollama/blob/main/server/testdata/tools/llama3-groq-tool-use.out)
+# (https://github.com/ollama/ollama/blob/6b04cad7e816d1a119559e092d59f4fbaa6c3a0b/tools/testdata/llama3-groq-tool-use.out)
 #
 # We initially tried the conventions promoted in the Llama 3.1 model card but
 # this had severe problems with not formatting the function calls correctly
