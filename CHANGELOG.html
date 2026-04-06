@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.8.25">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -38,7 +38,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-6776297b1bcdc1ce3e71101c0074be7c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -364,10 +364,14 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
+<li>Eval Logs: Add <code>header_only</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#write_eval_log">write_eval_log()</a></span> for writing only the header to <code>.eval</code> files without rewriting samples.</li>
+<li>Eval Logs: Condense sample events when writing logs.</li>
+<li>Eval Logs: Enable zstd compression by default for writing logs.</li>
+<li>Sandboxes: Pass sample_id to sandbox providers via metadata.</li>
 <li>Hooks: Add <code>on_before_model_generate()</code> hook.</li>
 <li>Model API: Support extended json schema fields (validation and examples).</li>
 <li>Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.</li>
-<li>Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).</li>
+<li>Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).</li>
 </ul>
 </section>
 <section id="april-2026" class="level2">
@@ -375,6 +379,7 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li>Eval Logs: Ensure that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#condense_events">condense_events()</a></span> is called when re-writing eval logs.</li>
 <li>Eval Logs: Correct import ordering for patching use of zstd compressions.</li>
+<li>Scorers: Return <code>NOANSWER</code> instead of <code>INCORRECT</code> when the <code>pattern</code> scorer fails to match.</li>
 </ul>
 </section>
 <section id="april-2026-1" class="level2">
