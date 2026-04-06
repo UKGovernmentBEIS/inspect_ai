@@ -30,6 +30,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
+from .._pool import resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
@@ -137,6 +138,11 @@ class JSONRecorder(FileRecorder):
 
         # stop tracking this data
         del self.data[self._log_file_key(eval)]
+
+        # resolve condensed events data (input_refs/call_refs -> input/call)
+        # so callers see fully populated ModelEvent.input fields
+        if log.data.samples:
+            log.data.samples = [resolve_sample_events_data(s) for s in log.data.samples]
 
         # return the log
         return log.data
