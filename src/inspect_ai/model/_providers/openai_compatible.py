@@ -30,6 +30,7 @@ from inspect_ai.model._providers.util.chatapi import (
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
@@ -306,11 +307,22 @@ class OpenAICompatibleAPI(ModelAPI):
             return ex.status_code == 401
         return False
 
+    @property
+    def schema_exclude_fields(self) -> set[str] | None:
+        """Fields to exclude when dumping JSON schemas for this provider.
+
+        Defaults to excluding extended validation fields (pattern, minLength,
+        etc.) since not all OpenAI-compatible providers support them.
+        Subclasses can override to return None (allow all) or a custom set.
+        """
+        return JSON_SCHEMA_EXTENDED_FIELDS
+
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
+            schema_exclude=self.schema_exclude_fields,
         )
 
         if (
@@ -330,7 +342,7 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True
-        openai_tools = openai_chat_tools(tools)
+        openai_tools = openai_chat_tools(tools, exclude=self.schema_exclude_fields)
         for tool in openai_tools:
             tool["function"]["strict"] = self.strict_tools
         return openai_tools

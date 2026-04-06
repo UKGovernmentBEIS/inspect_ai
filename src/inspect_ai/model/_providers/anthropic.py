@@ -144,7 +144,11 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
-from inspect_ai.util._json import set_additional_properties_false
+from inspect_ai.util._json import (
+    JSON_SCHEMA_EXTENDED_FIELDS,
+    json_schema_dump,
+    set_additional_properties_false,
+)
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import (
@@ -787,7 +791,7 @@ class AnthropicAPI(ModelAPI):
             betas.append("structured-outputs-2025-11-13")
             extra_body["output_format"] = {
                 "type": "json_schema",
-                "schema": schema.model_dump(exclude_none=True),
+                "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
             }
 
         # look for any of our native fields not in GenerateConfig in extra_body
@@ -1162,7 +1166,7 @@ class AnthropicAPI(ModelAPI):
             ToolParam(
                 name=tool.name,
                 description=tool.description,
-                input_schema=tool.parameters.model_dump(exclude_none=True),
+                input_schema=json_schema_dump(tool.parameters),
             )
         ]
 
