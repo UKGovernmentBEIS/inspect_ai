@@ -137,7 +137,6 @@ def test_convert_applies_message_pool_dedup(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Converting a v2 .eval file should apply message pool dedup."""
-    monkeypatch.setenv("INSPECT_LOG_CONDENSE", "1")
     input_file = (
         _TESTS_DIR
         / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"

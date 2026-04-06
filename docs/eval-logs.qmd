@@ -103,6 +103,34 @@ The variability in underlying file format makes it especially important that you
 If you do need to interact with the underlying JSON (e.g., when reading logs from another language) see the [Log Commands](#sec-log-commands) section below which describes how to get the plain text JSON representation for any log file.
 :::
 
+### Storage Optimization
+
+The current development version of Inspect AI includes log storage optimizations that can dramatically affect log file sizes. The first of these [deduplicates repeated messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374) across model events; the second switches to [zstd compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
+
+In combination these optimizations yield huge improvements in log file size. For typical agentic benchmarks (e.g. SWE-Bench, Cybench) we've seen 10:1 improvements. For longer horizon tasks the improvements are much greater as the optimization addresses O(N^2) storage growth.
+
+To try out these changes, install the development version of Inspect from GitHub with:
+
+```python
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
+You can convert existing logs to use the new format using the `inspect log convert` command. For example:
+
+```bash
+inspect log convert ../../meridianlabs-ai/inspect-viz-example-logs/logs/swe-bench \
+   --to eval \
+   --output-dir ../../meridianlabs-ai/inspect-viz-example-logs/logs/swe-bench-new \
+   --stream 10
+```
+
+Note that using the `--stream` option limits the total number of samples held in memory at once during the conversion, which can be consequential for larger log files.
+    
+::: {.callout-important}
+If you are using [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) for transcript analysis, you will want to make sure to use an up to date version (v0.4.22 or later) that supports reading the condensed log format.
+:::
+
+
 ## Image Logging
 
 By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unwieldy (i.e. if your `.json` log file grows to 100mb or larger as a result).
