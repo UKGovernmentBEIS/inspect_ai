@@ -52,5 +52,5 @@ for cat, items in groups.items():
         lines.append("")
     lines.append("")
 
-with open(PATH / "extensions_content.md", "w") as f:
+with open(PATH / "_extensions_content.md", "w") as f:
     f.write("\n".join(lines))
