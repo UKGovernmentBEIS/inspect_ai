@@ -30,7 +30,7 @@ from inspect_ai._util.constants import (
     get_deserializing_context,
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
-from inspect_ai._util.file import FileSystem, dirname, filesystem
+from inspect_ai._util.file import FileSystem, dirname, filesystem, local_path
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
@@ -397,14 +397,20 @@ class EvalRecorder(FileRecorder):
     @classmethod
     @override
     async def write_log(
-        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
     ) -> None:
         if filesystem(location).is_s3() and if_match_etag:
             # Use S3 conditional write
             await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write using the recorder (so we get all of the extra streams)
-            await _write_eval_log_with_recorder(log, dirname(location), location)
+            await _write_eval_log_with_recorder(
+                log, dirname(location), location, header_only=header_only
+            )
 
     @classmethod
     async def _write_log_s3_conditional(
@@ -442,9 +448,32 @@ class EvalRecorder(FileRecorder):
 
 
 async def _write_eval_log_with_recorder(
-    log: EvalLog, recorder_dir: str, output_file: str
+    log: EvalLog, recorder_dir: str, output_file: str, header_only: bool = False
 ) -> None:
     """Helper function to write EvalLog using EvalRecorder pattern."""
+    if header_only and filesystem(output_file).is_local():
+        # Replace the header entry in the existing zip without rewriting
+        # sample data. Opens in append mode, removes the old header.json
+        # from the central directory, then writes the new one. The old
+        # header bytes become unreferenced but sample entries are untouched.
+        eval_header = EvalLog(
+            version=log.version,
+            invalidated=log.invalidated,
+            log_updates=log.log_updates,
+            eval=log.eval,
+            plan=log.plan,
+            results=log.results,
+            stats=log.stats,
+            status=log.status,
+            error=log.error,
+        )
+        with ZipFile(local_path(output_file), "a", **zipfile_compress_kwargs) as zf:
+            # Remove old header entry from the central directory
+            zf.filelist = [i for i in zf.filelist if i.filename != HEADER_JSON]
+            zf.NameToInfo.pop(HEADER_JSON, None)
+            zf.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
+        return
+
     recorder = EvalRecorder(recorder_dir)
     await recorder.log_init(log.eval, output_file, clean=True)
     await recorder.log_start(log.eval, log.plan)
