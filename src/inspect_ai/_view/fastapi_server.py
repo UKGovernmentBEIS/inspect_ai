@@ -266,7 +266,9 @@ def view_server_app(
             entry.name = await _unmap_file(request, entry.name)
         return result
 
-    @app.get("/logs", response_model=LogListingResponse, response_class=InspectJsonResponse)
+    @app.get(
+        "/logs", response_model=LogListingResponse, response_class=InspectJsonResponse
+    )
     async def api_logs(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
@@ -369,7 +371,9 @@ def view_server_app(
             else []
         )
 
-    @app.get("/pending-samples", response_model=Samples, response_class=InspectJsonResponse)
+    @app.get(
+        "/pending-samples", response_model=Samples, response_class=InspectJsonResponse
+    )
     async def api_pending_samples(
         request: Request, response: Response, log: str = Query(...)
     ) -> Samples | Response:
@@ -400,7 +404,11 @@ def view_server_app(
 
         return Response(status_code=HTTP_204_NO_CONTENT)
 
-    @app.get("/pending-sample-data", response_model=SampleData, response_class=InspectJsonResponse)
+    @app.get(
+        "/pending-sample-data",
+        response_model=SampleData,
+        response_class=InspectJsonResponse,
+    )
     async def api_sample_events(
         request: Request,
         log: str,
