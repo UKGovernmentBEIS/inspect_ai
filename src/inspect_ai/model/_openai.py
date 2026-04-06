@@ -69,6 +69,7 @@ from inspect_ai.model._reasoning import (
     reasoning_to_think_tag,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ._chat_message import (
     ChatMessage,
@@ -248,7 +249,10 @@ async def messages_to_openai(
 
 
 def openai_completion_params(
-    model: str, config: GenerateConfig, tools: bool
+    model: str,
+    config: GenerateConfig,
+    tools: bool,
+    schema_exclude: set[str] | None = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = dict(model=model)
     if config.max_tokens is not None:
@@ -282,7 +286,9 @@ def openai_completion_params(
             type="json_schema",
             json_schema=dict(
                 name=config.response_schema.name,
-                schema=config.response_schema.json_schema.model_dump(exclude_none=True),
+                schema=json_schema_dump(
+                    config.response_schema.json_schema, exclude=schema_exclude
+                ),
                 description=config.response_schema.description,
                 strict=config.response_schema.strict,
             ),
@@ -394,17 +400,21 @@ def openai_finish_reason(
             return "stop"
 
 
-def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
+def openai_chat_tool_param(
+    tool: ToolInfo, exclude: set[str] | None = None
+) -> ChatCompletionToolParam:
     function = FunctionDefinition(
         name=tool.name,
         description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
+        parameters=json_schema_dump(tool.parameters, exclude=exclude),
     )
     return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
-def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [openai_chat_tool_param(tool) for tool in tools]
+def openai_chat_tools(
+    tools: list[ToolInfo], exclude: set[str] | None = None
+) -> list[ChatCompletionToolParam]:
+    return [openai_chat_tool_param(tool, exclude=exclude) for tool in tools]
 
 
 def openai_chat_tool_choice(

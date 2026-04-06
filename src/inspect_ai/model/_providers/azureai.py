@@ -44,6 +44,7 @@ from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -507,7 +508,9 @@ def chat_tool_definition(tool: ToolInfo) -> ChatCompletionsToolDefinition:
         function=FunctionDefinition(
             name=tool.name,
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=json_schema_dump(
+                tool.parameters, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+            ),
         )
     )
 
