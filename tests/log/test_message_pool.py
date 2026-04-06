@@ -43,12 +43,6 @@ from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.fixture(autouse=True)
-def _enable_v3_format(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pool tests require v3 format to be enabled."""
-    monkeypatch.setenv("INSPECT_LOG_CONDENSE", "1")
-
-
 def _make_sample_with_repeated_inputs() -> EvalSample:
     """Create a sample where model events have overlapping input messages."""
     msg_sys = ChatMessageSystem(content="You are helpful.")

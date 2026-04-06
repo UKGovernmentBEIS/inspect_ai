@@ -1,10 +1,21 @@
 ## Unreleased
 
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
+- Eval Logs: Condense sample events when writing logs.
+- Eval Logs: Enable zstd compression by default for writing logs.
 - Sandboxes: Pass sample_id to sandbox providers via metadata.
 - Hooks: Add `on_before_model_generate()` hook.
+- Model API: Support extended json schema fields (validation and examples).
+- Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
+- Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
+- Bugfix: Fix `eval_results()` producing identical aggregate scores   
+  for multiple instances of the same scorer due to incorrect name
+  resolution using dimension names instead of scorer names.           
+- Bugfix: Fix eval_results() mutating the reducers parameter inside
+  a loop, causing inconsistent reducer assignment across scorer       
+  instances.
 
 ## 0.3.205 (04 April 2026)
 

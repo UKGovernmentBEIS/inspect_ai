@@ -45,7 +45,7 @@ def test_log_format_round_trip_single(original_log, temp_dir):
         new_log.location = None
 
         # Compare the logs
-        assert original_log.model_dump_json() == new_log.model_dump_json(), (
+        assert original_log.model_dump() == new_log.model_dump(), (
             f"Round-trip failed for {format} format"
         )
 
@@ -89,7 +89,7 @@ def test_log_format_round_trip_cross(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the logs
-    assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
+    assert original_log.model_dump() == new_json_log.model_dump(), (
         "Cross-format round-trip failed"
     )
 
@@ -110,7 +110,7 @@ def test_log_format_equality(original_log, temp_dir):
     eval_log.location = None
 
     # Compare the logs
-    assert json_log.model_dump_json() == eval_log.model_dump_json(), (
+    assert json_log.model_dump() == eval_log.model_dump(), (
         "Logs in different formats are not identical"
     )
 
@@ -131,7 +131,7 @@ def test_log_format_detection(original_log, temp_dir):
     eval_log.location = None
 
     # Compare the logs
-    assert json_log.model_dump_json() == eval_log.model_dump_json(), (
+    assert json_log.model_dump() == eval_log.model_dump(), (
         "Auto format detection failed"
     )
 
@@ -186,7 +186,7 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the original and new JSON logs
-    assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
+    assert original_log.model_dump() == new_json_log.model_dump(), (
         "JSON content changed after roundtrip through EVAL format"
     )
 

@@ -255,6 +255,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # resolve the scorer
     score = score and task.scorer is not None
     scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
+
+    # resolve unique scorer names once so sample scoring
+    # and aggregation use the same names
+    scorer_names: list[str] | None = None
+    if scorers:
+        scorer_names = []
+        for s in scorers:
+            scorer_names.append(unique_scorer_name(s, scorer_names))
+
     scorer_profiles = (
         [registry_log_name(scorer) for scorer in scorers if is_registry_object(scorer)]
         if scorers is not None
@@ -366,6 +375,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         len(progress_results),
                         progress_results,
                         scorers,
+                        scorer_names,
                         task.epochs_reducer,
                         task.metrics,
                     )
@@ -384,6 +394,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     len(progress_results),
                     progress_results,
                     scorers,
+                    scorer_names,
                     task.epochs_reducer,
                     task.metrics,
                 )
@@ -453,6 +464,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
+                        scorer_names=scorer_names,
                         cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
@@ -514,6 +526,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     reducers=task.epochs_reducer,
                     scorers=scorers,
                     metrics=task.metrics,
+                    scorer_names=scorer_names,
                     early_stopping=stopping_summary,
                 )
 
@@ -611,6 +624,7 @@ def update_metrics_display_fn(
         int,
         list[dict[str, SampleScore]],
         list[Scorer] | None,
+        list[str] | None,
         ScoreReducer | list[ScoreReducer] | None,
         list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
     ],
@@ -622,6 +636,7 @@ def update_metrics_display_fn(
         sample_count: int,
         sample_scores: list[dict[str, SampleScore]],
         scorers: list[Scorer] | None,
+        scorer_names: list[str] | None,
         reducers: ScoreReducer | list[ScoreReducer] | None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
@@ -641,6 +656,7 @@ def update_metrics_display_fn(
                 reducers=reducers,
                 scorers=scorers,
                 metrics=metrics,
+                scorer_names=scorer_names,
             )
 
             # Name, reducer, value
@@ -678,6 +694,7 @@ async def task_run_sample(
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
+    scorer_names: list[str] | None,
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -1064,10 +1081,18 @@ async def task_run_sample(
                             with create_time_limit(scoring_time_limit):
                                 if error is None:
                                     async with span(name="scorers"):
-                                        for scorer in scorers or []:
-                                            scorer_name = unique_scorer_name(
-                                                scorer,
-                                                list({*solver_score_names, *results}),
+                                        for scorer_idx, scorer in enumerate(
+                                            scorers or []
+                                        ):
+                                            scorer_name = (
+                                                scorer_names[scorer_idx]
+                                                if scorer_names
+                                                else unique_scorer_name(
+                                                    scorer,
+                                                    list(
+                                                        {*solver_score_names, *results}
+                                                    ),
+                                                )
                                             )
                                             async with span(
                                                 name=scorer_name, type="scorer"
@@ -1219,6 +1244,7 @@ async def task_run_sample(
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             scorers=scorers,
+            scorer_names=scorer_names,
             cleanup=cleanup,
             generate=generate,
             progress=progress,

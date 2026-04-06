@@ -239,22 +239,38 @@ class TimelineSpan(BaseModel):
         return items
 
     def start_time(self, include_branches: bool = True) -> datetime:
-        """Earliest start time among content (and optionally branches)."""
+        """Earliest start time among content (and optionally branches).
+
+        Args:
+            include_branches: Include branches in time calcluation.
+        """
         items = self._content_and_branches() if include_branches else self.content
         return _min_start_time(items)
 
     def end_time(self, include_branches: bool = True) -> datetime:
-        """Latest end time among content (and optionally branches)."""
+        """Latest end time among content (and optionally branches).
+
+        Args:
+            include_branches: Include branches in time calcluation.
+        """
         items = self._content_and_branches() if include_branches else self.content
         return _max_end_time(items)
 
     def total_tokens(self, include_branches: bool = True) -> int:
-        """Sum of tokens from content (and optionally branches)."""
+        """Sum of tokens from content (and optionally branches).
+
+        Args:
+            include_branches: Include branches in token calcluation.
+        """
         items = self._content_and_branches() if include_branches else self.content
         return _sum_tokens(items)
 
     def idle_time(self, include_branches: bool = True) -> float:
-        """Seconds of idle time within this span (and optionally branches)."""
+        """Seconds of idle time within this span (and optionally branches).
+
+        Args:
+            include_branches: Include branches in time calcluation.
+        """
         items = self._content_and_branches() if include_branches else self.content
         return _compute_idle_time(
             items, self.start_time(include_branches), self.end_time(include_branches)
