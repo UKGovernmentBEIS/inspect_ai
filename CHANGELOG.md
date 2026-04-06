@@ -14,7 +14,7 @@
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           
-- Bugfix: Fix eval_results() mutating the reducers parameter inside
+- Bugfix: Fix `eval_results()` mutating the reducers parameter inside
   a loop, causing inconsistent reducer assignment across scorer       
   instances.
 
