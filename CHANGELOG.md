@@ -17,6 +17,7 @@
 - Bugfix: Fix `eval_results()` mutating the reducers parameter inside
   a loop, causing inconsistent reducer assignment across scorer       
   instances.
+- Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
 
 ## 0.3.205 (04 April 2026)
 
