@@ -359,7 +359,7 @@ async def test_boundary_triggers_compaction() -> None:
 
     # Create messages with tool calls that can be cleared
     # This allows compaction to actually reduce token count
-    tool_call = ToolCall(id="t1", function="bash", arguments={"cmd": "A" * 200})
+    tool_call = ToolCall(id="t1", function="bash", arguments={"command": "A" * 200})
 
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -732,7 +732,7 @@ async def test_compaction_strips_citations() -> None:
     compact = compaction(strategy, prefix=prefix, tools=None, model=model)
 
     # Create tool calls with large content to exceed threshold
-    tool_call = ToolCall(id="t1", function="bash", arguments={"cmd": "A" * 500})
+    tool_call = ToolCall(id="t1", function="bash", arguments={"command": "A" * 500})
 
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
