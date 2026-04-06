@@ -4650,26 +4650,26 @@
             "anyOf": [
               {
                 "enum": [
-                  "array",
-                  "boolean",
+                  "string",
                   "integer",
-                  "null",
                   "number",
+                  "boolean",
+                  "array",
                   "object",
-                  "string"
+                  "null"
                 ],
                 "type": "string"
               },
               {
                 "items": {
                   "enum": [
-                    "array",
-                    "boolean",
+                    "string",
                     "integer",
-                    "null",
                     "number",
+                    "boolean",
+                    "array",
                     "object",
-                    "string"
+                    "null"
                   ],
                   "type": "string"
                 },
