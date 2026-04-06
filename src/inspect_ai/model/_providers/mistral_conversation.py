@@ -47,6 +47,7 @@ from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -186,8 +187,8 @@ def mistral_conversation_tools(tools: list[ToolInfo]) -> list[ConversationReques
                     function=Function(
                         name=tool.name,
                         description=tool.description,
-                        parameters=tool.parameters.model_dump(
-                            exclude={"additionalProperties"}, exclude_none=True
+                        parameters=json_schema_dump(
+                            tool.parameters, exclude={"additionalProperties"}
                         ),
                     ),
                 )
