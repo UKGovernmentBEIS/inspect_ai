@@ -12,14 +12,12 @@ import os
 import subprocess
 from pathlib import Path
 
-from fastapi import FastAPI
 from pydantic import RootModel
 
-from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util.citation import Citation as _Citation
 from inspect_ai._view._openapi import build_openapi_schema
+from inspect_ai._view.fastapi_server import view_server_app
 from inspect_ai.event._event import Event as _Event
-from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessage as _ChatMessage
 from inspect_ai.model import Content as _Content
 from inspect_ai.tool._tool_choice import ToolChoice as _ToolChoice
@@ -59,22 +57,17 @@ OUTPUT_PATH = VIEW_DIR / "inspect-openapi.json"
 def _generate_new() -> None:
     """Generate OpenAPI schema and TypeScript types for inspect_ai.
 
-    Stub endpoints pull type dependency trees into the schema. RootModel
-    wrappers give stable names to unions and literals.
+    Uses the real server app (which has response_model on typed endpoints)
+    plus stub endpoints for RootModel wrappers that give stable names to
+    unions and literals.
 
     See design/type-generation-pipeline.md for the full pipeline docs.
     """
-    app = FastAPI(title="inspect_ai types", version="0.1.0")
+    app = view_server_app()
+    app.title = "inspect_ai types"
+    app.version = "0.1.0"
 
-    # Stub endpoints for schema generation — not served by the real API.
-
-    @app.get("/eval-log")
-    def _eval_log() -> EvalLog:
-        raise NotImplementedError
-
-    @app.get("/eval-set")
-    def _eval_set() -> EvalSet:
-        raise NotImplementedError
+    # Stub endpoints for RootModel wrappers — not served by the real API.
 
     @app.get("/content")
     def _content() -> Content:
