@@ -118,9 +118,9 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 You can convert existing logs to use the new format using the `inspect log convert` command. For example:
 
 ```bash
-inspect log convert ../../meridianlabs-ai/inspect-viz-example-logs/logs/swe-bench \
+inspect log convert logs_old \
    --to eval \
-   --output-dir ../../meridianlabs-ai/inspect-viz-example-logs/logs/swe-bench-new \
+   --output-dir logs_new \
    --stream 10
 ```
 
