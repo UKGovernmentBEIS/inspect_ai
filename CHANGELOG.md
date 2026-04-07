@@ -11,6 +11,7 @@
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
+- Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           
