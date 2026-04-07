@@ -117,6 +117,7 @@ from openai.types.responses.tool_param import (
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -185,6 +186,7 @@ class ResponsesModelInfo(Protocol):
     def is_o3_mini(self) -> bool: ...
     def is_deep_research(self) -> bool: ...
     def is_codex(self) -> bool: ...
+    def has_reasoning_only_fallback(self) -> bool: ...
 
 
 def _extract_compaction_from_content_data(
@@ -1039,6 +1041,18 @@ def _openai_input_items_from_chat_message_assistant(
             )
         ]
     )
+
+    # If all content is reasoning-only (no text, no tool calls), inject a
+    # NO_CONTENT fallback to prevent the Responses API from rejecting the
+    # next request. This matches the pattern used by other providers
+    # (Anthropic, Google, Mistral, Bedrock) for empty assistant content.
+    if (
+        model_info is not None
+        and model_info.has_reasoning_only_fallback()
+        and content_items
+        and all(isinstance(c, ContentReasoning) for c in content_items)
+    ):
+        content_items.append(ContentText(text=NO_CONTENT))
 
     # items to return
     items: list[ResponseInputItemParam] = []

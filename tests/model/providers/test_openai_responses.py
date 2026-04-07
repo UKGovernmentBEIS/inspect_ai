@@ -1025,3 +1025,96 @@ def test_openai_responses_tools_image_modality():
     config = GenerateConfig()
     tools = openai_responses_tools([], "gpt-4o", config)
     assert len(tools) == 0
+
+
+def test_reasoning_only_fallback_enabled():
+    """When fallback is enabled and content is reasoning-only, NO_CONTENT text is appended."""
+    from inspect_ai._util.constants import NO_CONTENT
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    model_info = ModelInfo()  # default: has_reasoning_only_fallback() == True
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["content"][0]["text"] == NO_CONTENT
+
+
+def test_reasoning_only_fallback_disabled():
+    """When fallback is disabled and content is reasoning-only, no message is injected."""
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    model_info = ModelInfo(reasoning_only_fallback=False)
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_with_text():
+    """Fallback does not trigger when there is real text content alongside reasoning."""
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+            ContentText(text="Real output"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["content"][0]["text"] == "Real output"
+
+
+def test_reasoning_only_fallback_not_triggered_without_model_info():
+    """Fallback does not trigger when model_info is None."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_on_empty_content():
+    """Fallback does not trigger on empty content list."""
+    from inspect_ai.model._providers.openai_compatible import ModelInfo
+
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    assert len(items) == 0
