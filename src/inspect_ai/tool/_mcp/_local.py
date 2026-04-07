@@ -218,57 +218,79 @@ class MCPServerLocalSession(MCPServer):
             # manager. Convert these to ToolError so the model is notified
             # rather than the exception reaching the top of the sample stack.
             try:
-                async with self._client_session() as tool_session:
-                    mcp_call = format_function_call(
-                        mcp_tool.name, kwargs, width=sys.maxsize
-                    )
-                    with trace_action(
-                        logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
-                    ):
-                        try:
-                            # Bound the wait on a tool response with the configured
-                            # timeout. Without this, a lost/dropped transport response
-                            # (e.g. the sandbox carrier exec times out at the OS level
-                            # but its JSON-RPC error never wakes this await) deadlocks
-                            # the call FOREVER, ignoring the per-RPC timeout entirely.
-                            # On expiry `ClientSession` raises an McpError carrying
-                            # an HTTP 408 (REQUEST_TIMEOUT) code, which the handler
-                            # below translates to a TimeoutError so the outer handler
-                            # surfaces a ToolError — notifying the model rather than
-                            # letting the sample hang until the working-time cap.
-                            read_timeout = (
-                                timedelta(seconds=self._timeout)
-                                if self._timeout is not None
-                                else None
+                for _attempt in range(3):
+                    try:
+                        async with self._client_session() as tool_session:
+                            mcp_call = format_function_call(
+                                mcp_tool.name, kwargs, width=sys.maxsize
                             )
-                            result = await tool_session.call_tool(
-                                mcp_tool.name,
-                                kwargs,
-                                read_timeout_seconds=read_timeout,
-                            )
-                            if result.isError:
-                                raise ToolError(tool_result_as_text(result.content))
-                        except McpError as e:
-                            # A read_timeout_seconds expiry surfaces as an McpError
-                            # carrying HTTP 408 (REQUEST_TIMEOUT). Re-raise it as a
-                            # TimeoutError so the outer handler converts it to a
-                            # ToolError; exception_for_rpc_response_error would
-                            # otherwise map the unrecognized 408 to a RuntimeError
-                            # that errors the sample instead of reaching the model.
-                            if e.error.code == _MCP_READ_TIMEOUT_CODE:
-                                raise TimeoutError(e.error.message) from e
-                            # Some errors that are raised via McpError (e.g. -32603)
-                            # need to be converted to ToolError so that they make it
-                            # back to the model.
-                            raise exception_for_rpc_response_error(
-                                e.error.code,
-                                e.error.message,
-                                mcp_tool.name,
-                                kwargs,
-                                error_mapper=_McpErrorMapper,
-                            ) from e
-
-                    return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+                            with trace_action(
+                                logger,
+                                "MCPServer",
+                                f"call_tool ({self._name}): {mcp_call}",
+                            ):
+                                try:
+                                    # Bound the wait on a tool response with the configured
+                                    # timeout. Without this, a lost/dropped transport response
+                                    # (e.g. the sandbox carrier exec times out at the OS level
+                                    # but its JSON-RPC error never wakes this await) deadlocks
+                                    # the call FOREVER, ignoring the per-RPC timeout entirely.
+                                    # On expiry `ClientSession` raises an McpError carrying
+                                    # an HTTP 408 (REQUEST_TIMEOUT) code, which the handler
+                                    # below translates to a TimeoutError so the outer handler
+                                    # surfaces a ToolError — notifying the model rather than
+                                    # letting the sample hang until the working-time cap.
+                                    read_timeout = (
+                                        timedelta(seconds=self._timeout)
+                                        if self._timeout is not None
+                                        else None
+                                    )
+                                    result = await tool_session.call_tool(
+                                        mcp_tool.name,
+                                        kwargs,
+                                        read_timeout_seconds=read_timeout,
+                                    )
+                                    if result.isError:
+                                        raise ToolError(
+                                            tool_result_as_text(result.content)
+                                        )
+                                except McpError as e:
+                                    # A read_timeout_seconds expiry surfaces as an McpError
+                                    # carrying HTTP 408 (REQUEST_TIMEOUT). Re-raise it as a
+                                    # TimeoutError so the outer handler converts it to a
+                                    # ToolError; exception_for_rpc_response_error would
+                                    # otherwise map the unrecognized 408 to a RuntimeError
+                                    # that errors the sample instead of reaching the model.
+                                    if e.error.code == _MCP_READ_TIMEOUT_CODE:
+                                        raise TimeoutError(e.error.message) from e
+                                    # Some errors that are raised via McpError (e.g. -32603)
+                                    # need to be converted to ToolError so that they make it
+                                    # back to the model.
+                                    raise exception_for_rpc_response_error(
+                                        e.error.code,
+                                        e.error.message,
+                                        mcp_tool.name,
+                                        kwargs,
+                                        error_mapper=_McpErrorMapper,
+                                    ) from e
+                        return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+                    except (BrokenPipeError, ConnectionError, OSError) as exc:
+                        logger.warning(
+                            f"MCP connection lost during {mcp_tool.name} "
+                            f"(attempt {_attempt + 1}/3): {exc}"
+                        )
+                        self._reset_session()
+                        if _attempt == 2:
+                            raise
+                    except anyio.BrokenResourceError as exc:
+                        logger.warning(
+                            f"MCP connection lost during {mcp_tool.name} "
+                            f"(attempt {_attempt + 1}/3): {exc}"
+                        )
+                        self._reset_session()
+                        if _attempt == 2:
+                            raise
+                raise RuntimeError("unreachable")
             except Exception as e:
                 if isinstance(inner_exception(e), TimeoutError):
                     raise ToolError(
@@ -318,6 +340,19 @@ class MCPServerLocalSession(MCPServer):
                 ):
                     await session.initialize()
                 yield session
+
+    def _reset_session(self) -> None:
+        """Clear the persistent session so the next _client_session() reconnects."""
+        if self._exit_stack is not None:
+            try:
+                import asyncio
+
+                asyncio.get_event_loop().create_task(self._exit_stack.aclose())
+            except Exception:
+                pass
+        self._session = None
+        self._exit_stack = None
+        self._refcount = 0
 
     def _sampling_fn(self) -> SamplingFnT | None:
         from inspect_ai.model._model import active_model
