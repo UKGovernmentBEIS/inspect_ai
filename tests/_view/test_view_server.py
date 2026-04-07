@@ -179,6 +179,57 @@ def write_eval_log(base_dir: Path, filename: str) -> str:
     return full_path
 
 
+def _create_sample_buffer(log_path: str) -> None:
+    """Create a minimal sample buffer on disk for the given log file."""
+    from inspect_ai.log._recorders.buffer.filestore import (
+        Manifest,
+        SampleBufferFilestore,
+        SampleManifest,
+        Segment,
+        SegmentFile,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+
+    buf = SampleBufferFilestore(log_path, create=True)
+    buf.write_manifest(
+        Manifest(
+            samples=[
+                SampleManifest(
+                    summary=inspect_ai.log.EvalSampleSummary(
+                        id="sample1",
+                        epoch=0,
+                        input="test input",
+                        target="test target",
+                    ),
+                    segments=[0],
+                )
+            ],
+            segments=[Segment(id=0, last_event_id=0, last_attachment_id=0)],
+        )
+    )
+    buf.write_segment(
+        0,
+        [
+            SegmentFile(
+                id="sample1",
+                epoch=0,
+                data=SampleData(
+                    events=[
+                        EventData(
+                            id=0,
+                            event_id="evt0",
+                            sample_id="sample1",
+                            epoch=0,
+                            event={"message": "hello"},
+                        )
+                    ],
+                    attachments=[],
+                ),
+            )
+        ],
+    )
+
+
 def write_eval_log_named(base_dir: Path, filename: str, task: str, task_id: str) -> str:
     """Write eval log with specific task/task_id. Return full path."""
     full_path = str(base_dir / filename)
@@ -450,6 +501,85 @@ def test_api_log_bytes_single_byte(view_client: ViewTestClient) -> None:
     )
     resp.raise_for_status()
     assert len(resp.content) == 1
+
+
+def test_api_log_size(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-size", fname))
+    resp.raise_for_status()
+    size = resp.json()
+    assert isinstance(size, int)
+    assert size == Path(full_path).stat().st_size
+
+
+def test_api_pending_samples_no_buffer(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET", f"/pending-samples?log={urllib.parse.quote_plus(full_path)}"
+    )
+    assert resp.status_code == 404
+
+
+def test_api_pending_samples_with_buffer(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+
+    resp = view_client.request(
+        "GET", f"/pending-samples?log={urllib.parse.quote_plus(full_path)}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert "samples" in body
+    assert len(body["samples"]) == 1
+    assert body["samples"][0]["id"] == "sample1"
+    assert "etag" in body
+
+    # second request with etag → 304
+    etag = body["etag"]
+    resp2 = view_client.request(
+        "GET",
+        f"/pending-samples?log={urllib.parse.quote_plus(full_path)}",
+        headers={"If-None-Match": etag},
+    )
+    assert resp2.status_code == 304
+
+
+def test_api_pending_sample_data_no_buffer(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data?log={urllib.parse.quote_plus(full_path)}&id=x&epoch=0",
+    )
+    assert resp.status_code == 404
+
+
+def test_api_pending_sample_data_with_buffer(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert len(body["events"]) == 1
+    assert body["events"][0]["event"] == {"message": "hello"}
+
+
+def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
+    resp = view_client.request(
+        "GET",
+        f"/eval-set?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}",
+    )
+    resp.raise_for_status()
+    assert resp.json() is None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
