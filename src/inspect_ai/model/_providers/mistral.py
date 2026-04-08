@@ -9,7 +9,9 @@ from mistralai.client.models import (
     AssistantMessage as MistralAssistantMessage,
 )
 from mistralai.client.models import (
-    AudioChunk,
+    ChatCompletionChoice as MistralChatCompletionChoice,
+)
+from mistralai.client.models import (
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
@@ -20,10 +22,6 @@ from mistralai.client.models import (
     ReferenceChunk,
     TextChunk,
     ThinkChunk,
-    UnknownContentChunk,
-)
-from mistralai.client.models import (
-    ChatCompletionChoice as MistralChatCompletionChoice,
 )
 from mistralai.client.models import Function as MistralFunction
 from mistralai.client.models import (
@@ -582,7 +580,7 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 )
             )
         ]
-    elif isinstance(content, AudioChunk | UnknownContentChunk):
+    else:
         raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 

@@ -41,10 +41,9 @@ class CompactionAuto(CompactionStrategy):
         Args:
             threshold: Token count or percent of context window to trigger compaction.
             instructions: Additional instructions to give the model about compaction
-               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
             memory: Whether to warn the model to save critical content to memory
-                prior to compaction. Use "auto" (the default) to disable memory for
-                native compaction and enable it for summary compaction.
+                prior to compaction. Use "auto" (the default) to disable memory for native compaction and enable it for summary compaction.
         """
         # Don't pass memory to base - we'll handle it via property
         super().__init__(type="summary", threshold=threshold, memory=False)

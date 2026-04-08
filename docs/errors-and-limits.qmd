@@ -1,5 +1,6 @@
 ---
 title: "Errors and Limits"
+llms-description: Techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
 ---
 
 ## Overview

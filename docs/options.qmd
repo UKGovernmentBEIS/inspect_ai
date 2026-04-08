@@ -1,5 +1,6 @@
 ---
 title: Options
+llms-description: Covers the various options available for evaluations as well as how to manage model credentials.
 tbl-colwidths: [37,63]
 ---
 

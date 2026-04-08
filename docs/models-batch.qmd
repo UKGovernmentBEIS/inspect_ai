@@ -1,5 +1,6 @@
 ---
 title: Batch Mode
+llms-description: Using batch processing APIs for model inference.
 ---
 
 ## Overview

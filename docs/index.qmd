@@ -1,5 +1,6 @@
 ---
 title: Inspect
+llms-description: Welcome and overview of Inspect AI.
 subtitle: An open-source framework for large language model evaluations
 citation:
   id: "UK_AI_Security_Institute_Inspect_AI_Framework_2024"
