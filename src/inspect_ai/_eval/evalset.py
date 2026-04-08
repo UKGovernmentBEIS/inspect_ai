@@ -21,6 +21,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
@@ -350,7 +351,8 @@ def eval_set(
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
 
-    # get eval set id
+    # get eval set id (set display name from user-provided value before resolution)
+    set_eval_set_id_display(eval_set_id)
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
     # resolve some parameters
