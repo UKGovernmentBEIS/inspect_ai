@@ -582,7 +582,7 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 )
             )
         ]
-    elif isinstance(content, AudioChunk | UnknownContentChunk):
+    else:
         raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 
