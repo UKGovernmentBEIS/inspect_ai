@@ -1,5 +1,6 @@
 ---
 title: Task Configuration
+llms-description: Overriding task components at runtime using task_with(), eval(), and the CLI.
 ---
 
 ## Overview

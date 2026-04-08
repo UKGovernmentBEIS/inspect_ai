@@ -1,5 +1,6 @@
 ---
 title: Caching 
+llms-description: Caching enables you to cache model output to reduce API calls, saving both time and expense.
 ---
 
 ## Overview

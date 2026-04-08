@@ -1,5 +1,6 @@
 ---
 title: Custom Agents
+llms-description: APIs for creating custom agents.
 aliases: 
   - agents-api.html
   - agent-protocol.html

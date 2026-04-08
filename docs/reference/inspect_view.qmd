@@ -1,4 +1,5 @@
 ---
-title: "inspect view"
+reference: inspect view
+description: Inspect log viewer.
 ---
 

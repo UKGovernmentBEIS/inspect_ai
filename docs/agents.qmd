@@ -1,5 +1,6 @@
 ---
 title: Using Agents
+llms-description: Agents combine planning, memory, and tool usage to pursue complex, longer horizon tasks.
 ---
 
 ## Overview
