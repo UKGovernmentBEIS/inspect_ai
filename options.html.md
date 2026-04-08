@@ -1,37 +1,20 @@
 # Options
 
-
 ## Overview
 
-Inspect evaluations have a large number of options available for
-logging, tuning, diagnostics and model interactions. These options fall
-into roughly two categories:
+Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interactions. These options fall into roughly two categories:
 
-1.  Options that you want to set on a more durable basis (for a project
-    or session).
+1.  Options that you want to set on a more durable basis (for a project or session).
 
-2.  Options that you want to tweak per-eval to accommodate particular
-    scenarios.
+2.  Options that you want to tweak per-eval to accommodate particular scenarios.
 
-For the former, we recommend you specify these options in a `.env` file
-within your project directory, which is covered in the section below.
-See the [Eval Options](#eval-options) for details on all available
-options.
+For the former, we recommend you specify these options in a `.env` file within your project directory, which is covered in the section below. See the [Eval Options](#eval-options) for details on all available options.
 
 ## .env Files
 
-While we can include all required options on the `inspect eval` command
-line, it’s generally easier to use environment variables for commonly
-repeated options. To facilitate this, the `inspect` CLI will
-automatically read and process `.env` files located in the current
-working directory (also searching in parent directories if a `.env` file
-is not found in the working directory). This is done using the
-[python-dotenv](https://pypi.org/project/python-dotenv/) package).
+While we can include all required options on the `inspect eval` command line, it’s generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
 
-For example, here’s a `.env` file that makes available API keys for
-several providers and sets a bunch of defaults for a working session:
-
-**.env**
+For example, here’s a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
 
 ``` makefile
 OPENAI_API_KEY=your-api-key
@@ -46,32 +29,17 @@ INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
 ```
 
-All command line options can also be set via environment variable, most
-commonly by using the `INSPECT_EVAL_` prefix. Exceptions are noted
-below.
+All command line options can also be set via environment variable, most commonly by using the `INSPECT_EVAL_` prefix. Exceptions are noted below.
 
-Note that `.env` files are searched for in parent directories, so if you
-run an Inspect command from a subdirectory of a parent that has an
-`.env` file, it will still be read and resolved. If you define a
-relative path to `INSPECT_LOG_DIR` in a `.env` file, then its location
-will always be resolved as relative to that `.env` file (rather than
-relative to whatever your current working directory is when you run
-`inspect eval`).
+Note that `.env` files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an `.env` file, it will still be read and resolved. If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its location will always be resolved as relative to that `.env` file (rather than relative to whatever your current working directory is when you run `inspect eval`).
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> `.env` files should *never* be checked into version control, as they
-> nearly always contain either secret API keys or machine specific
-> paths. A best practice is often to check in an `.env.example` file to
-> version control which provides an outline (e.g. keys only not values)
-> of variables that are required by the current project.
+> `.env` files should *never* be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an `.env.example` file to version control which provides an outline (e.g. keys only not values) of variables that are required by the current project.
 
 ## Specifying Options
 
-Below are sections for the various categories of options supported by
-`inspect eval`. Note that all of these options are also available for
-the `eval()` function and settable by environment variables. For
-example:
+Below are sections for the various categories of options supported by `inspect eval`. Note that all of these options are also available for the [eval()](reference/inspect_ai.html.md#eval) function and settable by environment variables. For example:
 
 | CLI                | eval()           | Environment                   |
 |--------------------|------------------|-------------------------------|
@@ -80,8 +48,7 @@ example:
 | `--sample-shuffle` | `sample_shuffle` | `INSPECT_EVAL_SAMPLE_SHUFFLE` |
 | `--limit`          | `limit`          | `INSPECT_EVAL_LIMIT`          |
 
-For more detail on the different methods of configuration, see [Task
-Configuration](task-configuration.qmd).
+For more detail on the different methods of configuration, see [Task Configuration](task-configuration.html.md).
 
 ## Model Provider
 
@@ -91,13 +58,13 @@ Configuration](task-configuration.qmd).
 | `--model-base-url` | Base URL for for model API |
 | `--model-config` | Model specific arguments (JSON or YAML file) |
 | `-M` | Model specific arguments (`key=value`). |
-| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.qmd#model-roles). |
+| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.html.md#model-roles). |
 
 ## Model Generation
 
 |  |  |
 |----|----|
-| `--generate-config` | YAML or JSON config file with `GenerateConfig` fields (alternatively, use the individual options below). See [Generation Config](task-configuration.qmd#generate-config). |
+| `--generate-config` | YAML or JSON config file with [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig) fields (alternatively, use the individual options below). See [Generation Config](task-configuration.html.md#generate-config). |
 | `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
@@ -136,9 +103,7 @@ Configuration](task-configuration.qmd).
 | `--solver-config` | Solver arguments (JSON or YAML file)              |
 | `-S`              | Solver arguments (`key=value`)                    |
 
-For a complete matrix of which task, solver, and runtime settings can be
-configured on `Task()`, with `task_with()`, via `eval()`, or on the CLI,
-see the [override reference](task-configuration.qmd#override-reference).
+For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with [task_with()](reference/inspect_ai.html.md#task_with), via [eval()](reference/inspect_ai.html.md#eval), or on the CLI, see the [override reference](task-configuration.html.md#override-reference).
 
 ## Sample Selection
 
@@ -171,7 +136,7 @@ see the [override reference](task-configuration.qmd#override-reference).
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
 | `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. |
-| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via `set_model_cost()` or `--model-cost-config`. |
+| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via [set_model_cost()](reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. |
 | `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 
 ## Eval Logs

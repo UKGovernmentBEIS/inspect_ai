@@ -1,30 +1,19 @@
 # Tasks
 
-
 ## Overview
 
-This article documents both basic and advanced use of Inspect tasks,
-which are the fundamental unit of integration for datasets, solvers, and
-scorers. The following topics are explored:
+This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. The following topics are explored:
 
-- [Task Basics](#task-basics) describes the core components and options
-  of tasks.
-- [Parameters](#parameters) covers adding parameters to tasks to make
-  them flexible and adaptable.
-- [Solvers](#solvers) describes how to create tasks that can be used
-  with many different solvers.
-- [Task Reuse](#task-reuse) documents how to flexibly derive new tasks
-  from existing task definitions.
-- [Packaging](#packaging) illustrates how you can distribute tasks
-  within Python packages.
-- [Exploratory](#exploratory) provides guidance on doing exploratory
-  task and solver development.
+- [Task Basics](#task-basics) describes the core components and options of tasks.
+- [Parameters](#parameters) covers adding parameters to tasks to make them flexible and adaptable.
+- [Solvers](#solvers) describes how to create tasks that can be used with many different solvers.
+- [Task Reuse](#task-reuse) documents how to flexibly derive new tasks from existing task definitions.
+- [Packaging](#packaging) illustrates how you can distribute tasks within Python packages.
+- [Exploratory](#exploratory) provides guidance on doing exploratory task and solver development.
 
 ## Task Basics
 
-Tasks provide a recipe for an evaluation consisting minimally of a
-dataset, a solver, and a scorer (and possibly other options) and is
-returned from a function decorated with `@task`. For example:
+Tasks provide a recipe for an evaluation consisting minimally of a dataset, a solver, and a scorer (and possibly other options) and is returned from a function decorated with `@task`. For example:
 
 ``` python
 from inspect_ai import Task, task
@@ -41,33 +30,19 @@ def security_guide():
     )
 ```
 
-For convenience, tasks always define a default solver. That said, it is
-often desirable to design tasks that can work with *any* solver so that
-you can experiment with different strategies. The [Solvers](#solvers)
-section below goes into depth on how to create tasks that can be
-flexibly used with any solver.
+For convenience, tasks always define a default solver. That said, it is often desirable to design tasks that can work with *any* solver so that you can experiment with different strategies. The [Solvers](#solvers) section below goes into depth on how to create tasks that can be flexibly used with any solver.
 
 ### Task Options
 
-While many tasks can be defined with only a dataset, solver, and scorer,
-there are lots of other useful `Task` options. We won’t describe these
-options in depth here, but rather provide a list along with links to
-other sections of the documentation that cover their usage:
+While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful [Task](reference/inspect_ai.html.md#task) options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:
 
 [TABLE]
 
-You by and large don’t need to worry about these options until you want
-to use the features they are linked to.
+You by and large don’t need to worry about these options until you want to use the features they are linked to.
 
 ## Parameters
 
-Task parameters make it easy to run variants of your task without
-changing its source code. Task parameters are simply the arguments to
-your `@task` decorated function. For example, here we provide parameters
-(and default values) for system and grader prompts, as well as the
-grader model:
-
-**security.py**
+Task parameters make it easy to run variants of your task without changing its source code. Task parameters are simply the arguments to your `@task` decorated function. For example, here we provide parameters (and default values) for system and grader prompts, as well as the grader model:
 
 ``` python
 from inspect_ai import Task, task
@@ -90,26 +65,20 @@ def security_guide(
    )
 ```
 
-Let’s say we had an alternate system prompt in a file named
-`"researcher.txt"`. We could run the task with this prompt as follows:
+Let’s say we had an alternate system prompt in a file named `"researcher.txt"`. We could run the task with this prompt as follows:
 
 ``` bash
 inspect eval security.py -T system="researcher.txt"
 ```
 
-The `-T` CLI flag is used to specify parameter values. You can include
-multiple `-T` flags. For example:
+The `-T` CLI flag is used to specify parameter values. You can include multiple `-T` flags. For example:
 
 ``` bash
 inspect eval security.py \
    -T system="researcher.txt" -T grader="hacker.txt"
 ```
 
-If you have several task parameters you want to specify together, you
-can put them in a YAML or JSON file and use the `--task-config` CLI
-option. For example:
-
-**config.yaml**
+If you have several task parameters you want to specify together, you can put them in a YAML or JSON file and use the `--task-config` CLI option. For example:
 
 ``` yaml
 system: "researcher.txt"
@@ -122,21 +91,15 @@ Reference this file from the CLI with:
 inspect eval security.py --task-config=config.yaml
 ```
 
-For a broader view of how task parameters relate to `task_with()`,
-environment variables, `eval()`, and CLI overrides, see [Task
-Configuration](task-configuration.qmd).
+For a broader view of how task parameters relate to [task_with()](reference/inspect_ai.html.md#task_with), environment variables, [eval()](reference/inspect_ai.html.md#eval), and CLI overrides, see [Task Configuration](task-configuration.html.md).
 
 ## Solvers
 
-While tasks always include a *default* solver, you can also vary the
-solver to explore other strategies and elicitation techniques. This
-section covers best practices for creating solver-independent tasks.
+While tasks always include a *default* solver, you can also vary the solver to explore other strategies and elicitation techniques. This section covers best practices for creating solver-independent tasks.
 
 ### Solver Parameter
 
-You can substitute an alternate solver for the solver that is built in
-to your `Task` using the `--solver` command line parameter (or `solver`
-argument to the `eval()` function).
+You can substitute an alternate solver for the solver that is built in to your [Task](reference/inspect_ai.html.md#task) using the `--solver` command line parameter (or `solver` argument to the [eval()](reference/inspect_ai.html.md#eval) function).
 
 For example, let’s start with a simple CTF challenge task:
 
@@ -162,11 +125,7 @@ def ctf():
     )
 ```
 
-This task uses the most naive solver possible (a simple tool use loop
-with no additional elicitation). That might be okay for initial task
-development, but we’ll likely want to try lots of different strategies.
-We start by breaking the `solver` into its own function and adding an
-alternative solver that uses a `react()` agent
+This task uses the most naive solver possible (a simple tool use loop with no additional elicitation). That might be okay for initial task development, but we’ll likely want to try lots of different strategies. We start by breaking the `solver` into its own function and adding an alternative solver that uses a [react()](reference/inspect_ai.agent.html.md#react) agent
 
 ``` python
 from inspect_ai import Task, task
@@ -206,8 +165,7 @@ def ctf():
     )
 ```
 
-Note that we use the `chain()` function to combine multiple solvers into
-a composite one.
+Note that we use the [chain()](reference/inspect_ai.solver.html.md#chain) function to combine multiple solvers into a composite one.
 
 You can now switch between solvers when running the evaluation:
 
@@ -222,20 +180,13 @@ inspect eval ctf.py --solver=ctf_agent
 inspect eval ctf.py --solver=ctf_agent -S attempts=5
 ```
 
-Note the use of the `-S` CLI option to pass an alternate value for
-`attempts` to the `ctf_agent()` solver.
+Note the use of the `-S` CLI option to pass an alternate value for `attempts` to the `ctf_agent()` solver.
 
 ### Setup Parameter
 
-In some cases, there will be important steps in the setup of a task that
-*should not be substituted* when another solver is used with the task.
-For example, you might have a step that does dynamic prompt engineering
-based on values in the sample `metadata` or you might have a step that
-initialises resources in a sample’s sandbox.
+In some cases, there will be important steps in the setup of a task that *should not be substituted* when another solver is used with the task. For example, you might have a step that does dynamic prompt engineering based on values in the sample `metadata` or you might have a step that initialises resources in a sample’s sandbox.
 
-In these scenarios you can define a `setup` solver that is always run
-even when another `solver` is substituted. For example, here we adapt
-our initial example to include a `setup` step:
+In these scenarios you can define a `setup` solver that is always run even when another `solver` is substituted. For example, here we adapt our initial example to include a `setup` step:
 
 ``` python
 # prompt solver which should always be run
@@ -265,10 +216,7 @@ def ctf(solver: Solver | None = None):
 
 ## Task Cleanup
 
-You can use the `cleanup` parameter for executing code at the end of
-each sample run. The `cleanup` function is passed the `TaskState` and is
-called for both successful runs and runs where are exception is thrown.
-Extending the example from above:
+You can use the `cleanup` parameter for executing code at the end of each sample run. The `cleanup` function is passed the [TaskState](reference/inspect_ai.solver.html.md#taskstate) and is called for both successful runs and runs where are exception is thrown. Extending the example from above:
 
 ``` python
 async def ctf_cleanup(state: TaskState):
@@ -288,28 +236,15 @@ Note that like solvers, cleanup functions should be `async`.
 
 ## Task Reuse
 
-The basic mechanism for task re-use is to create flexible and adaptable
-base `@task` functions (which often have many parameters) and then
-derive new higher-level tasks from them by creating additional `@task`
-functions that call the base function.
+The basic mechanism for task re-use is to create flexible and adaptable base `@task` functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional `@task` functions that call the base function.
 
-In some cases though you might not have full control over the base
-`@task` function (e.g. it’s published in a Python package you aren’t the
-maintainer of) but you nevertheless want to flexibly create derivative
-tasks from it. To do this, you can use the `task_with()` function, which
-provides a straightforward way to modify the properties of an existing
-task.
+In some cases though you might not have full control over the base `@task` function (e.g. it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the [task_with()](reference/inspect_ai.html.md#task_with) function, which provides a straightforward way to modify the properties of an existing task.
 
-> [!TIP]
+> **TIP:**
 >
-> For a comprehensive reference on all configuration and override
-> mechanisms — including `task_with()`, `eval()` overrides, CLI flags,
-> and precedence rules — see [Task
-> Configuration](task-configuration.qmd).
+> For a comprehensive reference on all configuration and override mechanisms — including [task_with()](reference/inspect_ai.html.md#task_with), [eval()](reference/inspect_ai.html.md#eval) overrides, CLI flags, and precedence rules — see [Task Configuration](task-configuration.html.md).
 
-For example, imagine you are dealing with a `Task` that hard-codes its
-`sandbox` to a particular Dockerfile included with the task, and further
-hard codes its `solver` to a simple agent:
+For example, imagine you are dealing with a [Task](reference/inspect_ai.html.md#task) that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
 
 ``` python
 from inspect_ai import Task, task
@@ -327,12 +262,7 @@ def hard_coded():
     )
 ```
 
-Using `task_with()`, you can adapt this task to use a different `solver`
-and `sandbox` entirely. For example, here we import the original
-`hard_coded()` task from a hypothetical `ctf_tasks` package and provide
-it with a different `solver` and `sandbox`, as well as give it a
-`message_limit` (which we in turn also expose as a parameter of the
-adapted task):
+Using [task_with()](reference/inspect_ai.html.md#task_with), you can adapt this task to use a different `solver` and `sandbox` entirely. For example, here we import the original `hard_coded()` task from a hypothetical `ctf_tasks` package and provide it with a different `solver` and `sandbox`, as well as give it a `message_limit` (which we in turn also expose as a parameter of the adapted task):
 
 ``` python
 from inspect_ai import task, task_with
@@ -355,16 +285,9 @@ def adapted(message_limit: int = 20):
     )
 ```
 
-Tasks are recipes for an evaluation and represent the convergence of
-many considerations (datasets, solvers, sandbox environments, limits,
-and scoring). Task variations often lie at the intersection of these,
-and the `task_with()` function is intended to help you produce exactly
-the variation you need for a given evaluation.
+Tasks are recipes for an evaluation and represent the convergence of many considerations (datasets, solvers, sandbox environments, limits, and scoring). Task variations often lie at the intersection of these, and the [task_with()](reference/inspect_ai.html.md#task_with) function is intended to help you produce exactly the variation you need for a given evaluation.
 
-Note that `task_with()` modifies the passed task in-place, so if you
-want to create multiple variations of a single task using `task_with()`
-you should create the underlying task multiple times (once for each call
-to `task_with()`). For example:
+Note that [task_with()](reference/inspect_ai.html.md#task_with) modifies the passed task in-place, so if you want to create multiple variations of a single task using [task_with()](reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times (once for each call to [task_with()](reference/inspect_ai.html.md#task_with)). For example:
 
 ``` python
 adapted1 = task_with(hard_coded(), ...)
@@ -373,14 +296,9 @@ adapted2 = task_with(hard_coded(), ...)
 
 ## Packaging
 
-A convenient way to distribute tasks is to include them in a Python
-package. This makes it very easy for others to run your task and ensure
-they have all of the required dependencies.
+A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.
 
-Tasks in packages can be *registered* such that users can easily refer
-to them by name from the CLI. For example, the [Inspect
-Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes
-a suite of tasks that can be run as follows:
+Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
 
 ``` bash
 inspect eval inspect_evals/gaia 
@@ -389,9 +307,7 @@ inspect eval inspect_evals/swe_bench
 
 ### Example
 
-Here’s an example that walks through all of the requirements for
-registering tasks in packages. Let’s say your package is named `evals`
-and has a task named `mytask` in the `tasks.py` file:
+Here’s an example that walks through all of the requirements for registering tasks in packages. Let’s say your package is named `evals` and has a task named `mytask` in the `tasks.py` file:
 
     evals/       
       evals/
@@ -399,20 +315,13 @@ and has a task named `mytask` in the `tasks.py` file:
         _registry.py
       pyproject.toml
 
-The `_registry.py` file serves as a place to import things that you want
-registered with Inspect. For example:
-
-**\_registry.py**
+The `_registry.py` file serves as a place to import things that you want registered with Inspect. For example:
 
 ``` python
 from .tasks import mytask
 ```
 
-You can then register `mytask` (and anything else imported into
-`_registry.py`) as a [setuptools entry
-point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html).
-This will ensure that inspect can resolve references to your package
-from the CLI. Here is how this looks in `pyproject.toml`:
+You can then register `mytask` (and anything else imported into `_registry.py`) as a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect can resolve references to your package from the CLI. Here is how this looks in `pyproject.toml`:
 
 ## Setuptools
 
@@ -436,10 +345,7 @@ inspect eval evals/mytask
 
 ## Hugging Face
 
-Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that
-provides Inspect task definitions. For example, the
-[OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24)
-dataset can be evaluated with:
+Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
 
 ``` bash
 inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
@@ -451,9 +357,7 @@ Here are the `eval.yaml` definitions for several Hugging Face datasets:
 - [OpenEvals/SimpleQA](https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml)
 - [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
 
-A dataset’s `eval.yaml` file defines a list of tasks. Here are the
-fields that can be included in a task definition and how they are used
-in constructing `Task` instances:
+A dataset’s `eval.yaml` file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing [Task](reference/inspect_ai.html.md#task) instances:
 
 | Field             | Default   | Usage                       |
 |-------------------|-----------|-----------------------------|
@@ -467,28 +371,15 @@ in constructing `Task` instances:
 | `scorer`          | None      | `Task(scorer)`              |
 | `id`              | None      | `hf/org/dataset/name`       |
 
-- `field_spec.choices` can be either a single string (the key for one
-  field in each record) or a list of strings (multiple fields, whose
-  values will form the choices list for each sample).
+- `field_spec.choices` can be either a single string (the key for one field in each record) or a list of strings (multiple fields, whose values will form the choices list for each sample).
 - `field_spec.target` can be:
-  - A literal value, specified as `literal:<value>`, where `<value>`
-    will be used directly as the target.
-  - A field name corresponding to a letter, or an integer; in this case,
-    the integer (e.g., 0, 1, 2) will be mapped to a letter (`A`, `B`,
-    `C`, etc.) for use as the target.
-- `field_spec.input_image` is an optional field name for multimodal
-  tasks. When specified, it should reference a field containing image
-  data as a data URI (base64 encoded). The image will be combined with
-  the text input to create a multimodal chat message. For example:
+  - A literal value, specified as `literal:<value>`, where `<value>` will be used directly as the target.
+  - A field name corresponding to a letter, or an integer; in this case, the integer (e.g., 0, 1, 2) will be mapped to a letter (`A`, `B`, `C`, etc.) for use as the target.
+- `field_spec.input_image` is an optional field name for multimodal tasks. When specified, it should reference a field containing image data as a data URI (base64 encoded). The image will be combined with the text input to create a multimodal chat message. For example:
 
 ### Multiple Tasks
 
-Datasets can define multiple named tasks. For example, the
-[OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
-dataset defines 3 tasks: `musr:murder_mysteries`,
-`musr:object_placements`, and `musr:team_allocation`. If you call
-`inspect eval` with no task qualification, all 3 tasks will be run. If
-you append a task name, only that task will be run:
+Datasets can define multiple named tasks. For example, the [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml) dataset defines 3 tasks: `musr:murder_mysteries`, `musr:object_placements`, and `musr:team_allocation`. If you call `inspect eval` with no task qualification, all 3 tasks will be run. If you append a task name, only that task will be run:
 
 ``` bash
 # run all 3 tasks defined by OpenEvals/MuSR
@@ -498,8 +389,7 @@ inspect eval hf/OpenEvals/MuSR --model openai/gpt-5
 inspect eval hf/OpenEvals/MuSR/musr:murder_mysteries --model openai/gpt-5
 ```
 
-Note that when running multiple tasks, you may want to increase
-`--max-tasks` for more concurrency:
+Note that when running multiple tasks, you may want to increase `--max-tasks` for more concurrency:
 
 ``` bash
 inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
@@ -507,9 +397,7 @@ inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
 
 ### Revisions
 
-All of the examples above execute evals from the `main` branch. You can
-alternatively execute from a branch, tag, or revision hash by appending
-an `@` qualifier. For example:
+All of the examples above execute evals from the `main` branch. You can alternatively execute from a branch, tag, or revision hash by appending an `@` qualifier. For example:
 
 ``` bash
 inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-5
@@ -517,16 +405,9 @@ inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-5
 
 ## Exploratory
 
-When developing tasks and solvers, you often want to explore how
-changing prompts, generation options, solvers, and models affect
-performance on a task. You can do this by creating multiple tasks with
-varying parameters and passing them all to the `eval_set()` function.
+When developing tasks and solvers, you often want to explore how changing prompts, generation options, solvers, and models affect performance on a task. You can do this by creating multiple tasks with varying parameters and passing them all to the [eval_set()](reference/inspect_ai.html.md#eval_set) function.
 
-Returning to the example from above, the `system` and `grader`
-parameters point to files we are using as system message and grader
-model templates. At the outset we might want to explore every possible
-combination of these parameters, along with different models. We can use
-the `itertools.product` function to do this:
+Returning to the example from above, the `system` and `grader` parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters, along with different models. We can use the `itertools.product` function to do this:
 
 ``` python
 from itertools import product
@@ -553,10 +434,6 @@ logs = eval_set(
 plot_results(logs)
 ```
 
-Note that we also pass a list of `model` to try out the task on multiple
-models. This eval set will produce in total 16 tasks accounting for the
-parameter and model variation.
+Note that we also pass a list of `model` to try out the task on multiple models. This eval set will produce in total 16 tasks accounting for the parameter and model variation.
 
-See the article on [Eval Sets](eval-sets.qmd) to learn more about using
-eval sets. See the article on [Eval Logs](eval-logs.qmd) for additional
-details on working with evaluation logs.
+See the article on [Eval Sets](eval-sets.html.md) to learn more about using eval sets. See the article on [Eval Logs](eval-logs.html.md) for additional details on working with evaluation logs.

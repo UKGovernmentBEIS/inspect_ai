@@ -1,129 +1,88 @@
 # Log Viewer
 
-
 ## Overview
 
-Inspect View provides a convenient way to visualize evaluation logs,
-including drilling into message histories, scoring decisions, and
-additional metadata written to the log. Here’s what the main view of an
-evaluation log looks like:
+Inspect View provides a convenient way to visualize evaluation logs, including drilling into message histories, scoring decisions, and additional metadata written to the log. Here’s what the main view of an evaluation log looks like:
 
-![](images/inspect-view-main.png)
+[![The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples.](images/inspect-view-main.png)](images/inspect-view-main.png)
 
 Below we’ll describe how to get the most out of using Inspect View.
 
-Note that this section covers *interactively* exploring log files. You
-can also use the `EvalLog` API to compute on log files (e.g. to compare
-across runs or to more systematically traverse results). See the
-sections on [Eval Logs](#sec-eval-logs) and [Data Frames](dataframe.qmd)
-to learn more about how to process log files with code.
+Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](#sec-eval-logs) and [Data Frames](dataframe.html.md) to learn more about how to process log files with code.
 
 ## VS Code Extension
 
-If you are using Inspect within VS Code, the Inspect VS Code Extension
-has several features for integrated log viewing. To install the
-extension, search for **“Inspect AI”** in the extensions marketplace
-panel within VS Code.
+If you are using Inspect within VS Code, the Inspect VS Code Extension has several features for integrated log viewing. To install the extension, search for **“Inspect AI”** in the extensions marketplace panel within VS Code.
 
-![](images/inspect-vscode-install.png)
+![The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right.](images/inspect-vscode-install.png)
 
-The **Logs** pane of the Inspect Activity Bar (displayed below at bottom
-left of the IDE) provides a listing of log files. When you select a log
-it is displayed in an editor pane using the Inspect log viewer:
+The **Logs** pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:
 
 ![](images/logs.png)
 
-Click the open folder button at the top of the logs pane to browse any
-directory, local or remote (e.g. for logs on Amazon S3):
+Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g. for logs on Amazon S3):
 
 ![](images/logs-open-button.png) ![](images/logs-drop-down.png)
 
-Links to evaluation logs are also displayed at the bottom of every task
-result:
+Links to evaluation logs are also displayed at the bottom of every task result:
 
-![](images/eval-log.png)
+![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)
 
-If you prefer not to browse and view logs using the logs pane, you can
-also use the **Inspect: Inspect View…** command to open up a new pane
-running `inspect view`.
+If you prefer not to browse and view logs using the logs pane, you can also use the **Inspect: Inspect View…** command to open up a new pane running `inspect view`.
 
 ## View Command
 
-If you are not using VS Code, you can also run Inspect View directly
-from the command line via the `inspect view` command:
+If you are not using VS Code, you can also run Inspect View directly from the command line via the `inspect view` command:
 
 ``` bash
 $ inspect view
 ```
 
-By default, `inspect view` will use the configured log directory of the
-environment it is run from (e.g. `./logs`). You can specify an alternate
-log directory using `--log-dir` ,for example:
+By default, `inspect view` will use the configured log directory of the environment it is run from (e.g. `./logs`). You can specify an alternate log directory using `--log-dir` ,for example:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs
 ```
 
-By default it will run locally (127.0.0.1) on port 7575 (and kill any
-existing `inspect view` using that port). If you want to run two
-instances of `inspect view` you can specify an alternate port:
+By default it will run locally (127.0.0.1) on port 7575 (and kill any existing `inspect view` using that port). If you want to run two instances of `inspect view` you can specify an alternate port:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs --port 6565
 ```
 
-If you’re running the evaluation viewer on a remote machine (such as via
-SSH), you must explicitly allow access from external networks using the
-–host 0.0.0.0 option. You’ll be able to access the view at
-`http://$MACHINE_IP:6565` .
+If you’re running the evaluation viewer on a remote machine (such as via SSH), you must explicitly allow access from external networks using the –host 0.0.0.0 option. You’ll be able to access the view at `http://$MACHINE_IP:6565` .
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs --host 0.0.0.0
 ```
 
-You only need to run `inspect view` once at the beginning of a session
-(as it will automatically update to show new evaluations when they are
-run).
+You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
 
 ### Log History
 
-You can view and navigate between a history of all evals in the log
-directory using the menu at the top right:
+You can view and navigate between a history of all evals in the log directory using the menu at the top right:
 
-![](images/inspect-view-history.png)
+[![The Inspect log viewer, with the history panel displayed on the left overlaying the main interface. Several log files are displayed in the log history, each of which includes a summary of the results.](images/inspect-view-history.png)](images/inspect-view-history.png)
 
 ## Live View
 
-Inspect View provides a live view into the status of your evaluation
-task. The main shows shows what samples have completed (along with
-incremental metric calculations) and the sample view (described below)
-let’s you follow sample transcripts and message history as events occur.
+Inspect View provides a live view into the status of your evaluation task. The main shows shows what samples have completed (along with incremental metric calculations) and the sample view (described below) let’s you follow sample transcripts and message history as events occur.
 
-If you are running VS Code, you can click the **View Log** link within
-the task progress screen to access a live view of your task:
+If you are running VS Code, you can click the **View Log** link within the task progress screen to access a live view of your task:
 
 ![](images/inspect-view-log-link.png)
 
-If you are running with the `inspect view` command-line then you can
-access logs for in-progress tasks using the [Log History](#log-history)
-as described above.
+If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
 
 ### S3 Logs
 
-Multiple users can view live logs located on Amazon S3 (or any shared
-filesystem) by specifying an additional `--log-shared` option indicating
-that live log information should be written to the shared filesystem:
+Multiple users can view live logs located on Amazon S3 (or any shared filesystem) by specifying an additional `--log-shared` option indicating that live log information should be written to the shared filesystem:
 
 ``` bash
 inspect eval ctf.py --log-shared
 ```
 
-This is required because the live log viewing feature relies on a local
-database of log events which is only visible on the machine where the
-evaluation is running. The `--log-shared` option specifies that the live
-log information should also be written to the shared filesystem. By
-default, this information is synced every 10 seconds. You can override
-this by passing a value to `--log-shared`:
+This is required because the live log viewing feature relies on a local database of log events which is only visible on the machine where the evaluation is running. The `--log-shared` option specifies that the live log information should also be written to the shared filesystem. By default, this information is synced every 10 seconds. You can override this by passing a value to `--log-shared`:
 
 ``` bash
  inspect eval ctf.py --log-shared 30
@@ -135,66 +94,42 @@ Click a sample to drill into its messages, scoring, and metadata.
 
 ### Messages
 
-The messages tab displays the message history. In this example we see
-that the model make two tool calls before answering (the final assistant
-message is not fully displayed for brevity):
+The messages tab displays the message history. In this example we see that the model make two tool calls before answering (the final assistant message is not fully displayed for brevity):
 
-![](images/inspect-view-messages.png)
+[![The Inspect log viewer showing a sample expanded, with details on the user, assistant, and tool messages for the sample.](images/inspect-view-messages.png)](images/inspect-view-messages.png)
 
-Looking carefully at the message history (especially for agents or
-multi-turn solvers) is critically important for understanding how well
-your evaluation is constructed.
+Looking carefully at the message history (especially for agents or multi-turn solvers) is critically important for understanding how well your evaluation is constructed.
 
 ### Scoring
 
-The scoring tab shows additional details including the full input and
-full model explanation for answers:
+The scoring tab shows additional details including the full input and full model explanation for answers:
 
-![](images/inspect-view-scoring.png)
+[![The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation.](images/inspect-view-scoring.png)](images/inspect-view-scoring.png)
 
 ### Metadata
 
-The metadata tab shows additional data made available by solvers, tools,
-an scorers (in this case the `web_search()` tool records which URLs it
-visited to retrieve additional context):
+The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the [web_search()](reference/inspect_ai.tool.html.md#web_search) tool records which URLs it visited to retrieve additional context):
 
-![](images/inspect-view-metadata.png)
+[![The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample).](images/inspect-view-metadata.png)](images/inspect-view-metadata.png)
 
 ## Scores and Answers
 
-Reliable, high quality scoring is a critical component of every
-evaluation, and developing custom scorers that deliver this can be
-challenging. One major difficulty lies in the free form text nature of
-model output: we have a very specific target we are comparing against
-and we sometimes need to pick the answer out of a sea of text. Model
-graded output introduces another set of challenges entirely.
+Reliable, high quality scoring is a critical component of every evaluation, and developing custom scorers that deliver this can be challenging. One major difficulty lies in the free form text nature of model output: we have a very specific target we are comparing against and we sometimes need to pick the answer out of a sea of text. Model graded output introduces another set of challenges entirely.
 
 For comparison based scoring, scorers typically perform two core tasks:
 
 1.  Extract the answer from the model’s output; and
 2.  Compare the extracted answer to the target.
 
-A scorer can fail to correctly score output at either of these steps.
-Failing to extract an answer entirely can occur (e.g. due to a regex
-that’s not quite flexible enough) and as can failing to correctly
-identify equivalent answers (e.g. thinking that “1,242” is different
-from “1242.00” or that “Yes.” is different than “yes”).
+A scorer can fail to correctly score output at either of these steps. Failing to extract an answer entirely can occur (e.g. due to a regex that’s not quite flexible enough) and as can failing to correctly identify equivalent answers (e.g. thinking that “1,242” is different from “1242.00” or that “Yes.” is different than “yes”).
 
-You can use the log viewer to catch and evaluate these sorts of issues.
-For example, here we can see that we were unable to extract answers for
-a couple of questions that were scored incorrect:
+You can use the log viewer to catch and evaluate these sorts of issues. For example, here we can see that we were unable to extract answers for a couple of questions that were scored incorrect:
 
-![](images/inspect-view-answers.png)
+[![The Inspect log viewer with several 5 samples displayed, 3 of which are incorrect. The Answer column displays the answer extracted from the model output for each sample.](images/inspect-view-answers.png)](images/inspect-view-answers.png)
 
-It’s possible that these answers are legitimately incorrect. However
-it’s also possible that the correct answer is in the model’s output but
-just in a format we didn’t quite expect. In each case you’ll need to
-drill into the sample to investigate.
+It’s possible that these answers are legitimately incorrect. However it’s also possible that the correct answer is in the model’s output but just in a format we didn’t quite expect. In each case you’ll need to drill into the sample to investigate.
 
-Answers don’t just appear magically, scorers need to produce them during
-scoring. The scorers built in to Inspect all do this, but when you
-create a custom scorer, you should be sure to always include an `answer`
-in the `Score` objects you return if you can. For example:
+Answers don’t just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an `answer` in the [Score](reference/inspect_ai.scorer.html.md#score) objects you return if you can. For example:
 
 ``` python
 return Score(
@@ -204,46 +139,27 @@ return Score(
 )
 ```
 
-If we only return the `value` of “C” or “I” we’d lose the context of
-exactly what was being compared when the score was assigned.
+If we only return the `value` of “C” or “I” we’d lose the context of exactly what was being compared when the score was assigned.
 
-Note there is also an `explanation` field: this is also important, as it
-allows you to view the entire context from which the answer was
-extracted from.
+Note there is also an `explanation` field: this is also important, as it allows you to view the entire context from which the answer was extracted from.
 
 ## Filtering and Sorting
 
-It’s often useful to filter log entries by score (for example, to
-investigate whether incorrect answers are due to scorer issues or are
-true negatives). Use the **Scores** picker to filter by specific scores:
+It’s often useful to filter log entries by score (for example, to investigate whether incorrect answers are due to scorer issues or are true negatives). Use the **Scores** picker to filter by specific scores:
 
-![](images/inspect-view-filter.png)
+[![The Inspect log view, with 4 samples displayed, each of which are marked incorrect. The Scores picker is focused, and has selected 'Incorrect', indicating that only incorrect scores should be displayed.](images/inspect-view-filter.png)](images/inspect-view-filter.png)
 
-By default, samples are ordered (with all samples for an epoch presented
-in sequence). However you can also order by score, or order by samples
-(so you see all of the results for a given sample across all epochs
-presented together). Use the **Sort** picker to control this:
+By default, samples are ordered (with all samples for an epoch presented in sequence). However you can also order by score, or order by samples (so you see all of the results for a given sample across all epochs presented together). Use the **Sort** picker to control this:
 
-![](images/inspect-view-sort.png)
+[![The Inspect log view, with the results of a single sample for each of the 4 epochs of the evaluation.](images/inspect-view-sort.png)](images/inspect-view-sort.png)
 
-Viewing by sample can be especially valuable for diagnosing the sources
-of inconsistency (and determining whether they are inherent or an
-artifact of the evaluation methodology). Above we can see that sample 1
-is incorrect in epoch 1 because of issue the model had with forming a
-correct function call.
+Viewing by sample can be especially valuable for diagnosing the sources of inconsistency (and determining whether they are inherent or an artifact of the evaluation methodology). Above we can see that sample 1 is incorrect in epoch 1 because of issue the model had with forming a correct function call.
 
 ## Python Logging
 
-Beyond the standard information included an eval log file, you may want
-to do additional console logging to assist with developing and
-debugging. Inspect installs a log handler that displays logging output
-above eval progress as well as saves it into the evaluation log file.
+Beyond the standard information included an eval log file, you may want to do additional console logging to assist with developing and debugging. Inspect installs a log handler that displays logging output above eval progress as well as saves it into the evaluation log file.
 
-If you use the [recommend
-practice](https://docs.python.org/3/library/logging.html) of the Python
-`logging` library for obtaining a logger your logs will interoperate
-well with Inspect. For example, here we developing a web search tool and
-want to log each time a query occurs:
+If you use the [recommend practice](https://docs.python.org/3/library/logging.html) of the Python `logging` library for obtaining a logger your logs will interoperate well with Inspect. For example, here we developing a web search tool and want to log each time a query occurs:
 
 ``` python
 # setup logger for this source file
@@ -257,8 +173,7 @@ All of these log entries will be included in the sample transcript.
 
 ### Log Levels
 
-The log levels and their applicability are described below (in
-increasing order of severity):
+The log levels and their applicability are described below (in increasing order of severity):
 
 | Level | Description |
 |----|----|
@@ -272,56 +187,39 @@ increasing order of severity):
 
 #### Default Levels
 
-By default, messages of log level `warning` and higher are printed to
-the console, and messages of log level `info` and higher are included in
-the sample transcript. This enables you to include many calls to
-`logger.info()` in your code without having them show by default, while
-also making them available in the log viewer should you need them.
+By default, messages of log level `warning` and higher are printed to the console, and messages of log level `info` and higher are included in the sample transcript. This enables you to include many calls to `logger.info()` in your code without having them show by default, while also making them available in the log viewer should you need them.
 
-If you’d like to see ‘info’ messages in the console as well, use the
-`--log-level info` option:
+If you’d like to see ‘info’ messages in the console as well, use the `--log-level info` option:
 
 ``` bash
 $ inspect eval biology_qa.py --log-level info
 ```
 
-![](images/inspect-view-logging-console.png)
+[![This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display.](images/inspect-view-logging-console.png)](images/inspect-view-logging-console.png)
 
-You can use the `--log-level-transcript` option to control what level is
-written to the sample transcript:
+You can use the `--log-level-transcript` option to control what level is written to the sample transcript:
 
 ``` bash
 $ inspect eval biology_qa.py --log-level-transcript http
 ```
 
-Note that you can also set the log levels using the `INSPECT_LOG_LEVEL`
-and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are
-often included in a [.env configuration file](options.qmd).
+Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are often included in a [.env configuration file](options.html.md).
 
 ### External File
 
-In addition to seeing the Python logging activity at the end of an eval
-run in the log viewer, you can also arrange to have Python logger
-entries written to an external file. Set the `INSPECT_PY_LOGGER_FILE`
-environment variable to do this:
+In addition to seeing the Python logging activity at the end of an eval run in the log viewer, you can also arrange to have Python logger entries written to an external file. Set the `INSPECT_PY_LOGGER_FILE` environment variable to do this:
 
 ``` bash
 export INSPECT_PY_LOGGER_FILE=/tmp/inspect.log
 ```
 
-You can set this in the shell or within your global `.env` file. By
-default, messages of level `info` and higher will be written to the log
-file. If you set your main `--log-level` lower than that (e.g. to
-`http`) then the log file will follow. To set a distinct log level for
-the file, set the `INSPECT_PY_LOGGER_FILE` environment variable. For
-example:
+You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_FILE` environment variable. For example:
 
 ``` bash
 export INSPECT_PY_LOGGER_LEVEL=http
 ```
 
-Use `tail --follow` to track the contents of the log file in realtime.
-For example:
+Use `tail --follow` to track the contents of the log file in realtime. For example:
 
 ``` bash
 tail --follow /tmp/inspect.log
@@ -329,23 +227,13 @@ tail --follow /tmp/inspect.log
 
 ## Task Information
 
-The **Info** panel of the log viewer provides additional
-meta-information about evaluation tasks, including dataset, solver, and
-scorer details, git revision, and model token usage:
+The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, solver, and scorer details, git revision, and model token usage:
 
-![](images/inspect-view-info.png)
+[![The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, solver, and scorer details, git revision, and model token usage.](images/inspect-view-info.png)](images/inspect-view-info.png)
 
 ## Publishing
 
-You can use the command `inspect view bundle` (or the `bundle_log_dir()`
-function from Python) to create a self contained directory with the log
-viewer and a set of logs for display. This directory can then be
-deployed to any static web server ([GitHub
-Pages](https://docs.github.com/en/pages), [S3
-buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html),
-or [Netlify](https://docs.netlify.com/get-started/), for example) to
-provide a standalone version of the viewer. For example, to bundle the
-`logs` directory to a directory named `logs-www`:
+You can use the command `inspect view bundle` (or the [bundle_log_dir()](reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir logs-www
@@ -357,56 +245,40 @@ Or to bundle the default log folder (read from `INSPECT_LOG_DIR`):
 $ inspect view bundle --output-dir logs-www
 ```
 
-By default, an existing output dir will NOT be overwritten. Specify the
-`--overwrite` option to remove and replace an existing output dir:
+By default, an existing output dir will NOT be overwritten. Specify the `--overwrite` option to remove and replace an existing output dir:
 
 ``` bash
 $ inspect view bundle --output-dir logs-www --overwrite
 ```
 
-Bundling the viewer and logs will produce an output directory with the
-following structure:
+Bundling the viewer and logs will produce an output directory with the following structure:
 
 ``` bash
 logs-www
- └── index.html
- └── robots.txt
- └── assets
+ └── index.html # <1>
+ └── robots.txt  # <2>
+ └── assets     # <3>
      └──  ..
- └── logs
+ └── logs       # <4>
      └──  ..
 ```
 
-Line 2  
-The root viewer HTML
-
-Line 3  
-Excludes this site from being indexed
-
-Line 4  
-Supporting assets for the viewer
-
-Line 6  
-The logs to be displayed
+1.  The root viewer HTML
+2.  Excludes this site from being indexed
+3.  Supporting assets for the viewer
+4.  The logs to be displayed
 
 Deploy this folder to a static webserver to publish the log viewer.
 
 ### HuggingFace Spaces
 
-You can publish your bundled log viewer directly to [HuggingFace
-Spaces](https://huggingface.co/spaces) by specifying an output directory
-that starts with `hf/`. For example, to publish to a space named
-`my-org/my-eval-logs`:
+You can publish your bundled log viewer directly to [HuggingFace Spaces](https://huggingface.co/spaces) by specifying an output directory that starts with `hf/`. For example, to publish to a space named `my-org/my-eval-logs`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir hf/my-org/my-eval-logs
 ```
 
-The space will be created as a static space and your logs will be
-immediately available at
-`https://huggingface.co/spaces/my-org/my-eval-logs`. By default, the
-space will be created as private. To create a public space, you can use
-the Python API:
+The space will be created as a static space and your logs will be immediately available at `https://huggingface.co/spaces/my-org/my-eval-logs`. By default, the space will be created as private. To create a public space, you can use the Python API:
 
 ``` python
 from inspect_ai.log import bundle_log_dir
@@ -418,38 +290,20 @@ bundle_log_dir(
 )
 ```
 
-Note that publishing to HuggingFace Spaces requires the
-`huggingface_hub` package and authentication with HuggingFace (via
-`huggingface-cli login` or the `HF_TOKEN` environment variable).
+Note that publishing to HuggingFace Spaces requires the `huggingface_hub` package and authentication with HuggingFace (via `huggingface-cli login` or the `HF_TOKEN` environment variable).
 
 ### Other Notes
 
-- You may provide a default output directory for bundling the viewer in
-  your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR`
-  variable.
+- You may provide a default output directory for bundling the viewer in your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` variable.
 
-- You may specify an S3 url as the target for bundled views. See the
-  [Amazon S3](eval-logs.qmd#sec-amazon-s3) section for additional
-  information on configuring S3.
+- You may specify an S3 url as the target for bundled views. See the [Amazon S3](eval-logs.html.md#sec-amazon-s3) section for additional information on configuring S3.
 
-- You can use the `inspect_ai.log.bundle_log_dir` function in Python
-  directly to bundle the viewer and logs into an output directory.
+- You can use the `inspect_ai.log.bundle_log_dir` function in Python directly to bundle the viewer and logs into an output directory.
 
-- The bundled viewer will show the first log file by default. You may
-  link to the viewer to show a specific log file by including the
-  `log_file` URL parameter, for example:
+- The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the `log_file` URL parameter, for example:
 
       https://logs.example.com?log_file=<log_file>
 
-- The bundled output directory includes a `robots.txt` file to prevent
-  indexing by web crawlers. If you deploy this folder outside of the
-  root of your website then you would need to update your root
-  `robots.txt` accordingly to exclude the folder from indexing (this is
-  required because web crawlers only read `robots.txt` from the root of
-  the website not subdirectories).
+- The bundled output directory includes a `robots.txt` file to prevent indexing by web crawlers. If you deploy this folder outside of the root of your website then you would need to update your root `robots.txt` accordingly to exclude the folder from indexing (this is required because web crawlers only read `robots.txt` from the root of the website not subdirectories).
 
-- The Inspect log viewer uses HTTP range requests to efficiently read
-  the log files being served in the bundle. Please be sure to use a
-  server which supports HTTP range requests to server the statically
-  bundled files. Most HTTP servers do support this, but notably,
-  Python’s built in `http.server` does not.
+- The Inspect log viewer uses HTTP range requests to efficiently read the log files being served in the bundle. Please be sure to use a server which supports HTTP range requests to server the statically bundled files. Most HTTP servers do support this, but notably, Python’s built in `http.server` does not.

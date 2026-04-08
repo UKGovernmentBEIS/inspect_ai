@@ -1,5 +1,6 @@
 # inspect list
 
+List tasks on the filesystem.
 
 List tasks on the filesystem.
 

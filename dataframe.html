@@ -2,13 +2,16 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.25">
+<meta name="generator" content="quarto-1.9.36">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
 <title>Log Dataframes – Inspect</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -70,15 +73,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6776297b1bcdc1ce3e71101c0074be7c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -110,16 +112,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://inspect.aisi.org.uk//images/inspect.png">
+<meta property="og:image" content="https://inspect.aisi.org.uk/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://inspect.aisi.org.uk//images/inspect.png">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -134,7 +136,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <img src="./images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="./index.html">
-    <span class="navbar-title">Inspect AI</span>
+    <span class="navbar-title">Inspect</span>
     </a>
   </div>
             <div id="quarto-search" class="" title="Search"></div>
@@ -191,10 +193,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
-    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
-      <a href="./index.html" class="sidebar-logo-link">
-      </a>
-      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
@@ -520,7 +518,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -550,7 +548,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#custom" id="toc-custom" class="nav-link" data-scroll-target="#custom">Custom</a></li>
   </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -811,7 +809,7 @@ table a {
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="5b132bf6" class="cell">
+<div id="534e52d8" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -827,7 +825,7 @@ table a {
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="6f3b498b" class="cell">
+<div id="e88eca4d" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -841,7 +839,7 @@ table a {
 </section>
 <section id="column-definitions" class="level2">
 <h2 class="anchored" data-anchor-id="column-definitions">Column Definitions</h2>
-<p>The examples above all use built-in column specifications (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalmodel">EvalModel</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalresults">EvalResults</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span>, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.</p>
+<p>The examples above all use built-in column specifications (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalmodel">EvalModel</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalresults">EvalResults</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span>, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.</p>
 <p>Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> class (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span>). For example, here is the definition of the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evaltask">EvalTask</a></span> column group:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>EvalTask: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_name"</span>, path<span class="op">=</span><span class="st">"eval.task"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
@@ -962,7 +960,7 @@ table a {
 <td>Epochs, approval, sample limits, etc.</td>
 </tr>
 <tr class="even">
-<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalresults">EvalResults</a></span></td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalresults">EvalResults</a></span></td>
 <td>Status, errors, samples completed, headline metric.</td>
 </tr>
 <tr class="odd">
@@ -1245,6 +1243,74 @@ table a {
 </section>
 
 </main> <!-- /main -->
+<div id="copy-page-btn" class="btn-group" style="display:none;">
+  <button type="button" class="btn btn-sm btn-light" id="copy-page-action" title="Copy page as Markdown">
+    <i class="bi bi-clipboard"></i> Copy page
+  </button>
+  <button type="button" class="btn btn-sm btn-light dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+    <span class="visually-hidden">Toggle Dropdown</span>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><a class="dropdown-item" href="#" id="copy-page-md">
+      <i class="bi bi-clipboard"></i> Copy page as Markdown
+    </a></li>
+    <li><a class="dropdown-item" href="#" id="open-page-md">
+      <i class="bi bi-box-arrow-up-right"></i> Open Markdown
+    </a></li>
+  </ul>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var btn = document.getElementById("copy-page-btn");
+  var cachedMarkdown = null;
+
+  // Pre-fetch the .html.md content
+  fetch(mdUrl)
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      cachedMarkdown = text;
+
+      // Relocate button into the .quarto-title div
+      var titleDiv = document.querySelector(".quarto-title");
+      if (titleDiv) {
+        titleDiv.appendChild(btn);
+        btn.style.display = "";
+      }
+    })
+    .catch(function () {
+      // No .html.md available — remove button entirely
+      btn.remove();
+    });
+
+  function copyMarkdown(e) {
+    e.preventDefault();
+    if (!cachedMarkdown) return;
+    navigator.clipboard.writeText(cachedMarkdown).then(function () {
+      // Brief visual feedback — lock width to prevent layout shift
+      var actionBtn = document.getElementById("copy-page-action");
+      var original = actionBtn.innerHTML;
+      actionBtn.style.minWidth = actionBtn.offsetWidth + "px";
+      actionBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+      setTimeout(function () {
+        actionBtn.innerHTML = original;
+        actionBtn.style.minWidth = "";
+      }, 1500);
+    });
+  }
+
+  document.getElementById("copy-page-action").addEventListener("click", copyMarkdown);
+  document.getElementById("copy-page-md").addEventListener("click", copyMarkdown);
+  document.getElementById("open-page-md").addEventListener("click", function (e) {
+    e.preventDefault();
+    window.open(mdUrl, "_blank");
+  });
+});
+</script>
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
@@ -1318,7 +1384,7 @@ table a {
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk\/");
+        var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
@@ -1704,7 +1770,7 @@ table a {
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link" href="https://aisi.gov.uk/">
+    <a class="nav-link" href="https://aisi.gov.uk">
 <p>UK AI Security Institute</p>
 </a>
   </li>  
@@ -1733,20 +1799,19 @@ table a {
 </a>
   </li>  
 </ul>
-    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    </div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">
     <a class="nav-link" href="https://x.com/AISecurityInst">
-      <i class="bi bi-twitter" role="img" aria-label="UK AI Security Institute Twitter">
+      <i class="bi bi-twitter" role="img" aria-label="Inspect Twitter">
 </i> 
     </a>
   </li>  
     <li class="nav-item compact">
-    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
-      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
-</i> 
-    </a>
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
   </li>  
 </ul>
     </div>

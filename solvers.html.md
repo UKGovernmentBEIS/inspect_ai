@@ -1,10 +1,8 @@
 # Solvers
 
-
 ## Overview
 
-Solvers are the heart of Inspect evaluations and can serve a wide
-variety of purposes, including:
+Solvers are the heart of Inspect evaluations and can serve a wide variety of purposes, including:
 
 1.  Providing system prompts
 2.  Prompt engineering (e.g. chain of thought)
@@ -13,10 +11,7 @@ variety of purposes, including:
 5.  Multi-turn dialog
 6.  Running an agent scaffold
 
-Tasks have a single top-level solver that defines an execution plan.
-This solver could be implemented with arbitrary Python code (calling the
-model as required) or could consist of a set of other solvers composed
-together. Solvers can therefore play two different roles:
+Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other solvers composed together. Solvers can therefore play two different roles:
 
 1.  *Composite* specifications for task execution; and
 
@@ -24,8 +19,7 @@ together. Solvers can therefore play two different roles:
 
 ### Example
 
-Here’s an example task definition that composes a few standard solver
-components:
+Here’s an example task definition that composes a few standard solver components:
 
 ``` python
 @task
@@ -42,9 +36,7 @@ def theory_of_mind():
     )
 ```
 
-In this example we pass a list of solver components directly to the
-`Task`. More often, though we’ll wrap our solvers in an `@solver`
-decorated function to create a composite solver:
+In this example we pass a list of solver components directly to the [Task](reference/inspect_ai.html.md#task). More often, though we’ll wrap our solvers in an `@solver` decorated function to create a composite solver:
 
 ``` python
 @solver
@@ -68,21 +60,13 @@ def theory_of_mind():
     )
 ```
 
-Composite solvers by no means need to be implemented using chains. While
-chains are frequently used in more straightforward knowledge and
-reasoning evaluations, fully custom solver functions are often used for
-multi-turn dialog and agent evaluations.
+Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
 
-This section covers mostly solvers as components (both built in and
-creating your own). The [Agents](agents.qmd) section describes fully
-custom solvers in more depth.
+This section covers mostly solvers as components (both built in and creating your own). The [Agents](agents.html.md) section describes fully custom solvers in more depth.
 
 ## Task States
 
-Before we get into the specifics of how solvers work, we should describe
-`TaskState`, which is the fundamental data structure they act upon. A
-`TaskState` consists principally of chat history (derived from `input`
-and then extended by model interactions) and model output:
+Before we get into the specifics of how solvers work, we should describe [TaskState](reference/inspect_ai.solver.html.md#taskstate), which is the fundamental data structure they act upon. A [TaskState](reference/inspect_ai.solver.html.md#taskstate) consists principally of chat history (derived from `input` and then extended by model interactions) and model output:
 
 ``` python
 class TaskState:
@@ -90,24 +74,15 @@ class TaskState:
     output: ModelOutput
 ```
 
-> [!NOTE]
+> **NOTE:**
 >
-> Note that the `TaskState` definition above is simplified: there are
-> other fields in a `TaskState` but we’re excluding them here for
-> clarity.
+> Note that the [TaskState](reference/inspect_ai.solver.html.md#taskstate) definition above is simplified: there are other fields in a [TaskState](reference/inspect_ai.solver.html.md#taskstate) but we’re excluding them here for clarity.
 
-A prompt engineering solver will modify the content of `messages`. A
-model generation solver will call the model, append an assistant
-`message`, and set the `output` (a multi-turn dialog solver might do
-this in a loop).
+A prompt engineering solver will modify the content of `messages`. A model generation solver will call the model, append an assistant `message`, and set the `output` (a multi-turn dialog solver might do this in a loop).
 
 ## Solver Function
 
-We’ve covered the role of solvers in the system, but what exactly are
-solvers technically? A solver is a Python function that takes a
-`TaskState` and `generate` function, and then transforms and returns the
-`TaskState` (the `generate` function may or may not be called depending
-on the solver).
+We’ve covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that takes a [TaskState](reference/inspect_ai.solver.html.md#taskstate) and `generate` function, and then transforms and returns the [TaskState](reference/inspect_ai.solver.html.md#taskstate) (the `generate` function may or may not be called depending on the solver).
 
 ``` python
 async def solve(state: TaskState, generate: Generate):
@@ -117,105 +92,64 @@ async def solve(state: TaskState, generate: Generate):
     return state
 ```
 
-The `generate` function passed to solvers is a convenience function that
-takes a `TaskState`, calls the model with it, appends the assistant
-message, and sets the model output. This is never used by prompt
-engineering solvers and often used by more complex solvers that want to
-have multiple model interactions.
+The `generate` function passed to solvers is a convenience function that takes a [TaskState](reference/inspect_ai.solver.html.md#taskstate), calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and often used by more complex solvers that want to have multiple model interactions.
 
-Here are what some of the built-in solvers do with the `TaskState`:
+Here are what some of the built-in solvers do with the [TaskState](reference/inspect_ai.solver.html.md#taskstate):
 
-1.  The `system_message()` and `user_message()` solvers insert messages
-    into the chat history.
+1.  The [system_message()](reference/inspect_ai.solver.html.md#system_message) and [user_message()](reference/inspect_ai.solver.html.md#user_message) solvers insert messages into the chat history.
 
-2.  The `chain_of_thought()` solver takes the original user prompt and
-    re-writes it to ask the model to use chain of thought reasoning to
-    come up with its answer.
+2.  The [chain_of_thought()](reference/inspect_ai.solver.html.md#chain_of_thought) solver takes the original user prompt and re-writes it to ask the model to use chain of thought reasoning to come up with its answer.
 
-3.  The `generate()` solver just calls the `generate` function on the
-    `state`. In fact, this is the full source code for the `generate()`
-    solver:
+3.  The [generate()](reference/inspect_ai.solver.html.md#generate) solver just calls the `generate` function on the `state`. In fact, this is the full source code for the [generate()](reference/inspect_ai.solver.html.md#generate) solver:
 
     ``` python
     async def solve(state: TaskState, generate: Generate):
         return await generate(state)
     ```
 
-4.  The `self_critique()` solver takes the `ModelOutput` and then sends
-    it to another model for critique. It then replays this critique back
-    within the `messages` stream and re-calls `generate` to get a
-    refined answer.
+4.  The [self_critique()](reference/inspect_ai.solver.html.md#self_critique) solver takes the [ModelOutput](reference/inspect_ai.model.html.md#modeloutput) and then sends it to another model for critique. It then replays this critique back within the `messages` stream and re-calls `generate` to get a refined answer.
 
-You can also imagine solvers that call other models to help come up with
-a better prompt, or solvers that implement a multi-turn dialog. Anything
-you can imagine is possible.
+You can also imagine solvers that call other models to help come up with a better prompt, or solvers that implement a multi-turn dialog. Anything you can imagine is possible.
 
 ## Built-In Solvers
 
-Inspect has a number of built-in solvers, each of which can be
-customised in some fashion. Built in solvers can be imported from the
-`inspect_ai.solver` module. Below is a summary of these solvers. There
-is not (yet) reference documentation on these functions so the best way
-to learn about how they can be customised, etc. is to use the **Go to
-Definition** command in your source editor.
+Inspect has a number of built-in solvers, each of which can be customised in some fashion. Built in solvers can be imported from the `inspect_ai.solver` module. Below is a summary of these solvers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
 
-- `prompt_template()`
+- [prompt_template()](reference/inspect_ai.solver.html.md#prompt_template)
 
-  Modify the user prompt by substituting the current prompt into the
-  `{prompt}` placeholder within the specified template. Also
-  automatically substitutes any variables defined in sample `metadata`
-  as well as any other custom named parameters passed in `params`.
+  Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named parameters passed in `params`.
 
-- `system_message()`
+- [system_message()](reference/inspect_ai.solver.html.md#system_message)
 
-  Prepend role=“system” `message` to the list of messages (will follow
-  any other system messages it finds in the message stream). Also
-  automatically substitutes any variables defined in sample `metadata`
-  and `store`, as well as any other custom named parameters passed in
-  `params`.
+  Prepend role=“system” `message` to the list of messages (will follow any other system messages it finds in the message stream). Also automatically substitutes any variables defined in sample `metadata` and `store`, as well as any other custom named parameters passed in `params`.
 
-- `user_message()`
+- [user_message()](reference/inspect_ai.solver.html.md#user_message)
 
-  Append role=“user” `message` to the list of messages. Also
-  automatically substitutes any variables defined in sample `metadata`
-  and `store`, as well as any other custom named parameters passed in
-  `params`.
+  Append role=“user” `message` to the list of messages. Also automatically substitutes any variables defined in sample `metadata` and `store`, as well as any other custom named parameters passed in `params`.
 
-- `chain_of_thought()`
+- [chain_of_thought()](reference/inspect_ai.solver.html.md#chain_of_thought)
 
-  Standard chain of thought template with `{prompt}` substitution
-  variable. Asks the model to provide the final answer on a line by
-  itself at the end for easier scoring.
+  Standard chain of thought template with `{prompt}` substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.
 
-- `use_tools()`
+- [use_tools()](reference/inspect_ai.solver.html.md#use_tools)
 
-  Define the set tools available for use by the model during
-  `generate()`.
+  Define the set tools available for use by the model during [generate()](reference/inspect_ai.solver.html.md#generate).
 
-- `generate()`
+- [generate()](reference/inspect_ai.solver.html.md#generate)
 
-  As illustrated above, just a simple call to `generate(state)`. This is
-  the default solver if no `solver` is specified.
+  As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `solver` is specified.
 
-- `self_critique()`
+- [self_critique()](reference/inspect_ai.solver.html.md#self_critique)
 
-  Prompts the model to critique the results of a previous call to
-  `generate()` (note that this need not be the same model as they one
-  you are evaluating—use the `model` parameter to choose another model).
-  Makes use of `{question}` and `{completion}` template variables. Also
-  automatically substitutes any variables defined in sample `metadata`
+  Prompts the model to critique the results of a previous call to [generate()](reference/inspect_ai.solver.html.md#generate) (note that this need not be the same model as they one you are evaluating—use the `model` parameter to choose another model). Makes use of `{question}` and `{completion}` template variables. Also automatically substitutes any variables defined in sample `metadata`
 
-- `multiple_choice()`
+- [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice)
 
-  A solver which presents A,B,C,D style `choices` from input samples and
-  calls `generate()` to yield model output. Pair this solver with the
-  choices() scorer. For custom answer parsing or scoring needs (like
-  handling complex outputs), use a custom scorer instead. Learn more
-  about [Multiple Choice](#sec-multiple-choice) in the section below.
+  A solver which presents A,B,C,D style `choices` from input samples and calls [generate()](reference/inspect_ai.solver.html.md#generate) to yield model output. Pair this solver with the choices() scorer. For custom answer parsing or scoring needs (like handling complex outputs), use a custom scorer instead. Learn more about [Multiple Choice](#sec-multiple-choice) in the section below.
 
 ## Multiple Choice
 
-Here is the declaration for the `multiple_choice()` solver:
+Here is the declaration for the [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) solver:
 
 ``` python
 @solver
@@ -228,27 +162,16 @@ def multiple_choice(
 ) -> Solver:
 ```
 
-We’ll present an example and then discuss the various options below (in
-most cases you won’t need to customise these). First though there are
-some special considerations to be aware of when using the
-`multiple_choice()` solver:
+We’ll present an example and then discuss the various options below (in most cases you won’t need to customise these). First though there are some special considerations to be aware of when using the [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) solver:
 
-1.  The `Sample` must include the available `choices`. Choices should
-    not include letters (as they are automatically included when
-    presenting the choices to the model).
-2.  The `Sample` `target` should be a capital letter (e.g. A, B, C, D,
-    etc.)
-3.  You should always pair it with the `choice()` scorer in your task
-    definition. For custom answer parsing or scoring needs (like
-    handling complex model outputs), implement a custom scorer.
-4.  It calls `generate()` internally, so you do need to separately
-    include the `generate()` solver.
+1.  The [Sample](reference/inspect_ai.dataset.html.md#sample) must include the available `choices`. Choices should not include letters (as they are automatically included when presenting the choices to the model).
+2.  The [Sample](reference/inspect_ai.dataset.html.md#sample) `target` should be a capital letter (e.g. A, B, C, D, etc.)
+3.  You should always pair it with the [choice()](reference/inspect_ai.scorer.html.md#choice) scorer in your task definition. For custom answer parsing or scoring needs (like handling complex model outputs), implement a custom scorer.
+4.  It calls [generate()](reference/inspect_ai.solver.html.md#generate) internally, so you do need to separately include the [generate()](reference/inspect_ai.solver.html.md#generate) solver.
 
 ### Example
 
-Below is a full example of reading a dataset for use with
-`multiple choice()` and using it in an evaluation task. The underlying
-data in `mmlu.csv` has the following form:
+Below is a full example of reading a dataset for use with `multiple choice()` and using it in an evaluation task. The underlying data in `mmlu.csv` has the following form:
 
 | Question | A | B | C | D | Answer |
 |----|----|----|----|----|:--:|
@@ -286,16 +209,11 @@ def record_to_sample(record):
     )
 ```
 
-We use the `record_to_sample()` function to read the `choices` along
-with the `target` (which should always be a letter ,e.g. A, B, C, or D).
-Note that you should not include letter prefixes in the `choices`, as
-they will be included automatically when presenting the question to the
-model.
+We use the `record_to_sample()` function to read the `choices` along with the `target` (which should always be a letter ,e.g. A, B, C, or D). Note that you should not include letter prefixes in the `choices`, as they will be included automatically when presenting the question to the model.
 
 ### Options
 
-The following options are available for further customisation of the
-multiple choice solver:
+The following options are available for further customisation of the multiple choice solver:
 
 | Option | Description |
 |----|----|
@@ -305,15 +223,9 @@ multiple choice solver:
 
 ### Shuffling
 
-When working with datasets that contain multiple-choice options, you can
-randomize the order of these choices during data loading. The shuffling
-operation automatically updates any corresponding target values to
-maintain correct answer mappings.
+When working with datasets that contain multiple-choice options, you can randomize the order of these choices during data loading. The shuffling operation automatically updates any corresponding target values to maintain correct answer mappings.
 
-For datasets that contain `choices`, you can shuffle the choices when
-the data is loaded. Shuffling choices will randomly re-order the choices
-and update the sample’s target value or values to align with the
-shuffled choices.
+For datasets that contain `choices`, you can shuffle the choices when the data is loaded. Shuffling choices will randomly re-order the choices and update the sample’s target value or values to align with the shuffled choices.
 
 There are two ways to shuffle choices:
 
@@ -337,7 +249,7 @@ dataset = json_dataset("data.jsonl", shuffle_choices=42)
 
 ## Self Critique
 
-Here is the declaration for the `self_critique()` solver:
+Here is the declaration for the [self_critique()](reference/inspect_ai.solver.html.md#self_critique) solver:
 
 ``` python
 def self_critique(
@@ -347,19 +259,13 @@ def self_critique(
 ) -> Solver:
 ```
 
-There are two templates which correspond to the one used to solicit
-critique and the one used to play that critique back for a refined
-answer (default templates are provided for both).
+There are two templates which correspond to the one used to solicit critique and the one used to play that critique back for a refined answer (default templates are provided for both).
 
-You will likely want to experiment with using a distinct `model` for
-generating critiques (by default the model being evaluated is used).
+You will likely want to experiment with using a distinct `model` for generating critiques (by default the model being evaluated is used).
 
 ## Custom Solvers
 
-In this section we’ll take a look at the source code for a couple of the
-built in solvers as a jumping off point for implementing your own
-solvers. A solver is an implementation of the `Solver` protocol (a
-function that transforms a `TaskState`):
+In this section we’ll take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the [Solver](reference/inspect_ai.solver.html.md#solver) protocol (a function that transforms a [TaskState](reference/inspect_ai.solver.html.md#taskstate)):
 
 ``` python
 async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -368,70 +274,51 @@ async def solve(state: TaskState, generate: Generate) -> TaskState:
     return state
 ```
 
-Typically solvers can be customised with parameters (e.g. `template` for
-prompt engineering solvers). This means that a `Solver` is actually a
-function which returns the `solve()` function referenced above (this
-will become more clear in the examples below).
+Typically solvers can be customised with parameters (e.g. `template` for prompt engineering solvers). This means that a [Solver](reference/inspect_ai.solver.html.md#solver) is actually a function which returns the `solve()` function referenced above (this will become more clear in the examples below).
 
 ### Task States
 
-Before presenting the examples we’ll take a more in-depth look at the
-`TaskState` class. Task states consist of both lower level data members
-(e.g. `messages`, `output`) as well as a number of convenience
-properties. The core members of `TaskState` that are *modified* by
-solvers are `messages` / `user_prompt` and `output`:
+Before presenting the examples we’ll take a more in-depth look at the [TaskState](reference/inspect_ai.solver.html.md#taskstate) class. Task states consist of both lower level data members (e.g. `messages`, `output`) as well as a number of convenience properties. The core members of [TaskState](reference/inspect_ai.solver.html.md#taskstate) that are *modified* by solvers are `messages` / `user_prompt` and `output`:
 
 | Member | Type | Description |
 |----|----|----|
-| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the [generate()](reference/inspect_ai.solver.html.md#generate) solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
 | `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
-| `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver. |
+| `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the [generate()](reference/inspect_ai.solver.html.md#generate) solver. |
 
-> [!NOTE]
+> **NOTE:**
 >
-> Note that the `generate()` solver automatically updates both the
-> `messages` and `output` fields. For very simple evaluations modifying
-> the `user_prompt` and then calling `generate()` encompasses all of the
-> required interaction with `TaskState`.
+> Note that the [generate()](reference/inspect_ai.solver.html.md#generate) solver automatically updates both the `messages` and `output` fields. For very simple evaluations modifying the `user_prompt` and then calling [generate()](reference/inspect_ai.solver.html.md#generate) encompasses all of the required interaction with [TaskState](reference/inspect_ai.solver.html.md#taskstate).
 
-Sometimes its important to have access to the *original* prompt input
-for the task (as other solvers may have re-written or even removed it
-entirely). This is available using the `input` and `input_text`
-properties:
+Sometimes its important to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
 
 | Member | Type | Description |
 |----|----|----|
-| `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
-| `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
+| `input` | str \| list\[ChatMessage\] | Original [Sample](reference/inspect_ai.dataset.html.md#sample) input. |
+| `input_text` | str | Convenience function for accessing the initial input from the [Sample](reference/inspect_ai.dataset.html.md#sample) as a string. |
 
-There are several other fields used to provide contextual data from
-either the task sample or evaluation:
+There are several other fields used to provide contextual data from either the task sample or evaluation:
 
 | Member | Type | Description |
 |----|----|----|
 | `sample_id` | int \| str | Unique ID for sample. |
 | `epoch` | int | Epoch for sample. |
-| `metadata` | dict | Original metadata from `Sample` |
+| `metadata` | dict | Original metadata from [Sample](reference/inspect_ai.dataset.html.md#sample) |
 | `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
 | `model` | ModelName | Name of model currently being evaluated. |
 
-Task states also include available tools as well as guidance for the
-model on which tools to use (if you haven’t yet encountered the concept
-of tool use in language models, don’t worry about understanding these
-fields, the [Tools](tools.qmd) article provides a more in-depth
-treatment):
+Task states also include available tools as well as guidance for the model on which tools to use (if you haven’t yet encountered the concept of tool use in language models, don’t worry about understanding these fields, the [Tools](tools.html.md) article provides a more in-depth treatment):
 
 | Member        | Type         | Description                  |
 |---------------|--------------|------------------------------|
 | `tools`       | list\[Tool\] | Tools available to the model |
 | `tool_choice` | ToolChoice   | Tool choice directive.       |
 
-These fields are typically modified via the `use_tools()` solver, but
-they can also be modified directly for more advanced use cases.
+These fields are typically modified via the [use_tools()](reference/inspect_ai.solver.html.md#use_tools) solver, but they can also be modified directly for more advanced use cases.
 
 ### Example: Prompt Template
 
-Here’s the code for the `prompt_template()` solver:
+Here’s the code for the [prompt_template()](reference/inspect_ai.solver.html.md#prompt_template) solver:
 
 ``` python
 @solver
@@ -451,33 +338,19 @@ def prompt_template(template: str, **params: dict[str, Any]):
 
 A few things to note about this implementation:
 
-1.  The function applies the `@solver` decorator—this registers the
-    `Solver` with Inspect, making it possible to capture its name and
-    parameters for logging, as well as make it callable from a
-    configuration file (e.g. a YAML specification of an eval).
+1.  The function applies the `@solver` decorator—this registers the [Solver](reference/inspect_ai.solver.html.md#solver) with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g. a YAML specification of an eval).
 
-2.  The `solve()` function is declared as `async`. This is so that it
-    can participate in Inspect’s optimised scheduling for expensive
-    model generation calls (this solver doesn’t call `generate()` but
-    others will).
+2.  The `solve()` function is declared as `async`. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call [generate()](reference/inspect_ai.solver.html.md#generate) but others will).
 
-3.  The `resource()` function is used to read the specified `template`.
-    This function accepts a string, file, or URL as its argument, and
-    then returns a string with the contents of the resource.
+3.  The [resource()](reference/inspect_ai.util.html.md#resource) function is used to read the specified `template`. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.
 
-4.  We make use of the `user_prompt` property on the `TaskState`. This
-    is a convenience property for locating the first `role="user"`
-    message (otherwise you might need to skip over system messages,
-    etc). Since this is a string templating solver, we use the
-    `state.user_prompt.text` property (so we are dealing with prompt as
-    a string, recall that it can also be a list of messages).
+4.  We make use of the `user_prompt` property on the [TaskState](reference/inspect_ai.solver.html.md#taskstate). This is a convenience property for locating the first `role="user"` message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the `state.user_prompt.text` property (so we are dealing with prompt as a string, recall that it can also be a list of messages).
 
-5.  We make sample `metadata` available to the template as well as any
-    `params` passed to the function.
+5.  We make sample `metadata` available to the template as well as any `params` passed to the function.
 
 ### Example: Self Critique
 
-Here’s the code for the `self_critique()` solver:
+Here’s the code for the [self_critique()](reference/inspect_ai.solver.html.md#self_critique) solver:
 
 ``` python
 DEFAULT_CRITIQUE_TEMPLATE = r"""
@@ -559,16 +432,11 @@ def self_critique(
     return solve
 ```
 
-Note that calls to `generate()` (for both the critique model and the
-model being evaluated) are called with `await`—this is critical to
-ensure that the solver participates correctly in the scheduling of
-generation work.
+Note that calls to [generate()](reference/inspect_ai.solver.html.md#generate) (for both the critique model and the model being evaluated) are called with `await`—this is critical to ensure that the solver participates correctly in the scheduling of generation work.
 
 ### Models in Solvers
 
-As illustrated above, often you’ll want to use models in the
-implementation of solvers. Use the `get_model()` function to get either
-the currently evaluated model or another model interface. For example:
+As illustrated above, often you’ll want to use models in the implementation of solvers. Use the [get_model()](reference/inspect_ai.model.html.md#get_model) function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for critique
@@ -578,8 +446,7 @@ critique_model = get_model()
 critique_model = get_model("google/gemini-2.5-pro")
 ```
 
-Use the `config` parameter of `get_model()` to override default
-generation options:
+Use the `config` parameter of [get_model()](reference/inspect_ai.model.html.md#get_model) to override default generation options:
 
 ``` python
 critique_model = get_model(
@@ -590,19 +457,14 @@ critique_model = get_model(
 
 ### Scoring in Solvers
 
-Typically, solvers don’t score samples but rather leave that to
-externally specified [scorers](scorers.qmd). However, in some cases it
-is more convenient to have solvers also do scoring (e.g. when there is
-high coupling between the solver and scoring). The following two task
-state fields can be used for scoring:
+Typically, solvers don’t score samples but rather leave that to externally specified [scorers](scorers.html.md). However, in some cases it is more convenient to have solvers also do scoring (e.g. when there is high coupling between the solver and scoring). The following two task state fields can be used for scoring:
 
-| Member   | Type               | Description                  |
-|----------|--------------------|------------------------------|
-| `target` | Target             | Scoring target from `Sample` |
-| `scores` | dict\[str, Score\] | Optional scores.             |
+| Member | Type | Description |
+|----|----|----|
+| `target` | Target | Scoring target from [Sample](reference/inspect_ai.dataset.html.md#sample) |
+| `scores` | dict\[str, Score\] | Optional scores. |
 
-Here is a trivial example of the code that might be used to yield scores
-from a solver:
+Here is a trivial example of the code that might be used to yield scores from a solver:
 
 ``` python
 async def solve(state: TaskState, generate: Generate):
@@ -614,14 +476,11 @@ async def solve(state: TaskState, generate: Generate):
     return state
 ```
 
-Note that scores yielded by a `Solver` are combined with scores from the
-normal scoring provided by the scorer(s) defined for a `Task`.
+Note that scores yielded by a [Solver](reference/inspect_ai.solver.html.md#solver) are combined with scores from the normal scoring provided by the scorer(s) defined for a [Task](reference/inspect_ai.html.md#task).
 
 ### Intermediate Scoring
 
-In some cases it is useful for a solver to score a task directly to
-generate an intermediate score or assist in deciding whether or how to
-continue. You can do this using the `score` function:
+In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the `score` function:
 
 ``` python
 from inspect_ai.scorer import score
@@ -637,25 +496,15 @@ def solver_that_scores() -> Solver:
     return solver
 ```
 
-Note that the `score` function returns a list of `Score` (as its
-possible that a task could have multiple scorers).
+Note that the `score` function returns a list of [Score](reference/inspect_ai.scorer.html.md#score) (as its possible that a task could have multiple scorers).
 
 ### Concurrency
 
-When creating custom solvers, it’s critical that you understand
-Inspect’s concurrency model. More specifically, if your solver is doing
-non-trivial work (e.g. calling REST APIs, executing external processes,
-etc.) please review
-[Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) for a
-more in depth discussion.
+When creating custom solvers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.html.md#sec-parallel-solvers-and-scorers) for a more in depth discussion.
 
 ## Early Termination
 
-In some cases a solver has the context available to request an early
-termination of the sample (i.e. don’t call the rest of the solvers). In
-this case, setting the `TaskState.completed` field will result in
-forgoing remaining solvers. For example, here’s a simple solver that
-terminates the sample early:
+In some cases a solver has the context available to request an early termination of the sample (i.e. don’t call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers. For example, here’s a simple solver that terminates the sample early:
 
 ``` python
 @solver
@@ -667,8 +516,7 @@ def complete_task():
     return solve
 ```
 
-Early termination might also occur if you specify the `message_limit`
-option and the conversation exceeds that limit:
+Early termination might also occur if you specify the `message_limit` option and the conversation exceeds that limit:
 
 ``` python
 # could terminate early

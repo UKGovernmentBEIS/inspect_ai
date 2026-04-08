@@ -1,12 +1,8 @@
 # Tutorial
 
-
 ## Overview
 
-Below we’ll walk step-by-step through several basic examples of Inspect
-evaluations. Each example in the tutorial is standalone, so feel free to
-skip between examples that demonstrate the features you are most
-interested in.
+Below we’ll walk step-by-step through several basic examples of Inspect evaluations. Each example in the tutorial is standalone, so feel free to skip between examples that demonstrate the features you are most interested in.
 
 | Example | Demonstrates |
 |----|----|
@@ -18,23 +14,15 @@ interested in.
 | [Tool Use](#sec-tool-use) | Tool usage and creating custom tools. |
 | [InterCode CTF](#sec-intercode-ctf) | Tool using agents; reading complex datasets. |
 
-See also the complete list of
-[Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples)
-for demonstrations of more advanced features.
+See also the complete list of [Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples) for demonstrations of more advanced features.
 
-> [!NOTE]
+> **NOTE:**
 >
-> Note that in these examples we won’t show a `--model` command line
-> argument when we call `inspect eval` (the presumption being that it
-> has been already established via the `INSPECT_EVAL_MODEL` environment
-> variable).
+> Note that in these examples we won’t show a `--model` command line argument when we call `inspect eval` (the presumption being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
 
 ## Hello World
 
-This is the simplest possible Inspect evaluation task. The solver
-(`generate()`) just calls the model with the prompt and the scorer
-(`exact()`) checks whether the model produces exactly the `target` from
-the dataset:
+This is the simplest possible Inspect evaluation task. The solver ([generate()](reference/inspect_ai.solver.html.md#generate)) just calls the model with the prompt and the scorer ([exact()](reference/inspect_ai.scorer.html.md#exact)) checks whether the model produces exactly the `target` from the dataset:
 
 ``` python
 from inspect_ai import Task, task
@@ -58,11 +46,7 @@ def hello_world():
 
 ## Security Guide
 
-The security guide example contains 16 question-answer pairs taken from
-the security guide dataset published in the [OpenAI
-Evals](https://github.com/openai/evals) repository. This eval tests how
-well models are doing at providing cybersecurity guidance. Here are some
-examples from the dataset:
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [OpenAI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
 
 | input | target |
 |----|----|
@@ -71,9 +55,7 @@ examples from the dataset:
 
 ### Setup
 
-We’ll start by importing the functions we need from Inspect and defining
-a system message that orients the model to its role as a computer
-security expert.
+We’ll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.
 
 ``` python
 from inspect_ai import Task, task
@@ -91,9 +73,7 @@ computer security and provide a short response in a few words.
 
 ### Eval
 
-Discerning whether the correct security guidance was provided by the
-model might prove difficult using only text matching algorithms. Here we
-use a model to read the response and assess the quality of the answer.
+Discerning whether the correct security guidance was provided by the model might prove difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
 
 ``` python
 @task
@@ -105,9 +85,7 @@ def security_guide():
     )
 ```
 
-Note that we are using a `model_graded_fact()` scorer. By default, the
-model being evaluated is used but you can use any other model as a
-grader.
+Note that we are using a [model_graded_fact()](reference/inspect_ai.scorer.html.md#model_graded_fact) scorer. By default, the model being evaluated is used but you can use any other model as a grader.
 
 Now we run the evaluation:
 
@@ -117,30 +95,20 @@ inspect eval security_guide.py
 
 ## HellaSwag
 
-[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed
-to test commonsense natural language inference (NLI) about physical
-situations. It includes samples that are adversarially constructed to
-violate common sense about the physical world, so can be a challenge for
-some language models.
+[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challenge for some language models.
 
-For example, here is one of the questions in the dataset along with its
-set of possible answers (the correct answer is C):
+For example, here is one of the questions in the dataset along with its set of possible answers (the correct answer is C):
 
 > In home pet groomers demonstrate how to groom a pet. the person
 >
-> 1)  puts a setting engage on the pets tongue and leash.
-> 2)  starts at their butt rise, combing out the hair with a brush from
->     a red.
-> 3)  is demonstrating how the dog’s hair is trimmed with electric
->     shears at their grooming salon.
-> 4)  installs and interacts with a sleeping pet before moving away.
+> 1.  puts a setting engage on the pets tongue and leash.
+> 2.  starts at their butt rise, combing out the hair with a brush from a red.
+> 3.  is demonstrating how the dog’s hair is trimmed with electric shears at their grooming salon.
+> 4.  installs and interacts with a sleeping pet before moving away.
 
 ### Setup
 
-We’ll start by importing the functions we need from Inspect, defining a
-system message, and writing a function to convert dataset records to
-samples (we need to do this to convert the index-based label in the
-dataset to a letter).
+We’ll start by importing the functions we need from Inspect, defining a system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).
 
 ``` python
 from inspect_ai import Task, task
@@ -163,18 +131,11 @@ def record_to_sample(record):
     )
 ```
 
-Note that even though we don’t use it for the evaluation, we save the
-`source_id` as metadata as a way to reference samples in the underlying
-dataset.
+Note that even though we don’t use it for the evaluation, we save the `source_id` as metadata as a way to reference samples in the underlying dataset.
 
 ### Eval
 
-We’ll load the dataset from
-[HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the
-`hf_dataset()` function. We’ll draw data from the validation split, and
-use the `record_to_sample()` function to parse the records (we’ll also
-pass `trust=True` to indicate that we are okay with locally executing
-the dataset loading code provided by hellaswag):
+We’ll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset) function. We’ll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we’ll also pass `trust=True` to indicate that we are okay with locally executing the dataset loading code provided by hellaswag):
 
 ``` python
 @task
@@ -199,13 +160,9 @@ def hellaswag():
     )
 ```
 
-We use the `multiple_choice()` solver and as you may have noted we don’t
-call `generate()` directly here! This is because `multiple_choice()`
-calls `generate()` internally. We also use the `choice()` scorer (which
-is a requirement when using the multiple choice solver).
+We use the [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) solver and as you may have noted we don’t call [generate()](reference/inspect_ai.solver.html.md#generate) directly here! This is because [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) calls [generate()](reference/inspect_ai.solver.html.md#generate) internally. We also use the [choice()](reference/inspect_ai.scorer.html.md#choice) scorer (which is a requirement when using the multiple choice solver).
 
-Now we run the evaluation, limiting the samples read to 50 for
-development purposes:
+Now we run the evaluation, limiting the samples read to 50 for development purposes:
 
 ``` bash
 inspect eval hellaswag.py --limit 50
@@ -213,30 +170,20 @@ inspect eval hellaswag.py --limit 50
 
 ## GSM8K
 
-[GSM8K](https://arxiv.org/abs/2110.14168) (Grade School Math 8K) is a
-dataset of 8.5K high quality linguistically diverse grade school math
-word problems. The dataset was created to support the task of question
-answering on basic mathematical problems that require multi-step
-reasoning. Here are some samples from the dataset:
+[GSM8K](https://arxiv.org/abs/2110.14168) (Grade School Math 8K) is a dataset of 8.5K high quality linguistically diverse grade school math word problems. The dataset was created to support the task of question answering on basic mathematical problems that require multi-step reasoning. Here are some samples from the dataset:
 
 | question | answer |
 |----|----|
 | James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
 | Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10** |
 
-Note that the final numeric answers are contained at the end of the
-**answer** field after the `####` delimiter.
+Note that the final numeric answers are contained at the end of the **answer** field after the `####` delimiter.
 
 ### Setup
 
-We’ll start by importing what we need from Inspect and writing a couple
-of data handling functions:
+We’ll start by importing what we need from Inspect and writing a couple of data handling functions:
 
-1.  `record_to_sample()` to convert raw records to samples. Note that we
-    need a function rather than just mapping field names with a
-    `FieldSpec` because the **answer** field in the dataset needs to be
-    divided into reasoning and the actual answer (which appears at the
-    very end after `####`).
+1.  `record_to_sample()` to convert raw records to samples. Note that we need a function rather than just mapping field names with a [FieldSpec](reference/inspect_ai.dataset.html.md#fieldspec) because the **answer** field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after `####`).
 2.  `sample_to_fewshot()` to generate fewshot examples from samples.
 
 ``` python
@@ -267,13 +214,9 @@ def sample_to_fewshot(sample):
     )
 ```
 
-Note that we save the “reasoning” part of the answer in `metadata` — we
-do this so that we can use it to compose the [fewshot
-prompt](https://www.promptingguide.ai/techniques/fewshot) (as
-illustrated in `sample_to_fewshot()`).
+Note that we save the “reasoning” part of the answer in `metadata` — we do this so that we can use it to compose the [fewshot prompt](https://www.promptingguide.ai/techniques/fewshot) (as illustrated in `sample_to_fewshot()`).
 
-Here’s the prompt we’ll used to elicit a chain of thought answer in the
-right format:
+Here’s the prompt we’ll used to elicit a chain of thought answer in the right format:
 
 ``` python
 # setup for problem + instructions for providing answer
@@ -294,12 +237,7 @@ Reasoning:
 
 ### Eval
 
-We’ll load the dataset from
-[HuggingFace](https://huggingface.co/datasets/gsm8k) using the
-`hf_dataset()` function. By default we use 10 fewshot examples, but the
-`fewshot` task arg can be used to turn this up, down, or off. The
-`fewshot_seed` is provided for stability of fewshot examples across
-runs.
+We’ll load the dataset from [HuggingFace](https://huggingface.co/datasets/gsm8k) using the [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset) function. By default we use 10 fewshot examples, but the `fewshot` task arg can be used to turn this up, down, or off. The `fewshot_seed` is provided for stability of fewshot examples across runs.
 
 ``` python
 @task
@@ -336,13 +274,9 @@ def gsm8k(fewshot=10, fewshot_seed=42):
     )
 ```
 
-We instruct the `match()` scorer to look for numeric matches at the end
-of the output. Passing `numeric=True` tells `match()` that it should
-disregard punctuation used in numbers (e.g. `$`, `,`, or `.` at the end)
-when making comparisons.
+We instruct the [match()](reference/inspect_ai.scorer.html.md#match) scorer to look for numeric matches at the end of the output. Passing `numeric=True` tells [match()](reference/inspect_ai.scorer.html.md#match) that it should disregard punctuation used in numbers (e.g. `$`, `,`, or `.` at the end) when making comparisons.
 
-Now we run the evaluation, limiting the number of samples to 100 for
-development purposes:
+Now we run the evaluation, limiting the number of samples to 100 for development purposes:
 
 ``` bash
 inspect eval gsm8k.py --limit 100
@@ -350,24 +284,16 @@ inspect eval gsm8k.py --limit 100
 
 ## Mathematics
 
-The [MATH dataset](https://arxiv.org/abs/2103.03874) includes 12,500
-challenging competition mathematics problems. Each problem in MATH has a
-full step-by-step solution which can be used to teach models to generate
-answer derivations and explanations. Here are some samples from the
-dataset:
+The [MATH dataset](https://arxiv.org/abs/2103.03874) includes 12,500 challenging competition mathematics problems. Each problem in MATH has a full step-by-step solution which can be used to teach models to generate answer derivations and explanations. Here are some samples from the dataset:
 
 | Question | Answer |
 |----|---:|
 | How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
-| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$ | 1112 |
+| Let \\p(x)\\ be a monic, quartic polynomial, such that \\p(1) = 3,\\ \\p(3) = 11,\\ and \\p(5) = 27.\\ Find \\p(-2) + 7p(6)\\ | 1112 |
 
 ### Setup
 
-We’ll start by importing the functions we need from Inspect and defining
-a prompt that asks the model to reason step by step and respond with its
-answer on a line at the end. It also nudges the model not to enclose its
-answer in `\boxed`, a LaTeX command for displaying equations that models
-often use in math output.
+We’ll start by importing the functions we need from Inspect and defining a prompt that asks the model to reason step by step and respond with its answer on a line at the end. It also nudges the model not to enclose its answer in `\boxed`, a LaTeX command for displaying equations that models often use in math output.
 
 ``` python
 import re
@@ -406,9 +332,7 @@ and you do not need to use a \\boxed command.
 
 ### Eval
 
-Here is the basic setup for our eval. We `shuffle` the dataset so that
-when we use `--limit` to develop on smaller slices we get some variety
-of inputs and results:
+Here is the basic setup for our eval. We `shuffle` the dataset so that when we use `--limit` to develop on smaller slices we get some variety of inputs and results:
 
 ``` python
 @task
@@ -432,11 +356,7 @@ def math(shuffle=True):
     )
 ```
 
-The heart of this eval isn’t in the task definition though, rather it’s
-in how we grade the output. Math expressions can be logically equivalent
-but not literally the same. Consequently, we’ll use a model to assess
-whether the output and the target are logically equivalent. the
-`expression_equivalence()` custom scorer implements this:
+The heart of this eval isn’t in the task definition though, rather it’s in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we’ll use a model to assess whether the output and the target are logically equivalent. the `expression_equivalence()` custom scorer implements this:
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -469,10 +389,7 @@ def expression_equivalence():
     return score
 ```
 
-We are making a separate call to the model to assess equivalence. We
-prompt for this using an `EQUIVALENCE_TEMPLATE`. Here’s a general flavor
-for how that template looks (there are more examples in the real
-template):
+We are making a separate call to the model to assess equivalence. We prompt for this using an `EQUIVALENCE_TEMPLATE`. Here’s a general flavor for how that template looks (there are more examples in the real template):
 
 ``` python
 EQUIVALENCE_TEMPLATE = r"""
@@ -509,18 +426,15 @@ a rationale.
 """.strip()
 ```
 
-Now we run the evaluation, limiting it to 500 problems (as there are
-over 12,000 in the dataset):
+Now we run the evaluation, limiting it to 500 problems (as there are over 12,000 in the dataset):
 
 ``` bash
 $ inspect eval math.py --limit 500
 ```
 
-This will draw 500 random samples from the dataset (because the default
-is `shuffle=True` in our call to load the dataset).
+This will draw 500 random samples from the dataset (because the default is `shuffle=True` in our call to load the dataset).
 
-The task lets you override this with a task parameter (e.g. in case you
-wanted to evaluate a specific sample or range of samples):
+The task lets you override this with a task parameter (e.g. in case you wanted to evaluate a specific sample or range of samples):
 
 ``` bash
 $ inspect eval math.py --limit 100-200 -T shuffle=false
@@ -528,29 +442,18 @@ $ inspect eval math.py --limit 100-200 -T shuffle=false
 
 ## Tool Use
 
-This example illustrates how to define and use tools with model
-evaluations. Tools are Python functions that you provide for the model
-to call for assistance with various tasks (e.g. looking up information).
-Note that tools are actually *executed* on the client system, not on the
-system where the model is running.
+This example illustrates how to define and use tools with model evaluations. Tools are Python functions that you provide for the model to call for assistance with various tasks (e.g. looking up information). Note that tools are actually *executed* on the client system, not on the system where the model is running.
 
-Note that tool use is not supported for every model provider. Currently,
-tools work with OpenAI, Anthropic, Google Gemini, Mistral, and Groq
-models.
+Note that tool use is not supported for every model provider. Currently, tools work with OpenAI, Anthropic, Google Gemini, Mistral, and Groq models.
 
-If you want to use tools in your evals it’s worth taking some time to
-learn how to provide good tool definitions. Here are some resources you
-may find helpful:
+If you want to use tools in your evals it’s worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:
 
-- [Function Calling with
-  LLMs](https://www.promptingguide.ai/applications/function_calling)
-- [Understanding Tool Specifications and
-  Descriptions](https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-specifications-descriptions)
+- [Function Calling with LLMs](https://www.promptingguide.ai/applications/function_calling)
+- [Understanding Tool Specifications and Descriptions](https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-specifications-descriptions)
 
 ### Addition
 
-We’ll demonstrate with a simple tool that adds two numbers, using the
-`@tool` decorator to register it with the system:
+We’ll demonstrate with a simple tool that adds two numbers, using the `@tool` decorator to register it with the system:
 
 ``` python
 from inspect_ai import Task, task
@@ -585,8 +488,7 @@ Note that we provide type annotations for both arguments:
 async def execute(x: int, y: int)
 ```
 
-Further, we provide descriptions for each parameter in the documentation
-comment:
+Further, we provide descriptions for each parameter in the documentation comment:
 
 ``` python
 Args:
@@ -594,12 +496,9 @@ Args:
     y: Second number to add.
 ```
 
-Type annotations and descriptions are *required* for tool declarations
-so that the model can be informed which types to pass back to the tool
-function and what the purpose of each parameter is.
+Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
 
-Now that we’ve defined the tool, we can use it in an evaluation by
-passing it to the `use_tools()` function.
+Now that we’ve defined the tool, we can use it in an evaluation by passing it to the [use_tools()](reference/inspect_ai.solver.html.md#use_tools) function.
 
 ``` python
 @task
@@ -622,35 +521,19 @@ inspect eval addition_problem.py
 
 ## InterCode CTF
 
-“Capture the Flag” is a competitive cybersecurity game that requires
-expertise in coding, cryptography (i.e. binary exploitation, forensics),
-reverse engineering, and recognizing security vulnerabilities to
-accomplish the primary objective of discovering encrypted “flags”
-concealed within code snippets or file systems
+“Capture the Flag” is a competitive cybersecurity game that requires expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities to accomplish the primary objective of discovering encrypted “flags” concealed within code snippets or file systems
 
-The [InterCode CTF](https://intercode-benchmark.github.io/#ctf) dataset
-contains 100 CTF challenges drawn from [picoCTF](https://picoctf.org/).
-The model is given access to `bash()` and `python()` tools within a
-sandboxed Docker container, and must discover the value of the flag
-within a set number of message turns.
+The [InterCode CTF](https://intercode-benchmark.github.io/#ctf) dataset contains 100 CTF challenges drawn from [picoCTF](https://picoctf.org/). The model is given access to [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools within a sandboxed Docker container, and must discover the value of the flag within a set number of message turns.
 
 ### Task
 
-The definition of the task calls out to a couple of helper functions
-that do most of the heavy lifting:
+The definition of the task calls out to a couple of helper functions that do most of the heavy lifting:
 
-1)  `read_dataset()`, which reads samples from the file system. Note
-    that samples include both instructions and files to copy into the
-    secure sandbox. See the [full source
-    code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_intercode_ctf)
-    of this example for details.
+1.  `read_dataset()`, which reads samples from the file system. Note that samples include both instructions and files to copy into the secure sandbox. See the [full source code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_intercode_ctf) of this example for details.
 
 &nbsp;
 
-2.  `ctf_agent()`, which defines an agent that will be use as the task’s
-    solver. The agent consists principally of using `bash()` and
-    `python()` tools in a loop until the flag is discovered. We’ll
-    describe this function in more detail below.
+2.  `ctf_agent()`, which defines an agent that will be use as the task’s solver. The agent consists principally of using [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools in a loop until the flag is discovered. We’ll describe this function in more detail below.
 
 ``` python
 from inspect_ai import Task, task
@@ -667,8 +550,7 @@ def intercode_ctf(attempts=3, message_limit=30, shuffle=False):
     )
 ```
 
-Note that we specify `sandbox="docker"` to ensure that code generated
-from the model is run in a secure [sandbox environment](sandboxing.qmd).
+Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](sandboxing.html.md).
 
 Here is the definition of the agent:
 
@@ -697,14 +579,6 @@ def ctf_agent(attempts=3):
     )
 ```
 
-We haven’t previously discussed agents. As demonstrated above, agents
-can be used as solvers, but have additional capabilities related to
-composing agents together into multi-agent systems. For now, think of an
-agent as a type of solver (see the [Agents](agents.qmd) documentation to
-learn more about agents).
+We haven’t previously discussed agents. As demonstrated above, agents can be used as solvers, but have additional capabilities related to composing agents together into multi-agent systems. For now, think of an agent as a type of solver (see the [Agents](agents.html.md) documentation to learn more about agents).
 
-The `react()` agent in particular provides a ReAct tool loop with
-support for retries and encouraging the model to continue if its gives
-up or gets stuck. The `bash()` and `python()` tools are provided to the
-model with a 3-minute timeout to prevent long running commands from
-getting the evaluation stuck.
+The [react()](reference/inspect_ai.agent.html.md#react) agent in particular provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools are provided to the model with a 3-minute timeout to prevent long running commands from getting the evaluation stuck.

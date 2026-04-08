@@ -1,35 +1,21 @@
 # Eval Sets
 
-
 ## Overview
 
-Most of the examples in the documentation run a single evaluation task
-by either passing a script name to `inspect eval` or by calling the
-`eval()` function directly. While this is a good workflow for developing
-single evaluations, you’ll often want to run several evaluations
-together as a *set*. This might be for the purpose of exploring
-hyperparameters, evaluating on multiple models at one time, or running a
-full benchmark suite.
+Most of the examples in the documentation run a single evaluation task by either passing a script name to `inspect eval` or by calling the [eval()](reference/inspect_ai.html.md#eval) function directly. While this is a good workflow for developing single evaluations, you’ll often want to run several evaluations together as a *set*. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.
 
-The `inspect eval-set` command and `eval_set()` function and provide
-several facilities for running sets of evaluations, including:
+The `inspect eval-set` command and [eval_set()](reference/inspect_ai.html.md#eval_set) function and provide several facilities for running sets of evaluations, including:
 
-1.  Automatically retrying failed evaluations (with a configurable retry
-    strategy)
-2.  Re-using samples from failed tasks so that work is not repeated
-    during retries.
-3.  Cleaning up log files from failed runs after a task is successfully
-    completed.
-4.  The ability to re-run the command multiple times, with work picking
-    up where the last invocation left off.
+1.  Automatically retrying failed evaluations (with a configurable retry strategy)
+2.  Re-using samples from failed tasks so that work is not repeated during retries.
+3.  Cleaning up log files from failed runs after a task is successfully completed.
+4.  The ability to re-run the command multiple times, with work picking up where the last invocation left off.
 
-Below we’ll cover the various tools and techniques available for
-creating eval sets.
+Below we’ll cover the various tools and techniques available for creating eval sets.
 
 ## Running Eval Sets
 
-Run a set of evaluations using the `inspect eval-set` command or
-`eval_set()` function. For example:
+Run a set of evaluations using the `inspect eval-set` command or [eval_set()](reference/inspect_ai.html.md#eval_set) function. For example:
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
@@ -49,25 +35,15 @@ success, logs = eval_set(
 )
 ```
 
-Note that in both cases we specified a custom log directory—this is
-actually a requirement for eval sets, as it provides a scope where
-completed work can be tracked.
+Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
 
-The `eval_set()` function returns a tuple of bool (whether all tasks
-completed successfully) and a list of `EvalLog` headers (i.e. raw sample
-data is not included in the logs returned).
+The [eval_set()](reference/inspect_ai.html.md#eval_set) function returns a tuple of bool (whether all tasks completed successfully) and a list of [EvalLog](reference/inspect_ai.log.html.md#evallog) headers (i.e. raw sample data is not included in the logs returned).
 
 ### Re-Running
 
-Eval sets that don’t complete due to errors or cancellation can be
-re-run—simply re-execute the same command and any work not yet completed
-will be scheduled (if the eval set is already done then a message to
-that effect will be printed).
+Eval sets that don’t complete due to errors or cancellation can be re-run—simply re-execute the same command and any work not yet completed will be scheduled (if the eval set is already done then a message to that effect will be printed).
 
-You can also amend an eval set with additional tasks, models, or epochs.
-Just re-issue the same command with the additions. For example, here we
-add a model and 2 more epochs to the eval set run in the example from
-above:
+You can also amend an eval set with additional tasks, models, or epochs. Just re-issue the same command with the additions. For example, here we add a model and 2 more epochs to the eval set run in the example from above:
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
@@ -78,11 +54,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Concurrency
 
-By default, `eval_set()` will run multiple tasks in parallel, using the
-greater of 4 and the number of models being evaluated as the default
-`max_tasks`. The eval set scheduler will always attempt to balance
-active tasks across models so that contention for a single model
-provider is minimized.
+By default, [eval_set()](reference/inspect_ai.html.md#eval_set) will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
 
 Use the `max_tasks` option to override the default behavior:
 
@@ -97,9 +69,7 @@ eval_set(
 
 ### Dynamic Tasks
 
-In the above examples tasks are ready from the filesystem. It is also
-possible to dynamically create a set of tasks and pass them to the
-`eval_set()` function. For example:
+In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the [eval_set()](reference/inspect_ai.html.md#eval_set) function. For example:
 
 ``` python
 from inspect_ai import eval_set
@@ -118,26 +88,18 @@ eval_set(
 )
 ```
 
-Notice that we create our tasks from a function decorated with `@task`.
-Doing this is a critical requirement because it enables Inspect to
-capture the arguments to `create_task()` and use that to distinguish the
-two tasks (in turn used to pair tasks to log files for retries).
+Notice that we create our tasks from a function decorated with `@task`. Doing this is a critical requirement because it enables Inspect to capture the arguments to `create_task()` and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).
 
-There are two fundamental requirements for dynamic tasks used with
-`eval_set()`:
+There are two fundamental requirements for dynamic tasks used with [eval_set()](reference/inspect_ai.html.md#eval_set):
 
-1)  They are created using an `@task` function as described above.
-2)  Their parameters use ordinary Python types (like `str`, `int`,
-    `list`, etc.) as opposed to custom objects (which are hard to
-    serialise consistently).
+1.  They are created using an `@task` function as described above.
+2.  Their parameters use ordinary Python types (like `str`, `int`, `list`, etc.) as opposed to custom objects (which are hard to serialise consistently).
 
-Note that you can pass a `solver` to an `@task` function, so long as it
-was created by a function decorated with `@solver`.
+Note that you can pass a `solver` to an `@task` function, so long as it was created by a function decorated with `@solver`.
 
 ### Retry Options
 
-There are a number of options that control the retry behaviour of eval
-sets:
+There are a number of options that control the retry behaviour of eval sets:
 
 | **Option** | Description |
 |----|----|
@@ -154,7 +116,7 @@ inspect eval-set mmlu.py mathematics.py \
    --retry-wait 120
 ```
 
-Or with the `eval_set()` function:
+Or with the [eval_set()](reference/inspect_ai.html.md#eval_set) function:
 
 ``` python
 eval_set(
@@ -166,52 +128,30 @@ eval_set(
 
 ### Publishing
 
-You can bundle a standalone version of the log viewer for an eval set
-using the bundling options:
+You can bundle a standalone version of the log viewer for an eval set using the bundling options:
 
 | **Option** | Description |
 |----|----|
 | `--bundle-dir` | Directory to write standalone log viewer files to. |
 | `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
 
-The bundle directory can then be deployed to any static web server
-([GitHub Pages](https://docs.github.com/en/pages), [S3
-buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html),
-or [Netlify](https://docs.netlify.com/get-started/), for example) to
-provide a standalone version of the log viewer for the eval set. See the
-section on [Log Viewer Publishing](log-viewer.qmd#sec-publishing) for
-additional details.
+The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](log-viewer.html.md#sec-publishing) for additional details.
 
 ## Logging Context
 
-We mentioned above that you need to specify a dedicated log directory
-for each eval set that you run. This requirement exists for a couple of
-reasons:
+We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:
 
-1.  The log directory provides a durable record of which tasks are
-    completed so that you can run the eval set as many times as is
-    required to finish all of the work. For example, you might get
-    halfway through a run and then encounter provider rate limit errors.
-    You’ll want to be able to restart the eval set later (potentially
-    even many hours later) and the dedicated log directory enables you
-    to do this.
+1.  The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You’ll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.
 
-2.  This enables you to enumerate and analyse all of the eval logs in
-    the suite as a cohesive whole (rather than having them intermixed
-    with the results of other runs).
+2.  This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).
 
-Once all of the tasks in an eval set are complete, re-running
-`inspect eval-set` or `eval_set()` on the same log directory will be a
-no-op as there is no more work to do. At this point you can use the
-`list_eval_logs()` function to collect up logs for analysis:
+Once all of the tasks in an eval set are complete, re-running `inspect eval-set` or [eval_set()](reference/inspect_ai.html.md#eval_set) on the same log directory will be a no-op as there is no more work to do. At this point you can use the [list_eval_logs()](reference/inspect_ai.log.html.md#list_eval_logs) function to collect up logs for analysis:
 
 ``` python
 results = list_eval_logs("logs-run-42")
 ```
 
-If you are calling the `eval_set()` function it will return a tuple of
-`bool` and `list[EvalLog]`, where the `bool` indicates whether all tasks
-were completed:
+If you are calling the [eval_set()](reference/inspect_ai.html.md#eval_set) function it will return a tuple of `bool` and `list[EvalLog]`, where the `bool` indicates whether all tasks were completed:
 
 ``` python
 success, logs = eval_set(...)
@@ -221,78 +161,39 @@ else:
     # will need to run eval_set again
 ```
 
-Note that eval_set() does by default do quite a bit of retrying (up to
-10 times by default) so `success=False` reflects the case where even
-after all of the retries the tasks were still not completed (this might
-occur due to a service outage or perhaps bugs in eval code raising
-runtime errors).
+Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so `success=False` reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).
 
 ### Sample Preservation
 
-When retrying a log file, Inspect will attempt to re-use completed
-samples from the original task. This can result in substantial time and
-cost savings compared to starting over from the beginning.
+When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.
 
 #### IDs and Shuffling
 
-An important constraint on the ability to re-use completed samples is
-matching them up correctly with samples in the new task. To do this,
-Inspect requires stable unique identifiers for each sample. This can be
-achieved in 1 of 2 ways:
+An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:
 
-1.  Samples can have an explicit `id` field which contains the unique
-    identifier; or
+1.  Samples can have an explicit `id` field which contains the unique identifier; or
 
-2.  You can rely on Inspect’s assignment of an auto-incrementing `id`
-    for samples, however this *will not work correctly* if your dataset
-    is shuffled. Inspect will log a warning and not re-use samples if it
-    detects that the `dataset.shuffle()` method was called, however if
-    you are shuffling by some other means this automatic safeguard won’t
-    be applied.
+2.  You can rely on Inspect’s assignment of an auto-incrementing `id` for samples, however this *will not work correctly* if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the `dataset.shuffle()` method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.
 
-If dataset shuffling is important to your evaluation and you want to
-preserve samples for retried tasks, then you should include an explicit
-`id` field in your dataset.
+If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit `id` field in your dataset.
 
 #### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of
-samples to run concurrently within a task. Larger numbers of concurrent
-samples will result in higher throughput, but will also result in
-completed samples being written less frequently to the log file, and
-consequently less total recovable samples in the case of an interrupted
-task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to
-`max_connections + 1` (note that it would rarely make sense to set it
-*lower* than `max_connections`). The default `max_connections` is 10,
-which will typically result in samples being written to the log
-frequently. On the other hand, setting a very large `max_connections`
-(e.g. 100 `max_connections` for a dataset with 100 samples) may result
-in very few recoverable samples in the case of an interruption.
+By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
-> [!NOTE]
+> **NOTE:**
 >
-> If your task involves tool calls and/or sandboxes, then you will
-> likely want to set `max_samples` to greater than `max_connections`, as
-> your samples will sometimes be calling the model (using up concurrent
-> connections) and sometimes be executing code in the sandbox (using up
-> concurrent subprocess calls). While running tasks you can see the
-> utilization of connections and subprocesses in realtime and tune your
-> `max_samples` accordingly.
+> If your task involves tool calls and/or sandboxes, then you will likely want to set `max_samples` to greater than `max_connections`, as your samples will sometimes be calling the model (using up concurrent connections) and sometimes be executing code in the sandbox (using up concurrent subprocess calls). While running tasks you can see the utilization of connections and subprocesses in realtime and tune your `max_samples` accordingly.
 
 ## Task Enumeration
 
-When running eval sets tasks can be specified either individually (as in
-the examples above) or can be enumerated from the filesystem. You can
-organise tasks in many different ways, below we cover some of the more
-common options.
+When running eval sets tasks can be specified either individually (as in the examples above) or can be enumerated from the filesystem. You can organise tasks in many different ways, below we cover some of the more common options.
 
 ### Multiple Tasks in a File
 
-The simplest possible organisation would be multiple tasks defined in a
-single source file. Consider this source file (`ctf.py`) with two tasks
-in it:
+The simplest possible organisation would be multiple tasks defined in a single source file. Consider this source file (`ctf.py`) with two tasks in it:
 
 ``` python
 @task
@@ -308,10 +209,7 @@ def attack_defense():
   )
 ```
 
-We can run both of these tasks with the following command (note for this
-and the remainder of examples we’ll assume that you have let an
-`INSPECT_EVAL_MODEL` environment variable so you don’t need to pass the
-`--model` argument explicitly):
+We can run both of these tasks with the following command (note for this and the remainder of examples we’ll assume that you have let an `INSPECT_EVAL_MODEL` environment variable so you don’t need to pass the `--model` argument explicitly):
 
 ``` bash
 $ inspect eval-set ctf.py --log-dir logs-run-42
@@ -323,8 +221,7 @@ Or equivalently:
 eval_set("ctf.py", log_dir="logs-run-42")
 ```
 
-Note that during development and debugging we can also run the tasks
-individually:
+Note that during development and debugging we can also run the tasks individually:
 
 ``` bash
 $ inspect eval ctf.py@jeopardy
@@ -332,9 +229,7 @@ $ inspect eval ctf.py@jeopardy
 
 ### Multiple Tasks in a Directory
 
-Next, let’s consider a multiple tasks in a directory. Imagine you have
-the following directory structure, where `jeopardy.py` and
-`attack_defense.py` each have one or more `@task` functions defined:
+Next, let’s consider a multiple tasks in a directory. Imagine you have the following directory structure, where `jeopardy.py` and `attack_defense.py` each have one or more `@task` functions defined:
 
 ``` bash
 security/
@@ -364,13 +259,9 @@ You can run this eval set as follows:
 $ inspect eval-set security --log-dir logs-security-02-09-24
 ```
 
-Note that some of the files in this directory don’t contain evals
-(e.g. `import.py` and `analyze.py`). These files are not read or
-executed by `inspect eval-set` (which only executes files that contain
-`@task` definitions).
+Note that some of the files in this directory don’t contain evals (e.g. `import.py` and `analyze.py`). These files are not read or executed by `inspect eval-set` (which only executes files that contain `@task` definitions).
 
-If we wanted to run more than one directory we could do so by just
-passing multiple directory names. For example:
+If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:
 
 ``` bash
 $ inspect eval-set security persuasion --log-dir logs-suite-42
@@ -386,27 +277,16 @@ eval_set(["security", "persuasion"], log_dir="logs-suite-42")
 
 ### Recursive Listings
 
-Note that directories or expanded globs of directory names passed to
-`eval-set` are recursively scanned for tasks. So you could have a very
-deep hierarchy of directories, with a mix of task and non task scripts,
-and the `eval-set` command or function will discover all of the tasks
-automatically.
+Note that directories or expanded globs of directory names passed to `eval-set` are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the `eval-set` command or function will discover all of the tasks automatically.
 
-There are some rules for how recursive directory scanning works that you
-should keep in mind:
+There are some rules for how recursive directory scanning works that you should keep in mind:
 
-1.  Sources files and directories that start with `.` or `_` are not
-    scanned for tasks.
-2.  Directories named `env`, `venv`, and `tests` are not scanned for
-    tasks.
+1.  Sources files and directories that start with `.` or `_` are not scanned for tasks.
+2.  Directories named `env`, `venv`, and `tests` are not scanned for tasks.
 
 ### Attributes and Filters
 
-Eval suites will sometimes be defined purely by directory structure, but
-there will be cross-cutting concerns that are also used to filter what
-is run. For example, you might want to define some tasks as part of a
-“light” suite that is less expensive and time consuming to run. This is
-supported by adding attributes to task decorators. For example:
+Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a “light” suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:
 
 ``` python
 @task(light=True)
@@ -416,8 +296,7 @@ def jeopardy():
   )
 ```
 
-Given this, you could list all of the light tasks in `security` and pass
-them to `eval()` as follows:
+Given this, you could list all of the light tasks in `security` and pass them to [eval()](reference/inspect_ai.html.md#eval) as follows:
 
 ``` python
 light_suite = list_tasks(
@@ -427,9 +306,7 @@ light_suite = list_tasks(
 logs = eval_set(light_suite, log_dir="logs-light-42")
 ```
 
-Note that the `inspect list tasks` command can also be used to enumerate
-tasks in plain text or JSON (use one or more `-F` options if you want to
-filter tasks):
+Note that the `inspect list tasks` command can also be used to enumerate tasks in plain text or JSON (use one or more `-F` options if you want to filter tasks):
 
 ``` bash
 $ inspect list tasks security
@@ -437,22 +314,16 @@ $ inspect list tasks security --json
 $ inspect list tasks security --json -F light=true
 ```
 
-You can feed the results of `inspect list tasks` into `inspect eval-set`
-using `xargs` as follows:
+You can feed the results of `inspect list tasks` into `inspect eval-set` using `xargs` as follows:
 
 ``` bash
 $ inspect list tasks security | xargs \
    inspect eval-set --log-dir logs-security-42
 ```
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> One important thing to keep in mind when using attributes to filter
-> tasks is that both `inspect list tasks` (and the underlying
-> `list_tasks()` function) do not execute code when scanning for tasks
-> (rather they parse it). This means that if you want to use a task
-> attribute in a filtering expression it needs to be a constant (rather
-> than the result of function call). For example:
+> One important thing to keep in mind when using attributes to filter tasks is that both `inspect list tasks` (and the underlying `list_tasks()` function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:
 >
 > ``` python
 > # this is valid for filtering expressions

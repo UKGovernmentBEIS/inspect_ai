@@ -1,5 +1,6 @@
 # inspect_ai.dataset
 
+Reading samples from datasets.
 
 ## Readers
 
@@ -7,7 +8,7 @@
 
 Read dataset from CSV file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_sources/csv.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_sources/csv.py#L21)
 
 ``` python
 def csv_dataset(
@@ -28,16 +29,10 @@ def csv_dataset(
 ```
 
 `csv_file` str  
-Path to CSV file. Can be a local filesystem path, a path to an S3 bucket
-(e.g. “s3://my-bucket”), or an HTTPS URL. Use `fs_options` to pass
-arguments through to the `S3FileSystem` constructor.
+Path to CSV file. Can be a local filesystem path, a path to an S3 bucket (e.g. “s3://my-bucket”), or an HTTPS URL. Use `fs_options` to pass arguments through to the `S3FileSystem` constructor.
 
-`sample_fields` [FieldSpec](inspect_ai.dataset.qmd#fieldspec) \| [RecordToSample](inspect_ai.dataset.qmd#recordtosample) \| None  
-Method of mapping underlying fields in the data source to Sample
-objects. Pass `None` if the data is already stored in `Sample` form
-(i.e. has “input” and “target” columns.); Pass a `FieldSpec` to specify
-mapping fields by name; Pass a `RecordToSample` to handle mapping with a
-custom function that returns one or more samples.
+`sample_fields` [FieldSpec](../reference/inspect_ai.dataset.html.md#fieldspec) \| [RecordToSample](../reference/inspect_ai.dataset.html.md#recordtosample) \| None  
+Method of mapping underlying fields in the data source to Sample objects. Pass `None` if the data is already stored in [Sample](../reference/inspect_ai.dataset.html.md#sample) form (i.e. has “input” and “target” columns.); Pass a [FieldSpec](../reference/inspect_ai.dataset.html.md#fieldspec) to specify mapping fields by name; Pass a [RecordToSample](../reference/inspect_ai.dataset.html.md#recordtosample) to handle mapping with a custom function that returns one or more samples.
 
 `auto_id` bool  
 Assign an auto-incrementing ID for each sample.
@@ -49,33 +44,25 @@ Randomly shuffle the dataset order.
 Seed used for random shuffle.
 
 `shuffle_choices` bool \| int \| None  
-Whether to shuffle the choices. If an int is passed, this will be used
-as the seed when shuffling.
+Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
 
 `limit` int \| None  
 Limit the number of records to read.
 
 `dialect` str  
-CSV dialect (“unix”, “excel” or”excel-tab”). Defaults to “unix”. See
-<https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters>
-for more details
+CSV dialect (“unix”, “excel” or”excel-tab”). Defaults to “unix”. See <https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters> for more details
 
 `encoding` str  
 Text encoding for file (defaults to “utf-8”).
 
 `name` str \| None  
-Optional name for dataset (for logging). If not specified, defaults to
-the stem of the filename
+Optional name for dataset (for logging). If not specified, defaults to the stem of the filename
 
 `fs_options` dict\[str, Any\] \| None  
-Optional. Additional arguments to pass through to the filesystem
-provider (e.g. `S3FileSystem`). Use `{"anon": True }` if you are
-accessing a public S3 bucket with no credentials.
+Optional. Additional arguments to pass through to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a public S3 bucket with no credentials.
 
 `fieldnames` list\[str\] \| None  
-Optional. A list of fieldnames to use for the CSV. If None, the values
-in the first row of the file will be used as the fieldnames. Useful for
-files without a header.
+Optional. A list of fieldnames to use for the CSV. If None, the values in the first row of the file will be used as the fieldnames. Useful for files without a header.
 
 `delimiter` str  
 Optional. The delimiter to use when parsing the file. Defaults to “,”.
@@ -84,12 +71,9 @@ Optional. The delimiter to use when parsing the file. Defaults to “,”.
 
 Read dataset from a JSON file.
 
-Read a dataset from a JSON file containing an array of objects, or from
-a JSON Lines file containing one object per line. These objects may
-already be formatted as `Sample` instances, or may require some mapping
-using the `sample_fields` argument.
+Read a dataset from a JSON file containing an array of objects, or from a JSON Lines file containing one object per line. These objects may already be formatted as [Sample](../reference/inspect_ai.dataset.html.md#sample) instances, or may require some mapping using the `sample_fields` argument.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_sources/json.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_sources/json.py#L23)
 
 ``` python
 def json_dataset(
@@ -108,16 +92,10 @@ def json_dataset(
 ```
 
 `json_file` str  
-Path to JSON file. Can be a local filesystem path or a path to an S3
-bucket (e.g. “s3://my-bucket”). Use `fs_options` to pass arguments
-through to the `S3FileSystem` constructor.
+Path to JSON file. Can be a local filesystem path or a path to an S3 bucket (e.g. “s3://my-bucket”). Use `fs_options` to pass arguments through to the `S3FileSystem` constructor.
 
-`sample_fields` [FieldSpec](inspect_ai.dataset.qmd#fieldspec) \| [RecordToSample](inspect_ai.dataset.qmd#recordtosample) \| None  
-Method of mapping underlying fields in the data source to `Sample`
-objects. Pass `None` if the data is already stored in `Sample` form
-(i.e. object with “input” and “target” fields); Pass a `FieldSpec` to
-specify mapping fields by name; Pass a `RecordToSample` to handle
-mapping with a custom function that returns one or more samples.
+`sample_fields` [FieldSpec](../reference/inspect_ai.dataset.html.md#fieldspec) \| [RecordToSample](../reference/inspect_ai.dataset.html.md#recordtosample) \| None  
+Method of mapping underlying fields in the data source to [Sample](../reference/inspect_ai.dataset.html.md#sample) objects. Pass `None` if the data is already stored in [Sample](../reference/inspect_ai.dataset.html.md#sample) form (i.e. object with “input” and “target” fields); Pass a [FieldSpec](../reference/inspect_ai.dataset.html.md#fieldspec) to specify mapping fields by name; Pass a [RecordToSample](../reference/inspect_ai.dataset.html.md#recordtosample) to handle mapping with a custom function that returns one or more samples.
 
 `auto_id` bool  
 Assign an auto-incrementing ID for each sample.
@@ -129,8 +107,7 @@ Randomly shuffle the dataset order.
 Seed used for random shuffle.
 
 `shuffle_choices` bool \| int \| None  
-Whether to shuffle the choices. If an int is passed, this will be used
-as the seed when shuffling.
+Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
 
 `limit` int \| None  
 Limit the number of records to read.
@@ -139,13 +116,10 @@ Limit the number of records to read.
 Text encoding for file (defaults to “utf-8”).
 
 `name` str \| None  
-Optional name for dataset (for logging). If not specified, defaults to
-the stem of the filename.
+Optional name for dataset (for logging). If not specified, defaults to the stem of the filename.
 
 `fs_options` dict\[str, Any\] \| None  
-Optional. Additional arguments to pass through to the filesystem
-provider (e.g. `S3FileSystem`). Use `{"anon": True }` if you are
-accessing a public S3 bucket with no credentials.
+Optional. Additional arguments to pass through to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a public S3 bucket with no credentials.
 
 `**reader_kwargs` Any  
 Optional JSON reader options.
@@ -154,10 +128,9 @@ Optional JSON reader options.
 
 Datasets read using the Hugging Face `datasets` package.
 
-The `hf_dataset` function supports reading datasets using the Hugging
-Face `datasets` package, including remote datasets on Hugging Face Hub.
+The `hf_dataset` function supports reading datasets using the Hugging Face `datasets` package, including remote datasets on Hugging Face Hub.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_sources/hf.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_sources/hf.py#L22)
 
 ``` python
 def hf_dataset(
@@ -179,10 +152,7 @@ def hf_dataset(
 ```
 
 `path` str  
-Path or name of the dataset. Depending on path, the dataset builder that
-is used comes from a generic dataset script (JSON, CSV, Parquet, text
-etc.) or from the dataset script (a python file) inside the dataset
-directory.
+Path or name of the dataset. Depending on path, the dataset builder that is used comes from a generic dataset script (JSON, CSV, Parquet, text etc.) or from the dataset script (a python file) inside the dataset directory.
 
 `split` str  
 Which split of the data to load.
@@ -194,16 +164,10 @@ Name of the dataset configuration.
 data_dir of the dataset configuration to read data from.
 
 `revision` str \| None  
-Specific revision to load (e.g. “main”, a branch name, or a specific
-commit SHA). When using `revision` the `cached` option is ignored and
-datasets are revalidated on Hugging Face before loading.
+Specific revision to load (e.g. “main”, a branch name, or a specific commit SHA). When using `revision` the `cached` option is ignored and datasets are revalidated on Hugging Face before loading.
 
-`sample_fields` [FieldSpec](inspect_ai.dataset.qmd#fieldspec) \| [RecordToSample](inspect_ai.dataset.qmd#recordtosample) \| None  
-Method of mapping underlying fields in the data source to Sample
-objects. Pass `None` if the data is already stored in `Sample` form
-(i.e. has “input” and “target” columns.); Pass a `FieldSpec` to specify
-mapping fields by name; Pass a `RecordToSample` to handle mapping with a
-custom function that returns one or more samples.
+`sample_fields` [FieldSpec](../reference/inspect_ai.dataset.html.md#fieldspec) \| [RecordToSample](../reference/inspect_ai.dataset.html.md#recordtosample) \| None  
+Method of mapping underlying fields in the data source to Sample objects. Pass `None` if the data is already stored in [Sample](../reference/inspect_ai.dataset.html.md#sample) form (i.e. has “input” and “target” columns.); Pass a [FieldSpec](../reference/inspect_ai.dataset.html.md#fieldspec) to specify mapping fields by name; Pass a [RecordToSample](../reference/inspect_ai.dataset.html.md#recordtosample) to handle mapping with a custom function that returns one or more samples.
 
 `auto_id` bool  
 Assign an auto-incrementing ID for each sample.
@@ -215,26 +179,19 @@ Randomly shuffle the dataset order.
 Seed used for random shuffle.
 
 `shuffle_choices` bool \| int \| None  
-Whether to shuffle the choices. If an int is passed, this will be used
-as the seed when shuffling.
+Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
 
 `limit` int \| None  
 Limit the number of records to read.
 
 `trust` bool  
-Whether or not to allow for datasets defined on the Hub using a dataset
-script. This option should only be set to True for repositories you
-trust and in which you have read the code, as it will execute code
-present on the Hub on your local machine.
+Whether or not to allow for datasets defined on the Hub using a dataset script. This option should only be set to True for repositories you trust and in which you have read the code, as it will execute code present on the Hub on your local machine.
 
 `cached` bool  
-By default, datasets are read once from HuggingFace Hub and then cached
-for future reads. Pass `cached=False` to force re-reading the dataset
-from Hugging Face. Ignored when the `revision` option is specified.
+By default, datasets are read once from HuggingFace Hub and then cached for future reads. Pass `cached=False` to force re-reading the dataset from Hugging Face. Ignored when the `revision` option is specified.
 
 `**kwargs` Any  
-Additional arguments to pass through to the `load_dataset` function of
-the `datasets` package.
+Additional arguments to pass through to the `load_dataset` function of the `datasets` package.
 
 ## Types
 
@@ -242,7 +199,7 @@ the `datasets` package.
 
 Sample for an evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L28)
 
 ``` python
 class Sample(BaseModel)
@@ -250,15 +207,14 @@ class Sample(BaseModel)
 
 #### Attributes
 
-`input` str \| list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`input` str \| list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 The input to be submitted to the model.
 
 `choices` list\[str\] \| None  
 List of available answer choices (used only for multiple-choice evals).
 
 `target` str \| list\[str\]  
-Ideal target output. May be a literal value or narrative text to be used
-by a model grader.
+Ideal target output. May be a literal value or narrative text to be used by a model grader.
 
 `id` int \| str \| None  
 Unique identifier for sample.
@@ -280,7 +236,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 \_\_init\_\_  
 Create a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L31)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L31)
 
 ``` python
 def __init__(
@@ -296,16 +252,14 @@ def __init__(
 ) -> None
 ```
 
-`input` str \| list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`input` str \| list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 The input to be submitted to the model.
 
 `choices` list\[str\] \| None  
-Optional. List of available answer choices (used only for
-multiple-choice evals).
+Optional. List of available answer choices (used only for multiple-choice evals).
 
 `target` str \| list\[str\]  
-Optional. Ideal target output. May be a literal value or narrative text
-to be used by a model grader.
+Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader.
 
 `id` int \| str \| None  
 Optional. Unique identifier for sample.
@@ -317,18 +271,15 @@ Optional. Arbitrary metadata associated with the sample.
 Optional. Sandbox specification for this sample.
 
 `files` dict\[str, str\] \| None  
-Optional. Files that go along with the sample (copied to
-SandboxEnvironment). Files can be paths, inline text, or inline binary
-(base64 encoded data URL).
+Optional. Files that go along with the sample (copied to SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
 
 `setup` str \| None  
-Optional. Setup script to run for sample (run within default
-SandboxEnvironment).
+Optional. Setup script to run for sample (run within default SandboxEnvironment).
 
 metadata_as  
 Metadata as a Pydantic model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L84)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L84)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -341,7 +292,7 @@ BaseModel derived class.
 
 Specification for mapping data source fields to sample fields.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L207)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L207)
 
 ``` python
 @dataclass
@@ -378,7 +329,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 
 Callable that maps raw dictionary record to a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L236)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L236)
 
 ``` python
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
@@ -388,10 +339,9 @@ RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
 
 A sequence of Sample objects.
 
-Datasets provide sequential access (via conventional indexes or slicing)
-to a collection of Sample objects.
+Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L128)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L128)
 
 ``` python
 class Dataset(Sequence[Sample], abc.ABC)
@@ -402,13 +352,11 @@ class Dataset(Sequence[Sample], abc.ABC)
 sort  
 Sort the dataset (in place) in ascending order and return None.
 
-If a key function is given, apply it once to each list item and sort
-them, ascending or descending, according to their function values.
+If a key function is given, apply it once to each list item and sort them, ascending or descending, according to their function values.
 
-The key function defaults to measuring the length of the sample’s input
-field.
+The key function defaults to measuring the length of the sample’s input field.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L159)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L159)
 
 ``` python
 @abc.abstractmethod
@@ -422,14 +370,13 @@ def sort(
 `reverse` bool  
 If `Treu`, sort in descending order. Defaults to False.
 
-`key` Callable\[\[[Sample](inspect_ai.dataset.qmd#sample)\], SupportsRichComparison\]  
-a callable mapping each item to a numeric value (optional, defaults to
-sample_input_len).
+`key` Callable\[\[[Sample](../reference/inspect_ai.dataset.html.md#sample)\], SupportsRichComparison\]  
+a callable mapping each item to a numeric value (optional, defaults to sample_input_len).
 
 filter  
 Filter the dataset using a predicate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L176)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L176)
 
 ``` python
 @abc.abstractmethod
@@ -438,7 +385,7 @@ def filter(
 ) -> "Dataset"
 ```
 
-`predicate` Callable\[\[[Sample](inspect_ai.dataset.qmd#sample)\], bool\]  
+`predicate` Callable\[\[[Sample](../reference/inspect_ai.dataset.html.md#sample)\], bool\]  
 Filtering function.
 
 `name` str \| None  
@@ -447,7 +394,7 @@ Name for filtered dataset (optional).
 shuffle  
 Shuffle the order of the dataset (in place).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L190)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L190)
 
 ``` python
 @abc.abstractmethod
@@ -460,7 +407,7 @@ Random seed for shuffling (optional).
 shuffle_choices  
 Shuffle the order of the choices with each sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L198)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L198)
 
 ``` python
 @abc.abstractmethod
@@ -474,7 +421,7 @@ Random seed for shuffling (optional).
 
 A Dataset stored in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L240)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L240)
 
 ``` python
 class MemoryDataset(Dataset)
@@ -496,11 +443,9 @@ Was the dataset shuffled.
 \_\_init\_\_  
 A dataset of samples held in an in-memory list.
 
-Datasets provide sequential access (via conventional indexes or slicing)
-to a collection of Sample objects. The ListDataset is explicitly
-initialized with a list that is held in memory.
+Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects. The ListDataset is explicitly initialized with a list that is held in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/dataset/_dataset.py#L243)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/dataset/_dataset.py#L243)
 
 ``` python
 def __init__(
@@ -512,7 +457,7 @@ def __init__(
 ) -> None
 ```
 
-`samples` list\[[Sample](inspect_ai.dataset.qmd#sample)\]  
+`samples` list\[[Sample](../reference/inspect_ai.dataset.html.md#sample)\]  
 The list of sample objects.
 
 `name` str \| None  

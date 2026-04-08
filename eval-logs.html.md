@@ -1,61 +1,42 @@
 # Log Files
 
-
 ## Overview
 
-Every time you use `inspect eval` or call the `eval()` function, an
-evaluation log is written for each task evaluated. By default, logs are
-written to the `./logs` sub-directory of the current working directory
-(we’ll cover how to change this below). You will find a link to the log
-at the bottom of the results for each task:
+Every time you use `inspect eval` or call the [eval()](reference/inspect_ai.html.md#eval) function, an evaluation log is written for each task evaluated. By default, logs are written to the `./logs` sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:
 
 ``` bash
 $ inspect eval security_guide.py --model openai/gpt-4
 ```
 
-![](images/eval-log.png)
+![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)
 
-You can also use the Inspect log viewer for interactive exploration of
-logs. Run this command once at the beginning of a working session (the
-view will update automatically when new evaluations are run):
+You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):
 
 ``` bash
 $ inspect view
 ```
 
-![](images/inspect-view-main.png)
+[![The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples.](images/inspect-view-main.png)](images/inspect-view-main.png)
 
-This section won’t cover using `inspect view` though. Rather, it will
-cover the details of managing log usage from the CLI as well as the
-Python API for reading logs. See the [Log Viewer](#sec-log-viewer)
-section for details on interactively exploring logs.
+This section won’t cover using `inspect view` though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the [Log Viewer](#sec-log-viewer) section for details on interactively exploring logs.
 
 ## Log Analysis
 
-This article will focus primarily on configuring Inspect’s logging
-behavior (location, format, content, etc). Beyond that, there are a
-variety of tools available for analyzing data in log files:
+This article will focus primarily on configuring Inspect’s logging behavior (location, format, content, etc). Beyond that, there are a variety of tools available for analyzing data in log files:
 
-1.  [Log File API](#log-file-api) — API for accessing all data recorded
-    in the log.
+1.  [Log File API](#log-file-api) — API for accessing all data recorded in the log.
 
-2.  [Log Dataframes](dataframe.qmd) — API for extracting data frames
-    from log files.
+2.  [Log Dataframes](dataframe.html.md) — API for extracting data frames from log files.
 
-3.  [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) —
-    Transcript analysis tool that can work directly with Inspect logs.
+3.  [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) — Transcript analysis tool that can work directly with Inspect logs.
 
-4.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data
-    visualization framework built to work with Inspect logs.
+4.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data visualization framework built to work with Inspect logs.
 
-5.  [CJE](https://github.com/cimo-labs/cje) — Calibrate model-graded
-    scorer accuracy against oracle labels using causal inference.
+5.  [CJE](https://github.com/cimo-labs/cje) — Calibrate model-graded scorer accuracy against oracle labels using causal inference.
 
 ## Log Location
 
-By default, logs are written to the `./logs` sub-directory of the
-current working directory You can change where logs are written using
-eval options or an environment variable:
+By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:
 
 ``` bash
 $ inspect eval popularity.py --model openai/gpt-4 --log-dir ./experiment-log
@@ -67,60 +48,37 @@ Or:
 log = eval(popularity, model="openai/gpt-4", log_dir = "./experiment-log")
 ```
 
-Note that in addition to logging the `eval()` function also returns an
-`EvalLog` object for programmatic access to the details of the
-evaluation. We’ll talk more about how to use this object below.
+Note that in addition to logging the [eval()](reference/inspect_ai.html.md#eval) function also returns an [EvalLog](reference/inspect_ai.log.html.md#evallog) object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.
 
-The `INSPECT_LOG_DIR` environment variable can also be specified to
-override the default `./logs` location. You may find it convenient to
-define this in a `.env` file from the location where you run your evals:
+The `INSPECT_LOG_DIR` environment variable can also be specified to override the default `./logs` location. You may find it convenient to define this in a `.env` file from the location where you run your evals:
 
 ``` ini
 INSPECT_LOG_DIR=./experiment-log
 INSPECT_LOG_LEVEL=warning
 ```
 
-If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file,
-then its location will always be resolved as *relative to* that `.env`
-file (rather than relative to whatever your current working directory is
-when you run `inspect eval`).
+If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its location will always be resolved as *relative to* that `.env` file (rather than relative to whatever your current working directory is when you run `inspect eval`).
 
-> [!NOTE]
+> **NOTE:**
 >
-> If you are running in VS Code, then you should restart terminals and
-> notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a
-> `.env` file. This is because the VS Code Python extension also [reads
-> variables](https://code.visualstudio.com/docs/python/environments#_environment-variables)
-> from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read
-> by VS Code until after a restart.
+> If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a `.env` file. This is because the VS Code Python extension also [reads variables](https://code.visualstudio.com/docs/python/environments#_environment-variables) from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read by VS Code until after a restart.
 
-See the [Amazon S3](#sec-amazon-s3) section below for details on logging
-evaluations to Amazon S3 buckets. See the [Azure](#sec-azure) section
-below for details on logging evaluations to Azure.
+See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets. See the [Azure](#sec-azure) section below for details on logging evaluations to Azure.
 
 ## Log Format
 
-Inspect log files use JSON to represent the hierarchy of data produced
-by an evaluation. Depending on your configuration and what version of
-Inspect you are running, the log JSON will be stored in one of two file
-types:
+Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
 
 | Type | Description |
 |----|----|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
 | `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
 
-Both formats are fully supported by the [Log File
-API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described
-below, and can be intermixed freely within a log directory.
+Both formats are fully supported by the [Log File API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described below, and can be intermixed freely within a log directory.
 
 ### Format Option
 
-Beginning with Inspect v0.3.46, `.eval` is the default log file format.
-You can explicitly control the global log format default in your `.env`
-file:
-
-**.env**
+Beginning with Inspect v0.3.46, `.eval` is the default log file format. You can explicitly control the global log format default in your `.env` file:
 
 ``` bash
 INSPECT_LOG_FORMAT=eval
@@ -132,45 +90,27 @@ Or specify it per-evaluation with the `--log-format` option:
 inspect eval ctf.py --log-format=eval
 ```
 
-No matter which format you choose, the `EvalLog` returned from `eval()`
-will be the same, and the various APIs provided for log files
-(`read_eval_log()`, `write_eval_log()`, etc.) will also work the same.
+No matter which format you choose, the [EvalLog](reference/inspect_ai.log.html.md#evallog) returned from [eval()](reference/inspect_ai.html.md#eval) will be the same, and the various APIs provided for log files ([read_eval_log()](reference/inspect_ai.log.html.md#read_eval_log), [write_eval_log()](reference/inspect_ai.log.html.md#write_eval_log), etc.) will also work the same.
 
-> [!CAUTION]
+> **CAUTION:**
 >
-> The variability in underlying file format makes it especially
-> important that you use the Python [Log File API](#sec-log-file-api)
-> for reading and writing log files (as opposed to reading/writing JSON
-> directly).
+> The variability in underlying file format makes it especially important that you use the Python [Log File API](#sec-log-file-api) for reading and writing log files (as opposed to reading/writing JSON directly).
 >
-> If you do need to interact with the underlying JSON (e.g., when
-> reading logs from another language) see the [Log
-> Commands](#sec-log-commands) section below which describes how to get
-> the plain text JSON representation for any log file.
+> If you do need to interact with the underlying JSON (e.g., when reading logs from another language) see the [Log Commands](#sec-log-commands) section below which describes how to get the plain text JSON representation for any log file.
 
 ### Storage Optimization
 
-The current development version of Inspect AI includes log storage
-optimizations that can dramatically affect log file sizes. The first of
-these [deduplicates repeated
-messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374)
-across model events; the second switches to [zstd
-compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
+The current development version of Inspect AI includes log storage optimizations that can dramatically affect log file sizes. The first of these [deduplicates repeated messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374) across model events; the second switches to [zstd compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
 
-In combination these optimizations yield huge improvements in log file
-size. For typical agentic benchmarks (e.g. SWE-Bench, Cybench) we’ve
-seen 10:1 improvements. For longer horizon tasks the improvements are
-much greater as the optimization addresses O(N^2) storage growth.
+In combination these optimizations yield huge improvements in log file size. For typical agentic benchmarks (e.g. SWE-Bench, Cybench) we’ve seen 10:1 improvements. For longer horizon tasks the improvements are much greater as the optimization addresses O(N^2) storage growth.
 
-To try out these changes, install the development version of Inspect
-from GitHub with:
+To try out these changes, install the development version of Inspect from GitHub with:
 
 ``` python
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 
-You can convert existing logs to use the new format using the
-`inspect log convert` command. For example:
+You can convert existing logs to use the new format using the `inspect log convert` command. For example:
 
 ``` bash
 inspect log convert logs_old \
@@ -179,55 +119,37 @@ inspect log convert logs_old \
    --stream 10
 ```
 
-Note that using the `--stream` option limits the total number of samples
-held in memory at once during the conversion, which can be consequential
-for larger log files.
+Note that using the `--stream` option limits the total number of samples held in memory at once during the conversion, which can be consequential for larger log files.
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> If you are using [Inspect
-> Scout](https://meridianlabs-ai.github.io/inspect_scout/) for
-> transcript analysis, you will want to make sure to use an up to date
-> version (v0.4.22 or later) that supports reading the condensed log
-> format.
+> If you are using [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) for transcript analysis, you will want to make sure to use an up to date version (v0.4.22 or later) that supports reading the condensed log format.
 
 ## Image Logging
 
-By default, full base64 encoded copies of images are included in the log
-file. Image logging will not create performance problems when using
-`.eval` logs, however if you are using `.json` logs then large numbers
-of images could become unwieldy (i.e. if your `.json` log file grows to
-100mb or larger as a result).
+By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unwieldy (i.e. if your `.json` log file grows to 100mb or larger as a result).
 
-You can disable this using the `--no-log-images` flag. For example, here
-we enable the `.json` log format and disable image logging:
+You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
 
 ``` bash
 inspect eval images.py --log-format=json --no-log-images
 ```
 
-You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to
-set a global default in your `.env` configuration file.
+You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
 ## Refusal Logging
 
-If you are concerned with proactively detecting when model refusals are
-occurring, you can specify the `--log-refusals` flag (or `log_refusals`
-option to `eval()`) to log refusals as warnings. For example:
+If you are concerned with proactively detecting when model refusals are occurring, you can specify the `--log-refusals` flag (or `log_refusals` option to [eval()](reference/inspect_ai.html.md#eval)) to log refusals as warnings. For example:
 
 ``` bash
 inspect eval ctf.py --log-refusals
 ```
 
-Note that in all cases a counter of refusals during the eval or eval set
-is provided at the bottom right of the task display.
+Note that in all cases a counter of refusals during the eval or eval set is provided at the bottom right of the task display.
 
 ## Model API Logging
 
-If you are debugging a model API issue at the provider level, you can
-add the `--log-model-api` flag to log the full request and response
-payload for each generation (the model api data will be attached to the
-`ModelEvent`). For example:
+If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the [ModelEvent](reference/inspect_ai.event.html.md#modelevent)). For example:
 
 ``` bash
 inspect eval ctf.py --log-model-api
@@ -239,8 +161,7 @@ Note that model api requests that result in an error are always logged.
 
 ### EvalLog
 
-The `EvalLog` object returned from `eval()` provides programmatic
-interface to the contents of log files:
+The [EvalLog](reference/inspect_ai.log.html.md#evallog) object returned from [eval()](reference/inspect_ai.html.md#eval) provides programmatic interface to the contents of log files:
 
 **Class** `inspect_ai.log.EvalLog`
 
@@ -248,19 +169,18 @@ interface to the contents of log files:
 |----|----|----|
 | `version` | `int` | File format version (currently 2). |
 | `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
-| `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
-| `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
-| `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
-| `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
-| `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
+| `eval` | [EvalSpec](reference/inspect_ai.log.html.md#evalspec) | Top level eval details including task, model, creation time, etc. |
+| `plan` | [EvalPlan](reference/inspect_ai.log.html.md#evalplan) | List of solvers and model generation config used for the eval. |
+| `results` | [EvalResults](reference/inspect_ai.log.html.md#evalresults) | Aggregate results computed by scorer metrics. |
+| `stats` | [EvalStats](reference/inspect_ai.log.html.md#evalstats) | Model usage statistics (input and output tokens) |
+| `error` | [EvalError](reference/inspect_ai.log.html.md#evalerror) | Error information (if `status == "error`) including traceback. |
 | `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |
 | `metadata` | `dict[str, Any]` | Current metadata (eval-time metadata merged with any post-eval edits). |
 | `log_updates` | `list[LogUpdate]` | Post-eval edits to tags and metadata (with provenance tracking). |
 | `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
 | `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations. |
 
-Before analysing results from a log, you should always check their
-status to ensure they represent a successful run:
+Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
 ``` python
 log = eval(popularity, model="openai/gpt-4")
@@ -268,18 +188,13 @@ if log.status == "success":
    ...
 ```
 
-In the section below we’ll talk more about how to deal with logs from
-failed evaluations (e.g. retrying the eval).
+In the section below we’ll talk more about how to deal with logs from failed evaluations (e.g. retrying the eval).
 
 ### Location
 
-The `EvalLog` object returned from `eval()` and `read_eval_log()` has a
-`location` property that indicates the storage location it was written
-to or read from.
+The [EvalLog](reference/inspect_ai.log.html.md#evallog) object returned from [eval()](reference/inspect_ai.html.md#eval) and [read_eval_log()](reference/inspect_ai.log.html.md#read_eval_log) has a `location` property that indicates the storage location it was written to or read from.
 
-The `write_eval_log()` function will use this `location` if it isn’t
-passed an explicit `location` to write to. This enables you to modify
-the contents of a log file return from `eval()` as follows:
+The [write_eval_log()](reference/inspect_ai.log.html.md#write_eval_log) function will use this `location` if it isn’t passed an explicit `location` to write to. This enables you to modify the contents of a log file return from [eval()](reference/inspect_ai.html.md#eval) as follows:
 
 ``` python
 log = eval(my_task())[0]
@@ -287,7 +202,7 @@ log = eval(my_task())[0]
 write_eval_log(log)
 ```
 
-Or alternatively for an `EvalLog` read from a filesystem:
+Or alternatively for an [EvalLog](reference/inspect_ai.log.html.md#evallog) read from a filesystem:
 
 ``` python
 log = read_eval_log(log_file_path)
@@ -295,10 +210,7 @@ log = read_eval_log(log_file_path)
 write_eval_log(log)
 ```
 
-If you are working with the results of an [Eval Set](eval-sets.qmd), the
-returned logs are headers rather than the full log with all samples. If
-you want to edit logs returned from `eval_set` you should read them
-fully, edit them, and then write them. For example:
+If you are working with the results of an [Eval Set](eval-sets.html.md), the returned logs are headers rather than the full log with all samples. If you want to edit logs returned from `eval_set` you should read them fully, edit them, and then write them. For example:
 
 ``` python
 success, logs = eval_set(tasks)
@@ -309,27 +221,22 @@ for log in logs:
     write_eval_log(log)
 ```
 
-Note that the `EvalLog.location` is a URI rather than a traditional file
-path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI
-supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 
 ### Functions
 
-You can enumerate, read, and write `EvalLog` objects using the following
-helper functions from the `inspect_ai.log` module:
+You can enumerate, read, and write [EvalLog](reference/inspect_ai.log.html.md#evallog) objects using the following helper functions from the `inspect_ai.log` module:
 
 | Function | Description |
 |----|----|
 | `list_eval_logs` | List all of the eval logs at a given location. |
-| `read_eval_log` | Read an `EvalLog` from a log file path or `IO[bytes]` (pass `header_only` to not read samples). |
-| `read_eval_log_sample` | Read a single `EvalSample` from a log file |
+| `read_eval_log` | Read an [EvalLog](reference/inspect_ai.log.html.md#evallog) from a log file path or `IO[bytes]` (pass `header_only` to not read samples). |
+| `read_eval_log_sample` | Read a single [EvalSample](reference/inspect_ai.log.html.md#evalsample) from a log file |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
 | `read_eval_log_sample_summaries` | Read a summary of all samples (including scoring for each sample). |
-| `write_eval_log` | Write an `EvalLog` to a log file path (pass `if_match_etag` for S3 conditional writes). |
+| `write_eval_log` | Write an [EvalLog](reference/inspect_ai.log.html.md#evallog) to a log file path (pass `if_match_etag` for S3 conditional writes). |
 
-A common workflow is to define an `INSPECT_LOG_DIR` for running a set of
-evaluations, then calling `list_eval_logs()` to analyse the results when
-all the work is done:
+A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling [list_eval_logs()](reference/inspect_ai.log.html.md#list_eval_logs) to analyse the results when all the work is done:
 
 ``` python
 # setup log dir context
@@ -343,49 +250,33 @@ eval(security_guide, model="openai/gpt-4")
 logs = list_eval_logs()
 ```
 
-Note that `list_eval_logs()` lists log files recursively. Pass
-`recursive=False` to list only the log files at the root level.
+Note that [list_eval_logs()](reference/inspect_ai.log.html.md#list_eval_logs) lists log files recursively. Pass `recursive=False` to list only the log files at the root level.
 
 ### Log Headers
 
-Eval log files can get quite large (multiple GB) so it is often useful
-to read only the header, which contains metadata and aggregated scores.
-Use the `header_only` option to read only the header of a log file:
+Eval log files can get quite large (multiple GB) so it is often useful to read only the header, which contains metadata and aggregated scores. Use the `header_only` option to read only the header of a log file:
 
 ``` python
 log_header = read_eval_log(log_file, header_only=True)
 ```
 
-The log header is a standard `EvalLog` object without the `samples`
-fields. The `reductions` field is included for `eval` log files and not
-for `json` log files.
+The log header is a standard [EvalLog](reference/inspect_ai.log.html.md#evallog) object without the `samples` fields. The `reductions` field is included for `eval` log files and not for `json` log files.
 
 ### Summaries
 
-It may also be useful to read only the summary level information about
-samples (input, target, error status, and scoring). To do this, use the
-`read_eval_log_sample_summaries()` function:
+It may also be useful to read only the summary level information about samples (input, target, error status, and scoring). To do this, use the [read_eval_log_sample_summaries()](reference/inspect_ai.log.html.md#read_eval_log_sample_summaries) function:
 
 ``` python
 summaries = read_eval_log_sample_summaries(log_file)
 ```
 
-The `summaries` are a list of `EvalSampleSummary` objects, one for each
-sample. Some sample data is “thinned” in the interest of keeping the
-summaries small: images are removed from `input`, `metadata` is
-restricted to scalar values (with strings truncated to 1k), and scores
-include only their `value`.
+The `summaries` are a list of [EvalSampleSummary](reference/inspect_ai.log.html.md#evalsamplesummary) objects, one for each sample. Some sample data is “thinned” in the interest of keeping the summaries small: images are removed from `input`, `metadata` is restricted to scalar values (with strings truncated to 1k), and scores include only their `value`.
 
-Reading only sample summaries will take orders of magnitude less time
-than reading all of the samples one-by-one, so if you only need access
-to summary level data, always prefer this function to reading the entire
-log file.
+Reading only sample summaries will take orders of magnitude less time than reading all of the samples one-by-one, so if you only need access to summary level data, always prefer this function to reading the entire log file.
 
 #### Filtering
 
-You can also use `read_eval_log_sample_summaries()` as means of
-filtering which samples you want to read in full. For example, imagine
-you only want to read samples that include errors:
+You can also use [read_eval_log_sample_summaries()](reference/inspect_ai.log.html.md#read_eval_log_sample_summaries) as means of filtering which samples you want to read in full. For example, imagine you only want to read samples that include errors:
 
 ``` python
 errors: list[EvalSample] = []
@@ -398,28 +289,17 @@ for sample in read_eval_log_sample_summaries(log_file):
 
 ### Streaming
 
-If you are working with log files that are too large to comfortably fit
-in memory, we recommend the following options and workflow to stream
-them rather than loading them into memory all at once :
+If you are working with log files that are too large to comfortably fit in memory, we recommend the following options and workflow to stream them rather than loading them into memory all at once :
 
-1.  Use the `.eval` log file format which supports compression and
-    incremental access to samples (see details on this in the [Log
-    Format](#sec-log-format) section above). If you have existing
-    `.json` files you can easily batch convert them to `.eval` using the
-    [Log Commands](#converting-logs) described below.
+1.  Use the `.eval` log file format which supports compression and incremental access to samples (see details on this in the [Log Format](#sec-log-format) section above). If you have existing `.json` files you can easily batch convert them to `.eval` using the [Log Commands](#converting-logs) described below.
 
-2.  If you only need access to the “header” of the log file (which
-    includes general eval metadata as well as the evaluation results)
-    use the `header_only` option of `read_eval_log()`:
+2.  If you only need access to the “header” of the log file (which includes general eval metadata as well as the evaluation results) use the `header_only` option of [read_eval_log()](reference/inspect_ai.log.html.md#read_eval_log):
 
     ``` python
     log = read_eval_log(log_file, header_only = True)
     ```
 
-3.  If you want to read individual samples, either read them selectively
-    using `read_eval_log_sample()`, or read them iteratively using
-    `read_eval_log_samples()` (which will ensure that only one sample at
-    a time is read into memory):
+3.  If you want to read individual samples, either read them selectively using [read_eval_log_sample()](reference/inspect_ai.log.html.md#read_eval_log_sample), or read them iteratively using [read_eval_log_samples()](reference/inspect_ai.log.html.md#read_eval_log_samples) (which will ensure that only one sample at a time is read into memory):
 
     ``` python
     # read a single sample
@@ -430,10 +310,7 @@ them rather than loading them into memory all at once :
         ...
     ```
 
-Note that `read_eval_log_samples()` will raise an error if you pass it a
-log that does not have `status=="success"` (this is because it can’t
-read all of the samples in an incomplete log). If you want to read the
-samples anyway, pass the `all_samples_required=False` option:
+Note that [read_eval_log_samples()](reference/inspect_ai.log.html.md#read_eval_log_samples) will raise an error if you pass it a log that does not have `status=="success"` (this is because it can’t read all of the samples in an incomplete log). If you want to read the samples anyway, pass the `all_samples_required=False` option:
 
 ``` python
 # will not raise an error if the log file has an "error" or "cancelled" status
@@ -443,14 +320,9 @@ for sample in read_eval_log_samples(log_file, all_samples_required=False):
 
 ### Attachments
 
-Sample logs often include large pieces of content that are duplicated in
-multiple places in the log file (input, message history, events, etc.).
-To keep the size of log files manageable, images and other large blocks
-of content are de-duplicated and stored as attachments.
+Sample logs often include large pieces of content that are duplicated in multiple places in the log file (input, message history, events, etc.). To keep the size of log files manageable, images and other large blocks of content are de-duplicated and stored as attachments.
 
-When reading log files, you may want to resolve the attachments so you
-can get access to the underlying content. You can do this for an
-`EvalSample` using the `resolve_sample_attachments()` function:
+When reading log files, you may want to resolve the attachments so you can get access to the underlying content. You can do this for an [EvalSample](reference/inspect_ai.log.html.md#evalsample) using the `resolve_sample_attachments()` function:
 
 ``` python
 from inspect_ai.log import resolve_sample_attachments
@@ -458,35 +330,19 @@ from inspect_ai.log import resolve_sample_attachments
 sample = resolve_sample_attachments(sample)
 ```
 
-Note that the `read_eval_log()` and `read_eval_log_sample()` functions
-also take a `resolve_attachments` option if you want to resolve at the
-time of reading.
+Note that the [read_eval_log()](reference/inspect_ai.log.html.md#read_eval_log) and [read_eval_log_sample()](reference/inspect_ai.log.html.md#read_eval_log_sample) functions also take a `resolve_attachments` option if you want to resolve at the time of reading.
 
-Note you will most typically *not* want to resolve attachments. The two
-cases that require attachment resolution for an `EvalSample` are:
+Note you will most typically *not* want to resolve attachments. The two cases that require attachment resolution for an [EvalSample](reference/inspect_ai.log.html.md#evalsample) are:
 
-1.  You want access to the base64 encoded images within the `input` and
-    `messages` fields; or
+1.  You want access to the base64 encoded images within the `input` and `messages` fields; or
 
-2.  You are directly reading the `events` transcript, and want access to
-    the underlying content (note that more than just images are
-    de-duplicated in `events`, so anytime you are reading it you will
-    likely want to resolve attachments).
+2.  You are directly reading the `events` transcript, and want access to the underlying content (note that more than just images are de-duplicated in `events`, so anytime you are reading it you will likely want to resolve attachments).
 
 ## Eval Retries
 
-When an evaluation task fails due to an error or is otherwise
-interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In
-many cases errors are transient (e.g. due to network connectivity or a
-rate limit) and can be subsequently *retried*.
+When an evaluation task fails due to an error or is otherwise interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g. due to network connectivity or a rate limit) and can be subsequently *retried*.
 
-For these cases, Inspect includes an `eval-retry` command and
-`eval_retry()` function that you can use to resume tasks interrupted by
-errors (including [preserving
-samples](eval-logs.qmd#sec-sample-preservation) already completed within
-the original task). For example, if you had a failing task with log file
-`logs/2024-05-29T12-38-43_math_Gprr29Mv.json`, you could retry it from
-the shell with:
+For these cases, Inspect includes an `eval-retry` command and [eval_retry()](reference/inspect_ai.html.md#eval_retry) function that you can use to resume tasks interrupted by errors (including [preserving samples](eval-logs.html.md#sec-sample-preservation) already completed within the original task). For example, if you had a failing task with log file `logs/2024-05-29T12-38-43_math_Gprr29Mv.json`, you could retry it from the shell with:
 
 ``` bash
 $ inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json
@@ -498,18 +354,11 @@ Or from Python with:
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
 
-Note that retry only works for tasks that are created from `@task`
-decorated functions (as if a `Task` is created dynamically outside of an
-`@task` function Inspect does not know how to reconstruct it for the
-retry).
+Note that retry only works for tasks that are created from `@task` decorated functions (as if a [Task](reference/inspect_ai.html.md#task) is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
-Note also that `eval_retry()` does not overwrite the previous log file,
-but rather creates a new one (preserving the `task_id` from the original
-file).
+Note also that [eval_retry()](reference/inspect_ai.html.md#eval_retry) does not overwrite the previous log file, but rather creates a new one (preserving the `task_id` from the original file).
 
-Here’s an example of retrying a failed eval with a lower number of
-`max_connections` (the theory being that too many concurrent connections
-may have caused a rate limit error):
+Here’s an example of retrying a failed eval with a lower number of `max_connections` (the theory being that too many concurrent connections may have caused a rate limit error):
 
 ``` python
 log = eval(my_task)[0]
@@ -519,76 +368,37 @@ if log.status != "success":
 
 ### Sample Preservation
 
-When retrying a log file, Inspect will attempt to re-use completed
-samples from the original task. This can result in substantial time and
-cost savings compared to starting over from the beginning.
+When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.
 
 #### IDs and Shuffling
 
-An important constraint on the ability to re-use completed samples is
-matching them up correctly with samples in the new task. To do this,
-Inspect requires stable unique identifiers for each sample. This can be
-achieved in 1 of 2 ways:
+An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:
 
-1.  Samples can have an explicit `id` field which contains the unique
-    identifier; or
+1.  Samples can have an explicit `id` field which contains the unique identifier; or
 
-2.  You can rely on Inspect’s assignment of an auto-incrementing `id`
-    for samples, however this *will not work correctly* if your dataset
-    is shuffled. Inspect will log a warning and not re-use samples if it
-    detects that the `dataset.shuffle()` method was called, however if
-    you are shuffling by some other means this automatic safeguard won’t
-    be applied.
+2.  You can rely on Inspect’s assignment of an auto-incrementing `id` for samples, however this *will not work correctly* if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the `dataset.shuffle()` method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.
 
-If dataset shuffling is important to your evaluation and you want to
-preserve samples for retried tasks, then you should include an explicit
-`id` field in your dataset.
+If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit `id` field in your dataset.
 
 #### Max Samples
 
-Another consideration is `max_samples`, which is the maximum number of
-samples to run concurrently within a task. Larger numbers of concurrent
-samples will result in higher throughput, but will also result in
-completed samples being written less frequently to the log file, and
-consequently less total recovable samples in the case of an interrupted
-task.
+Another consideration is `max_samples`, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.
 
-By default, Inspect sets the value of `max_samples` to
-`max_connections + 1` (note that it would rarely make sense to set it
-*lower* than `max_connections`). The default `max_connections` is 10,
-which will typically result in samples being written to the log
-frequently. On the other hand, setting a very large `max_connections`
-(e.g. 100 `max_connections` for a dataset with 100 samples) may result
-in very few recoverable samples in the case of an interruption.
+By default, Inspect sets the value of `max_samples` to `max_connections + 1` (note that it would rarely make sense to set it *lower* than `max_connections`). The default `max_connections` is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large `max_connections` (e.g. 100 `max_connections` for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.
 
-> [!NOTE]
+> **NOTE:**
 >
-> If your task involves tool calls and/or sandboxes, then you will
-> likely want to set `max_samples` to greater than `max_connections`, as
-> your samples will sometimes be calling the model (using up concurrent
-> connections) and sometimes be executing code in the sandbox (using up
-> concurrent subprocess calls). While running tasks you can see the
-> utilization of connections and subprocesses in realtime and tune your
-> `max_samples` accordingly.
+> If your task involves tool calls and/or sandboxes, then you will likely want to set `max_samples` to greater than `max_connections`, as your samples will sometimes be calling the model (using up concurrent connections) and sometimes be executing code in the sandbox (using up concurrent subprocess calls). While running tasks you can see the utilization of connections and subprocesses in realtime and tune your `max_samples` accordingly.
 
-We’ve discussed how to manage retries for a single evaluation run
-interactively. For the case of running many evaluation tasks in batch
-and retrying those which failed, see the documentation on [Eval
-Sets](eval-sets.qmd)
+We’ve discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.html.md)
 
 ## Editing Logs
 
-After running an evaluation, you may need to modify the results—for
-example, correcting scoring errors or adjusting sample scores based on
-manual review. Inspect provides functions for modifying logs while
-maintaining data integrity and audit trails.
+After running an evaluation, you may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails.
 
 ### Score Editing
 
-Use the `edit_score()` function to modify scores for individual samples.
-For example, this example will modify the score for the first sample,
-preserving its previous value in the score history, while also tracking
-the author and reason for the change:
+Use the [edit_score()](reference/inspect_ai.log.html.md#edit_score) function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:
 
 ``` python
 from inspect_ai.log import read_eval_log, write_eval_log, edit_score
@@ -619,14 +429,11 @@ edit_score(
 write_eval_log(log)
 ```
 
-Note that using `edit_score` modifies the log loaded into memory but
-doesn’t modify the written log file. Be sure to use `write_eval_log` to
-save the changes to the eval file (or a copy).
+Note that using `edit_score` modifies the log loaded into memory but doesn’t modify the written log file. Be sure to use `write_eval_log` to save the changes to the eval file (or a copy).
 
 ### Score History
 
-Each score maintains a complete edit history. The original score and all
-subsequent edits are preserved:
+Each score maintains a complete edit history. The original score and all subsequent edits are preserved:
 
 ``` python
 # Access the edit history
@@ -645,9 +452,7 @@ for i, edit in enumerate(score.history):
 
 ### Recomputing Metrics
 
-The `edit_score()` function automatically recomputes aggregate metrics
-by default. You can disable this and manually recompute later if you’re
-making multiple edits:
+The [edit_score()](reference/inspect_ai.log.html.md#edit_score) function automatically recomputes aggregate metrics by default. You can disable this and manually recompute later if you’re making multiple edits:
 
 ``` python
 from inspect_ai.log import recompute_metrics
@@ -665,19 +470,13 @@ write_eval_log(log)
 
 ### Score Edit Events
 
-When you edit a score, a `ScoreEditEvent` is automatically added to the
-sample’s event log. This provides a complete audit trail of all score
-modifications that can be viewed in the log viewer.
+When you edit a score, a [ScoreEditEvent](reference/inspect_ai.event.html.md#scoreeditevent) is automatically added to the sample’s event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
 
 ### Tags & Metadata Editing
 
-You can also edit the tags and metadata associated with a log after
-evaluation. This is useful for workflows like QA review, categorisation,
-and filtering—for example, tagging a log as `"needs_qa"` at eval time,
-then updating it to `"qa_passed"` after review.
+You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
 
-Use `edit_eval_log()` to add or remove tags and set or remove metadata
-keys:
+Use [edit_eval_log()](reference/inspect_ai.log.html.md#edit_eval_log) to add or remove tags and set or remove metadata keys:
 
 ``` python
 from inspect_ai.log import (
@@ -708,22 +507,13 @@ log.tags        # ["qa_passed", ...]
 log.metadata    # {"reviewer": "alice", ...}
 ```
 
-The original eval-time values are always preserved in `log.eval.tags`
-and `log.eval.metadata`. All post-eval edits are recorded in
-`log.log_updates` as an append-only edit history with provenance (author
-and reason), providing a full audit trail.
+The original eval-time values are always preserved in `log.eval.tags` and `log.eval.metadata`. All post-eval edits are recorded in `log.log_updates` as an append-only edit history with provenance (author and reason), providing a full audit trail.
 
-No-op edits are automatically filtered—adding a tag that already exists
-or removing one that doesn’t will not create an edit entry.
+No-op edits are automatically filtered—adding a tag that already exists or removing one that doesn’t will not create an edit entry.
 
 ## Amazon S3
 
-Storing evaluation logs on S3 provides a more permanent and secure store
-than using the local filesystem. While the `inspect eval` command has a
-`--log-dir` argument which accepts an S3 URL, the most convenient means
-of directing inspect to an S3 bucket is to add the `INSPECT_LOG_DIR`
-environment variable to the `.env` file (potentially alongside your S3
-credentials). For example:
+Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the `inspect eval` command has a `--log-dir` argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the `INSPECT_LOG_DIR` environment variable to the `.env` file (potentially alongside your S3 credentials). For example:
 
 ``` env
 INSPECT_LOG_DIR=s3://my-s3-inspect-log-bucket
@@ -732,38 +522,24 @@ AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 AWS_DEFAULT_REGION=eu-west-2
 ```
 
-One thing to keep in mind if you are storing logs on S3 is that they
-will no longer be easily viewable using a local text editor. You will
-likely want to configure a [FUSE
-filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily
-browse the S3 logs locally.
+One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
 ### Azure Blob Storage
 
-You can store evaluation logs in Azure Blob Storage using any
-Azure-compatible fsspec scheme (`az://`, `abfs://`, or `abfss://`).
-Inspect relies on `fsspec` + `adlfs`, so no code changes are needed
-beyond installing the Azure dependency.
+You can store evaluation logs in Azure Blob Storage using any Azure-compatible fsspec scheme (`az://`, `abfs://`, or `abfss://`). Inspect relies on `fsspec` + `adlfs`, so no code changes are needed beyond installing the Azure dependency.
 
     pip install "adlfs>=2025.8.0"
 
 **Recommended (Managed Identity / Workload Identity)**
 
-If running in Azure (App Service, Container Apps, VM, ASK) with a
-managed identity assigned and granted *Storage Blob Data Contributor*
-(or Reader for read‑only), do **not** set any secret environment
-variables. The absence of explicit secrets allows `adlfs` to fall back
-to `DefaultAzureCredential` and use the managed identity securely.
+If running in Azure (App Service, Container Apps, VM, ASK) with a managed identity assigned and granted *Storage Blob Data Contributor* (or Reader for read‑only), do **not** set any secret environment variables. The absence of explicit secrets allows `adlfs` to fall back to `DefaultAzureCredential` and use the managed identity securely.
 
-Set only the log directory (and optionally the account name for short
-`az://` URIs):
+Set only the log directory (and optionally the account name for short `az://` URIs):
 
     AZURE_STORAGE_ACCOUNT_NAME=myaccount   # optional for abfs*/fully-qualified URIs
     INSPECT_LOG_DIR=az://mycontainer/inspect-logs
 
-Explicitly set `AZURE_STORAGE_ANON=false`. When left unset the default
-`None` is interpreted as anonymous access (`true`), which skips your
-managed identity or SAS credentials and causes authorization failures.
+Explicitly set `AZURE_STORAGE_ANON=false`. When left unset the default `None` is interpreted as anonymous access (`true`), which skips your managed identity or SAS credentials and causes authorization failures.
 
 Or with a fully-qualified Data Lake (hierarchical namespace) URI:
 
@@ -771,8 +547,7 @@ Or with a fully-qualified Data Lake (hierarchical namespace) URI:
 
 **Fallback Credential Options (when managed identity is unavailable)**
 
-Order of precedence: *SAS Token* \> *Account Key* \> *Connection
-String*.
+Order of precedence: *SAS Token* \> *Account Key* \> *Connection String*.
 
     AZURE_STORAGE_ACCOUNT_NAME=myaccount
     # SAS token (scoped, time-bound; omit leading '?')
@@ -783,17 +558,14 @@ String*.
     # AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=...;AccountKey=...;
     INSPECT_LOG_DIR=az://mycontainer/inspect-logs
 
-Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to
-anonymous mode and `adlfs` will ignore the credential above.
+Also set `AZURE_STORAGE_ANON=false` here—leaving it empty reverts to anonymous mode and `adlfs` will ignore the credential above.
 
 **Running Evaluations & Viewer**
 
     inspect eval popularity.py --model openai/gpt-4
     inspect view  # streams directly from Azure
 
-For web deployment (App Service / Container Apps), just replicate the
-same environment variable setup; managed identity remains the most
-secure pattern.
+For web deployment (App Service / Container Apps), just replicate the same environment variable setup; managed identity remains the most secure pattern.
 
 ## Log File Name
 
@@ -801,33 +573,20 @@ By default, log files are named using the following convention:
 
     {timestamp}_{task}_{id}
 
-Where `timestamp` is the time the log was created; `task` is the name of
-the task the log corresponds to; and `id` is a unique task id.
+Where `timestamp` is the time the log was created; `task` is the name of the task the log corresponds to; and `id` is a unique task id.
 
-The `{timestamp}` part of the log file name is required to ensure that
-log files appear in sequential order in the filesystem. However, the
-rest of the filename can be customized using the
-`INSPECT_EVAL_LOG_FILE_PATTERN` environment variable, which can include
-any combination of `task`, `model`, and `id` fields. For example, to
-include the `model` in log file names:
+The `{timestamp}` part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the `INSPECT_EVAL_LOG_FILE_PATTERN` environment variable, which can include any combination of `task`, `model`, and `id` fields. For example, to include the `model` in log file names:
 
 ``` bash
 export INSPECT_EVAL_LOG_FILE_PATTERN={task}_{model}_{id}
 inspect eval ctf.py 
 ```
 
-As with other log file oriented environment variables, you may find it
-convenient to define this in a `.env` file from the location where you
-run your evals.
+As with other log file oriented environment variables, you may find it convenient to define this in a `.env` file from the location where you run your evals.
 
 ## Log Commands
 
-We’ve shown a number of Python functions that let you work with eval
-logs from code. However, you may be writing an orchestration or
-visualisation tool in another language (e.g. TypeScript) where its not
-particularly convenient to call the Python API. The Inspect CLI has a
-few commands intended to make it easier to work with Inspect logs from
-other languages:
+We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:
 
 | Command               | Description                         |
 |-----------------------|-------------------------------------|
@@ -838,28 +597,21 @@ other languages:
 
 ### Listing Logs
 
-You can use the `inspect log list` command to enumerate all of the logs
-for a given log directory. This command will utilise the
-`INSPECT_LOG_DIR` if it is set (alternatively you can specify a
-`--log-dir` directly). You’ll likely also want to use the `--json` flag
-to get more granular and structured information on the log files. For
-example:
+You can use the `inspect log list` command to enumerate all of the logs for a given log directory. This command will utilise the `INSPECT_LOG_DIR` if it is set (alternatively you can specify a `--log-dir` directly). You’ll likely also want to use the `--json` flag to get more granular and structured information on the log files. For example:
 
 ``` bash
 $ inspect log list --json           # uses INSPECT_LOG_DIR
 $ inspect log list --json --log-dir ./security_04-07-2024
 ```
 
-You can also use the `--status` option to list only logs with a
-`success` or `error` status:
+You can also use the `--status` option to list only logs with a `success` or `error` status:
 
 ``` bash
 $ inspect log list --json --status success
 $ inspect log list --json --status error
 ```
 
-You can use the `--retryable` option to list only logs that are
-[retryable](#eval-retries)
+You can use the `--retryable` option to list only logs that are [retryable](#eval-retries)
 
 ``` bash
 $ inspect log list --json --retryable
@@ -867,20 +619,10 @@ $ inspect log list --json --retryable
 
 ### Reading Logs
 
-The `inspect log list` command will return set of URIs to log files
-which will use a variety of protocols (e.g. `file://`, `s3://`,
-`gcs://`, etc.). You might be tempted to try to read these URIs
-directly, however you should always do so using the `inspect log dump`
-command for two reasons:
+The `inspect log list` command will return set of URIs to log files which will use a variety of protocols (e.g. `file://`, `s3://`, `gcs://`, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the `inspect log dump` command for two reasons:
 
-1.  As described above in [Log Format](#sec-log-format), log files may
-    be stored in binary or text. the `inspect log dump` command will
-    print any log file as plain text JSON no matter its underlying
-    format.
-2.  Log files can be located on remote storage systems (e.g. Amazon S3)
-    that users have configured read/write credentials for within their
-    Inspect environment, and you’ll want to be sure to take advantage of
-    these credentials.
+1.  As described above in [Log Format](#sec-log-format), log files may be stored in binary or text. the `inspect log dump` command will print any log file as plain text JSON no matter its underlying format.
+2.  Log files can be located on remote storage systems (e.g. Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.
 
 For example, here we read a local log file and a log file on Amazon S3:
 
@@ -891,11 +633,7 @@ $ inspect log dump s3://my-evals-bucket/logfile.json
 
 ### Converting Logs
 
-You can convert between the two underlying [log
-formats](#sec-log-format) using the `inspect log convert` command. The
-convert command takes a source path (with either a log file or a
-directory of log files) along with two required arguments that specify
-the conversion (`--to` and `--output-dir`). For example:
+You can convert between the two underlying [log formats](#sec-log-format) using the `inspect log convert` command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (`--to` and `--output-dir`). For example:
 
 ``` bash
 $ inspect log convert source.json --to eval --output-dir log-output
@@ -907,37 +645,20 @@ Or for an entire directory:
 $ inspect log convert logs --to eval --output-dir logs-eval
 ```
 
-Logs that are already in the target format are simply copied to the
-output directory. By default, log files in the target directory will not
-be overwritten, however you can add the `--overwrite` flag to force an
-overwrite.
+Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the `--overwrite` flag to force an overwrite.
 
-Note that the output directory is always required to enforce the
-practice of not doing conversions that result in side-by-side log files
-that are identical save for their format.
+Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.
 
 ### Log Schema
 
-Log files are stored in JSON. You can get the JSON schema for the log
-file format with a call to `inspect log schema`:
+Log files are stored in JSON. You can get the JSON schema for the log file format with a call to `inspect log schema`:
 
 ``` bash
 $ inspect log schema
 ```
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> ### NaN and Inf
+> Because evaluation logs contain lots of numerical data and calculations, it is possible that some `number` values will be `NaN` or `Inf`. These numeric values are supported natively by Python’s JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.
 >
-> Because evaluation logs contain lots of numerical data and
-> calculations, it is possible that some `number` values will be `NaN`
-> or `Inf`. These numeric values are supported natively by Python’s JSON
-> parser, however are not supported by the JSON parsers built in to
-> browsers and Node JS.
->
-> To correctly read `Nan` and `Inf` values from eval logs in JavaScript,
-> we recommend that you use the [JSON5
-> Parser](https://github.com/json5/json5). For other languages, `Nan`
-> and `Inf` may be natively supported (if not, see these JSON 5
-> implementations for [other
-> languages](https://github.com/json5/json5/wiki/In-the-Wild)).
+> To correctly read `Nan` and `Inf` values from eval logs in JavaScript, we recommend that you use the [JSON5 Parser](https://github.com/json5/json5). For other languages, `Nan` and `Inf` may be natively supported (if not, see these JSON 5 implementations for [other languages](https://github.com/json5/json5/wiki/In-the-Wild)).

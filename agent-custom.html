@@ -2,13 +2,16 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.25">
+<meta name="generator" content="quarto-1.9.36">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
 <title>Custom Agents – Inspect</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -70,15 +73,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6776297b1bcdc1ce3e71101c0074be7c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -110,16 +112,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://inspect.aisi.org.uk//images/inspect.png">
+<meta property="og:image" content="https://inspect.aisi.org.uk/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://inspect.aisi.org.uk//images/inspect.png">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -134,7 +136,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <img src="./images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="./index.html">
-    <span class="navbar-title">Inspect AI</span>
+    <span class="navbar-title">Inspect</span>
     </a>
   </div>
             <div id="quarto-search" class="" title="Search"></div>
@@ -191,10 +193,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
-    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
-      <a href="./index.html" class="sidebar-logo-link">
-      </a>
-      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
@@ -520,7 +518,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -554,7 +552,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#background-work" id="toc-background-work" class="nav-link" data-scroll-target="#background-work">Background Work</a></li>
   <li><a href="#sandbox-service" id="toc-sandbox-service" class="nav-link" data-scroll-target="#sandbox-service">Sandbox Service</a></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -651,7 +649,40 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="tool-loop" class="level2">
 <h2 class="anchored" data-anchor-id="tool-loop">Tool Loop</h2>
 <p>Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has a core similar to the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-2" data-llms-code-original="from typing import Sequence
+from inspect_ai.agent import AgentState, agent
+from inspect_ai.model import execute_tools, get_model
+from inspect_ai.tool import (
+    Tool, ToolDef, ToolSource, mcp_connection
+)
+
+@agent
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
+    async def execute(state: AgentState):
+
+        # establish MCP server connections required by tools
+        async with mcp_connection(tools):                          # <2>
+
+            while True:
+                # call model and append to messages
+                state.output = await get_model().generate(         # <3>
+                    input=state.messages,                          
+                    tools=tools,                                   
+                )                                                  
+                state.messages.append(output.message)              
+
+                # make tool calls or terminate if there are none   
+                if output.message.tool_calls:                      
+                    messages, state.output = await execute_tools(  # <4>
+                        message, tools     
+                    )
+                    state.messages.extend(messages)
+                else:
+                    break
+
+            return state
+
+    return execute"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
 <span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> AgentState, agent</span>
 <span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> execute_tools, get_model</span>
 <span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> (</span>
@@ -723,7 +754,57 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="compaction">Compaction</h2>
 <p><a href="./compaction.html">Compaction</a> enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compaction">compaction()</a></span> function along with a compaction strategy to incorporate compaction into your custom agent.</p>
 <p>For example, here we enhance the simple agent loop example from above with compaction. The <code>compact</code> handler has two methods: <code>compact_input()</code> to prepare input for the model, and <code>record_output()</code> to calibrate token estimation from the model’s actual usage.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4" data-llms-code-original="from typing import Sequence
+from inspect_ai.agent import AgentState, agent
+from inspect_ai.model import (
+    CompactionAuto, compaction, execute_tools, get_model
+)
+from inspect_ai.tool import (
+    Tool, ToolDef, ToolSource, mcp_connection
+)
+
+@agent
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
+    async def execute(state: AgentState):
+
+        # create compaction handler              # <1>
+        compact = compaction(                    # <1>
+            CompactionAuto(),                    # <1>
+            prefix=state.messages,               # <1>
+            tools=tools                          # <1>
+        )                                        # <1>
+
+        # establish MCP server connections required by tools
+        async with mcp_connection(tools):
+
+            while True:
+                # compact input                                                # <2>
+                input, c_message = await compact.compact_input(state.messages)  # <2>
+                if c_message:                                                  # <2>
+                    state.messages.append(c_message)                           # <2>
+
+                # call model and append to messages
+                state.output = await get_model().generate(
+                    input=input,
+                    tools=tools,
+                )
+                state.messages.append(state.output.message)
+
+                # record output for token calibration  # <3>
+                compact.record_output(state.output)    # <3>
+
+                # make tool calls or terminate if there are none
+                if state.output.message.tool_calls:
+                    messages, state.output = await execute_tools(
+                        state.output.message, tools
+                    )
+                    state.messages.extend(messages)
+                else:
+                    break
+
+            return state
+
+    return execute"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
 <span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> AgentState, agent</span>
 <span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> (</span>
 <span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a>    CompactionAuto, compaction, execute_tools, get_model</span>
@@ -851,7 +932,7 @@ Note
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>[bash_session(instance<span class="op">=</span>instance)]</span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="45ad5e57" class="cell">
+<div id="f21a2e8e" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>react(..., tools<span class="op">=</span>[bash_explorer(instance<span class="op">=</span>uuid())])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1084,6 +1165,74 @@ Note
 </section>
 
 </main> <!-- /main -->
+<div id="copy-page-btn" class="btn-group" style="display:none;">
+  <button type="button" class="btn btn-sm btn-light" id="copy-page-action" title="Copy page as Markdown">
+    <i class="bi bi-clipboard"></i> Copy page
+  </button>
+  <button type="button" class="btn btn-sm btn-light dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+    <span class="visually-hidden">Toggle Dropdown</span>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><a class="dropdown-item" href="#" id="copy-page-md">
+      <i class="bi bi-clipboard"></i> Copy page as Markdown
+    </a></li>
+    <li><a class="dropdown-item" href="#" id="open-page-md">
+      <i class="bi bi-box-arrow-up-right"></i> Open Markdown
+    </a></li>
+  </ul>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var btn = document.getElementById("copy-page-btn");
+  var cachedMarkdown = null;
+
+  // Pre-fetch the .html.md content
+  fetch(mdUrl)
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      cachedMarkdown = text;
+
+      // Relocate button into the .quarto-title div
+      var titleDiv = document.querySelector(".quarto-title");
+      if (titleDiv) {
+        titleDiv.appendChild(btn);
+        btn.style.display = "";
+      }
+    })
+    .catch(function () {
+      // No .html.md available — remove button entirely
+      btn.remove();
+    });
+
+  function copyMarkdown(e) {
+    e.preventDefault();
+    if (!cachedMarkdown) return;
+    navigator.clipboard.writeText(cachedMarkdown).then(function () {
+      // Brief visual feedback — lock width to prevent layout shift
+      var actionBtn = document.getElementById("copy-page-action");
+      var original = actionBtn.innerHTML;
+      actionBtn.style.minWidth = actionBtn.offsetWidth + "px";
+      actionBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+      setTimeout(function () {
+        actionBtn.innerHTML = original;
+        actionBtn.style.minWidth = "";
+      }, 1500);
+    });
+  }
+
+  document.getElementById("copy-page-action").addEventListener("click", copyMarkdown);
+  document.getElementById("copy-page-md").addEventListener("click", copyMarkdown);
+  document.getElementById("open-page-md").addEventListener("click", function (e) {
+    e.preventDefault();
+    window.open(mdUrl, "_blank");
+  });
+});
+</script>
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
@@ -1157,7 +1306,7 @@ Note
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk\/");
+        var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
@@ -1543,7 +1692,7 @@ Note
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link" href="https://aisi.gov.uk/">
+    <a class="nav-link" href="https://aisi.gov.uk">
 <p>UK AI Security Institute</p>
 </a>
   </li>  
@@ -1572,20 +1721,19 @@ Note
 </a>
   </li>  
 </ul>
-    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    </div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">
     <a class="nav-link" href="https://x.com/AISecurityInst">
-      <i class="bi bi-twitter" role="img" aria-label="UK AI Security Institute Twitter">
+      <i class="bi bi-twitter" role="img" aria-label="Inspect Twitter">
 </i> 
     </a>
   </li>  
     <li class="nav-item compact">
-    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
-      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
-</i> 
-    </a>
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
   </li>  
 </ul>
     </div>

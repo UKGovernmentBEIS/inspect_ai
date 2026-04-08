@@ -1,11 +1,8 @@
 # Multimodal
 
-
 ## Overview
 
-Many models now support multimodal inputs, including images, audio,
-video, and PDFs. This article describes how to how to create evaluations
-that include these data types.
+Many models now support multimodal inputs, including images, audio, video, and PDFs. This article describes how to how to create evaluations that include these data types.
 
 The following providers currently have support for multimodal inputs:
 
@@ -20,33 +17,21 @@ The following providers currently have support for multimodal inputs:
 | AzureAI   |   •    |       |       |     |
 | Groq      |   •    |       |       |     |
 
-Note that model providers only support multimodal inputs for a subset of
-their models. In the sections below on images, audio, and video we’ll
-enumerate which models can handle these input types. It’s also always a
-good idea to check the provider documentation for the most up to date
-compatibility matrix.
+Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we’ll enumerate which models can handle these input types. It’s also always a good idea to check the provider documentation for the most up to date compatibility matrix.
 
-Some OpenAI and Google models additionally support [Multimodal
-Output](#multimodal-output).
+Some OpenAI and Google models additionally support [Multimodal Output](#multimodal-output).
 
 ## Images
 
-Please see provider specific documentation on which models support image
-input:
+Please see provider specific documentation on which models support image input:
 
-- [OpenAI Images and
-  Vision](https://platform.openai.com/docs/guides/images-vision)
-- [Anthropic
-  Vision](https://docs.anthropic.com/en/docs/build-with-claude/vision)
-- [Gemni Image
-  Understanding](https://ai.google.dev/gemini-api/docs/image-understanding)
+- [OpenAI Images and Vision](https://platform.openai.com/docs/guides/images-vision)
+- [Anthropic Vision](https://docs.anthropic.com/en/docs/build-with-claude/vision)
+- [Gemni Image Understanding](https://ai.google.dev/gemini-api/docs/image-understanding)
 - [Mistral Vision](https://docs.mistral.ai/capabilities/vision/)
-- [Grok Image
-  Understanding](https://docs.x.ai/docs/guides/image-understanding)
+- [Grok Image Understanding](https://docs.x.ai/docs/guides/image-understanding)
 
-To include an image in a [dataset](datasets.qmd) you should use JSON
-input format (either standard JSON or JSON Lines). For example, here we
-include an image alongside some text content:
+To include an image in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:
 
 ``` javascript
 "input": [
@@ -60,13 +45,9 @@ include an image alongside some text content:
 ]
 ```
 
-The `"picture.png"` path is resolved relative to the directory
-containing the dataset file. The image can be specified either as a file
-path or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+The `"picture.png"` path is resolved relative to the directory containing the dataset file. The image can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
 
 ``` python
 input = [
@@ -79,13 +60,7 @@ input = [
 
 ### Detail
 
-Some providers support a `detail` option that control over how the model
-processes the image and generates its textual understanding. Valid
-options are `auto` (the default), `low`, and `high`. See the [Open AI
-documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding)
-for more information on using this option. The Mistral, AzureAI, and
-Groq APIs also support the `detail` parameter. For example, here we
-explicitly specify image detail:
+Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
 
 ``` python
 ContentImage(image="picture.png", detail="low")
@@ -99,9 +74,7 @@ The following models currently support audio inputs:
 - Google: All Gemini models
 - Mistral: All Voxtral models
 
-To include audio in a [dataset](datasets.qmd) you should use JSON input
-format (either standard JSON or JSON Lines). For example, here we
-include audio alongside some text content:
+To include audio in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
 
 ``` javascript
 "input": [
@@ -115,13 +88,9 @@ include audio alongside some text content:
 ]
 ```
 
-The “sample.mp3” path is resolved relative to the directory containing
-the dataset file. The audio file can be specified either as a file path
-or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+The “sample.mp3” path is resolved relative to the directory containing the dataset file. The audio file can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
 
 ``` python
 input = [
@@ -139,8 +108,7 @@ You can provide audio files in one of two formats:
 - MP3
 - WAV
 
-As demonstrated above, you should specify the format explicitly when
-including audio input.
+As demonstrated above, you should specify the format explicitly when including audio input.
 
 ## Video
 
@@ -148,9 +116,7 @@ The following models currently support video inputs:
 
 - Google: All Gemini models.
 
-To include video in a [dataset](datasets.qmd) you should use JSON input
-format (either standard JSON or JSON Lines). For example, here we
-include video alongside some text content:
+To include video in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:
 
 ``` javascript
 "input": [
@@ -164,13 +130,9 @@ include video alongside some text content:
 ]
 ```
 
-The “video.mp4” path is resolved relative to the directory containing
-the dataset file. The video file can be specified either as a file path
-or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+The “video.mp4” path is resolved relative to the directory containing the dataset file. The video file can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
 
 ``` python
 input = [
@@ -189,8 +151,7 @@ You can provide video files in one of three formats:
 - MPEG
 - MOV
 
-As demonstrated above, you should specify the format explicitly when
-including video input.
+As demonstrated above, you should specify the format explicitly when including video input.
 
 ## PDF
 
@@ -201,9 +162,7 @@ The following model providers support PDF inputs:
 - [Google](https://ai.google.dev/api/files)
 - [Mistral](https://docs.mistral.ai/capabilities/document_ai)
 
-To include PDF in a [dataset](datasets.qmd) you should use JSON input
-format (either standard JSON or JSON Lines). For example, here we
-include a PDF alongside some text content:
+To include PDF in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include a PDF alongside some text content:
 
 ``` javascript
 "input": [
@@ -223,13 +182,9 @@ include a PDF alongside some text content:
 ]
 ```
 
-The “attention.pdf” path is resolved relative to the directory
-containing the dataset file. The video file can be specified either as a
-file path or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+The “attention.pdf” path is resolved relative to the directory containing the dataset file. The video file can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
 
 ``` python
 input = [
@@ -246,23 +201,19 @@ Some models can generate multimodal output along with text:
 
 - OpenAI `gpt-4o` and `gpt-5` models support image generation
 
-- Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`,
-  and `gemini-3.1-flash-image-preview` support image generation.
+- Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, and `gemini-3.1-flash-image-preview` support image generation.
 
-Enable image output by setting `modalities=["image"]` in your
-`GenerateConfig`:
+Enable image output by setting `modalities=["image"]` in your [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig):
 
 ``` python
 config = GenerateConfig(modalities=["image"])
 ```
 
-Text output is always implicitly included—you only need to specify
-additional modalities beyond text.
+Text output is always implicitly included—you only need to specify additional modalities beyond text.
 
 ### OpenAI
 
-Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood
-(you can custmize this using `ImageOutput` options).
+Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood (you can custmize this using [ImageOutput](reference/inspect_ai.model.html.md#imageoutput) options).
 
 ``` python
 model = get_model("openai/gpt-5.4")
@@ -272,8 +223,7 @@ output = await model.generate(
 )
 ```
 
-For more control over image generation, use `ImageOutput` with
-provider-specific options:
+For more control over image generation, use [ImageOutput](reference/inspect_ai.model.html.md#imageoutput) with provider-specific options:
 
 ``` python
 from inspect_ai.model import ImageOutput
@@ -302,8 +252,7 @@ output = await model.generate(
 
 ### Response Format
 
-Image output appears as `ContentImage` in the assistant message’s
-`content` list, with a `data:image/png;base64,...` data URI:
+Image output appears as [ContentImage](reference/inspect_ai.model.html.md#contentimage) in the assistant message’s `content` list, with a `data:image/png;base64,...` data URI:
 
 ``` python
 for content in output.choices[0].message.content:
@@ -314,34 +263,18 @@ for content in output.choices[0].message.content:
 
 ## Uploads
 
-When using audio and video with the Google Gemini API, media is first
-uploaded using the [File
-API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio)
-and then the URL to the uploaded file is referenced in the chat message.
-This results in much faster performance for subsequent uses of the media
-file.
+When using audio and video with the Google Gemini API, media is first uploaded using the [File API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio) and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.
 
-The File API lets you store up to 20GB of files per project, with a
-per-file maximum size of 2GB. Files are stored for 48 hours. They can be
-accessed in that period with your API key, but cannot be downloaded from
-the API. The File API is available at no cost in all regions where the
-Gemini API is available.
+The File API lets you store up to 20GB of files per project, with a per-file maximum size of 2GB. Files are stored for 48 hours. They can be accessed in that period with your API key, but cannot be downloaded from the API. The File API is available at no cost in all regions where the Gemini API is available.
 
 ## Logging
 
-By default, full base64 encoded copies of media files are included in
-the log file. Media file logging will not create performance problems
-when using `.eval` logs, however if you are using `.json` logs then
-large numbers of media files could become unwieldy (i.e. if your `.json`
-log file grows to 100MB or larger as a result).
+By default, full base64 encoded copies of media files are included in the log file. Media file logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of media files could become unwieldy (i.e. if your `.json` log file grows to 100MB or larger as a result).
 
-You can disable all media logging using the `--no-log-images` flag. For
-example, here we enable the `.json` log format and disable media
-logging:
+You can disable all media logging using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable media logging:
 
 ``` bash
 inspect eval images.py --log-format=json --no-log-images
 ```
 
-You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to
-set a global default in your `.env` configuration file.
+You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.

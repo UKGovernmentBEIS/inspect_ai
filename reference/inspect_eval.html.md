@@ -1,5 +1,6 @@
 # inspect eval
 
+Evaluate one or more tasks.
 
 Evaluate tasks.
 
@@ -88,7 +89,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--reasoning-summary` | choice (`none` \| `concise` \| `detailed` \| `auto`) | Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI). | None |
 | `--reasoning-history` | choice (`none` \| `all` \| `last` \| `auto`) | Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) | None |
 | `--response-schema` | text | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. | None |
-| `--cache` | text | Policy for caching of model generations. Specify –cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration. | None |
+| `--cache` | text | Policy for caching of model generations. Specify –cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full [CachePolicy](../reference/inspect_ai.model.html.md#cachepolicy) configuration. | None |
 | `--batch` | text | Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify –batch to batch with default configuration, specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration. | None |
 | `--modalities` | text | Additional output modalities beyond text (e.g. ‘image’). Comma-separated names or a YAML/JSON config file path. OpenAI and Google only. | None |
 | `--log-format` | choice (`eval` \| `json`) | Format for writing log files. | None |

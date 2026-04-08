@@ -1,10 +1,10 @@
 # inspect sandbox
 
+Manage sandbox environments.
 
 Manage Sandbox Environments.
 
-Learn more about sandboxing at
-<https://inspect.aisi.org.uk/sandboxing.html>.
+Learn more about sandboxing at <https://inspect.aisi.org.uk/sandboxing.html>.
 
 #### Usage
 
@@ -24,8 +24,7 @@ Cleanup Sandbox Environments.
 
 TYPE specifies the sandbox environment type (e.g. ‘docker’)
 
-Pass an ENVIRONMENT_ID to cleanup only a single environment (otherwise
-all environments will be cleaned up).
+Pass an ENVIRONMENT_ID to cleanup only a single environment (otherwise all environments will be cleaned up).
 
 #### Usage
 

@@ -1,16 +1,12 @@
 # inspect trace
 
+List and read execution traces.
 
 List and read execution traces.
 
-Inspect includes a TRACE log-level which is right below the HTTP and
-INFO log levels (so not written to the console by default). However,
-TRACE logs are always recorded to a separate file, and the last 10 TRACE
-logs are preserved. The ‘trace’ command provides ways to list and read
-these traces.
+Inspect includes a TRACE log-level which is right below the HTTP and INFO log levels (so not written to the console by default). However, TRACE logs are always recorded to a separate file, and the last 10 TRACE logs are preserved. The ‘trace’ command provides ways to list and read these traces.
 
-Learn more about execution traces at
-<https://inspect.aisi.org.uk/tracing.html>.
+Learn more about execution traces at <https://inspect.aisi.org.uk/tracing.html>.
 
 #### Usage
 
@@ -81,8 +77,7 @@ inspect trace http [OPTIONS] [TRACE_FILE]
 
 ## inspect trace anomalies
 
-Look for anomalies in a trace file (never completed or cancelled
-actions).
+Look for anomalies in a trace file (never completed or cancelled actions).
 
 #### Usage
 

@@ -1,37 +1,29 @@
 # Model Providers
 
-
 ## Overview
 
-Inspect has support for a wide variety of language model APIs and can be
-extended to support arbitrary additional ones. Support for the following
-providers is built in to Inspect:
+Inspect has support for a wide variety of language model APIs and can be extended to support arbitrary additional ones. Support for the following providers is built in to Inspect:
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
-| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [AWS SageMaker](providers.qmd#aws-sagemaker), and [Azure AI](providers.qmd#azure-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [HF Inference Providers](providers.qmd#hf-inference-providers), [SambaNova](providers.qmd#sambanova) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens), [nnterp](providers.qmd#nnterp) |
+| Lab APIs | [OpenAI](providers.html.md#openai), [Anthropic](providers.html.md#anthropic), [Google](providers.html.md#google), [Grok](providers.html.md#grok), [Mistral](providers.html.md#mistral), [DeepSeek](providers.html.md#deepseek), [Perplexity](providers.html.md#perplexity) |
+| Cloud APIs | [AWS Bedrock](providers.html.md#aws-bedrock), [AWS SageMaker](providers.html.md#aws-sagemaker), and [Azure AI](providers.html.md#azure-ai) |
+| Open (Hosted) | [Groq](providers.html.md#groq), [Together AI](providers.html.md#together-ai), [Fireworks AI](providers.html.md#fireworks-ai), [Cloudflare](providers.html.md#cloudflare), [HF Inference Providers](providers.html.md#hf-inference-providers), [SambaNova](providers.html.md#sambanova) |
+| Open (Local) | [Hugging Face](providers.html.md#hugging-face), [vLLM](providers.html.md#vllm), [Ollama](providers.html.md#ollama), [Lllama-cpp-python](providers.html.md#llama-cpp-python), [SGLang](providers.html.md#sglang), [TransformerLens](providers.html.md#transformer-lens), [nnterp](providers.html.md#nnterp) |
 
-If the provider you are using is not listed above, you may still be able
-to use it if:
+  
 
-1.  It provides an OpenAI compatible API endpoint. In this scenario, use
-    the Inspect [OpenAI Compatible API](providers.qmd#openai-api)
-    interface.
+If the provider you are using is not listed above, you may still be able to use it if:
 
-2.  It is available via OpenRouter (see the docs on using
-    [OpenRouter](providers.qmd#openrouter) with Inspect).
+1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](providers.html.md#openai-api) interface.
 
-You can also create [Model API Extensions](extensions.qmd#model-apis) to
-add model providers using their native interface.
+2.  It is available via OpenRouter (see the docs on using [OpenRouter](providers.html.md#openrouter) with Inspect).
+
+You can also create [Model API Extensions](extensions.html.md#model-apis) to add model providers using their native interface.
 
 ## OpenAI
 
-To use the [OpenAI](https://platform.openai.com/) provider, install the
-`openai` package, set your credentials, and specify a model using the
-`--model` option:
+To use the [OpenAI](https://platform.openai.com/) provider, install the `openai` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -50,8 +42,7 @@ The following environment variables are supported by the OpenAI provider
 
 ### Model Args
 
-The `openai` provider supports the following custom model args (other
-model args are forwarded to the constructor of the `AsyncOpenAI` class):
+The `openai` provider supports the following custom model args (other model args are forwarded to the constructor of the `AsyncOpenAI` class):
 
 | Model Arg | Description |
 |----|----|
@@ -82,30 +73,19 @@ eval(
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for
-GPT-4 models and the new [Responses
-API](https://platform.openai.com/docs/api-reference/responses) for GPT-5
-and o-series models and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and o-series models and the `computer_use_preview` model.
 
-If you want to manually enable or disable the Responses API you can use
-the `responses_api` model argument. For example:
+If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
 ``` bash
 inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
-Note that certain models including `o1-pro` and `computer_use_preview`
-*require* the use of the Responses API. Check the Open AI [models
-documentation](https://platform.openai.com/docs/models) for details on
-which models are supported by the respective APIs.
+Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Store
 
-By default, Inspect’s implementation of the Responses API does not store
-messages on the server. Reasoning content (which is intended to be
-opaque to clients) is handled using encrypted payloads (via the
-“reasoning.encrypted_content” include option). To control this behavior
-explicitly use the `responses_store` model argument. For example:
+By default, Inspect’s implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the “reasoning.encrypted_content” include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
@@ -113,30 +93,17 @@ inspect eval math.py --model openai/o4-mini -M responses_store=True
 
 ### Flex Processing
 
-[Flex
-processing](https://platform.openai.com/docs/guides/flex-processing)
-provides significantly lower costs for requests in exchange for slower
-response times and occasional resource unavailability (input and output
-tokens are priced using [batch API
-rates](https://platform.openai.com/docs/guides/batch) for flex
-requests).
+[Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
-Note that flex processing is in beta, and currently **only available for
-o3 and o4-mini models**.
+Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
 
-To enable flex processing, use the `service_tier` model argument,
-setting it to “flex”. For example:
+To enable flex processing, use the `service_tier` model argument, setting it to “flex”. For example:
 
 ``` bash
 inspect eval math.py --model openai/o4-mini -M service_tier=flex
 ```
 
-OpenAI recommends using a [higher client
-timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts)
-when making flex requests (15 minutes rather than the standard 10).
-Inspect automatically increases the client timeout to 15 minutes (900
-seconds) for flex requests. To specify another value, use the
-`client_timeout` model argument. For example:
+OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
 
 ``` bash
 inspect eval math.py --model openai/o4-mini \
@@ -145,9 +112,7 @@ inspect eval math.py --model openai/o4-mini \
 
 ### OpenAI on Azure
 
-The `openai` provider supports OpenAI models deployed on the [Azure AI
-Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI,
-specify the following environment variables:
+The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
 | Variable | Description |
 |----|----|
@@ -156,8 +121,7 @@ specify the following environment variables:
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-You can then use the normal `openai` provider with the `azure` qualifier
-and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
@@ -166,8 +130,7 @@ export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
 inspect eval math.py --model openai/azure/gpt-4o-mini
 ```
 
-If using managed identity for authentication, install the
-`azure-identity` package and do not specify `AZUREAI_API_KEY`.
+If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
 
 ``` bash
 pip install azure-identity
@@ -177,17 +140,11 @@ export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
 inspect eval math.py --model openai/azure/gpt-4o-mini
 ```
 
-Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect
-will generally default to the latest deployed version, which as of this
-writing is `2025-03-01-preview`. When using managed identity for
-authentication, install the `azure-identity` package and leave
-`AZUREAI_OPENAI_API_KEY` undefined.
+Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
 ## Anthropic
 
-To use the [Anthropic](https://www.anthropic.com/api) provider, install
-the `anthropic` package, set your credentials, and specify a model using
-the `--model` option:
+To use the [Anthropic](https://www.anthropic.com/api) provider, install the `anthropic` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install anthropic
@@ -195,11 +152,9 @@ export ANTHROPIC_API_KEY=your-anthropic-api-key
 inspect eval arc.py --model anthropic/claude-sonnet-4-0
 ```
 
-For the `anthropic` provider, custom model args (`-M`) are forwarded to
-the constructor of the `AsyncAnthropic` class.
+For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
 
-The following environment variables are supported by the Anthropic
-provider
+The following environment variables are supported by the Anthropic provider
 
 | Variable | Description |
 |----|----|
@@ -208,15 +163,9 @@ provider
 
 ### Betas
 
-Some Anthropic features require that you include a beta identifier in
-the `betas` field of model requests. Inspect automatically includes the
-requisite identifier for beta features it utilizes
-(e.g. “mcp-client-2025-04-04”, “computer-use-2025-01-24”, etc.).
+Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. “mcp-client-2025-04-04”, “computer-use-2025-01-24”, etc.).
 
-If there are other beta features you want to enable, use the `betas`
-model arg (`-M`). For example, to enable [1M token context
-windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window)
-for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 4.5 and Opus 4.6 models:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
@@ -224,13 +173,7 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that
-controls whether streaming responses are used. The default (“auto”) will
-automatically use streaming when thinking is enabled or for potentially
-[long
-requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests)
-(requests with \>= 8192 `max_tokens`). Pass `true` or `false` to
-override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
@@ -238,12 +181,7 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Anthropic on AWS Bedrock
 
-To use Anthropic models on Bedrock, use the normal `anthropic` provider
-with the `bedrock` qualifier, specifying a model name that corresponds
-to a model you have access to on Bedrock. For Bedrock, authentication is
-not handled using an API key but rather your standard AWS credentials
-(e.g. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`). You should also
-be sure to have specified an AWS region. For example:
+To use Anthropic models on Bedrock, use the normal `anthropic` provider with the `bedrock` qualifier, specifying a model name that corresponds to a model you have access to on Bedrock. For Bedrock, authentication is not handled using an API key but rather your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`). You should also be sure to have specified an AWS region. For example:
 
 ``` bash
 export AWS_ACCESS_KEY_ID=your-aws-access-key-id
@@ -252,16 +190,11 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval arc.py --model anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
 ```
 
-You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment
-variable to set a custom base URL for Bedrock API requests.
+You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment variable to set a custom base URL for Bedrock API requests.
 
 ### Anthropic on Vertex AI
 
-To use Anthropic models on Vertex, you can use the standard `anthropic`
-model provider with the `vertex` qualifier
-(e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also
-set two environment variables indicating your project ID and region.
-Here is a complete example:
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
 
 ``` bash
 export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
@@ -269,22 +202,16 @@ export ANTHROPIC_VERTEX_REGION=us-east5
 inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
 ```
 
-Authentication is doing using the standard Google Cloud CLI (i.e. if you
-have authorised the CLI then no additional auth is needed for the model
-API).
+Authentication is doing using the standard Google Cloud CLI (i.e. if you have authorised the CLI then no additional auth is needed for the model API).
 
 ### Anthropic on Azure
 
-The `anthropic` provider supports Anthropic models deployed on the
-[Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on
-Azure AI, specify the following environment variables:
+The `anthropic` provider supports Anthropic models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on Azure AI, specify the following environment variables:
 
 - `AZUREAI_ANTHROPIC_API_KEY`
 - `AZUREAI_ANTHROPIC_BASE_URL`
 
-You can then use the normal `anthropic` provider with the `azure`
-qualifier and the name of your model deployment
-(e.g. `Claude-4-0-Sonnet-2411`). For example:
+You can then use the normal `anthropic` provider with the `azure` qualifier and the name of your model deployment (e.g. `Claude-4-0-Sonnet-2411`). For example:
 
 ``` bash
 export AZUREAI_ANTHROPIC_API_KEY=key
@@ -294,9 +221,7 @@ inspect eval math.py --model anthropic/azure/Claude-4-0-Sonnet-2411
 
 ## Google
 
-To use the [Google](https://ai.google.dev/) provider, install the
-`google-genai` package, set your credentials, and specify a model using
-the `--model` option:
+To use the [Google](https://ai.google.dev/) provider, install the `google-genai` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install google-genai
@@ -304,8 +229,7 @@ export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-2.5-pro
 ```
 
-For the `google` provider, custom model args (`-M`) are forwarded to the
-`genai.Client` function.
+For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function.
 
 The following environment variables are supported by the Google provider
 
@@ -316,11 +240,7 @@ The following environment variables are supported by the Google provider
 
 ### Gemini on Vertex AI
 
-To use Google Gemini models on Vertex, you can use the standard `google`
-model provider with the `vertex` qualifier
-(e.g. `google/vertex/gemini-2.0-flash`). You should also set two
-environment variables indicating your project ID and region. Here is a
-complete example:
+To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
 
 ``` bash
 export GOOGLE_CLOUD_PROJECT=project-12345
@@ -328,8 +248,7 @@ export GOOGLE_CLOUD_LOCATION=us-east5
 inspect eval ctf.py --model google/vertex/gemini-2.0-flash
 ```
 
-You can alternatively pass the project and location as custom model args
-(`-M`). For example:
+You can alternatively pass the project and location as custom model args (`-M`). For example:
 
 ``` bash
 inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
@@ -342,19 +261,13 @@ Authentication is done using the standard Google Cloud CLI. For example:
 gcloud auth application-default login
 ```
 
-If you have authorised the CLI then no additional auth is needed for the
-model API.
+If you have authorised the CLI then no additional auth is needed for the model API.
 
-You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override
-the default base URL for Vertex.
+You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the default base URL for Vertex.
 
 ### Safety Settings
 
-Google models make available [safety
-settings](https://ai.google.dev/gemini-api/docs/safety-settings) that
-you can adjust to determine what sorts of requests will be handled (or
-refused) by the model. The five categories of safety settings are as
-follows:
+Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
 |----|----|
@@ -373,9 +286,7 @@ For each category, the following block thresholds are available:
 | `medium_and_above` | Block when medium or high probability of unsafe content |
 | `low_and_above` | Block when low, medium or high probability of unsafe content |
 
-By default, Inspect sets all four categories to `none` (enabling all
-content). You can override these defaults by using the `safety_settings`
-model argument. For example:
+By default, Inspect sets all four categories to `none` (enabling all content). You can override these defaults by using the `safety_settings` model argument. For example:
 
 ``` python
 safety_settings = dict(
@@ -396,23 +307,17 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Streaming
 
-The Google provider supports a `streaming` model arg (`-M`) that
-controls whether streaming responses are used. Streaming is disabled by
-default. Pass `true` to enable streaming:
+The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
 ```
 
-Streaming is particularly useful for Gemini 3+ models that support
-thinking/reasoning, as it enables proper capture of reasoning summaries
-from the streaming API.
+Streaming is particularly useful for Gemini 3+ models that support thinking/reasoning, as it enables proper capture of reasoning summaries from the streaming API.
 
 ## Mistral
 
-To use the [Mistral](https://mistral.ai/) provider, install the
-`mistral` package, set your credentials, and specify a model using the
-`--model` option:
+To use the [Mistral](https://mistral.ai/) provider, install the `mistral` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install mistral
@@ -420,40 +325,29 @@ export MISTRAL_API_KEY=your-mistral-api-key
 inspect eval arc.py --model mistral/mistral-large-latest
 ```
 
-The following environment variables are supported by the Mistral
-provider
+The following environment variables are supported by the Mistral provider
 
 | Variable | Description |
 |----|----|
 | `MISTRAL_API_KEY` | API key credentials (required). |
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
 
-By default, the Mistral provider uses the [Conversation
-API](https://docs.mistral.ai/agents/agents#conversations), which
-includes features not available in the original completions API
-including native web search and code execution and support for document
-input. You can switch back to the completions API with the
-`conversation_api` custom model arg. For example:
+By default, the Mistral provider uses the [Conversation API](https://docs.mistral.ai/agents/agents#conversations), which includes features not available in the original completions API including native web search and code execution and support for document input. You can switch back to the completions API with the `conversation_api` custom model arg. For example:
 
 ``` bash
 inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false
 ```
 
-Additional custom model args (`-M`) are forwarded to the constructor of
-the `Mistral` class.
+Additional custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
 
 ### Mistral on Azure AI
 
-The `mistral` provider supports Mistral models deployed on the [Azure AI
-Foundry](https://ai.azure.com/). To use Mistral models on Azure AI,
-specify the following environment variables:
+The `mistral` provider supports Mistral models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
 
 - `AZURE_MISTRAL_API_KEY`
 - `AZUREAI_MISTRAL_BASE_URL`
 
-You can then use the normal `mistral` provider with the `azure`
-qualifier and the name of your model deployment
-(e.g. `Mistral-Large-2411`). For example:
+You can then use the normal `mistral` provider with the `azure` qualifier and the name of your model deployment (e.g. `Mistral-Large-2411`). For example:
 
 ``` bash
 export AZUREAI_MISTRAL_API_KEY=key
@@ -463,11 +357,7 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek
 
-[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API
-endpoint which you can use with Inspect via the `openai-api` provider.
-To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL`
-environment variables then refer to models with
-`openai-api/deepseek/<model-name>`. For example:
+[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
 
 ``` bash
 pip install openai
@@ -478,9 +368,7 @@ inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 
 ## Grok
 
-To use the [Grok](https://x.ai/) provider, install the `openai` package
-(which the Grok service provides a compatible backend for), set your
-credentials, and specify a model using the `--model` option:
+To use the [Grok](https://x.ai/) provider, install the `openai` package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -497,33 +385,25 @@ The following environment variables are supported by the Grok provider
 
 ### Model Args
 
-The `grok` provider supports a `streaming` model argument to enable
-response streaming (it is disabled by default):
+The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
 
 ``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
 ```
 
-The `grok` provider also supports a `disable_retry` model argument that
-disables internal GRPC retries. For example:
+The `grok` provider also supports a `disable_retry` model argument that disables internal GRPC retries. For example:
 
 ``` bash
 inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
-This might be done if you are attempting to accurately track sample
-`working_time`—typically HTTP retries are subtracted from working time
-but the Grok provider uses GRPC which has no hooks available for
-requests and responses (while other providers do).
+This might be done if you are attempting to accurately track sample `working_time`—typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
 
-Additional custom model args (`-M`) are forwarded to the constructor of
-the `AsynClient` class.
+Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
 ## AWS Bedrock
 
-To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider,
-install the `aioboto3` package, set your credentials, and specify a
-model using the `--model` option:
+To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 export AWS_ACCESS_KEY_ID=access-key-id
@@ -532,30 +412,17 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to
-the `client` method of the `aioboto3.Session` class, save for the
-`read_timeout` and `connect_timeout` args which are passed in the
-`config` parameter.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
-Note that all models on AWS Bedrock require that you [request model
-access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)
-before using them in a deployment (in some cases access is granted
-immediately, in other cases it could one or more days).
+Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
-You should be also sure that you have the appropriate AWS credentials
-before accessing models on Bedrock. You aren’t likely to need to, but
-you can also specify a custom base URL for AWS Bedrock using the
-`BEDROCK_BASE_URL` environment variable.
+You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
-If you are using Anthropic models on Bedrock, you can alternatively use
-the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of
-access.
+If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
 
 ## AWS SageMaker
 
-To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider,
-install the `aioboto3` package, set your credentials, and specify a
-SageMaker endpoint name using the `--model` option:
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
 
 ``` bash
 pip install aioboto3
@@ -565,9 +432,7 @@ inspect eval arc.py --model sagemaker/my-endpoint-name \
   -M region_name=us-west-2
 ```
 
-Deploy your preferred model via Sagemaker studio jumpstart UI/SDK/CLI
-([link](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-jumpstart-model.html)).
-The model name after `sagemaker/` is the SageMaker endpoint name.
+Deploy your preferred model via Sagemaker studio jumpstart UI/SDK/CLI ([link](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-jumpstart-model.html)). The model name after `sagemaker/` is the SageMaker endpoint name.
 
 ### Model Args
 
@@ -593,9 +458,7 @@ inspect eval arc.py --model sagemaker/my-endpoint \
 
 ### Completion Mode
 
-For CPT (Continual Pre-Training) or base models that expect
-completions-style payloads (with a `prompt` field) rather than
-chat-style payloads (with a `messages` array), enable `completion_mode`:
+For CPT (Continual Pre-Training) or base models that expect completions-style payloads (with a `prompt` field) rather than chat-style payloads (with a `messages` array), enable `completion_mode`:
 
 ``` bash
 inspect eval arc.py --model sagemaker/my-cpt-endpoint \
@@ -613,24 +476,17 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
-> [!NOTE]
+> **NOTE:**
 >
-> Completion mode builds a plain text prompt from chat messages. Image
-> content is not supported in this mode and will be ignored with a
-> warning.
+> Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
 
-Authentication uses your standard AWS credentials
-(e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The
-endpoint must be accessible from your environment.
+Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
 
 ## Azure AI
 
-The `azureai` provider supports models deployed on the [Azure AI
-Foundry](https://ai.azure.com/).
+The `azureai` provider supports models deployed on the [Azure AI Foundry](https://ai.azure.com/).
 
-To use the `azureai` provider, install the `azure-ai-inference` package,
-set your credentials and base URL, and specify the name of the model you
-have deployed (e.g. `Llama-3.3-70B-Instruct`). For example:
+To use the `azureai` provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify the name of the model you have deployed (e.g. `Llama-3.3-70B-Instruct`). For example:
 
 ``` bash
 pip install azure-ai-inference
@@ -639,8 +495,7 @@ export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
 $ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
 ```
 
-If using managed identity for authentication, install the
-`azure-identity` package and do not specify `AZUREAI_API_KEY`.
+If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
 
 ``` bash
 pip install azure-identity
@@ -649,11 +504,9 @@ export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
 $ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
 ```
 
-For the `azureai` provider, custom model args (`-M`) are forwarded to
-the constructor of the `ChatCompletionsClient` class.
+For the `azureai` provider, custom model args (`-M`) are forwarded to the constructor of the `ChatCompletionsClient` class.
 
-The following environment variables are supported by the Azure AI
-provider
+The following environment variables are supported by the Azure AI provider
 
 | Variable | Description |
 |----|----|
@@ -661,30 +514,21 @@ provider
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-If you are using Open AI or Mistral on Azure AI, you can alternatively
-use the [OpenAI provider](#openai-on-azure) or [Mistral
-provider](#mistral-on-azure-ai) as your means of access.
+If you are using Open AI or Mistral on Azure AI, you can alternatively use the [OpenAI provider](#openai-on-azure) or [Mistral provider](#mistral-on-azure-ai) as your means of access.
 
 ### Tool Emulation
 
-When using the `azureai` model provider, tool calling support can be
-‘emulated’ for models that Azure AI has not yet implemented tool calling
-for. This occurs by default for Llama models. For other models, use the
-`emulate_tools` model arg to force tool emulation:
+When using the `azureai` model provider, tool calling support can be ‘emulated’ for models that Azure AI has not yet implemented tool calling for. This occurs by default for Llama models. For other models, use the `emulate_tools` model arg to force tool emulation:
 
 ``` bash
 inspect eval ctf.py -M emulate_tools=true
 ```
 
-You can also use this option to disable tool emulation for Llama models
-with `emulate_tools=false`.
+You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
 
 ## Together AI
 
-To use the [Together AI](https://www.together.ai/) provider, install the
-`openai` package (which the Together AI service provides a compatible
-backend for), set your credentials, and specify a model using the
-`--model` option:
+To use the [Together AI](https://www.together.ai/) provider, install the `openai` package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -692,13 +536,9 @@ export TOGETHER_API_KEY=your-together-api-key
 inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.5
 ```
 
-For the `together` provider, you can enable [Tool
-Emulation](#tool-emulation-openai) using the `emulate_tools` custom
-model arg (`-M`). Other custom model args are forwarded to the
-constructor of the `AsyncOpenAI` class.
+For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The following environment variables are supported by the Together AI
-provider
+The following environment variables are supported by the Together AI provider
 
 | Variable | Description |
 |----|----|
@@ -707,9 +547,7 @@ provider
 
 ## Groq
 
-To use the [Groq](https://groq.com/) provider, install the `groq`
-package, set your credentials, and specify a model using the `--model`
-option:
+To use the [Groq](https://groq.com/) provider, install the `groq` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install groq
@@ -717,8 +555,7 @@ export GROQ_API_KEY=your-groq-api-key
 inspect eval arc.py --model groq/llama-3.1-70b-versatile
 ```
 
-For the `groq` provider, custom model args (`-M`) are forwarded to the
-constructor of the `AsyncGroq` class.
+For the `groq` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncGroq` class.
 
 The following environment variables are supported by the Groq provider
 
@@ -729,10 +566,7 @@ The following environment variables are supported by the Groq provider
 
 ## Fireworks AI
 
-To use the [Fireworks AI](https://fireworks.ai/) provider, install the
-`openai` package (which the Fireworks AI service provides a compatible
-backend for), set your credentials, and specify a model using the
-`--model` option:
+To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` package (which the Fireworks AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -740,13 +574,9 @@ export FIREWORKS_API_KEY=your-firewrks-api-key
 inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
 ```
 
-For the `fireworks` provider, you can enable [Tool
-Emulation](#tool-emulation-openai) using the `emulate_tools` custom
-model arg (`-M`). Other custom model args are forwarded to the
-constructor of the `AsyncOpenAI` class.
+For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The following environment variables are supported by the Together AI
-provider
+The following environment variables are supported by the Together AI provider
 
 | Variable | Description |
 |----|----|
@@ -755,10 +585,7 @@ provider
 
 ## SambaNova
 
-To use the [SambaNova](https://sambanova.ai/) provider, install the
-`openai` package (which the SambaNova service provides a compatible
-backend for), set your credentials, and specify a model using the
-`--model` option:
+To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` package (which the SambaNova service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -766,13 +593,9 @@ export SAMABANOVA_API_KEY=your-sambanova-api-key
 inspect eval arc.py --model sambanova/DeepSeek-V1-0324
 ```
 
-For the `sambanova` provider, you can enable [Tool
-Emulation](#tool-emulation-openai) using the `emulate_tools` custom
-model arg (`-M`). Other custom model args are forwarded to the
-constructor of the `AsyncOpenAI` class.
+For the `sambanova` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
-The following environment variables are supported by the SambaNova
-provider
+The following environment variables are supported by the SambaNova provider
 
 | Variable | Description |
 |----|----|
@@ -781,9 +604,7 @@ provider
 
 ## Cloudflare
 
-To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/)
-provider, set your account id and access token, and specify a model
-using the `--model` option:
+To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider, set your account id and access token, and specify a model using the `--model` option:
 
 ``` bash
 export CLOUDFLARE_ACCOUNT_ID=account-id
@@ -791,11 +612,9 @@ export CLOUDFLARE_API_TOKEN=api-token
 inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
 ```
 
-For the `cloudflare` provider, custom model args (`-M`) are included as
-fields in the post body of the chat request.
+For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
 
-The following environment variables are supported by the Cloudflare
-provider:
+The following environment variables are supported by the Cloudflare provider:
 
 | Variable | Description |
 |----|----|
@@ -805,9 +624,7 @@ provider:
 
 ## Perplexity
 
-To use the [Perplexity](https://www.perplexity.ai/) provider, install
-the `openai` package (if not already installed), set your credentials,
-and specify a model using the `--model` option:
+To use the [Perplexity](https://www.perplexity.ai/) provider, install the `openai` package (if not already installed), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -815,26 +632,18 @@ export PERPLEXITY_API_KEY=your-perplexity-api-key
 inspect eval arc.py --model perplexity/sonar
 ```
 
-The following environment variables are supported by the Perplexity
-provider
+The following environment variables are supported by the Perplexity provider
 
 | Variable | Description |
 |----|----|
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
 | `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
 
-Perplexity responses include citations when available. These are
-surfaced as `UrlCitation`s attached to the assistant message. Additional
-usage metrics such as `reasoning_tokens` and `citation_tokens` are
-recorded in `ModelOutput.metadata`.
+Perplexity responses include citations when available. These are surfaced as [UrlCitation](reference/inspect_ai.model.html.md#urlcitation)s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
 
 ## Hugging Face
 
-The [Hugging Face](https://huggingface.co/models) provider implements
-support for local models using the
-[transformers](https://pypi.org/project/transformers/) package. To use
-the Hugging Face provider, install the `torch`, `transformers`, and
-`accelerate` packages and specify a model using the `--model` option:
+The [Hugging Face](https://huggingface.co/models) provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. To use the Hugging Face provider, install the `torch`, `transformers`, and `accelerate` packages and specify a model using the `--model` option:
 
 ``` bash
 pip install torch transformers accelerate
@@ -843,36 +652,25 @@ inspect eval arc.py --model hf/openai-community/gpt2
 
 ### Batching
 
-Concurrency for REST API based models is managed using the
-`max_connections` option. The same option is used for `transformers`
-inference—up to `max_connections` calls to `generate()` will be batched
-together (note that batches will proceed at a smaller size if no new
-calls to `generate()` have occurred in the last 2 seconds).
+Concurrency for REST API based models is managed using the `max_connections` option. The same option is used for `transformers` inference—up to `max_connections` calls to [generate()](reference/inspect_ai.solver.html.md#generate) will be batched together (note that batches will proceed at a smaller size if no new calls to [generate()](reference/inspect_ai.solver.html.md#generate) have occurred in the last 2 seconds).
 
-The default batch size for Hugging Face is 32, but you should tune your
-`max_connections` to maximise performance and ensure that batches don’t
-exceed available GPU memory. The [Pipeline
-Batching](https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching)
-section of the transformers documentation is a helpful guide to the ways
-batch size and performance interact.
+The default batch size for Hugging Face is 32, but you should tune your `max_connections` to maximise performance and ensure that batches don’t exceed available GPU memory. The [Pipeline Batching](https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching) section of the transformers documentation is a helpful guide to the ways batch size and performance interact.
 
 ### Device
 
-The PyTorch `cuda` device will be used automatically if CUDA is
-available (as will the Mac OS `mps` device). If you want to override the
-device used, use the `device` model argument. For example:
+The PyTorch `cuda` device will be used automatically if CUDA is available (as will the Mac OS `mps` device). If you want to override the device used, use the `device` model argument. For example:
 
 ``` bash
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M device=cuda:0
 ```
 
-This also works in calls to `eval()`:
+This also works in calls to [eval()](reference/inspect_ai.html.md#eval):
 
 ``` python
 eval("arc.py", model="hf/openai-community/gpt2", model_args=dict(device="cuda:0"))
 ```
 
-Or in a call to `get_model()`
+Or in a call to [get_model()](reference/inspect_ai.model.html.md#get_model)
 
 ``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
@@ -880,10 +678,7 @@ model = get_model("hf/openai-community/gpt2", device="cuda:0")
 
 ### Chat Templates
 
-For Hugging Face models, Inspect will use a tokenizer chat template when
-available. Use the `chat_template` model arg to override the tokenizer
-template, and `use_chat_template=false` to bypass chat-template
-rendering entirely.
+For Hugging Face models, Inspect will use a tokenizer chat template when available. Use the `chat_template` model arg to override the tokenizer template, and `use_chat_template=false` to bypass chat-template rendering entirely.
 
 For example:
 
@@ -901,8 +696,7 @@ inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
 
 ### Hidden States
 
-If you wish to access hidden states (activations) from generation, use
-the `hidden_states` model arg. For example:
+If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M hidden_states=true
@@ -917,15 +711,11 @@ model = get_model(
 )
 ```
 
-Activations are available in the “hidden_states” field of
-`ModelOutput.metadata`. The hidden_states value is the same as
-transformers
-[GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
+Activations are available in the “hidden_states” field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
 
 ### Sampling
 
-Pass the `do_sample` model arg to override the default sampling behavior
-(which is `do_sample=True`). For example:
+Pass the `do_sample` model arg to override the default sampling behavior (which is `do_sample=True`). For example:
 
 ``` bash
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
@@ -933,24 +723,19 @@ $ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
 
 ### Local Models
 
-In addition to using models from the Hugging Face Hub, the Hugging Face
-provider can also use local model weights and tokenizers (e.g. for a
-locally fine tuned model). Use `hf/local` along with the `model_path`,
-and (optionally) `tokenizer_path` arguments to select a local model. For
-example, from the command line, use the `-M` flag to pass the model
-arguments:
+In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
 
 ``` bash
 $ inspect eval arc.py --model hf/local -M model_path=./my-model
 ```
 
-Or using the `eval()` function:
+Or using the [eval()](reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("arc.py", model="hf/local", model_args=dict(model_path="./my-model"))
 ```
 
-Or in a call to `get_model()`
+Or in a call to [get_model()](reference/inspect_ai.model.html.md#get_model)
 
 ``` python
 model = get_model("hf/local", model_path="./my-model")
@@ -958,20 +743,14 @@ model = get_model("hf/local", model_path="./my-model")
 
 ## vLLM
 
-The [vLLM](https://docs.vllm.ai/) provider also implements support for
-Hugging Face models using the
-[vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM
-provider, install the `vllm` package and specify a model using the
-`--model` option:
+The [vLLM](https://docs.vllm.ai/) provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM provider, install the `vllm` package and specify a model using the `--model` option:
 
 ``` bash
 pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the
-vllm
-[CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
 
 The following environment variables are supported by the vLLM provider:
 
@@ -981,29 +760,17 @@ The following environment variables are supported by the vLLM provider:
 | `VLLM_API_KEY` | API key for the vLLM server (optional, defaults to “local”) |
 | `VLLM_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., ‘{“tensor_parallel_size”: 4, “max_model_len”: 8192}’) |
 
-You can also access models from ModelScope rather than Hugging Face, see
-the [vLLM
-documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html)
-for details on this.
+You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html) for details on this.
 
-vLLM is generally much faster than the Hugging Face provider as the
-library is designed entirely for inference speed whereas the Hugging
-Face library is more general purpose.
+vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
 
 ### Batching
 
-vLLM automatically handles batching, so you generally don’t have to
-worry about selecting the optimal batch size. However, you can still use
-the `max_connections` option to control the number of concurrent
-requests which defaults to 32. If the server has saturated the GPU it
-may reject requests—these are by default retried after 5 seconds (you
-can customize this using the `retry_delay` model args,
-e.g. `-M retry_delay=3`).
+vLLM automatically handles batching, so you generally don’t have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests—these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
 
 ### Device
 
-The `device` option is also available for vLLM models, and you can use
-it to specify the device(s) to run the model on. For example:
+The `device` option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:
 
 ``` bash
 $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct -M device='0,1,2,3'
@@ -1011,11 +778,7 @@ $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct -M device
 
 ### Local Models
 
-Similar to the Hugging Face provider, you can also use local models with
-the vLLM provider. Use `vllm/local` along with the `model_path`, and
-(optionally) `tokenizer_path` arguments to select a local model. For
-example, from the command line, use the `-M` flag to pass the model
-arguments:
+Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use `vllm/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
 
 ``` bash
 $ inspect eval arc.py --model vllm/local -M model_path=./my-model
@@ -1023,33 +786,22 @@ $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 
 ### LoRA Adapters
 
-vLLM supports [LoRA (Low-Rank
-Adaptation)](https://docs.vllm.ai/en/stable/features/lora.html)
-adapters, allowing you to use fine-tuned models without duplicating the
-base model weights. To use a LoRA adapter, append `:adapter-path` to the
-model name:
+vLLM supports [LoRA (Low-Rank Adaptation)](https://docs.vllm.ai/en/stable/features/lora.html) adapters, allowing you to use fine-tuned models without duplicating the base model weights. To use a LoRA adapter, append `:adapter-path` to the model name:
 
 ``` bash
 inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
 ```
 
-The adapter path can be a HuggingFace repository (e.g.,
-`myorg/my-lora-adapter`) or a local path (e.g.,
-`./adapters/my-adapter`).
+The adapter path can be a HuggingFace repository (e.g., `myorg/my-lora-adapter`) or a local path (e.g., `./adapters/my-adapter`).
 
 When using LoRA adapters:
 
 - The vLLM server is automatically started with `--enable-lora`
-- `max_lora_rank` is auto-detected from the adapter’s
-  `adapter_config.json` (supports both local paths and HuggingFace
-  repos)
-- Adapters are dynamically loaded on first request via vLLM’s
-  `/v1/load_lora_adapter` endpoint
-- Multiple models sharing the same base model reuse a single vLLM
-  server, even with different adapters
+- `max_lora_rank` is auto-detected from the adapter’s `adapter_config.json` (supports both local paths and HuggingFace repos)
+- Adapters are dynamically loaded on first request via vLLM’s `/v1/load_lora_adapter` endpoint
+- Multiple models sharing the same base model reuse a single vLLM server, even with different adapters
 
-For example, you can evaluate multiple LoRA fine-tunes on the same base
-model efficiently:
+For example, you can evaluate multiple LoRA fine-tunes on the same base model efficiently:
 
 ``` python
 # These will share the same vLLM server
@@ -1060,8 +812,7 @@ eval(
 )
 ```
 
-You can also compare a base model against its LoRA fine-tune — LoRA will
-be auto-enabled for the shared server:
+You can also compare a base model against its LoRA fine-tune — LoRA will be auto-enabled for the shared server:
 
 ``` python
 eval(
@@ -1070,9 +821,7 @@ eval(
 )
 ```
 
-If you need to override the auto-detected rank (e.g. when using
-`get_model()` directly with multiple adapters of different ranks), pass
-`max_lora_rank` explicitly:
+If you need to override the auto-detected rank (e.g. when using [get_model()](reference/inspect_ai.model.html.md#get_model) directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
 
 ``` bash
 inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_rank=128
@@ -1080,13 +829,11 @@ inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_r
 
 #### External vLLM Server with LoRA
 
-When using an external vLLM server (`VLLM_BASE_URL`), you have two
-options:
+When using an external vLLM server (`VLLM_BASE_URL`), you have two options:
 
 **Option 1: Pre-load adapters manually**
 
-Load the adapters yourself when starting the server and reference them
-by name:
+Load the adapters yourself when starting the server and reference them by name:
 
 ``` bash
 # Start server with pre-loaded adapter
@@ -1099,8 +846,7 @@ inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:my-adapter
 
 **Option 2: Enable dynamic loading**
 
-Start the server with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` to let
-Inspect load adapters dynamically:
+Start the server with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` to let Inspect load adapters dynamically:
 
 ``` bash
 VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve meta-llama/Llama-3-8B --enable-lora
@@ -1112,24 +858,15 @@ Then use adapter paths as normal:
 inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
 ```
 
-Note: When Inspect starts the vLLM server itself, it automatically sets
-`VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
+Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
 
 ### Tool Use and Reasoning
 
-vLLM supports tool use and reasoning; however, the usage is often model
-dependant and requires additional configuration. See the [Tool
-Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and
-[Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)
-sections of the vLLM documentation for details.
+vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
 
 ### vLLM Server
 
-Rather than letting Inspect start and stop a vLLM server every time you
-run an evaluation (which can take several minutes for large models), you
-can instead start the server manually and then connect to it. To do
-this, set the model base URL to point to the vLLM server and the API key
-to the server’s API key. For example:
+Rather than letting Inspect start and stop a vLLM server every time you run an evaluation (which can take several minutes for large models), you can instead start the server manually and then connect to it. To do this, set the model base URL to point to the vLLM server and the API key to the server’s API key. For example:
 
 ``` bash
 $ export VLLM_BASE_URL=http://localhost:8080/v1
@@ -1143,25 +880,20 @@ or
 $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct --model-base-url http://localhost:8080/v1 -M api_key=<your-server-api-key>
 ```
 
-See the vLLM documentation on [Server
-Mode](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html)
-for additional details.
+See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html) for additional details.
 
 ## SGLang
 
-To use the [SGLang](https://docs.sglang.ai/index.html) provider, install
-the `sglang` package and specify a model using the `--model` option:
+To use the [SGLang](https://docs.sglang.ai/index.html) provider, install the `sglang` package and specify a model using the `--model` option:
 
 ``` bash
 pip install "sglang[all]>=0.4.4.post2" --find-links https://flashinfer.ai/whl/cu124/torch2.5/flashinfer-python
 inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
-For the `sglang` provider, custom model args (-M) are forwarded to the
-sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
+For the `sglang` provider, custom model args (-M) are forwarded to the sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
 
-The following environment variables are supported by the SGLang
-provider:
+The following environment variables are supported by the SGLang provider:
 
 | Variable | Description |
 |----|----|
@@ -1169,11 +901,7 @@ provider:
 | `SGLANG_API_KEY` | API key for the SGLang server (optional, defaults to “local”) |
 | `SGLANG_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., ‘{“tp”: 4, “max_model_len”: 8192}’) |
 
-SGLang is a fast and efficient language model server that supports a
-variety of model architectures and configurations. Its usage in Inspect
-is almost identical to the [vLLM provider](#vllm). You can either let
-Inspect start and stop the server for you, or start the server manually
-and then connect to it:
+SGLang is a fast and efficient language model server that supports a variety of model architectures and configurations. Its usage in Inspect is almost identical to the [vLLM provider](#vllm). You can either let Inspect start and stop the server for you, or start the server manually and then connect to it:
 
 ``` bash
 $ export SGLANG_BASE_URL=http://localhost:8080/v1
@@ -1189,27 +917,15 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 
 ### Tool Use and Reasoning
 
-SGLang supports tool use and reasoning; however, the usage is often
-model dependant and requires additional configuration. See the [Tool
-Use](https://docs.sglang.ai/backend/function_calling.html) and
-[Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html)
-sections of the SGLang documentation for details.
+SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
 
 ### Batching
 
-SGLang automatically handles batching, so you generally don’t have to
-worry about selecting the optimal batch size. However, you can still use
-the `max_connections` option to control the number of concurrent
-requests which defaults to 32. If the server has saturated the GPU it
-may reject requests—these are by default retried after 5 seconds (you
-can customize this using the `retry_delay` model args,
-e.g. `-M retry_delay=3`).
+SGLang automatically handles batching, so you generally don’t have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests—these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
 
 ## nnterp
 
-The [nnterp](https://ndif-team.github.io/nnterp/index.html) provider
-enables you to use `StandardizedTransformer` models with Inspect. To use
-the nnterp provider, install the `nnterp` package:
+The [nnterp](https://ndif-team.github.io/nnterp/index.html) provider enables you to use `StandardizedTransformer` models with Inspect. To use the nnterp provider, install the `nnterp` package:
 
 ``` bash
 pip install nnterp
@@ -1221,9 +937,7 @@ The `nnterp` provider works with Hugging Face models. For example:
 inspect eval arc.py --model nnterp/openai-community/gpt2
 ```
 
-The `nnterp` provider supports the following custom model args (other
-model args are forwarded to the constructor of the
-`StandardizedTransformer` class):
+The `nnterp` provider supports the following custom model args (other model args are forwarded to the constructor of the `StandardizedTransformer` class):
 
 | Model Arg | Description | Default |
 |----|----|----|
@@ -1253,11 +967,9 @@ eval(
 
 ## TransformerLens
 
-The [TransformerLens](https://github.com/neelnanda-io/TransformerLens)
-provider allows you to use `HookedTransformer` models with Inspect.
+The [TransformerLens](https://github.com/neelnanda-io/TransformerLens) provider allows you to use `HookedTransformer` models with Inspect.
 
-To use the TransformerLens provider, install the `transformer_lens`
-package:
+To use the TransformerLens provider, install the `transformer_lens` package:
 
 ``` bash
 pip install transformer_lens
@@ -1265,17 +977,9 @@ pip install transformer_lens
 
 ### Usage with Pre-loaded Models
 
-Unlike other providers, TransformerLens requires you to first load a
-`HookedTransformer` model instance and then pass it to Inspect. This is
-because TransformerLens models expose special hooks for accessing and
-manipulating internal activations that need to be set up before use in
-the inspect framework.
+Unlike other providers, TransformerLens requires you to first load a `HookedTransformer` model instance and then pass it to Inspect. This is because TransformerLens models expose special hooks for accessing and manipulating internal activations that need to be set up before use in the inspect framework.
 
-You will need to specify the `tl_model` and `tl_generate_args` in the
-model arguments. The `tl_model` is the `HookedTransformer` instance and
-the `tl_generate_args` is a dictionary of transformer-lens generation
-arguments. You can specify the model name as anything, it will not
-affect the model you are using.
+You will need to specify the `tl_model` and `tl_generate_args` in the model arguments. The `tl_model` is the `HookedTransformer` instance and the `tl_generate_args` is a dictionary of transformer-lens generation arguments. You can specify the model name as anything, it will not affect the model you are using.
 
 Here’s an example:
 
@@ -1303,27 +1007,21 @@ eval("arc.py", model="transformer_lens/your-model-name", model_args=model_args)
 
 ### Limitations
 
-1.  Please note that tool calling is not yet supported for
-    TransformerLens models.
-2.  Since the model is loaded dynamically, it is not possible to use cli
-    arguments to specify the model.
+1.  Please note that tool calling is not yet supported for TransformerLens models.
+2.  Since the model is loaded dynamically, it is not possible to use cli arguments to specify the model.
 
 ## Ollama
 
-To use the [Ollama](https://ollama.com/) provider, install the `openai`
-package (which Ollama provides a compatible backend for) and specify a
-model using the `--model` option:
+To use the [Ollama](https://ollama.com/) provider, install the `openai` package (which Ollama provides a compatible backend for) and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 inspect eval arc.py --model ollama/llama3.1
 ```
 
-Note that you should be sure that Ollama is running on your system
-before using it with Inspect.
+Note that you should be sure that Ollama is running on your system before using it with Inspect.
 
-You can enable [Tool Emulation](#tool-emulation-openai) for Ollama
-models using the `emulate_tools` custom model arg (`-M`).
+You can enable [Tool Emulation](#tool-emulation-openai) for Ollama models using the `emulate_tools` custom model arg (`-M`).
 
 The following environment variables are supported by the Ollma provider
 
@@ -1333,23 +1031,16 @@ The following environment variables are supported by the Ollma provider
 
 ## Llama-cpp-python
 
-To use the
-[Llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/)
-provider, install the `openai` package (which llama-cpp-python provides
-a compatible backend for) and specify a model using the `--model`
-option:
+To use the [Llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) provider, install the `openai` package (which llama-cpp-python provides a compatible backend for) and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 inspect eval arc.py --model llama-cpp-python/llama3
 ```
 
-Note that you should be sure that the [llama-cpp-python
-server](https://llama-cpp-python.readthedocs.io/en/latest/server/) is
-running on your system before using it with Inspect.
+Note that you should be sure that the [llama-cpp-python server](https://llama-cpp-python.readthedocs.io/en/latest/server/) is running on your system before using it with Inspect.
 
-The following environment variables are supported by the
-llama-cpp-python provider
+The following environment variables are supported by the llama-cpp-python provider
 
 | Variable | Description |
 |----|----|
@@ -1357,23 +1048,16 @@ llama-cpp-python provider
 
 ## OpenAI Compatible
 
-If your model provider makes an OpenAI API compatible endpoint
-available, you can use it with Inspect via the `openai-api` provider,
-which uses the following model naming convention:
+If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
 
     openai-api/<provider-name>/<model-name>
 
-Inspect will read environment variables corresponding to the api key and
-base url of your provider using the following convention (note that the
-provider name is capitalized):
+Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
 
     <PROVIDER_NAME>_API_KEY
     <PROVIDER_NAME>_BASE_URL
 
-Note that hyphens within provider names will be converted to underscores
-so they conform to requirements of environment variable names. For
-example, if the provider is named `awesome-models` then the API key
-environment variable should be `AWESOME_MODELS_API_KEY`.
+Note that hyphens within provider names will be converted to underscores so they conform to requirements of environment variable names. For example, if the provider is named `awesome-models` then the API key environment variable should be `AWESOME_MODELS_API_KEY`.
 
 ### Example
 
@@ -1387,14 +1071,13 @@ inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 
 ### Responses API
 
-You can enable the use of the Responses API with the `openai-api`
-provider by passing the `responses_api` model arg. For example:
+You can enable the use of the Responses API with the `openai-api` provider by passing the `responses_api` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M responses_api=true
 ```
 
-Or using the `eval()` function:
+Or using the [eval()](reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_api=True))
@@ -1402,33 +1085,23 @@ eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_
 
 ### Tool Emulation
 
-When using OpenAI compatible model providers, tool calling support can
-be ‘emulated’ for models that don’t yet support it. Use the
-`emulate_tools` model arg to force tool emulation:
+When using OpenAI compatible model providers, tool calling support can be ‘emulated’ for models that don’t yet support it. Use the `emulate_tools` model arg to force tool emulation:
 
 ``` bash
 inspect eval ctf.py --model openai-api/<provider>/<model> -M emulate_tools=true
 ```
 
-Tool calling emulation works by encoding tool JSON schema in an XML tag
-and asking the model to make tool calls using another XML tag. This
-works with varying degrees of efficacy depending on the model and the
-complexity of the tool schema. Before using tool emulation you should
-always check if your provider implements native support for tool calling
-on the model you are using, as that will generally work better.
+Tool calling emulation works by encoding tool JSON schema in an XML tag and asking the model to make tool calls using another XML tag. This works with varying degrees of efficacy depending on the model and the complexity of the tool schema. Before using tool emulation you should always check if your provider implements native support for tool calling on the model you are using, as that will generally work better.
 
 ### Strict Tool Schemas
 
-By default, Inspect sets `"strict": true` on tool function schemas for
-the `openai-api` provider. This preserves compatibility with providers
-that require strict tool schemas. You can override this using the
-`strict_tools` model arg:
+By default, Inspect sets `"strict": true` on tool function schemas for the `openai-api` provider. This preserves compatibility with providers that require strict tool schemas. You can override this using the `strict_tools` model arg:
 
 ``` bash
 inspect eval arc.py --model openai-api/<provider>/<model> -M strict_tools=false
 ```
 
-Or using the `eval()` function:
+Or using the [eval()](reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
@@ -1436,8 +1109,7 @@ eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_too
 
 ### Streaming
 
-You can enable the use of the streaming with the `openai-api` provider
-by passing the `stream` model arg. For example:
+You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
@@ -1445,10 +1117,7 @@ $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 
 ## OpenRouter
 
-To use the [OpenRouter](https://openrouter.ai/) provider, install the
-`openai` package (which the OpenRouter service provides a compatible
-backend for), set your credentials, and specify a model using the
-`--model` option:
+To use the [OpenRouter](https://openrouter.ai/) provider, install the `openai` package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -1456,9 +1125,7 @@ export OPENROUTER_API_KEY=your-openrouter-api-key
 inspect eval arc.py --model openrouter/gryphe/mythomax-l2-13b
 ```
 
-For the `openrouter` provider, the following custom model args (`-M`)
-are supported (click the argument name to see its docs on the OpenRouter
-site):
+For the `openrouter` provider, the following custom model args (`-M`) are supported (click the argument name to see its docs on the OpenRouter site):
 
 | Argument | Example |
 |----|----|
@@ -1467,11 +1134,9 @@ site):
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
 
-In addition, [Tool Emulation](#tool-emulation-openai) is available for
-models that don’t yet support tool calling in their API.
+In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don’t yet support tool calling in their API.
 
-The following environment variables are supported by the OpenRouter AI
-provider
+The following environment variables are supported by the OpenRouter AI provider
 
 | Variable | Description |
 |----|----|
@@ -1480,10 +1145,7 @@ provider
 
 ## Hugging Face Inference Providers
 
-To use [Hugging Face Inference
-Providers](https://huggingface.co/docs/inference-providers), install the
-`openai` package (which provides the compatibility layer), set your
-Hugging Face token, and specify a model using the `--model` option:
+To use [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers), install the `openai` package (which provides the compatibility layer), set your Hugging Face token, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -1491,9 +1153,7 @@ export HF_TOKEN=your-huggingface-token
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b
 ```
 
-The above will automatically select the provider for you. If you want to
-use a specific provider you can append `:` followed by the provider
-name. To use cerebras for example, you would do the following:
+The above will automatically select the provider for you. If you want to use a specific provider you can append `:` followed by the provider name. To use cerebras for example, you would do the following:
 
 ``` bash
 pip install openai
@@ -1501,13 +1161,9 @@ export HF_TOKEN=your-huggingface-token
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b:cerebras
 ```
 
-HF Inference Providers provides unified access to hundreds of machine
-learning models through multiple world-class inference providers
-(Cerebras, Groq, Together AI, etc.) with automatic provider routing and
-failover.
+HF Inference Providers provides unified access to hundreds of machine learning models through multiple world-class inference providers (Cerebras, Groq, Together AI, etc.) with automatic provider routing and failover.
 
-The following environment variables are supported by the HF Inference
-Providers:
+The following environment variables are supported by the HF Inference Providers:
 
 | Variable   | Description                                                 |
 |------------|-------------------------------------------------------------|
@@ -1515,8 +1171,7 @@ Providers:
 
 ### Streaming
 
-HF Interference Providers uses streaming by default for requests. You
-can disable streaming using the `stream` model arg. For example:
+HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
 
 ``` bash
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false
@@ -1524,7 +1179,4 @@ inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream
 
 ## Custom Models
 
-If you want to support another model hosting service or local model
-source, you can add a custom model API. See the documentation on [Model
-API Extensions](extensions.qmd#sec-model-api-extensions) for additional
-details.
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.html.md#sec-model-api-extensions) for additional details.

@@ -1,5 +1,6 @@
 # inspect info
 
+Read version and configuration.
 
 Read configuration and log info.
 

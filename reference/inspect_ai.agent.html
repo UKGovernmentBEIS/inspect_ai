@@ -2,13 +2,17 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.25">
+<meta name="generator" content="quarto-1.9.36">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
+<meta name="description" content="Agent scaffolds and protocol.">
 
 <title>inspect_ai.agent – Inspect</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -66,19 +70,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
 <link href="../reference/inspect_ai.agent.qmd#react" rel="next">
-<link href="../reference/inspect_ai.tool.qmd#codeexecutionproviders" rel="prev">
+<link href="../reference/index.html" rel="prev">
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-6776297b1bcdc1ce3e71101c0074be7c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -110,16 +113,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://inspect.aisi.org.uk//images/inspect.png">
+<meta property="og:image" content="https://inspect.aisi.org.uk/images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://inspect.aisi.org.uk//images/inspect.png">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -134,7 +137,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <img src="../images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="../index.html">
-    <span class="navbar-title">Inspect AI</span>
+    <span class="navbar-title">Inspect</span>
     </a>
   </div>
             <div id="quarto-search" class="" title="Search"></div>
@@ -144,11 +147,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="../index.html" aria-current="page"> 
+    <a class="nav-link" href="../index.html"> 
 <span class="menu-text">User Guide</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../reference/index.html"> 
+    <a class="nav-link active" href="../reference/index.html" aria-current="page"> 
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
@@ -181,7 +184,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">inspect_ai.agent</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -191,10 +194,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
-    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
-      <a href="../index.html" class="sidebar-logo-link">
-      </a>
-      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
@@ -205,7 +204,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link">
+            <a href="../reference/inspect_ai.agent.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Python API</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
@@ -214,460 +213,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
- <span class="menu-text">eval</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#eval_retry" class="sidebar-item-text sidebar-link">
- <span class="menu-text">eval_retry</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#eval_set" class="sidebar-item-text sidebar-link">
- <span class="menu-text">eval_set</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">score</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Task</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#task_with" class="sidebar-item-text sidebar-link">
- <span class="menu-text">task_with</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#epochs" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Epochs</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#taskinfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TaskInfo</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#tasks" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tasks</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#view" class="sidebar-item-text sidebar-link">
- <span class="menu-text">view</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
- <span class="menu-text">task</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.solver</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
- <span class="menu-text">generate</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
- <span class="menu-text">use_tools</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
- <span class="menu-text">prompt_template</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#system_message" class="sidebar-item-text sidebar-link">
- <span class="menu-text">system_message</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#user_message" class="sidebar-item-text sidebar-link">
- <span class="menu-text">user_message</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#assistant_message" class="sidebar-item-text sidebar-link">
- <span class="menu-text">assistant_message</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#chain_of_thought" class="sidebar-item-text sidebar-link">
- <span class="menu-text">chain_of_thought</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#self_critique" class="sidebar-item-text sidebar-link">
- <span class="menu-text">self_critique</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
- <span class="menu-text">multiple_choice</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
- <span class="menu-text">chain</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
- <span class="menu-text">fork</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Solver</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#solverspec" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SolverSpec</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#taskstate" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TaskState</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Generate</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">solver</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.tool</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
- <span class="menu-text">web_search</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#bash" class="sidebar-item-text sidebar-link">
- <span class="menu-text">bash</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#python" class="sidebar-item-text sidebar-link">
- <span class="menu-text">python</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#bash_session" class="sidebar-item-text sidebar-link">
- <span class="menu-text">bash_session</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#text_editor" class="sidebar-item-text sidebar-link">
- <span class="menu-text">text_editor</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#computer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">computer</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#code_execution" class="sidebar-item-text sidebar-link">
- <span class="menu-text">code_execution</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#web_browser" class="sidebar-item-text sidebar-link">
- <span class="menu-text">web_browser</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
- <span class="menu-text">skill</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#memory" class="sidebar-item-text sidebar-link">
- <span class="menu-text">memory</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#update_plan" class="sidebar-item-text sidebar-link">
- <span class="menu-text">update_plan</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#think" class="sidebar-item-text sidebar-link">
- <span class="menu-text">think</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_connection" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_connection</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_server_stdio" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_server_stdio</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_server_http" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_server_http</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_server_sandbox" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_server_sandbox</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_server_sse" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_server_sse</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcp_tools" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mcp_tools</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcpserver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MCPServer</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcpserverconfig " class="sidebar-item-text sidebar-link">
- <span class="menu-text">MCPServerConfig</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcpserverconfigstdio" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MCPServerConfigStdio</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#mcpserverconfighttp " class="sidebar-item-text sidebar-link">
- <span class="menu-text">MCPServerConfigHTTP</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
- <span class="menu-text">skill</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#read_skills" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_skills</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#install_skills" class="sidebar-item-text sidebar-link">
- <span class="menu-text">install_skills</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Skill</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#skillinfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SkillInfo</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#tool_with" class="sidebar-item-text sidebar-link">
- <span class="menu-text">tool_with</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#tooldef" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolDef</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tool</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolresult" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolResult</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolerror" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolError</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolcallerror" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolCallError</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolchoice" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolChoice</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolfunction" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolFunction</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolinfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolInfo</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolparams" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolParams</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolparam" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolParam</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#toolsource" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolSource</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#websearchproviders" class="sidebar-item-text sidebar-link">
- <span class="menu-text">WebSearchProviders</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#codeexecutionproviders" class="sidebar-item-text sidebar-link">
- <span class="menu-text">CodeExecutionProviders</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
- <span class="menu-text">tool</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.agent.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">inspect_ai.agent</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.agent.html#react" class="sidebar-item-text sidebar-link">
@@ -822,8 +374,365 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.scorer</span></a>
+            <a href="../reference/inspect_ai.analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.analysis</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evals_df" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">evals_df</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalcolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalColumn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalcolumns" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalColumns</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evaltask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalTask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalmodel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalModel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalconfiguration" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalConfiguration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalresults" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalResults</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#evalscores" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalScores</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samples_df" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">samples_df</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplecolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleColumn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplesummary" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleSummary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplemessages" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleMessages</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplescores" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleScores</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messages_df" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">messages_df</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagefilter" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageFilter</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagecolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageColumn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagecontent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageContent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagetoolcalls" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageToolCalls</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagecolumns" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageColumns</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#events_df" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">events_df</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#eventcolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventColumn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#eventinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#eventtiming" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventTiming</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#modeleventcolumns" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelEventColumns</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#tooleventcolumns" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolEventColumns</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#prepare" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">prepare</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#log_viewer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">log_viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#model_info" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_info</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#task_info" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task_info</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#frontier" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">frontier</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#score_to_float" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_to_float</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#operation" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Operation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#modelinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#column" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Column</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#columntype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ColumnType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#columnerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ColumnError</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.approval</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">auto_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#human_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#read_approval_policies" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_approval_policies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvaldecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalPolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">approver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.dataset</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">csv_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#json_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#hf_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">hf_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#fieldspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FieldSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#recordtosample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecordToSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#memorydataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MemoryDataset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.event.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.event</span></a>
           <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -831,206 +740,630 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
- <span class="menu-text">match</span></a>
+  <a href="../reference/inspect_ai.event.html#modelevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
- <span class="menu-text">includes</span></a>
+  <a href="../reference/inspect_ai.event.html#toolevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
- <span class="menu-text">pattern</span></a>
+  <a href="../reference/inspect_ai.event.html#branchevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">BranchEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">answer</span></a>
+  <a href="../reference/inspect_ai.event.html#compactionevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CompactionEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
- <span class="menu-text">choice</span></a>
+  <a href="../reference/inspect_ai.event.html#approvalevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#math" class="sidebar-item-text sidebar-link">
- <span class="menu-text">math</span></a>
+  <a href="../reference/inspect_ai.event.html#sandboxevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
- <span class="menu-text">f1</span></a>
+  <a href="../reference/inspect_ai.event.html#infoevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InfoEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
- <span class="menu-text">exact</span></a>
+  <a href="../reference/inspect_ai.event.html#scoreevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
- <span class="menu-text">model_graded_qa</span></a>
+  <a href="../reference/inspect_ai.event.html#loggerevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggerEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
- <span class="menu-text">model_graded_fact</span></a>
+  <a href="../reference/inspect_ai.event.html#errorevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ErrorEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">multi_scorer</span></a>
+  <a href="../reference/inspect_ai.event.html#spanbeginevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SpanBeginEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
- <span class="menu-text">accuracy</span></a>
+  <a href="../reference/inspect_ai.event.html#spanendevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SpanEndEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mean</span></a>
+  <a href="../reference/inspect_ai.event.html#event_tree" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">event_tree</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
- <span class="menu-text">std</span></a>
+  <a href="../reference/inspect_ai.event.html#event_tree_walk" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">event_tree_walk</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#stderr" class="sidebar-item-text sidebar-link">
- <span class="menu-text">stderr</span></a>
+  <a href="../reference/inspect_ai.event.html#event_sequence" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">event_sequence</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
- <span class="menu-text">bootstrap_stderr</span></a>
+  <a href="../reference/inspect_ai.event.html#eventtree" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventTree</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
- <span class="menu-text">at_least</span></a>
+  <a href="../reference/inspect_ai.event.html#eventtreespan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventTreeSpan</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
- <span class="menu-text">pass_at</span></a>
+  <a href="../reference/inspect_ai.event.html#eventtreenode" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventTreeNode</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">max_score</span></a>
+  <a href="../reference/inspect_ai.event.html#timeline_build" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">timeline_build</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mean_score</span></a>
+  <a href="../reference/inspect_ai.event.html#timeline_dump" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">timeline_dump</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">median_score</span></a>
+  <a href="../reference/inspect_ai.event.html#timeline_filter" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">timeline_filter</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">mode_score</span></a>
+  <a href="../reference/inspect_ai.event.html#timeline_load" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">timeline_load</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Scorer</span></a>
+  <a href="../reference/inspect_ai.event.html#timeline_branch" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">timeline_branch</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#target" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Target</span></a>
+  <a href="../reference/inspect_ai.event.html#timeline" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Timeline</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Score</span></a>
+  <a href="../reference/inspect_ai.event.html#timelineevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TimelineEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#value" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Value</span></a>
+  <a href="../reference/inspect_ai.event.html#timelinespan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TimelineSpan</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#scorereducer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ScoreReducer</span></a>
+  <a href="../reference/inspect_ai.event.html#outline" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Outline</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Metric</span></a>
+  <a href="../reference/inspect_ai.event.html#outlinenode" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OutlineNode</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#metricprotocol" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MetricProtocol</span></a>
+  <a href="../reference/inspect_ai.event.html#sampleinitevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleInitEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#samplescore" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleScore</span></a>
+  <a href="../reference/inspect_ai.event.html#samplelimitevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleLimitEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">scorer</span></a>
+  <a href="../reference/inspect_ai.event.html#stateevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StateEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
- <span class="menu-text">metric</span></a>
+  <a href="../reference/inspect_ai.event.html#storeevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">score_reducer</span></a>
+  <a href="../reference/inspect_ai.event.html#inputevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">score</span></a>
+  <a href="../reference/inspect_ai.event.html#scoreeditevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreEditEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.event.html#logginglevel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggingLevel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.event.html#loggingmessage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggingMessage</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.hooks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.hooks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#hooks" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hooks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#hooks" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">hooks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#apikeyoverride" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApiKeyOverride</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#modelusagedata" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelUsageData</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#evalsetstart" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSetStart</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#evalsetend" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSetEnd</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#runend" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RunEnd</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#runstart" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RunStart</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#sampleend" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleEnd</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#sampleinit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleInit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#samplestart" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleStart</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#sampleattemptstart" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleAttemptStart</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#sampleattemptend" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleAttemptEnd</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#sampleevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#taskend" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskEnd</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.hooks.html#taskstart" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskStart</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.log</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">list_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_eval_log_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_eval_log_async</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_async</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_sample_summaries" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_sample_summaries</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#recompute_metrics" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">recompute_metrics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#convert_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">convert_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#bundle_log_dir" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bundle_log_dir</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_log_dir_manifest" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_log_dir_manifest</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#retryable_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">retryable_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalloginfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalLogInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#edit_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">edit_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#edit_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">edit_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#invalidate_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">invalidate_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#uninvalidate_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">uninvalidate_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#logupdate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LogUpdate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#logedit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LogEdit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#metadataedit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MetadataEdit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#tagsedit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TagsEdit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#provenancedata" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ProvenanceData</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalstatus" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalStatus</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evallog" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalLog</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evaldataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalDataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalrevision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalRevision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalplan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalPlan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalplanstep" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalPlanStep</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalresults" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalResults</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalscore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalmetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleReductions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalstats" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalStats</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplesummary" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleSummary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplelimit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleLimit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleReductions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplescore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#writeconflicterror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">WriteConflictError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#condense_sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">condense_sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#condense_events" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">condense_events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#expand_events" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">expand_events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#eventsdata" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EventsData</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">transcript</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Transcript</span></a>
   </div>
 </li>
       </ul>
@@ -1039,11 +1372,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.model</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
@@ -1498,132 +1831,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.dataset</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
- <span class="menu-text">csv_dataset</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#json_dataset" class="sidebar-item-text sidebar-link">
- <span class="menu-text">json_dataset</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#hf_dataset" class="sidebar-item-text sidebar-link">
- <span class="menu-text">hf_dataset</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#sample" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Sample</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#fieldspec" class="sidebar-item-text sidebar-link">
- <span class="menu-text">FieldSpec</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#recordtosample" class="sidebar-item-text sidebar-link">
- <span class="menu-text">RecordToSample</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#dataset" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Dataset</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.dataset.html#memorydataset" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MemoryDataset</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.approval</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">auto_approver</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#human_approver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">human_approver</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#read_approval_policies" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_approval_policies</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
- <span class="menu-text">approval</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approver</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#approvaldecision" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ApprovalDecision</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ApprovalPolicy</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
- <span class="menu-text">approver</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.log</span></a>
+            <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai</span></a>
           <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -1631,304 +1840,76 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
- <span class="menu-text">list_eval_logs</span></a>
+  <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#write_eval_log" class="sidebar-item-text sidebar-link">
- <span class="menu-text">write_eval_log</span></a>
+  <a href="../reference/inspect_ai.html#eval_retry" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval_retry</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#write_eval_log_async" class="sidebar-item-text sidebar-link">
- <span class="menu-text">write_eval_log_async</span></a>
+  <a href="../reference/inspect_ai.html#eval_set" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval_set</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#read_eval_log" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_eval_log</span></a>
+  <a href="../reference/inspect_ai.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#read_eval_log_async" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_eval_log_async</span></a>
+  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#read_eval_log_sample" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_eval_log_sample</span></a>
+  <a href="../reference/inspect_ai.html#task_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task_with</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#read_eval_log_samples" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_eval_log_samples</span></a>
+  <a href="../reference/inspect_ai.html#epochs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Epochs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#read_eval_log_sample_summaries" class="sidebar-item-text sidebar-link">
- <span class="menu-text">read_eval_log_sample_summaries</span></a>
+  <a href="../reference/inspect_ai.html#taskinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskInfo</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#recompute_metrics" class="sidebar-item-text sidebar-link">
- <span class="menu-text">recompute_metrics</span></a>
+  <a href="../reference/inspect_ai.html#tasks" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#convert_eval_logs" class="sidebar-item-text sidebar-link">
- <span class="menu-text">convert_eval_logs</span></a>
+  <a href="../reference/inspect_ai.html#view" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">view</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#bundle_log_dir" class="sidebar-item-text sidebar-link">
- <span class="menu-text">bundle_log_dir</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#write_log_dir_manifest" class="sidebar-item-text sidebar-link">
- <span class="menu-text">write_log_dir_manifest</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#retryable_eval_logs" class="sidebar-item-text sidebar-link">
- <span class="menu-text">retryable_eval_logs</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalloginfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalLogInfo</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#edit_eval_log" class="sidebar-item-text sidebar-link">
- <span class="menu-text">edit_eval_log</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#edit_score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">edit_score</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#invalidate_samples" class="sidebar-item-text sidebar-link">
- <span class="menu-text">invalidate_samples</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#uninvalidate_samples" class="sidebar-item-text sidebar-link">
- <span class="menu-text">uninvalidate_samples</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#logupdate" class="sidebar-item-text sidebar-link">
- <span class="menu-text">LogUpdate</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#logedit" class="sidebar-item-text sidebar-link">
- <span class="menu-text">LogEdit</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#metadataedit" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MetadataEdit</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#tagsedit" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TagsEdit</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#provenancedata" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ProvenanceData</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalstatus" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalStatus</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evallog" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalLog</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalspec" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSpec</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evaldataset" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalDataset</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalconfig" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalConfig</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalrevision" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalRevision</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalplan" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalPlan</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalplanstep" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalPlanStep</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalresults" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalResults</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalscore" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalScore</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalmetric" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalMetric</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSampleReductions</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalstats" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalStats</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalerror" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalError</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalsample" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSample</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalsamplesummary" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSampleSummary</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalsamplelimit" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSampleLimit</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSampleReductions</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#evalsamplescore" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSampleScore</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#writeconflicterror" class="sidebar-item-text sidebar-link">
- <span class="menu-text">WriteConflictError</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#condense_sample" class="sidebar-item-text sidebar-link">
- <span class="menu-text">condense_sample</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#condense_events" class="sidebar-item-text sidebar-link">
- <span class="menu-text">condense_events</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#expand_events" class="sidebar-item-text sidebar-link">
- <span class="menu-text">expand_events</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#eventsdata" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventsData</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
- <span class="menu-text">transcript</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Transcript</span></a>
+  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task</span></a>
   </div>
 </li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.analysis.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.analysis</span></a>
+            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.scorer</span></a>
           <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -1936,232 +1917,214 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evals_df" class="sidebar-item-text sidebar-link">
- <span class="menu-text">evals_df</span></a>
+  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">match</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalcolumn" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalColumn</span></a>
+  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">includes</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalcolumns" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalColumns</span></a>
+  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pattern</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalinfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalInfo</span></a>
+  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">answer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evaltask" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalTask</span></a>
+  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">choice</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalmodel" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalModel</span></a>
+  <a href="../reference/inspect_ai.scorer.html#math" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">math</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalconfiguration" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalConfiguration</span></a>
+  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">f1</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalresults" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalResults</span></a>
+  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exact</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalscores" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalScores</span></a>
+  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_qa</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#samples_df" class="sidebar-item-text sidebar-link">
- <span class="menu-text">samples_df</span></a>
+  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_fact</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#samplecolumn" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleColumn</span></a>
+  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multi_scorer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#samplesummary" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleSummary</span></a>
+  <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">accuracy</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#samplemessages" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleMessages</span></a>
+  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#samplescores" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleScores</span></a>
+  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">std</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#messages_df" class="sidebar-item-text sidebar-link">
- <span class="menu-text">messages_df</span></a>
+  <a href="../reference/inspect_ai.scorer.html#stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">stderr</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#messagefilter" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MessageFilter</span></a>
+  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bootstrap_stderr</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#messagecolumn" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MessageColumn</span></a>
+  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">at_least</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#messagecontent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MessageContent</span></a>
+  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_at</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#messagetoolcalls" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MessageToolCalls</span></a>
+  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">max_score</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#messagecolumns" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MessageColumns</span></a>
+  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean_score</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#events_df" class="sidebar-item-text sidebar-link">
- <span class="menu-text">events_df</span></a>
+  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">median_score</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#eventcolumn" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventColumn</span></a>
+  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mode_score</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#eventinfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventInfo</span></a>
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#eventtiming" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventTiming</span></a>
+  <a href="../reference/inspect_ai.scorer.html#target" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Target</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#modeleventcolumns" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ModelEventColumns</span></a>
+  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Score</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#tooleventcolumns" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolEventColumns</span></a>
+  <a href="../reference/inspect_ai.scorer.html#value" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Value</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#prepare" class="sidebar-item-text sidebar-link">
- <span class="menu-text">prepare</span></a>
+  <a href="../reference/inspect_ai.scorer.html#scorereducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreReducer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#log_viewer" class="sidebar-item-text sidebar-link">
- <span class="menu-text">log_viewer</span></a>
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Metric</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#model_info" class="sidebar-item-text sidebar-link">
- <span class="menu-text">model_info</span></a>
+  <a href="../reference/inspect_ai.scorer.html#metricprotocol" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MetricProtocol</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#task_info" class="sidebar-item-text sidebar-link">
- <span class="menu-text">task_info</span></a>
+  <a href="../reference/inspect_ai.scorer.html#samplescore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleScore</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#frontier" class="sidebar-item-text sidebar-link">
- <span class="menu-text">frontier</span></a>
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scorer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#score_to_float" class="sidebar-item-text sidebar-link">
- <span class="menu-text">score_to_float</span></a>
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">metric</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#operation" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Operation</span></a>
+  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_reducer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#modelinfo" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ModelInfo</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#column" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Column</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#columntype" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ColumnType</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#columnerror" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ColumnError</span></a>
+  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score</span></a>
   </div>
 </li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.event.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.event</span></a>
+            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.solver</span></a>
           <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -2169,218 +2132,361 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#modelevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ModelEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#toolevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ToolEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#branchevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">BranchEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">prompt_template</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#compactionevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">CompactionEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#system_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">system_message</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#approvalevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ApprovalEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#user_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">user_message</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#sandboxevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SandboxEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#assistant_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">assistant_message</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#infoevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">InfoEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#chain_of_thought" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain_of_thought</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#scoreevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ScoreEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#self_critique" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">self_critique</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#loggerevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">LoggerEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#errorevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ErrorEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#spanbeginevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SpanBeginEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#spanendevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SpanEndEvent</span></a>
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#event_tree" class="sidebar-item-text sidebar-link">
- <span class="menu-text">event_tree</span></a>
+  <a href="../reference/inspect_ai.solver.html#solverspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SolverSpec</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#event_tree_walk" class="sidebar-item-text sidebar-link">
- <span class="menu-text">event_tree_walk</span></a>
+  <a href="../reference/inspect_ai.solver.html#taskstate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskState</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#event_sequence" class="sidebar-item-text sidebar-link">
- <span class="menu-text">event_sequence</span></a>
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Generate</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#eventtree" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventTree</span></a>
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.tool</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_search</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#eventtreespan" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventTreeSpan</span></a>
+  <a href="../reference/inspect_ai.tool.html#bash" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bash</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#eventtreenode" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EventTreeNode</span></a>
+  <a href="../reference/inspect_ai.tool.html#python" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">python</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timeline_build" class="sidebar-item-text sidebar-link">
- <span class="menu-text">timeline_build</span></a>
+  <a href="../reference/inspect_ai.tool.html#bash_session" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bash_session</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timeline_dump" class="sidebar-item-text sidebar-link">
- <span class="menu-text">timeline_dump</span></a>
+  <a href="../reference/inspect_ai.tool.html#text_editor" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">text_editor</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timeline_filter" class="sidebar-item-text sidebar-link">
- <span class="menu-text">timeline_filter</span></a>
+  <a href="../reference/inspect_ai.tool.html#computer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">computer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timeline_load" class="sidebar-item-text sidebar-link">
- <span class="menu-text">timeline_load</span></a>
+  <a href="../reference/inspect_ai.tool.html#code_execution" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">code_execution</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timeline_branch" class="sidebar-item-text sidebar-link">
- <span class="menu-text">timeline_branch</span></a>
+  <a href="../reference/inspect_ai.tool.html#web_browser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_browser</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timeline" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Timeline</span></a>
+  <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timelineevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TimelineEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#memory" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">memory</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#timelinespan" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TimelineSpan</span></a>
+  <a href="../reference/inspect_ai.tool.html#update_plan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">update_plan</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#outline" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Outline</span></a>
+  <a href="../reference/inspect_ai.tool.html#think" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">think</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#outlinenode" class="sidebar-item-text sidebar-link">
- <span class="menu-text">OutlineNode</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_connection" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_connection</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#sampleinitevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleInitEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_server_stdio" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_server_stdio</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#samplelimitevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleLimitEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_server_http" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_server_http</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#stateevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">StateEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_server_sandbox" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_server_sandbox</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#storeevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">StoreEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_server_sse" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_server_sse</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#inputevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">InputEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcp_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp_tools</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#scoreeditevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ScoreEditEvent</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcpserver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCPServer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#logginglevel" class="sidebar-item-text sidebar-link">
- <span class="menu-text">LoggingLevel</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcpserverconfig " class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCPServerConfig</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.event.html#loggingmessage" class="sidebar-item-text sidebar-link">
- <span class="menu-text">LoggingMessage</span></a>
+  <a href="../reference/inspect_ai.tool.html#mcpserverconfigstdio" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCPServerConfigStdio</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#mcpserverconfighttp " class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCPServerConfigHTTP</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#read_skills" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_skills</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#install_skills" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">install_skills</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Skill</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#skillinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SkillInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tooldef" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolDef</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolcallerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolCallError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolfunction" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolFunction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolparams" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolParams</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolparam" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolParam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolsource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolSource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#websearchproviders" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">WebSearchProviders</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#codeexecutionproviders" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CodeExecutionProviders</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool</span></a>
   </div>
 </li>
       </ul>
@@ -2389,11 +2495,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.util</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
@@ -2768,119 +2874,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
       </ul>
   </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.hooks.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.hooks</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#hooks" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Hooks</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#hooks" class="sidebar-item-text sidebar-link">
- <span class="menu-text">hooks</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#apikeyoverride" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ApiKeyOverride</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#modelusagedata" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ModelUsageData</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#evalsetstart" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSetStart</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#evalsetend" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalSetEnd</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#runend" class="sidebar-item-text sidebar-link">
- <span class="menu-text">RunEnd</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#runstart" class="sidebar-item-text sidebar-link">
- <span class="menu-text">RunStart</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#sampleend" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleEnd</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#sampleinit" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleInit</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#samplestart" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleStart</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#sampleattemptstart" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleAttemptStart</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#sampleattemptend" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleAttemptEnd</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#sampleevent" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleEvent</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#taskend" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TaskEnd</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.hooks.html#taskstart" class="sidebar-item-text sidebar-link">
- <span class="menu-text">TaskStart</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_eval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Inspect CLI</span></a>
+            <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CLI Commands</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -2888,8 +2887,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_eval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect eval</span></a>
+  <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect cache</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2906,38 +2905,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_score.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect score</span></a>
+  <a href="../reference/inspect_eval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect eval</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_view.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect view</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_log.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect log</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_trace.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect trace</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_sandbox.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect sandbox</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect cache</span></a>
+  <a href="../reference/inspect_info.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect info</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2948,8 +2923,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_info.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect info</span></a>
+  <a href="../reference/inspect_log.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_sandbox.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect sandbox</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_score.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_trace.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect trace</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_view.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect view</span></a>
   </div>
 </li>
       </ul>
@@ -2960,7 +2959,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -3011,16 +3010,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#bridge" id="toc-bridge" class="nav-link" data-scroll-target="#bridge">bridge</a></li>
   </ul></li>
   </ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">inspect_ai.agent</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
 <h1 class="title">inspect_ai.agent</h1>
 </div>
 
+<div>
+  <div class="description">
+    Agent scaffolds and protocol.
+  </div>
+</div>
 
 
 <div class="quarto-title-meta">
@@ -3045,7 +3049,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Use the <code>attempts</code> option to enable additional submissions if the initial submission(s) are incorrect (by default, no additional attempts are permitted).</p>
 <p>When using the <code>submit()</code> tool, the model will be urged to continue if it fails to call a tool. When not using a <code>submit()</code> tool, the agent will terminate if it fails to call a tool. Customise this behavior using the <code>on_continue</code> option.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_react.py#L45">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_react.py#L45">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> react(</span>
@@ -3120,7 +3124,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The Human CLI agent installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code> <code>task instructions</code>, etc.). A human agent panel is displayed with instructions for logging in to the sandbox.</p>
 <p>If the user is running in VS Code with the Inspect extension, they will also be presented with links to login to the sandbox using a VS Code Window or Terminal.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_human/agent.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_human/agent.py#L16">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_cli(</span>
@@ -3165,7 +3169,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="handoff">handoff</h3>
 <p>Create a tool that enables models to handoff to agents.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_handoff.py#L19">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_handoff.py#L19">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> handoff(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    agent: Agent,</span>
@@ -3212,7 +3216,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Run an agent.</p>
 <p>The input messages(s) will be copied prior to running so are not modified in place.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_run.py#L34">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_run.py#L34">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> run(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    agent: Agent,</span>
@@ -3250,7 +3254,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Convert an agent to a tool.</p>
 <p>By default the model will see all of the agent’s arguments as tool arguments (save for <code>state</code> which is converted to an <code>input</code> arguments of type <code>str</code>). Provide optional <code>agent_kwargs</code> to mask out agent parameters with default values (these parameters will not be presented to the model as part of the tool interface)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_as_tool.py#L21">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_as_tool.py#L21">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_tool(</span>
@@ -3283,7 +3287,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Convert an agent to a solver.</p>
 <p>Note that agents used as solvers will only receive their first parameter (<code>state</code>). Any other parameters must provide appropriate defaults or be explicitly specified in <code>agent_kwargs</code></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_as_solver.py#L25">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_as_solver.py#L25">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_solver(agent: Agent, limits: <span class="bu">list</span>[Limit] <span class="op">=</span> [], <span class="op">**</span>agent_kwargs: Any) <span class="op">-&gt;</span> Solver</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3310,7 +3314,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Provide Inspect integration for 3rd party agents that use the the OpenAI Completions API, OpenAI Responses API, or Anthropic API. The bridge patches the OpenAI and Anthropic client libraries to redirect any model named “inspect” (or prefaced with “inspect/” for non-default models) into the Inspect model API.</p>
 <p>See the <a href="https://inspect.aisi.org.uk/agent-bridge.html">Agent Bridge</a> documentation for additional details.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/bridge.py#L85">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/bridge.py#L85">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.asynccontextmanager</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> agent_bridge(</span>
@@ -3353,7 +3357,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentbridge">AgentBridge</h3>
 <p>Agent bridge.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/types.py#L23">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/types.py#L23">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentBridge</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3386,7 +3390,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Compaction function for bridge.</p>
 <p>Note: This will always return the same compaction function for a given instance of the bridge.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/types.py#L67">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/types.py#L67">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compaction(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, tools: Sequence[ToolInfo <span class="op">|</span> Tool], model: Model</span>
@@ -3411,7 +3415,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Provide Inspect integration for agents running inside sandboxes. Runs a proxy server in the container that provides REST endpoints for the OpenAI Completions API, OpenAI Responses API, Anthropic API, and Google API. This proxy server runs on port 13131 and routes requests to the current Inspect model provider.</p>
 <p>You should set <code>OPENAI_BASE_URL=http://localhost:13131/v1</code>, <code>ANTHROPIC_BASE_URL=http://localhost:13131</code>, or <code>GOOGLE_GEMINI_BASE_URL=http://localhost:13131</code> when executing the agent within the container and ensure that your agent targets the model name “inspect” when calling OpenAI, Anthropic, or Google. Use “inspect/<full-model-name>” to target other Inspect model providers.</full-model-name></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L36">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L36">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.asynccontextmanager</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sandbox_agent_bridge(</span>
@@ -3479,7 +3483,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sandboxagentbridge">SandboxAgentBridge</h3>
 <p>Sandbox agent bridge.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/sandbox/types.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/sandbox/types.py#L9">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxAgentBridge(AgentBridge)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3524,7 +3528,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Compaction function for bridge.</p>
 <p>Note: This will always return the same compaction function for a given instance of the bridge.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/types.py#L67">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/types.py#L67">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compaction(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, tools: Sequence[ToolInfo <span class="op">|</span> Tool], model: Model</span>
@@ -3548,7 +3552,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Specification for host-side tools to expose via MCP bridge.</p>
 <p>This allows Inspect tools defined on the host to be exposed to agents running inside a sandbox via MCP.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py#L9">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BridgedToolsSpec</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -3581,7 +3585,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Converts server tool calls to text</li>
 </ul>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L22">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L22">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> content_only(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3595,7 +3599,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="last_message">last_message</h3>
 <p>Remove all but the last message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L119">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L119">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> last_message(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3610,7 +3614,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Remove tool calls from messages.</p>
 <p>Removes all instances of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> as well as the <code>tool_calls</code> field from <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#chatmessageassistant">ChatMessageAssistant</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L96">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L96">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> remove_tools(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3624,7 +3628,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="messagefilter">MessageFilter</h3>
 <p>Filter messages sent to or received from agent handoffs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L18">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L18">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>MessageFilter <span class="op">=</span> Callable[[<span class="bu">list</span>[ChatMessage]], Awaitable[<span class="bu">list</span>[ChatMessage]]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
@@ -3638,7 +3642,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>You can give the model a tool that enables handoff to your agent using the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#handoff">handoff()</a></span> function.</p>
 <p>You can create a simple tool (that receives a string as input) from an agent using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L93">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L93">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Agent(Protocol):</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -3666,7 +3670,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentstate">AgentState</h3>
 <p>Agent state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L34">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L34">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentState</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3687,7 +3691,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agent-1">agent</h3>
 <p>Decorator for registering agents.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L141">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L141">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent(</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[P, Agent] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -3715,7 +3719,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Agent with modifications to name and/or description</p>
 <p>This function modifies the passed agent in place and returns it. If you want to create multiple variations of a single agent using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#agent_with">agent_with()</a></span> you should create the underlying agent multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L226">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L226">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_with(</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    agent: Agent,</span>
@@ -3743,7 +3747,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Check if an object is an Agent.</p>
 <p>Determines if the provided object is registered as an Agent in the system registry. When this function returns True, type checkers will recognize ‘obj’ as an Agent type.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L285">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L285">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_agent(obj: Any) <span class="op">-&gt;</span> TypeGuard[Agent]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3760,7 +3764,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentprompt">AgentPrompt</h3>
 <p>Prompt for agent.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L22">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L22">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentPrompt(NamedTuple)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3792,7 +3796,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Configure a react agent to make multiple attempts.</p>
 <p>Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. “C” becomes 1.0) using the standard value_to_float() function. Provide an alternate conversion scheme as required via <code>score_value</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L65">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L65">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentAttempts(NamedTuple)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3818,7 +3822,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Function called to determine whether the agent should continue.</p>
 <p>Returns <code>True</code> to continue with a default continue message inserted, return <code>False</code> to stop. Returns <code>str</code> to continue with an additional custom user message inserted. Returns <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#agentstate">AgentState</a></span> to continue with the specified state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L55">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L55">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>AgentContinue: TypeAlias <span class="op">=</span> Callable[[AgentState], Awaitable[<span class="bu">bool</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> AgentState]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
@@ -3826,7 +3830,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentsubmit">AgentSubmit</h3>
 <p>Configure the submit tool of a react agent.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L87">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L87">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentSubmit(NamedTuple)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3885,7 +3889,7 @@ Note
 </div>
 </div>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/bridge.py#L400">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/bridge.py#L400">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bridge(</span>
@@ -3903,6 +3907,74 @@ Note
 </section>
 
 </main> <!-- /main -->
+<div id="copy-page-btn" class="btn-group" style="display:none;">
+  <button type="button" class="btn btn-sm btn-light" id="copy-page-action" title="Copy page as Markdown">
+    <i class="bi bi-clipboard"></i> Copy page
+  </button>
+  <button type="button" class="btn btn-sm btn-light dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+    <span class="visually-hidden">Toggle Dropdown</span>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><a class="dropdown-item" href="#" id="copy-page-md">
+      <i class="bi bi-clipboard"></i> Copy page as Markdown
+    </a></li>
+    <li><a class="dropdown-item" href="#" id="open-page-md">
+      <i class="bi bi-box-arrow-up-right"></i> Open Markdown
+    </a></li>
+  </ul>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var btn = document.getElementById("copy-page-btn");
+  var cachedMarkdown = null;
+
+  // Pre-fetch the .html.md content
+  fetch(mdUrl)
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.status);
+      return res.text();
+    })
+    .then(function (text) {
+      cachedMarkdown = text;
+
+      // Relocate button into the .quarto-title div
+      var titleDiv = document.querySelector(".quarto-title");
+      if (titleDiv) {
+        titleDiv.appendChild(btn);
+        btn.style.display = "";
+      }
+    })
+    .catch(function () {
+      // No .html.md available — remove button entirely
+      btn.remove();
+    });
+
+  function copyMarkdown(e) {
+    e.preventDefault();
+    if (!cachedMarkdown) return;
+    navigator.clipboard.writeText(cachedMarkdown).then(function () {
+      // Brief visual feedback — lock width to prevent layout shift
+      var actionBtn = document.getElementById("copy-page-action");
+      var original = actionBtn.innerHTML;
+      actionBtn.style.minWidth = actionBtn.offsetWidth + "px";
+      actionBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+      setTimeout(function () {
+        actionBtn.innerHTML = original;
+        actionBtn.style.minWidth = "";
+      }, 1500);
+    });
+  }
+
+  document.getElementById("copy-page-action").addEventListener("click", copyMarkdown);
+  document.getElementById("copy-page-md").addEventListener("click", copyMarkdown);
+  document.getElementById("open-page-md").addEventListener("click", function (e) {
+    e.preventDefault();
+    window.open(mdUrl, "_blank");
+  });
+});
+</script>
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
@@ -3976,7 +4048,7 @@ Note
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk\/");
+        var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
@@ -4346,8 +4418,8 @@ Note
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../reference/inspect_ai.tool.html#codeexecutionproviders" class="pagination-link" aria-label="CodeExecutionProviders">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">CodeExecutionProviders</span>
+      <a href="../reference/index.html" class="pagination-link" aria-label="Reference">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Reference</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
@@ -4362,7 +4434,7 @@ Note
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link" href="https://aisi.gov.uk/">
+    <a class="nav-link" href="https://aisi.gov.uk">
 <p>UK AI Security Institute</p>
 </a>
   </li>  
@@ -4391,20 +4463,19 @@ Note
 </a>
   </li>  
 </ul>
-    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    </div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">
     <a class="nav-link" href="https://x.com/AISecurityInst">
-      <i class="bi bi-twitter" role="img" aria-label="UK AI Security Institute Twitter">
+      <i class="bi bi-twitter" role="img" aria-label="Inspect Twitter">
 </i> 
     </a>
   </li>  
     <li class="nav-item compact">
-    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
-      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
-</i> 
-    </a>
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
   </li>  
 </ul>
     </div>

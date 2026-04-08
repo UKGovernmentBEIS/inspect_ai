@@ -1,5 +1,6 @@
 # inspect eval-retry
 
+Retry an evaluation task.
 
 Retry failed evaluation(s)
 

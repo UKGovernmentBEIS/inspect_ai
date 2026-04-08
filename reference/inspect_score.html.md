@@ -1,5 +1,6 @@
 # inspect score
 
+Score a previous evaluation run.
 
 Score a previous evaluation run.
 

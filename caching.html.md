@@ -1,24 +1,14 @@
 # Caching
 
-
 ## Overview
 
-Caching enables you to cache model output to reduce the number of API
-calls made, saving both time and expense. Caching is also often useful
-during development—for example, when you are iterating on a scorer you
-may want the model outputs served from a cache to both save time as well
-as for increased determinism.
+Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development—for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.
 
-There are two types of caching available: Inspect local caching and
-provider level caching. We’ll first describe local caching (which works
-for all models) then cover [provider caching](#sec-provider-caching)
-which currently works only for Anthropic models.
+There are two types of caching available: Inspect local caching and provider level caching. We’ll first describe local caching (which works for all models) then cover [provider caching](#sec-provider-caching) which currently works only for Anthropic models.
 
 ## Caching Basics
 
-Use the `cache` option of `GenerateConfig` to activate the use of the
-cache. The keys for caching (what determines if a request can be
-fulfilled from the cache) are as follows:
+Use the `cache` option of [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
 - Model name and base URL (e.g. `openai/gpt-4-turbo`)
 - Model prompt (i.e. message history)
@@ -26,10 +16,7 @@ fulfilled from the cache) are as follows:
 - Generate configuration (e.g. `temperature`, `top_p`, etc.)
 - Active `tools` and `tool_choice`
 
-If all of these inputs are identical, then the model response will be
-served from the cache. By default, model responses are cached for 1 week
-(see [Cache Policy](#cache-policy) below for details on customising
-this).
+If all of these inputs are identical, then the model response will be served from the cache. By default, model responses are cached for 1 week (see [Cache Policy](#cache-policy) below for details on customising this).
 
 Here are some example uses of `--cache` from the CLI:
 
@@ -39,14 +26,13 @@ inspect eval arc.py --cache 1D  # 1 day cache
 inspect eval arc.py --cache 4W  # 4 week cache
 ```
 
-Or alternatively from Python when calling `eval()`:
+Or alternatively from Python when calling [eval()](reference/inspect_ai.html.md#eval):
 
 ``` python
 eval("arc.py", cache=True)
 ```
 
-You can also use caching with lower-level `generate()` calls (e.g. a
-model instance you have obtained with `get_model()`. For example:
+You can also use caching with lower-level [generate()](reference/inspect_ai.solver.html.md#generate) calls (e.g. a model instance you have obtained with [get_model()](reference/inspect_ai.model.html.md#get_model). For example:
 
 ``` python
 model = get_model("anthropic/claude-sonnet-4-20250514")
@@ -57,26 +43,19 @@ output = model.generate(
 
 ### Model Versions
 
-The model name (e.g. `openai/gpt-4-turbo`) is used as part of the cache
-key. Note though that many model names are aliases to specific model
-versions. For example, `gpt-4`, `gpt-4-turbo`, may resolve to different
-versions over time as updates are released.
+The model name (e.g. `openai/gpt-4-turbo`) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, `gpt-4`, `gpt-4-turbo`, may resolve to different versions over time as updates are released.
 
-If you want to invalidate caches for updated model versions, it’s much
-better to use an explicitly versioned model name. For example:
+If you want to invalidate caches for updated model versions, it’s much better to use an explicitly versioned model name. For example:
 
 ``` bash
 $ inspect eval ctf.py --model openai/gpt-4-turbo-2024-04-09
 ```
 
-If you do this, then when a new version of `gpt-4-turbo` is deployed a
-call to the model will occur rather than resolving from the cache.
+If you do this, then when a new version of `gpt-4-turbo` is deployed a call to the model will occur rather than resolving from the cache.
 
 ## Cache Policy
 
-By default, if you specify `cache = True` then the cache will expire in
-1 week. You can customise this by passing a `CachePolicy` rather than a
-boolean. For example:
+By default, if you specify `cache = True` then the cache will expire in 1 week. You can customise this by passing a [CachePolicy](reference/inspect_ai.model.html.md#cachepolicy) rather than a boolean. For example:
 
 ``` python
 cache = CachePolicy(expiry="3h")
@@ -85,8 +64,7 @@ cache = CachePolicy(expiry="2W")
 cache = CachePolicy(expiry="3M")
 ```
 
-You can use `s`, `m`, `h`, `D`, `W` , `M`, and `Y` as abbreviations for
-`expiry` values.
+You can use `s`, `m`, `h`, `D`, `W` , `M`, and `Y` as abbreviations for `expiry` values.
 
 If you want the cache to *never* expire, specify `None`. For example:
 
@@ -94,9 +72,7 @@ If you want the cache to *never* expire, specify `None`. For example:
 cache = CachePolicy(expiry = None)
 ```
 
-You can also define scopes for cache expiration (e.g. cache for a
-specific task or usage pattern). Use the `scopes` parameter to add named
-scopes to the cache key:
+You can also define scopes for cache expiration (e.g. cache for a specific task or usage pattern). Use the `scopes` parameter to add named scopes to the cache key:
 
 ``` python
 cache = CachePolicy(
@@ -105,9 +81,7 @@ cache = CachePolicy(
 )
 ```
 
-As noted above, caching is by default done per epoch (i.e. each epoch
-has its own cache scope). You can disable the default behaviour by
-setting `per_epoch=False`. For example:
+As noted above, caching is by default done per epoch (i.e. each epoch has its own cache scope). You can disable the default behaviour by setting `per_epoch=False`. For example:
 
 ``` python
 cache = CachePolicy(per_epoch=False)
@@ -115,8 +89,7 @@ cache = CachePolicy(per_epoch=False)
 
 ## Management
 
-Use the `inspect cache` command the view the current contents of the
-cache, prune expired entries, or clear entries entirely. For example:
+Use the `inspect cache` command the view the current contents of the cache, prune expired entries, or clear entries entirely. For example:
 
 ``` bash
 # list the current contents of the cache
@@ -136,10 +109,7 @@ See `inspect cache --help` for further details on management commands.
 
 ### Cache Directory
 
-By default the model generation cache is stored in the system default
-location for user cache files (e.g. `XDG_CACHE_HOME` on Linux). You can
-override this and specify a different directory for cache files using
-the `INSPECT_CACHE_DIR` environment variable. For example:
+By default the model generation cache is stored in the system default location for user cache files (e.g. `XDG_CACHE_HOME` on Linux). You can override this and specify a different directory for cache files using the `INSPECT_CACHE_DIR` environment variable. For example:
 
 ``` bash
 $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
@@ -147,18 +117,9 @@ $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
 
 ## Provider Caching
 
-Model providers may also provide prompt caching features to optimise
-cost and performance for multi-turn conversations. Currently, Inspect
-includes support for [Anthropic Prompt
-Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
-and will extend this support to other providers over time as they add
-caching to their APIs.
+Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) and will extend this support to other providers over time as they add caching to their APIs.
 
-Provider prompt caching is controlled by the `cache-prompt` generation
-config option. The default value for `cache-prompt` is `"auto"`, which
-enables prompt caching automatically if tool definitions are included in
-the request. Use `true` and `false` to force caching on or off. For
-example:
+Provider prompt caching is controlled by the `cache-prompt` generation config option. The default value for `cache-prompt` is `"auto"`, which enables prompt caching automatically if tool definitions are included in the request. Use `true` and `false` to force caching on or off. For example:
 
 ``` bash
 inspect eval ctf.py --cache-prompt=auto  # enable if tools defined
@@ -166,7 +127,7 @@ inspect eval ctf.py --cache-prompt=true  # force caching on
 inspect eval ctf.py --cache-prompt=false # force caching off
 ```
 
-Or with the `eval()` function:
+Or with the [eval()](reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("ctf.py", cache_prompt=True)
@@ -174,20 +135,13 @@ eval("ctf.py", cache_prompt=True)
 
 ### Cache Scope
 
-Providers will typically provide various means of customising the scope
-of cache usage. The Inspect `cache-prompt` option will by default
-attempt to make maximum use of provider caches (in the Anthropic
-implementation system messages, tool definitions, and all messages up to
-the last user message are included in the cache).
+Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
 
-Currently there is no way to customise the Anthropic cache lifetime (it
-defaults to 5 minutes)—once this becomes possible this will also be
-exposed in the Inspect API.
+Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)—once this becomes possible this will also be exposed in the Inspect API.
 
 ### Usage Reporting
 
-When using provider caching, model token usage will be reported with 4
-distinct values rather than the normal input and output. For example:
+When using provider caching, model token usage will be reported with 4 distinct values rather than the normal input and output. For example:
 
 ``` default
 13,684 tokens [I: 22, CW: 1,711, CR: 11,442, O: 509]
@@ -202,9 +156,4 @@ Where the prefixes on reported token counts stand for:
 | **CR** | Input token cache reads  |
 | **O**  | Output tokens            |
 
-Input token cache writes will typically cost more (in the case of
-Anthropic roughly 25% more) but cache reads substantially less (for
-Anthropic 90% less) so for the example above there would have been a
-substantial savings in cost and execution time. See the [Anthropic
-Documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
-for additional details.
+Input token cache writes will typically cost more (in the case of Anthropic roughly 25% more) but cache reads substantially less (for Anthropic 90% less) so for the example above there would have been a substantial savings in cost and execution time. See the [Anthropic Documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) for additional details.

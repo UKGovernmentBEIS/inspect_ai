@@ -1,10 +1,10 @@
 # inspect cache
 
+Manage the Inspect model cache.
 
 Manage the inspect model output cache.
 
-Learn more about model output caching at
-<https://inspect.aisi.org.uk/caching.html>.
+Learn more about model output caching at <https://inspect.aisi.org.uk/caching.html>.
 
 #### Usage
 
@@ -77,9 +77,7 @@ inspect cache list [OPTIONS]
 
 Prune all expired cache entries
 
-Over time the cache directory can grow, but many cache entries will be
-expired. This command will remove all expired cache entries for ease of
-maintenance.
+Over time the cache directory can grow, but many cache entries will be expired. This command will remove all expired cache entries for ease of maintenance.
 
 #### Usage
 

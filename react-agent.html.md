@@ -1,37 +1,18 @@
 # ReAct Agent
 
-
 ## Overview
 
-The `react()` agent is a general purpose agent based on the paper
-[ReAct: Synergizing Reasoning and Acting in Language
-Models](https://arxiv.org/abs/2210.03629). ReAct is the most common
-architecture used in agent frameworks and is the baseline against which
-you should measure more complex agents (it can be surprisingly difficult
-to hand-tune agents that perform better than a ReAct agent against a
-diverse set of tasks!).
+The [react()](reference/inspect_ai.agent.html.md#react) agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
 
-The `react()` agent provides the following built-in capabilities:
+The [react()](reference/inspect_ai.agent.html.md#react) agent provides the following built-in capabilities:
 
-1.  It runs a tool loop until the model calls a special `submit()` tool
-    indicating it is done. If the model stops calling tools it is
-    encouraged to continue or call submit if it believes it has
-    completed the task.
+1.  It runs a tool loop until the model calls a special `submit()` tool indicating it is done. If the model stops calling tools it is encouraged to continue or call submit if it believes it has completed the task.
 
-2.  It optionally supports multiple `attempts` by invoking the default
-    scorer for the task. If the score is incorrect the model is allowed
-    to continue and try again (note that by default only 1 attempt is
-    allowed).
+2.  It optionally supports multiple `attempts` by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).
 
-3.  It can take advantage of message history
-    [compaction](compaction.qmd) for long-running tasks that overflow
-    the context window.
+3.  It can take advantage of message history [compaction](compaction.html.md) for long-running tasks that overflow the context window.
 
-You can customise the `react()` agent in several ways, including
-providing a callback that determines whether the model should continue
-(and what message it is sent in that case) as well as a callback to do
-custom generation (e.g. to implement a “best of n” multi-generation
-strategy).
+You can customise the [react()](reference/inspect_ai.agent.html.md#react) agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a “best of n” multi-generation strategy).
 
 ### Example
 
@@ -59,13 +40,9 @@ def ctf_agent(attempts=3) -> Agent:
     )
 ```
 
-Note that in this example we don’t pass a `name` to the `react()`
-function (as this will be inferred automatically via name of the
-enclosing `ctf_agent()` function). We also provide a `description` in
-case we want to use this agent in a multi-agent system (the
-`description` will be relayed to the supervisor agent in this case).
+Note that in this example we don’t pass a `name` to the [react()](reference/inspect_ai.agent.html.md#react) function (as this will be inferred automatically via name of the enclosing `ctf_agent()` function). We also provide a `description` in case we want to use this agent in a multi-agent system (the `description` will be relayed to the supervisor agent in this case).
 
-We can use this in a `Task` definition just like a `Solver`:
+We can use this in a [Task](reference/inspect_ai.html.md#task) definition just like a [Solver](reference/inspect_ai.solver.html.md#solver):
 
 ``` python
 from inspect_ai import Task, eval
@@ -83,11 +60,7 @@ eval(task, model="openai/gpt-4o")
 
 ## Prompt
 
-In the examples above we provide a `prompt` to the agent. This prompt is
-layered with other default prompt(s) to compose the final system prompt.
-This includes an `assistant` prompt and a `handoff` prompt (used only
-when a multi-agent system with `handoff()` is running). Here is the
-default `assistant` prompt:
+In the examples above we provide a `prompt` to the agent. This prompt is layered with other default prompt(s) to compose the final system prompt. This includes an `assistant` prompt and a `handoff` prompt (used only when a multi-agent system with [handoff()](reference/inspect_ai.agent.html.md#handoff) is running). Here is the default `assistant` prompt:
 
 ``` python
 DEFAULT_ASSISTANT_PROMPT = """
@@ -103,8 +76,7 @@ tool to report it.
 """
 ```
 
-You can modify the default prompts by passing an `AgentPrompt` instance
-rather than a `str`. For example:
+You can modify the default prompts by passing an [AgentPrompt](reference/inspect_ai.agent.html.md#agentprompt) instance rather than a `str`. For example:
 
 ``` python
 react(
@@ -118,10 +90,7 @@ react(
 )
 ```
 
-Note that if you want to provide the entire prompt (suppressing all
-default prompts) then pass an instance of `AgentPrompt` with
-`instructions` and the other parts of the default prompt you want to
-exclude set to `None`. For example:
+Note that if you want to provide the entire prompt (suppressing all default prompts) then pass an instance of [AgentPrompt](reference/inspect_ai.agent.html.md#agentprompt) with `instructions` and the other parts of the default prompt you want to exclude set to `None`. For example:
 
 ``` python
 react(
@@ -139,9 +108,7 @@ react(
 
 ## Attempts
 
-When using a `submit()` tool, the `react()` agent is allowed a single
-attempt by default. If you want to give it multiple attempts, pass
-another value to `attempts`:
+When using a `submit()` tool, the [react()](reference/inspect_ai.agent.html.md#react) agent is allowed a single attempt by default. If you want to give it multiple attempts, pass another value to `attempts`:
 
 ``` python
 react(
@@ -150,20 +117,11 @@ react(
 )
 ```
 
-Submissions are evaluated using the task’s main scorer, with value of
-1.0 indicating a correct answer. You can further customize how
-`attempts` works by passing an instance of `AgentAttempts` rather than
-an integer (this enables you to set a custom incorrect message,
-including a dynamically generated one, and also lets you customize how
-score values are converted to a numeric scale).
+Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. You can further customize how `attempts` works by passing an instance of [AgentAttempts](reference/inspect_ai.agent.html.md#agentattempts) rather than an integer (this enables you to set a custom incorrect message, including a dynamically generated one, and also lets you customize how score values are converted to a numeric scale).
 
 ## Compaction
 
-[Compaction](compaction.qmd) enables you to automatically manage
-conversation context as it grows, helping you optimize costs and stay
-within context window limits for long-running agents. Use the
-`compaction()` function along with a compaction strategy to incorporate
-compaction into a react agent. For example:
+[Compaction](compaction.html.md) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the [compaction()](reference/inspect_ai.model.html.md#compaction) function along with a compaction strategy to incorporate compaction into a react agent. For example:
 
 ``` python
 from inspect_ai.agent import react
@@ -183,19 +141,13 @@ react(
 )
 ```
 
-One important thing to note about compaction is that it affects only the
-input that the model sees—the core history with all messages is still
-retained by agents when using compaction.
+One important thing to note about compaction is that it affects only the input that the model sees—the core history with all messages is still retained by agents when using compaction.
 
-There are various configurable compaction strategies available—see the
-[Compaction](compaction.qmd) documentation for details.
+There are various configurable compaction strategies available—see the [Compaction](compaction.html.md) documentation for details.
 
 ## Refusals
 
-In some cases models refuse requests and simply retrying will result in
-a successful completion (this might be the case if requests are near the
-decision boundary of a filter). To provide some resilience against this
-you can specify the `retry_refusals` option. For example:
+In some cases models refuse requests and simply retrying will result in a successful completion (this might be the case if requests are near the decision boundary of a filter). To provide some resilience against this you can specify the `retry_refusals` option. For example:
 
 ``` python
 react(
@@ -204,19 +156,13 @@ react(
 )
 ```
 
-Retries will be triggered when `ModelOutput` has a `stop_reason` of
-“content_filter”.
+Retries will be triggered when [ModelOutput](reference/inspect_ai.model.html.md#modeloutput) has a `stop_reason` of “content_filter”.
 
 ## Continuation
 
-In some cases models in a tool use loop will simply fail to call a tool
-(or just talk about calling the `submit()` tool but not actually call
-it!). This is typically an oversight, and models simply need to be
-encouraged to call `submit()` or alternatively continue if they haven’t
-yet completed the task.
+In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the `submit()` tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call `submit()` or alternatively continue if they haven’t yet completed the task.
 
-This behaviour is controlled by the `on_continue` parameter, which by
-default yields the following user message to the model:
+This behaviour is controlled by the `on_continue` parameter, which by default yields the following user message to the model:
 
 ``` default
 Please proceed to the next step using your best judgement. 
@@ -224,53 +170,28 @@ If you believe you have completed the task, please call the
 `submit()` tool with your final answer,
 ```
 
-You can pass a different continuation message, or alternatively pass an
-`AgentContinue` function that can dynamically determine both whether to
-continue and what the message is. Here is how `on_continue` affects the
-agent loop for various inputs:
+You can pass a different continuation message, or alternatively pass an [AgentContinue](reference/inspect_ai.agent.html.md#agentcontinue) function that can dynamically determine both whether to continue and what the message is. Here is how `on_continue` affects the agent loop for various inputs:
 
-- `None`: A default user message will be appended only when there are no
-  tool calls made by the model.
+- `None`: A default user message will be appended only when there are no tool calls made by the model.
 
-- `str`: The returned user message will be appended only when there are
-  no tool calls made by the model.
+- `str`: The returned user message will be appended only when there are no tool calls made by the model.
 
 - `Callable`: the function passed can return one of:
 
   - `True`: Agent loop continues with no messages appended.
   - `False`: Agent loop is exited early.
-  - `str`: Agent loop continues and the returned user message will be
-    appended regardless of whether a tool call was made in the previous
-    assistant message. If your custom function only wants to append a
-    message when there are no tool calls made then you should check
-    `state.output.message.tool_calls` explicitly (returning `True`
-    rather than `str` when you want no message appended).
-  - `AgentState`: Agent loop continues and the agent state is updated to
-    the returned value.
+  - `str`: Agent loop continues and the returned user message will be appended regardless of whether a tool call was made in the previous assistant message. If your custom function only wants to append a message when there are no tool calls made then you should check `state.output.message.tool_calls` explicitly (returning `True` rather than `str` when you want no message appended).
+  - [AgentState](reference/inspect_ai.agent.html.md#agentstate): Agent loop continues and the agent state is updated to the returned value.
 
 ## Submit Tool
 
-As described above, the `react()` agent uses a special `submit()` tool
-internally to enable the model to signal explicitly when it is complete
-and has an answer. The use of a `submit()` tool has a couple of
-benefits:
+As described above, the [react()](reference/inspect_ai.agent.html.md#react) agent uses a special `submit()` tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a `submit()` tool has a couple of benefits:
 
-1.  Some implementations of ReAct loops terminate the loop when the
-    model stops calling tools. However, in some cases models will
-    unintentionally stop calling tools (e.g. write a message saying they
-    are going to call a tool and then not do it). The use of an explicit
-    `submit()` tool call to signal completion works around this problem,
-    as the model can be encouraged to keep calling tools rather than
-    terminating.
+1.  Some implementations of ReAct loops terminate the loop when the model stops calling tools. However, in some cases models will unintentionally stop calling tools (e.g. write a message saying they are going to call a tool and then not do it). The use of an explicit `submit()` tool call to signal completion works around this problem, as the model can be encouraged to keep calling tools rather than terminating.
 
-2.  An explicit `submit()` tool call to signal completion enables the
-    implementation of multiple [attempts](#attempts), which is often a
-    good way to model the underlying domain (e.g. a engineer can attempt
-    to fix a bug multiple times with tests providing feedback on success
-    or failure).
+2.  An explicit `submit()` tool call to signal completion enables the implementation of multiple [attempts](#attempts), which is often a good way to model the underlying domain (e.g. a engineer can attempt to fix a bug multiple times with tests providing feedback on success or failure).
 
-That said, the `submit()` tool might not be appropriate for every domain
-or agent. You can disable the use of the submit tool with:
+That said, the `submit()` tool might not be appropriate for every domain or agent. You can disable the use of the submit tool with:
 
 ``` python
 react(
@@ -279,47 +200,26 @@ react(
 )
 ```
 
-By default, disabling the submit tool will result in the agent
-terminating when it stops calling tools. Alternatively, you can manually
-control termination by providing a custom [on_continue](#continuation)
-handler.
+By default, disabling the submit tool will result in the agent terminating when it stops calling tools. Alternatively, you can manually control termination by providing a custom [on_continue](#continuation) handler.
 
 ## Truncation
 
-If your agent runs for long enough, it may end up filling the entire
-model context window. By default, this will cause the agent to terminate
-(with a log message indicating the reason). Alternatively, you can
-specify that the conversation should be truncated and the agent loop
-continue.
+If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.
 
-This behavior is controlled by the `truncation` parameter (which is
-`"disabled"` by default, doing no truncation). To perform truncation,
-specify either `"auto"` (which reduces conversation size by roughly 30%)
-or pass a custom `MessageFilter` function. For example:
+This behavior is controlled by the `truncation` parameter (which is `"disabled"` by default, doing no truncation). To perform truncation, specify either `"auto"` (which reduces conversation size by roughly 30%) or pass a custom [MessageFilter](reference/inspect_ai.analysis.html.md#messagefilter) function. For example:
 
 ``` python
 react(... truncation="auto")
 react(..., truncation=custom_truncation)
 ```
 
-The default `"auto"` truncation scheme calls the `trim_messages()`
-function with a `preserve` ratio of 0.7.
+The default `"auto"` truncation scheme calls the [trim_messages()](reference/inspect_ai.model.html.md#trim_messages) function with a `preserve` ratio of 0.7.
 
-Note that if you enable truncation then a [message
-limit](errors-and-limits.qmd#message-limit) may not work as expected
-because truncation will remove old messages, potentially keeping the
-conversation length below your message limit. In this case you can also
-consider applying a [time limit](errors-and-limits.qmd#time-limit)
-and/or [token limit](errors-and-limits.qmd#token-limit).
+Note that if you enable truncation then a [message limit](errors-and-limits.html.md#message-limit) may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a [time limit](errors-and-limits.html.md#time-limit) and/or [token limit](errors-and-limits.html.md#token-limit).
 
 ## Model
 
-The `model` parameter to `react()` agent lets you specify an alternate
-model to use for the agent loop (if not specified then the default model
-for the evaluation is used). In some cases you might want to do
-something fancier than just call a model (e.g. do a “best of n” sampling
-an pick the best response). Pass a `Agent` as the `model` parameter to
-implement this type of custom scheme. For example:
+The `model` parameter to [react()](reference/inspect_ai.agent.html.md#react) agent lets you specify an alternate model to use for the agent loop (if not specified then the default model for the evaluation is used). In some cases you might want to do something fancier than just call a model (e.g. do a “best of n” sampling an pick the best response). Pass a [Agent](reference/inspect_ai.agent.html.md#agent) as the `model` parameter to implement this type of custom scheme. For example:
 
 ``` python
 @agent
@@ -337,5 +237,4 @@ def best_of_n(n: int, discriminator: str | Model):
     return execute
 ```
 
-Note that when you pass an `Agent` as the `model` it must include a
-`tools` parameter so that the ReAct agent can forward its tools.
+Note that when you pass an [Agent](reference/inspect_ai.agent.html.md#agent) as the `model` it must include a `tools` parameter so that the ReAct agent can forward its tools.

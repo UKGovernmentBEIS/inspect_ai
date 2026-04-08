@@ -1,55 +1,33 @@
 # Human Agent
 
-
 ## Overview
 
-The Inspect human agent enables human baselining of agentic tasks that
-run in a Linux environment. Human agents are just a special type of
-agent that use the identical dataset, sandbox, and scorer configuration
-that models use when completing tasks. However, rather than entering an
-agent loop, the `human_cli` agent provides the human baseliner with:
+The Inspect human agent enables human baselining of agentic tasks that run in a Linux environment. Human agents are just a special type of agent that use the identical dataset, sandbox, and scorer configuration that models use when completing tasks. However, rather than entering an agent loop, the `human_cli` agent provides the human baseliner with:
 
-1.  A description of the task to be completed (input/prompt from the
-    sample).
+1.  A description of the task to be completed (input/prompt from the sample).
 
-2.  Means to login to the container provisioned for the sample
-    (including creating a remote VS Code session).
+2.  Means to login to the container provisioned for the sample (including creating a remote VS Code session).
 
-3.  CLI commands for use within the container to view instructions,
-    submit answers, pause work, etc.
+3.  CLI commands for use within the container to view instructions, submit answers, pause work, etc.
 
-Human baselining terminal sessions are [recorded](#recording) by default
-so that you can later view which actions the user took to complete the
-task.
+Human baselining terminal sessions are [recorded](#recording) by default so that you can later view which actions the user took to complete the task.
 
 ## Example
 
-Here, we run a human baseline on an [Intercode
-CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/)
-sample. We use the `--solver` option to use the `human_cli` agent rather
-than the task’s default solver:
+Here, we run a human baseline on an [Intercode CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/) sample. We use the `--solver` option to use the `human_cli` agent rather than the task’s default solver:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
     --sample-id 44 --solver human_cli
 ```
 
-The evaluation runs as normal, and a **Human Agent** panel appears in
-the task UI to orient the human baseliner to the task and provide
-instructions for accessing the container. The user clicks the **VS Code
-Terminal** link and a terminal interface to the container is provided
-within VS Code:
+The evaluation runs as normal, and a **Human Agent** panel appears in the task UI to orient the human baseliner to the task and provide instructions for accessing the container. The user clicks the **VS Code Terminal** link and a terminal interface to the container is provided within VS Code:
 
-![](images/inspect-human-agent.png)
+[![](images/inspect-human-agent.png)](images/inspect-human-agent.png)
 
-Note that while this example makes use of VS Code, it is in no way
-required. Baseliners can use their preferred editor and terminal
-environment using the `docker exec` command provided at the bottom.
-Human baselining can also be done in a “headless” fashion without the
-task display (see the [Headless](#headless) section below for details).
+Note that while this example makes use of VS Code, it is in no way required. Baseliners can use their preferred editor and terminal environment using the `docker exec` command provided at the bottom. Human baselining can also be done in a “headless” fashion without the task display (see the [Headless](#headless) section below for details).
 
-Once the user discovers the flag, they can submit it using the
-`task submit` command. For example:
+Once the user discovers the flag, they can submit it using the `task submit` command. For example:
 
 ``` bash
 task submit picoCTF{73bfc85c1ba7}
@@ -57,8 +35,7 @@ task submit picoCTF{73bfc85c1ba7}
 
 ## Usage
 
-Using the `human_cli` agent is as straightforward as specifying it as
-the `--solver` for any existing task. Repeating the example above:
+Using the `human_cli` agent is as straightforward as specifying it as the `--solver` for any existing task. Repeating the example above:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
@@ -75,48 +52,29 @@ from inspect_evals import gdm_intercode_ctf
 eval(gdm_intercode_ctf(), sample_id=44, solver=human_cli())
 ```
 
-There are however some requirements that should be met by your task
-before using it with the human CLI agent:
+There are however some requirements that should be met by your task before using it with the human CLI agent:
 
-1.  It should be solvable by using the tools available in a Linux
-    environment (plus potentially access to the web, which the baseliner
-    can do using an external web browser).
+1.  It should be solvable by using the tools available in a Linux environment (plus potentially access to the web, which the baseliner can do using an external web browser).
 
-2.  The dataset `input` must fully specify the instructions for the
-    task. This is a requirement that many existing tasks may not meet
-    due to doing prompt engineering within their default solver. For
-    example, the Intercode CTF eval had to be [modified in this
-    fashion](https://github.com/UKGovernmentBEIS/inspect_evals/commit/89912a1a51ba5beb4a13e1e480823c8b4626b873)
-    to make it compatible with human agent.
+2.  The dataset `input` must fully specify the instructions for the task. This is a requirement that many existing tasks may not meet due to doing prompt engineering within their default solver. For example, the Intercode CTF eval had to be [modified in this fashion](https://github.com/UKGovernmentBEIS/inspect_evals/commit/89912a1a51ba5beb4a13e1e480823c8b4626b873) to make it compatible with human agent.
 
 ### Container Access
 
-The human agent works on the task within the default sandbox container
-for the task. Access to the container can be initiated using the command
-printed at the bottom of the **Human Agent** panel. For example:
+The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the **Human Agent** panel. For example:
 
 ``` bash
 docker exec -it inspect-gdm_intercod-itmzq4e-default-1 bash -l
 ```
 
-Alternatively, if the human agent is working within VS Code then two
-links are provided to access the container within VS Code:
+Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:
 
-- **VS Code Window** opens a new VS Code window logged in to the
-  container. The human agent can than create terminals, browse the file
-  system, etc. using the VS Code interface.
+- **VS Code Window** opens a new VS Code window logged in to the container. The human agent can than create terminals, browse the file system, etc. using the VS Code interface.
 
-- **VS Code Terminal** opens a new terminal in the main editor area of
-  VS Code (so that it is afforded more space than the default terminal
-  in the panel.
+- **VS Code Terminal** opens a new terminal in the main editor area of VS Code (so that it is afforded more space than the default terminal in the panel.
 
 ### Task Commands
 
-The Human agent installs agent task tools in the default sandbox and
-presents the user with both task instructions and documentation for the
-various tools (e.g. `task submit`, `task start`, `task stop`,
-`task instructions`, etc.). By default, the following command are
-available:
+The Human agent installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g. `task submit`, `task start`, `task stop`, `task instructions`, etc.). By default, the following command are available:
 
 | Command             | Description                                 |
 |---------------------|---------------------------------------------|
@@ -128,19 +86,13 @@ available:
 | `task stop`         | Stop the task clock (pause working).        |
 | `task instructions` | Display task command and instructions.      |
 
-Note that the instructions are also copied to an `instructions.txt` file
-in the container user’s working directory.
+Note that the instructions are also copied to an `instructions.txt` file in the container user’s working directory.
 
 ### Answer Submission
 
-When the human agent has completed the task, they submit their answer
-using the `task submit`command. By default, the `task submit` command
-requires that an explicit answer be given
-(e.g. `task submit picoCTF{73bfc85c1ba7}`).
+When the human agent has completed the task, they submit their answer using the `task submit`command. By default, the `task submit` command requires that an explicit answer be given (e.g. `task submit picoCTF{73bfc85c1ba7}`).
 
-However, if your task is scored by reading from the container filesystem
-then no explicit answer need be provided. Indicate this by passing
-`answer=False` to the `human_cli()`:
+However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing `answer=False` to the [human_cli()](reference/inspect_ai.agent.html.md#human_cli):
 
 ``` python
 solver=human_cli(answer=False)
@@ -152,8 +104,7 @@ Or from the CLI, use the `-S` option:
 --solver human_cli -S answer=false
 ```
 
-You can also specify a regex to match the answer against for validation,
-for example:
+You can also specify a regex to match the answer against for validation, for example:
 
 ``` python
 solver=human_cli(answer=r"picoCTF{\w+}")
@@ -161,17 +112,11 @@ solver=human_cli(answer=r"picoCTF{\w+}")
 
 ### Quitting
 
-If the user is unable to complete the task in some allotted time they
-may quit the task using the `task quit` command. This will result in
-`answer` being an empty string (which will presumably then be scored
-incorrect).
+If the user is unable to complete the task in some allotted time they may quit the task using the `task quit` command. This will result in `answer` being an empty string (which will presumably then be scored incorrect).
 
 ### Intermediate Scoring
 
-You can optionally make intermediate scoring available to human
-baseliners so that they can check potential answers as they work. Use
-the `intermediate_scoring` option (which defaults to `False`) to do
-this:
+You can optionally make intermediate scoring available to human baseliners so that they can check potential answers as they work. Use the `intermediate_scoring` option (which defaults to `False`) to do this:
 
 ``` python
 solver=human_cli(intermediate_scoring=True)
@@ -183,9 +128,7 @@ Or from the CLI, use the `-S` option:
 --solver human_cli -S intermediate_scoring=true
 ```
 
-With this option enabled, the human agent can check their potential
-score on the task for a given answer using the `task score` command. For
-example:
+With this option enabled, the human agent can check their potential score on the task for a given answer using the `task score` command. For example:
 
 ``` bash
 task score picoCTF{73bfc85c1ba7}
@@ -193,9 +136,7 @@ task score picoCTF{73bfc85c1ba7}
 
 ### Container User
 
-By default, the human agent will login to the container using its
-default user. You can specify an alternate user via the `user` option.
-For example:
+By default, the human agent will login to the container using its default user. You can specify an alternate user via the `user` option. For example:
 
 ``` python
 solver=human_cli(user="myuser")
@@ -209,12 +150,9 @@ Or from the CLI, use the `-S` option:
 
 ## Recording
 
-By default, human agent terminal sessions are recorded using the LInux
-[script command](https://www.redhat.com/en/blog/linux-script-command).
-Recorded sessions are saved in the sample store and available for
-playback within the Inspect View:
+By default, human agent terminal sessions are recorded using the LInux [script command](https://www.redhat.com/en/blog/linux-script-command). Recorded sessions are saved in the sample store and available for playback within the Inspect View:
 
-![](images/inspect-terminal-transcript.png)
+[![](images/inspect-terminal-transcript.png)](images/inspect-terminal-transcript.png)
 
 You can disable session recording with the `record_session` option:
 
@@ -224,12 +162,7 @@ You can disable session recording with the `record_session` option:
 
 ## Headless
 
-The examples above demonstrate human baselining being initiated from the
-CLI and standard task display. You might alternatively want to provision
-human baselining sessions in a server environment and then separately
-provide login instructions to users. To suppress the standard task
-display in favour of just printing out the container login information,
-pass the `--display=plain` CLI option:
+The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the `--display=plain` CLI option:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \

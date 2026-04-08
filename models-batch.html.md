@@ -1,42 +1,20 @@
 # Batch Mode
 
-
 ## Overview
 
-Inspect supports calling the batch processing APIs for
-[OpenAI](https://platform.openai.com/docs/guides/batch),
-[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing),
-[Google](https://ai.google.dev/gemini-api/docs/batch-mode),
-[xAI](https://docs.x.ai/developers/advanced-api-usage/batch-api), and
-[Together AI](https://docs.together.ai/docs/batch-inference) models.
-Batch processing has lower token costs (typically 50% of normal costs)
-and higher rate limits, but also substantially longer processing
-times—batched generations typically complete within an hour but can take
-much longer (up to 24 hours).
+Inspect supports calling the batch processing APIs for [OpenAI](https://platform.openai.com/docs/guides/batch), [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing), [Google](https://ai.google.dev/gemini-api/docs/batch-mode), [xAI](https://docs.x.ai/developers/advanced-api-usage/batch-api), and [Together AI](https://docs.together.ai/docs/batch-inference) models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).
 
-When batch processing is enabled, individual model requests are
-automatically collected and sent as batches to the provider’s batch API
-rather than making individual API calls.
+When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> When considering whether to use batch processing for an evaluation,
-> you should assess whether your usage pattern is a good fit for batch
-> APIs. Generally evaluations that have a small number of sequential
-> generations (e.g. a QA eval with a model scorer) are a good fit, as
-> these will often complete in a small number of batches without taking
-> many hours.
+> When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g. a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.
 >
-> On the other hand, evaluations with a large and/or variable number of
-> generations (e.g. agentic tasks) can often take many hours or days due
-> to both the large number of batches that must be waited on and the
-> path dependency created between requests in a batch.
+> On the other hand, evaluations with a large and/or variable number of generations (e.g. agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.
 
 ## Enabling Batch Mode
 
-Pass the `--batch` CLI option or `batch=True` to `eval()` in order to
-enable batch processing for providers that support it. The `--batch`
-option supports several formats:
+Pass the `--batch` CLI option or `batch=True` to [eval()](reference/inspect_ai.html.md#eval) in order to enable batch processing for providers that support it. The `--batch` option supports several formats:
 
 ``` bash
 # Enable batching with default configuration
@@ -56,14 +34,11 @@ eval("arc.py", model="openai/gpt-4o", batch=True)
 eval("arc.py", model="openai/gpt-4o", batch=1000)
 ```
 
-If a provider does not support batch processing the `batch` option is
-ignored for that provider.
+If a provider does not support batch processing the `batch` option is ignored for that provider.
 
 ## Batch Configuration
 
-For more advanced batch processing configuration, you can specify a
-`BatchConfig` object in Python or pass a YAML/JSON config file via the
-`--batch` option. For example:
+For more advanced batch processing configuration, you can specify a [BatchConfig](reference/inspect_ai.model.html.md#batchconfig) object in Python or pass a YAML/JSON config file via the `--batch` option. For example:
 
 ``` python
 from inspect_ai.model import BatchConfig
@@ -73,7 +48,7 @@ eval(
 )
 ```
 
-Available `BatchConfig` options include:
+Available [BatchConfig](reference/inspect_ai.model.html.md#batchconfig) options include:
 
 | Option | Description |
 |----|----|
@@ -84,61 +59,42 @@ Available `BatchConfig` options include:
 
 ## Batch Processing Flow
 
-When batch processing is enabled, the following steps are taken when
-handling generation requests:
+When batch processing is enabled, the following steps are taken when handling generation requests:
 
-1.  **Request Queuing**: Individual model requests are queued rather
-    than sent immediately
+1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
 
-2.  **Batch Formation**: Requests are grouped into batches based on size
-    limits and timeouts.
+2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
 
-3.  **Batch Submission**: Complete batches are submitted to the
-    provider’s batch API.
+3.  **Batch Submission**: Complete batches are submitted to the provider’s batch API.
 
-4.  **Status Monitoring**: Inspect periodically checks batch completion
-    status.
+4.  **Status Monitoring**: Inspect periodically checks batch completion status.
 
-5.  **Result Distribution**: When batches complete, results are
-    distributed back to the original requests
+5.  **Result Distribution**: When batches complete, results are distributed back to the original requests
 
-These steps are transparent to the caller, however do have implications
-for total evaluation time as discussed above.
+These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.
 
 ## Details and Limitations
 
-See the following documentation for additional provider-specific details
-on batch processing, including token costs, rate limits, and
-limitations:
+See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:
 
-- [Open AI Batch
-  Processing](https://platform.openai.com/docs/guides/batch)
+- [Open AI Batch Processing](https://platform.openai.com/docs/guides/batch)
 
-- [Anthropic Batch
-  Processing](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
+- [Anthropic Batch Processing](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
 
-- [Google Batch
-  Mode](https://ai.google.dev/gemini-api/docs/batch-mode)[^1]
+- [Google Batch Mode](https://ai.google.dev/gemini-api/docs/batch-mode)[^1]
 
-- [xAI Batch
-  API](https://docs.x.ai/developers/advanced-api-usage/batch-api)
+- [xAI Batch API](https://docs.x.ai/developers/advanced-api-usage/batch-api)
 
-- [Together AI Batch
-  Inference](https://docs.together.ai/docs/batch-inference)
+- [Together AI Batch Inference](https://docs.together.ai/docs/batch-inference)
 
-In general, you should keep the following limitations in mind when using
-batch processing:
+In general, you should keep the following limitations in mind when using batch processing:
 
 - Batches may take up to 24 hours to complete.
 
-- Evaluations with many turns will wait for many batches (each
-  potentially taking many hours), and samples will generally take longer
-  as requests need to additionally wait on the other requests in their
-  batch before proceeding to the next turn.
+- Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.
 
-- If you are using sandboxes then your machine’s resources may place an
-  upper limit on the number of concurrent samples you have (correlated
-  to the number of CPU cores, which will reduce batch sizes.
+- If you are using sandboxes then your machine’s resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.
 
-[^1]: Web search and thinking are not currently supported by Google’s
-    batch mode
+## Footnotes
+
+[^1]: Web search and thinking are not currently supported by Google’s batch mode

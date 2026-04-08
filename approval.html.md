@@ -1,54 +1,32 @@
 # Tool Approval
 
-
 ## Overview
 
-Inspect’s approval mode enables you to create fine-grained policies for
-approving tool calls made by models. For example, the following are all
-supported:
+Inspect’s approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:
 
 1.  All tool calls are approved by a human operator.
-2.  Select tool calls are approved by a human operator (the rest being
-    executed without approval).
-3.  Custom approvers that decide to either approve, reject, or escalate
-    to another approver.
+2.  Select tool calls are approved by a human operator (the rest being executed without approval).
+3.  Custom approvers that decide to either approve, reject, or escalate to another approver.
 
-Custom approvers are very flexible, and can implement a wide variety of
-decision schemes including informal heuristics and assessments by
-models. They could also support human approval with a custom user
-interface on a remote system (whereby approvals are sent and received
-via message queues).
+Custom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).
 
-Approvers can be specified at either the eval level or at the task
-level. The examples below will demonstrate eval-level approvers, see the
-[Task Approvers](#task-approvers) section for details on task-level
-approvers.
+Approvers can be specified at either the eval level or at the task level. The examples below will demonstrate eval-level approvers, see the [Task Approvers](#task-approvers) section for details on task-level approvers.
 
 ## Human Approver
 
-The simplest approval policy is interactive human approval of all tool
-calls. You can enable this policy by using the `--approval human` CLI
-option (or the `approval = "human"`) argument to `eval()`:
+The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to [eval()](reference/inspect_ai.html.md#eval):
 
 ``` bash
 inspect eval browser.py --approval human
 ```
 
-This example provides the model with the built-in [web
-browser](tools-standard.qmd#sec-web-browser) tool and asks it to
-navigate to a web and perform a search.
+This example provides the model with the built-in [web browser](tools-standard.html.md#sec-web-browser) tool and asks it to navigate to a web and perform a search.
 
 ## Auto Approver
 
-Whenever you enable approval mode, all tool calls must be handled in
-some fashion (otherwise they are rejected). However, approving every
-tool call can be quite tedious, and not all tool calls are necessarily
-worthy of human oversight.
+Whenever you enable approval mode, all tool calls must be handled in some fashion (otherwise they are rejected). However, approving every tool call can be quite tedious, and not all tool calls are necessarily worthy of human oversight.
 
-You can chain to together the `human` and `auto` approvers in an
-*approval policy* to only approve selected tool calls. For example, here
-we create a policy that asks for human approval of only interactive web
-browser tool calls:
+You can chain to together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
 
 ``` yaml
 approvers:
@@ -59,27 +37,15 @@ approvers:
     tools: "*"
 ```
 
-Navigational web browser tool calls (e.g. `web_browser_go`) are approved
-automatically via the catch-all `auto` approver at the end of the chain.
-Note that when listing an approver in a policy you indicate which tools
-it should handle using a glob or list of globs. These globs are prefix
-matched so the `web_browser_type` glob matches both `web_browser_type`
-and `web_browser_type_submit`.
+Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. These globs are prefix matched so the `web_browser_type` glob matches both `web_browser_type` and `web_browser_type_submit`.
 
-To use this policy, pass the path to the policy YAML file as the
-approver. For example:
+To use this policy, pass the path to the policy YAML file as the approver. For example:
 
 ``` bash
 inspect eval browser.py --approval approval.yaml
 ```
 
-You can also match on tool arguments (for tools that dispatch many
-action types). For example, here is an approval policy for the [Computer
-Tool](tools-standard.qmd#sec-computer) which allows typing and mouse
-movement but requires approval for key combos (e.g. Enter or a shortcut)
-and typing:
-
-**approval.yaml**
+You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](tools-standard.html.md#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
 
 ``` yaml
 approvers:
@@ -94,15 +60,11 @@ approvers:
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other
-arguments, we don’t end the tool match pattern with a parentheses.
+Note that since this is a prefix match and there could be other arguments, we don’t end the tool match pattern with a parentheses.
 
 ## Approvers in Code
 
-We’ve demonstrated configuring approvers via a YAML approval policy
-file—you can also provide a policy directly in code (useful if it needs
-to be more dynamic). Here’s a pure Python version of the example from
-the previous section:
+We’ve demonstrated configuring approvers via a YAML approval policy file—you can also provide a policy directly in code (useful if it needs to be more dynamic). Here’s a pure Python version of the example from the previous section:
 
 ``` python
 from inspect_ai import eval
@@ -118,8 +80,7 @@ eval("browser.py", approval=approval, trace=True)
 
 ## Task Approvers
 
-You can specify approval policies at the task level using the `approval`
-parameter when creating a `Task`. For example:
+You can specify approval policies at the task level using the `approval` parameter when creating a [Task](reference/inspect_ai.html.md#task). For example:
 
 ``` python
 from inspect_ai import Task, task
@@ -142,15 +103,11 @@ def linux_task():
     )
 ```
 
-Note that as with all of the other `Task` options, an `approval` policy
-defined at the eval-level will override a task-level approval policy.
+Note that as with all of the other [Task](reference/inspect_ai.html.md#task) options, an `approval` policy defined at the eval-level will override a task-level approval policy.
 
 ## Context Manager
 
-You can temporarily override approval policies within a running
-evaluation using the `approval()` context manager. This is useful when a
-solver or agent needs different approval policies for a specific section
-of tool calls:
+You can temporarily override approval policies within a running evaluation using the [approval()](reference/inspect_ai.approval.html.md#approval) context manager. This is useful when a solver or agent needs different approval policies for a specific section of tool calls:
 
 ``` python
 from inspect_ai.approval import approval, ApprovalPolicy, human_approver, auto_approver
@@ -165,14 +122,9 @@ async def my_solver(state):
     ...
 ```
 
-The context manager replaces the current approval policies for its
-duration and restores the previous ones on exit. Nesting is
-supported—each nested `approval()` context sets its own policies and
-correctly restores the outer policies when it exits.
+The context manager replaces the current approval policies for its duration and restores the previous ones on exit. Nesting is supported—each nested [approval()](reference/inspect_ai.approval.html.md#approval) context sets its own policies and correctly restores the outer policies when it exits.
 
-The `execute_tools()` function and the `react()` agent also accept an
-`approval` parameter for convenience, which applies approval policies
-for the duration of tool execution:
+The [execute_tools()](reference/inspect_ai.model.html.md#execute_tools) function and the [react()](reference/inspect_ai.agent.html.md#react) agent also accept an `approval` parameter for convenience, which applies approval policies for the duration of tool execution:
 
 ``` python
 from inspect_ai.model import execute_tools
@@ -196,15 +148,9 @@ agent = react(
 
 ## Custom Approvers
 
-Inspect includes two built-an approvers: `human` for interactive
-approval at the terminal and `auto` for automatically approving or
-rejecting specific tools. You can also create your own approvers that
-implement just about any scheme you can imagine.
+Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
 
-Custom approvers are functions that return an `Approval`, which consists
-of a decision and an explanation. Here is the source code for the `auto`
-approver, which just reflects back the decision that it is initialised
-with:
+Custom approvers are functions that return an [Approval](reference/inspect_ai.approval.html.md#approval), which consists of a decision and an explanation. Here is the source code for the `auto` approver, which just reflects back the decision that it is initialised with:
 
 ``` python
 @approver(name="auto")
@@ -226,14 +172,12 @@ There are five possible approval decisions:
 | Decision | Description |
 |----|----|
 | approve | The tool call is approved |
-| modify | The tool call is approved with modification (included in `modified` field of `Approver`) |
+| modify | The tool call is approved with modification (included in `modified` field of [Approver](reference/inspect_ai.approval.html.md#approver)) |
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
 
-Here’s a more complicated custom approver that implements an allow list
-for bash commands. Imagine that we’ve implemented this approver within a
-Python package named `evaltools`:
+Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named `evaltools`:
 
 ``` python
 @approver
@@ -258,9 +202,7 @@ def bash_allowlist(
     return approve
 ```
 
-Assuming we have properly [registered our
-approver](extensions.qmd#sec-extensions-approvers) as an Inspect
-extension, we can then use this it in an approval policy:
+Assuming we have properly [registered our approver](extensions.html.md#sec-extensions-approvers) as an Inspect extension, we can then use this it in an approval policy:
 
 ``` yaml
 approvers:
@@ -272,49 +214,31 @@ approvers:
     tools: "*"
 ```
 
-These approvers will make one of the following approval decisions for
-each tool call they are configured to handle:
+These approvers will make one of the following approval decisions for each tool call they are configured to handle:
 
-1)  Allow the tool call (based on the various configured options)
-2)  Disallow the tool call (because it is considered dangerous under all
-    conditions)
-3)  Escalate the tool call to the human approver.
+1.  Allow the tool call (based on the various configured options)
+2.  Disallow the tool call (because it is considered dangerous under all conditions)
+3.  Escalate the tool call to the human approver.
 
-Note that the human approver is last and is bound to all tools, so
-escalations from the bash and python allow list approvers will end up
-prompting the human approver.
+Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
 
-See the documentation on [Approver
-Extensions](extensions.qmd#sec-extensions-approvers) for additional
-details on publishing approvers within Python packages.
+See the documentation on [Approver Extensions](extensions.html.md#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
 
 ## Tool Views
 
-By default, when a tool call is presented for human approval the tool
-function and its arguments are printed. For some tool calls this is
-adequate, but some tools can benefit from enhanced presentation. For
-example:
+By default, when a tool call is presented for human approval the tool function and its arguments are printed. For some tool calls this is adequate, but some tools can benefit from enhanced presentation. For example:
 
-1)  The interactive features of the web browser tool (clicking, typing,
-    submitting forms, etc.) reference an `element_id`, however this ID
-    isn’t enough context to approve or reject the call. To compensate,
-    the web browser tool provides some additional context (a snippet of
-    the page around the `element_id` being interacted with).
+1.  The interactive features of the web browser tool (clicking, typing, submitting forms, etc.) reference an `element_id`, however this ID isn’t enough context to approve or reject the call. To compensate, the web browser tool provides some additional context (a snippet of the page around the `element_id` being interacted with).
 
     ![](images/web-browser-tool-view.png)
 
-2)  The `bash()` and `python()` tools take their input as a string,
-    which especially for multi-line commands can be difficult to read
-    and understand. To compensate, these tools provide an alternative
-    view of the call that formats the code and as multi-line syntax
-    highlighted code block.
+2.  The [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
 
     ![](images/python-tool-view.png)
 
 ### Example
 
-Here’s how you might implement a custom code block viewer for a bash
-tool:
+Here’s how you might implement a custom code block viewer for a bash tool:
 
 ``` python
 from inspect_ai.tool import (
@@ -340,12 +264,6 @@ def bash(timeout: int | None = None) -> Tool:
     ...
 ```
 
-The `ToolCallViewer` gets passed the `ToolCall` and returns a
-`ToolCallView` that provides one or both of `context` (additional
-information for understand the call) and `call` (alternate rendering of
-the call). In the case of the bash tool we provide a markdown code block
-rendering of the bash code to be executed.
+The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
 
-The `context` is typically used for stateful tools that need to present
-some context from the current state. For example, the web browsing tool
-provides a snippet from the currently loaded page.
+The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.

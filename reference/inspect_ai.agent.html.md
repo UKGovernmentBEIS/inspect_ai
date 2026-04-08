@@ -1,32 +1,22 @@
 # inspect_ai.agent
 
+Agent scaffolds and protocol.
 
 ## Agents
 
 ### react
 
-Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning
-and Acting in Language Models](https://arxiv.org/abs/2210.03629).
+Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
-Provide a `name` and `description` for the agent if you plan on using it
-in a multi-agent system (this is so other agents can clearly identify
-its name and purpose). These fields are not required when using
-`react()` as a top-level solver.
+Provide a `name` and `description` for the agent if you plan on using it in a multi-agent system (this is so other agents can clearly identify its name and purpose). These fields are not required when using [react()](../reference/inspect_ai.agent.html.md#react) as a top-level solver.
 
-The agent runs a tool use loop until the model submits an answer using
-the `submit()` tool. Use `instructions` to tailor the agent’s system
-message (the default `instructions` provides a basic ReAct prompt).
+The agent runs a tool use loop until the model submits an answer using the `submit()` tool. Use `instructions` to tailor the agent’s system message (the default `instructions` provides a basic ReAct prompt).
 
-Use the `attempts` option to enable additional submissions if the
-initial submission(s) are incorrect (by default, no additional attempts
-are permitted).
+Use the `attempts` option to enable additional submissions if the initial submission(s) are incorrect (by default, no additional attempts are permitted).
 
-When using the `submit()` tool, the model will be urged to continue if
-it fails to call a tool. When not using a `submit()` tool, the agent
-will terminate if it fails to call a tool. Customise this behavior using
-the `on_continue` option.
+When using the `submit()` tool, the model will be urged to continue if it fails to call a tool. When not using a `submit()` tool, the agent will terminate if it fails to call a tool. Customise this behavior using the `on_continue` option.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_react.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_react.py#L45)
 
 ``` python
 @agent
@@ -48,76 +38,50 @@ def react(
 ```
 
 `name` str \| None  
-Agent name (required when using with `handoff()` or `as_tool()`)
+Agent name (required when using with [handoff()](../reference/inspect_ai.agent.html.md#handoff) or [as_tool()](../reference/inspect_ai.agent.html.md#as_tool))
 
 `description` str \| None  
-Agent description (required when using with `handoff()` or `as_tool()`)
+Agent description (required when using with [handoff()](../reference/inspect_ai.agent.html.md#handoff) or [as_tool()](../reference/inspect_ai.agent.html.md#as_tool))
 
-`prompt` str \| [AgentPrompt](inspect_ai.agent.qmd#agentprompt) \| None  
-Prompt for agent. Includes agent-specific contextual `instructions` as
-well as an optional `assistant_prompt` and `handoff_prompt` (for agents
-that use handoffs). both are provided by default but can be removed or
-customized). Pass `str` to specify the instructions and use the defaults
-for handoff and prompt messages.
+`prompt` str \| [AgentPrompt](../reference/inspect_ai.agent.html.md#agentprompt) \| None  
+Prompt for agent. Includes agent-specific contextual `instructions` as well as an optional `assistant_prompt` and `handoff_prompt` (for agents that use handoffs). both are provided by default but can be removed or customized). Pass `str` to specify the instructions and use the defaults for handoff and prompt messages.
 
-`tools` Sequence\[[Tool](inspect_ai.tool.qmd#tool) \| [ToolDef](inspect_ai.tool.qmd#tooldef) \| [ToolSource](inspect_ai.tool.qmd#toolsource)\] \| None  
+`tools` Sequence\[[Tool](../reference/inspect_ai.tool.html.md#tool) \| [ToolDef](../reference/inspect_ai.tool.html.md#tooldef) \| [ToolSource](../reference/inspect_ai.tool.html.md#toolsource)\] \| None  
 Tools available for the agent.
 
-`model` str \| [Model](inspect_ai.model.qmd#model) \| [Agent](inspect_ai.agent.qmd#agent) \| None  
+`model` str \| [Model](../reference/inspect_ai.model.html.md#model) \| [Agent](../reference/inspect_ai.agent.html.md#agent) \| None  
 Model to use for agent (defaults to currently evaluated model).
 
-`attempts` int \| [AgentAttempts](inspect_ai.agent.qmd#agentattempts)  
+`attempts` int \| [AgentAttempts](../reference/inspect_ai.agent.html.md#agentattempts)  
 Configure agent to make multiple attempts.
 
-`submit` [AgentSubmit](inspect_ai.agent.qmd#agentsubmit) \| bool \| None  
-Use a submit tool for reporting the final answer. Defaults to `True`
-which uses the default submit behavior. Pass an `AgentSubmit` to
-customize the behavior or pass `False` to disable the submit tool.
+`submit` [AgentSubmit](../reference/inspect_ai.agent.html.md#agentsubmit) \| bool \| None  
+Use a submit tool for reporting the final answer. Defaults to `True` which uses the default submit behavior. Pass an [AgentSubmit](../reference/inspect_ai.agent.html.md#agentsubmit) to customize the behavior or pass `False` to disable the submit tool.
 
-`on_continue` str \| [AgentContinue](inspect_ai.agent.qmd#agentcontinue) \| None  
-Message to play back to the model to urge it to continue when it stops
-calling tools. Use the placeholder {submit} to refer to the submit tool
-within the message. Alternatively, an async function to call to
-determine whether the loop should continue and what message to play
-back. Note that this function is called on *every* iteration of the loop
-so if you only want to send a message back when the model fails to call
-tools you need to code that behavior explicitly.
+`on_continue` str \| [AgentContinue](../reference/inspect_ai.agent.html.md#agentcontinue) \| None  
+Message to play back to the model to urge it to continue when it stops calling tools. Use the placeholder {submit} to refer to the submit tool within the message. Alternatively, an async function to call to determine whether the loop should continue and what message to play back. Note that this function is called on *every* iteration of the loop so if you only want to send a message back when the model fails to call tools you need to code that behavior explicitly.
 
 `retry_refusals` int \| None  
 Should refusals be retried? (pass number of times to retry)
 
-`compaction` [CompactionStrategy](inspect_ai.model.qmd#compactionstrategy) \| None  
-Compact the conversation when it it is close to overflowing the model’s
-context window. See
-[Compaction](https://inspect.aisi.org.uk/compaction.html) for details on
-compaction strategies.
+`compaction` [CompactionStrategy](../reference/inspect_ai.model.html.md#compactionstrategy) \| None  
+Compact the conversation when it it is close to overflowing the model’s context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
 
-`truncation` Literal\['auto', 'disabled'\] \| [MessageFilter](inspect_ai.analysis.qmd#messagefilter)  
-Truncate the conversation history in the event of a context window
-overflow. Defaults to “disabled” which does no truncation. Pass “auto”
-to use `trim_messages()` to reduce the context size. Pass a
-`MessageFilter` function to do custom truncation.
+`truncation` Literal\['auto', 'disabled'\] \| [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter)  
+Truncate the conversation history in the event of a context window overflow. Defaults to “disabled” which does no truncation. Pass “auto” to use [trim_messages()](../reference/inspect_ai.model.html.md#trim_messages) to reduce the context size. Pass a [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) function to do custom truncation.
 
-`approval` list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None  
-Approval policies to use for tool calls within this agent. Temporarily
-replaces any active approval policies for the duration of tool
-execution.
+`approval` list\[[ApprovalPolicy](../reference/inspect_ai.approval.html.md#approvalpolicy)\] \| None  
+Approval policies to use for tool calls within this agent. Temporarily replaces any active approval policies for the duration of tool execution.
 
 ### human_cli
 
 Human CLI agent for tasks that run in a sandbox.
 
-The Human CLI agent installs agent task tools in the default sandbox and
-presents the user with both task instructions and documentation for the
-various tools (e.g. `task submit`, `task start`, `task stop`
-`task instructions`, etc.). A human agent panel is displayed with
-instructions for logging in to the sandbox.
+The Human CLI agent installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g. `task submit`, `task start`, `task stop` `task instructions`, etc.). A human agent panel is displayed with instructions for logging in to the sandbox.
 
-If the user is running in VS Code with the Inspect extension, they will
-also be presented with links to login to the sandbox using a VS Code
-Window or Terminal.
+If the user is running in VS Code with the Inspect extension, they will also be presented with links to login to the sandbox using a VS Code Window or Terminal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_human/agent.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_human/agent.py#L16)
 
 ``` python
 @agent
@@ -132,9 +96,7 @@ def human_cli(
 ```
 
 `answer` bool \| str  
-Is an explicit answer required for this task or is it scored based on
-files in the container? Pass a `str` with a regex to validate that the
-answer matches the expected format.
+Is an explicit answer required for this task or is it scored based on files in the container? Pass a `str` with a regex to validate that the answer matches the expected format.
 
 `intermediate_scoring` bool  
 Allow the human agent to check their score while working.
@@ -149,8 +111,7 @@ User to login as. Defaults to the sandbox environment’s default user.
 Additional instructions beyond the default task command instructions.
 
 `bashrc` str \| None  
-Additional content to include in the .bashrc file for the human cli
-shell.
+Additional content to include in the .bashrc file for the human cli shell.
 
 ## Execution
 
@@ -158,7 +119,7 @@ shell.
 
 Create a tool that enables models to handoff to agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_handoff.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_handoff.py#L19)
 
 ``` python
 def handoff(
@@ -172,45 +133,34 @@ def handoff(
 ) -> Tool
 ```
 
-`agent` [Agent](inspect_ai.agent.qmd#agent)  
+`agent` [Agent](../reference/inspect_ai.agent.html.md#agent)  
 Agent to hand off to.
 
 `description` str \| None  
 Handoff tool description (defaults to agent description)
 
-`input_filter` [MessageFilter](inspect_ai.analysis.qmd#messagefilter) \| None  
-Filter to modify the message history before calling the tool. Use the
-built-in `remove_tools` filter to remove all tool calls. Alternatively
-specify another `MessageFilter` function or list of `MessageFilter`
-functions.
+`input_filter` [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) \| None  
+Filter to modify the message history before calling the tool. Use the built-in `remove_tools` filter to remove all tool calls. Alternatively specify another [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) function or list of [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) functions.
 
-`output_filter` [MessageFilter](inspect_ai.analysis.qmd#messagefilter) \| None  
-Filter to modify the message history after calling the tool. Defaults to
-`content_only()`, which produces a history that should be safe to read
-by other models (tool calls are converted to text, and both system
-messages and reasoning blocks are removed). Alternatively specify
-another `MessageFilter` function or list of `MessageFilter` functions.
+`output_filter` [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) \| None  
+Filter to modify the message history after calling the tool. Defaults to [content_only()](../reference/inspect_ai.agent.html.md#content_only), which produces a history that should be safe to read by other models (tool calls are converted to text, and both system messages and reasoning blocks are removed). Alternatively specify another [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) function or list of [MessageFilter](../reference/inspect_ai.analysis.html.md#messagefilter) functions.
 
 `tool_name` str \| None  
 Alternate tool name (defaults to `transfer_to_{agent_name}`)
 
-`limits` list\[[Limit](inspect_ai.util.qmd#limit)\]  
-List of limits to apply to the agent. Limits are scoped to each handoff
-to the agent. Should a limit be exceeded, the agent stops and a user
-message is appended explaining that a limit was exceeded.
+`limits` list\[[Limit](../reference/inspect_ai.util.html.md#limit)\]  
+List of limits to apply to the agent. Limits are scoped to each handoff to the agent. Should a limit be exceeded, the agent stops and a user message is appended explaining that a limit was exceeded.
 
 `**agent_kwargs` Any  
-Arguments to curry to `Agent` function (arguments provided here will not
-be presented to the model as part of the tool interface).
+Arguments to curry to [Agent](../reference/inspect_ai.agent.html.md#agent) function (arguments provided here will not be presented to the model as part of the tool interface).
 
 ### run
 
 Run an agent.
 
-The input messages(s) will be copied prior to running so are not
-modified in place.
+The input messages(s) will be copied prior to running so are not modified in place.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_run.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_run.py#L34)
 
 ``` python
 async def run(
@@ -223,19 +173,17 @@ async def run(
 ) -> AgentState | tuple[AgentState, LimitExceededError | None]
 ```
 
-`agent` [Agent](inspect_ai.agent.qmd#agent)  
+`agent` [Agent](../reference/inspect_ai.agent.html.md#agent)  
 Agent to run.
 
-`input` str \| list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\] \| [AgentState](inspect_ai.agent.qmd#agentstate)  
-Agent input (string, list of messages, or an `AgentState`).
+`input` str \| list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\] \| [AgentState](../reference/inspect_ai.agent.html.md#agentstate)  
+Agent input (string, list of messages, or an [AgentState](../reference/inspect_ai.agent.html.md#agentstate)).
 
-`limits` list\[[Limit](inspect_ai.util.qmd#limit)\] \| None  
-List of limits to apply to the agent. Should one of these limits be
-exceeded, the `LimitExceededError` is caught and returned.
+`limits` list\[[Limit](../reference/inspect_ai.util.html.md#limit)\] \| None  
+List of limits to apply to the agent. Should one of these limits be exceeded, the [LimitExceededError](../reference/inspect_ai.util.html.md#limitexceedederror) is caught and returned.
 
 `name` str \| None  
-Optional display name for the transcript entry. If not provided, the
-agent’s name as defined in the registry will be used.
+Optional display name for the transcript entry. If not provided, the agent’s name as defined in the registry will be used.
 
 `**agent_kwargs` Any  
 Additional arguments to pass to agent.
@@ -244,13 +192,9 @@ Additional arguments to pass to agent.
 
 Convert an agent to a tool.
 
-By default the model will see all of the agent’s arguments as tool
-arguments (save for `state` which is converted to an `input` arguments
-of type `str`). Provide optional `agent_kwargs` to mask out agent
-parameters with default values (these parameters will not be presented
-to the model as part of the tool interface)
+By default the model will see all of the agent’s arguments as tool arguments (save for `state` which is converted to an `input` arguments of type `str`). Provide optional `agent_kwargs` to mask out agent parameters with default values (these parameters will not be presented to the model as part of the tool interface)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_as_tool.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_as_tool.py#L21)
 
 ``` python
 @tool
@@ -262,45 +206,38 @@ def as_tool(
 ) -> Tool
 ```
 
-`agent` [Agent](inspect_ai.agent.qmd#agent)  
+`agent` [Agent](../reference/inspect_ai.agent.html.md#agent)  
 Agent to convert.
 
 `description` str \| None  
 Tool description (defaults to agent description)
 
-`limits` list\[[Limit](inspect_ai.util.qmd#limit)\]  
-List of limits to apply to the agent. Should a limit be exceeded, the
-tool call ends and returns an error explaining that a limit was
-exceeded.
+`limits` list\[[Limit](../reference/inspect_ai.util.html.md#limit)\]  
+List of limits to apply to the agent. Should a limit be exceeded, the tool call ends and returns an error explaining that a limit was exceeded.
 
 `**agent_kwargs` Any  
-Arguments to curry to Agent function (arguments provided here will not
-be presented to the model as part of the tool interface).
+Arguments to curry to Agent function (arguments provided here will not be presented to the model as part of the tool interface).
 
 ### as_solver
 
 Convert an agent to a solver.
 
-Note that agents used as solvers will only receive their first parameter
-(`state`). Any other parameters must provide appropriate defaults or be
-explicitly specified in `agent_kwargs`
+Note that agents used as solvers will only receive their first parameter (`state`). Any other parameters must provide appropriate defaults or be explicitly specified in `agent_kwargs`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_as_solver.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_as_solver.py#L25)
 
 ``` python
 def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver
 ```
 
-`agent` [Agent](inspect_ai.agent.qmd#agent)  
+`agent` [Agent](../reference/inspect_ai.agent.html.md#agent)  
 Agent to convert.
 
-`limits` list\[[Limit](inspect_ai.util.qmd#limit)\]  
-List of limits to apply to the agent. Should a limit be exceeded, the
-Sample ends and proceeds to scoring.
+`limits` list\[[Limit](../reference/inspect_ai.util.html.md#limit)\]  
+List of limits to apply to the agent. Should a limit be exceeded, the Sample ends and proceeds to scoring.
 
 `**agent_kwargs` Any  
-Arguments to curry to Agent function (required if the agent has
-parameters without default values).
+Arguments to curry to Agent function (required if the agent has parameters without default values).
 
 ## Bridging
 
@@ -308,16 +245,11 @@ parameters without default values).
 
 Agent bridge.
 
-Provide Inspect integration for 3rd party agents that use the the OpenAI
-Completions API, OpenAI Responses API, or Anthropic API. The bridge
-patches the OpenAI and Anthropic client libraries to redirect any model
-named “inspect” (or prefaced with “inspect/” for non-default models)
-into the Inspect model API.
+Provide Inspect integration for 3rd party agents that use the the OpenAI Completions API, OpenAI Responses API, or Anthropic API. The bridge patches the OpenAI and Anthropic client libraries to redirect any model named “inspect” (or prefaced with “inspect/” for non-default models) into the Inspect model API.
 
-See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html)
-documentation for additional details.
+See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html) documentation for additional details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/bridge.py#L85)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/bridge.py#L85)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -332,42 +264,29 @@ async def agent_bridge(
 ) -> AsyncGenerator[AgentBridge, None]
 ```
 
-`state` [AgentState](inspect_ai.agent.qmd#agentstate) \| None  
-Initial state for agent bridge. Used as a basis for yielding an updated
-state based on traffic over the bridge.
+`state` [AgentState](../reference/inspect_ai.agent.html.md#agentstate) \| None  
+Initial state for agent bridge. Used as a basis for yielding an updated state based on traffic over the bridge.
 
-`filter` [GenerateFilter](inspect_ai.model.qmd#generatefilter) \| None  
+`filter` [GenerateFilter](../reference/inspect_ai.model.html.md#generatefilter) \| None  
 Filter for bridge model generation.
 
 `retry_refusals` int \| None  
 Should refusals be retried? (pass number of times to retry)
 
-`compaction` [CompactionStrategy](inspect_ai.model.qmd#compactionstrategy) \| None  
-Compact the conversation when it it is close to overflowing the model’s
-context window. See
-[Compaction](https://inspect.aisi.org.uk/compaction.html) for details on
-compaction strategies.
+`compaction` [CompactionStrategy](../reference/inspect_ai.model.html.md#compactionstrategy) \| None  
+Compact the conversation when it it is close to overflowing the model’s context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
 
-`web_search` [WebSearchProviders](inspect_ai.tool.qmd#websearchproviders) \| None  
-Configuration for mapping model internal web_search tools to Inspect. By
-default, will map to the internal provider of the target model
-(supported for OpenAI, Anthropic, Gemini, Grok, and Perplexity). Pass an
-alternate configuration to use to use an external provider like Tavili
-or Exa for models that don’t support internal search.
+`web_search` [WebSearchProviders](../reference/inspect_ai.tool.html.md#websearchproviders) \| None  
+Configuration for mapping model internal web_search tools to Inspect. By default, will map to the internal provider of the target model (supported for OpenAI, Anthropic, Gemini, Grok, and Perplexity). Pass an alternate configuration to use to use an external provider like Tavili or Exa for models that don’t support internal search.
 
-`code_execution` [CodeExecutionProviders](inspect_ai.tool.qmd#codeexecutionproviders) \| None  
-Configuration for mapping model internal code_execution tools to
-Inspect. By default, will map to the internal provider of the target
-model (supported for OpenAI, Anthropic, Google, and Grok). If the
-provider does not support native code execution then the bash() tool
-will be provided (note that this requires a sandbox by declared for the
-task).
+`code_execution` [CodeExecutionProviders](../reference/inspect_ai.tool.html.md#codeexecutionproviders) \| None  
+Configuration for mapping model internal code_execution tools to Inspect. By default, will map to the internal provider of the target model (supported for OpenAI, Anthropic, Google, and Grok). If the provider does not support native code execution then the bash() tool will be provided (note that this requires a sandbox by declared for the task).
 
 ### AgentBridge
 
 Agent bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/types.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/types.py#L23)
 
 ``` python
 class AgentBridge
@@ -375,34 +294,28 @@ class AgentBridge
 
 #### Attributes
 
-`state` [AgentState](inspect_ai.agent.qmd#agentstate)  
+`state` [AgentState](../reference/inspect_ai.agent.html.md#agentstate)  
 State updated from messages traveling over the bridge.
 
-`filter` [GenerateFilter](inspect_ai.model.qmd#generatefilter) \| None  
+`filter` [GenerateFilter](../reference/inspect_ai.model.html.md#generatefilter) \| None  
 Filter for bridge model generation.
 
-A filter may substitute for the default model generation by returning a
-ModelOutput or return None to allow default processing to continue.
+A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
 
 `model` str \| None  
-Fallback model for requests that don’t use `inspect` or `inspect/`
-prefixed names. `None` means no fallback (the request model name is used
-as-is).
+Fallback model for requests that don’t use `inspect` or `inspect/` prefixed names. `None` means no fallback (the request model name is used as-is).
 
-`model_aliases` dict\[str, str \| [Model](inspect_ai.model.qmd#model)\]  
-Map of model name aliases. When a request uses a name that appears here,
-the corresponding value (a `Model` instance or model spec string) is
-used instead. Checked before the fallback `model`.
+`model_aliases` dict\[str, str \| [Model](../reference/inspect_ai.model.html.md#model)\]  
+Map of model name aliases. When a request uses a name that appears here, the corresponding value (a [Model](../reference/inspect_ai.model.html.md#model) instance or model spec string) is used instead. Checked before the fallback `model`.
 
 #### Methods
 
 compaction  
 Compaction function for bridge.
 
-Note: This will always return the same compaction function for a given
-instance of the bridge.
+Note: This will always return the same compaction function for a given instance of the bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/types.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/types.py#L67)
 
 ``` python
 def compaction(
@@ -410,30 +323,21 @@ def compaction(
 ) -> Compact | None
 ```
 
-`tools` Sequence\[[ToolInfo](inspect_ai.tool.qmd#toolinfo) \| [Tool](inspect_ai.tool.qmd#tool)\]  
+`tools` Sequence\[[ToolInfo](../reference/inspect_ai.tool.html.md#toolinfo) \| [Tool](../reference/inspect_ai.tool.html.md#tool)\]  
 Tool definitions (included in token count as they consume context).
 
-`model` [Model](inspect_ai.model.qmd#model)  
+`model` [Model](../reference/inspect_ai.model.html.md#model)  
 Target model for compacted input.
 
 ### sandbox_agent_bridge
 
 Sandbox agent bridge.
 
-Provide Inspect integration for agents running inside sandboxes. Runs a
-proxy server in the container that provides REST endpoints for the
-OpenAI Completions API, OpenAI Responses API, Anthropic API, and Google
-API. This proxy server runs on port 13131 and routes requests to the
-current Inspect model provider.
+Provide Inspect integration for agents running inside sandboxes. Runs a proxy server in the container that provides REST endpoints for the OpenAI Completions API, OpenAI Responses API, Anthropic API, and Google API. This proxy server runs on port 13131 and routes requests to the current Inspect model provider.
 
-You should set `OPENAI_BASE_URL=http://localhost:13131/v1`,
-`ANTHROPIC_BASE_URL=http://localhost:13131`, or
-`GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing the agent
-within the container and ensure that your agent targets the model name
-“inspect” when calling OpenAI, Anthropic, or Google. Use “inspect/” to
-target other Inspect model providers.
+You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing the agent within the container and ensure that your agent targets the model name “inspect” when calling OpenAI, Anthropic, or Google. Use “inspect/” to target other Inspect model providers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L36)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -453,31 +357,23 @@ async def sandbox_agent_bridge(
 ) -> AsyncIterator[SandboxAgentBridge]
 ```
 
-`state` [AgentState](inspect_ai.agent.qmd#agentstate) \| None  
-Initial state for agent bridge. Used as a basis for yielding an updated
-state based on traffic over the bridge.
+`state` [AgentState](../reference/inspect_ai.agent.html.md#agentstate) \| None  
+Initial state for agent bridge. Used as a basis for yielding an updated state based on traffic over the bridge.
 
 `model` str \| None  
-Fallback model for requests that don’t use “inspect” or an “inspect/”
-prefixed model (defaults to “inspect”, can also specify e.g.
-“inspect/openai/gpt-4o” to force another specific model).
+Fallback model for requests that don’t use “inspect” or an “inspect/” prefixed model (defaults to “inspect”, can also specify e.g. “inspect/openai/gpt-4o” to force another specific model).
 
-`model_aliases` dict\[str, str \| [Model](inspect_ai.model.qmd#model)\] \| None  
-Map of model name aliases. When a request uses a name that appears here,
-the corresponding value (a `Model` instance or model spec string) is
-used instead. Checked before the fallback `model`.
+`model_aliases` dict\[str, str \| [Model](../reference/inspect_ai.model.html.md#model)\] \| None  
+Map of model name aliases. When a request uses a name that appears here, the corresponding value (a [Model](../reference/inspect_ai.model.html.md#model) instance or model spec string) is used instead. Checked before the fallback `model`.
 
-`filter` [GenerateFilter](inspect_ai.model.qmd#generatefilter) \| None  
+`filter` [GenerateFilter](../reference/inspect_ai.model.html.md#generatefilter) \| None  
 Filter for bridge model generation.
 
 `retry_refusals` int \| None  
 Should refusals be retried? (pass number of times to retry)
 
-`compaction` [CompactionStrategy](inspect_ai.model.qmd#compactionstrategy) \| None  
-Compact the conversation when it it is close to overflowing the model’s
-context window. See
-[Compaction](https://inspect.aisi.org.uk/compaction.html) for details on
-compaction strategies.
+`compaction` [CompactionStrategy](../reference/inspect_ai.model.html.md#compactionstrategy) \| None  
+Compact the conversation when it it is close to overflowing the model’s context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
 
 `sandbox` str \| None  
 Sandbox to run model proxy server within.
@@ -485,33 +381,20 @@ Sandbox to run model proxy server within.
 `port` int  
 Port to run proxy server on.
 
-`web_search` [WebSearchProviders](inspect_ai.tool.qmd#websearchproviders) \| None  
-Configuration for mapping model internal web_search tools to Inspect. By
-default, will map to the internal provider of the target model
-(supported for OpenAI, Anthropic, Gemini, Grok, and Perplexity). Pass an
-alternate configuration to use to use an external provider like Tavily
-or Exa for models that don’t support internal search.
+`web_search` [WebSearchProviders](../reference/inspect_ai.tool.html.md#websearchproviders) \| None  
+Configuration for mapping model internal web_search tools to Inspect. By default, will map to the internal provider of the target model (supported for OpenAI, Anthropic, Gemini, Grok, and Perplexity). Pass an alternate configuration to use to use an external provider like Tavily or Exa for models that don’t support internal search.
 
-`code_execution` [CodeExecutionProviders](inspect_ai.tool.qmd#codeexecutionproviders) \| None  
-Configuration for mapping model internal code_execution tools to
-Inspect. By default, will map to the internal provider of the target
-model (supported for OpenAI, Anthropic, Google, and Grok). If the
-provider does not support native code execution then the bash() tool
-will be provided (note that this requires a sandbox by declared for the
-task).
+`code_execution` [CodeExecutionProviders](../reference/inspect_ai.tool.html.md#codeexecutionproviders) \| None  
+Configuration for mapping model internal code_execution tools to Inspect. By default, will map to the internal provider of the target model (supported for OpenAI, Anthropic, Google, and Grok). If the provider does not support native code execution then the bash() tool will be provided (note that this requires a sandbox by declared for the task).
 
-`bridged_tools` Sequence\[[BridgedToolsSpec](inspect_ai.agent.qmd#bridgedtoolsspec)\] \| None  
-Host-side Inspect tools to expose to the sandboxed agent via MCP
-protocol. Each BridgedToolsSpec creates an MCP server that makes the
-specified tools available to the agent. The resolved
-MCPServerConfigStdio objects to pass to CLI agents are available via
-bridge.mcp_server_configs.
+`bridged_tools` Sequence\[[BridgedToolsSpec](../reference/inspect_ai.agent.html.md#bridgedtoolsspec)\] \| None  
+Host-side Inspect tools to expose to the sandboxed agent via MCP protocol. Each BridgedToolsSpec creates an MCP server that makes the specified tools available to the agent. The resolved MCPServerConfigStdio objects to pass to CLI agents are available via bridge.mcp_server_configs.
 
 ### SandboxAgentBridge
 
 Sandbox agent bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/sandbox/types.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/sandbox/types.py#L9)
 
 ``` python
 class SandboxAgentBridge(AgentBridge)
@@ -519,33 +402,27 @@ class SandboxAgentBridge(AgentBridge)
 
 #### Attributes
 
-`state` [AgentState](inspect_ai.agent.qmd#agentstate)  
+`state` [AgentState](../reference/inspect_ai.agent.html.md#agentstate)  
 State updated from messages traveling over the bridge.
 
-`filter` [GenerateFilter](inspect_ai.model.qmd#generatefilter) \| None  
+`filter` [GenerateFilter](../reference/inspect_ai.model.html.md#generatefilter) \| None  
 Filter for bridge model generation.
 
-A filter may substitute for the default model generation by returning a
-ModelOutput or return None to allow default processing to continue.
+A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
 
 `model` str \| None  
-Fallback model for requests that don’t use `inspect` or `inspect/`
-prefixed names. `None` means no fallback (the request model name is used
-as-is).
+Fallback model for requests that don’t use `inspect` or `inspect/` prefixed names. `None` means no fallback (the request model name is used as-is).
 
-`model_aliases` dict\[str, str \| [Model](inspect_ai.model.qmd#model)\]  
-Map of model name aliases. When a request uses a name that appears here,
-the corresponding value (a `Model` instance or model spec string) is
-used instead. Checked before the fallback `model`.
+`model_aliases` dict\[str, str \| [Model](../reference/inspect_ai.model.html.md#model)\]  
+Map of model name aliases. When a request uses a name that appears here, the corresponding value (a [Model](../reference/inspect_ai.model.html.md#model) instance or model spec string) is used instead. Checked before the fallback `model`.
 
 `port` int  
 Model proxy server port.
 
 `mcp_server_configs` list\[MCPServerConfigHTTP\]  
-MCP server configs for bridged tools (resolved from bridged_tools
-parameter).
+MCP server configs for bridged tools (resolved from bridged_tools parameter).
 
-`bridged_tools` dict\[str, dict\[str, [Tool](inspect_ai.tool.qmd#tool)\]\]  
+`bridged_tools` dict\[str, dict\[str, [Tool](../reference/inspect_ai.tool.html.md#tool)\]\]  
 Registry of bridged tools by server name, then tool name.
 
 #### Methods
@@ -553,10 +430,9 @@ Registry of bridged tools by server name, then tool name.
 compaction  
 Compaction function for bridge.
 
-Note: This will always return the same compaction function for a given
-instance of the bridge.
+Note: This will always return the same compaction function for a given instance of the bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/types.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/types.py#L67)
 
 ``` python
 def compaction(
@@ -564,20 +440,19 @@ def compaction(
 ) -> Compact | None
 ```
 
-`tools` Sequence\[[ToolInfo](inspect_ai.tool.qmd#toolinfo) \| [Tool](inspect_ai.tool.qmd#tool)\]  
+`tools` Sequence\[[ToolInfo](../reference/inspect_ai.tool.html.md#toolinfo) \| [Tool](../reference/inspect_ai.tool.html.md#tool)\]  
 Tool definitions (included in token count as they consume context).
 
-`model` [Model](inspect_ai.model.qmd#model)  
+`model` [Model](../reference/inspect_ai.model.html.md#model)  
 Target model for compacted input.
 
 ### BridgedToolsSpec
 
 Specification for host-side tools to expose via MCP bridge.
 
-This allows Inspect tools defined on the host to be exposed to agents
-running inside a sandbox via MCP.
+This allows Inspect tools defined on the host to be exposed to agents running inside a sandbox via MCP.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py#L9)
 
 ``` python
 @dataclass
@@ -589,7 +464,7 @@ class BridgedToolsSpec
 `name` str  
 Name of the MCP server (visible to agent as mcp\_*{name}*\*).
 
-`tools` Sequence\[[Tool](inspect_ai.tool.qmd#tool)\]  
+`tools` Sequence\[[Tool](../reference/inspect_ai.tool.html.md#tool)\]  
 Inspect Tool objects to expose via MCP.
 
 ## Filters
@@ -598,9 +473,7 @@ Inspect Tool objects to expose via MCP.
 
 Remove (or convert) message history to pure content.
 
-This is the default filter for agent handoffs and is intended to present
-a history that doesn’t confound the parent model with tools it doesn’t
-have, reasoning traces it didn’t create, etc.
+This is the default filter for agent handoffs and is intended to present a history that doesn’t confound the parent model with tools it doesn’t have, reasoning traces it didn’t create, etc.
 
 - Removes system messages
 - Removes reasoning traces
@@ -608,49 +481,48 @@ have, reasoning traces it didn’t create, etc.
 - Converts tool calls to user messages
 - Converts server tool calls to text
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L22)
 
 ``` python
 async def content_only(messages: list[ChatMessage]) -> list[ChatMessage]
 ```
 
-`messages` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`messages` list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 Messages to filter.
 
 ### last_message
 
 Remove all but the last message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L119)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L119)
 
 ``` python
 async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]
 ```
 
-`messages` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`messages` list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 Target messages.
 
 ### remove_tools
 
 Remove tool calls from messages.
 
-Removes all instances of `ChatMessageTool` as well as the `tool_calls`
-field from `ChatMessageAssistant`.
+Removes all instances of [ChatMessageTool](../reference/inspect_ai.model.html.md#chatmessagetool) as well as the `tool_calls` field from [ChatMessageAssistant](../reference/inspect_ai.model.html.md#chatmessageassistant).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L96)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L96)
 
 ``` python
 async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]
 ```
 
-`messages` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`messages` list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 Messages to remove tool calls from.
 
 ### MessageFilter
 
 Filter messages sent to or received from agent handoffs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_filter.py#L18)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_filter.py#L18)
 
 ``` python
 MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
@@ -662,17 +534,13 @@ MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
 
 Agents perform tasks and participate in conversations.
 
-Agents are similar to tools however they are participants in
-conversation history and can optionally append messages and model output
-to the current conversation state.
+Agents are similar to tools however they are participants in conversation history and can optionally append messages and model output to the current conversation state.
 
-You can give the model a tool that enables handoff to your agent using
-the `handoff()` function.
+You can give the model a tool that enables handoff to your agent using the [handoff()](../reference/inspect_ai.agent.html.md#handoff) function.
 
-You can create a simple tool (that receives a string as input) from an
-agent using `as_tool()`.
+You can create a simple tool (that receives a string as input) from an agent using [as_tool()](../reference/inspect_ai.agent.html.md#as_tool).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L93)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L93)
 
 ``` python
 class Agent(Protocol):
@@ -684,7 +552,7 @@ class Agent(Protocol):
     ) -> AgentState
 ```
 
-`state` [AgentState](inspect_ai.agent.qmd#agentstate)  
+`state` [AgentState](../reference/inspect_ai.agent.html.md#agentstate)  
 Agent state (conversation history and last model output)
 
 `*args` Any  
@@ -697,7 +565,7 @@ Keyword arguments for the agent.
 
 Agent state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L34)
 
 ``` python
 class AgentState
@@ -705,17 +573,17 @@ class AgentState
 
 #### Attributes
 
-`messages` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`messages` list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 Conversation history.
 
-`output` [ModelOutput](inspect_ai.model.qmd#modeloutput)  
+`output` [ModelOutput](../reference/inspect_ai.model.html.md#modeloutput)  
 Model output.
 
 ### agent
 
 Decorator for registering agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L141)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L141)
 
 ``` python
 def agent(
@@ -726,13 +594,11 @@ def agent(
 ) -> Callable[P, Agent] | Callable[[Callable[P, Agent]], Callable[P, Agent]]
 ```
 
-`func` Callable\[P, [Agent](inspect_ai.agent.qmd#agent)\] \| None  
+`func` Callable\[P, [Agent](../reference/inspect_ai.agent.html.md#agent)\] \| None  
 Agent function
 
 `name` str \| None  
-Optional name for agent. If the decorator has no name argument then the
-name of the agent creation function will be used as the name of the
-agent.
+Optional name for agent. If the decorator has no name argument then the name of the agent creation function will be used as the name of the agent.
 
 `description` str \| None  
 Description for the agent when used as an ordinary tool or handoff tool.
@@ -741,11 +607,9 @@ Description for the agent when used as an ordinary tool or handoff tool.
 
 Agent with modifications to name and/or description
 
-This function modifies the passed agent in place and returns it. If you
-want to create multiple variations of a single agent using
-`agent_with()` you should create the underlying agent multiple times.
+This function modifies the passed agent in place and returns it. If you want to create multiple variations of a single agent using [agent_with()](../reference/inspect_ai.agent.html.md#agent_with) you should create the underlying agent multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L226)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L226)
 
 ``` python
 def agent_with(
@@ -756,7 +620,7 @@ def agent_with(
 ) -> Agent
 ```
 
-`agent` [Agent](inspect_ai.agent.qmd#agent)  
+`agent` [Agent](../reference/inspect_ai.agent.html.md#agent)  
 Agent instance to modify.
 
 `name` str \| None  
@@ -769,11 +633,9 @@ Agent description (optional).
 
 Check if an object is an Agent.
 
-Determines if the provided object is registered as an Agent in the
-system registry. When this function returns True, type checkers will
-recognize ‘obj’ as an Agent type.
+Determines if the provided object is registered as an Agent in the system registry. When this function returns True, type checkers will recognize ‘obj’ as an Agent type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_agent.py#L285)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_agent.py#L285)
 
 ``` python
 def is_agent(obj: Any) -> TypeGuard[Agent]
@@ -788,7 +650,7 @@ Object to check against the registry.
 
 Prompt for agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L22)
 
 ``` python
 class AgentPrompt(NamedTuple)
@@ -800,31 +662,25 @@ class AgentPrompt(NamedTuple)
 Agent-specific contextual instructions.
 
 `handoff_prompt` str \| None  
-Prompt used when there are additional handoff agents active. Pass `None`
-for no additional handoff prompt.
+Prompt used when there are additional handoff agents active. Pass `None` for no additional handoff prompt.
 
 `assistant_prompt` str \| None  
-Prompt for assistant (covers tool use, CoT, etc.). Pass `None` for no
-additional assistant prompt.
+Prompt for assistant (covers tool use, CoT, etc.). Pass `None` for no additional assistant prompt.
 
 `submit_prompt` str \| None  
 Prompt to tell the model about the submit tool.
 
 Pass `None` for no additional submit prompt.
 
-This prompt is not used if the `assistant_prompt` contains a {submit}
-placeholder.
+This prompt is not used if the `assistant_prompt` contains a {submit} placeholder.
 
 ### AgentAttempts
 
 Configure a react agent to make multiple attempts.
 
-Submissions are evaluated using the task’s main scorer, with value of
-1.0 indicating a correct answer. Scorer values are converted to float
-(e.g. “C” becomes 1.0) using the standard value_to_float() function.
-Provide an alternate conversion scheme as required via `score_value`.
+Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. “C” becomes 1.0) using the standard value_to_float() function. Provide an alternate conversion scheme as required via `score_value`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L65)
 
 ``` python
 class AgentAttempts(NamedTuple)
@@ -835,24 +691,19 @@ class AgentAttempts(NamedTuple)
 `attempts` int  
 Maximum number of attempts.
 
-`incorrect_message` str \| Callable\[\[[AgentState](inspect_ai.agent.qmd#agentstate), list\[[Score](inspect_ai.scorer.qmd#score)\]\], Awaitable\[str\]\]  
-User message reply for an incorrect submission from the model.
-Alternatively, an async function which returns a message.
+`incorrect_message` str \| Callable\[\[[AgentState](../reference/inspect_ai.agent.html.md#agentstate), list\[[Score](../reference/inspect_ai.scorer.html.md#score)\]\], Awaitable\[str\]\]  
+User message reply for an incorrect submission from the model. Alternatively, an async function which returns a message.
 
 `score_value` ValueToFloat  
-Function used to extract float from scores (defaults to standard
-value_to_float())
+Function used to extract float from scores (defaults to standard value_to_float())
 
 ### AgentContinue
 
 Function called to determine whether the agent should continue.
 
-Returns `True` to continue with a default continue message inserted,
-return `False` to stop. Returns `str` to continue with an additional
-custom user message inserted. Returns `AgentState` to continue with the
-specified state.
+Returns `True` to continue with a default continue message inserted, return `False` to stop. Returns `str` to continue with an additional custom user message inserted. Returns [AgentState](../reference/inspect_ai.agent.html.md#agentstate) to continue with the specified state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L55)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L55)
 
 ``` python
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str | AgentState]]
@@ -862,7 +713,7 @@ AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str | AgentSt
 
 Configure the submit tool of a react agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_types.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_types.py#L87)
 
 ``` python
 class AgentSubmit(NamedTuple)
@@ -874,40 +725,29 @@ class AgentSubmit(NamedTuple)
 Name for submit tool (defaults to ‘submit’).
 
 `description` str \| None  
-Description of submit tool (defaults to ‘Submit an answer for
-evaluation’).
+Description of submit tool (defaults to ‘Submit an answer for evaluation’).
 
-`tool` [Tool](inspect_ai.tool.qmd#tool) \| [ToolDef](inspect_ai.tool.qmd#tooldef) \| None  
+`tool` [Tool](../reference/inspect_ai.tool.html.md#tool) \| [ToolDef](../reference/inspect_ai.tool.html.md#tooldef) \| None  
 Alternate implementation for submit tool.
 
-The tool can provide its `name` and `description` internally, or these
-values can be overriden by the `name` and `description` fields in
-`AgentSubmit`
+The tool can provide its `name` and `description` internally, or these values can be overriden by the `name` and `description` fields in [AgentSubmit](../reference/inspect_ai.agent.html.md#agentsubmit)
 
 The tool should return the `answer` provided to it for scoring.
 
 `answer_only` bool  
 Set the completion to only the answer provided by the submit tool.
 
-By default, the answer is appended (with `answer_delimiter`) to whatever
-other content the model generated along with the call to `submit()`.
+By default, the answer is appended (with `answer_delimiter`) to whatever other content the model generated along with the call to `submit()`.
 
 `answer_delimiter` str  
-Delimter used when appending submit tool answer to other content the
-model generated along with the call to `submit()`.
+Delimter used when appending submit tool answer to other content the model generated along with the call to `submit()`.
 
 `keep_in_messages` bool  
 Keep the submit tool call in the message history.
 
-Defaults to `False`, which results in calls to the `submit()` tool being
-removed from message history so that the model’s response looks like a
-standard assistant message.
+Defaults to `False`, which results in calls to the `submit()` tool being removed from message history so that the model’s response looks like a standard assistant message.
 
-This is particularly important for multi-agent systems where the
-presence of `submit()` calls in the history can cause coordinator agents
-to terminate early because they think they are done. You should
-therefore not set this to `True` if you are using `handoff()` in a
-multi-agent system.
+This is particularly important for multi-agent systems where the presence of `submit()` calls in the history can cause coordinator agents to terminate early because they think they are done. You should therefore not set this to `True` if you are using [handoff()](../reference/inspect_ai.agent.html.md#handoff) in a multi-agent system.
 
 ## Deprecated
 
@@ -915,17 +755,13 @@ multi-agent system.
 
 Bridge an external agent into an Inspect Agent.
 
-> [!NOTE]
+> **NOTE:**
 >
-> Note that this function is deprecated in favor of the `agent_bridge()`
-> function. If you are creating a new agent bridge we recommend you use
-> this function rather than `bridge()`.
+> Note that this function is deprecated in favor of the [agent_bridge()](../reference/inspect_ai.agent.html.md#agent_bridge) function. If you are creating a new agent bridge we recommend you use this function rather than [bridge()](../reference/inspect_ai.agent.html.md#bridge).
 >
-> If you do choose to use the `bridge()` function, these
-> [examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/b4670e798dc8d9ff379d4da4ef469be2468d916f/examples/bridge)
-> demostrate its basic usage.
+> If you do choose to use the [bridge()](../reference/inspect_ai.agent.html.md#bridge) function, these [examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/b4670e798dc8d9ff379d4da4ef469be2468d916f/examples/bridge) demostrate its basic usage.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/agent/_bridge/bridge.py#L400)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/agent/_bridge/bridge.py#L400)
 
 ``` python
 @agent

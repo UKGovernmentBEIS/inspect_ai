@@ -1,33 +1,16 @@
 # Structured Output
 
-
 ## Overview
 
-Structured output is a feature supported by some model providers to
-ensure that models generate responses which adhere to a supplied JSON
-Schema. Structured output is currently supported in Inspect for the
-OpenAI, Anthropic, Google, Mistral, Grok, Groq, vLLM, and SGLang
-providers.
+Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Anthropic, Google, Mistral, Grok, Groq, vLLM, and SGLang providers.
 
-While structured output may seem like a robust solution to model
-unreliability, it’s important to keep in mind that by specifying a JSON
-schema you are also introducing unknown effects on model task
-performance. There is even some early literature indicating that [models
-perform worse with structured
-output](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
+While structured output may seem like a robust solution to model unreliability, it’s important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that [models perform worse with structured output](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
 
-You should therefore test the use of structured output as an elicitation
-technique like you would any other, and only proceed if you feel
-confident that it has made a genuine improvement in your overall task.
+You should therefore test the use of structured output as an elicitation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.
 
 ## Example
 
-Below we’ll walk through a simple example of using structured output to
-constrain model output to a `Color` type that provides red, green, and
-blue components. If you want to experiment with it further, see the
-[source
-code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/structured.py)
-in the Inspect GitHub repository.
+Below we’ll walk through a simple example of using structured output to constrain model output to a `Color` type that provides red, green, and blue components. If you want to experiment with it further, see the [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/structured.py) in the Inspect GitHub repository.
 
 Imagine first that we have the following dataset:
 
@@ -46,12 +29,9 @@ colors_dataset=[
 ]
 ```
 
-We want the model to give us the RGB values for the colors, but it might
-choose to output these colors in a wide variety of formats—parsing these
-formats in our scorer could be laborious and error prone.
+We want the model to give us the RGB values for the colors, but it might choose to output these colors in a wide variety of formats—parsing these formats in our scorer could be laborious and error prone.
 
-Here we define a [Pydantic](https://docs.pydantic.dev/) `Color` type
-that we’d like to get back from the model:
+Here we define a [Pydantic](https://docs.pydantic.dev/) `Color` type that we’d like to get back from the model:
 
 ``` python
 from pydantic import BaseModel
@@ -62,10 +42,7 @@ class Color(BaseModel):
     blue: int
 ```
 
-To instruct the model to return output in this type, we use the
-`response_schema` generate config option, using the `json_schema()`
-function to produce a schema for our type. Here is complete task
-definition which uses the dataset and color type from above:
+To instruct the model to return output in this type, we use the `response_schema` generate config option, using the [json_schema()](reference/inspect_ai.util.html.md#json_schema) function to produce a schema for our type. Here is complete task definition which uses the dataset and color type from above:
 
 ``` python
 from inspect_ai import Task, task
@@ -88,13 +65,9 @@ def rgb_color():
     )
 ```
 
-We use the `json_schema()` function to create a JSON schema for our
-`Color` type, then wrap that in a `ResponseSchema` where we also assign
-it a name.
+We use the [json_schema()](reference/inspect_ai.util.html.md#json_schema) function to create a JSON schema for our `Color` type, then wrap that in a [ResponseSchema](reference/inspect_ai.model.html.md#responseschema) where we also assign it a name.
 
-You’ll also notice that we have specified a custom scorer. We need this
-to both parse and evaluate our custom type (as models still return JSON
-output as a string). Here is the scorer:
+You’ll also notice that we have specified a custom scorer. We need this to both parse and evaluate our custom type (as models still return JSON output as a string). Here is the scorer:
 
 ``` python
 from inspect_ai.scorer import (
@@ -131,19 +104,13 @@ def score_color():
     return score
 ```
 
-The Pydantic `Color` type has a convenient `model_validate_json()`
-method which we can use to read the model’s output (being sure to catch
-the `ValidationError` if the model produces incorrect output).
+The Pydantic `Color` type has a convenient `model_validate_json()` method which we can use to read the model’s output (being sure to catch the `ValidationError` if the model produces incorrect output).
 
 ## Schema
 
-The `json_schema()` function supports creating schemas for any Python
-type including Pydantic models, dataclasses, and typed dicts. That said,
-Pydantic models are highly recommended as they provide additional
-parsing and validation which is generally required for scorers.
+The [json_schema()](reference/inspect_ai.util.html.md#json_schema) function supports creating schemas for any Python type including Pydantic models, dataclasses, and typed dicts. That said, Pydantic models are highly recommended as they provide additional parsing and validation which is generally required for scorers.
 
-The `response_schema` generation config option takes a `ResponseSchema`
-object which includes the schema and some additional fields:
+The `response_schema` generation config option takes a [ResponseSchema](reference/inspect_ai.model.html.md#responseschema) object which includes the schema and some additional fields:
 
 ``` python
 from inspect_ai.model import ResponseSchema
@@ -159,28 +126,15 @@ config = GenerateConfig(
 )
 ```
 
-Note that not all model providers support all of these options. In
-particular, only the Mistral and OpenAI providers support the `name`,
-`description`, and `strict` fields (the Google provider takes the
-`json_schema` only).
+Note that not all model providers support all of these options. In particular, only the Mistral and OpenAI providers support the `name`, `description`, and `strict` fields (the Google provider takes the `json_schema` only).
 
-You should therefore never assume that specifying `strict` gets your
-scorer off the hook for parsing and validating the model output as some
-models won’t respect `strict`. Using `strict` may also impact task
-performance—as always it’s best to experiment and measure!
+You should therefore never assume that specifying `strict` gets your scorer off the hook for parsing and validating the model output as some models won’t respect `strict`. Using `strict` may also impact task performance—as always it’s best to experiment and measure!
 
 ## vLLM/SGLang API
 
-The vLLM and SGLang providers support structured output from JSON
-schemas as above, as well as in the choice, regex, and context free
-grammar formats. This is currently implemented through the `extra_body`
-field in the `GenerateConfig` object. See the docs for
-[vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html)
-and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for
-more details.
+The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details.
 
-The key names for each guided decoding format differ between vLLM and
-SGLang:
+The key names for each guided decoding format differ between vLLM and SGLang:
 
 | Format  | vLLM key         | SGLang key |
 |---------|------------------|------------|

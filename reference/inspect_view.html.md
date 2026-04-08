@@ -1,10 +1,10 @@
 # inspect view
 
+Inspect log viewer.
 
 Inspect log viewer.
 
-Learn more about using the log viewer at
-<https://inspect.aisi.org.uk/log-viewer.html>.
+Learn more about using the log viewer at <https://inspect.aisi.org.uk/log-viewer.html>.
 
 #### Usage
 

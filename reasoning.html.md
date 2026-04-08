@@ -1,44 +1,24 @@
 # Reasoning
 
-
 ## Overview
 
-Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5
-Flash, Grok 3, and DeepSeek r1 have some additional options that can be
-used to tailor their behaviour. They also in some cases make available
-full or partial reasoning traces for the chains of thought that led to
-their response.
+Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok 3, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
 
-In this article we’ll first cover the basics of [Reasoning
-Content](#reasoning-content) and [Reasoning
-Options](#reasoning-options), then cover the usage and options supported
-by various reasoning models.
+In this article we’ll first cover the basics of [Reasoning Content](#reasoning-content) and [Reasoning Options](#reasoning-options), then cover the usage and options supported by various reasoning models.
 
 ## Reasoning Content
 
-Many reasoning models allow you to see their underlying chain of thought
-in a special “thinking” or reasoning block. While reasoning is presented
-in different ways depending on the model, in the Inspect API it is
-normalised into `ContentReasoning` blocks which are parallel to
-`ContentText`, `ContentImage`, etc.
+Many reasoning models allow you to see their underlying chain of thought in a special “thinking” or reasoning block. While reasoning is presented in different ways depending on the model, in the Inspect API it is normalised into [ContentReasoning](reference/inspect_ai.model.html.md#contentreasoning) blocks which are parallel to [ContentText](reference/inspect_ai.model.html.md#contenttext), [ContentImage](reference/inspect_ai.model.html.md#contentimage), etc.
 
-Reasoning blocks are presented in their own region in both Inspect View
-and in terminal conversation views.
+Reasoning blocks are presented in their own region in both Inspect View and in terminal conversation views.
 
-While reasoning content isn’t made available in a standard fashion
-across models, Inspect does attempt to capture it using several
-heuristics, including responses that include a `reasoning` or
-`reasoning_content` field in the assistant message, assistant content
-that includes `<think></think>` tags, as well as using explicit APIs for
-models that support them (e.g. Claude 3.7).
+While reasoning content isn’t made available in a standard fashion across models, Inspect does attempt to capture it using several heuristics, including responses that include a `reasoning` or `reasoning_content` field in the assistant message, assistant content that includes `<think></think>` tags, as well as using explicit APIs for models that support them (e.g. Claude 3.7).
 
-In addition, some models make available `reasoning_tokens` which will be
-added to the standard `ModelUsage` object returned along with output.
+In addition, some models make available `reasoning_tokens` which will be added to the standard [ModelUsage](reference/inspect_ai.model.html.md#modelusage) object returned along with output.
 
 ## Reasoning Options
 
-The following reasoning options are available from the CLI and within
-`GenerateConfig`:
+The following reasoning options are available from the CLI and within [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig):
 
 | Option | Description | Default | Models |
 |----|----|----|----|
@@ -47,11 +27,7 @@ The following reasoning options are available from the CLI and within
 | `reasoning_summary` | Provide summary of reasoning steps (`none`, `concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
 
-As you can see from above, models have different means of specifying the
-tokens to allocate for reasoning (`reasoning_effort` and
-`reasoning_tokens`). The two options don’t map precisely into each
-other, so if you are doing an evaluation with multiple reasoning models
-you should specify both. For example:
+As you can see from above, models have different means of specifying the tokens to allocate for reasoning (`reasoning_effort` and `reasoning_tokens`). The two options don’t map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:
 
 ``` python
  eval(
@@ -62,58 +38,37 @@ you should specify both. For example:
  )
 ```
 
-The `reasoning_history` option lets you control how much of the model’s
-previous reasoning is presented in the message history sent to
-`generate()`. The default is `auto`, which uses a provider-specific
-recommended default (normally `all`). Use `last` to not let the
-reasoning overwhelm the context window.
+The `reasoning_history` option lets you control how much of the model’s previous reasoning is presented in the message history sent to [generate()](reference/inspect_ai.solver.html.md#generate). The default is `auto`, which uses a provider-specific recommended default (normally `all`). Use `last` to not let the reasoning overwhelm the context window.
 
 ## OpenAI Models
 
-OpenAI has several reasoning models available including the GPT-5 and
-o-series models. Learn more about the specific models available in the
-[OpenAI Models](https://platform.openai.com/docs/models) documentation.
+OpenAI has several reasoning models available including the GPT-5 and o-series models. Learn more about the specific models available in the [OpenAI Models](https://platform.openai.com/docs/models) documentation.
 
 #### Reasoning Effort
 
-You can condition the amount of reasoning done via the
-[`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort)
-option, which can be set to `none`, `minimal`, `low`, `medium`, or
-`high`. For example:
+You can condition the amount of reasoning done via the [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort) option, which can be set to `none`, `minimal`, `low`, `medium`, or `high`. For example:
 
 ``` bash
 inspect eval math.py --model openai/o3 --reasoning-effort high
 ```
 
-Defaults vary by provider and model and not all models support all
-values (please consult provider documentation for details).
+Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
 
 #### Reasoning Summary
 
-You can see a summary of the model’s reasoning by specifying the
-[`reasoning_summary`](https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries)
-option. Availablle options are `none`, `concise`, `detailed`, and `auto`
-(`auto` is recommended to access the most detailed summarizer available
-for the current model). For example:
+You can see a summary of the model’s reasoning by specifying the [`reasoning_summary`](https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries) option. Availablle options are `none`, `concise`, `detailed`, and `auto` (`auto` is recommended to access the most detailed summarizer available for the current model). For example:
 
 ``` bash
 inspect eval math.py --model openai/o3 --reasoning-summary auto
 ```
 
-> [!WARNING]
+> **WARNING:**
 >
-> Before using summarizers with the latest OpenAI reasoning models, you
-> may need to complete [organization
-> verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
+> Before using summarizers with the latest OpenAI reasoning models, you may need to complete [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
 
 ## Anthropic Claude
 
-Anthropic’s Claude 3.7 Sonnet and Claude 4+ Sonnet/Opus models include
-optional support for [extended
-thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking).
-These are hybrid models that support both normal and reasoning modes.
-This means that you need to explicitly request reasoning by specifying
-`--reasoning-effort` or `--reasoning-tokens`.
+Anthropic’s Claude 3.7 Sonnet and Claude 4+ Sonnet/Opus models include optional support for [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking). These are hybrid models that support both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying `--reasoning-effort` or `--reasoning-tokens`.
 
 All Anthropic reasoning models support `--reasoning-tokens`:
 
@@ -123,15 +78,9 @@ inspect eval math.py \
   --reasoning-tokens 4096
 ```
 
-That said, with Claude 4.6 `--reasoning-tokens` has been deprecated in
-favor of [adaptive
-thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking)
-with the
-[effort](https://platform.claude.com/docs/en/build-with-claude/effort)
-parameter.
+That said, with Claude 4.6 `--reasoning-tokens` has been deprecated in favor of [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the [effort](https://platform.claude.com/docs/en/build-with-claude/effort) parameter.
 
-For Claude 4.6 models you can use the standard `--reasoning-effort`
-option to turn on adaptive thinking with effort:
+For Claude 4.6 models you can use the standard `--reasoning-effort` option to turn on adaptive thinking with effort:
 
 ``` bash
 inspect eval math.py \
@@ -139,10 +88,7 @@ inspect eval math.py \
   --reasoning-effort high
 ```
 
-If you are running an eval against multiple Claude models some of which
-support `--reasoning-effort` and some of which don’t, you should specify
-both `--reasoning-effort` and `--reasoning-tokens` (each model will get
-the option that applies to it):
+If you are running an eval against multiple Claude models some of which support `--reasoning-effort` and some of which don’t, you should specify both `--reasoning-effort` and `--reasoning-tokens` (each model will get the option that applies to it):
 
 ``` bash
 inspect eval math.py \
@@ -155,19 +101,10 @@ inspect eval math.py \
 
 The `max_tokens` for any given request is determined as follows:
 
-1.  If you only specify `reasoning_tokens`, then the `max_tokens` will
-    be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect
-    default for Anthropic max tokens).
-2.  If you explicitly specify a `max_tokens`, that value will be used as
-    the max tokens without modification (so should accommodate
-    sufficient space for both your `reasoning_tokens` and normal
-    output).
+1.  If you only specify `reasoning_tokens`, then the `max_tokens` will be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect default for Anthropic max tokens).
+2.  If you explicitly specify a `max_tokens`, that value will be used as the max tokens without modification (so should accommodate sufficient space for both your `reasoning_tokens` and normal output).
 
-Inspect will automatically use [response
-streaming](https://docs.anthropic.com/en/api/messages-streaming)
-whenever extended thinking is enabled to mitigate against networking
-issue that can occur for long running requests. You can override the
-default behavior using the `streaming` model argument. For example:
+Inspect will automatically use [response streaming](https://docs.anthropic.com/en/api/messages-streaming) whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests. You can override the default behavior using the `streaming` model argument. For example:
 
 ``` bash
 inspect eval math.py \
@@ -178,31 +115,19 @@ inspect eval math.py \
 
 #### History
 
-Note that Anthropic requests that all reasoning blocks and played back
-to the model in chat conversations (although they will only use the last
-reasoning block and will not bill for tokens on previous ones).
-Consequently, the `reasoning_history` option has no effect for Claude
-models (it effectively always uses `last`).
+Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consequently, the `reasoning_history` option has no effect for Claude models (it effectively always uses `last`).
 
 ## Google Gemini
 
-Google currently makes available several Gemini reasoning models, the
-most recent of which are:
+Google currently makes available several Gemini reasoning models, the most recent of which are:
 
-- [Gemini 2.5
-  Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash):
-  `google/gemini-2.5-flash`
+- [Gemini 2.5 Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash): `google/gemini-2.5-flash`
 
-- [Gemini 2.5
-  Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro):
-  `google/gemini-2.5-pro`
+- [Gemini 2.5 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro): `google/gemini-2.5-pro`
 
-- [Gemini 3.1
-  Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro):
-  `google/gemini-3.1-pro-preview`
+- [Gemini 3.1 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro): `google/gemini-3.1-pro-preview`
 
-For Gemini 3, you can use the `--reasoning-effort` option to control the
-amount of reasoning used by the model. For example:
+For Gemini 3, you can use the `--reasoning-effort` option to control the amount of reasoning used by the model. For example:
 
 ``` bash
 inspect eval math.py \
@@ -210,15 +135,9 @@ inspect eval math.py \
   --reasoning-effort low
 ```
 
-Gemini 3 Pro supports `thinking_level`s “low” and “high”, so Inspect
-maps reasoning effort levels “minimal” or “low” to “low” and “medium”,
-“high”, “xhigh” to “high”. Gemini 3 Flash supports “minimal”, “low”,
-“medium”, and “high” so the only mapping done there is from “xhigh” to
-“high”.
+Gemini 3 Pro supports `thinking_level`s “low” and “high”, so Inspect maps reasoning effort levels “minimal” or “low” to “low” and “medium”, “high”, “xhigh” to “high”. Gemini 3 Flash supports “minimal”, “low”, “medium”, and “high” so the only mapping done there is from “xhigh” to “high”.
 
-For Gemini 2.5, you can use the `--reasoning-tokens` option to control
-the amount of reasoning used by these models (this option is deprecated
-for Gemini 3 models). For example:
+For Gemini 2.5, you can use the `--reasoning-tokens` option to control the amount of reasoning used by these models (this option is deprecated for Gemini 3 models). For example:
 
 ``` bash
 inspect eval math.py \
@@ -226,13 +145,9 @@ inspect eval math.py \
   --reasoning-tokens 4096
 ```
 
-Note that for Flash models you can disable reasoning with
-`--reasoning-tokens=0` (Gemini 2.5 Pro [does not
-support](https://ai.google.dev/gemini-api/docs/thinking#set-budget)
-disabling reasoning).
+Note that for Flash models you can disable reasoning with `--reasoning-tokens=0` (Gemini 2.5 Pro [does not support](https://ai.google.dev/gemini-api/docs/thinking#set-budget) disabling reasoning).
 
-The most recent Gemini models also include support for including a
-reasoning summary in model output.
+The most recent Gemini models also include support for including a reasoning summary in model output.
 
 ## Grok
 
@@ -242,52 +157,32 @@ Grok currently makes available several reasoning models:
 - `grok/grok-3`
 - `grok/grok-3-mini`
 
-You can condition the amount of reasoning done by Grok 3 using the
-\[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option,
-which can be set to `low` or `high`.
+You can condition the amount of reasoning done by Grok 3 using the \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
 
 ``` bash
 inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
 ```
 
-Note that Grok 4 does not support the `--reasoning-effort` parameter so
-it is ignored if specified.
+Note that Grok 4 does not support the `--reasoning-effort` parameter so it is ignored if specified.
 
 ## DeepSeek-R1
 
-[DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1) is an
-open-weights reasoning model from DeepSeek. It is generally available
-either in its original form or as a distillation of R1 based on another
-open weights model (e.g. Qwen or Llama-based models).
+[DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1) is an open-weights reasoning model from DeepSeek. It is generally available either in its original form or as a distillation of R1 based on another open weights model (e.g. Qwen or Llama-based models).
 
-DeepSeek models can be accessed directly using their [OpenAI
-interface](https://api-docs.deepseek.com/). Further, a number of model
-hosting providers supported by Inspect make DeepSeek available, for
-example:
+DeepSeek models can be accessed directly using their [OpenAI interface](https://api-docs.deepseek.com/). Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:
 
 | Provider | Model |
 |----|----|
-| [Together AI](providers.qmd#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
-| [Groq](providers.qmd#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
-| [Ollama](providers.qmd#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
+| [Together AI](providers.html.md#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
+| [Groq](providers.html.md#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
+| [Ollama](providers.html.md#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
 
-There isn’t currently a way to customise the `reasoning_effort` of
-DeepSeek models, although they have indicated that this will be
-[available soon](https://api-docs.deepseek.com/guides/reasoning_model).
+There isn’t currently a way to customise the `reasoning_effort` of DeepSeek models, although they have indicated that this will be [available soon](https://api-docs.deepseek.com/guides/reasoning_model).
 
-Reasoning content from DeepSeek models is captured using either the
-`reasoning_content` field made available by the hosted DeepSeek API or
-the `<think>` tags used by various hosting providers.
+Reasoning content from DeepSeek models is captured using either the `reasoning_content` field made available by the hosted DeepSeek API or the `<think>` tags used by various hosting providers.
 
 ## vLLM/SGLang
 
-vLLM and SGLang both support reasoning outputs; however, the usage is
-often model dependant and requires additional configuration. See the
-[vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)
-and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html)
-documentation for details.
+vLLM and SGLang both support reasoning outputs; however, the usage is often model dependant and requires additional configuration. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) documentation for details.
 
-If the model already outputs its reasoning between `<think></think>`
-tags such as with the R1 models or through prompt engineering, then
-Inspect will capture it automatically without any additional
-configuration of vLLM or SGLang.
+If the model already outputs its reasoning between `<think></think>` tags such as with the R1 models or through prompt engineering, then Inspect will capture it automatically without any additional configuration of vLLM or SGLang.

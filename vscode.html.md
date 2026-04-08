@@ -1,6 +1,5 @@
 # VS Code Extension
 
-
 ## Overview
 
 The Inspect VS Code Extension provides a variety of tools, including:
@@ -13,106 +12,71 @@ The Inspect VS Code Extension provides a variety of tools, including:
 
 ### Installation
 
-To install, search for **“Inspect AI”** in the extensions marketplace
-panel within VS Code.
+To install, search for **“Inspect AI”** in the extensions marketplace panel within VS Code.
 
-![](images/inspect-vscode-install.png)
+[![The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right.](images/inspect-vscode-install.png)](images/inspect-vscode-install.png)
 
-The Inspect extension will automatically bind to the Python interpreter
-associated with the current workspace, so you should be sure that the
-`inspect-ai` package is installed within that environment. Use the
-**Python: Select Interpreter** command to associate a version of Python
-with your workspace.
+The Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the `inspect-ai` package is installed within that environment. Use the **Python: Select Interpreter** command to associate a version of Python with your workspace.
 
 ## Viewing Logs
 
-The **Logs** pane of the Inspect Activity Bar (displayed below at bottom
-left of the IDE) provides a listing of log files. When you select a log
-it is displayed in an editor pane using the Inspect log viewer:
+The **Logs** pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:
 
-![](images/logs.png)
+[![](images/logs.png)](images/logs.png)
 
-Click the open folder button at the top of the logs pane to browse any
-directory, local or remote (e.g. for logs on Amazon S3):
+Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g. for logs on Amazon S3):
 
 ![](images/logs-open-button.png) ![](images/logs-drop-down.png)
 
-Links to evaluation logs are also displayed at the bottom of every task
-result:
+Links to evaluation logs are also displayed at the bottom of every task result:
 
-![](images/eval-log.png)
+[![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
 
-If you prefer not to browse and view logs using the logs pane, you can
-also use the **Inspect: Inspect View…** command to open up a new pane
-running `inspect view`.
+If you prefer not to browse and view logs using the logs pane, you can also use the **Inspect: Inspect View…** command to open up a new pane running `inspect view`.
 
 ## Run and Debug
 
-You can also run tasks in the VS Code debugger by using the **Debug
-Task** button or the Cmd+Shift+T keyboard shortcut.
+There are several ways to run tasks within VS Code:
 
-> [!NOTE]
+1.  `inspect eval` in the terminal
+2.  Calling [eval()](reference/inspect_ai.html.md#eval) in a script
+3.  Using the **Run Task** button .
+4.  Using the Cmd+Shift+U keyboard shortcut.
+
+[![Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them.](images/inspect-vscode-run-task.png)](images/inspect-vscode-run-task.png)
+
+You can also run tasks in the VS Code debugger by using the **Debug Task** button or the Cmd+Shift+T keyboard shortcut.
+
+> **NOTE:**
 >
-> Note that when debugging a task, the Inspect extension will
-> automatically limit the eval to a single sample (`--limit 1` on the
-> command line). If you prefer to debug with many samples, there is a
-> setting that can disable the default behavior (search settings for
-> “inspect debug”).
+> Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (`--limit 1` on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for “inspect debug”).
 
 ## Activity Bar
 
-In addition to log listings, the Inspect Activity Bar provides
-interfaces for browsing tasks tuning configuration. Access the Activity
-Bar by clicking the Inspect icon on the left side of the VS Code
-workspace:
+In addition to log listings, the Inspect Activity Bar provides interfaces for browsing tasks tuning configuration. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:
 
-![](images/inspect-activity-bar.png)
+[![Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments.](images/inspect-activity-bar.png)](images/inspect-activity-bar.png)
 
 The activity bar has four panels:
 
-- **Configuration** edits global configuration by reading and writing
-  values from the workspace `.env` config file (see the documentation on
-  [Options](options.qmd) for more details on `.env` files).
+- **Configuration** edits global configuration by reading and writing values from the workspace `.env` config file (see the documentation on [Options](options.html.md) for more details on `.env` files).
 
-- **Tasks** displays all tasks in the current workspace, and can be used
-  to both navigate among tasks as well as run and debug tasks directly.
+- **Tasks** displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.
 
-- **Logs** lists the logs in a local or remote log directory (When you
-  select a log it is displayed in an editor pane using the Inspect log
-  viewer).
+- **Logs** lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).
 
-- **Task** provides a way to tweak the CLI arguments passed to
-  `inspect eval` when it is run from the user interface.
+- **Task** provides a way to tweak the CLI arguments passed to `inspect eval` when it is run from the user interface.
 
 ## Python Environments
 
-When running and debugging Inspect evaluations, the Inspect extension
-will attempt to use python environments that it discovers in the task
-subfolder and its parent folders (all the way to the workspace root). It
-will use the first environment that it discovers, otherwise it will use
-the python interpreter configured for the workspace. Note that since the
-extension will use the sub-environments, Inspect must be installed in
-any of the environments to be used.
+When running and debugging Inspect evaluations, the Inspect extension will attempt to use python environments that it discovers in the task subfolder and its parent folders (all the way to the workspace root). It will use the first environment that it discovers, otherwise it will use the python interpreter configured for the workspace. Note that since the extension will use the sub-environments, Inspect must be installed in any of the environments to be used.
 
-You can control this behavior with the `Use Subdirectory Environments`.
-If you disable this setting, the globally configured interpreter will
-always be used when running or debugging evaluations, even when
-environments are present in subdirectories.
+You can control this behavior with the `Use Subdirectory Environments`. If you disable this setting, the globally configured interpreter will always be used when running or debugging evaluations, even when environments are present in subdirectories.
 
 ## Troubleshooting
 
-If the Inspect extension is not loading into the workspace, you should
-investigate what version of Python it is discovering as well as whether
-the `inspect-ai` package is detected within that Python environment. Use
-the **Output** panel (at the bottom of VS Code in the same panel as the
-Terminal) and select the **Inspect** output channel using the picker on
-the right side of the panel:
+If the Inspect extension is not loading into the workspace, you should investigate what version of Python it is discovering as well as whether the `inspect-ai` package is detected within that Python environment. Use the **Output** panel (at the bottom of VS Code in the same panel as the Terminal) and select the **Inspect** output channel using the picker on the right side of the panel:
 
-![](images/inspect-vscode-output-channel.png)
+[![Inspect output channel, showing the versions of Python and Inspect discovered by the extension.](images/inspect-vscode-output-channel.png)](images/inspect-vscode-output-channel.png)
 
-Note that the Inspect extension will automatically bind to the Python
-interpreter associated with the current workspace, so you should be sure
-that the `inspect-ai` package is installed within that environment. Use
-the [**Python: Select
-Interpreter**](https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters)
-command to associate a version of Python with your workspace.
+Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the `inspect-ai` package is installed within that environment. Use the [**Python: Select Interpreter**](https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters) command to associate a version of Python with your workspace.

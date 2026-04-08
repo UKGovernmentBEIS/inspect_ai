@@ -1,47 +1,30 @@
 # Compaction
 
-
 ## Overview
 
-Compaction enables you to automatically manage conversation context as
-it grows, helping you optimize costs and stay within context window
-limits for long-running agents. Several compaction strategies are
-available:
+Compaction enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Several compaction strategies are available:
 
 | Strategy | Description |
 |----|----|
-| `CompactionAuto` | Automatic compaction: tries native first, falls back to summary. |
-| `CompactionNative` | Use provider-specific native compaction API (OpenAI and Anthropic only). |
-| `CompactionSummary` | Compact by having a model create a summary of the message history. |
-| `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
-| `CompactionTrim` | Compact by trimming the message history to preserve a percentage of the input. |
+| [CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) | Automatic compaction: tries native first, falls back to summary. |
+| [CompactionNative](reference/inspect_ai.model.html.md#compactionnative) | Use provider-specific native compaction API (OpenAI and Anthropic only). |
+| [CompactionSummary](reference/inspect_ai.model.html.md#compactionsummary) | Compact by having a model create a summary of the message history. |
+| [CompactionEdit](reference/inspect_ai.model.html.md#compactionedit) | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
+| [CompactionTrim](reference/inspect_ai.model.html.md#compactiontrim) | Compact by trimming the message history to preserve a percentage of the input. |
 
-`CompactionAuto` is the recommended default for most use cases—it
-automatically uses native compaction when available and falls back to
-summary-based compaction otherwise. Edit and trim compaction are good
-for short or medium horizon tasks where you want to preserve as much
-context as possible.
+[CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) is the recommended default for most use cases—it automatically uses native compaction when available and falls back to summary-based compaction otherwise. Edit and trim compaction are good for short or medium horizon tasks where you want to preserve as much context as possible.
 
-Compaction can also make use of the [memory()](#memory-tool) tool to
-offload important context to files prior to compaction.
+Compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
 
 #### Compaction Threshold
 
-Compaction works by monitoring model input and executing when input
-tokens get close to the model’s context window size. You can configure
-the compaction `threshold` by specifying either a percentage or a
-specific token count.
+Compaction works by monitoring model input and executing when input tokens get close to the model’s context window size. You can configure the compaction `threshold` by specifying either a percentage or a specific token count.
 
-Float values between 0 and 1 (e.g., `0.9`) are interpreted as a
-percentage of the context window, while integer values (e.g., `100000`)
-are interpreted as an absolute token count. The default threshold is
-`0.9` (90% of the context window).
+Float values between 0 and 1 (e.g., `0.9`) are interpreted as a percentage of the context window, while integer values (e.g., `100000`) are interpreted as an absolute token count. The default threshold is `0.9` (90% of the context window).
 
 ## Basic Usage
 
-Compaction is built-in to the [ReAct Agent](react-agent.qmd) and the
-[Agent Bridge](agent-bridge.qmd) and can also be added to custom agents.
-Here are some examples of using compaction with the `react()` agent:
+Compaction is built-in to the [ReAct Agent](react-agent.html.md) and the [Agent Bridge](agent-bridge.html.md) and can also be added to custom agents. Here are some examples of using compaction with the [react()](reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -63,22 +46,15 @@ react(
 )
 ```
 
-If you are creating a custom agent, you will need to incorporate
-compaction into your agent loop. See the [custom agent
-compaction](agent-custom.qmd#compaction) documentation for details.
+If you are creating a custom agent, you will need to incorporate compaction into your agent loop. See the [custom agent compaction](agent-custom.html.md#compaction) documentation for details.
 
-One important thing to note about compaction is that it affects only the
-input that the model sees—the core history with all messages is still
-retained by agents when using compaction.
+One important thing to note about compaction is that it affects only the input that the model sees—the core history with all messages is still retained by agents when using compaction.
 
 ## Automatic Compaction
 
-`CompactionAuto` provides the best of both worlds: it uses efficient
-provider-native compaction when available and falls back to
-summary-based compaction for unsupported providers. This is the
-recommended default for most use cases.
+[CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) provides the best of both worlds: it uses efficient provider-native compaction when available and falls back to summary-based compaction for unsupported providers. This is the recommended default for most use cases.
 
-For example, here we add automatic compaction to a `react()` agent:
+For example, here we add automatic compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -91,7 +67,7 @@ react(
 )
 ```
 
-Here are all options available for `CompactionAuto`:
+Here are all options available for [CompactionAuto](reference/inspect_ai.model.html.md#compactionauto):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -101,14 +77,9 @@ Here are all options available for `CompactionAuto`:
 
 ## Native Compaction
 
-Native compaction delegates context management to the model provider’s
-own compaction API rather than implementing it client-side. The provider
-compresses the conversation into a provider-specific representation that
-preserves semantic meaning while achieving aggressive token savings.
-Native compaction is currently available for OpenAI models that use the
-Responses API and Anthropic Claude 4.6.
+Native compaction delegates context management to the model provider’s own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6.
 
-For example, here we add native compaction to a `react()` agent:
+For example, here we add native compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -121,11 +92,9 @@ react(
 )
 ```
 
-Note that `CompactionNative` will raise `NotImplementedError` if the
-model provider doesn’t support native compaction. Use `CompactionAuto`
-for automatic fallback to summary-based compaction.
+Note that [CompactionNative](reference/inspect_ai.model.html.md#compactionnative) will raise `NotImplementedError` if the model provider doesn’t support native compaction. Use [CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) for automatic fallback to summary-based compaction.
 
-Here are all options available for `CompactionNative`:
+Here are all options available for [CompactionNative](reference/inspect_ai.model.html.md#compactionnative):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -135,16 +104,9 @@ Here are all options available for `CompactionNative`:
 
 ## Summary Compaction
 
-Summary compaction uses a model to generate a concise summary of the
-conversation history, then replaces the conversation with this summary.
-This approach preserves the semantic content of the conversation while
-significantly reducing token count. System messages and input messages
-are preserved, while the conversation history is replaced with a summary
-message. When compaction triggers multiple times, it builds
-incrementally—detecting any existing summary and only summarizing
-content from that point forward.
+Summary compaction uses a model to generate a concise summary of the conversation history, then replaces the conversation with this summary. This approach preserves the semantic content of the conversation while significantly reducing token count. System messages and input messages are preserved, while the conversation history is replaced with a summary message. When compaction triggers multiple times, it builds incrementally—detecting any existing summary and only summarizing content from that point forward.
 
-For example, here we add summary compaction to a `react()` agent:
+For example, here we add summary compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -160,10 +122,9 @@ react(
 )
 ```
 
-Note that we explicitly specify a `model`—this isn’t required and will
-default to the target model for compaction if not specified.
+Note that we explicitly specify a `model`—this isn’t required and will default to the target model for compaction if not specified.
 
-Here are all options available for `CompactionSummary`:
+Here are all options available for [CompactionSummary](reference/inspect_ai.model.html.md#compactionsummary):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -173,22 +134,13 @@ Here are all options available for `CompactionSummary`:
 | `instructions` | None | Additional instructions to give the model about compaction (e.g. “Focus on preserving code snippets and technical decisions.”). These instructions will be inserted into the `prompt`. |
 | `prompt` | None | Custom prompt for summarization. Uses a built-in default prompt if not provided. |
 
-The default summarization prompt asks the model to capture the task
-overview, current state, important discoveries, next steps, and context
-to preserve. You can provide custom `instructions` or even completely
-override the `prompt` to tailor the summary to your specific use case.
+The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
 
 ## Edit Compaction
 
-Edit compaction reduces context size by removing content from the
-message history while preserving the overall structure. It works in
-phases: first clearing extended thinking blocks from older turns, then
-removing tool call results (and optionally the tool calls themselves)
-from older interactions. When compaction triggers multiple times, it
-continues clearing older content on each cycle.
+Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.
 
-For example, here we add edit compaction to a `react()` agent (all
-parameters to `CompactionEdit` reflect the built-in defaults):
+For example, here we add edit compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent (all parameters to [CompactionEdit](reference/inspect_ai.model.html.md#compactionedit) reflect the built-in defaults):
 
 ``` python
 from inspect_ai.agent import react
@@ -205,7 +157,7 @@ react(
 )
 ```
 
-Here are all options available for `CompactionEdit`:
+Here are all options available for [CompactionEdit](reference/inspect_ai.model.html.md#compactionedit):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -218,13 +170,9 @@ Here are all options available for `CompactionEdit`:
 
 ## Trim Compaction
 
-Trim compaction is the simplest compaction strategy—it preserves a
-specified percentage of the conversation history while retaining all
-system and input messages. When compaction triggers multiple times, it
-continues discarding older messages on each cycle.
+Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle.
 
-For example, here we add trim compaction to a `react()` agent (all
-parameters to `CompactionTrim` reflect the built-in defaults):
+For example, here we add trim compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent (all parameters to [CompactionTrim](reference/inspect_ai.model.html.md#compactiontrim) reflect the built-in defaults):
 
 ``` python
 from inspect_ai.agent import react
@@ -240,7 +188,7 @@ react(
 )
 ```
 
-Here are all options available for `CompactionTrim`:
+Here are all options available for [CompactionTrim](reference/inspect_ai.model.html.md#compactiontrim):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -250,13 +198,9 @@ Here are all options available for `CompactionTrim`:
 
 ## Memory Tool
 
-The `memory()` tool provides a persistent file-based storage system that
-agents can use to save important information before compaction occurs.
-When memory integration is enabled (the default), compaction strategies
-will warn the model to save critical context to memory before compaction
-is triggered.
+The [memory()](reference/inspect_ai.tool.html.md#memory) tool provides a persistent file-based storage system that agents can use to save important information before compaction occurs. When memory integration is enabled (the default), compaction strategies will warn the model to save critical context to memory before compaction is triggered.
 
-To use memory with compaction, add the `memory()` tool to your agent:
+To use memory with compaction, add the [memory()](reference/inspect_ai.tool.html.md#memory) tool to your agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -269,15 +213,9 @@ react(
 )
 ```
 
-When the context approaches the compaction threshold, the model receives
-a warning message prompting it to save important information—such as key
-decisions, discoveries, file paths, and next steps to memory files in
-the `/memories` directory. After compaction, the content saved to memory
-is cleared from the message history (since it’s now persisted in files),
-while metadata about what was saved is preserved.
+When the context approaches the compaction threshold, the model receives a warning message prompting it to save important information—such as key decisions, discoveries, file paths, and next steps to memory files in the `/memories` directory. After compaction, the content saved to memory is cleared from the message history (since it’s now persisted in files), while metadata about what was saved is preserved.
 
-To disable memory integration, set `memory=False` on any compaction
-strategy:
+To disable memory integration, set `memory=False` on any compaction strategy:
 
 ``` python
 from inspect_ai.model import CompactionEdit
@@ -288,20 +226,8 @@ CompactionEdit(memory=False, keep_tool_uses=3)
 
 ## Token Counting
 
-Compaction needs to both estimate the tokens currently used by the input
-as well as know the size of the target model’s context window. Both of
-these dimensions are handled automatically as follows:
+Compaction needs to both estimate the tokens currently used by the input as well as know the size of the target model’s context window. Both of these dimensions are handled automatically as follows:
 
-1.  Token counting is handled using the `model.count_tokens()` method.
-    This in turn delegates to provider-specific token counting for the
-    OpenAI, Anthropic, Google, and Grok providers. For other providers,
-    [tiktoken](https://github.com/openai/tiktoken) is used with the
-    “o200k_base” encoder, which will work reasonably well for models
-    with 100k-150k vocabularies.
+1.  Token counting is handled using the `model.count_tokens()` method. This in turn delegates to provider-specific token counting for the OpenAI, Anthropic, Google, and Grok providers. For other providers, [tiktoken](https://github.com/openai/tiktoken) is used with the “o200k_base” encoder, which will work reasonably well for models with 100k-150k vocabularies.
 
-2.  Context window sizes are computed using Inspect’s built-in [model
-    database](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_model_data),
-    which includes context window sizes for popular commercial and
-    open-source models. If the context window for a model cannot be
-    determined then a warning is printed and a default context-window of
-    128,000 is utilized.
+2.  Context window sizes are computed using Inspect’s built-in [model database](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_model_data), which includes context window sizes for popular commercial and open-source models. If the context window for a model cannot be determined then a warning is printed and a default context-window of 128,000 is utilized.

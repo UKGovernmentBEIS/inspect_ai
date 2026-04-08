@@ -1,45 +1,22 @@
 # Errors and Limits
 
-
 ## Overview
 
-When developing more complex evaluations, its not uncommon to encounter
-error conditions during development—these might occur due to a bug in a
-solver or scorer, an unreliable or overloaded API, or a failure to
-communicate with a sandbox environment. It’s also possible to end up
-evals that don’t terminate properly because models continue running in a
-tool calling loop even though they are “stuck” and very unlikely to make
-additional progress.
+When developing more complex evaluations, its not uncommon to encounter error conditions during development—these might occur due to a bug in a solver or scorer, an unreliable or overloaded API, or a failure to communicate with a sandbox environment. It’s also possible to end up evals that don’t terminate properly because models continue running in a tool calling loop even though they are “stuck” and very unlikely to make additional progress.
 
-This article covers various techniques for dealing with unexpected
-errors and setting limits on evaluation tasks and samples. Topics
-covered include:
+This article covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples. Topics covered include:
 
-1.  Retrying failed evaluations (while preserving the samples completed
-    during the initial failed run).
-2.  Establishing a threshold (count or percentage) of samples to
-    tolerate errors for before failing an evaluation.
-3.  Setting time limits for samples (either running time or more
-    narrowly execution time).
-4.  Setting a maximum number of messages or tokens in a sample before
-    forcing the model to give up.
-5.  Setting a maximum cost (in dollars) per sample, based on a model
-    pricing configuration.
+1.  Retrying failed evaluations (while preserving the samples completed during the initial failed run).
+2.  Establishing a threshold (count or percentage) of samples to tolerate errors for before failing an evaluation.
+3.  Setting time limits for samples (either running time or more narrowly execution time).
+4.  Setting a maximum number of messages or tokens in a sample before forcing the model to give up.
+5.  Setting a maximum cost (in dollars) per sample, based on a model pricing configuration.
 
 ## Eval Retries
 
-When an evaluation task fails due to an error or is otherwise
-interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In
-many cases errors are transient (e.g. due to network connectivity or a
-rate limit) and can be subsequently *retried*.
+When an evaluation task fails due to an error or is otherwise interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g. due to network connectivity or a rate limit) and can be subsequently *retried*.
 
-For these cases, Inspect includes an `eval-retry` command and
-`eval_retry()` function that you can use to resume tasks interrupted by
-errors (including [preserving
-samples](eval-logs.qmd#sec-sample-preservation) already completed within
-the original task). For example, if you had a failing task with log file
-`logs/2024-05-29T12-38-43_math_Gprr29Mv.json`, you could retry it from
-the shell with:
+For these cases, Inspect includes an `eval-retry` command and [eval_retry()](reference/inspect_ai.html.md#eval_retry) function that you can use to resume tasks interrupted by errors (including [preserving samples](eval-logs.html.md#sec-sample-preservation) already completed within the original task). For example, if you had a failing task with log file `logs/2024-05-29T12-38-43_math_Gprr29Mv.json`, you could retry it from the shell with:
 
 ``` bash
 $ inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json
@@ -51,18 +28,11 @@ Or from Python with:
 eval_retry("logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json")
 ```
 
-Note that retry only works for tasks that are created from `@task`
-decorated functions (as if a `Task` is created dynamically outside of an
-`@task` function Inspect does not know how to reconstruct it for the
-retry).
+Note that retry only works for tasks that are created from `@task` decorated functions (as if a [Task](reference/inspect_ai.html.md#task) is created dynamically outside of an `@task` function Inspect does not know how to reconstruct it for the retry).
 
-Note also that `eval_retry()` does not overwrite the previous log file,
-but rather creates a new one (preserving the `task_id` from the original
-file).
+Note also that [eval_retry()](reference/inspect_ai.html.md#eval_retry) does not overwrite the previous log file, but rather creates a new one (preserving the `task_id` from the original file).
 
-Here’s an example of retrying a failed eval with a lower number of
-`max_connections` (the theory being that too many concurrent connections
-may have caused a rate limit error):
+Here’s an example of retrying a failed eval with a lower number of `max_connections` (the theory being that too many concurrent connections may have caused a rate limit error):
 
 ``` python
 log = eval(my_task)[0]
@@ -72,13 +42,7 @@ if log.status != "success":
 
 ## Failure Threshold
 
-In some cases you might wish to tolerate some number of errors without
-failing the evaluation. This might be during development when errors are
-more commonplace, or could be to deal with a particularly unreliable API
-used in the evaluation. Add the `fail_on_error` option to your `Task`
-definition to establish this threshold. For example, here we indicate
-that we’ll tolerate errors in up to 10% of the total sample count before
-failing:
+In some cases you might wish to tolerate some number of errors without failing the evaluation. This might be during development when errors are more commonplace, or could be to deal with a particularly unreliable API used in the evaluation. Add the `fail_on_error` option to your [Task](reference/inspect_ai.html.md#task) definition to establish this threshold. For example, here we indicate that we’ll tolerate errors in up to 10% of the total sample count before failing:
 
 ``` python
 @task
@@ -96,14 +60,9 @@ def intercode_ctf():
     )
 ```
 
-Failed samples are *not scored* and a warning indicating that some
-samples failed is both printed in the terminal and shown in Inspect View
-when this occurs.
+Failed samples are *not scored* and a warning indicating that some samples failed is both printed in the terminal and shown in Inspect View when this occurs.
 
-You can specify `fail_on_error` as a boolean (turning the behaviour on
-and off entirely), as a number between 0 and 1 (indicating a proportion
-of failures to tolerate), or a number greater than 1 to (indicating a
-count of failures to tolerate):
+You can specify `fail_on_error` as a boolean (turning the behaviour on and off entirely), as a number between 0 and 1 (indicating a proportion of failures to tolerate), or a number greater than 1 to (indicating a count of failures to tolerate):
 
 | Value                 | Behaviour                                           |
 |-----------------------|-----------------------------------------------------|
@@ -112,23 +71,17 @@ count of failures to tolerate):
 | `fail_on_error=0.1`   | Fail if more than 10% of total samples have errors. |
 | `fail_on_error=5`     | Fail eval if more than 5 samples have errors.       |
 
-While `fail_on_error` is typically specified at the `Task` level, you
-can also override the task setting when calling `eval()` or
-`inspect eval` from the CLI. For example:
+While `fail_on_error` is typically specified at the [Task](reference/inspect_ai.html.md#task) level, you can also override the task setting when calling [eval()](reference/inspect_ai.html.md#eval) or `inspect eval` from the CLI. For example:
 
 ``` python
 eval("intercode_ctf.py", fail_on_error=False)
 ```
 
-You might choose to do this if you want to tolerate a certain proportion
-of errors during development but want to ensure there are never errors
-when running in production.
+You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.
 
 ## Sample Retries
 
-The `retry_on_error` option enables retrying samples with errors some
-number of times before they are considered failed (and subject to
-`fail_on_error` processing as described above). For example:
+The `retry_on_error` option enables retrying samples with errors some number of times before they are considered failed (and subject to `fail_on_error` processing as described above). For example:
 
 ``` bash
 inspect eval ctf.py --retry-on-error    # retry 1 time
@@ -141,43 +94,23 @@ Or from Python:
 eval("ctf.py", retry_on_error=1)
 ```
 
-If a sample is retried, the original error(s) that induced the retries
-will be recorded in its `error_retries` field.
+If a sample is retried, the original error(s) that induced the retries will be recorded in its `error_retries` field.
 
-> [!WARNING]
+> **WARNING:**
 >
-> ### Retries and Distribution Shift
+> While sample retries enable improved recovery from transient infrastructure errors, they also carry with them some risk of distribution shift. For example, imagine that the error being retried is a bug in one of your agents that is triggered by only certain classes of input. These classes of input could then potentially have a higher chance of success because they will be “re-rolled” more frequently.
 >
-> While sample retries enable improved recovery from transient
-> infrastructure errors, they also carry with them some risk of
-> distribution shift. For example, imagine that the error being retried
-> is a bug in one of your agents that is triggered by only certain
-> classes of input. These classes of input could then potentially have a
-> higher chance of success because they will be “re-rolled” more
-> frequently.
->
-> Consequently, when enabling `retry_on_error` you should do some
-> post-hoc analysis to ensure that retried samples don’t have
-> significantly different results than samples which are not retried.
+> Consequently, when enabling `retry_on_error` you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.
 
 ## Sample Limits
 
-In open-ended model conversations (for example, an agent evaluation with
-tool usage) it’s possible that a model will get “stuck” attempting to
-perform a task with no realistic prospect of completing it. Further,
-sometimes models will call commands in a sandbox that take an extremely
-long time (or worst case, hang indefinitely).
+In open-ended model conversations (for example, an agent evaluation with tool usage) it’s possible that a model will get “stuck” attempting to perform a task with no realistic prospect of completing it. Further, sometimes models will call commands in a sandbox that take an extremely long time (or worst case, hang indefinitely).
 
-For this type of evaluation it’s normally a good idea to set sample
-level limits on some combination of total time, total messages, and/or
-tokens used. Sample limits don’t result in errors, but rather an early
-exit from execution (samples that encounter limits are still scored,
-albeit nearly always as “incorrect”).
+For this type of evaluation it’s normally a good idea to set sample level limits on some combination of total time, total messages, and/or tokens used. Sample limits don’t result in errors, but rather an early exit from execution (samples that encounter limits are still scored, albeit nearly always as “incorrect”).
 
 ### Time Limit
 
-Here we set a `time_limit` of 15 minutes (15 x 60 seconds) for each
-sample within a task:
+Here we set a `time_limit` of 15 minutes (15 x 60 seconds) for each sample within a task:
 
 ``` python
 @task
@@ -195,38 +128,25 @@ def intercode_ctf():
     )
 ```
 
-Note that we also set a timeout of 3 minutes for the `bash()` command.
-This isn’t required but is often a good idea so that a single wayward
-bash command doesn’t consume the entire `time_limit`.
+Note that we also set a timeout of 3 minutes for the [bash()](reference/inspect_ai.tool.html.md#bash) command. This isn’t required but is often a good idea so that a single wayward bash command doesn’t consume the entire `time_limit`.
 
-We can also specify a time limit at the CLI or when calling `eval()`:
+We can also specify a time limit at the CLI or when calling [eval()](reference/inspect_ai.html.md#eval):
 
 ``` bash
 inspect eval ctf.py --time-limit 900
 ```
 
-Appropriate timeouts will vary depending on the nature of your task so
-please view the above as examples only rather than recommend values.
+Appropriate timeouts will vary depending on the nature of your task so please view the above as examples only rather than recommend values.
 
 ### Working Limit
 
-The `working_limit` differs from the `time_limit` in that it measures
-only the time spent working (as opposed to retrying in response to rate
-limits or waiting on other shared resources). Working time is computed
-based on total clock time minus time spent on (a) unsuccessful model
-generations (e.g. rate limited requests); and (b) waiting on shared
-resources (e.g. Docker containers or subprocess execution).
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
 
-> [!NOTE]
+> **NOTE:**
 >
-> In order to distinguish successful generate requests from rate limited
-> and retried requests, Inspect installs hooks into the HTTP client of
-> various model packages. This is not possible for some models
-> (`azureai`) and in these cases the `working_time` will include any
-> internal retries that the model client performs.
+> In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
 
-Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each
-sample within a task:
+Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
 
 ``` python
 @task
@@ -246,20 +166,13 @@ def intercode_ctf():
 
 ### Message Limit
 
-Message limits enforce a limit on the number of messages in any
-conversation (e.g. a `TaskState`, `AgentState`, or any input to
-`generate()`).
+Message limits enforce a limit on the number of messages in any conversation (e.g. a [TaskState](reference/inspect_ai.solver.html.md#taskstate), [AgentState](reference/inspect_ai.agent.html.md#agentstate), or any input to [generate()](reference/inspect_ai.solver.html.md#generate)).
 
 Message limits are checked:
 
-- Whenever you call `generate()` on any model. A `LimitExceededError`
-  will be raised if the number of messages passed in `input` parameter
-  to `generate()` is equal to or exceeds the limit. This is to avoid
-  proceeding to another (wasteful) generate call if we’re already at the
-  limit.
+- Whenever you call [generate()](reference/inspect_ai.solver.html.md#generate) on any model. A [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) will be raised if the number of messages passed in `input` parameter to [generate()](reference/inspect_ai.solver.html.md#generate) is equal to or exceeds the limit. This is to avoid proceeding to another (wasteful) generate call if we’re already at the limit.
 
-- Whenever `TaskState.messages` or `AgentState.messages` is mutated, but
-  a `LimitExceededError` is only raised if the count exceeds the limit.
+- Whenever `TaskState.messages` or `AgentState.messages` is mutated, but a [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) is only raised if the count exceeds the limit.
 
 Here we set a `message_limit` of 30 for each sample within a task:
 
@@ -279,16 +192,11 @@ def intercode_ctf():
     )
 ```
 
-This sets a limit of 30 total messages in a conversation before the
-model is forced to give up. At that point, whatever `output` happens to
-be in the `TaskState` will be scored (presumably leading to a score of
-incorrect).
+This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever `output` happens to be in the [TaskState](reference/inspect_ai.solver.html.md#taskstate) will be scored (presumably leading to a score of incorrect).
 
 ### Token Limit
 
-Token usage (using `total_tokens` of `ModelUsage`) is automatically
-recorded for all models. Token limits are checked whenever `generate()`
-is called.
+Token usage (using `total_tokens` of [ModelUsage](reference/inspect_ai.model.html.md#modelusage)) is automatically recorded for all models. Token limits are checked whenever [generate()](reference/inspect_ai.solver.html.md#generate) is called.
 
 Here we set a `token_limit` of 500K for each sample within a task:
 
@@ -308,18 +216,13 @@ def intercode_ctf():
     )
 ```
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> It’s important to note that the `token_limit` is for all tokens used
-> within the execution of a sample. If you want to limit the number of
-> tokens that can be yielded from a single call to the model you should
-> use the `max_tokens` generation option.
+> It’s important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 
 ### Cost Limit
 
-Cost is computed from token usage and model cost data (see [Model
-Cost](#model-cost)). Cost limits are checked whenever `generate()` is
-called.
+Cost is computed from token usage and model cost data (see [Model Cost](#model-cost)). Cost limits are checked whenever [generate()](reference/inspect_ai.solver.html.md#generate) is called.
 
 Here we set a `cost_limit` of \$2.00 for each sample within a task:
 
@@ -339,17 +242,13 @@ def intercode_ctf():
     )
 ```
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> The `cost_limit` requires model cost data to be configured via
-> `set_model_cost()` or `--model-cost-config`. An error will be raised
-> if a cost limit is set without cost data for all models used in the
-> evaluation.
+> The `cost_limit` requires model cost data to be configured via [set_model_cost()](reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. An error will be raised if a cost limit is set without cost data for all models used in the evaluation.
 
 #### Model Cost
 
-Cost tracking requires cost data for each model present in the eval or
-eval set. There are two ways to set cost data:
+Cost tracking requires cost data for each model present in the eval or eval set. There are two ways to set cost data:
 
 **Python API:**
 
@@ -364,9 +263,7 @@ set_model_cost("openai/gpt-4o", ModelCost(
 
 **CLI (YAML or JSON file):**
 
-Each model needs a price set for `input`, `output`, `input_cache_write`,
-and `input_cache_read`. Prices should be given in dollars per million
-tokens. Set unused fields to `0`.
+Each model needs a price set for `input`, `output`, `input_cache_write`, and `input_cache_read`. Prices should be given in dollars per million tokens. Set unused fields to `0`.
 
 Below is an example cost config file given in YAML:
 
@@ -383,17 +280,11 @@ anthropic/claude-sonnet-4-5-20250514:
     input_cache_read: 0.30
 ```
 
-(As of Feb 9 2026, all major model providers count reasoning tokens as
-output tokens, so no separate price needs to be provided for reasoning
-tokens. If your use case requires separate calculation of reasoning
-token prices, contact us.)
+(As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
 
-When model cost data is configured, costs will be tracked for the sample
-as a whole, as well as any events within the sample that have a
-ModelUsage field.
+When model cost data is configured, costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
 
-Additionally, configuring model cost data allows setting sample cost
-limits:
+Additionally, configuring model cost data allows setting sample cost limits:
 
 ``` bash
 inspect eval ctf.py --model-cost-config pricing.yaml --cost-limit 2.00
@@ -401,10 +292,7 @@ inspect eval ctf.py --model-cost-config pricing.yaml --cost-limit 2.00
 
 ### Custom Limit
 
-When limits are exceeded, a `LimitExceededError` is raised and caught by
-the main Inspect sample execution logic. If you want to create custom
-limit types, you can enforce them by raising a `LimitExceededError` as
-follows:
+When limits are exceeded, a [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) as follows:
 
 ``` python
 from inspect_ai.util import LimitExceededError
@@ -419,36 +307,27 @@ raise LimitExceededError(
 
 ### Query Usage
 
-We can determine how much of a sample limit has been used, what the
-limit is, and how much of the resource is remaining:
+We can determine how much of a sample limit has been used, what the limit is, and how much of the resource is remaining:
 
 ``` python
 sample_time_limit = sample_limits().time
 print(f"{sample_time_limit.remaining:.0f} seconds remaining")
 ```
 
-Note that `sample_limits()` only retrieves the sample-level limits, not
-[scoped limits](#scoped-limits) or [agent limits](#agent-limits).
+Note that [sample_limits()](reference/inspect_ai.util.html.md#sample_limits) only retrieves the sample-level limits, not [scoped limits](#scoped-limits) or [agent limits](#agent-limits).
 
 ## Scoped Limits
 
-You can also apply limits at arbitrary scopes, independent of the sample
-or agent-scoped limits. For instance, applied to a specific block of
-code. For example:
+You can also apply limits at arbitrary scopes, independent of the sample or agent-scoped limits. For instance, applied to a specific block of code. For example:
 
 ``` python
 with token_limit(1024*500):
     ...
 ```
 
-A `LimitExceededError` will be raised if the limit is exceeded. The
-`source` field on `LimitExceededError` will be set to the `Limit`
-instance that was exceeded.
+A [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) will be raised if the limit is exceeded. The `source` field on [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) will be set to the [Limit](reference/inspect_ai.util.html.md#limit) instance that was exceeded.
 
-When catching `LimitExceededError`, ensure that your `try` block
-encompasses the usage of the limit context manager as some
-`LimitExceededError` exceptions are raised at the scope of closing the
-context manager:
+When catching [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror), ensure that your `try` block encompasses the usage of the limit context manager as some [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) exceptions are raised at the scope of closing the context manager:
 
 ``` python
 try:
@@ -458,15 +337,7 @@ except LimitExceededError:
     ...
 ```
 
-The `apply_limits()` function accepts a list of `Limit` instances. If
-any of the limits passed in are exceeded, the `limit_error` property on
-the `LimitScope` yielded when opening the context manager will be set to
-the exception. By default, all `LimitExceededError` exceptions are
-propagated. However, if `catch_errors` is true, errors which are as a
-direct result of exceeding one of the limits passed to it will be
-caught. It will always allow `LimitExceededError` exceptions triggered
-by other limits (e.g. Sample scoped limits) to propagate up the call
-stack.
+The [apply_limits()](reference/inspect_ai.util.html.md#apply_limits) function accepts a list of [Limit](reference/inspect_ai.util.html.md#limit) instances. If any of the limits passed in are exceeded, the `limit_error` property on the `LimitScope` yielded when opening the context manager will be set to the exception. By default, all [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) exceptions are propagated. However, if `catch_errors` is true, errors which are as a direct result of exceeding one of the limits passed to it will be caught. It will always allow [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) exceptions triggered by other limits (e.g. Sample scoped limits) to propagate up the call stack.
 
 ``` python
 with apply_limits(
@@ -479,8 +350,7 @@ if limit_scope.limit_error:
 
 ### Checking Usage
 
-You can query how much of a limited resource has been used so far via
-the `usage` property of a scoped limit. For example:
+You can query how much of a limited resource has been used so far via the `usage` property of a scoped limit. For example:
 
 ``` python
 with token_limit(10_000) as limit:
@@ -488,8 +358,7 @@ with token_limit(10_000) as limit:
     print(f"Used {limit.usage:,} of 10,000 tokens")
 ```
 
-If you’re passing the limit instance to `apply_limits()` or an agent and
-want to query the usage, you should keep a reference to it:
+If you’re passing the limit instance to [apply_limits()](reference/inspect_ai.util.html.md#apply_limits) or an agent and want to query the usage, you should keep a reference to it:
 
 ``` python
 limit = token_limit(10_000)
@@ -507,27 +376,15 @@ with time_limit(15 * 60):
     ...
 ```
 
-Internally, this uses [`anyio`’s cancellation
-scopes](https://anyio.readthedocs.io/en/stable/cancellation.html). The
-block will be cancelled at the first yield point (e.g. `await`
-statement).
+Internally, this uses [`anyio`’s cancellation scopes](https://anyio.readthedocs.io/en/stable/cancellation.html). The block will be cancelled at the first yield point (e.g. `await` statement).
 
 ### Working Limit
 
-The `working_limit` differs from the `time_limit` in that it measures
-only the time spent working (as opposed to retrying in response to rate
-limits or waiting on other shared resources). Working time is computed
-based on total clock time minus time spent on (a) unsuccessful model
-generations (e.g. rate limited requests); and (b) waiting on shared
-resources (e.g. Docker containers or subprocess execution).
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
 
-> [!NOTE]
+> **NOTE:**
 >
-> In order to distinguish successful generate requests from rate limited
-> and retried requests, Inspect installs hooks into the HTTP client of
-> various model packages. This is not possible for some models
-> (`azureai`) and in these cases the `working_time` will include any
-> internal retries that the model client performs.
+> In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
 
 To limit the working time to 10 minutes:
 
@@ -536,28 +393,19 @@ with working_limit(10 * 60):
     ...
 ```
 
-Unlike time limits, this is not driven by `anyio`. It is checked
-periodically such as from `generate()` and after each `Solver` runs.
+Unlike time limits, this is not driven by `anyio`. It is checked periodically such as from [generate()](reference/inspect_ai.solver.html.md#generate) and after each [Solver](reference/inspect_ai.solver.html.md#solver) runs.
 
 ### Message Limit
 
-Message limits enforce a limit on the number of messages in any
-conversation (e.g. a `TaskState`, `AgentState`, or any input to
-`generate()`).
+Message limits enforce a limit on the number of messages in any conversation (e.g. a [TaskState](reference/inspect_ai.solver.html.md#taskstate), [AgentState](reference/inspect_ai.agent.html.md#agentstate), or any input to [generate()](reference/inspect_ai.solver.html.md#generate)).
 
 Message limits are checked:
 
-- Whenever you call `generate()` on any model. A `LimitExceededError`
-  will be raised if the number of messages passed in `input` parameter
-  to `generate()` is equal to or exceeds the limit. This is to avoid
-  proceeding to another (wasteful) generate call if we’re already at the
-  limit.
+- Whenever you call [generate()](reference/inspect_ai.solver.html.md#generate) on any model. A [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) will be raised if the number of messages passed in `input` parameter to [generate()](reference/inspect_ai.solver.html.md#generate) is equal to or exceeds the limit. This is to avoid proceeding to another (wasteful) generate call if we’re already at the limit.
 
-- Whenever `TaskState.messages` or `AgentState.messages` is mutated, but
-  a `LimitExceededError` is only raised if the count exceeds the limit.
+- Whenever `TaskState.messages` or `AgentState.messages` is mutated, but a [LimitExceededError](reference/inspect_ai.util.html.md#limitexceedederror) is only raised if the count exceeds the limit.
 
-Scoped message limits behave differently to scoped token limits in that
-only the innermost active `message_limit()` is checked.
+Scoped message limits behave differently to scoped token limits in that only the innermost active [message_limit()](reference/inspect_ai.util.html.md#message_limit) is checked.
 
 To limit the conversation length within a block of code:
 
@@ -574,20 +422,15 @@ def myagent() -> Agent:
                 ...
 ```
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> It’s important to note that `message_limit()` limits the total number
-> of messages in the conversation, not just “new” messages appended by
-> an agent.
+> It’s important to note that [message_limit()](reference/inspect_ai.util.html.md#message_limit) limits the total number of messages in the conversation, not just “new” messages appended by an agent.
 
 ### Token Limit
 
-Token usage (using `total_tokens` of `ModelUsage`) is automatically
-recorded for all models. Token limits are checked whenever `generate()`
-is called.
+Token usage (using `total_tokens` of [ModelUsage](reference/inspect_ai.model.html.md#modelusage)) is automatically recorded for all models. Token limits are checked whenever [generate()](reference/inspect_ai.solver.html.md#generate) is called.
 
-To limit the total number of tokens which can be used in a block of
-code:
+To limit the total number of tokens which can be used in a block of code:
 
 ``` python
 @agent
@@ -599,8 +442,7 @@ def myagent(tokens: int = (1024*500)) -> Agent:
             ...
 ```
 
-The limits can be stacked. Tokens used while a context manager is open
-count towards all open token limits.
+The limits can be stacked. Tokens used while a context manager is open count towards all open token limits.
 
 ``` python
 @agent
@@ -614,18 +456,13 @@ def myagent() -> Solver:
                 ...
 ```
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> It’s important to note that `token_limit()` is for all tokens used
-> *while the context manager is open*. If you want to limit the number
-> of tokens that can be yielded from a single call to the model you
-> should use the `max_tokens` generation option.
+> It’s important to note that [token_limit()](reference/inspect_ai.util.html.md#token_limit) is for all tokens used *while the context manager is open*. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 
 ### Cost Limit
 
-Cost is computed from token usage and model cost data (see [Model
-Cost](#model-cost)). Cost limits are checked whenever `generate()` is
-called.
+Cost is computed from token usage and model cost data (see [Model Cost](#model-cost)). Cost limits are checked whenever [generate()](reference/inspect_ai.solver.html.md#generate) is called.
 
 To limit the total cost within a block of code:
 
@@ -639,21 +476,15 @@ def myagent(budget: float = 2.00) -> Agent:
             ...
 ```
 
-Cost limits work similarly to token limits, with stacking and tracking
-of costs used while the context manager is open.
+Cost limits work similarly to token limits, with stacking and tracking of costs used while the context manager is open.
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> Using `cost_limit()` requires model cost data to be configured via
-> `set_model_cost()` or `--model-cost-config`. See [Model
-> Cost](#model-cost) for details.
+> Using [cost_limit()](reference/inspect_ai.util.html.md#cost_limit) requires model cost data to be configured via [set_model_cost()](reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. See [Model Cost](#model-cost) for details.
 
 ## Agent Limits
 
-To run an agent with one or more limits, pass the limit object in the
-`limits` argument to a function like `handoff()`, `as_tool()`,
-`as_solver()` or `run()` (see [Using Agents](agents.qmd#using-agents)
-for details on the various ways to run agents).
+To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like [handoff()](reference/inspect_ai.agent.html.md#handoff), [as_tool()](reference/inspect_ai.agent.html.md#as_tool), [as_solver()](reference/inspect_ai.agent.html.md#as_solver) or [run()](reference/inspect_ai.agent.html.md#run) (see [Using Agents](agents.html.md#using-agents) for details on the various ways to run agents).
 
 Here we limit an agent we are including as a solver to 500K tokens:
 
@@ -664,7 +495,7 @@ eval(
 )
 ```
 
-Here we limit an agent `handoff()` to 500K tokens:
+Here we limit an agent [handoff()](reference/inspect_ai.agent.html.md#handoff) to 500K tokens:
 
 ``` python
 eval(
@@ -681,15 +512,11 @@ eval(
 
 ### Limit Exceeded
 
-Note that when limits are exceeded during an agent’s execution, the way
-this is handled differs depending on how the agent was executed:
+Note that when limits are exceeded during an agent’s execution, the way this is handled differs depending on how the agent was executed:
 
-- For agents used via `as_solver()`, if a limit is exceeded then the
-  sample will terminate (this is exactly how sample-level limits work).
+- For agents used via [as_solver()](reference/inspect_ai.agent.html.md#as_solver), if a limit is exceeded then the sample will terminate (this is exactly how sample-level limits work).
 
-- For agents that are `run()` directly with limits, their limit
-  exceptions will be caught and returned in a tuple. Limits other than
-  the ones passed to `run()` will propagate up the stack.
+- For agents that are [run()](reference/inspect_ai.agent.html.md#run) directly with limits, their limit exceptions will be caught and returned in a tuple. Limits other than the ones passed to [run()](reference/inspect_ai.agent.html.md#run) will propagate up the stack.
 
   ``` python
   from inspect_ai.agent import run
@@ -703,6 +530,4 @@ this is handled differs depending on how the agent was executed:
       ...
   ```
 
-- For tool based agents (`handoff()` and `as_tool()`), if a limit is
-  exceeded then a message to that effect is returned to the model but
-  the *sample continues running*.
+- For tool based agents ([handoff()](reference/inspect_ai.agent.html.md#handoff) and [as_tool()](reference/inspect_ai.agent.html.md#as_tool)), if a limit is exceeded then a message to that effect is returned to the model but the *sample continues running*.

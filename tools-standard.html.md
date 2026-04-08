@@ -1,81 +1,43 @@
 # Standard Tools
 
-
 ## Overview
 
-Inspect has built-in tools for computing and agentic planning. Computing
-tools include:
+Inspect has built-in tools for computing and agentic planning. Computing tools include:
 
-- [Web Search](tools-standard.qmd#sec-web-search), which uses a search
-  provider (either built in to the model or external) to execute and
-  summarize web searches.
-- [Bash and Python](tools-standard.qmd#sec-bash-and-python) for
-  executing arbitrary shell and Python code.
-- [Bash Session](tools-standard.qmd#sec-bash-session) for creating a
-  stateful bash shell that retains its state across calls from the
-  model.
-- [Text Editor](tools-standard.qmd#sec-text-editor) which enables
-  viewing, creating and editing text files.
-- [Computer](tools-standard.qmd#sec-computer), which provides the model
-  with a desktop computer (viewed through screenshots) that supports
-  mouse and keyboard interaction.
-- [Code Execution](tools-standard.qmd#sec-code-execution), which gives
-  models a sandboxed Python code execution environment running within
-  the model provider’s infrastructure.
-- [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
-  model with a headless Chromium web browser that supports navigation,
-  history, and mouse/keyboard interactions.
+- [Web Search](tools-standard.html.md#sec-web-search), which uses a search provider (either built in to the model or external) to execute and summarize web searches.
+- [Bash and Python](tools-standard.html.md#sec-bash-and-python) for executing arbitrary shell and Python code.
+- [Bash Session](tools-standard.html.md#sec-bash-session) for creating a stateful bash shell that retains its state across calls from the model.
+- [Text Editor](tools-standard.html.md#sec-text-editor) which enables viewing, creating and editing text files.
+- [Computer](tools-standard.html.md#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.
+- [Code Execution](tools-standard.html.md#sec-code-execution), which gives models a sandboxed Python code execution environment running within the model provider’s infrastructure.
+- [Web Browser](tools-standard.html.md#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.
 
 Agentic tools include:
 
-- [Skill](tools-standard.qmd#sec-skill) which provides agent skill
-  specifications to the model with specialized knowledge and expertise
-  for specific tasks.
-- [Update Plan](tools-standard.qmd#sec-update-plan) which helps the
-  model tracks steps and progress across longer horizon tasks.
-- [Memory](tools-standard.qmd#sec-memory) which enables storing and
-  retrieving information through a memory file directory.
-- [Think](tools-standard.qmd#sec-think), which provides models the
-  ability to include an additional thinking step as part of getting to
-  its final answer.
+- [Skill](tools-standard.html.md#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks.
+- [Update Plan](tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
+- [Memory](tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
+- [Think](tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
 
 ## Web Search
 
-The `web_search()` tool provides models the ability to enhance their
-context window by performing a search. Web searches are executed using a
-provider. Providers are split into two categories:
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
 
-- Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`,
-  `"mistral"`, and `"perplexity"` - these use the model’s built-in
-  search capability and do not require separate API keys. These work
-  only for their respective model provider (e.g. the “openai” search
-  provider works only for `openai/*` models).
+- Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`, `"mistral"`, and `"perplexity"` - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the “openai” search provider works only for `openai/*` models).
 
-- External providers: `"tavily"`, `"exa"`, and `"google"`. These are
-  external services that work with any model and require separate
-  accounts and API keys. Note that “google” is different from “gemini” -
-  “google” refers to Google’s Programmable Search Engine service, while
-  “gemini” refers to Google’s built-in search capability for Gemini
-  models.
+- External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that “google” is different from “gemini” - “google” refers to Google’s Programmable Search Engine service, while “gemini” refers to Google’s built-in search capability for Gemini models.
 
-By default, all internal providers are enabled if there are no external
-providers defined. If an external provider is defined then you need to
-explicitly enable internal providers that you want to use.
+By default, all internal providers are enabled if there are no external providers defined. If an external provider is defined then you need to explicitly enable internal providers that you want to use.
 
-Internal providers will be prioritized if running on the corresponding
-model (e.g., “openai” provider will be used when running on `openai`
-models). If an internal provider is specified but the evaluation is run
-with a different model, a fallback external provider must also be
-specified.
+Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
 
 ### Configuration
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> Most providers bill separately for web search, so you should consult
-> their documentation for details before enabling this feature.
+> Most providers bill separately for web search, so you should consult their documentation for details before enabling this feature.
 
-You can configure the `web_search()` tool in various ways:
+You can configure the [web_search()](reference/inspect_ai.tool.html.md#web_search) tool in various ways:
 
 ``` python
 from inspect_ai.tool import web_search
@@ -105,93 +67,53 @@ web_search({
 
 ### OpenAI Options
 
-The `web_search()` tool can use OpenAI’s built-in search capability when
-running on a limited number of OpenAI models (currently “gpt-4o”,
-“gpt-4o-mini”, and “gpt-4.1”). This provider does not require any API
-keys beyond what’s needed for the model itself.
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, and “gpt-4.1”). This provider does not require any API keys beyond what’s needed for the model itself.
 
-For more details on OpenAI’s web search parameters, see [OpenAI Web
-Search
-Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
+For more details on OpenAI’s web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
 
-Note that when using the “openai” provider, you should also specify a
-fallback external provider (like “tavily”, “exa”, or “google”) if you
-are also running the evaluation with non-OpenAI model.
+Note that when using the “openai” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-OpenAI model.
 
 ### Anthropic Options
 
-The `web_search()` tool can use Anthropic’s built-in search capability
-when running on a limited number of Anthropic models (currently
-“claude-opus-4-20250514”, “claude-sonnet-4-20250514”,
-“claude-3-7-sonnet-20250219”, “claude-3-5-sonnet-latest”,
-“claude-3-5-haiku-latest”). This provider does not require any API keys
-beyond what’s needed for the model itself.
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use Anthropic’s built-in search capability when running on a limited number of Anthropic models (currently “claude-opus-4-20250514”, “claude-sonnet-4-20250514”, “claude-3-7-sonnet-20250219”, “claude-3-5-sonnet-latest”, “claude-3-5-haiku-latest”). This provider does not require any API keys beyond what’s needed for the model itself.
 
-For more details on Anthropic’s web search parameters, see [Anthropic
-Web Search
-Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
+For more details on Anthropic’s web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
 
-Note that when using the “anthropic” provider, you should also specify a
-fallback external provider (like “tavily”, “exa”, or “google”) if you
-are also running the evaluation with non-Anthropic model.
+Note that when using the “anthropic” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Anthropic model.
 
 ### Gemini Options
 
-The `web_search()` tool can use Google’s built-in search capability
-(called grounding) when running on Gemini 2.0 models and later. This
-provider does not require any API keys beyond what’s needed for the
-model itself.
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use Google’s built-in search capability (called grounding) when running on Gemini 2.0 models and later. This provider does not require any API keys beyond what’s needed for the model itself.
 
-This is distinct from the “google” provider (described below), which
-uses Google’s external Programmable Search Engine service and requires
-separate API keys.
+This is distinct from the “google” provider (described below), which uses Google’s external Programmable Search Engine service and requires separate API keys.
 
-For more details, see [Grounding with Google
-Search](https://ai.google.dev/gemini-api/docs/grounding).
+For more details, see [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/grounding).
 
-Note that when using the “gemini” provider, you should also specify a
-fallback external provider (like “tavily”, “exa”, or “google”) if you
-are also running the evaluation with non-Gemini models.
+Note that when using the “gemini” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Gemini models.
 
-> [!WARNING]
+> **WARNING:**
 >
-> Google’s search grounding does not currently support use with other
-> tools. Attempting to use `web_search("gemini")` alongside other tools
-> will result in an error.
+> Google’s search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
 
 ### Grok Options
 
-The `web_search()` tool can use Grok’s built-in live search capability
-when running on Grok 3.0 models and later. This provider does not
-require any API keys beyond what’s needed for the model itself.
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use Grok’s built-in live search capability when running on Grok 3.0 models and later. This provider does not require any API keys beyond what’s needed for the model itself.
 
-For more details, see [Live
-Search](https://docs.x.ai/docs/guides/live-search).
+For more details, see [Live Search](https://docs.x.ai/docs/guides/live-search).
 
-Note that when using the “grok” provider, you should also specify a
-fallback external provider (like “tavily”, “exa”, or “google”) if you
-are also running the evaluation with non-Grok models.
+Note that when using the “grok” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Grok models.
 
 ### Perplexity Options
 
-The `web_search()` tool can use Perplexity’s built-in search capability
-when running on Perplexity models. This provider does not require any
-API keys beyond what’s needed for the model itself. Search parameters
-can be passed using the `perplexity` provider options and will be
-forwarded to the model API.
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use Perplexity’s built-in search capability when running on Perplexity models. This provider does not require any API keys beyond what’s needed for the model itself. Search parameters can be passed using the `perplexity` provider options and will be forwarded to the model API.
 
-For more details, see [Perplexity API
-Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
+For more details, see [Perplexity API Documentation](https://docs.perplexity.ai/api-reference/chat-completions-post).
 
-Note that when using the “perplexity” provider, you should also specify
-a fallback external provider (like “tavily”, “exa”, or “google”) if you
-are also running the evaluation with non-Perplexity models.
+Note that when using the “perplexity” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Perplexity models.
 
 ### Tavily Options
 
-The `web_search()` tool can use [Tavily](https://tavily.com/)’s Research
-API. To use it you will need to set up your own Tavily account. Then,
-ensure that the following environment variable is defined:
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use [Tavily](https://tavily.com/)’s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:
 
 - `TAVILY_API_KEY` — Tavily Research API key
 
@@ -206,14 +128,11 @@ Tavily supports the following options:
 | `time_range` | Time range for search results (e.g., “day”, “week”, “month”) |
 | `max_connections` | Maximum number of concurrent connections |
 
-For more options, see the [Tavily API
-Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
+For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 
 ### Exa Options
 
-The `web_search()` tool can use [Exa](https://exa.ai/)’s Answer API. To
-use it you will need to set up your own Exa account. Then, ensure that
-the following environment variable is defined:
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use [Exa](https://exa.ai/)’s Answer API. To use it you will need to set up your own Exa account. Then, ensure that the following environment variable is defined:
 
 - `EXA_API_KEY` — Exa API key
 
@@ -225,22 +144,13 @@ Exa supports the following options:
 | `model` | LLM model to use for generating the answer (“exa” or “exa-pro”) |
 | `max_connections` | Maximum number of concurrent connections |
 
-For more details, see the [Exa API
-Documentation](https://docs.exa.ai/reference/answer).
+For more details, see the [Exa API Documentation](https://docs.exa.ai/reference/answer).
 
 ### Google Options
 
-The `web_search()` tool can use [Google Programmable Search
-Engine](https://programmablesearchengine.google.com/about/) as an
-external provider. This is different from the “gemini” provider
-(described above), which uses Google’s built-in search capability for
-Gemini models.
+The [web_search()](reference/inspect_ai.tool.html.md#web_search) tool can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/) as an external provider. This is different from the “gemini” provider (described above), which uses Google’s built-in search capability for Gemini models.
 
-To use the “google” provider you will need to set up your own Google
-Programmable Search Engine and also enable the [Programmable Search
-Element Paid
-API](https://developers.google.com/custom-search/docs/paid_element).
-Then, ensure that the following environment variables are defined:
+To use the “google” provider you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
 
 - `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 - `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
@@ -256,12 +166,7 @@ Google supports the following options:
 
 ## Bash and Python
 
-The `bash()` and `python()` tools enable execution of arbitrary shell
-commands and Python code, respectively. These tools require the use of a
-[Sandbox Environment](sandboxing.qmd) for the execution of untrusted
-code. For example, here is how you might use them in an evaluation where
-the model is asked to write code in order to solve capture the flag
-(CTF) challenges:
+The [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](sandboxing.html.md) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
 from inspect_ai.tool import bash, python
@@ -286,30 +191,19 @@ def intercode_ctf():
     )
 ```
 
-We specify a 3-minute timeout for execution of the bash and python tools
-to ensure that they don’t perform extremely long running operations.
+We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don’t perform extremely long running operations.
 
-See the [Agents](#sec-agents) section for more details on how to build
-evaluations that allow models to take arbitrary actions over a longer
-time horizon.
+See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
 
 ## Bash Session
 
-The `bash_session()` tool provides a bash shell that retains its state
-across calls from the model (as distinct from the `bash()` tool which
-executes each command in a fresh session). The prompt, working
-directory, and environment variables are all retained across calls. The
-tool also supports a `restart` action that enables the model to reset
-its state and work in a fresh session.
+The [bash_session()](reference/inspect_ai.tool.html.md#bash_session) tool provides a bash shell that retains its state across calls from the model (as distinct from the [bash()](reference/inspect_ai.tool.html.md#bash) tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a `restart` action that enables the model to reset its state and work in a fresh session.
 
-Note that a separate bash process is created within the sandbox for each
-instance of the bash session tool. See the `bash_session()` reference
-docs for details on customizing this behavior.
+Note that a separate bash process is created within the sandbox for each instance of the bash session tool. See the [bash_session()](reference/inspect_ai.tool.html.md#bash_session) reference docs for details on customizing this behavior.
 
 ### Configuration
 
-Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd)
-for the execution of untrusted code.
+Bash sessions require the use of a [Sandbox Environment](sandboxing.html.md) for the execution of untrusted code.
 
 ### Task Setup
 
@@ -335,25 +229,19 @@ def intercode_ctf():
     )
 ```
 
-Note that we provide a `timeout` for bash session commands (this is a
-best practice to guard against extremely long running commands).
+Note that we provide a `timeout` for bash session commands (this is a best practice to guard against extremely long running commands).
 
 ## Text Editor
 
-The `text_editor()` tool enables viewing, creating and editing text
-files. The tool supports editing files within a protected [Sandbox
-Environment](sandboxing.qmd) so tasks that use the text editor should
-have a sandbox defined and configured as described below.
+The [text_editor()](reference/inspect_ai.tool.html.md#text_editor) tool enables viewing, creating and editing text files. The tool supports editing files within a protected [Sandbox Environment](sandboxing.html.md) so tasks that use the text editor should have a sandbox defined and configured as described below.
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox
-Environment](sandboxing.qmd).
+The text editor tools requires the use of a [Sandbox Environment](sandboxing.html.md).
 
 ### Task Setup
 
-A task configured to use the text editor tool might look like this (note
-that this task is also configured to use the `bash_session()` tool):
+A task configured to use the text editor tool might look like this (note that this task is also configured to use the [bash_session()](reference/inspect_ai.tool.html.md#bash_session) tool):
 
 ``` python
 from inspect_ai import Task, task
@@ -378,26 +266,15 @@ def intercode_ctf():
     )
 ```
 
-Note that we provide a `timeout` for the bash session and text editor
-tools (this is a best practice to guard against extremely long running
-commands).
+Note that we provide a `timeout` for the bash session and text editor tools (this is a best practice to guard against extremely long running commands).
 
 ### Tool Binding
 
-The schema for the `text_editor()` tool is based on the standard
-Anthropic [text editor tool
-type](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool).
-The `text_editor()` works with all models that support tool calling, but
-when using Claude, the text editor tool will automatically bind to the
-native Claude tool definition.
+The schema for the [text_editor()](reference/inspect_ai.tool.html.md#text_editor) tool is based on the standard Anthropic [text editor tool type](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool). The [text_editor()](reference/inspect_ai.tool.html.md#text_editor) works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
 
 ## Computer
 
-The `computer()` tool provides models with a computer desktop
-environment along with the ability to view the screen and perform mouse
-and keyboard gestures. The computer tool work better with models that
-have been trained for computer use. As of Q1 2026 the recommended models
-for computer use include:
+The [computer()](reference/inspect_ai.tool.html.md#computer) tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
 | Provider  | Models                                                     |
 |-----------|------------------------------------------------------------|
@@ -407,11 +284,7 @@ for computer use include:
 
 ### Configuration
 
-The `computer()` tool runs within a Docker container. To use it with a
-task you need to reference the `aisiuk/inspect-computer-tool` image in
-your Docker compose file. For example:
-
-**compose.yaml**
+The [computer()](reference/inspect_ai.tool.html.md#computer) tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
 
 ``` yaml
 services:
@@ -421,8 +294,6 @@ services:
 
 You can configure the container to not have Internet access as follows:
 
-**compose.yaml**
-
 ``` yaml
 services:
   default:
@@ -430,14 +301,9 @@ services:
     network_mode: none
 ```
 
-Note that if you’d like to be able to view the model’s interactions with
-the computer desktop in realtime, you will need to also do some port
-mapping to enable a VNC connection with the container. See the [VNC
-Client](#vnc-client) section below for details on how to do this.
+Note that if you’d like to be able to view the model’s interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
 
-The `aisiuk/inspect-computer-tool` image is based on the
-[ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore)
-image and includes the following additional applications pre-installed:
+The `aisiuk/inspect-computer-tool` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
 - Firefox
 - VS Code
@@ -498,16 +364,13 @@ solver=[
 
 Two of the Inspect examples demonstrate basic computer use:
 
-- [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py)
-  — Three simple computing tasks as a minimal demonstration of computer
-  use.
+- [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py) — Three simple computing tasks as a minimal demonstration of computer use.
 
   ``` bash
   inspect eval examples/computer
   ```
 
-- [intervention](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention/intervention.py)
-  — Computer task driven interactively by a human operator.
+- [intervention](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention/intervention.py) — Computer task driven interactively by a human operator.
 
   ``` bash
   inspect eval examples/intervention -T mode=computer --display conversation
@@ -515,13 +378,7 @@ Two of the Inspect examples demonstrate basic computer use:
 
 ### VNC Client
 
-You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the
-container to watch computer use in real-time. This requires some
-additional port-mapping in the Docker compose file. You can define
-dynamic port ranges for VNC (5900) and a browser based noVNC client
-(6080) with the following `ports` entries:
-
-**compose.yaml**
+You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the container to watch computer use in real-time. This requires some additional port-mapping in the Docker compose file. You can define dynamic port ranges for VNC (5900) and a browser based noVNC client (6080) with the following `ports` entries:
 
 ``` yaml
 services:
@@ -532,49 +389,33 @@ services:
       - "6080"
 ```
 
-To connect to the container for a given sample, locate the sample in the
-**Running Samples** UI and expand the sample info panel at the top:
+To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
 
-![](images/vnc-port-info.png)
+[![](images/vnc-port-info.png)](images/vnc-port-info.png)
 
-Click on the link for the noVNC browser client, or use a native VNC
-client to connect to the VNC port. Note that the VNC server will take a
-few seconds to start up so you should give it some time and attempt to
-reconnect as required if the first connection fails.
+Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
 
-The browser based client provides a view-only interface. If you use a
-native VNC client you should also set it to “view only” so as to not
-interfere with the model’s use of the computer. For example, for Real
-VNC Viewer:
+The browser based client provides a view-only interface. If you use a native VNC client you should also set it to “view only” so as to not interfere with the model’s use of the computer. For example, for Real VNC Viewer:
 
 ![](images/vnc-view-only.png)
 
 ### Approval
 
-If the container you are using is connected to the Internet, you may
-want to configure human approval for a subset of computer tool actions.
-Here are the possible actions (specified using the `action` parameter to
-the `computer` tool):
+If the container you are using is connected to the Internet, you may want to configure human approval for a subset of computer tool actions. Here are the possible actions (specified using the `action` parameter to the `computer` tool):
 
 - `key`: Press a key or key-combination on the keyboard.
 - `type`: Type a string of text on the keyboard.
-- `cursor_position`: Get the current (x, y) pixel coordinate of the
-  cursor on the screen.
-- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate
-  on the screen.
+- `cursor_position`: Get the current (x, y) pixel coordinate of the cursor on the screen.
+- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate on the screen.
 - Example: execute(action=“mouse_move”, coordinate=(100, 200))
 - `left_click`: Click the left mouse button.
-- `left_click_drag`: Click and drag the cursor to a specified (x, y)
-  pixel coordinate on the screen.
+- `left_click_drag`: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen.
 - `right_click`: Click the right mouse button.
 - `middle_click`: Click the middle mouse button.
 - `double_click`: Double-click the left mouse button.
 - `screenshot`: Take a screenshot.
 
-Here is an approval policy that requires approval for key combos
-(e.g. `Enter` or a shortcut) and mouse clicks:
-
-**approval.yaml**
+Here is an approval policy that requires approval for key combos (e.g. `Enter` or a shortcut) and mouse clicks:
 
 ``` yaml
 approvers:
@@ -589,8 +430,7 @@ approvers:
     tools: "*"
 ```
 
-Note that since this is a prefix match and there could be other
-arguments, we don’t end the tool match pattern with a parentheses.
+Note that since this is a prefix match and there could be other arguments, we don’t end the tool match pattern with a parentheses.
 
 You can apply this policy using the `--approval` command line option:
 
@@ -600,33 +440,20 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool’s schema is a superset of the standard
-[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use),
-and [Google](https://ai.google.dev/gemini-api/docs/computer-use)
-computer tool schemas. When using models tuned for computer use, the
-computer tool will automatically bind to the native computer tool
-definitions.
+The computer tool’s schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
 
 ## Code Execution
 
 ### Overview
 
-The `code_execution()` tool provides models with the ability to execute
-Python code within a sandboxed environment. There are two significant
-differences between code execution and the `python()` tool described
-above:
+The [code_execution()](reference/inspect_ai.tool.html.md#code_execution) tool provides models with the ability to execute Python code within a sandboxed environment. There are two significant differences between code execution and the [python()](reference/inspect_ai.tool.html.md#python) tool described above:
 
-1.  Code runs in a sandbox on the model provider’s server (as opposed to
-    e.g. a locally managed Docker container).
-2.  Code runs in a *stateless* environment (each execution is
-    independent of others and no file-system state is preserved across
-    calls).
+1.  Code runs in a sandbox on the model provider’s server (as opposed to e.g. a locally managed Docker container).
+2.  Code runs in a *stateless* environment (each execution is independent of others and no file-system state is preserved across calls).
 
-Since the code execution tool is stateless, it is more suitable as a
-means to assist with problem solving that for more stateful agentic
-tasks.
+Since the code execution tool is stateless, it is more suitable as a means to assist with problem solving that for more stateful agentic tasks.
 
-Here is a simple example using the `code_execution()` tool:
+Here is a simple example using the [code_execution()](reference/inspect_ai.tool.html.md#code_execution) tool:
 
 ``` python
 from inspect_ai import Task, task
@@ -644,26 +471,15 @@ def code_execution_task():
 
 ### Availability
 
-[OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter),
-[Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool),
-[Google](https://ai.google.dev/gemini-api/docs/code-execution), and
-[Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models
-all have support for native server-side Python code execution. Note that
-Anthropic can additionally execute bash and text editor commands, but
-the primary execution language used is still Python.
+[OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter), [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool), [Google](https://ai.google.dev/gemini-api/docs/code-execution), and [Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.
 
-> [!IMPORTANT]
+> **IMPORTANT:**
 >
-> Note that some providers bill separately for code execution, so you
-> should consult their documentation for details before enabling this
-> feature.
+> Note that some providers bill separately for code execution, so you should consult their documentation for details before enabling this feature.
 
 #### Fallback
 
-If you are using a provider that doesn’t support code execution then a
-fallback using the `python()` tool is provided. Additionally, you can
-optionally disable code execution for a provider with a native
-implementation and use the `python()` tool instead.
+If you are using a provider that doesn’t support code execution then a fallback using the [python()](reference/inspect_ai.tool.html.md#python) tool is provided. Additionally, you can optionally disable code execution for a provider with a native implementation and use the [python()](reference/inspect_ai.tool.html.md#python) tool instead.
 
 Here are some example configurations:
 
@@ -683,45 +499,27 @@ code_interpreter(
 )
 ```
 
-When falling back to the `python()` provider you should ensure that your
-`Task` has a `sandbox` with access to Python enabled.
+When falling back to the [python()](reference/inspect_ai.tool.html.md#python) provider you should ensure that your [Task](reference/inspect_ai.html.md#task) has a `sandbox` with access to Python enabled.
 
 ## Web Browser
 
-The web browser tools provides models with the ability to browse the web
-using a headless Chromium browser. Navigation, history, and
-mouse/keyboard interactions are all supported.
+The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
-> [!WARNING]
+> **WARNING:**
 >
-> The `web_browser()` tool uses a headless browser for interacting with
-> the web. However, as of 2026, many websites have incorporated defenses
-> against headless browsers. Therefore if you want to do generalized web
-> information retrieval you should strongly prefer the
-> [web_search()](#sec-web-search) tool.
+> The [web_browser()](reference/inspect_ai.tool.html.md#web_browser) tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retrieval you should strongly prefer the [web_search()](#sec-web-search) tool.
 >
-> If however you are using the web browser to interact with a local web
-> application or specific sites you know don’t block it then this
-> warning isn’t applicable.
+> If however you are using the web browser to interact with a local web application or specific sites you know don’t block it then this warning isn’t applicable.
 
 ### Configuration
 
-Under the hood, the web browser is an instance of
-[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
-[Playwright](https://playwright.dev/), and runs in a [Sandbox
-Environment](sandboxing.qmd). In addition, you’ll need some dependencies
-installed in the sandbox container. Please see **Sandbox Dependencies**
-below for additional instructions.
+Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.html.md). In addition, you’ll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
-Note that Playwright (used for the `web_browser()` tool) does not
-support some versions of Linux (e.g. Kali Linux).
+Note that Playwright (used for the [web_browser()](reference/inspect_ai.tool.html.md#web_browser) tool) does not support some versions of Linux (e.g. Kali Linux).
 
-> [!NOTE]
+> **NOTE:**
 >
-> ### Sandbox Dependencies
->
-> You should add the following to your sandbox `Dockerfile` in order to
-> use the web browser tool:
+> You should add the following to your sandbox `Dockerfile` in order to use the web browser tool:
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \
@@ -733,10 +531,7 @@ support some versions of Linux (e.g. Kali Linux).
 >     inspect-tool-support post-install
 > ```
 >
-> If you don’t have a custom Dockerfile, you can alternatively use the
-> pre-built `aisiuk/inspect-tool-support` image:
->
-> **compose.yaml**
+> If you don’t have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image:
 >
 > ``` yaml
 > services:
@@ -768,19 +563,13 @@ def browser_task():
     )
 ```
 
-Unlike some other tool functions like `bash()`, the `web_browser()`
-function returns a list of tools. Therefore, we concatenate it with a
-list of the other tools we are using in the call to `use_tools()`.
+Unlike some other tool functions like [bash()](reference/inspect_ai.tool.html.md#bash), the [web_browser()](reference/inspect_ai.tool.html.md#web_browser) function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to [use_tools()](reference/inspect_ai.solver.html.md#use_tools).
 
-Note that a separate web browser process is created within the sandbox
-for each instance of the web browser tool. See the `web_browser()`
-reference docs for details on customizing this behavior.
+Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the [web_browser()](reference/inspect_ai.tool.html.md#web_browser) reference docs for details on customizing this behavior.
 
 ### Browsing
 
-If you review the transcripts of a sample with access to the web browser
-tool, you’ll notice that there are several distinct tools made available
-for control of the web browser. These tools include:
+If you review the transcripts of a sample with access to the web browser tool, you’ll notice that there are several distinct tools made available for control of the web browser. These tools include:
 
 | Tool | Description |
 |----|----|
@@ -793,46 +582,30 @@ for control of the web browser. These tools include:
 | `web_browser_back()` | Navigate the web browser back in the browser history. |
 | `web_browser_refresh()` | Refresh the current page of the web browser. |
 
-The return value of each of these tools is a [web accessibility
-tree](https://web.dev/articles/the-accessibility-tree) for the page,
-which provides a clean view of the content, links, and form fields
-available on the page (you can look at the accessibility tree for any
-web page using [Chrome Developer
-Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
 
 ### Disabling Interactions
 
-You can use the web browser tools with page interactions disabled by
-specifying `interactive=False`, for example:
+You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
 
 ``` python
 use_tools(web_browser(interactive=False))
 ```
 
-In this mode, the interactive tools (`web_browser_click()`,
-`web_browser_type()`, and `web_browser_type_submit()`) are not made
-available to the model.
+In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
 ## Skill
 
-The `skill()` tool provides models with [agent
-skills](https://agentskills.io/home) which are folders of instructions,
-scripts, and resources that agents can discover and use to do things
-more accurately and efficiently.
+The [skill()](reference/inspect_ai.tool.html.md#skill) tool provides models with [agent skills](https://agentskills.io/home) which are folders of instructions, scripts, and resources that agents can discover and use to do things more accurately and efficiently.
 
-Skills were originally created as a feature of Claude Code, but are now
-widely supported by many agents and agent frameworks. You can learn more
-about creating skills at:
+Skills were originally created as a feature of Claude Code, but are now widely supported by many agents and agent frameworks. You can learn more about creating skills at:
 
 - [Agent Skills Specification](https://agentskills.io/specification)
 - [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
 - [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
 - [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/skills/)
 
-The `skill()` tool takes a list of paths that contain standard skill
-specifications, copies them into the sample’s sandbox, and provides a
-tool description that enumerates the available skills. For example, here
-we make available “system-info” and “network-info” skills:
+The [skill()](reference/inspect_ai.tool.html.md#skill) tool takes a list of paths that contain standard skill specifications, copies them into the sample’s sandbox, and provides a tool description that enumerates the available skills. For example, here we make available “system-info” and “network-info” skills:
 
 ``` python
 from inspect_ai import Task, task
@@ -861,21 +634,13 @@ def intercode_ctf():
     )
 ```
 
-Note that use of the `skill()` tool requires a that a
-[sandbox](sandboxing.qmd) be defined for the task so there is a
-filesystem to publish the skills within.
+Note that use of the [skill()](reference/inspect_ai.tool.html.md#skill) tool requires a that a [sandbox](sandboxing.html.md) be defined for the task so there is a filesystem to publish the skills within.
 
 ## Update Plan
 
-The `update_plan()` tool provides models with a way to track steps and
-progress in longer horizon tasks where it might otherwise lose track of
-where it is or forget earlier goals as context grows. It can also make
-agent behavior more interpretable, since you can inspect the plan to
-understand what the model thinks it’s trying to accomplish.
+The [update_plan()](reference/inspect_ai.tool.html.md#update_plan) tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it’s trying to accomplish.
 
-Note though that for simpler tasks, plan maintenance is just overhead,
-and some models may fixate on updating the plan rather than actually
-executing it.
+Note though that for simpler tasks, plan maintenance is just overhead, and some models may fixate on updating the plan rather than actually executing it.
 
 ### Task Setup
 
@@ -897,22 +662,13 @@ def intercode_ctf():
     )
 ```
 
-The update_plan tool is based on the update_plan tool used by [Codex
-CLI](https://github.com/openai/codex). The default tool description is
-taken from the GPT 5.1 system prompt for Codex. Pass a custom
-`description` to override this.
+The update_plan tool is based on the update_plan tool used by [Codex CLI](https://github.com/openai/codex). The default tool description is taken from the GPT 5.1 system prompt for Codex. Pass a custom `description` to override this.
 
 ## Memory
 
-The memory tool enables models to store and retrieve information into a
-virtual `/memories` file directory. Models can create, read, update, and
-delete files, enabling them to preserve knowledge over time without
-keeping everything in the context window.
+The memory tool enables models to store and retrieve information into a virtual `/memories` file directory. Models can create, read, update, and delete files, enabling them to preserve knowledge over time without keeping everything in the context window.
 
-Note that the `memory()` tool does not require a [Sandbox
-Environment](sandboxing.qmd)—despite using file-like paths
-(e.g. `/memories/notes.md`), it stores all data in-memory using
-Inspect’s sample store.
+Note that the [memory()](reference/inspect_ai.tool.html.md#memory) tool does not require a [Sandbox Environment](sandboxing.html.md)—despite using file-like paths (e.g. `/memories/notes.md`), it stores all data in-memory using Inspect’s sample store.
 
 ### Task Setup
 
@@ -938,8 +694,7 @@ def intercode_ctf():
 
 ### Seeding Memories
 
-You can seed the memories from sample data by passing `initial_data` to
-the `memory()` tool. For example:
+You can seed the memories from sample data by passing `initial_data` to the [memory()](reference/inspect_ai.tool.html.md#memory) tool. For example:
 
 ``` python
 memory(
@@ -950,46 +705,27 @@ memory(
 )
 ```
 
-Keys should be valid `/memories` paths (e.g. “/memories/notes.md”).
-Values are resolved via `resource()`, supporting inline strings, file
-paths, or remote resources (s3://, https://). Seeding happens once on
-first tool execution. The model is prompted to read any pre-seeded
-memories before beginning work.
+Keys should be valid `/memories` paths (e.g. “/memories/notes.md”). Values are resolved via [resource()](reference/inspect_ai.util.html.md#resource), supporting inline strings, file paths, or remote resources (s3://, https://). Seeding happens once on first tool execution. The model is prompted to read any pre-seeded memories before beginning work.
 
 ### Tool Binding
 
-The schema for the `memory()` tool is based on the standard Anthropic
-[memory tool
-type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool).
-The `memory()` works with all models that support tool calling, but when
-using Claude, the text editor tool will automatically bind to the native
-Claude tool definition.
+The schema for the [memory()](reference/inspect_ai.tool.html.md#memory) tool is based on the standard Anthropic [memory tool type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The [memory()](reference/inspect_ai.tool.html.md#memory) works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
 
 ## Think
 
-The `think()` tool provides models with the ability to include an
-additional thinking step as part of getting to its final answer.
+The [think()](reference/inspect_ai.tool.html.md#think) tool provides models with the ability to include an additional thinking step as part of getting to its final answer.
 
-Note that the `think()` tool is not a substitute for reasoning and
-extended thinking, but rather an an alternate way of letting models
-express thinking that is better suited to some tool use scenarios.
+Note that the [think()](reference/inspect_ai.tool.html.md#think) tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios.
 
 ### Usage
 
-You should read the original [think tool
-article](https://www.anthropic.com/engineering/claude-think-tool) in its
-entirely to understand where and where not to use the think tool. In
-summary, good contexts for the think tool include:
+You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
 
-1.  Tool output analysis. When models need to carefully process the
-    output of previous tool calls before acting and might need to
-    backtrack in its approach;
-2.  Policy-heavy environments. When models need to follow detailed
-    guidelines and verify compliance; and
-3.  Sequential decision making. When each action builds on previous ones
-    and mistakes are costly (often found in multi-step domains).
+1.  Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
+2.  Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and
+3.  Sequential decision making. When each action builds on previous ones and mistakes are costly (often found in multi-step domains).
 
-Use the `think()` tool alongside other tools like this:
+Use the [think()](reference/inspect_ai.tool.html.md#think) tool alongside other tools like this:
 
 ``` python
 from inspect_ai import Task, task
@@ -1017,12 +753,7 @@ def intercode_ctf():
 
 ### Tool Description
 
-In the original [think tool
-article](https://www.anthropic.com/engineering/claude-think-tool) (which
-was based on experimenting with Claude) they found that providing clear
-instructions on when and how to use the `think()` tool for the
-particular problem domain it is being used within could sometimes be
-helpful. For example, here’s the prompt they used with SWE-Bench:
+In the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) (which was based on experimenting with Claude) they found that providing clear instructions on when and how to use the [think()](reference/inspect_ai.tool.html.md#think) tool for the particular problem domain it is being used within could sometimes be helpful. For example, here’s the prompt they used with SWE-Bench:
 
 ``` python
 from textwrap import dedent
@@ -1065,14 +796,9 @@ def swe_bench():
 
 ### System Prompt
 
-In the article they also found that when tool instructions are long
-and/or complex, including instructions about the `think()` tool in the
-system prompt can be more effective than placing them in the tool
-description itself.
+In the article they also found that when tool instructions are long and/or complex, including instructions about the [think()](reference/inspect_ai.tool.html.md#think) tool in the system prompt can be more effective than placing them in the tool description itself.
 
-Here’s an example of moving the custom `think()` prompt into the system
-prompt (note that this was *not* done in the article’s SWE-Bench
-experiment, this is merely an example):
+Here’s an example of moving the custom [think()](reference/inspect_ai.tool.html.md#think) prompt into the system prompt (note that this was *not* done in the article’s SWE-Bench experiment, this is merely an example):
 
 ``` python
 from textwrap import dedent
@@ -1114,6 +840,4 @@ def swe_bench():
     )
 ```
 
-Note that the effectivess of using the system prompt will vary
-considerably across tasks, tools, and models, so should definitely be
-the subject of experimentation.
+Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.

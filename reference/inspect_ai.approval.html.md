@@ -1,5 +1,6 @@
 # inspect_ai.approval
 
+Approvers and approval policies.
 
 ## Approvers
 
@@ -7,21 +8,21 @@
 
 Automatically apply a decision to tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_auto.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_auto.py#L9)
 
 ``` python
 @approver(name="auto")
 def auto_approver(decision: ApprovalDecision = "approve") -> Approver
 ```
 
-`decision` [ApprovalDecision](inspect_ai.approval.qmd#approvaldecision)  
+`decision` [ApprovalDecision](../reference/inspect_ai.approval.html.md#approvaldecision)  
 Decision to apply.
 
 ### human_approver
 
 Interactive human approver.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_human/approver.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_human/approver.py#L11)
 
 ``` python
 @approver(name="human")
@@ -30,14 +31,14 @@ def human_approver(
 ) -> Approver
 ```
 
-`choices` list\[[ApprovalDecision](inspect_ai.approval.qmd#approvaldecision)\]  
+`choices` list\[[ApprovalDecision](../reference/inspect_ai.approval.html.md#approvaldecision)\]  
 Choices to present to human.
 
 ### read_approval_policies
 
 Read approval policies from a JSON or YAML config file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_policy.py#L135)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_policy.py#L135)
 
 ``` python
 def read_approval_policies(file: str) -> list[ApprovalPolicy]
@@ -50,7 +51,7 @@ JSON or YAML config file with approval policies.
 
 Context manager to temporarily replace tool approval policies.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_apply.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_apply.py#L70)
 
 ``` python
 @contextlib.contextmanager
@@ -59,7 +60,7 @@ def approval(
 ) -> Iterator[None]
 ```
 
-`policies` list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\]  
+`policies` list\[[ApprovalPolicy](../reference/inspect_ai.approval.html.md#approvalpolicy)\]  
 Approval policies to use within the context.
 
 ## Types
@@ -68,7 +69,7 @@ Approval policies to use within the context.
 
 Approve or reject a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_approver.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_approver.py#L12)
 
 ``` python
 class Approver(Protocol):
@@ -90,14 +91,14 @@ The tool call to be approved.
 `view` ToolCallView  
 Custom rendering of tool context and call.
 
-`history` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`history` list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 The current conversation history.
 
 ### Approval
 
 Approval details (decision, explanation, etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_approval.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_approval.py#L19)
 
 ``` python
 class Approval(BaseModel)
@@ -105,7 +106,7 @@ class Approval(BaseModel)
 
 #### Attributes
 
-`decision` [ApprovalDecision](inspect_ai.approval.qmd#approvaldecision)  
+`decision` [ApprovalDecision](../reference/inspect_ai.approval.html.md#approvaldecision)  
 Approval decision.
 
 `modified` ToolCall \| None  
@@ -121,7 +122,7 @@ Additional approval metadata.
 
 Represents the possible decisions in an approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_approval.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_approval.py#L7)
 
 ``` python
 ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate"]
@@ -131,7 +132,7 @@ ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate
 
 Policy mapping approvers to tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_policy.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_policy.py#L21)
 
 ``` python
 @dataclass
@@ -140,7 +141,7 @@ class ApprovalPolicy
 
 #### Attributes
 
-`approver` [Approver](inspect_ai.approval.qmd#approver)  
+`approver` [Approver](../reference/inspect_ai.approval.html.md#approver)  
 Approver for policy.
 
 `tools` str \| list\[str\]  
@@ -152,19 +153,17 @@ Tools to use this approver for (can be full tool names or globs).
 
 Decorator for registering approvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/approval/_registry.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/approval/_registry.py#L28)
 
 ``` python
 def approver(*args: Any, name: str | None = None, **attribs: Any) -> Any
 ```
 
 `*args` Any  
-Function returning `Approver` targeted by plain approver decorator
-without attributes (e.g. `@approver`)
+Function returning [Approver](../reference/inspect_ai.approval.html.md#approver) targeted by plain approver decorator without attributes (e.g. `@approver`)
 
 `name` str \| None  
-Optional name for approver. If the decorator has no name argument then
-the name of the function will be used to automatically assign a name.
+Optional name for approver. If the decorator has no name argument then the name of the function will be used to automatically assign a name.
 
 `**attribs` Any  
 Additional approver attributes.

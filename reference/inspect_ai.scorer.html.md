@@ -1,5 +1,6 @@
 # inspect_ai.scorer
 
+Task scoring and metrics.
 
 ## Scorers
 
@@ -7,7 +8,7 @@
 
 Scorer which matches text or a number.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_match.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_match.py#L8)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -20,22 +21,19 @@ def match(
 ```
 
 `location` Literal\['begin', 'end', 'any', 'exact'\]  
-Location to match at. “any” matches anywhere in the output; “exact”
-requires the output be exactly equal to the target (module whitespace,
-etc.)
+Location to match at. “any” matches anywhere in the output; “exact” requires the output be exactly equal to the target (module whitespace, etc.)
 
 `ignore_case` bool  
 Do case insensitive comparison.
 
 `numeric` bool  
-Is this a numeric match? (in this case different punctuation removal
-rules are used and numbers are normalized before comparison).
+Is this a numeric match? (in this case different punctuation removal rules are used and numbers are normalized before comparison).
 
 ### includes
 
 Check whether the specified text is included in the model output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_match.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_match.py#L39)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -49,14 +47,11 @@ Use a case insensitive comparison.
 
 Scorer which extracts the model answer using a regex.
 
-Note that at least one regex group is required to match against the
-target.
+Note that at least one regex group is required to match against the target.
 
-The regex can have a single capture group or multiple groups. In the
-case of multiple groups, the scorer can be configured to match either
-one or all of the extracted groups
+The regex can have a single capture group or multiple groups. In the case of multiple groups, the scorer can be configured to match either one or all of the extracted groups
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_pattern.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_pattern.py#L46)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -67,24 +62,20 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
 Regular expression for extracting the answer from model output.
 
 `ignore_case` bool  
-Ignore case when comparing the extract answer to the targets. (Default:
-True)
+Ignore case when comparing the extract answer to the targets. (Default: True)
 
 `match_all` bool  
-With multiple captures, do all captured values need to match the target?
-(Default: False)
+With multiple captures, do all captured values need to match the target? (Default: False)
 
 ### answer
 
 Scorer for model output that preceded answers with ANSWER:.
 
-Some solvers including multiple_choice solicit answers from the model
-prefaced with “ANSWER:”. This scorer extracts answers of this form for
-comparison with the target.
+Some solvers including multiple_choice solicit answers from the model prefaced with “ANSWER:”. This scorer extracts answers of this form for comparison with the target.
 
 Note that you must specify a `type` for the answer scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_answer.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_answer.py#L35)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -92,20 +83,13 @@ def answer(pattern: Literal["letter", "word", "line"]) -> Scorer
 ```
 
 `pattern` Literal\['letter', 'word', 'line'\]  
-Type of answer to extract. “letter” is used with multiple choice and
-extracts a single letter; “word” will extract the next word (often used
-for yes/no answers); “line” will take the rest of the line (used for
-more more complex answers that may have embedded spaces). Note that when
-using “line” your prompt should instruct the model to answer with a
-separate line at the end.
+Type of answer to extract. “letter” is used with multiple choice and extracts a single letter; “word” will extract the next word (often used for yes/no answers); “line” will take the rest of the line (used for more more complex answers that may have embedded spaces). Note that when using “line” your prompt should instruct the model to answer with a separate line at the end.
 
 ### choice
 
-Scorer for multiple choice answers, required by the `multiple_choice`
-solver.
+Scorer for multiple choice answers, required by the `multiple_choice` solver.
 
-This assumes that the model was called using a template ordered with
-letters corresponding to the answers, so something like:
+This assumes that the model was called using a template ordered with letters corresponding to the answers, so something like:
 
     What is the capital of France?
 
@@ -113,12 +97,9 @@ letters corresponding to the answers, so something like:
     B) Berlin
     C) London
 
-The target for the dataset will then have a letter corresponding to the
-correct answer, e.g. the `Target` would be `"A"` for the above question.
-If multiple choices are correct, the `Target` can be an array of these
-letters.
+The target for the dataset will then have a letter corresponding to the correct answer, e.g. the [Target](../reference/inspect_ai.scorer.html.md#target) would be `"A"` for the above question. If multiple choices are correct, the [Target](../reference/inspect_ai.scorer.html.md#target) can be an array of these letters.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_choice.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_choice.py#L40)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -129,10 +110,9 @@ def choice() -> Scorer
 
 Create a mathematical expression scorer.
 
-Extracts answers from model output and compares them to target answers
-using mathematical equivalence checking.
+Extracts answers from model output and compares them to target answers using mathematical equivalence checking.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_math.py#L679)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_math.py#L679)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -143,10 +123,9 @@ def math() -> Scorer
 
 Scorer which produces an F1 score
 
-Computes the `F1` score for the answer (which balances recall precision
-by taking the harmonic mean between recall and precision).
+Computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_classification.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_classification.py#L13)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -156,8 +135,7 @@ def f1(
 ```
 
 `answer_fn` Callable\[\[str\], str\] \| None  
-Custom function to extract the answer from the completion (defaults to
-using the completion).
+Custom function to extract the answer from the completion (defaults to using the completion).
 
 `stop_words` list\[str\] \| None  
 Stop words to include in answer tokenization.
@@ -166,11 +144,9 @@ Stop words to include in answer tokenization.
 
 Scorer which produces an exact match score
 
-Normalizes the text of the answer and target(s) and performs an exact
-matching comparison of the text. This scorer will return `CORRECT` when
-the answer is an exact match to one or more targets.
+Normalizes the text of the answer and target(s) and performs an exact matching comparison of the text. This scorer will return `CORRECT` when the answer is an exact match to one or more targets.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_classification.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_classification.py#L42)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -181,7 +157,7 @@ def exact() -> Scorer
 
 Score a question/answer task using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_model.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_model.py#L86)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -197,51 +173,31 @@ def model_graded_qa(
 ```
 
 `template` str \| None  
-Template for grading prompt. This template has four variables: -
-`question`, `criterion`, `answer`, and `instructions` (which is fed from
-the `instructions` parameter). Variables from sample `metadata` are also
-available in the template.
+Template for grading prompt. This template has four variables: - `question`, `criterion`, `answer`, and `instructions` (which is fed from the `instructions` parameter). Variables from sample `metadata` are also available in the template.
 
 `instructions` str \| None  
-Grading instructions. This should include a prompt for the model to
-answer (e.g. with with chain of thought reasoning) in a way that matches
-the specified `grade_pattern`, for example, the default `grade_pattern`
-looks for one of GRADE: C, GRADE: P, or GRADE: I.
+Grading instructions. This should include a prompt for the model to answer (e.g. with with chain of thought reasoning) in a way that matches the specified `grade_pattern`, for example, the default `grade_pattern` looks for one of GRADE: C, GRADE: P, or GRADE: I.
 
 `grade_pattern` str \| None  
-Regex to extract the grade from the model response. Defaults to looking
-for e.g. GRADE: C The regex should have a single capture group that
-extracts exactly the letter C, P, I.
+Regex to extract the grade from the model response. Defaults to looking for e.g. GRADE: C The regex should have a single capture group that extracts exactly the letter C, P, I.
 
-`include_history` bool \| Callable\[\[[TaskState](inspect_ai.solver.qmd#taskstate)\], str\]  
-Whether to include the full chat history in the presented question.
-Defaults to `False`, which presents only the original sample input.
-Optionally provide a function to customise how the chat history is
-presented.
+`include_history` bool \| Callable\[\[[TaskState](../reference/inspect_ai.solver.html.md#taskstate)\], str\]  
+Whether to include the full chat history in the presented question. Defaults to `False`, which presents only the original sample input. Optionally provide a function to customise how the chat history is presented.
 
 `partial_credit` bool  
-Whether to allow for “partial” credit for answers (by default assigned a
-score of 0.5). Defaults to `False`. Note that this parameter is only
-used with the default `instructions` (as custom instructions provide
-their own prompts for grades).
+Whether to allow for “partial” credit for answers (by default assigned a score of 0.5). Defaults to `False`. Note that this parameter is only used with the default `instructions` (as custom instructions provide their own prompts for grades).
 
-`model` list\[str \| [Model](inspect_ai.model.qmd#model)\] \| str \| [Model](inspect_ai.model.qmd#model) \| None  
-Model or models to use for grading. If a list is provided, each model
-grades independently and the final grade is computed by majority vote.
-When this parameter is provided, it takes precedence over `model_role`.
+`model` list\[str \| [Model](../reference/inspect_ai.model.html.md#model)\] \| str \| [Model](../reference/inspect_ai.model.html.md#model) \| None  
+Model or models to use for grading. If a list is provided, each model grades independently and the final grade is computed by majority vote. When this parameter is provided, it takes precedence over `model_role`.
 
 `model_role` str \| None  
-Named model role to use for grading (default: “grader”). Ignored if
-`model` is provided. If specified and a model is bound to this role
-(e.g. via the `model_roles` argument to `eval()`), that model is used.
-If no role-bound model is available, the model being evaluated (the
-default model) is used.
+Named model role to use for grading (default: “grader”). Ignored if `model` is provided. If specified and a model is bound to this role (e.g. via the `model_roles` argument to [eval()](../reference/inspect_ai.html.md#eval)), that model is used. If no role-bound model is available, the model being evaluated (the default model) is used.
 
 ### model_graded_fact
 
 Score a question/answer task with a fact response using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_model.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_model.py#L28)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -257,61 +213,40 @@ def model_graded_fact(
 ```
 
 `template` str \| None  
-Template for grading prompt. This template uses four variables:
-`question`, `criterion`, `answer`, and `instructions` (which is fed from
-the `instructions` parameter). Variables from sample `metadata` are also
-available in the template.
+Template for grading prompt. This template uses four variables: `question`, `criterion`, `answer`, and `instructions` (which is fed from the `instructions` parameter). Variables from sample `metadata` are also available in the template.
 
 `instructions` str \| None  
-Grading instructions. This should include a prompt for the model to
-answer (e.g. with with chain of thought reasoning) in a way that matches
-the specified `grade_pattern`, for example, the default `grade_pattern`
-looks for one of GRADE: C, GRADE: P, or GRADE: I).
+Grading instructions. This should include a prompt for the model to answer (e.g. with with chain of thought reasoning) in a way that matches the specified `grade_pattern`, for example, the default `grade_pattern` looks for one of GRADE: C, GRADE: P, or GRADE: I).
 
 `grade_pattern` str \| None  
-Regex to extract the grade from the model response. Defaults to looking
-for e.g. GRADE: C The regex should have a single capture group that
-extracts exactly the letter C, P, or I.
+Regex to extract the grade from the model response. Defaults to looking for e.g. GRADE: C The regex should have a single capture group that extracts exactly the letter C, P, or I.
 
-`include_history` bool \| Callable\[\[[TaskState](inspect_ai.solver.qmd#taskstate)\], str\]  
-Whether to include the full chat history in the presented question.
-Defaults to `False`, which presents only the original sample input.
-Optionally provide a function to customise how the chat history is
-presented.
+`include_history` bool \| Callable\[\[[TaskState](../reference/inspect_ai.solver.html.md#taskstate)\], str\]  
+Whether to include the full chat history in the presented question. Defaults to `False`, which presents only the original sample input. Optionally provide a function to customise how the chat history is presented.
 
 `partial_credit` bool  
-Whether to allow for “partial” credit for answers (by default assigned a
-score of 0.5). Defaults to `False`. Note that this parameter is only
-used with the default `instructions` (as custom instructions provide
-their own prompts for grades).
+Whether to allow for “partial” credit for answers (by default assigned a score of 0.5). Defaults to `False`. Note that this parameter is only used with the default `instructions` (as custom instructions provide their own prompts for grades).
 
-`model` list\[str \| [Model](inspect_ai.model.qmd#model)\] \| str \| [Model](inspect_ai.model.qmd#model) \| None  
-Model or models to use for grading. If a list is provided, each model
-grades independently and the final grade is computed by majority vote.
-When this parameter is provided, it takes precedence over `model_role`.
+`model` list\[str \| [Model](../reference/inspect_ai.model.html.md#model)\] \| str \| [Model](../reference/inspect_ai.model.html.md#model) \| None  
+Model or models to use for grading. If a list is provided, each model grades independently and the final grade is computed by majority vote. When this parameter is provided, it takes precedence over `model_role`.
 
 `model_role` str \| None  
-Named model role to use for grading (default: “grader”). Ignored if
-`model` is provided. If specified and a model is bound to this role
-(e.g. via the `model_roles` argument to `eval()`), that model is used.
-If no role-bound model is available, the model being evaluated (the
-default model) is used.
+Named model role to use for grading (default: “grader”). Ignored if `model` is provided. If specified and a model is bound to this role (e.g. via the `model_roles` argument to [eval()](../reference/inspect_ai.html.md#eval)), that model is used. If no role-bound model is available, the model being evaluated (the default model) is used.
 
 ### multi_scorer
 
-Returns a Scorer that runs multiple Scorers in parallel and aggregates
-their results into a single Score using the provided reducer function.
+Returns a Scorer that runs multiple Scorers in parallel and aggregates their results into a single Score using the provided reducer function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_multi.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_multi.py#L13)
 
 ``` python
 def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer
 ```
 
-`scorers` list\[[Scorer](inspect_ai.scorer.qmd#scorer)\]  
+`scorers` list\[[Scorer](../reference/inspect_ai.scorer.html.md#scorer)\]  
 a list of Scorers.
 
-`reducer` str \| [ScoreReducer](inspect_ai.scorer.qmd#scorereducer)  
+`reducer` str \| [ScoreReducer](../reference/inspect_ai.scorer.html.md#scorereducer)  
 a function which takes in a list of Scores and returns a single Score.
 
 ## Metrics
@@ -320,7 +255,7 @@ a function which takes in a list of Scores and returns a single Score.
 
 Compute proportion of total answers which are correct.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
 
 ``` python
 @metric
@@ -328,17 +263,13 @@ def accuracy(to_float: ValueToFloat = value_to_float()) -> Metric
 ```
 
 `to_float` ValueToFloat  
-Function for mapping `Value` to float for computing metrics. The default
-`value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0,
-PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to
-float directly, and prints a warning and returns 0 if the Value is a
-complex object (list or dict).
+Function for mapping [Value](../reference/inspect_ai.scorer.html.md#value) to float for computing metrics. The default `value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).
 
 ### mean
 
 Compute mean of all scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metrics/mean.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metrics/mean.py#L6)
 
 ``` python
 @metric
@@ -349,7 +280,7 @@ def mean() -> Metric
 
 Calculates the sample standard deviation of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metrics/std.py#L137)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metrics/std.py#L137)
 
 ``` python
 @metric
@@ -357,17 +288,13 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric
 ```
 
 `to_float` ValueToFloat  
-Function for mapping `Value` to float for computing metrics. The default
-`value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0,
-PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to
-float directly, and prints a warning and returns 0 if the Value is a
-complex object (list or dict).
+Function for mapping [Value](../reference/inspect_ai.scorer.html.md#value) to float for computing metrics. The default `value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).
 
 ### stderr
 
 Standard error of the mean using Central Limit Theorem.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metrics/std.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metrics/std.py#L50)
 
 ``` python
 @metric
@@ -377,22 +304,16 @@ def stderr(
 ```
 
 `to_float` ValueToFloat  
-Function for mapping `Value` to float for computing metrics. The default
-`value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0,
-PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to
-float directly, and prints a warning and returns 0 if the Value is a
-complex object (list or dict).
+Function for mapping [Value](../reference/inspect_ai.scorer.html.md#value) to float for computing metrics. The default `value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).
 
 `cluster` str \| None  
-The key from the Sample metadata corresponding to a cluster identifier
-for computing [clustered standard
-errors](https://en.wikipedia.org/wiki/Clustered_standard_errors).
+The key from the Sample metadata corresponding to a cluster identifier for computing [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors).
 
 ### bootstrap_stderr
 
 Standard error of the mean using bootstrap.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metrics/std.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metrics/std.py#L17)
 
 ``` python
 @metric
@@ -405,20 +326,15 @@ def bootstrap_stderr(
 Number of bootstrap samples to take.
 
 `to_float` ValueToFloat  
-Function for mapping Value to float for computing metrics. The default
-`value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0,
-PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to
-float directly, and prints a warning and returns 0 if the Value is a
-complex object (list or dict).
+Function for mapping Value to float for computing metrics. The default `value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).
 
 ## Reducers
 
 ### at_least
 
-Score correct if there are at least k score values greater than or equal
-to the value.
+Score correct if there are at least k score values greater than or equal to the value.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/reducer.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/reducer.py#L77)
 
 ``` python
 @score_reducer
@@ -438,10 +354,9 @@ Function to convert score values to float.
 
 ### pass_at
 
-Probability of at least 1 correct sample given `k` epochs
-(<https://arxiv.org/pdf/2107.03374>).
+Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/reducer.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/reducer.py#L109)
 
 ``` python
 @score_reducer
@@ -463,7 +378,7 @@ Function to convert score values to float.
 
 Take the maximum value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/reducer.py#L144)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/reducer.py#L144)
 
 ``` python
 @score_reducer(name="max")
@@ -477,7 +392,7 @@ Function to convert the value to a float
 
 Take the mean of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/reducer.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/reducer.py#L39)
 
 ``` python
 @score_reducer(name="mean")
@@ -491,7 +406,7 @@ Function to convert the value to a float
 
 Take the median value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/reducer.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/reducer.py#L58)
 
 ``` python
 @score_reducer(name="median")
@@ -505,7 +420,7 @@ Function to convert the value to a float
 
 Take the mode from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/reducer.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/reducer.py#L13)
 
 ``` python
 @score_reducer(name="mode")
@@ -518,10 +433,9 @@ def mode_score() -> ScoreReducer
 
 Score model outputs.
 
-Evaluate the passed outputs and targets and return a dictionary with
-scoring outcomes and context.
+Evaluate the passed outputs and targets and return a dictionary with scoring outcomes and context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_scorer.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_scorer.py#L35)
 
 ``` python
 class Scorer(Protocol):
@@ -532,10 +446,10 @@ class Scorer(Protocol):
     ) -> Score | None
 ```
 
-`state` [TaskState](inspect_ai.solver.qmd#taskstate)  
+`state` [TaskState](../reference/inspect_ai.solver.html.md#taskstate)  
 Task state
 
-`target` [Target](inspect_ai.scorer.qmd#target)  
+`target` [Target](../reference/inspect_ai.scorer.html.md#target)  
 Ideal target for the output.
 
 #### Examples
@@ -555,10 +469,9 @@ def custom_scorer() -> Scorer:
 
 Target for scoring against the current TaskState.
 
-Target is a sequence of one or more strings. Use the `text` property to
-access the value as a single string.
+Target is a sequence of one or more strings. Use the `text` property to access the value as a single string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_target.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_target.py#L4)
 
 ``` python
 class Target(Sequence[str])
@@ -568,7 +481,7 @@ class Target(Sequence[str])
 
 Score generated by a scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L81)
 
 ``` python
 class Score(BaseModel)
@@ -576,7 +489,7 @@ class Score(BaseModel)
 
 #### Attributes
 
-`value` [Value](inspect_ai.scorer.qmd#value)  
+`value` [Value](../reference/inspect_ai.scorer.html.md#value)  
 Score value.
 
 `answer` str \| None  
@@ -599,7 +512,7 @@ Read the score as text.
 as_str  
 Read the score as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L104)
 
 ``` python
 def as_str(self) -> str
@@ -608,7 +521,7 @@ def as_str(self) -> str
 as_int  
 Read the score as an integer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L108)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L108)
 
 ``` python
 def as_int(self) -> int
@@ -617,7 +530,7 @@ def as_int(self) -> int
 as_float  
 Read the score as a float.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L112)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L112)
 
 ``` python
 def as_float(self) -> float
@@ -626,7 +539,7 @@ def as_float(self) -> float
 as_bool  
 Read the score as a boolean.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L116)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L116)
 
 ``` python
 def as_bool(self) -> bool
@@ -635,7 +548,7 @@ def as_bool(self) -> bool
 as_list  
 Read the score as a list.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L120)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L120)
 
 ``` python
 def as_list(self) -> list[str | int | float | bool]
@@ -644,7 +557,7 @@ def as_list(self) -> list[str | int | float | bool]
 as_dict  
 Read the score as a dictionary.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L127)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L127)
 
 ``` python
 def as_dict(self) -> dict[str, str | int | float | bool | None]
@@ -654,10 +567,9 @@ def as_dict(self) -> dict[str, str | int | float | bool | None]
 
 Value provided by a score.
 
-Use the methods of `Score` to easily treat the `Value` as a simple
-scalar of various types.
+Use the methods of [Score](../reference/inspect_ai.scorer.html.md#score) to easily treat the [Value](../reference/inspect_ai.scorer.html.md#value) as a simple scalar of various types.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L47)
 
 ``` python
 Value = Union[
@@ -671,25 +583,23 @@ Value = Union[
 
 Reduce a set of scores to a single score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/types.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/types.py#L8)
 
 ``` python
 class ScoreReducer(Protocol):
     def __call__(self, scores: list[Score]) -> Score
 ```
 
-`scores` list\[[Score](inspect_ai.scorer.qmd#score)\]  
+`scores` list\[[Score](../reference/inspect_ai.scorer.html.md#score)\]  
 List of scores.
 
 ### Metric
 
 Metric protocol.
 
-The Metric signature changed in release v0.3.64. Both the previous and
-new signatures are supported – you should use `MetricProtocol` for new
-code as the depreacated signature will eventually be removed.
+The Metric signature changed in release v0.3.64. Both the previous and new signatures are supported – you should use [MetricProtocol](../reference/inspect_ai.scorer.html.md#metricprotocol) for new code as the depreacated signature will eventually be removed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L265)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L265)
 
 ``` python
 Metric = MetricProtocol | MetricDeprecated
@@ -699,14 +609,14 @@ Metric = MetricProtocol | MetricDeprecated
 
 Compute a metric on a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L244)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L244)
 
 ``` python
 class MetricProtocol(Protocol):
     def __call__(self, scores: list[SampleScore]) -> Value
 ```
 
-`scores` list\[[SampleScore](inspect_ai.scorer.qmd#samplescore)\]  
+`scores` list\[[SampleScore](../reference/inspect_ai.scorer.html.md#samplescore)\]  
 List of scores.
 
 #### Examples
@@ -723,7 +633,7 @@ def mean() -> Metric:
 
 Score for a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L141)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L141)
 
 ``` python
 class SampleScore(BaseModel)
@@ -731,7 +641,7 @@ class SampleScore(BaseModel)
 
 #### Attributes
 
-`score` [Score](inspect_ai.scorer.qmd#score)  
+`score` [Score](../reference/inspect_ai.scorer.html.md#score)  
 A score
 
 `sample_id` str \| int \| None  
@@ -748,7 +658,7 @@ Registry name of scorer that created this score.
 sample_metadata_as  
 Pydantic model interface to sample metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L153)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L153)
 
 ``` python
 def sample_metadata_as(self, metadata_cls: Type[MT]) -> MT | None
@@ -763,7 +673,7 @@ Pydantic model type
 
 Decorator for registering scorers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_scorer.py#L129)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_scorer.py#L129)
 
 ``` python
 def scorer(
@@ -774,13 +684,11 @@ def scorer(
 ) -> Callable[[Callable[P, Scorer]], Callable[P, Scorer]]
 ```
 
-`metrics` Sequence\[[Metric](inspect_ai.scorer.qmd#metric) \| Mapping\[str, Sequence\[[Metric](inspect_ai.scorer.qmd#metric)\]\]\] \| Mapping\[str, Sequence\[[Metric](inspect_ai.scorer.qmd#metric)\]\]  
+`metrics` Sequence\[[Metric](../reference/inspect_ai.scorer.html.md#metric) \| Mapping\[str, Sequence\[[Metric](../reference/inspect_ai.scorer.html.md#metric)\]\]\] \| Mapping\[str, Sequence\[[Metric](../reference/inspect_ai.scorer.html.md#metric)\]\]  
 One or more metrics to calculate over the scores.
 
 `name` str \| None  
-Optional name for scorer. If the decorator has no name argument then the
-name of the underlying ScorerType object will be used to automatically
-assign a name.
+Optional name for scorer. If the decorator has no name argument then the name of the underlying ScorerType object will be used to automatically assign a name.
 
 `**metadata` Any  
 Additional values to serialize in metadata.
@@ -802,7 +710,7 @@ def custom_scorer() -> Scorer:
 
 Decorator for registering metrics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_metric.py#L364)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_metric.py#L364)
 
 ``` python
 def metric(
@@ -810,22 +718,18 @@ def metric(
 ) -> Callable[[Callable[P, Metric]], Callable[P, Metric]] | Callable[P, Metric]
 ```
 
-`name` str \| Callable\[P, [Metric](inspect_ai.scorer.qmd#metric)\]  
-Optional name for metric. If the decorator has no name argument then the
-name of the underlying MetricType will be used to automatically assign a
-name.
+`name` str \| Callable\[P, [Metric](../reference/inspect_ai.scorer.html.md#metric)\]  
+Optional name for metric. If the decorator has no name argument then the name of the underlying MetricType will be used to automatically assign a name.
 
 #### Examples
 
-\`\`\`python @metric def mean() -\> Metric: def metric(scores:
-list\[SampleScore\]) -\> Value: return np.mean(\[score.score.as_float()
-for score in scores\]).item() return metric
+\`\`\`python @metric def mean() -\> Metric: def metric(scores: list\[SampleScore\]) -\> Value: return np.mean(\[score.score.as_float() for score in scores\]).item() return metric
 
 ### score_reducer
 
 Decorator for registering Score Reducers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_reducer/registry.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_reducer/registry.py#L37)
 
 ``` python
 def score_reducer(
@@ -834,12 +738,10 @@ def score_reducer(
 ```
 
 `func` ScoreReducerType \| None  
-Function returning `ScoreReducer` targeted by plain task decorator
-without attributes (e.g. `@score_reducer`)
+Function returning [ScoreReducer](../reference/inspect_ai.scorer.html.md#scorereducer) targeted by plain task decorator without attributes (e.g. `@score_reducer`)
 
 `name` str \| None  
-Optional name for reducer. If the decorator has no name argument then
-the name of the function will be used to automatically assign a name.
+Optional name for reducer. If the decorator has no name argument then the name of the function will be used to automatically assign a name.
 
 ## Intermediate Scoring
 
@@ -847,15 +749,13 @@ the name of the function will be used to automatically assign a name.
 
 Score a model conversation.
 
-Score a model conversation (you may pass `TaskState` or `AgentState` as
-the value for `conversation`)
+Score a model conversation (you may pass [TaskState](../reference/inspect_ai.solver.html.md#taskstate) or [AgentState](../reference/inspect_ai.agent.html.md#agentstate) as the value for `conversation`)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/scorer/_score.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/scorer/_score.py#L13)
 
 ``` python
 async def score(conversation: ModelConversation) -> list[Score]
 ```
 
-`conversation` [ModelConversation](inspect_ai.model.qmd#modelconversation)  
-Conversation to submit for scoring. Note that both `TaskState` and
-`AgentState` can be passed as the `conversation` parameter.
+`conversation` [ModelConversation](../reference/inspect_ai.model.html.md#modelconversation)  
+Conversation to submit for scoring. Note that both [TaskState](../reference/inspect_ai.solver.html.md#taskstate) and [AgentState](../reference/inspect_ai.agent.html.md#agentstate) can be passed as the `conversation` parameter.

@@ -1,5 +1,6 @@
 # inspect_ai.solver
 
+Prompting and elicitation.
 
 ## Generation
 
@@ -9,32 +10,159 @@ Generate output from the model and append it to task message history.
 
 generate() is the default solver if none is specified for a given task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_solver.py#L267)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_solver.py#L267)
 
 ``` python
-@solver
 def generate(
-    tool_calls: Literal["loop", "single", "none"] = "loop",
-    **kwargs: Unpack[GenerateConfigArgs],
+    tool_calls: Literal['loop', 'single', 'none'] = ...,
+    *,
+    max_retries: int | None = ...,
+    timeout: int | None = ...,
+    attempt_timeout: int | None = ...,
+    max_connections: int | None = ...,
+    system_message: str | None = ...,
+    max_tokens: int | None = ...,
+    top_p: float | None = ...,
+    temperature: float | None = ...,
+    stop_seqs: list[str] | None = ...,
+    best_of: int | None = ...,
+    frequency_penalty: float | None = ...,
+    presence_penalty: float | None = ...,
+    logit_bias: dict[int, float] | None = ...,
+    seed: int | None = ...,
+    top_k: int | None = ...,
+    num_choices: int | None = ...,
+    logprobs: bool | None = ...,
+    top_logprobs: int | None = ...,
+    parallel_tool_calls: bool | None = ...,
+    internal_tools: bool | None = ...,
+    max_tool_output: int | None = ...,
+    cache_prompt: Literal['auto'] | bool | None = ...,
+    verbosity: Literal['low', 'medium', 'high'] | None = ...,
+    effort: Literal['low', 'medium', 'high', 'max'] | None = ...,
+    reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] | None = ...,
+    reasoning_tokens: int | None = ...,
+    reasoning_summary: Literal['none', 'concise', 'detailed', 'auto'] | None = ...,
+    reasoning_history: Literal['none', 'all', 'last', 'auto'] | None = ...,
+    response_schema: ResponseSchema | None = ...,
+    extra_headers: dict[str, str] | None = ...,
+    extra_body: dict[str, Any] | None = ...,
+    modalities: list[OutputModality] | None = ...,
+    cache: bool | CachePolicy | None = ...,
+    batch: bool | int | BatchConfig | None = ...,
 ) -> Solver
 ```
 
 `tool_calls` Literal\['loop', 'single', 'none'\]  
-Resolve tool calls: - `"loop"` resolves tools calls and then invokes
-`generate()`, proceeding in a loop which terminates when there are no
-more tool calls or `message_limit` or `token_limit` is exceeded. This is
-the default behavior. - `"single"` resolves at most a single set of tool
-calls and then returns. - `"none"` does not resolve tool calls at all
-(in this case you will need to invoke `call_tools()` directly).
+Resolve tool calls: - `"loop"` resolves tools calls and then invokes [generate()](../reference/inspect_ai.solver.html.md#generate), proceeding in a loop which terminates when there are no more tool calls or `message_limit` or `token_limit` is exceeded. This is the default behavior. - `"single"` resolves at most a single set of tool calls and then returns. - `"none"` does not resolve tool calls at all (in this case you will need to invoke `call_tools()` directly).
 
-`**kwargs` Unpack\[[GenerateConfigArgs](inspect_ai.model.qmd#generateconfigargs)\]  
-Optional generation config arguments.
+`max_retries` int \| None  
+Maximum number of times to retry request (defaults to unlimited).
+
+`timeout` int \| None  
+Request timeout (in seconds).
+
+`attempt_timeout` int \| None  
+Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+
+`max_connections` int \| None  
+Maximum number of concurrent connections to Model API (default is model specific).
+
+`system_message` str \| None  
+Override the default system message.
+
+`max_tokens` int \| None  
+The maximum number of tokens that can be generated in the completion (default is model specific).
+
+`top_p` float \| None  
+An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.
+
+`temperature` float \| None  
+What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
+
+`stop_seqs` list\[str\] \| None  
+Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.
+
+`best_of` int \| None  
+Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). vLLM only.
+
+`frequency_penalty` float \| None  
+Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only.
+
+`presence_penalty` float \| None  
+Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, and vLLM only.
+
+`logit_bias` dict\[int, float\] \| None  
+Map token Ids to an associated bias value from -100 to 100 (e.g. “42=10,43=-10”). OpenAI and Grok only.
+
+`seed` int \| None  
+Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only.
+
+`top_k` int \| None  
+Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only.
+
+`num_choices` int \| None  
+How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only.
+
+`logprobs` bool \| None  
+Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.
+
+`top_logprobs` int \| None  
+Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only.
+
+`parallel_tool_calls` bool \| None  
+Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only.
+
+`internal_tools` bool \| None  
+Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic).
+
+`max_tool_output` int \| None  
+Maximum tool output (in bytes). Defaults to 16 \* 1024.
+
+`cache_prompt` Literal\['auto'\] \| bool \| None  
+Whether to cache the prompt prefix. Defaults to “auto”, which will enable caching for requests with tools. Anthropic only.
+
+`verbosity` Literal\['low', 'medium', 'high'\] \| None  
+Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models).
+
+`effort` Literal\['low', 'medium', 'high', 'max'\] \| None  
+Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6).
+
+`reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh'\] \| None  
+Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
+
+`reasoning_tokens` int \| None  
+Maximum number of tokens to use for reasoning. Anthropic Claude models only.
+
+`reasoning_summary` Literal\['none', 'concise', 'detailed', 'auto'\] \| None  
+Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI).
+
+`reasoning_history` Literal\['none', 'all', 'last', 'auto'\] \| None  
+Include reasoning in chat message history sent to generate.
+
+`response_schema` [ResponseSchema](../reference/inspect_ai.model.html.md#responseschema) \| None  
+Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only.
+
+`extra_headers` dict\[str, str\] \| None  
+Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok.
+
+`extra_body` dict\[str, Any\] \| None  
+Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only.
+
+`modalities` list\[[OutputModality](../reference/inspect_ai.model.html.md#outputmodality)\] \| None  
+Additional output modalities to enable beyond text (e.g. \[“image”\]). OpenAI and Google only.
+
+`cache` bool \| [CachePolicy](../reference/inspect_ai.model.html.md#cachepolicy) \| None  
+Policy for caching of model generations.
+
+`batch` bool \| int \| [BatchConfig](../reference/inspect_ai.model.html.md#batchconfig) \| None  
+Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration.
 
 ### use_tools
 
 Inject tools into the task state to be used in generate().
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_use_tools.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_use_tools.py#L11)
 
 ``` python
 @solver
@@ -45,18 +173,14 @@ def use_tools(
 ) -> Solver
 ```
 
-`*tools` [Tool](inspect_ai.tool.qmd#tool) \| [ToolDef](inspect_ai.tool.qmd#tooldef) \| [ToolSource](inspect_ai.tool.qmd#toolsource) \| Sequence\[[Tool](inspect_ai.tool.qmd#tool) \| [ToolDef](inspect_ai.tool.qmd#tooldef) \| [ToolSource](inspect_ai.tool.qmd#toolsource)\]  
-One or more tools or lists of tools to make available to the model. If
-no tools are passed, then no change to the currently available set of
-`tools` is made.
+`*tools` [Tool](../reference/inspect_ai.tool.html.md#tool) \| [ToolDef](../reference/inspect_ai.tool.html.md#tooldef) \| [ToolSource](../reference/inspect_ai.tool.html.md#toolsource) \| Sequence\[[Tool](../reference/inspect_ai.tool.html.md#tool) \| [ToolDef](../reference/inspect_ai.tool.html.md#tooldef) \| [ToolSource](../reference/inspect_ai.tool.html.md#toolsource)\]  
+One or more tools or lists of tools to make available to the model. If no tools are passed, then no change to the currently available set of `tools` is made.
 
-`tool_choice` [ToolChoice](inspect_ai.tool.qmd#toolchoice) \| None  
-Directive indicating which tools the model should use. If `None` is
-passed, then no change to `tool_choice` is made.
+`tool_choice` [ToolChoice](../reference/inspect_ai.tool.html.md#toolchoice) \| None  
+Directive indicating which tools the model should use. If `None` is passed, then no change to `tool_choice` is made.
 
 `append` bool  
-If `True`, then the passed-in tools are appended to the existing tools;
-otherwise any existing tools are replaced (the default)
+If `True`, then the passed-in tools are appended to the existing tools; otherwise any existing tools are replaced (the default)
 
 ## Prompting
 
@@ -64,11 +188,9 @@ otherwise any existing tools are replaced (the default)
 
 Parameterized prompt template.
 
-Prompt template containing a `{prompt}` placeholder and any number of
-additional `params`. All values contained in sample `metadata` and
-`store` are also automatically included in the `params`.
+Prompt template containing a `{prompt}` placeholder and any number of additional `params`. All values contained in sample `metadata` and `store` are also automatically included in the `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_prompt.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_prompt.py#L17)
 
 ``` python
 @solver
@@ -85,15 +207,11 @@ Parameters to fill into the template.
 
 Solver which inserts a system message into the conversation.
 
-System message template containing any number of optional `params`. for
-substitution using the `str.format()` method. All values contained in
-sample `metadata` and `store` are also automatically included in the
-`params`.
+System message template containing any number of optional `params`. for substitution using the `str.format()` method. All values contained in sample `metadata` and `store` are also automatically included in the `params`.
 
-The new message will go after other system messages (if there are none
-it will be inserted at the beginning of the conversation).
+The new message will go after other system messages (if there are none it will be inserted at the beginning of the conversation).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_prompt.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_prompt.py#L45)
 
 ``` python
 @solver
@@ -110,12 +228,9 @@ Parameters to fill into the template.
 
 Solver which inserts a user message into the conversation.
 
-User message template containing any number of optional `params`. for
-substitution using the `str.format()` method. All values contained in
-sample `metadata` and `store` are also automatically included in the
-`params`.
+User message template containing any number of optional `params`. for substitution using the `str.format()` method. All values contained in sample `metadata` and `store` are also automatically included in the `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_prompt.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_prompt.py#L77)
 
 ``` python
 @solver
@@ -132,12 +247,9 @@ Parameters to fill into the template.
 
 Solver which inserts an assistant message into the conversation.
 
-Assistant message template containing any number of optional `params`.
-for substitution using the `str.format()` method. All values contained
-in sample `metadata` and `store` are also automatically included in the
-`params`.
+Assistant message template containing any number of optional `params`. for substitution using the `str.format()` method. All values contained in sample `metadata` and `store` are also automatically included in the `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_prompt.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_prompt.py#L104)
 
 ``` python
 @solver
@@ -154,7 +266,7 @@ Parameters to fill into the template.
 
 Solver which modifies the user prompt to encourage chain of thought.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_prompt.py#L142)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_prompt.py#L142)
 
 ``` python
 @solver
@@ -162,19 +274,15 @@ def chain_of_thought(template: str = DEFAULT_COT_TEMPLATE) -> Solver
 ```
 
 `template` str  
-String or path to file containing CoT template. The template uses a
-single variable: `prompt`.
+String or path to file containing CoT template. The template uses a single variable: `prompt`.
 
 ### self_critique
 
 Solver which uses a model to critique the original answer.
 
-The `critique_template` is used to generate a critique and the
-`completion_template` is used to play that critique back to the model
-for an improved response. Note that you can specify an alternate `model`
-for critique (you don’t need to use the model being evaluated).
+The `critique_template` is used to generate a critique and the `completion_template` is used to play that critique back to the model for an improved response. Note that you can specify an alternate `model` for critique (you don’t need to use the model being evaluated).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_critique.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_critique.py#L13)
 
 ``` python
 @solver
@@ -186,75 +294,54 @@ def self_critique(
 ```
 
 `critique_template` str \| None  
-String or path to file containing critique template. The template uses
-two variables: `question` and `completion`. Variables from sample
-`metadata` are also available in the template.
+String or path to file containing critique template. The template uses two variables: `question` and `completion`. Variables from sample `metadata` are also available in the template.
 
 `completion_template` str \| None  
-String or path to file containing completion template. The template uses
-three variables: `question`, `completion`, and `critique`
+String or path to file containing completion template. The template uses three variables: `question`, `completion`, and `critique`
 
-`model` str \| [Model](inspect_ai.model.qmd#model) \| None  
-Alternate model to be used for critique (by default the model being
-evaluated is used).
+`model` str \| [Model](../reference/inspect_ai.model.html.md#model) \| None  
+Alternate model to be used for critique (by default the model being evaluated is used).
 
 ### multiple_choice
 
-Multiple choice question solver. Formats a multiple choice question
-prompt, then calls `generate()`.
+Multiple choice question solver. Formats a multiple choice question prompt, then calls [generate()](../reference/inspect_ai.solver.html.md#generate).
 
 Note that due to the way this solver works, it has some constraints:
 
-1.  The `Sample` must have the `choices` attribute set.
+1.  The [Sample](../reference/inspect_ai.dataset.html.md#sample) must have the `choices` attribute set.
 2.  The only built-in compatible scorer is the `choice` scorer.
-3.  It calls `generate()` internally, so you don’t need to call it again
+3.  It calls [generate()](../reference/inspect_ai.solver.html.md#generate) internally, so you don’t need to call it again
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_multiple_choice.py#L234)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_multiple_choice.py#L234)
 
 ``` python
-@solver
 def multiple_choice(
     *,
-    template: str | None = None,
-    cot: bool = False,
-    multiple_correct: bool = False,
-    max_tokens: int | None = None,
-    **kwargs: Unpack[DeprecatedArgs],
+    template: str | None = ...,
+    cot: bool = ...,
+    multiple_correct: bool = ...,
+    max_tokens: int | None = ...,
+    shuffle: bool | Random = ...,
 ) -> Solver
 ```
 
 `template` str \| None  
-Template to use for the multiple choice question. The defaults vary
-based on the options and are taken from the `MultipleChoiceTemplate`
-enum. The template will have questions and possible answers substituted
-into it before being sent to the model. Consequently it requires three
-specific template variables:
+Template to use for the multiple choice question. The defaults vary based on the options and are taken from the `MultipleChoiceTemplate` enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:
 
 - `{question}`: The question to be asked.
-- `{choices}`: The choices available, which will be formatted as a list
-  of A) … B) … etc. before sending to the model.
-- `{letters}`: (optional) A string of letters representing the choices,
-  e.g. “A,B,C”. Used to be explicit to the model about the possible
-  answers.
+- `{choices}`: The choices available, which will be formatted as a list of A) … B) … etc. before sending to the model.
+- `{letters}`: (optional) A string of letters representing the choices, e.g. “A,B,C”. Used to be explicit to the model about the possible answers.
 
 `cot` bool  
-Default `False`. Whether the solver should perform chain-of-thought
-reasoning before answering. NOTE: this has no effect if you provide a
-custom template.
+Default `False`. Whether the solver should perform chain-of-thought reasoning before answering. NOTE: this has no effect if you provide a custom template.
 
 `multiple_correct` bool  
-Default `False`. Whether to allow multiple answers to the multiple
-choice question. For example, “What numbers are squares? A) 3, B) 4, C)
-9” has multiple correct answers, B and C. Leave as `False` if there’s
-exactly one correct answer from the choices available. NOTE: this has no
-effect if you provide a custom template.
+Default `False`. Whether to allow multiple answers to the multiple choice question. For example, “What numbers are squares? A) 3, B) 4, C) 9” has multiple correct answers, B and C. Leave as `False` if there’s exactly one correct answer from the choices available. NOTE: this has no effect if you provide a custom template.
 
 `max_tokens` int \| None  
-Default `None`. Controls the number of tokens generated through the call
-to generate().
+Default `None`. Controls the number of tokens generated through the call to generate().
 
-`**kwargs` Unpack\[DeprecatedArgs\]  
-Deprecated arguments for backward compatibility.
+`shuffle` bool \| Random  
 
 ## Composition
 
@@ -262,11 +349,9 @@ Deprecated arguments for backward compatibility.
 
 Compose a solver from multiple other solvers and/or agents.
 
-Solvers are executed in turn, and a solver step event is added to the
-transcript for each. If a solver returns a state with `completed=True`,
-the chain is terminated early.
+Solvers are executed in turn, and a solver step event is added to the transcript for each. If a solver returns a state with `completed=True`, the chain is terminated early.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_chain.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_chain.py#L12)
 
 ``` python
 @solver
@@ -275,19 +360,16 @@ def chain(
 ) -> Solver
 ```
 
-`*solvers` [Solver](inspect_ai.solver.qmd#solver) \| [Agent](inspect_ai.agent.qmd#agent) \| list\[[Solver](inspect_ai.solver.qmd#solver)\] \| list\[[Solver](inspect_ai.solver.qmd#solver) \| [Agent](inspect_ai.agent.qmd#agent)\]  
+`*solvers` [Solver](../reference/inspect_ai.solver.html.md#solver) \| [Agent](../reference/inspect_ai.agent.html.md#agent) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\] \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver) \| [Agent](../reference/inspect_ai.agent.html.md#agent)\]  
 One or more solvers or agents to chain together.
 
 ### fork
 
 Fork the TaskState and evaluate it against multiple solvers in parallel.
 
-Run several solvers against independent copies of a TaskState. Each
-Solver gets its own copy of the TaskState and is run (in parallel) in an
-independent Subtask (meaning that is also has its own independent Store
-that doesn’t affect the Store of other subtasks or the parent).
+Run several solvers against independent copies of a TaskState. Each Solver gets its own copy of the TaskState and is run (in parallel) in an independent Subtask (meaning that is also has its own independent Store that doesn’t affect the Store of other subtasks or the parent).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_fork.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_fork.py#L25)
 
 ``` python
 async def fork(
@@ -295,12 +377,11 @@ async def fork(
 ) -> TaskState | list[TaskState]
 ```
 
-`state` [TaskState](inspect_ai.solver.qmd#taskstate)  
+`state` [TaskState](../reference/inspect_ai.solver.html.md#taskstate)  
 Beginning TaskState
 
-`solvers` [Solver](inspect_ai.solver.qmd#solver) \| list\[[Solver](inspect_ai.solver.qmd#solver)\]  
-Solvers to apply on the TaskState. Each Solver will get a standalone
-copy of the TaskState.
+`solvers` [Solver](../reference/inspect_ai.solver.html.md#solver) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\]  
+Solvers to apply on the TaskState. Each Solver will get a standalone copy of the TaskState.
 
 ## Types
 
@@ -308,12 +389,9 @@ copy of the TaskState.
 
 Contribute to solving an evaluation task.
 
-Transform a `TaskState`, returning the new state. Solvers may optionally
-call the `generate()` function to create a new state resulting from
-model generation. Solvers may also do prompt engineering or other types
-of elicitation.
+Transform a [TaskState](../reference/inspect_ai.solver.html.md#taskstate), returning the new state. Solvers may optionally call the [generate()](../reference/inspect_ai.solver.html.md#generate) function to create a new state resulting from model generation. Solvers may also do prompt engineering or other types of elicitation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_solver.py#L79)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_solver.py#L79)
 
 ``` python
 class Solver(Protocol):
@@ -324,10 +402,10 @@ class Solver(Protocol):
     ) -> TaskState
 ```
 
-`state` [TaskState](inspect_ai.solver.qmd#taskstate)  
+`state` [TaskState](../reference/inspect_ai.solver.html.md#taskstate)  
 State for tasks being evaluated.
 
-`generate` [Generate](inspect_ai.solver.qmd#generate)  
+`generate` [Generate](../reference/inspect_ai.solver.html.md#generate)  
 Function for generating outputs.
 
 #### Examples
@@ -346,7 +424,7 @@ def prompt_cot(template: str) -> Solver:
 
 Solver specification used to (re-)create solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_solver.py#L63)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_solver.py#L63)
 
 ``` python
 @dataclass(frozen=True)
@@ -366,15 +444,11 @@ Solver arguments passed for invocation.
 
 ### TaskState
 
-The `TaskState` represents the internal state of the `Task` being run
-for a single `Sample`.
+The [TaskState](../reference/inspect_ai.solver.html.md#taskstate) represents the internal state of the [Task](../reference/inspect_ai.html.md#task) being run for a single [Sample](../reference/inspect_ai.dataset.html.md#sample).
 
-The `TaskState` is passed to and returned from each solver during a
-sample’s evaluation. It allows us to maintain the manipulated message
-history, the tools available to the model, the final output of the
-model, and whether the task is completed or has hit a limit.
+The [TaskState](../reference/inspect_ai.solver.html.md#taskstate) is passed to and returned from each solver during a sample’s evaluation. It allows us to maintain the manipulated message history, the tools available to the model, the final output of the model, and whether the task is completed or has hit a limit.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_task_state.py#L139)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_task_state.py#L139)
 
 ``` python
 class TaskState
@@ -391,48 +465,39 @@ Unique id for sample.
 `epoch` int  
 Epoch number for sample.
 
-`input` str \| list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
-Input from the `Sample`, should be considered immutable.
+`input` str \| list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
+Input from the [Sample](../reference/inspect_ai.dataset.html.md#sample), should be considered immutable.
 
 `input_text` str  
-Convenience function for accessing the initial input from the `Sample`
-as a string.
+Convenience function for accessing the initial input from the [Sample](../reference/inspect_ai.dataset.html.md#sample) as a string.
 
-If the `input` is a `list[ChatMessage]`, this will return the text from
-the last chat message
+If the `input` is a `list[ChatMessage]`, this will return the text from the last chat message
 
-`user_prompt` [ChatMessageUser](inspect_ai.model.qmd#chatmessageuser)  
+`user_prompt` [ChatMessageUser](../reference/inspect_ai.model.html.md#chatmessageuser)  
 User prompt for this state.
 
-Tasks are very general and can have may types of inputs. However, in
-many cases solvers assume they can interact with the state as a “chat”
-in a predictable fashion (e.g. prompt engineering solvers). This
-property enables easy read and write access to the user chat prompt.
-Raises an exception if there is no user prompt
+Tasks are very general and can have may types of inputs. However, in many cases solvers assume they can interact with the state as a “chat” in a predictable fashion (e.g. prompt engineering solvers). This property enables easy read and write access to the user chat prompt. Raises an exception if there is no user prompt
 
 `metadata` dict\[str, Any\]  
-Metadata from the `Sample` for this `TaskState`
+Metadata from the [Sample](../reference/inspect_ai.dataset.html.md#sample) for this [TaskState](../reference/inspect_ai.solver.html.md#taskstate)
 
-`messages` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+`messages` list\[[ChatMessage](../reference/inspect_ai.model.html.md#chatmessage)\]  
 Chat conversation history for sample.
 
-This will generally get appended to every time a `generate` call is made
-to the model. Useful for both debug and for solvers/scorers to assess
-model performance or choose the next step.
+This will generally get appended to every time a `generate` call is made to the model. Useful for both debug and for solvers/scorers to assess model performance or choose the next step.
 
-`output` [ModelOutput](inspect_ai.model.qmd#modeloutput)  
+`output` [ModelOutput](../reference/inspect_ai.model.html.md#modeloutput)  
 The ‘final’ model output once we’ve completed all solving.
 
-For simple evals this may just be the last `message` from the
-conversation history, but more complex solvers may set this directly.
+For simple evals this may just be the last `message` from the conversation history, but more complex solvers may set this directly.
 
-`store` [Store](inspect_ai.util.qmd#store)  
+`store` [Store](../reference/inspect_ai.util.html.md#store)  
 Store for shared data
 
-`tools` list\[[Tool](inspect_ai.tool.qmd#tool)\]  
+`tools` list\[[Tool](../reference/inspect_ai.tool.html.md#tool)\]  
 Tools available to the model.
 
-`tool_choice` [ToolChoice](inspect_ai.tool.qmd#toolchoice) \| None  
+`tool_choice` [ToolChoice](../reference/inspect_ai.tool.html.md#toolchoice) \| None  
 Tool choice directive.
 
 `message_limit` int \| None  
@@ -455,10 +520,10 @@ Is the task completed.
 
 Additionally, checks for an operator interrupt of the sample.
 
-`target` [Target](inspect_ai.scorer.qmd#target)  
-The scoring target for this `Sample`.
+`target` [Target](../reference/inspect_ai.scorer.html.md#target)  
+The scoring target for this [Sample](../reference/inspect_ai.dataset.html.md#sample).
 
-`scores` dict\[str, [Score](inspect_ai.scorer.qmd#score)\] \| None  
+`scores` dict\[str, [Score](../reference/inspect_ai.scorer.html.md#score)\] \| None  
 Scores yielded by running task.
 
 `uuid` str  
@@ -469,7 +534,7 @@ Globally unique identifier for sample run.
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_task_state.py#L420)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_task_state.py#L420)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -481,7 +546,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_task_state.py#L434)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_task_state.py#L434)
 
 ``` python
 def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -491,41 +556,167 @@ def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
 Pydantic model type (must derive from StoreModel)
 
 `instance` str \| None  
-Optional instances name for store (enables multiple instances of a given
-StoreModel type within a single sample)
+Optional instances name for store (enables multiple instances of a given StoreModel type within a single sample)
 
 ### Generate
 
-Generate using the model and add the assistant message to the task
-state.
+Generate using the model and add the assistant message to the task state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_solver.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_solver.py#L37)
 
 ``` python
 class Generate(Protocol):
-    async def __call__(
-        self,
-        state: TaskState,
-        tool_calls: Literal["loop", "single", "none"] = "loop",
-        **kwargs: Unpack[GenerateConfigArgs],
-    ) -> TaskState
+def __call__(
+    self,
+    state: TaskState,
+    tool_calls: Literal['loop', 'single', 'none'] = ...,
+    *,
+    max_retries: int | None = ...,
+    timeout: int | None = ...,
+    attempt_timeout: int | None = ...,
+    max_connections: int | None = ...,
+    system_message: str | None = ...,
+    max_tokens: int | None = ...,
+    top_p: float | None = ...,
+    temperature: float | None = ...,
+    stop_seqs: list[str] | None = ...,
+    best_of: int | None = ...,
+    frequency_penalty: float | None = ...,
+    presence_penalty: float | None = ...,
+    logit_bias: dict[int, float] | None = ...,
+    seed: int | None = ...,
+    top_k: int | None = ...,
+    num_choices: int | None = ...,
+    logprobs: bool | None = ...,
+    top_logprobs: int | None = ...,
+    parallel_tool_calls: bool | None = ...,
+    internal_tools: bool | None = ...,
+    max_tool_output: int | None = ...,
+    cache_prompt: Literal['auto'] | bool | None = ...,
+    verbosity: Literal['low', 'medium', 'high'] | None = ...,
+    effort: Literal['low', 'medium', 'high', 'max'] | None = ...,
+    reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] | None = ...,
+    reasoning_tokens: int | None = ...,
+    reasoning_summary: Literal['none', 'concise', 'detailed', 'auto'] | None = ...,
+    reasoning_history: Literal['none', 'all', 'last', 'auto'] | None = ...,
+    response_schema: ResponseSchema | None = ...,
+    extra_headers: dict[str, str] | None = ...,
+    extra_body: dict[str, Any] | None = ...,
+    modalities: list[OutputModality] | None = ...,
+    cache: bool | CachePolicy | None = ...,
+    batch: bool | int | BatchConfig | None = ...,
+) -> TaskState
 ```
 
-`state` [TaskState](inspect_ai.solver.qmd#taskstate)  
+`state` [TaskState](../reference/inspect_ai.solver.html.md#taskstate)  
 Beginning task state.
 
 `tool_calls` Literal\['loop', 'single', 'none'\]  
-- `"loop"` resolves tools calls and then invokes `generate()`,
-  proceeding in a loop which terminates when there are no more tool
-  calls, or `message_limit` or `token_limit` is exceeded. This is the
-  default behavior.
-- `"single"` resolves at most a single set of tool calls and then
-  returns.
-- `"none"` does not resolve tool calls at all (in this case you will
-  need to invoke `call_tools()` directly).
+- `"loop"` resolves tools calls and then invokes [generate()](../reference/inspect_ai.solver.html.md#generate), proceeding in a loop which terminates when there are no more tool calls, or `message_limit` or `token_limit` is exceeded. This is the default behavior.
+- `"single"` resolves at most a single set of tool calls and then returns.
+- `"none"` does not resolve tool calls at all (in this case you will need to invoke `call_tools()` directly).
 
-`**kwargs` Unpack\[[GenerateConfigArgs](inspect_ai.model.qmd#generateconfigargs)\]  
-Optional generation config arguments.
+`max_retries` int \| None  
+Maximum number of times to retry request (defaults to unlimited).
+
+`timeout` int \| None  
+Request timeout (in seconds).
+
+`attempt_timeout` int \| None  
+Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
+
+`max_connections` int \| None  
+Maximum number of concurrent connections to Model API (default is model specific).
+
+`system_message` str \| None  
+Override the default system message.
+
+`max_tokens` int \| None  
+The maximum number of tokens that can be generated in the completion (default is model specific).
+
+`top_p` float \| None  
+An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.
+
+`temperature` float \| None  
+What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
+
+`stop_seqs` list\[str\] \| None  
+Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.
+
+`best_of` int \| None  
+Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). vLLM only.
+
+`frequency_penalty` float \| None  
+Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only.
+
+`presence_penalty` float \| None  
+Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, and vLLM only.
+
+`logit_bias` dict\[int, float\] \| None  
+Map token Ids to an associated bias value from -100 to 100 (e.g. “42=10,43=-10”). OpenAI and Grok only.
+
+`seed` int \| None  
+Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only.
+
+`top_k` int \| None  
+Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only.
+
+`num_choices` int \| None  
+How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only.
+
+`logprobs` bool \| None  
+Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.
+
+`top_logprobs` int \| None  
+Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only.
+
+`parallel_tool_calls` bool \| None  
+Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only.
+
+`internal_tools` bool \| None  
+Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic).
+
+`max_tool_output` int \| None  
+Maximum tool output (in bytes). Defaults to 16 \* 1024.
+
+`cache_prompt` Literal\['auto'\] \| bool \| None  
+Whether to cache the prompt prefix. Defaults to “auto”, which will enable caching for requests with tools. Anthropic only.
+
+`verbosity` Literal\['low', 'medium', 'high'\] \| None  
+Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models).
+
+`effort` Literal\['low', 'medium', 'high', 'max'\] \| None  
+Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6).
+
+`reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh'\] \| None  
+Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
+
+`reasoning_tokens` int \| None  
+Maximum number of tokens to use for reasoning. Anthropic Claude models only.
+
+`reasoning_summary` Literal\['none', 'concise', 'detailed', 'auto'\] \| None  
+Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI).
+
+`reasoning_history` Literal\['none', 'all', 'last', 'auto'\] \| None  
+Include reasoning in chat message history sent to generate.
+
+`response_schema` [ResponseSchema](../reference/inspect_ai.model.html.md#responseschema) \| None  
+Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only.
+
+`extra_headers` dict\[str, str\] \| None  
+Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok.
+
+`extra_body` dict\[str, Any\] \| None  
+Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only.
+
+`modalities` list\[[OutputModality](../reference/inspect_ai.model.html.md#outputmodality)\] \| None  
+Additional output modalities to enable beyond text (e.g. \[“image”\]). OpenAI and Google only.
+
+`cache` bool \| [CachePolicy](../reference/inspect_ai.model.html.md#cachepolicy) \| None  
+Policy for caching of model generations.
+
+`batch` bool \| int \| [BatchConfig](../reference/inspect_ai.model.html.md#batchconfig) \| None  
+Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration.
 
 ## Decorators
 
@@ -533,7 +724,7 @@ Optional generation config arguments.
 
 Decorator for registering solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4a557afb85abe038d1c523f67c2e9887d589043c/src/inspect_ai/solver/_solver.py#L156)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23e38cc9be2623bf6516ffc85ea285cac9ac9af9/src/inspect_ai/solver/_solver.py#L156)
 
 ``` python
 def solver(
@@ -542,9 +733,7 @@ def solver(
 ```
 
 `name` str \| Callable\[P, SolverType\]  
-Optional name for solver. If the decorator has no name argument then the
-name of the underlying Callable\[P, SolverType\] object will be used to
-automatically assign a name.
+Optional name for solver. If the decorator has no name argument then the name of the underlying Callable\[P, SolverType\] object will be used to automatically assign a name.
 
 #### Examples
 

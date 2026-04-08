@@ -1,27 +1,8 @@
 # Log Dataframes
 
-
 ## Overview
 
-<style type="text/css">
-table a {
-    white-space: nowrap;
-}
-#overview table a {
-    text-decoration: none;
-    font-family: monospace;
-    font-size: 0.95rem;
-}
-</style>
-
-Inspect eval logs have a hierarchical structure which is well suited to
-flexibly capturing all the elements of an evaluation. However, when
-analysing or visualising log data you will often want to transform logs
-into a
-[dataframe](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html).
-The **inspect_ai.analysis** module includes a variety of functions for
-extracting [Pandas](https://pandas.pydata.org/) dataframes from logs,
-including:
+Inspect eval logs have a hierarchical structure which is well suited to flexibly capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into a [dataframe](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for extracting [Pandas](https://pandas.pydata.org/) dataframes from logs, including:
 
 | Function | Description |
 |----|----|
@@ -30,31 +11,19 @@ including:
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
 | [events_df()](#events) | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events. |
 
-Each function extracts a default set of columns, with id fields
-(e.g. `eval_id`, `sample_id`) automatically included. Additionally, a
-`log` field which includes the URI of the log file read from is
-included.
+Each function extracts a default set of columns, with id fields (e.g. `eval_id`, `sample_id`) automatically included. Additionally, a `log` field which includes the URI of the log file read from is included.
 
-You can further tailor column reading to work in whatever way you need
-for your analysis. Extracted dataframes can either be denormalized
-(e.g. if you want to immediately summarise or plot them) or normalised
-(e.g. if you are importing them into a SQL database).
+You can further tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
 
-> [!NOTE]
+> **NOTE:**
 >
-> ### Inspect Viz
->
-> [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) is a
-> data visualization framework built to work with the Inspect data frame
-> functions described below. After you’ve explored the basics of data
-> frames you may also want to check out Inspect Viz.
+> [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) is a data visualization framework built to work with the Inspect data frame functions described below. After you’ve explored the basics of data frames you may also want to check out Inspect Viz.
 
 ## Basics
 
 ### Reading Data
 
-Use the `evals_df()` function to read a dataframe containing a row for
-each log file or log object:
+Use the [evals_df()](reference/inspect_ai.analysis.html.md#evals_df) function to read a dataframe containing a row for each log file or log object:
 
 ``` python
 # read logs from a given log directory
@@ -68,13 +37,9 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 51 entries, eval_id to score_model_graded_qa_stderr
 ```
 
-The default configuration for `evals_df()` reads a predefined set of
-columns. You can customise column reading in a variety of ways (covered
-below in [Column Definitions](#column-definitions)).
+The default configuration for [evals_df()](reference/inspect_ai.analysis.html.md#evals_df) reads a predefined set of columns. You can customise column reading in a variety of ways (covered below in [Column Definitions](#column-definitions)).
 
-Use the `samples_df()` function to read a dataframe with a record for
-each sample across a set of log files or log objects. For example, here
-we read all of the samples in the “logs” directory:
+Use the [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) function to read a dataframe with a record for each sample across a set of log files or log objects. For example, here we read all of the samples in the “logs” directory:
 
 ``` python
 from inspect_ai.analysis import samples_df
@@ -88,14 +53,11 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 13 entries, sample_id to retries
 ```
 
-By default, `sample_df()` reads all of the columns in the
-`EvalSampleSummary` data structure (12 columns), along with the
-`eval_id` for linking back to the parent eval log file.
+By default, `sample_df()` reads all of the columns in the [EvalSampleSummary](reference/inspect_ai.log.html.md#evalsamplesummary) data structure (12 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
-When reading dataframes, there are a number of pre-built column groups
-you can use to read various subsets of columns. For example:
+When reading dataframes, there are a number of pre-built column groups you can use to read various subsets of columns. For example:
 
 ``` python
 from inspect_ai.analysis import (
@@ -114,13 +76,9 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 23 entries, eval_id to score_headline_value
 ```
 
-This dataframe has 23 columns rather than the 51 we saw when using the
-default `evals_df()` congiruation, reflecting the explicit columns
-groups specified.
+This dataframe has 23 columns rather than the 51 we saw when using the default [evals_df()](reference/inspect_ai.analysis.html.md#evals_df) congiruation, reflecting the explicit columns groups specified.
 
-You can also use column groups to join columns for doing analysis or
-plotting. For example, here we include eval level data along with each
-sample:
+You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
 ``` python
 from inspect_ai.analysis import (
@@ -139,18 +97,11 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 27 entries, sample_id to retries
 ```
 
-This dataframe has 27 columns rather than than the 13 we saw for the
-default `samples_df()` behavior, reflecting the additional eval level
-columns. You can create your own column groups and definitions to
-further customise reading (see [Column Definitions](#column-definitions)
-for details).
+This dataframe has 27 columns rather than than the 13 we saw for the default [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Column Definitions](#column-definitions) for details).
 
 ### Filtering Logs
 
-The above examples read all of the logs within a given directory. You
-can also use the `list_eval_logs()` function to filter the list of logs
-based on arbitrary criteria as well control whether log listings are
-recursive.
+The above examples read all of the logs within a given directory. You can also use the [list_eval_logs()](reference/inspect_ai.log.html.md#list_eval_logs) function to filter the list of logs based on arbitrary criteria as well control whether log listings are recursive.
 
 For example, here we read only log files with a `status` of “success”:
 
@@ -181,17 +132,11 @@ evals_df(logs)
 
 ### Parallel Reading
 
-The `samples_df()`, `messages_df()`, and `events_df()` functions can be
-slow to run if you are reading full samples from hundreds of logs,
-especially logs with larger samples (e.g. agent trajectories).
+The [samples_df()](reference/inspect_ai.analysis.html.md#samples_df), [messages_df()](reference/inspect_ai.analysis.html.md#messages_df), and [events_df()](reference/inspect_ai.analysis.html.md#events_df) functions can be slow to run if you are reading full samples from hundreds of logs, especially logs with larger samples (e.g. agent trajectories).
 
-One easy mitigation when using `samples_df()` is to stick with the
-default `SampleSummary` columns only, as these require only a very fast
-read of a header (the actual samples don’t need to be loaded).
+One easy mitigation when using [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) is to stick with the default [SampleSummary](reference/inspect_ai.analysis.html.md#samplesummary) columns only, as these require only a very fast read of a header (the actual samples don’t need to be loaded).
 
-If you need to read full samples, events, or messages and the read is
-taking longer than you’d like, you can enable parallel reading using the
-`parallel` option:
+If you need to read full samples, events, or messages and the read is taking longer than you’d like, you can enable parallel reading using the `parallel` option:
 
 ``` python
 from inspect_ai.analysis import (
@@ -212,11 +157,7 @@ events = events_df(
 )
 ```
 
-Parallel reading uses the Python `ProcessPoolExecutor` with the number
-of workers based on `mp.cpu_count()`. The workers are capped at 8 by
-default as typically beyond this disk and memory contention dominate
-performance. If you wish you can override this default by passing a
-number of workers explicitly:
+Parallel reading uses the Python `ProcessPoolExecutor` with the number of workers based on `mp.cpu_count()`. The workers are capped at 8 by default as typically beyond this disk and memory contention dominate performance. If you wish you can override this default by passing a number of workers explicitly:
 
 ``` python
 events = events_df(
@@ -225,20 +166,13 @@ events = events_df(
 )
 ```
 
-Note that the `evals_df()` function does not have a `parallel` option as
-it only does very inexpensive reads of log headers, so the overhead
-required for parallelisation would most often make the function slower
-to run.
+Note that the [evals_df()](reference/inspect_ai.analysis.html.md#evals_df) function does not have a `parallel` option as it only does very inexpensive reads of log headers, so the overhead required for parallelisation would most often make the function slower to run.
 
 ### Databases
 
-You can also read multiple dataframes and combine them into a relational
-database. Imported dataframes automatically include fields that can be
-used to join them (e.g. `eval_id` is in both the evals and samples
-tables).
+You can also read multiple dataframes and combine them into a relational database. Imported dataframes automatically include fields that can be used to join them (e.g. `eval_id` is in both the evals and samples tables).
 
-For example, here we read eval and sample level data from a log
-directory and import both tables into a DuckDb database:
+For example, here we read eval and sample level data from a log directory and import both tables into a DuckDb database:
 
 ``` python
 import duckdb
@@ -249,8 +183,7 @@ con.register('evals', evals_df("logs"))
 con.register('samples', samples_df("logs"))
 ```
 
-We can now execute a query to find all samples generated using the
-`google` provider:
+We can now execute a query to find all samples generated using the `google` provider:
 
 ``` python
 result = con.execute("""
@@ -263,16 +196,9 @@ result = con.execute("""
 
 ## Data Preparation
 
-After reading data frames from log files, there will often be additional
-data preparation required for plotting or analysis. Some common
-transformations are provided as built in functions that satisfy the
-`Operation` protocol. To apply these transformations, use the
-`prepare()` function.
+After reading data frames from log files, there will often be additional data preparation required for plotting or analysis. Some common transformations are provided as built in functions that satisfy the [Operation](reference/inspect_ai.analysis.html.md#operation) protocol. To apply these transformations, use the [prepare()](reference/inspect_ai.analysis.html.md#prepare) function.
 
-For example, if you have used the
-[`inspect view bundle`](log-viewer.qmd#sec-publishing) command to
-publish logs to a website, you can use the `log_viewer()` operation to
-map log file paths to their published URLs:
+For example, if you have used the [`inspect view bundle`](log-viewer.html.md#sec-publishing) command to publish logs to a website, you can use the [log_viewer()](reference/inspect_ai.analysis.html.md#log_viewer) operation to map log file paths to their published URLs:
 
 ``` python
 from inspect_ai.analysis import (
@@ -314,15 +240,11 @@ The model’s release date
 `model_knowledge_cutoff_date`  
 The model’s knowledge cutoff date
 
-Inspect includes built in support for many models (based upon the
-`model` string in the dataframe). If you are using models for which
-Inspect does not include model metadata, you may include your own model
-metadata (see the `model_info()` reference for additional details).
+Inspect includes built in support for many models (based upon the `model` string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata (see the [model_info()](reference/inspect_ai.analysis.html.md#model_info) reference for additional details).
 
 ### task_info()
 
-Map task names to task display names (e.g. “gpqa_diamond” -\> “GPQA
-Diamond”).
+Map task names to task display names (e.g. “gpqa_diamond” -\> “GPQA Diamond”).
 
 ``` python
 df = evals_df("logs")
@@ -331,15 +253,11 @@ df = prepare(df, [
 ])
 ```
 
-See the `task_info()` reference for additional details.
+See the [task_info()](reference/inspect_ai.analysis.html.md#task_info) reference for additional details.
 
 ### log_viewer()
 
-Add a “log_viewer” column to an eval data frame by mapping log file
-paths to remote URLs. Pass mappings from the local log directory (or S3
-bucket) to the URL where the logs have been publishing using
-[`inspect view bundle`](https://inspect.aisi.org.uk/log-viewer.html#sec-publishing).
-For example:
+Add a “log_viewer” column to an eval data frame by mapping log file paths to remote URLs. Pass mappings from the local log directory (or S3 bucket) to the URL where the logs have been publishing using [`inspect view bundle`](https://inspect.aisi.org.uk/log-viewer.html#sec-publishing). For example:
 
 ``` python
 df = evals_df("logs")
@@ -348,19 +266,13 @@ df = prepare(df, [
 ])
 ```
 
-Note that the code above targets “eval” (the top level viewer page for
-an eval). Other available targets include “sample”, “event”, and
-“message”. See the `log_viewer()` reference for additional details.
+Note that the code above targets “eval” (the top level viewer page for an eval). Other available targets include “sample”, “event”, and “message”. See the [log_viewer()](reference/inspect_ai.analysis.html.md#log_viewer) reference for additional details.
 
 ### frontier()
 
-Adds a “frontier” column to each task. The value of the “frontier”
-column will be `True` if for the task, the model was the top-scoring
-model among all models available at the moment the model was released;
-otherwise it will be `False`.
+Adds a “frontier” column to each task. The value of the “frontier” column will be `True` if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be `False`.
 
-The `frontier()` requires scores and model release dates, so must be run
-after the `model_info()` operation.
+The [frontier()](reference/inspect_ai.analysis.html.md#frontier) requires scores and model release dates, so must be run after the [model_info()](reference/inspect_ai.analysis.html.md#model_info) operation.
 
 ``` python
 from inspect_ai.analysis import (
@@ -376,12 +288,9 @@ df = prepare(df, [
 
 ### score_to_float()
 
-Converts one or more score columns to a float representation of the
-score.
+Converts one or more score columns to a float representation of the score.
 
-For each column specified, this operation will convert the values to
-floats using the provided `value_to_float` function. The column value
-will be replaced with the float value.
+For each column specified, this operation will convert the values to floats using the provided `value_to_float` function. The column value will be replaced with the float value.
 
 ``` python
 from inspect_ai.analysis import (
@@ -396,15 +305,9 @@ df = prepare(df, [
 
 ## Column Definitions
 
-The examples above all use built-in column specifications
-(e.g. `EvalModel`, `EvalResults`, `SampleSummary`, etc.). These
-specifications exist as a convenient starting point but can be replaced
-fully or partially by your own custom definitions.
+The examples above all use built-in column specifications (e.g. [EvalModel](reference/inspect_ai.analysis.html.md#evalmodel), [EvalResults](reference/inspect_ai.log.html.md#evalresults), [SampleSummary](reference/inspect_ai.analysis.html.md#samplesummary), etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
-Column definitions specify how JSON data is mapped into dataframe
-columns, and are specified using subclasses of the `Column` class
-(e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition
-of the built-in `EvalTask` column group:
+Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the [Column](reference/inspect_ai.analysis.html.md#column) class (e.g. [EvalColumn](reference/inspect_ai.analysis.html.md#evalcolumn), [SampleColumn](reference/inspect_ai.analysis.html.md#samplecolumn)). For example, here is the definition of the built-in [EvalTask](reference/inspect_ai.analysis.html.md#evaltask) column group:
 
 ``` python
 EvalTask: list[Column] = [
@@ -420,24 +323,18 @@ EvalTask: list[Column] = [
 ]
 ```
 
-Columns are defined with a `name`, a `path` (location within JSON to
-read their value from), and other options (e.g. `required`, `type`,
-etc.) . Column paths use [JSON
-Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how
-they should be read from JSON.
+Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.) . Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
 
-Many fields within eval logs are optional, and path expressions will
-automatically resolve to `None` when they include a missing field
-(unless the `required=True` option is specified).
+Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
 
-Here are are all of the options available for `Column` definitions:
+Here are are all of the options available for [Column](reference/inspect_ai.analysis.html.md#column) definitions:
 
 #### Column Options
 
 | Parameter | Type | Description |
 |----|----|----|
 | `name` | `str` | Column name for dataframe. Can include wildcard characters (e.g. `task_arg_*`) for mapping dictionaries into multiple columns. |
-| `path` | `str` \| `JSONPath` | Path into JSON to extract the column from (uses [JSON Path](https://github.com/h2non/jsonpath-ng) expressions). Subclasses also implement path handlers that take e.g. an `EvalLog` and return a value. |
+| `path` | `str` \| `JSONPath` | Path into JSON to extract the column from (uses [JSON Path](https://github.com/h2non/jsonpath-ng) expressions). Subclasses also implement path handlers that take e.g. an [EvalLog](reference/inspect_ai.log.html.md#evallog) and return a value. |
 | `required` | `bool` | Is the field required (i.e. should an error occur if it not found). |
 | `default` | `JsonValue` | Default value to yield if the field or its parents are not found in JSON. |
 | `type` | `Type[ColumnType]` | Validation check and directive to attempt to coerce the data into the specified `type`. Coercion from `str` to other types is done after interpreting the string using YAML (e.g. `"true"` -\> `True`). |
@@ -461,11 +358,7 @@ SampleColumn("target", path="target", value=list_as_str),
 
 #### Column Merging
 
-If a column is name is repeated within a list of columns then the column
-definition encountered last is utilised. This makes it straightforward
-to override default column definitions. For example, here we override
-the behaviour of the default sample `metadata` columns (keeping it as
-JSON rather than splitting it into multiple columns):
+If a column is name is repeated within a list of columns then the column definition encountered last is utilised. This makes it straightforward to override default column definitions. For example, here we override the behaviour of the default sample `metadata` columns (keeping it as JSON rather than splitting it into multiple columns):
 
 ``` python
  samples_df(
@@ -476,11 +369,7 @@ JSON rather than splitting it into multiple columns):
 
 #### Strict Mode
 
-By default, dataframes are read in `strict` mode, which means that if
-fields are missing or paths are invalid an error is raised and the
-import is aborted. You can optionally set `strict=False`, in which case
-importing will proceed and a tuple containing `pd.DataFrame` and a list
-of any errors encountered is returned. For example:
+By default, dataframes are read in `strict` mode, which means that if fields are missing or paths are invalid an error is raised and the import is aborted. You can optionally set `strict=False`, in which case importing will proceed and a tuple containing `pd.DataFrame` and a list of any errors encountered is returned. For example:
 
 ``` python
 from inspect_ai.analysis import evals_df
@@ -492,40 +381,30 @@ if len(errors) > 0:
 
 ### Evals
 
-`EvalColumns` defines a default set of roughly 50 columns to read from
-the top level of an eval log. `EvalColumns` is in turn composed of
-several sets of column definitions that you can be used independently,
-these include:
+[EvalColumns](reference/inspect_ai.analysis.html.md#evalcolumns) defines a default set of roughly 50 columns to read from the top level of an eval log. [EvalColumns](reference/inspect_ai.analysis.html.md#evalcolumns) is in turn composed of several sets of column definitions that you can be used independently, these include:
 
 | Type | Description |
 |----|----|
-| `EvalInfo` | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| `EvalTask` | Task configuration (name, file, args, solver, etc.) |
-| `EvalModel` | Model name, args, generation config, etc. |
-| `EvalDataset` | Dataset name, location, sample ids, etc. |
-| `EvalConfig` | Epochs, approval, sample limits, etc. |
-| `EvalResults` | Status, errors, samples completed, headline metric. |
-| `EvalScores` | All scores and metrics broken into separate columns. |
+| [EvalInfo](reference/inspect_ai.analysis.html.md#evalinfo) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
+| [EvalTask](reference/inspect_ai.analysis.html.md#evaltask) | Task configuration (name, file, args, solver, etc.) |
+| [EvalModel](reference/inspect_ai.analysis.html.md#evalmodel) | Model name, args, generation config, etc. |
+| [EvalDataset](reference/inspect_ai.log.html.md#evaldataset) | Dataset name, location, sample ids, etc. |
+| [EvalConfig](reference/inspect_ai.log.html.md#evalconfig) | Epochs, approval, sample limits, etc. |
+| [EvalResults](reference/inspect_ai.log.html.md#evalresults) | Status, errors, samples completed, headline metric. |
+| [EvalScores](reference/inspect_ai.analysis.html.md#evalscores) | All scores and metrics broken into separate columns. |
 
-The `eval_id` field is automatically included in all eval data frames.
-Additionally, a `log` field which includes the URI of the log file read
-from is included.
+The `eval_id` field is automatically included in all eval data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 
 #### Multi-Columns
 
-The `task_args` dictionary and eval scores data structure are both
-expanded into multiple columns by default:
+The `task_args` dictionary and eval scores data structure are both expanded into multiple columns by default:
 
 ``` python
 EvalColumn("task_arg_*", path="eval.task_args")
 EvalColumn("score_*_*", path=eval_log_scores_dict)
 ```
 
-Note that scores are a two-level dictionary of `score_<scorer>_<metric>`
-and are extracted using a custom function. If you want to handle scores
-a different way you can build your own set of eval columns with a custom
-scores handler. For example, here we take a subset of eval columns along
-with our own custom handler (`custom_scores_fn`) for scores:
+Note that scores are a two-level dictionary of `score_<scorer>_<metric>` and are extracted using a custom function. If you want to handle scores a different way you can build your own set of eval columns with a custom scores handler. For example, here we take a subset of eval columns along with our own custom handler (`custom_scores_fn`) for scores:
 
 ``` python
 evals_df(
@@ -541,11 +420,9 @@ evals_df(
 
 #### Custom Extraction
 
-The example above demonstrates the use of custom extraction functions,
-which take an `EvalLog` and return a `JsonValue`.
+The example above demonstrates the use of custom extraction functions, which take an [EvalLog](reference/inspect_ai.log.html.md#evallog) and return a `JsonValue`.
 
-For example, here is the default extraction function for the the
-dictionary of scores/metrics:
+For example, here is the default extraction function for the the dictionary of scores/metrics:
 
 ``` python
 def scores_dict(log: EvalLog) -> JsonValue:
@@ -563,8 +440,7 @@ def scores_dict(log: EvalLog) -> JsonValue:
     return metrics
 ```
 
-Which is then used in the definition of the `EvalScores` column group as
-follows:
+Which is then used in the definition of the [EvalScores](reference/inspect_ai.analysis.html.md#evalscores) column group as follows:
 
 ``` python
 EvalScores: list[Column] = [
@@ -574,12 +450,9 @@ EvalScores: list[Column] = [
 
 ### Samples
 
-The `samples_df()` function can read from either sample summaries
-(`EvalSampleSummary`) or full sample records (`EvalSample`).
+The [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) function can read from either sample summaries ([EvalSampleSummary](reference/inspect_ai.log.html.md#evalsamplesummary)) or full sample records ([EvalSample](reference/inspect_ai.log.html.md#evalsample)).
 
-By default, the `SampleSummary` column group is used, which reads only
-from summaries, resulting in considerably higher performance than
-reading full samples.
+By default, the [SampleSummary](reference/inspect_ai.analysis.html.md#samplesummary) column group is used, which reads only from summaries, resulting in considerably higher performance than reading full samples.
 
 ``` python
 SampleSummary: list[Column] = [
@@ -598,13 +471,9 @@ SampleSummary: list[Column] = [
 ]
 ```
 
-The `eval_id` and `sample_id` fields are automatically included in all
-sample data frames. Additionally, a `log` field which includes the URI
-of the log file read from is included.
+The `eval_id` and `sample_id` fields are automatically included in all sample data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 
-By default, only score values are included in the `SampleSummary`
-columns. If you want to additional read the score answer, metadata, and
-explanation then use the `SampleScores` column group. For example:
+By default, only score values are included in the [SampleSummary](reference/inspect_ai.analysis.html.md#samplesummary) columns. If you want to additional read the score answer, metadata, and explanation then use the [SampleScores](reference/inspect_ai.analysis.html.md#samplescores) column group. For example:
 
 ``` python
 from inspect_ai.analysis import (
@@ -617,9 +486,7 @@ samples_df(
 )
 ```
 
-If you want to read all of the messages contained in a sample into a
-string column, use the `SampleMessages` column group. For example, here
-we read the summary field and the messages:
+If you want to read all of the messages contained in a sample into a string column, use the [SampleMessages](reference/inspect_ai.analysis.html.md#samplemessages) column group. For example, here we read the summary field and the messages:
 
 ``` python
 from inspect_ai.analysis import (
@@ -632,12 +499,9 @@ samples_df(
 )
 ```
 
-Note that reading `SampleMessages` requires reading full sample content,
-so will take considerably longer than reading only summaries.
+Note that reading [SampleMessages](reference/inspect_ai.analysis.html.md#samplemessages) requires reading full sample content, so will take considerably longer than reading only summaries.
 
-When you create a samples data frame the `eval_id` of its parent
-evaluation is automatically included. You can additionally include other
-fields from the evals table, for example:
+When you create a samples data frame the `eval_id` of its parent evaluation is automatically included. You can additionally include other fields from the evals table, for example:
 
 ``` python
 samples_df(
@@ -648,41 +512,32 @@ samples_df(
 
 #### Multi-Columns
 
-Note that the `metadata` and `score` columns are both dictionaries that
-are expanded into multiple columns:
+Note that the `metadata` and `score` columns are both dictionaries that are expanded into multiple columns:
 
 ``` python
 SampleColumn("metadata_*", path="metadata")
 SampleColumn("score_*", path="scores", value=score_values)
 ```
 
-This might or might not be what you want for your data frame. To
-preserve them as JSON, remove the `_*`:
+This might or might not be what you want for your data frame. To preserve them as JSON, remove the `_*`:
 
 ``` python
 SampleColumn("metadata", path="metadata")
 SampleColumn("score", path="scores")
 ```
 
-You could also write a custom [extraction](#custom-extraction-1) handler
-to read them in some other way.
+You could also write a custom [extraction](#custom-extraction-1) handler to read them in some other way.
 
 #### Full Samples
 
-`SampleColumn` will automatically determine whether it is referencing a
-field that requires a full sample read (for example, `messages` or
-`store`). There are five fields in sample summaries that have reduced
-footprint in the summary (`input`, `metadata`, and `scores`, `error`,
-and `limit`). For these, fields specify `full=True` to force reading
-from the full sample record. For example:
+[SampleColumn](reference/inspect_ai.analysis.html.md#samplecolumn) will automatically determine whether it is referencing a field that requires a full sample read (for example, `messages` or `store`). There are five fields in sample summaries that have reduced footprint in the summary (`input`, `metadata`, and `scores`, `error`, and `limit`). For these, fields specify `full=True` to force reading from the full sample record. For example:
 
 ``` python
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
 
-If you are only interested in reading full values for `metadata`, you
-can use `full=True` when calling `samples_df()` as shorthand for this:
+If you are only interested in reading full values for `metadata`, you can use `full=True` when calling [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) as shorthand for this:
 
 ``` python
 samples_df(logs="logs", full=True)
@@ -690,8 +545,7 @@ samples_df(logs="logs", full=True)
 
 #### Custom Extraction
 
-As with `EvalColumn`, you can also extract data from a sample using a
-callback function passed as the `path`:
+As with [EvalColumn](reference/inspect_ai.analysis.html.md#evalcolumn), you can also extract data from a sample using a callback function passed as the `path`:
 
 ``` python
 def model_reasoning_tokens(summary: EvalSampleSummary) -> JsonValue:
@@ -700,13 +554,9 @@ def model_reasoning_tokens(summary: EvalSampleSummary) -> JsonValue:
 SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 ```
 
-> [!NOTE]
+> **NOTE:**
 >
-> Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to
-> include the `metadata`, `model_usage`, `total_time`, `working_time`,
-> and `retries` fields. If you need to read any of these values you can
-> update older logs with the new fields by round-tripping them through
-> `inspect log convert`. For example:
+> Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. If you need to read any of these values you can update older logs with the new fields by round-tripping them through `inspect log convert`. For example:
 >
 > ``` bash
 > $ inspect log convert ./logs --to eval --output-dir ./logs-amended
@@ -714,27 +564,17 @@ SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 
 #### Sample IDs
 
-The `samples_df()` function produces a globally unique ID for each
-sample, contained in the `sample_id` field. This field is also included
-in the data frames created by `messages_df()` and `events_df()` as a
-parent sample reference.
+The [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) function produces a globally unique ID for each sample, contained in the `sample_id` field. This field is also included in the data frames created by [messages_df()](reference/inspect_ai.analysis.html.md#messages_df) and [events_df()](reference/inspect_ai.analysis.html.md#events_df) as a parent sample reference.
 
-Since `sample_id` is globally unique, it is suitable for use in tables
-and views that span multiple evaluations.
+Since `sample_id` is globally unique, it is suitable for use in tables and views that span multiple evaluations.
 
-Note that `samples_df()` also includes `id` and `epoch` fields that
-serve distinct purposes: `id` references the corresponding sample in the
-task’s dataset, while `epoch` indicates the iteration of execution.
+Note that [samples_df()](reference/inspect_ai.analysis.html.md#samples_df) also includes `id` and `epoch` fields that serve distinct purposes: `id` references the corresponding sample in the task’s dataset, while `epoch` indicates the iteration of execution.
 
 ### Messages
 
-The `messages_df()` function enables reading message level data from a
-set of eval logs. Each row corresponds to a message, and includes a
-`sample_id` and `eval_id` for linking back to its parents.
+The [messages_df()](reference/inspect_ai.analysis.html.md#messages_df) function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes a `sample_id` and `eval_id` for linking back to its parents.
 
-The `messages_df()` function takes a `filter` parameter which can either
-be a list of `role` designations or a function that performs filtering.
-For example:
+The [messages_df()](reference/inspect_ai.analysis.html.md#messages_df) function takes a `filter` parameter which can either be a list of `role` designations or a function that performs filtering. For example:
 
 ``` python
 assistant_messages = messages_df("logs", filter=["assistant"])
@@ -742,8 +582,7 @@ assistant_messages = messages_df("logs", filter=["assistant"])
 
 #### Default Columns
 
-The default `MessageColumns` includes `MessageContent` and
-`MessageToolCalls`:
+The default [MessageColumns](reference/inspect_ai.analysis.html.md#messagecolumns) includes [MessageContent](reference/inspect_ai.analysis.html.md#messagecontent) and [MessageToolCalls](reference/inspect_ai.analysis.html.md#messagetoolcalls):
 
 ``` python
 MessageContent: list[Column] = [
@@ -762,9 +601,7 @@ MessageToolCalls: list[Column] = [
 MessageColumns: list[Column] = MessageContent + MessageToolCalls
 ```
 
-When you create a messages data frame the parent `sample_id` and
-`eval_id` are automatically included in each record. You can
-additionally include other fields from these tables, for example:
+When you create a messages data frame the parent `sample_id` and `eval_id` are automatically included in each record. You can additionally include other fields from these tables, for example:
 
 ``` python
 messages = messages_df(
@@ -773,14 +610,11 @@ messages = messages_df(
 )
 ```
 
-Additionally, a `log` field which includes the URI of the log file read
-from is included.
+Additionally, a `log` field which includes the URI of the log file read from is included.
 
 #### Custom Extraction
 
-Two of the fields above are resolved using custom extraction functions
-(`content` and `tool_calls`). Here is the source code for those
-functions:
+Two of the fields above are resolved using custom extraction functions (`content` and `tool_calls`). Here is the source code for those functions:
 
 ``` python
 def message_text(message: ChatMessage) -> str:
@@ -803,28 +637,20 @@ def message_tool_calls(message: ChatMessage) -> str | None:
 
 ### Events
 
-The `events_df()` function enables reading event level data from a set
-of eval logs. Each row corresponds to an event, and includes a
-`sample_id` and `eval_id` for linking back to its parents.
+The [events_df()](reference/inspect_ai.analysis.html.md#events_df) function enables reading event level data from a set of eval logs. Each row corresponds to an event, and includes a `sample_id` and `eval_id` for linking back to its parents.
 
-Because events are so heterogeneous, there is no default `columns`
-specification for calls to `events_df()`. Rather, you can compose
-columns from the following pre-built groups:
+Because events are so heterogeneous, there is no default `columns` specification for calls to [events_df()](reference/inspect_ai.analysis.html.md#events_df). Rather, you can compose columns from the following pre-built groups:
 
 | Type | Description |
 |----|----|
-| `EventInfo` | Event type and span id. |
-| `EventTiming` | Start and end times (both clock time and working time) |
-| `ModelEventColumns` | Read data from model events. |
-| `ToolEventColumns` | Read data from tool events. |
+| [EventInfo](reference/inspect_ai.analysis.html.md#eventinfo) | Event type and span id. |
+| [EventTiming](reference/inspect_ai.analysis.html.md#eventtiming) | Start and end times (both clock time and working time) |
+| [ModelEventColumns](reference/inspect_ai.analysis.html.md#modeleventcolumns) | Read data from model events. |
+| [ToolEventColumns](reference/inspect_ai.analysis.html.md#tooleventcolumns) | Read data from tool events. |
 
-The `eval_id`, `sample_id`, and `event_id` fields are automatically
-included in all event data frames. Additionally, a `log` field which
-includes the URI of the log file read from is included.
+The `eval_id`, `sample_id`, and `event_id` fields are automatically included in all event data frames. Additionally, a `log` field which includes the URI of the log file read from is included.
 
-The `events_df()` function also takes a `filter` parameter which can
-provide a function that performs filtering. For example, to read all
-model events:
+The [events_df()](reference/inspect_ai.analysis.html.md#events_df) function also takes a `filter` parameter which can provide a function that performs filtering. For example, to read all model events:
 
 ``` python
 def model_event_filter(event: Event) -> bool:
@@ -850,20 +676,13 @@ model_events = events_df(
 )
 ```
 
-Note that for tool events we also include the `EvalModel` column group
-as model information is not directly embedded in tool events (whereas it
-is within model events).
+Note that for tool events we also include the [EvalModel](reference/inspect_ai.analysis.html.md#evalmodel) column group as model information is not directly embedded in tool events (whereas it is within model events).
 
 ### Custom
 
-You can create custom column types that extract data based on additional
-parameters. For example, imagine you want to write a set of extraction
-functions that are passed a `ReportConfig` and an `EvalLog` (the report
-configuration might specify scores to extract, normalisation
-constraints, etc.)
+You can create custom column types that extract data based on additional parameters. For example, imagine you want to write a set of extraction functions that are passed a `ReportConfig` and an [EvalLog](reference/inspect_ai.log.html.md#evallog) (the report configuration might specify scores to extract, normalisation constraints, etc.)
 
-Here we define a new `ReportColumn` class that derives from
-`EvalColumn`:
+Here we define a new `ReportColumn` class that derives from [EvalColumn](reference/inspect_ai.analysis.html.md#evalcolumn):
 
 ``` python
 import functools
@@ -893,13 +712,9 @@ class ReportColumn(EvalColumn):
         )
 ```
 
-The key here is using
-[functools.partial](https://www.geeksforgeeks.org/partial-functions-python/)
-to adapt the function that takes `config` and `log` into a function that
-takes `log` (which is what the `EvalColumn` class works with).
+The key here is using [functools.partial](https://www.geeksforgeeks.org/partial-functions-python/) to adapt the function that takes `config` and `log` into a function that takes `log` (which is what the [EvalColumn](reference/inspect_ai.analysis.html.md#evalcolumn) class works with).
 
-We can now create extraction functions that take a `ReportConfig` and an
-`EvalLog` and pass them to `ReportColumn`:
+We can now create extraction functions that take a `ReportConfig` and an [EvalLog](reference/inspect_ai.log.html.md#evallog) and pass them to `ReportColumn`:
 
 ``` python
 # read dict scores from log according to config
