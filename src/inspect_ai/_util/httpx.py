@@ -36,9 +36,12 @@ def httpx_should_retry(ex: BaseException) -> bool:
 
 def log_httpx_retry_attempt(context: str) -> Callable[[RetryCallState], None]:
     def log_attempt(retry_state: RetryCallState) -> None:
+        from inspect_ai._util.retry import sample_context_prefix
+
+        prefix = sample_context_prefix()
         logger.log(
             HTTP,
-            f"{context} connection retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
+            f"{prefix}{context} connection retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
         )
 
     return log_attempt
