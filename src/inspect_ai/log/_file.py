@@ -422,10 +422,10 @@ def read_eval_log_sample(
     Args:
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read. Optional, alternatively
-         specify `uuid` (you must specify `id` or `uuid`)
+          specify `uuid` (you must specify `id` or `uuid`)
        epoch (int): Epoch for sample id (defaults to 1)
        uuid: Sample uuid to read. Optional, alternatively specify
-         `id` and `epoch` (you must specify either `uuid` or `id`)
+          `id` and `epoch` (you must specify either `uuid` or `id`)
        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format

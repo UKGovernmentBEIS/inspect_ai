@@ -1,5 +1,6 @@
 ---
 title: Eval Sets
+llms-description: Describing, running, and analysing larger sets of evaluation tasks.
 aliases: 
   - eval-suites.html
 ---

@@ -1,5 +1,6 @@
 ---
 title: "Tutorial"
+llms-description: Step-by-step walkthroughs of several basic examples of Inspect evaluations.
 ---
 
 ## Overview

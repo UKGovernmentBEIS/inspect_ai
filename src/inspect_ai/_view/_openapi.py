@@ -52,7 +52,7 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     Returns:
         OpenAPI schema dict with post-processing applied.
     """
-    from fastapi._compat import v2
+    from fastapi._compat import v2  # type: ignore[attr-defined]
     from fastapi.openapi.utils import get_openapi
 
     # Monkey-patch custom schema generator for nullability-based required semantics

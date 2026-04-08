@@ -1,3 +1,4 @@
+# pyright: basic
 from textwrap import dedent
 import panflute as pf  # type: ignore
 from parse import DocAttribute, DocClass, DocFunction, DocObject, DocParameter
@@ -49,7 +50,7 @@ def render_docs(elem: pf.Header, docs: DocObject) -> list[pf.Element]:
     return elements
 
 
-def render_attributes(attribs: list[DocAttribute]) -> pf.Table:
+def render_attributes(attribs: list[DocAttribute]) -> pf.DefinitionList:
     return render_element_list(attribs)
 
 
@@ -79,7 +80,7 @@ def render_method_definition_item(method: DocFunction) -> pf.DefinitionItem:
     )
 
 
-def render_params(params: list[DocParameter]) -> pf.Table | pf.Div:
+def render_params(params: list[DocParameter]) -> pf.DefinitionList | pf.Div:
     if len(params) > 0:
         return render_element_list(params)
     else:

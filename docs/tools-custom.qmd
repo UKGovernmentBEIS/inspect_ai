@@ -1,5 +1,6 @@
 ---
 title: Custom Tools
+llms-description: Advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 ---
 
 ## Overview

@@ -1,5 +1,6 @@
 ---
 title: Early Stopping
+llms-description: The early stopping API for ending tasks early based on previously scored samples.
 ---
 
 ## Overview

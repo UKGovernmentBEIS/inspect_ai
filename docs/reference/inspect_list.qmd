@@ -1,5 +1,6 @@
 ---
-title: inspect list
+reference: inspect list
+description: List tasks on the filesystem.
 ---
 
 

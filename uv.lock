@@ -1282,14 +1282,37 @@ wheels = [
 
 [[package]]
 name = "griffe"
-version = "1.7.3"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "griffecli" },
+    { name = "griffelib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4a/49/eb6d2935e27883af92c930ed40cc4c69bcd32c402be43b8ca4ab20510f67/griffe-2.0.2.tar.gz", hash = "sha256:c5d56326d159f274492e9bf93a9895cec101155d944caa66d0fc4e0c13751b92", size = 293757, upload-time = "2026-03-27T11:34:52.205Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/c0/2bb018eecf9a83c68db9cd9fffd9dab25f102ad30ed869451046e46d1187/griffe-2.0.2-py3-none-any.whl", hash = "sha256:2b31816460aee1996af26050a1fc6927a2e5936486856707f55508e4c9b5960b", size = 5141, upload-time = "2026-03-27T11:34:47.721Z" },
+]
+
+[[package]]
+name = "griffecli"
+version = "2.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama" },
+    { name = "griffelib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/3e/5aa9a61f7c3c47b0b52a1d930302992229d191bf4bc76447b324b731510a/griffe-1.7.3.tar.gz", hash = "sha256:52ee893c6a3a968b639ace8015bec9d36594961e156e23315c8e8e51401fa50b", size = 395137, upload-time = "2025-04-23T11:29:09.147Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/e0/6a7d661d71bb043656a109b91d84a42b5342752542074ec83b16a6eb97f0/griffecli-2.0.2.tar.gz", hash = "sha256:40a1ad4181fc39685d025e119ae2c5b669acdc1f19b705fb9bf971f4e6f6dffb", size = 56281, upload-time = "2026-03-27T11:34:50.087Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/c6/5c20af38c2a57c15d87f7f38bee77d63c1d2a3689f74fefaf35915dd12b2/griffe-1.7.3-py3-none-any.whl", hash = "sha256:c6b3ee30c2f0f17f30bcdef5068d6ab7a2a4f1b8bf1a3e74b56fffd21e1c5f75", size = 129303, upload-time = "2025-04-23T11:29:07.145Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/e8/90d93356c88ac34c20cb5edffca68138df55ca9bbd1a06eccfbcec8fdbe5/griffecli-2.0.2-py3-none-any.whl", hash = "sha256:0d44d39e59afa81e288a3e1c3bf352cc4fa537483326ac06b8bb6a51fd8303a0", size = 9500, upload-time = "2026-03-27T11:34:48.81Z" },
+]
+
+[[package]]
+name = "griffelib"
+version = "2.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/82/74f4a3310cdabfbb10da554c3a672847f1ed33c6f61dd472681ce7f1fe67/griffelib-2.0.2.tar.gz", hash = "sha256:3cf20b3bc470e83763ffbf236e0076b1211bac1bc67de13daf494640f2de707e", size = 166461, upload-time = "2026-03-27T11:34:51.091Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/11/8c/c9138d881c79aa0ea9ed83cbd58d5ca75624378b38cee225dcf5c42cc91f/griffelib-2.0.2-py3-none-any.whl", hash = "sha256:925c857658fb1ba40c0772c37acbc2ab650bd794d9c1b9726922e36ea4117ea1", size = 142357, upload-time = "2026-03-27T11:34:46.275Z" },
 ]
 
 [[package]]
@@ -1720,7 +1743,9 @@ doc = [
     { name = "markdown" },
     { name = "nbclient" },
     { name = "panflute" },
+    { name = "pyyaml" },
     { name = "quarto-cli" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -1743,8 +1768,8 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'dev'" },
     { name = "fsspec", specifier = ">=2023.1.0,<=2025.9.0" },
     { name = "google-genai", marker = "extra == 'dev'", specifier = ">=1.69.0" },
-    { name = "griffe", marker = "extra == 'dev'", specifier = "<=1.14.0" },
-    { name = "griffe", marker = "extra == 'doc'", specifier = "<=1.14.0" },
+    { name = "griffe", marker = "extra == 'dev'", specifier = ">=2" },
+    { name = "griffe", marker = "extra == 'doc'", specifier = ">=2" },
     { name = "groq", marker = "extra == 'dev'", specifier = ">=0.28.0" },
     { name = "httpx" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.0.0" },
@@ -1791,7 +1816,8 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "python-dotenv", specifier = ">=0.16.0" },
     { name = "pyyaml" },
-    { name = "quarto-cli", marker = "extra == 'doc'", specifier = "==1.7.32" },
+    { name = "pyyaml", marker = "extra == 'doc'" },
+    { name = "quarto-cli", marker = "extra == 'doc'", specifier = ">=1.9.36" },
     { name = "rich", specifier = ">=13.3.3,!=14.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.9.6" },
     { name = "s3fs", specifier = ">=2023" },
@@ -1817,6 +1843,7 @@ requires-dist = [
     { name = "types-psutil", marker = "extra == 'dev'" },
     { name = "types-python-dateutil", marker = "extra == 'dev'" },
     { name = "types-pyyaml", marker = "extra == 'dev'" },
+    { name = "types-pyyaml", marker = "extra == 'doc'" },
     { name = "types-regex", marker = "extra == 'dev'" },
     { name = "typing-extensions", specifier = ">=4.14.0" },
     { name = "universal-pathlib", specifier = ">=0.2.6" },
@@ -4501,14 +4528,14 @@ wheels = [
 
 [[package]]
 name = "quarto-cli"
-version = "1.7.32"
+version = "1.9.36"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jupyter" },
     { name = "nbclient" },
     { name = "wheel" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/09/67dc584ff059eb7ec63b782438701ae6ae75ad585a636d6f9d5303ca14ad/quarto_cli-1.7.32.tar.gz", hash = "sha256:ad89f08052ecc33c95f36c9185a1caf6cc0ac2d8278460d2a5b799d128eeb45c", size = 4625, upload-time = "2025-06-16T16:32:28.998Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/96/116fe2555ff9cbbf73d8fed2582ba0277295ba7acd131cb779532fb11263/quarto_cli-1.9.36.tar.gz", hash = "sha256:c9e49793e478c019a1c979ba88b492b6a734c065b675b60d448aad3d094f2127", size = 4643, upload-time = "2026-03-20T20:29:56.996Z" }
 
 [[package]]
 name = "readabilipy"
