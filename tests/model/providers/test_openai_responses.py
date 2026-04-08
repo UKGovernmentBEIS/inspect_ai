@@ -3,6 +3,7 @@ import json
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
@@ -12,6 +13,7 @@ from inspect_ai.model._openai_responses import (
     MESSAGE_PHASE,
     _openai_input_items_from_chat_message_assistant,
 )
+from inspect_ai.model._providers.openai_compatible import ModelInfo
 from inspect_ai.solver import generate, user_message
 
 
@@ -792,6 +794,7 @@ def _make_mock_model_info():
 
     model_info = MagicMock()
     model_info.has_reasoning_options.return_value = False
+    model_info.has_reasoning_only_fallback.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
@@ -1029,9 +1032,6 @@ def test_openai_responses_tools_image_modality():
 
 def test_reasoning_only_fallback_enabled():
     """When fallback is enabled and content is reasoning-only, NO_CONTENT text is appended."""
-    from inspect_ai._util.constants import NO_CONTENT
-    from inspect_ai.model._providers.openai_compatible import ModelInfo
-
     model_info = ModelInfo()  # default: has_reasoning_only_fallback() == True
     message = ChatMessageAssistant(
         content=[
@@ -1050,8 +1050,6 @@ def test_reasoning_only_fallback_enabled():
 
 def test_reasoning_only_fallback_disabled():
     """When fallback is disabled and content is reasoning-only, no message is injected."""
-    from inspect_ai.model._providers.openai_compatible import ModelInfo
-
     model_info = ModelInfo(reasoning_only_fallback=False)
     message = ChatMessageAssistant(
         content=[
@@ -1069,8 +1067,6 @@ def test_reasoning_only_fallback_disabled():
 
 def test_reasoning_only_fallback_not_triggered_with_text():
     """Fallback does not trigger when there is real text content alongside reasoning."""
-    from inspect_ai.model._providers.openai_compatible import ModelInfo
-
     model_info = ModelInfo()
     message = ChatMessageAssistant(
         content=[
@@ -1106,8 +1102,6 @@ def test_reasoning_only_fallback_not_triggered_without_model_info():
 
 def test_reasoning_only_fallback_not_triggered_on_empty_content():
     """Fallback does not trigger on empty content list."""
-    from inspect_ai.model._providers.openai_compatible import ModelInfo
-
     model_info = ModelInfo()
     message = ChatMessageAssistant(
         content=[],
@@ -1118,3 +1112,30 @@ def test_reasoning_only_fallback_not_triggered_on_empty_content():
     items = _openai_input_items_from_chat_message_assistant(message, model_info)
 
     assert len(items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_with_tool_calls():
+    """Fallback does not trigger when reasoning + tool calls but no text."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Let me call the tool", signature="r1"),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call_123",
+                function="submit",
+                arguments={"answer": "42"},
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0
