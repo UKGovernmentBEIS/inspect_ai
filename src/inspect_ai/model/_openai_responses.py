@@ -1051,7 +1051,7 @@ def _openai_input_items_from_chat_message_assistant(
         and model_info.has_reasoning_only_fallback()
         and content_items
         and all(isinstance(c, ContentReasoning) for c in content_items)
-        and not message.tool_calls
+        and len(message.tool_calls or []) == 0
     ):
         content_items.append(ContentText(text=NO_CONTENT))
 
