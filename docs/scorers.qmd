@@ -1,5 +1,6 @@
 ---
 title: Scorers
+llms-description: Scorers evaluate the work of solvers and aggregate scores into metrics. How to create custom scorers including model-graded ones.
 code-annotations: below
 ---
 

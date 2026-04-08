@@ -1,5 +1,6 @@
 ---
 title: Model Providers
+llms-description: Usage details and available options for the various supported model providers.
 ---
 
 ## Overview

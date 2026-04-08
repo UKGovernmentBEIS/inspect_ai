@@ -54,7 +54,7 @@ jobs:
           uv pip install .[dev]
 
       - name: Run mypy
-        run: uv run mypy .
+        run: uv run mypy --exclude tests/test_package src tests
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}

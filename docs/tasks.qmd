@@ -1,5 +1,6 @@
 ---
 title: Tasks
+llms-description: Tasks bring together datasets, solvers, and scorers to define an evaluation. Strategies for creating flexible and re-usable tasks.
 ---
 
 ## Overview

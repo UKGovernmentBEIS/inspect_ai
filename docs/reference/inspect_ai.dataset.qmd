@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.dataset"
+reference: inspect_ai.dataset
+description: Reading samples from datasets.
 ---
 
 ## Readers

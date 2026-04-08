@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.model"
+reference: inspect_ai.model
+description: Model interface and providers.
 ---
 
 ## Generation

@@ -1,5 +1,6 @@
 ---
 title: Human Agent
+llms-description: The human_cli() agent for human baselining on computing tasks.
 ---
 
 ## Overview
