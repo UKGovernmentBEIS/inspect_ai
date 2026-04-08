@@ -85,6 +85,10 @@ def web_surfer(instance: str | None = None) -> Tool:
 @task
 def surfer() -> Task:
     return Task(
-        dataset=[Sample(input="What were the scores of last night's NHL games?")],
+        dataset=[
+            Sample(
+                input="What were the scores of last night's NHL games as well as the scores of every NFL playoff game for the last 3 years?"
+            )
+        ],
         solver=react(tools=[web_search()]),
     )

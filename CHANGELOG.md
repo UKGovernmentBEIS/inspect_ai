@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support for web search dynamic filtering on Claude 4.6 models. 
 - Eval Set: Display explicit `--id` in task panel headers when provided.
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
 - Eval Logs: Condense sample events when writing logs.

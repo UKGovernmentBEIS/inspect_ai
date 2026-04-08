@@ -61,6 +61,7 @@ from anthropic.types import (
     URLPDFSourceParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
     WebSearchToolRequestErrorParam,
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
@@ -99,6 +100,7 @@ from anthropic.types.beta import (
     BetaToolTextEditor20250728Param,
     BetaToolUseBlock,
     BetaWebFetchTool20250910Param,
+    BetaWebFetchTool20260209Param,
     BetaWebFetchToolResultBlock,
     BetaWebFetchToolResultBlockParam,
     BetaWebSearchToolResultBlock,
@@ -695,6 +697,8 @@ class AnthropicAPI(ModelAPI):
             tail_request["messages"] = request["messages"] + [
                 MessageParam(role=head_message.role, content=head_message.content)
             ]
+            if head_message.container:
+                tail_request["container"] = head_message.container.id
             _, tail_model_output = await self._perform_request_and_continuations(
                 tail_request,
                 streaming,
@@ -1301,14 +1305,32 @@ class AnthropicAPI(ModelAPI):
 
     def web_search_tool_params(
         self, tool: ToolInfo
-    ) -> list[WebSearchTool20250305Param | BetaWebFetchTool20250910Param] | None:
+    ) -> (
+        list[
+            WebSearchTool20250305Param
+            | BetaWebFetchTool20250910Param
+            | WebSearchTool20260209Param
+            | BetaWebFetchTool20260209Param
+        ]
+        | None
+    ):
         if (
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
-            and _supports_web_search(self.service_model_name())
+            and (
+                _supports_web_search(self.service_model_name())
+                or self.is_claude_latest()
+            )
         ):
-            return _web_search_tool_params(tool.options["anthropic"])
+            # do we support dynamic filtering?
+            # https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool#dynamic-filtering
+            web_search_filtering = (
+                self.is_claude_4_6() or self.is_claude_latest()
+            ) and not (self.is_vertex() or self.is_bedrock())
+            return _web_search_tool_params(
+                tool.options["anthropic"], web_search_filtering
+            )
         else:
             return None
 
@@ -1431,8 +1453,13 @@ def _supports_memory(model_name: str) -> bool:
 
 
 def _web_search_tool_params(
-    maybe_anthropic_options: object,
-) -> list[WebSearchTool20250305Param | BetaWebFetchTool20250910Param]:
+    maybe_anthropic_options: object, web_search_filtering: bool
+) -> list[
+    WebSearchTool20250305Param
+    | BetaWebFetchTool20250910Param
+    | WebSearchTool20260209Param
+    | BetaWebFetchTool20260209Param
+]:
     if maybe_anthropic_options is not None and not isinstance(
         maybe_anthropic_options, dict
     ):
@@ -1440,14 +1467,23 @@ def _web_search_tool_params(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
 
-    web_fetch_tool = BetaWebFetchTool20250910Param(
-        name="web_fetch", type="web_fetch_20250910"
-    )
+    if web_search_filtering:
+        web_fetch_tool: (
+            BetaWebFetchTool20250910Param | BetaWebFetchTool20260209Param
+        ) = BetaWebFetchTool20260209Param(name="web_fetch", type="web_fetch_20260209")
 
-    web_search_tool = WebSearchTool20250305Param(
-        name="web_search",
-        type="web_search_20250305",
-    )
+        web_search_tool: WebSearchTool20250305Param | WebSearchTool20260209Param = (
+            WebSearchTool20260209Param(name="web_search", type="web_search_20260209")
+        )
+    else:
+        web_fetch_tool = BetaWebFetchTool20250910Param(
+            name="web_fetch", type="web_fetch_20250910"
+        )
+
+        web_search_tool = WebSearchTool20250305Param(
+            name="web_search",
+            type="web_search_20250305",
+        )
 
     if maybe_anthropic_options:
         if "allowed_domains" in maybe_anthropic_options:
@@ -1492,6 +1528,8 @@ ToolParamDef = (
     | BetaMemoryTool20250818Param
     | BetaCodeExecutionTool20250825Param
     | BetaWebFetchTool20250910Param
+    | WebSearchTool20260209Param
+    | BetaWebFetchTool20260209Param
 )
 
 
@@ -1557,6 +1595,8 @@ def add_cache_control(
     | BetaMemoryTool20250818Param
     | BetaCodeExecutionTool20250825Param
     | BetaWebFetchTool20250910Param
+    | WebSearchTool20260209Param
+    | BetaWebFetchTool20260209Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
