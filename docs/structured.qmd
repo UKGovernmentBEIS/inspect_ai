@@ -1,5 +1,6 @@
 ---
 title: "Structured Output"
+llms-description: How to constrain model output to a particular JSON schema.
 ---
 
 ## Overview

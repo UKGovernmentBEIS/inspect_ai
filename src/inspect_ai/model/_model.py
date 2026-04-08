@@ -741,7 +741,6 @@ class Model:
         Args:
           input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
           tools: Tools available for the model to call.
-          config: Model configuration.
           instructions: Additional instructions to give the model about compaction
                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 

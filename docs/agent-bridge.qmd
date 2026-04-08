@@ -1,5 +1,6 @@
 ---
 title: Agent Bridge
+llms-description: Integrating agents from third-party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI.
 code-annotations: select
 ---
 

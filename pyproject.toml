@@ -172,7 +172,7 @@ dev = [
   "azure-ai-inference",
   "fastapi",
   "google-genai>=1.69.0",
-  "griffe<=1.14.0",
+  "griffe>=2",
   "groq>=0.28.0",
   "huggingface_hub>=1.0.0",
   "inspect_scout",
@@ -222,13 +222,15 @@ dev = [
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = [
-  "quarto-cli==1.7.32",
+  "quarto-cli>=1.9.36",
   "jupyter",
   "nbclient",
   "panflute",
   "markdown",
-  "griffe<=1.14.0",
+  "griffe>=2",
   "click>=8.2.0",
+  "pyyaml",
+  "types-PyYAML",
 ]
 dist = ["twine", "build"]
 

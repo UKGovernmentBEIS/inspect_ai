@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.util"
+reference: inspect_ai.util
+description: Miscellaneous utility functions.
 ---
 
 ## Store

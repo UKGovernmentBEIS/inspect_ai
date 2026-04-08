@@ -1,5 +1,6 @@
 ---
 title: Standard Tools
+llms-description: Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 tbl-colwidths: [40,60]
 ---
 
