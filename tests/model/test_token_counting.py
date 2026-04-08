@@ -28,6 +28,7 @@ from inspect_ai.model._tokens import (
     FALLBACK_DOCUMENT_TOKENS,
     FALLBACK_VIDEO_TOKENS,
     count_media_tokens,
+    count_text_tokens,
 )
 from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
@@ -59,6 +60,14 @@ TEST_TOOL = ToolInfo(
         required=["location"],
     ),
 )
+
+
+def test_count_text_tokens_with_special_tokens():
+    """count_text_tokens should handle strings containing tiktoken special tokens."""
+    text = "some text <|endoftext|> more text <|fim_prefix|>"
+    result = count_text_tokens(text)
+    assert isinstance(result, int)
+    assert result > 0
 
 
 @skip_if_no_openai
