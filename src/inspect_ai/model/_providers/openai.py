@@ -261,7 +261,7 @@ class OpenAIAPI(ModelAPI):
         except KeyError:
             enc = tiktoken.get_encoding("o200k_base")  # fallback
 
-        tokens = enc.encode(text)
+        tokens = enc.encode(text, disallowed_special=())
         return len(tokens)
 
     @override
