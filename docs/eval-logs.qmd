@@ -1,5 +1,6 @@
 ---
 title: Log Files
+llms-description: Getting the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 ---
 
 ## Overview

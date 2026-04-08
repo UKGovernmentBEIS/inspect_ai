@@ -1,5 +1,6 @@
 ---
-title: inspect cache
+reference: inspect cache
+description: Manage the Inspect model cache.
 ---
 
 

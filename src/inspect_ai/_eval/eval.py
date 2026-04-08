@@ -374,10 +374,10 @@ async def eval_async(
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
-          Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
-          Defaults to no approval policy.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
+            Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", "critical", or "notset" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
@@ -418,13 +418,11 @@ async def eval_async(
         log_model_api: Log raw model requests and responses. Note that error requests/responses are always logged.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
-           If not specified, an appropriate default for the format and filesystem is
-           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        log_shared: Indicate that the log directory is shared, which results in additional
-        syncing of realtime log data for Inspect View.
+            If not specified, an appropriate default for the format and filesystem is
+            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
         log_header_only: If `True`, the function should return only log headers rather than full logs with samples (defaults to `False`).
-        run_samples: Run samples. If `False`, a log with `status=="started"` and an
-           empty `samples` list is returned.
+        run_samples: Run samples. If `False`, a log with `status=="started"` and an empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).

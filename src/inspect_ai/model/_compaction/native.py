@@ -43,10 +43,8 @@ class CompactionNative(CompactionStrategy):
 
         Args:
             threshold: Token count or percent of context window to trigger compaction.
-            instructions: Additional instructions to give the model about compaction
-               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
-            memory: Whether to warn the model to save critical content to memory
-                prior to compaction. Default is False.
+            instructions: Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+            memory: Whether to warn the model to save critical content to memory prior to compaction. Default is False.
         """
         super().__init__(type="summary", threshold=threshold, memory=memory)
         self._instructions = instructions
