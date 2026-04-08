@@ -22,6 +22,20 @@ from _discover import discover_cli_name, discover_module_name  # noqa: E402
 # type alias for YAML-style nested dicts
 YamlDict = dict[str, Any]
 
+
+class _NoAliasDumper(yaml.SafeDumper):
+    """YAML dumper that never emits anchors/aliases.
+
+    The extension's generated navigation is consumed by Quarto's schema
+    validator, which cannot resolve YAML anchors/aliases. Shared dict
+    references between the navbar and sidebar would otherwise be emitted
+    as `&id001`/`*id001`, which Quarto treats as a schema error.
+    """
+
+    def ignore_aliases(self, data):
+        return True
+
+
 # matches markdown ![alt](path) and HTML <img src="path"> / src='path'
 _IMG_RE = re.compile(
     r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)"
@@ -129,7 +143,10 @@ def main() -> None:
     ):
         ensure_excalidraw_deps()
 
-    write_if_changed(Path("_include.yml"), yaml.dump(generated, sort_keys=False))
+    write_if_changed(
+        Path("_include.yml"),
+        yaml.dump(generated, sort_keys=False, Dumper=_NoAliasDumper),
+    )
 
 
 def symlink_readme_images(readme_src: Path) -> None:
@@ -222,10 +239,13 @@ def _build_footer(
                 "aria-label": f"{title or org_name} Twitter",
             }
         )
+    # Use a trailing slash so this URL differs from the center "Code"
+    # text link -- Quarto's footer renderer dedupes items by href and
+    # will drop the icon if both sides share the exact same URL.
     right.append(
         {
             "icon": "github",
-            "href": repo_url,
+            "href": f"{repo_url}/",
             "aria-label": f"{title} on GitHub",
         }
     )
@@ -267,7 +287,6 @@ def generate_website_metadata(
     description: str = opts.get("description", "")
     site_url: str = opts.get("url", "")
     org_name: str = opts.get("org", "")
-    org = repo.split("/")[0]
     repo_url = f"https://github.com/{repo}"
 
     generated: YamlDict = {
@@ -322,6 +341,36 @@ def _nested_children(item: YamlDict) -> list[YamlDict] | None:
     return None
 
 
+def _ensure_text(leaf: YamlDict) -> YamlDict:
+    """Ensure a navbar menu leaf has a `text` field (Quarto 1.9+ requirement).
+
+    If the leaf already has `text`, return it unchanged. Otherwise try to
+    read the target .qmd file's frontmatter `title` field, falling back to
+    a title-cased version of the filename stem.
+    """
+    if "text" in leaf:
+        return leaf
+    href = leaf.get("href", "")
+    if not isinstance(href, str) or not href:
+        return leaf
+
+    text: str | None = None
+    qmd_path = Path(href.split("#", 1)[0])
+    if qmd_path.suffix == ".qmd" and qmd_path.exists():
+        try:
+            fm = read_frontmatter(qmd_path)
+            if fm and isinstance(fm.get("title"), str):
+                text = fm["title"]
+        except Exception:
+            pass
+
+    if text is None:
+        stem = qmd_path.stem
+        text = stem.replace("-", " ").replace("_", " ").title()
+
+    return {**leaf, "text": text}
+
+
 def _flatten_menu_leaves(items: list[YamlDict]) -> list[YamlDict]:
     """Recursively flatten a nested navigation tree into leaf entries only.
 
@@ -329,20 +378,25 @@ def _flatten_menu_leaves(items: list[YamlDict]) -> list[YamlDict]:
     items (plus `---` separators) — no nested sub-menus. We use this to
     collapse hierarchical navigation into a single-level navbar dropdown
     while the sidebar retains the full hierarchy via `nav_to_sidebar`.
+
+    Quarto 1.9+ requires every navbar menu item to have a `text:` field, so
+    each leaf is run through `_ensure_text` to fill it in if missing.
     """
     leaves: list[YamlDict] = []
     for item in items:
         children = _nested_children(item)
         if children is None:
             # leaf entry (text/href or plain href)
-            leaves.append({k: v for k, v in item.items() if k not in ("contents", "menu")})
+            leaf = {k: v for k, v in item.items() if k not in ("contents", "menu")}
+            leaves.append(_ensure_text(leaf))
         else:
             # a branch: if it has its own href, include it as a leaf before
             # recursing into its children
             if "href" in item:
-                leaves.append(
-                    {k: v for k, v in item.items() if k not in ("contents", "menu")}
-                )
+                leaf = {
+                    k: v for k, v in item.items() if k not in ("contents", "menu")
+                }
+                leaves.append(_ensure_text(leaf))
             leaves.extend(_flatten_menu_leaves(children))
     return leaves
 
