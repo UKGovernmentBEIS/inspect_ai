@@ -304,6 +304,79 @@ async def test_e2e_recovery_multi_epoch_sorting() -> None:
             assert sample_keys == sorted(sample_keys)
 
 
+async def test_e2e_recovery_overwrite() -> None:
+    """Test that --overwrite safely replaces the crashed log in-place.
+
+    The source file must remain readable while the recovered file is being
+    written (to a temp path), then moved over the original.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "overwrite.eval")
+
+            eval_spec = _make_eval_spec(num_samples=4)
+            plan = EvalPlan()
+            log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+            # Create .eval with flushed samples
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(log_start)
+            for id in range(1, 4):
+                await zip_log.buffer_sample(_make_realistic_sample(id, epoch=1))
+            await zip_log.write_buffered_samples()
+            await zip_log.flush()
+
+            # Create buffer DB with one more completed sample
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            try:
+                started = EvalSampleSummary(
+                    id=4,
+                    epoch=1,
+                    input="Q4",
+                    target="8",
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                )
+                buffer.start_sample(started)
+                event = _make_model_event(
+                    [ChatMessageUser(content="What is 4+4?")], "8"
+                )
+                buffer.log_events([SampleEvent(id=4, epoch=1, event=event)])
+                completed = EvalSampleSummary(
+                    id=4,
+                    epoch=1,
+                    input="Q4",
+                    target="8",
+                    scores={"accuracy": Score(value="C", answer="8")},
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                    completed_at=datetime.now(timezone.utc).isoformat(),
+                )
+                buffer.complete_sample(completed)
+                _simulate_crashed_buffer(buffer)
+
+                # Recover with overwrite — should replace the original file
+                log = await recover_eval_log_async(
+                    eval_path, overwrite=True, cleanup=False, _db_dir=db_dir
+                )
+
+                assert log.status == "error"
+                assert log.samples is not None
+                assert len(log.samples) == 4
+
+                # The original file should now be the recovered version
+                read_log = read_eval_log(eval_path)
+                assert read_log.status == "error"
+                assert read_log.samples is not None
+                assert len(read_log.samples) == 4
+
+                # The temp file should not exist
+                temp_path = eval_path.replace(".eval", "-recovered.eval")
+                assert not os.path.exists(temp_path)
+            finally:
+                buffer.cleanup()
+
+
 async def test_e2e_recovery_crash_before_first_flush() -> None:
     """Test recovery when crash happens before any samples are flushed.
 

@@ -8,7 +8,7 @@ from typing import Iterator
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import dirname, filesystem
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs
+from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log_async
 from inspect_ai.log._log import EvalLog, EvalSample
 
 from ._buffer import read_buffer_recovery_data
@@ -88,7 +88,15 @@ async def recover_eval_log_async(
     except ValueError:
         raise RecoveryNotAvailable(f"Log is not recoverable: {log}")
 
-    output = log if overwrite else (output or default_output_path(log))
+    # Resolve output paths. When overwriting, write to a temp sibling path
+    # first to avoid corrupting the source file (which is read during
+    # recovery), then move to the final path after successful write.
+    if overwrite:
+        final_output = log
+        write_output = default_output_path(log)
+    else:
+        final_output = None
+        write_output = output or default_output_path(log)
 
     # Guard: if a successful log for this task already exists in the
     # output directory, recovery would create a newer file that interferes
@@ -96,7 +104,7 @@ async def recover_eval_log_async(
     # allows automatic recovery (eval_retry/eval_set) since they recover
     # crashed logs before a successful retry exists.
     if not overwrite:
-        output_dir = dirname(output)
+        output_dir = dirname(write_output)
         task_id = crashed.eval.task_id
         existing = list_eval_logs(
             log_dir=output_dir,
@@ -149,7 +157,17 @@ async def recover_eval_log_async(
     # Step 4: Stream all samples into the recovered file.
     # write_recovered_eval_log handles flushed sample reading internally
     # (async via AsyncZipReader) and consumes buffer_samples lazily.
-    recovered_log = await write_recovered_eval_log(crashed, _buffer_samples(), output)
+    recovered_log = await write_recovered_eval_log(
+        crashed, _buffer_samples(), write_output
+    )
+
+    # For overwrite mode, move the temp file over the original and
+    # re-read so lazy sample data points to the correct location.
+    if final_output is not None:
+        fs = filesystem(final_output)
+        fs.rm(final_output)
+        fs.mv(write_output, final_output)
+        recovered_log = await read_eval_log_async(final_output)
 
     # Cleanup buffer DB (only after successful write)
     if cleanup and recovery_data is not None and recovery_data.buffer is not None:

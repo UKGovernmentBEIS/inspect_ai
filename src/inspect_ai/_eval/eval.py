@@ -1032,7 +1032,7 @@ async def eval_retry_async(
     ]
 
     # opportunistically recover crashed logs before retrying
-    recovered_files: list[str] = []
+    recovered_files: dict[int, str] = {}
     for i, eval_log in enumerate(retry_eval_logs):
         if eval_log.status == "started" and eval_log.location:
             from inspect_ai.log._recover import (
@@ -1046,7 +1046,7 @@ async def eval_retry_async(
                 )
                 retry_eval_logs[i] = recovered
                 if recovered.location:
-                    recovered_files.append(recovered.location)
+                    recovered_files[i] = recovered.location
             except RecoveryNotAvailable:
                 pass  # no recovery data available — proceed with flushed samples
             except Exception as ex:
@@ -1272,12 +1272,15 @@ async def eval_retry_async(
         # add it to our results
         eval_logs.append(log)
 
-    # clean up intermediate recovered files from auto-recovery
-    for recovered_file in recovered_files:
-        try:
-            filesystem(recovered_file).rm(recovered_file)
-        except Exception:
-            pass
+    # Clean up recovered files only for retries that succeeded. On failure,
+    # the recovered file serves as a safety net with samples that would
+    # otherwise be lost.
+    for idx, recovered_file in recovered_files.items():
+        if eval_logs[idx].status == "success":
+            try:
+                filesystem(recovered_file).rm(recovered_file)
+            except Exception:
+                pass
 
     return EvalLogs(eval_logs)
 
