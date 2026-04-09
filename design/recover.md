@@ -282,11 +282,15 @@ This mirrors the streaming pattern already used by `ZipLogFile` during eval exec
 
 Each step is self-contained and fully tested before moving on. Each step will have a distinct plan created and approved before coding begins.
 
-### Step 1: Read crashed .eval files
+### Step 1: Read crashed .eval files (done: `162628a3f`)
 
-Build a function to read the partial contents of a crashed `.eval` file — extract `start.json` (EvalSpec + EvalPlan), flushed samples, and journal summaries. Validate that the file is actually crashed (has `start.json` but no `header.json`). This is pure reading with no mutation.
+Created `src/inspect_ai/log/_recover/` package with:
+- `_read.py` — `CrashedEvalLog` dataclass, `read_crashed_eval_log()` (async, uses `AsyncFilesystem` for S3 compatibility), `read_flushed_sample()` for streaming individual samples from an `AsyncZipReader`
+- `__init__.py` — public exports
 
-**Tests:** Read a synthetically constructed crashed `.eval` ZIP (missing `header.json`). Verify extraction of start data and flushed samples. Verify rejection of completed logs.
+`read_crashed_eval_log()` validates the file is crashed (has `_journal/start.json` but no `header.json`), extracts `LogStart` (EvalSpec + EvalPlan), reads journal summaries from `_journal/summaries/*.json`, and collects sample entry names without loading sample data.
+
+**Tests** (`tests/log/test_recover_read.py`): 6 tests covering basic reading, no-samples crash, rejection of complete logs, rejection of invalid files, individual sample reading, and multiple flush batches.
 
 ### Step 2: Read recovery data from sample buffer database
 
