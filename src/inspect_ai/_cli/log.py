@@ -306,9 +306,6 @@ def recover_command(
     """Recover crashed eval logs from sample buffer databases."""
     from json import dumps as json_dumps
 
-    import rich
-    from rich.table import Table
-
     from inspect_ai._util.platform import platform_init
     from inspect_ai.log._recover import (
         recover_eval_log,
@@ -343,26 +340,21 @@ def recover_command(
                 )
             )
         else:
-            table = Table(title="Recoverable Logs")
-            table.add_column("Log File")
-            table.add_column("Task")
-            table.add_column("Total", justify="right")
-            table.add_column("Flushed", justify="right")
-            table.add_column("Completed", justify="right")
-            table.add_column("In Progress", justify="right")
+            import rich
 
-            for r in logs:
-                table.add_row(
-                    r.log.name,
-                    r.log.task,
-                    str(r.total_samples),
-                    str(r.flushed_samples),
-                    str(r.completed_samples),
-                    str(r.in_progress_samples),
-                )
+            from inspect_ai._util.path import pretty_path
 
             console = rich.get_console()
-            console.print(table)
+            for r in logs:
+                print()
+                console.print(f"[bold]log:[/bold] {pretty_path(r.log.name)}", highlight=False)
+                print(
+                    f"  ({r.total_samples} total, "
+                    f"{r.flushed_samples} flushed, "
+                    f"{r.completed_samples} completed, "
+                    f"{r.in_progress_samples} in-progress)"
+                )
+            print()
 
     else:
         if log_file is None:
