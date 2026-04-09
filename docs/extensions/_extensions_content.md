@@ -18,6 +18,9 @@
 [Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
 :   Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
 
+[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
+:   Sandbox environment for Inspect using Daytona's cloud infrastructure.
+
 [Podman Sandbox](https://github.com/VectorInstitute/inspect-podman) &mdash; <small><a href="https://github.com/VectorInstitute/inspect-podman" style="text-decoration:none">Vector Institute and National Research Council of Canada</a></small>
 :   Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
 
