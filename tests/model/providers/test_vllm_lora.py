@@ -135,7 +135,7 @@ class TestVLLMAPIInit:
         """model_name and base_url exist immediately (before _resolve_server)."""
         api = VLLMAPI("base-model:some-adapter")
 
-        assert api.model_name == "base-model"
+        assert api.model_name == "base-model:some-adapter"
         assert api.base_url is None
         assert api._server_resolved is False
 
