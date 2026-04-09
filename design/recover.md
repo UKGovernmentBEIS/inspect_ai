@@ -336,12 +336,10 @@ Created `_api.py` in the `_recover` package with:
 
 **Tests** (`tests/log/test_recover_api.py`): 7 tests covering end-to-end recovery, no buffer DB, cleanup/no-cleanup, default output path, discoverable logs, exclusion of already-recovered logs.
 
-### Step 6: `inspect log recover` CLI (direct and list modes)
+### Step 6: `inspect log recover` CLI (direct and list modes) (done: `4deac0eef`)
 
-Add the Click command to the `log` command group. Implement direct mode (`inspect log recover <file>`) and list mode (`inspect log recover --list`). These are thin wrappers over the Python API.
+Added `recover` subcommand to the `log` Click group in `src/inspect_ai/_cli/log.py`:
+- **Direct mode**: `inspect log recover <file> [--output <path>] [--no-cleanup]` — recovers a single log, prints sample count and output path
+- **List mode**: `inspect log recover --list [--json]` — lists recoverable logs in a rich table with columns: file, task, total samples, flushed, completed, in-progress counts. `--json` outputs JSON instead.
 
-**Tests:** CLI invocation tests using Click's test runner.
-
-### Step 7: Interactive TUI mode
-
-Build the Textual app for the default no-argument `inspect log recover` invocation. Table display of recoverable logs with stats, checkbox selection, batch recovery with progress feedback.
+Also added `total_samples` field to `RecoverableEvalLog` (computed as `dataset.samples * epochs` from `EvalSpec`).
