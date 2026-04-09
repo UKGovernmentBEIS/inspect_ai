@@ -1,0 +1,191 @@
+"""Public API for eval log recovery."""
+
+import logging
+import os
+from dataclasses import dataclass
+from zipfile import BadZipFile, ZipFile
+
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.file import filesystem, local_path
+from inspect_ai.log._file import EvalLogInfo, list_eval_logs
+from inspect_ai.log._log import EvalLog, EvalSample
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import SAMPLES_DIR
+
+from ._buffer import read_buffer_recovery_data
+from ._read import read_crashed_eval_log, read_flushed_sample
+from ._reconstruct import reconstruct_eval_sample
+from ._write import default_output_path, write_recovered_eval_log
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RecoverableEvalLog:
+    """A crashed eval log that can be recovered."""
+
+    log: EvalLogInfo
+    """File info and task identifiers."""
+
+    flushed_samples: int
+    """Number of samples already flushed to the .eval file."""
+
+    completed_samples: int
+    """Number of completed (scored) samples in the buffer DB."""
+
+    in_progress_samples: int
+    """Number of in-progress (unscored) samples in the buffer DB."""
+
+
+async def recover_eval_log(
+    log: str,
+    output: str | None = None,
+    cleanup: bool = True,
+) -> EvalLog:
+    """Recover a crashed eval log.
+
+    Combines flushed samples from the .eval file with unflushed samples
+    from the sample buffer database to produce a recovered log file.
+
+    Args:
+        log: Path to the crashed .eval file.
+        output: Output path (default: <name>-recovered.eval alongside original).
+        cleanup: Remove the buffer DB after recovery.
+
+    Returns:
+        The recovered EvalLog.
+
+    Raises:
+        ValueError: If the log is not crashed or is invalid.
+    """
+    # Step 1: Read the crashed .eval file
+    crashed = await read_crashed_eval_log(log)
+
+    # Read flushed samples from the .eval file
+    flushed_samples: list[EvalSample] = []
+    if crashed.sample_entries:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, log)
+            for entry_name in crashed.sample_entries:
+                sample = await read_flushed_sample(reader, entry_name)
+                flushed_samples.append(sample)
+
+    # Step 2: Read buffer DB
+    buffer_samples: list[EvalSample] = []
+    recovery_data = read_buffer_recovery_data(log)
+
+    if recovery_data is not None and recovery_data.buffer is not None:
+        # Step 3: Reconstruct samples from buffer DB
+        for summary in recovery_data.completed:
+            sample_data = recovery_data.buffer.get_sample_data(
+                summary.id, summary.epoch
+            )
+            if sample_data is not None:
+                sample = reconstruct_eval_sample(summary, sample_data)
+                buffer_samples.append(sample)
+
+        for summary in recovery_data.in_progress:
+            sample_data = recovery_data.buffer.get_sample_data(
+                summary.id, summary.epoch
+            )
+            if sample_data is not None:
+                sample = reconstruct_eval_sample(summary, sample_data, cancelled=True)
+                buffer_samples.append(sample)
+    else:
+        logger.warning(
+            f"No sample buffer database found for {log}. "
+            "Only flushed samples will be recovered."
+        )
+
+    # Step 4: Write the recovered file
+    output = output or default_output_path(log)
+    recovered_log = await write_recovered_eval_log(
+        crashed, flushed_samples, buffer_samples, output=output
+    )
+
+    # Cleanup buffer DB (only after successful write)
+    if cleanup and recovery_data is not None and recovery_data.buffer is not None:
+        recovery_data.buffer.cleanup()
+
+    return recovered_log
+
+
+def recoverable_eval_logs(
+    log_dir: str | None = None,
+) -> list[RecoverableEvalLog]:
+    """List eval logs that can be recovered.
+
+    A log is recoverable when it has status "started" (crashed before
+    completion), a corresponding sample buffer database exists, and
+    no recovered file already exists.
+
+    Args:
+        log_dir: Log directory (defaults to INSPECT_LOG_DIR or ./logs).
+
+    Returns:
+        List of recoverable logs with recovery stats.
+    """
+    log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs")
+
+    # Find crashed logs (status == "started")
+    crashed_logs = list_eval_logs(
+        log_dir=log_dir,
+        filter=lambda log: log.status == "started",
+    )
+
+    result: list[RecoverableEvalLog] = []
+
+    for log_info in crashed_logs:
+        location = log_info.name
+
+        # Check if already recovered
+        recovered_path = default_output_path(location)
+        fs = filesystem(recovered_path)
+        if fs.exists(recovered_path):
+            continue
+
+        # Check if buffer DB exists
+        try:
+            buffer = SampleBufferDatabase(location, create=False)
+        except FileNotFoundError:
+            continue
+
+        # Read stats from buffer DB
+        samples_result = buffer.get_samples()
+        completed = 0
+        in_progress = 0
+        if samples_result is not None and samples_result != "NotModified":
+            for sample in samples_result.samples:
+                if sample.completed_at is not None:
+                    completed += 1
+                else:
+                    in_progress += 1
+
+        # Count flushed samples from the .eval file
+        flushed = _count_flushed_samples(location)
+
+        result.append(
+            RecoverableEvalLog(
+                log=log_info,
+                flushed_samples=flushed,
+                completed_samples=completed,
+                in_progress_samples=in_progress,
+            )
+        )
+
+    return result
+
+
+def _count_flushed_samples(location: str) -> int:
+    """Count flushed samples in a .eval file by inspecting ZIP entries."""
+    try:
+        path = local_path(location)
+        with ZipFile(path, "r") as zf:
+            return sum(
+                1
+                for name in zf.namelist()
+                if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json")
+            )
+    except (BadZipFile, FileNotFoundError, OSError):
+        return 0

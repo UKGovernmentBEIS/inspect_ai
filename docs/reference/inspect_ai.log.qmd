@@ -32,6 +32,11 @@ description: List, read, write, and analyse logs.
 ### TagsEdit
 ### ProvenanceData
 
+## Crash Recovery
+
+### recover_eval_log
+### recoverable_eval_logs
+
 ## Eval Log API
 
 ### EvalStatus
