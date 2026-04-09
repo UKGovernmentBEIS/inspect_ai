@@ -5,6 +5,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.event._model import ModelEvent
@@ -20,7 +22,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.log._recover import recover_eval_log
+from inspect_ai.log._recover import RecoveryNotAvailable, recover_eval_log_async
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -199,7 +201,7 @@ async def test_e2e_recovery_with_recorder_created_eval() -> None:
                 _simulate_crashed_buffer(buffer)
 
                 # Recover
-                log = await recover_eval_log(
+                log = await recover_eval_log_async(
                     eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
@@ -281,15 +283,12 @@ async def test_e2e_recovery_multi_epoch_sorting() -> None:
             await zip_log.flush()
             # Crash — no close
 
+            # No buffer DB — recovery raises RecoveryNotAvailable
             db_dir = os.path.join(temp_dir, "bufferdb")
-            log = await recover_eval_log(eval_path, output=output_path, _db_dir=db_dir)
-
-            assert log.samples is not None
-            assert len(log.samples) == 4
-
-            # Should be sorted: epoch 1 first, then epoch 2, ids in order
-            keys = [(s.epoch, s.id) for s in log.samples]
-            assert keys == [(1, 1), (1, 2), (2, 1), (2, 2)]
+            with pytest.raises(RecoveryNotAvailable):
+                await recover_eval_log_async(
+                    eval_path, output=output_path, _db_dir=db_dir
+                )
 
 
 async def test_e2e_recovery_crash_before_first_flush() -> None:
@@ -344,7 +343,7 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
 
                 _simulate_crashed_buffer(buffer)
 
-                log = await recover_eval_log(
+                log = await recover_eval_log_async(
                     eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
@@ -417,7 +416,7 @@ async def test_e2e_recovery_duplicate_samples_in_buffer_and_eval() -> None:
 
                 _simulate_crashed_buffer(buffer)
 
-                log = await recover_eval_log(
+                log = await recover_eval_log_async(
                     eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
@@ -512,7 +511,7 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
 
                 _simulate_crashed_buffer(buffer)
 
-                log = await recover_eval_log(
+                log = await recover_eval_log_async(
                     eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
@@ -613,7 +612,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
 
                 _simulate_crashed_buffer(buffer)
 
-                log = await recover_eval_log(
+                log = await recover_eval_log_async(
                     eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
@@ -660,17 +659,9 @@ async def test_e2e_recovery_only_flushed_no_buffer() -> None:
             await zip_log.flush()
             # Crash — no buffer DB exists
 
+            # No buffer DB — recovery raises RecoveryNotAvailable
             db_dir = os.path.join(temp_dir, "bufferdb")
-            log = await recover_eval_log(eval_path, output=output_path, _db_dir=db_dir)
-
-            assert log.samples is not None
-            assert len(log.samples) == 3
-            assert log.status == "error"
-
-            for s in log.samples:
-                assert s.scores is not None
-                assert len(s.messages) == 5
-
-            read_log = read_eval_log(output_path)
-            assert read_log.samples is not None
-            assert len(read_log.samples) == 3
+            with pytest.raises(RecoveryNotAvailable):
+                await recover_eval_log_async(
+                    eval_path, output=output_path, _db_dir=db_dir
+                )

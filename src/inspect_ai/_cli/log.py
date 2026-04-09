@@ -306,11 +306,9 @@ def recover_command(
     """Recover crashed eval logs from sample buffer databases."""
     from json import dumps as json_dumps
 
-    import anyio
     import rich
     from rich.table import Table
 
-    from inspect_ai._util._async import configured_async_backend
     from inspect_ai._util.platform import platform_init
     from inspect_ai.log._recover import (
         recover_eval_log,
@@ -370,23 +368,20 @@ def recover_command(
         if log_file is None:
             raise click.UsageError("LOG_FILE is required when not using --list.")
 
-        async def run_recover() -> None:
-            log = await recover_eval_log(
-                log_file,
-                output=output,
-                overwrite=overwrite,
-                cleanup=not no_cleanup,
-            )
-            sample_count = len(log.samples) if log.samples else 0
-            output_path = log.location or output
-            print(f"Recovered {sample_count} samples to {output_path}")
+        log = recover_eval_log(
+            log_file,
+            output=output,
+            overwrite=overwrite,
+            cleanup=not no_cleanup,
+        )
+        sample_count = len(log.samples) if log.samples else 0
+        output_path = log.location or output
+        print(f"Recovered {sample_count} samples to {output_path}")
 
-            failed_count = sum(1 for s in (log.samples or []) if s.error is not None)
-            if failed_count > 0:
-                print(f"\nTo re-run the {failed_count} failed/cancelled samples:")
-                print(f"  inspect eval-retry {output_path}")
-
-        anyio.run(run_recover, backend=configured_async_backend())
+        failed_count = sum(1 for s in (log.samples or []) if s.error is not None)
+        if failed_count > 0:
+            print(f"\nTo re-run the {failed_count} failed/cancelled samples:")
+            print(f"  inspect eval-retry {output_path}")
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"

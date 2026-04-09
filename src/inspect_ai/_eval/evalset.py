@@ -610,15 +610,43 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+        eval_log = log.header
+        log_info = log.info
+
+        # opportunistically recover crashed logs before retrying
+        if eval_log.status == "started" and eval_log.location:
+            from inspect_ai.log._recover import (
+                RecoveryNotAvailable,
+                recover_eval_log,
+            )
+
+            try:
+                recovered = recover_eval_log(eval_log.location)
+                eval_log = recovered
+                if recovered.location:
+                    log_info = EvalLogInfo(
+                        name=recovered.location,
+                        type=log_info.type,
+                        size=log_info.size,
+                        mtime=log_info.mtime,
+                        task=log_info.task,
+                        task_id=log_info.task_id,
+                        suffix=log_info.suffix,
+                    )
+            except RecoveryNotAvailable:
+                pass  # no recovery data available
+            except Exception as ex:
+                logger.warning(f"Recovery failed for {eval_log.location}: {ex}")
+
         previous_tasks.append(
             PreviousTask(
-                id=log.header.eval.task_id,
+                id=eval_log.eval.task_id,
                 task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
-                log=log.header,
-                log_info=log.info,
+                log=eval_log,
+                log_info=log_info,
             )
         )
 

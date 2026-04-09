@@ -19,6 +19,15 @@ from ._write import default_output_path, write_recovered_eval_log
 logger = logging.getLogger(__name__)
 
 
+class RecoveryNotAvailable(Exception):
+    """Recovery data is not available for the given log.
+
+    Raised when there is nothing to recover — the log is already complete,
+    or no sample buffer database exists. This is a normal condition, not an
+    error. Opportunistic callers should catch this silently.
+    """
+
+
 @dataclass
 class RecoverableEvalLog:
     """A crashed eval log that can be recovered."""
@@ -39,22 +48,16 @@ class RecoverableEvalLog:
     """Total expected samples (dataset samples * epochs)."""
 
 
-async def recover_eval_log(
+def recover_eval_log(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
     cleanup: bool = True,
-    _db_dir: str | Path | None = None,
 ) -> EvalLog:
     """Recover a crashed eval log.
 
     Combines flushed samples from the .eval file with unflushed samples
     from the sample buffer database to produce a recovered log file.
-
-    Truly streaming: flushed samples are read one at a time from the .eval
-    file via AsyncZipReader. Buffer DB samples are reconstructed lazily via
-    a generator. Each sample is condensed and flushed to disk incrementally.
-    Memory usage is bounded to a small batch of samples at any point.
 
     Args:
         log: Path to the crashed .eval file.
@@ -69,17 +72,31 @@ async def recover_eval_log(
     Raises:
         ValueError: If the log is not crashed or is invalid.
     """
+    return run_coroutine(
+        recover_eval_log_async(log, output=output, overwrite=overwrite, cleanup=cleanup)
+    )
+
+
+async def recover_eval_log_async(
+    log: str,
+    output: str | None = None,
+    overwrite: bool = False,
+    cleanup: bool = True,
+    _db_dir: str | Path | None = None,
+) -> EvalLog:
+    """Async implementation of recover_eval_log."""
     # Step 1: Read the crashed .eval file metadata
-    crashed = await read_crashed_eval_log(log)
+    try:
+        crashed = await read_crashed_eval_log(log)
+    except ValueError:
+        raise RecoveryNotAvailable(f"Log is not recoverable: {log}")
+
     output = log if overwrite else (output or default_output_path(log))
 
     # Step 2: Read buffer DB metadata (lightweight — just summaries)
     recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
     if recovery_data is None:
-        logger.warning(
-            f"No sample buffer database found for {log}. "
-            "Only flushed samples will be recovered."
-        )
+        raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
 
     # Derive flushed sample keys for deduplication against buffer DB
     flushed_keys = set(crashed.sample_entries)

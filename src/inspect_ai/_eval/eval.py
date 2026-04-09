@@ -1035,15 +1035,22 @@ async def eval_retry_async(
     recovered_files: list[str] = []
     for i, eval_log in enumerate(retry_eval_logs):
         if eval_log.status == "started" and eval_log.location:
-            try:
-                from inspect_ai.log._recover import recover_eval_log
+            from inspect_ai.log._recover import (
+                RecoveryNotAvailable,
+                recover_eval_log_async,
+            )
 
-                recovered = await recover_eval_log(eval_log.location)
+            try:
+                recovered = await recover_eval_log_async(eval_log.location)
                 retry_eval_logs[i] = recovered
                 if recovered.location:
                     recovered_files.append(recovered.location)
-            except Exception:
-                pass  # recovery is opportunistic — proceed with flushed samples
+            except RecoveryNotAvailable:
+                pass  # no recovery data available — proceed with flushed samples
+            except Exception as ex:
+                logging.getLogger(__name__).warning(
+                    f"Recovery failed for {eval_log.location}: {ex}"
+                )
 
     # eval them in turn
     eval_logs: list[EvalLog] = []

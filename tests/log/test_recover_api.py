@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zipfile import ZipFile
 
+import pytest
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -26,7 +27,8 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import HEADER_JSON, LogStart
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
-    recover_eval_log,
+    RecoveryNotAvailable,
+    recover_eval_log_async,
     recoverable_eval_logs,
 )
 from inspect_ai.model._chat_message import ChatMessageUser
@@ -173,7 +175,7 @@ async def test_recover_eval_log_end_to_end() -> None:
                 eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
             )
 
-            log = await recover_eval_log(
+            log = await recover_eval_log_async(
                 eval_path, output=output_path, cleanup=False, _db_dir=db_dir
             )
 
@@ -189,7 +191,7 @@ async def test_recover_eval_log_end_to_end() -> None:
 
 
 async def test_recover_eval_log_no_buffer_db() -> None:
-    """Recovery with no buffer DB — only flushed samples recovered."""
+    """Recovery with no buffer DB raises RecoveryNotAvailable."""
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
@@ -199,10 +201,10 @@ async def test_recover_eval_log_no_buffer_db() -> None:
             flushed = [_make_sample(1), _make_sample(2)]
             _write_crashed_eval(eval_path, samples=flushed)
 
-            log = await recover_eval_log(eval_path, output=output_path, _db_dir=db_dir)
-
-            assert log.samples is not None
-            assert len(log.samples) == 2
+            with pytest.raises(RecoveryNotAvailable):
+                await recover_eval_log_async(
+                    eval_path, output=output_path, _db_dir=db_dir
+                )
 
 
 async def test_recover_eval_log_cleanup() -> None:
@@ -221,7 +223,7 @@ async def test_recover_eval_log_cleanup() -> None:
 
             assert db_path.exists()
 
-            log = await recover_eval_log(
+            log = await recover_eval_log_async(
                 eval_path, output=output_path, cleanup=True, _db_dir=db_dir
             )
 
@@ -243,7 +245,7 @@ async def test_recover_eval_log_no_cleanup() -> None:
                 eval_path, completed_ids=[1], in_progress_ids=[], db_dir=db_dir
             )
 
-            await recover_eval_log(
+            await recover_eval_log_async(
                 eval_path, output=output_path, cleanup=False, _db_dir=db_dir
             )
 
@@ -259,8 +261,11 @@ async def test_recover_eval_log_default_output_path() -> None:
             db_dir = os.path.join(temp_dir, "bufferdb")
 
             _write_crashed_eval(eval_path)
+            _create_buffer_db(
+                eval_path, completed_ids=[1], in_progress_ids=[], db_dir=db_dir
+            )
 
-            await recover_eval_log(eval_path, _db_dir=db_dir)
+            await recover_eval_log_async(eval_path, _db_dir=db_dir)
 
             expected = os.path.join(temp_dir, "mylog-recovered.eval")
             assert os.path.exists(expected)
