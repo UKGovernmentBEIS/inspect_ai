@@ -3,15 +3,14 @@
 import logging
 import os
 from dataclasses import dataclass
-from zipfile import BadZipFile, ZipFile
 
+from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.file import filesystem, local_path
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log
+from inspect_ai._util.file import filesystem
+from inspect_ai.log._file import EvalLogInfo, list_eval_logs
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
-from inspect_ai.log._recorders.eval import SAMPLES_DIR
 
 from ._buffer import read_buffer_recovery_data
 from ._read import read_crashed_eval_log, read_flushed_sample
@@ -138,6 +137,12 @@ def recoverable_eval_logs(
     Returns:
         List of recoverable logs with recovery stats.
     """
+    return run_coroutine(_recoverable_eval_logs_async(log_dir))
+
+
+async def _recoverable_eval_logs_async(
+    log_dir: str | None = None,
+) -> list[RecoverableEvalLog]:
     log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs")
 
     # Find crashed logs (status == "started")
@@ -174,9 +179,18 @@ def recoverable_eval_logs(
                 else:
                     in_progress += 1
 
-        # Count flushed samples and total expected from the .eval file
-        flushed = _count_flushed_samples(location)
-        total = _total_expected_samples(location)
+        # Read crashed log for flushed count and total expected (S3-compatible)
+        try:
+            crashed = await read_crashed_eval_log(location)
+            flushed = len(crashed.sample_entries)
+            dataset_samples = (
+                (crashed.eval.dataset.samples or 0) if crashed.eval.dataset else 0
+            )
+            epochs = crashed.eval.config.epochs or 1
+            total = dataset_samples * epochs
+        except Exception:
+            flushed = 0
+            total = 0
 
         result.append(
             RecoverableEvalLog(
@@ -189,28 +203,3 @@ def recoverable_eval_logs(
         )
 
     return result
-
-
-def _count_flushed_samples(location: str) -> int:
-    """Count flushed samples in a .eval file by inspecting ZIP entries."""
-    try:
-        path = local_path(location)
-        with ZipFile(path, "r") as zf:
-            return sum(
-                1
-                for name in zf.namelist()
-                if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json")
-            )
-    except (BadZipFile, FileNotFoundError, OSError):
-        return 0
-
-
-def _total_expected_samples(location: str) -> int:
-    """Get total expected samples from a .eval file's EvalSpec."""
-    try:
-        header = read_eval_log(location, header_only=True)
-        samples = (header.eval.dataset.samples or 0) if header.eval.dataset else 0
-        epochs = header.eval.config.epochs or 1
-        return samples * epochs
-    except Exception:
-        return 0

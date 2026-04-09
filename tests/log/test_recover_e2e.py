@@ -396,9 +396,9 @@ async def test_e2e_recovery_duplicate_samples_in_buffer_and_eval() -> None:
                 )
 
                 assert log.samples is not None
-                # Should have 2 unique samples, not 3 (sample 1 deduplicated)
+                # Should have exactly 2 unique samples (sample 1 deduplicated)
+                assert len(log.samples) == 2
                 sample_keys = [(s.id, s.epoch) for s in log.samples]
-                # Check no duplicates
                 assert len(sample_keys) == len(set(sample_keys)), (
                     f"Duplicate samples found: {sample_keys}"
                 )

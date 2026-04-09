@@ -132,7 +132,10 @@ async def _read_journal_summaries(
     summary_files: list[tuple[int, str]] = []
     for name in entry_names:
         if name.startswith(summary_prefix) and name.endswith(".json"):
-            index = int(name.split("/")[-1].split(".")[0])
+            stem = name.split("/")[-1].split(".")[0]
+            if not stem.isdigit():
+                continue
+            index = int(stem)
             summary_files.append((index, name))
 
     # Read in order
@@ -143,8 +146,10 @@ async def _read_journal_summaries(
     return summaries
 
 
-def _parse_summaries(data: list[Any]) -> list[EvalSampleSummary]:
+def _parse_summaries(data: Any) -> list[EvalSampleSummary]:
     """Parse a list of summary dicts into EvalSampleSummary objects."""
+    if not isinstance(data, list):
+        raise ValueError(f"Expected a list of summaries, got {type(data).__name__}")
     return [
         EvalSampleSummary.model_validate(value, context=get_deserializing_context())
         for value in data

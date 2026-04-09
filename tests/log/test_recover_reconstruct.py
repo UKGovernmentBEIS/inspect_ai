@@ -280,14 +280,17 @@ def test_reconstruct_with_summary_compaction() -> None:
 
     sample = reconstruct_eval_sample(summary, sample_data)
 
-    # Pre-compaction messages (from last ModelEvent before compaction) should be
-    # grafted, then post-compaction messages appended
-    assert len(sample.messages) > 0
-    # Should have messages from both pre and post compaction
-    messages_text = [m.text for m in sample.messages]
-    assert "Hello" in messages_text
-    assert "6" in messages_text  # final assistant response
-    # Output should be from the last ModelEvent
+    # Pre-compaction segment: _segment_messages(event2) = [user1, assistant1, user2, "4"]
+    # Post-compaction segment: _segment_messages(event3) = [summary_msg, user3, "6"]
+    # Total: 7 messages
+    assert len(sample.messages) == 7
+    assert sample.messages[0].text == "Hello"  # user1
+    assert sample.messages[1].text == "Hi there!"  # assistant1
+    assert sample.messages[2].text == "What is 2+2?"  # user2
+    assert sample.messages[3].text == "4"  # assistant from event2
+    assert sample.messages[4].text == "[Summary of prior conversation]"  # summary_msg
+    assert sample.messages[5].text == "And what is 3+3?"  # user3
+    assert sample.messages[6].text == "6"  # assistant from event3
     assert sample.output.choices[0].message.content == "6"
 
 
@@ -322,11 +325,14 @@ def test_reconstruct_with_trim_compaction() -> None:
 
     sample = reconstruct_eval_sample(summary, sample_data)
 
-    # Should recover the trimmed prefix (First message, First reply)
-    # plus the post-compaction messages
-    messages_text = [m.text for m in sample.messages]
-    assert "First message" in messages_text
-    assert "Second message" in messages_text
+    # Trimmed prefix: [user1, assistant1] (before overlap point at user2)
+    # Post-compaction segment: _segment_messages(event2) = [user2, "Second reply again"]
+    # Total: 4 messages
+    assert len(sample.messages) == 4
+    assert sample.messages[0].text == "First message"  # user1 (trimmed prefix)
+    assert sample.messages[1].text == "First reply"  # assistant1 (trimmed prefix)
+    assert sample.messages[2].text == "Second message"  # user2
+    assert sample.messages[3].text == "Second reply again"  # assistant from event2
 
 
 def test_reconstruct_with_edit_compaction() -> None:

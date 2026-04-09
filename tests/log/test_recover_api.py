@@ -197,7 +197,7 @@ async def test_recover_eval_log_no_buffer_db() -> None:
 
 
 async def test_recover_eval_log_cleanup() -> None:
-    """Verify buffer DB is cleaned up after recovery."""
+    """Verify buffer DB is cleaned up after recovery and content is preserved."""
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
@@ -209,9 +209,21 @@ async def test_recover_eval_log_cleanup() -> None:
 
             assert db_path.exists()
 
-            await recover_eval_log(eval_path, output=output_path, cleanup=True)
+            try:
+                log = await recover_eval_log(
+                    eval_path, output=output_path, cleanup=True
+                )
 
-            assert not db_path.exists()
+                # Buffer DB should be cleaned up
+                assert not db_path.exists()
+
+                # Verify the buffer sample was actually recovered
+                assert log.samples is not None
+                assert len(log.samples) >= 1
+            finally:
+                # Safety cleanup in case recovery fails before cleanup
+                if db_path.exists():
+                    buffer.cleanup()
 
 
 async def test_recover_eval_log_no_cleanup() -> None:
@@ -262,7 +274,10 @@ def test_recoverable_eval_logs() -> None:
         with ZipFile(complete_path, "w") as zf:
             zf.writestr("_journal/start.json", _to_json(log_start))
             header = EvalLog(
-                version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan, status="success"
+                version=LOG_SCHEMA_VERSION,
+                eval=eval_spec,
+                plan=plan,
+                status="success",
             )
             zf.writestr(HEADER_JSON, _to_json(header))
 
@@ -293,7 +308,10 @@ def test_recoverable_eval_logs_excludes_already_recovered() -> None:
         with ZipFile(recovered_path, "w") as zf:
             zf.writestr("_journal/start.json", _to_json(log_start))
             header = EvalLog(
-                version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan, status="error"
+                version=LOG_SCHEMA_VERSION,
+                eval=eval_spec,
+                plan=plan,
+                status="error",
             )
             zf.writestr(HEADER_JSON, _to_json(header))
 
