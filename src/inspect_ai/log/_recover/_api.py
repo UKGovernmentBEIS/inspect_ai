@@ -4,16 +4,15 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 from inspect_ai._util._async import run_coroutine
-from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import filesystem
 from inspect_ai.log._file import EvalLogInfo, list_eval_logs
 from inspect_ai.log._log import EvalLog, EvalSample
 
 from ._buffer import read_buffer_recovery_data
-from ._read import read_crashed_eval_log, read_flushed_sample
+from ._read import read_crashed_eval_log
 from ._reconstruct import reconstruct_eval_sample
 from ._write import default_output_path, write_recovered_eval_log
 
@@ -51,6 +50,11 @@ async def recover_eval_log(
     Combines flushed samples from the .eval file with unflushed samples
     from the sample buffer database to produce a recovered log file.
 
+    Truly streaming: flushed samples are read one at a time from the .eval
+    file via AsyncZipReader. Buffer DB samples are reconstructed lazily via
+    a generator. Each sample is condensed and flushed to disk incrementally.
+    Memory usage is bounded to a small batch of samples at any point.
+
     Args:
         log: Path to the crashed .eval file.
         output: Output path (default: <name>-recovered.eval alongside original).
@@ -62,59 +66,50 @@ async def recover_eval_log(
     Raises:
         ValueError: If the log is not crashed or is invalid.
     """
-    # Step 1: Read the crashed .eval file
+    # Step 1: Read the crashed .eval file metadata
     crashed = await read_crashed_eval_log(log)
+    output = output or default_output_path(log)
 
-    # Read flushed samples from the .eval file
-    flushed_samples: list[EvalSample] = []
-    if crashed.sample_entries:
-        async with AsyncFilesystem() as fs:
-            reader = AsyncZipReader(fs, log)
-            for entry_name in crashed.sample_entries:
-                sample = await read_flushed_sample(reader, entry_name)
-                flushed_samples.append(sample)
-
-    # Track flushed sample keys to deduplicate against buffer DB
-    # (crash can occur between recorder.flush() and buffer_db.remove_samples(),
-    # leaving a sample in both the .eval file and the buffer DB)
-    flushed_keys = {(str(s.id), s.epoch) for s in flushed_samples}
-
-    # Step 2: Read buffer DB
-    buffer_samples: list[EvalSample] = []
+    # Step 2: Read buffer DB metadata (lightweight — just summaries)
     recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
-
-    if recovery_data is not None and recovery_data.buffer is not None:
-        # Step 3: Reconstruct samples from buffer DB (skip duplicates)
-        for summary in recovery_data.completed:
-            if (str(summary.id), summary.epoch) in flushed_keys:
-                continue
-            sample_data = recovery_data.buffer.get_sample_data(
-                summary.id, summary.epoch
-            )
-            if sample_data is not None:
-                sample = reconstruct_eval_sample(summary, sample_data)
-                buffer_samples.append(sample)
-
-        for summary in recovery_data.in_progress:
-            if (str(summary.id), summary.epoch) in flushed_keys:
-                continue
-            sample_data = recovery_data.buffer.get_sample_data(
-                summary.id, summary.epoch
-            )
-            if sample_data is not None:
-                sample = reconstruct_eval_sample(summary, sample_data, cancelled=True)
-                buffer_samples.append(sample)
-    else:
+    if recovery_data is None:
         logger.warning(
             f"No sample buffer database found for {log}. "
             "Only flushed samples will be recovered."
         )
 
-    # Step 4: Write the recovered file
-    output = output or default_output_path(log)
-    recovered_log = await write_recovered_eval_log(
-        crashed, flushed_samples, buffer_samples, output=output
-    )
+    # Derive flushed sample keys for deduplication against buffer DB
+    flushed_keys = set(crashed.sample_entries)
+
+    # Step 3: Create a lazy generator for buffer DB samples
+    def _buffer_samples() -> Iterator[EvalSample]:
+        if recovery_data is None or recovery_data.buffer is None:
+            return
+
+        for summary in recovery_data.completed:
+            entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+            if entry in flushed_keys:
+                continue
+            sample_data = recovery_data.buffer.get_sample_data(
+                summary.id, summary.epoch
+            )
+            if sample_data is not None:
+                yield reconstruct_eval_sample(summary, sample_data)
+
+        for summary in recovery_data.in_progress:
+            entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+            if entry in flushed_keys:
+                continue
+            sample_data = recovery_data.buffer.get_sample_data(
+                summary.id, summary.epoch
+            )
+            if sample_data is not None:
+                yield reconstruct_eval_sample(summary, sample_data, cancelled=True)
+
+    # Step 4: Stream all samples into the recovered file.
+    # write_recovered_eval_log handles flushed sample reading internally
+    # (async via AsyncZipReader) and consumes buffer_samples lazily.
+    recovered_log = await write_recovered_eval_log(crashed, _buffer_samples(), output)
 
     # Cleanup buffer DB (only after successful write)
     if cleanup and recovery_data is not None and recovery_data.buffer is not None:
@@ -148,7 +143,6 @@ async def _recoverable_eval_logs_async(
 ) -> list[RecoverableEvalLog]:
     log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs")
 
-    # Find crashed logs (status == "started")
     crashed_logs = list_eval_logs(
         log_dir=log_dir,
         filter=lambda log: log.status == "started",
@@ -159,13 +153,11 @@ async def _recoverable_eval_logs_async(
     for log_info in crashed_logs:
         location = log_info.name
 
-        # Check if already recovered
         recovered_path = default_output_path(location)
         fs = filesystem(recovered_path)
         if fs.exists(recovered_path):
             continue
 
-        # Check if buffer DB exists (filters out live PIDs, picks newest)
         recovery_data = read_buffer_recovery_data(location, db_dir=_db_dir)
         if recovery_data is None:
             continue
@@ -173,7 +165,6 @@ async def _recoverable_eval_logs_async(
         completed = len(recovery_data.completed)
         in_progress = len(recovery_data.in_progress)
 
-        # Read crashed log for flushed count and total expected (S3-compatible)
         try:
             crashed = await read_crashed_eval_log(location)
             flushed = len(crashed.sample_entries)
