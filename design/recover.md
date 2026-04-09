@@ -279,6 +279,58 @@ This mirrors the streaming pattern already used by `ZipLogFile` during eval exec
 - **`.eval` file has no samples at all** (crash before first flush): All data comes from buffer DB.
 
 
+## Research: Eval Sets and Recovery
+
+### How Eval Sets Work
+
+`eval_set()` (`src/inspect_ai/_eval/evalset.py`) orchestrates multiple task/model combinations with built-in retry, progress tracking, and resumability. It's the recommended way to run complex evaluations.
+
+**State tracking:**
+- `.eval-set-id` file — UUID identifying the eval set
+- `eval-set.json` manifest — list of all tasks with their identifiers
+- Individual `.eval` log files per task — each with `eval_set_id` in `EvalSpec`
+
+**Retry mechanism** (`evalset.py:503-520`):
+- Uses `tenacity.Retrying` with exponential backoff (default: 10 attempts, 30s initial wait)
+- Each iteration: classify logs as complete (`status == "success"`, all samples present, not invalidated) or incomplete (everything else)
+- Incomplete logs → `PreviousTask` objects → re-run with sample reuse via `eval_log_sample_source`
+- Optional `retry_cleanup` removes older failed logs after success
+
+**How crashed tasks are handled** (`evalset.py:685`):
+- `log.header.status != "success"` → classified as incomplete → scheduled for retry
+- A "started" (crashed) log is treated the same as "error" or "cancelled"
+- The retry reads samples from the `.eval` file via `log_info` (file-based path)
+- **Like `eval_retry`, it only sees flushed samples — buffer DB data is missed**
+
+### Integration Opportunity
+
+The integration point is `as_previous_tasks()` (`evalset.py:598-625`), which converts failed logs into `PreviousTask` objects for retry. Currently it passes `log.header` (header-only) and `log_info` (file path) — the sample source reads from the file.
+
+For "started" logs, opportunistic recovery could be attempted before creating the `PreviousTask`:
+
+```python
+for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+    eval_log = log.header
+    if eval_log.status == "started" and eval_log.location:
+        try:
+            eval_log = await recover_eval_log(eval_log.location)
+        except Exception:
+            pass  # recovery is opportunistic
+    previous_tasks.append(PreviousTask(..., log=eval_log, ...))
+```
+
+This mirrors the `eval_retry` integration from Step 7. The recovered log has more completed samples → fewer samples need re-running → less wasted compute.
+
+**Key difference from `eval_retry`:** Eval sets already have their own retry loop with backoff. Recovery just makes each retry iteration more efficient by recovering buffer DB samples that would otherwise be lost and re-run.
+
+**Cleanup: just works.** The eval set's `retry_cleanup` (`latest_completed_task_eval_logs` at `evalset.py:776`) groups logs by `log.header.eval.task_id` and keeps only the newest (by mtime). Since the recovered log preserves the original `EvalSpec` (same `task_id`) and has status `"error"`:
+
+- The recovered log is grouped with the original and the successful retry
+- After a successful retry, the recovered log (status="error") is older (by mtime) and gets cleaned up
+- The original "started" log is preserved as before (line 808 explicitly skips "started" status)
+- No behavior change for "started" log handling — no special cleanup code needed
+
+
 ## Research: Relationship Between `eval_retry` and Recovery
 
 ### How `eval_retry` Works
@@ -451,3 +503,13 @@ Integrated recovery into the retry flow in two places:
   To re-run the 5 failed/cancelled samples:
     inspect eval-retry mylog-recovered.eval
   ```
+
+### Step 8: `eval_set` integration
+
+Integrate opportunistic recovery into the eval set retry loop. When `eval_set` encounters a "started" (crashed) task log during its automatic retry, attempt recovery before creating the `PreviousTask` — same pattern as Step 7.
+
+**Integration point:** `as_previous_tasks()` in `src/inspect_ai/_eval/evalset.py:598-625`. Before creating each `PreviousTask`, check if the log has status "started" and attempt recovery. The recovered log provides more completed samples for reuse.
+
+**Cleanup:** Handled automatically by the existing `retry_cleanup` mechanism. The recovered `-recovered.eval` file has the same `task_id` and status "error", so it gets grouped with the original and cleaned up after a successful retry (see eval set cleanup research above).
+
+**Tests:** Test eval set retry with a crashed task log + buffer DB. Verify recovery is attempted, completed samples are reused, and `-recovered.eval` is cleaned up after success.
