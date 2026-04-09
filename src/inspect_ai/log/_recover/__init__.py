@@ -1,5 +1,6 @@
 from ._buffer import BufferRecoveryData, read_buffer_recovery_data
 from ._read import CrashedEvalLog, read_crashed_eval_log, read_flushed_sample
+from ._reconstruct import reconstruct_eval_sample
 
 __all__ = [
     "BufferRecoveryData",
@@ -7,4 +8,5 @@ __all__ = [
     "read_buffer_recovery_data",
     "read_crashed_eval_log",
     "read_flushed_sample",
+    "reconstruct_eval_sample",
 ]
