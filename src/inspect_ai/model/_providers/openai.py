@@ -85,7 +85,6 @@ class OpenAIAPI(ModelAPI):
         service_tier: str | None = None,
         client_timeout: float | None = None,
         background: bool | None = None,
-        reasoning_only_fallback: bool = False,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -134,7 +133,6 @@ class OpenAIAPI(ModelAPI):
         if background is None and (self.is_deep_research() or self.is_gpt_5_pro()):
             background = True
         self.background = background
-        self.reasoning_only_fallback = reasoning_only_fallback
 
         # is this a model we use responses api by default for?
         responses_preferred = (
@@ -331,6 +329,9 @@ class OpenAIAPI(ModelAPI):
             or self.is_codex()
         )
 
+    def reasoning_only_fallback(self) -> bool:
+        return False
+
     def is_o_series(self) -> bool:
         return is_o_series_model(self.service_model_name())
 
@@ -363,9 +364,6 @@ class OpenAIAPI(ModelAPI):
     def is_codex(self) -> bool:
         name = self.service_model_name()
         return "codex" in name
-
-    def has_reasoning_only_fallback(self) -> bool:
-        return self.reasoning_only_fallback
 
     def is_gpt(self) -> bool:
         name = self.service_model_name()

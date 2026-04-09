@@ -287,8 +287,6 @@ def completion_params_responses(
         params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if model_info.has_reasoning_options():
-        params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
     # (e.g. by a client talking to us through the agent bridge)

@@ -66,7 +66,6 @@ class OpenAICompatibleAPI(ModelAPI):
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
-        reasoning_only_fallback: bool = True,
         stream: bool | None = None,
         strict_tools: bool = True,
         client_timeout: float | None = None,
@@ -118,7 +117,6 @@ class OpenAICompatibleAPI(ModelAPI):
         self.emulate_tools = emulate_tools
         self.responses_api = responses_api
         self.responses_store = responses_store
-        self.reasoning_only_fallback = reasoning_only_fallback
         if self.emulate_tools and self.responses_api:
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
@@ -189,9 +187,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 prompt_cache_retention=NOT_GIVEN,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
-                model_info=ModelInfo(
-                    reasoning_only_fallback=self.reasoning_only_fallback
-                ),
+                model_info=ModelInfo(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
             )
@@ -408,10 +404,10 @@ def _resolve_chat_choice(
 
 
 class ModelInfo(ResponsesModelInfo):
-    def __init__(self, reasoning_only_fallback: bool = True) -> None:
-        self._reasoning_only_fallback = reasoning_only_fallback
-
     def has_reasoning_options(self) -> bool:
+        return True
+
+    def reasoning_only_fallback(self) -> bool:
         return True
 
     def is_gpt(self) -> bool:
@@ -443,6 +439,3 @@ class ModelInfo(ResponsesModelInfo):
 
     def is_codex(self) -> bool:
         return False
-
-    def has_reasoning_only_fallback(self) -> bool:
-        return self._reasoning_only_fallback

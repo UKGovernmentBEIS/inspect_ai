@@ -794,7 +794,7 @@ def _make_mock_model_info():
 
     model_info = MagicMock()
     model_info.has_reasoning_options.return_value = False
-    model_info.has_reasoning_only_fallback.return_value = False
+    model_info.reasoning_only_fallback.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
@@ -1046,23 +1046,6 @@ def test_reasoning_only_fallback_enabled():
     message_items = [item for item in items if item.get("type") == "message"]
     assert len(message_items) == 1
     assert message_items[0]["content"][0]["text"] == NO_CONTENT
-
-
-def test_reasoning_only_fallback_disabled():
-    """When fallback is disabled and content is reasoning-only, no message is injected."""
-    model_info = ModelInfo(reasoning_only_fallback=False)
-    message = ChatMessageAssistant(
-        content=[
-            ContentReasoning(reasoning="Some reasoning", signature="r1"),
-        ],
-        model="test",
-        source="generate",
-    )
-
-    items = _openai_input_items_from_chat_message_assistant(message, model_info)
-
-    message_items = [item for item in items if item.get("type") == "message"]
-    assert len(message_items) == 0
 
 
 def test_reasoning_only_fallback_not_triggered_with_text():
