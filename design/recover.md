@@ -302,11 +302,19 @@ No new query methods were needed — the existing `get_samples()` and `get_sampl
 
 **Tests** (`tests/log/test_recover_buffer.py`): 6 tests covering mixed completed/in-progress, event accessibility via DB handle, no DB, empty DB, all-completed, all-in-progress.
 
-### Step 3: Reconstruct EvalSample from buffer DB data
+### Step 3: Reconstruct EvalSample from buffer DB data (done: `a05ce7fda`)
 
-Build the logic to reconstruct `EvalSample` objects from `EvalSampleSummary` + events. Use `timeline_build()` to discover the main trajectory and extract messages from `ModelEvent` instances (following the `span_messages` pattern with `compaction="all"`). For in-progress samples, synthesize a cancellation `EvalError`.
+Created `_reconstruct.py` in the `_recover` package with:
+- `reconstruct_eval_sample(summary, sample_data, cancelled=False)` — deserializes event JSON dicts via `TypeAdapter(list[Event])`, uses `timeline_build()` + `span_messages` pattern to extract messages (handling compaction boundaries: summary grafts, trim prefix, edit transparent), extracts output from last `ModelEvent`, synthesizes cancellation `EvalError` for in-progress samples (`message="CancelledError()"` matching normal cancellation flow)
+- Produces fully resolved (uncondensed) `EvalSample` — `condense_sample()` is applied later at write time in Step 4
 
-**Tests:** Round-trip test — create an `EvalSample`, decompose it into summary + events as the buffer DB would store them, reconstruct it, and verify the result matches. Test both completed and in-progress (cancelled) cases.
+Key design decisions:
+- Buffer DB events have full `ModelEvent.input` (no message pooling) — pooling only happens in `.eval` file writes
+- Attachments from buffer DB stored in `EvalSample.attachments` dict
+- Timeline built via `timeline_build()` and stored in `EvalSample.timelines`
+- Memory: one uncondensed sample at a time in the Step 4/5 streaming pipeline
+
+**Tests** (`tests/log/test_recover_reconstruct.py`): 7 tests covering completed sample, cancelled sample, no ModelEvents, multiple ModelEvents, empty events, attachments, and `.summary()` round-trip.
 
 ### Step 4: Write recovered .eval file
 
