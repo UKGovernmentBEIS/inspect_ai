@@ -106,10 +106,36 @@ When an eval process dies unexpectedly (out-of-memory, segfault, `kill`, power f
 
 However, Inspect maintains a separate sample buffer database during evaluation. This database persists on disk after a crash and contains the unflushed sample data. Crash recovery combines the data from the incomplete log file with the sample buffer database to produce a complete recovered log.
 
-In the recovered log:
+### Manual Recovery
 
-- Completed samples (those that finished with scores before the crash) appear normally.
-- In-progress samples (those still running when the crash happened) preserve all their events and are marked as cancelled.
+You can also recover crashed logs manually using the CLI. You might want to do this if you aren't running in a retry loop like `eval_set()` or for the purpose of investigating the cause of crashes (note that samples not yet completed will still appear in the recovered log so you can view what happened prior to the crash).
+
+To list all recoverable logs in the current log directory:
+
+``` bash
+inspect log recover --list
+```
+
+To recover a specific log:
+
+``` bash
+inspect log recover path/to/crashed.eval
+```
+
+This creates a new file `path/to/crashed-recovered.eval` containing the recovered samples. To overwrite the original file instead:
+
+``` bash
+inspect log recover path/to/crashed.eval --overwrite
+```
+
+After recovery, if there are cancelled or failed samples, the CLI will suggest running `eval-retry` to re-run them:
+
+```
+Recovered 47 samples to path/to/crashed-recovered.eval
+
+To re-run the 5 failed/cancelled samples:
+  inspect eval-retry path/to/crashed-recovered.eval
+```
 
 ::: {.callout-note appearance="simple"}
 The sample buffer database is retained for 3 days after the eval process exits. Recovery should be performed soon after a crash to ensure the data is still available.
@@ -135,40 +161,7 @@ inspect log list --status started
 inspect log recover path/to/started.eval --output ~/recovered/started-recovered.eval
 ```
 
-### Manual Recovery
-
-You can also recover crashed logs manually using the CLI. You might want to do this if you aren't running in a retry loop like `eval_set()` or for the purpose of investigating the cause of crashes (note that samples not yet completed will still appear in the recovered log so you can view what happened prior to the crash).
-
-To list all recoverable logs in the current log directory:
-
-``` bash
-inspect log recover --list
-```
-
-This shows a table with each recoverable log, the task name, total expected samples, and how many are recoverable (flushed, completed in buffer, in-progress in buffer).
-
-To recover a specific log:
-
-``` bash
-inspect log recover path/to/crashed.eval
-```
-
-This creates a new file `path/to/crashed-recovered.eval` containing the recovered samples. To overwrite the original file instead:
-
-``` bash
-inspect log recover path/to/crashed.eval --overwrite
-```
-
-After recovery, if there are cancelled or failed samples, the CLI will suggest running `eval-retry` to re-run them:
-
-```
-Recovered 47 samples to path/to/crashed-recovered.eval
-
-To re-run the 5 failed/cancelled samples:
-  inspect eval-retry path/to/crashed-recovered.eval
-```
-
-#### Python API
+### Python API
 
 You can also use the Python API perform recovery actions:
 
