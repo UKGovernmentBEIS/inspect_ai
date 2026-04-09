@@ -42,6 +42,7 @@ class RecoverableEvalLog:
 async def recover_eval_log(
     log: str,
     output: str | None = None,
+    overwrite: bool = False,
     cleanup: bool = True,
     _db_dir: str | Path | None = None,
 ) -> EvalLog:
@@ -58,6 +59,8 @@ async def recover_eval_log(
     Args:
         log: Path to the crashed .eval file.
         output: Output path (default: <name>-recovered.eval alongside original).
+        overwrite: Write the recovered log to the same path as the input,
+            replacing the crashed log in-place.
         cleanup: Remove the buffer DB after recovery.
 
     Returns:
@@ -68,7 +71,7 @@ async def recover_eval_log(
     """
     # Step 1: Read the crashed .eval file metadata
     crashed = await read_crashed_eval_log(log)
-    output = output or default_output_path(log)
+    output = log if overwrite else (output or default_output_path(log))
 
     # Step 2: Read buffer DB metadata (lightweight — just summaries)
     recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)

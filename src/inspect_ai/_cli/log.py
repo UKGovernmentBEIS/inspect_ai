@@ -264,6 +264,13 @@ def types() -> None:
     help="Output path for the recovered log file.",
 )
 @click.option(
+    "--overwrite",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Overwrite the crashed log file in-place instead of creating a new file.",
+)
+@click.option(
     "--no-cleanup",
     type=bool,
     is_flag=True,
@@ -290,6 +297,7 @@ def types() -> None:
 def recover_command(
     log_file: str | None,
     output: str | None,
+    overwrite: bool,
     no_cleanup: bool,
     list_mode: bool,
     json_output: bool,
@@ -366,6 +374,7 @@ def recover_command(
             log = await recover_eval_log(
                 log_file,
                 output=output,
+                overwrite=overwrite,
                 cleanup=not no_cleanup,
             )
             sample_count = len(log.samples) if log.samples else 0
