@@ -325,11 +325,16 @@ Created `_write.py` in the `_recover` package with:
 
 **Tests** (`tests/log/test_recover_write.py`): 6 tests covering basic write+readback, sample sorting, stats aggregation, mixed scored/unscored, default output path, empty samples.
 
-### Step 5: `recover_eval_log()` Python API
+### Step 5: `recover_eval_log()` Python API (done: `4231d0403`)
 
-Wire steps 1-4 together into the public `recover_eval_log()` function. Handle the full lifecycle: validate input, read crashed log, find buffer DB, reconstruct samples, write recovered file, optionally clean up the buffer DB. Also implement `recoverable_eval_logs()` for discovery.
+Created `_api.py` in the `_recover` package with:
+- `recover_eval_log(log, output=None, cleanup=True)` — wires the full pipeline: read crashed log → read flushed samples via `AsyncZipReader` → read buffer DB → reconstruct samples (completed without `cancelled`, in-progress with `cancelled=True`) → write recovered file → cleanup buffer DB after successful write
+- `recoverable_eval_logs(log_dir=None)` — discovers recoverable logs by listing status `"started"` logs, checking for buffer DB existence, and excluding already-recovered logs (checks for `-recovered.eval` file)
+- `RecoverableEvalLog` dataclass with `log: EvalLogInfo`, `flushed_samples`, `completed_samples`, `in_progress_samples` stats
 
-**Tests:** End-to-end test — set up a crashed `.eval` + buffer DB, call `recover_eval_log()`, verify the output file is a valid complete log. Test `recoverable_eval_logs()` discovery. Test edge cases (no buffer DB, empty buffer DB).
+`db_dir` is kept internal to `read_buffer_recovery_data()` for testing only — not exposed in the public API. Functions exported at `inspect_ai.log` level.
+
+**Tests** (`tests/log/test_recover_api.py`): 7 tests covering end-to-end recovery, no buffer DB, cleanup/no-cleanup, default output path, discoverable logs, exclusion of already-recovered logs.
 
 ### Step 6: `inspect log recover` CLI (direct and list modes)
 
