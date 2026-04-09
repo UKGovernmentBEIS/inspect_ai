@@ -51,10 +51,16 @@ def read_buffer_recovery_data(
     if db_path is None:
         return None
 
-    # Open the database using the resolved db_dir, then override db_path
-    # to ensure we use the specific file we selected (not an arbitrary glob match)
+    # Open the database using the resolved db_dir. The constructor globs for
+    # matching .db files and picks one arbitrarily; we override db_path to use
+    # the specific dead-PID file we selected. The constructor can raise
+    # FileNotFoundError if the files disappear between our find and open
+    # (e.g., concurrent cleanup).
     resolved_db_dir = db_path.parent.parent
-    buffer = SampleBufferDatabase(location, create=False, db_dir=resolved_db_dir)
+    try:
+        buffer = SampleBufferDatabase(location, create=False, db_dir=resolved_db_dir)
+    except FileNotFoundError:
+        return None
     buffer.db_path = db_path
 
     result = buffer.get_samples()

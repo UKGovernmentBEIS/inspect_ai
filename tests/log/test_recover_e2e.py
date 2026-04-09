@@ -22,7 +22,11 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.log._recover import RecoveryNotAvailable, recover_eval_log_async
+from inspect_ai.log._recover import (
+    RecoveryNotAvailable,
+    recover_eval_log,
+    recover_eval_log_async,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -283,12 +287,21 @@ async def test_e2e_recovery_multi_epoch_sorting() -> None:
             await zip_log.flush()
             # Crash — no close
 
-            # No buffer DB — recovery raises RecoveryNotAvailable
+            # Create an empty buffer DB so recovery can proceed
             db_dir = os.path.join(temp_dir, "bufferdb")
-            with pytest.raises(RecoveryNotAvailable):
-                await recover_eval_log_async(
-                    eval_path, output=output_path, _db_dir=db_dir
-                )
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            _simulate_crashed_buffer(buffer)
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            assert log.samples is not None
+            assert len(log.samples) == 4
+
+            # Verify sorted by epoch first, then id
+            sample_keys = [(s.epoch, s.id) for s in log.samples]
+            assert sample_keys == sorted(sample_keys)
 
 
 async def test_e2e_recovery_crash_before_first_flush() -> None:
@@ -619,9 +632,11 @@ async def test_e2e_recovery_sample_with_error() -> None:
                 assert log.samples is not None
                 assert len(log.samples) == 2
 
-                # Errored sample preserved
+                # Errored sample preserved with error details
                 s1 = next(s for s in log.samples if s.id == 1)
                 assert s1.scores is None
+                assert s1.error is not None
+                assert "rate limit" in s1.error.message
 
                 # Normal sample has scores
                 s2 = next(s for s in log.samples if s.id == 2)
@@ -665,3 +680,77 @@ async def test_e2e_recovery_only_flushed_no_buffer() -> None:
                 await recover_eval_log_async(
                     eval_path, output=output_path, _db_dir=db_dir
                 )
+
+
+def test_sync_recover_eval_log() -> None:
+    """Test the synchronous recover_eval_log wrapper works end-to-end."""
+    import json
+    from unittest.mock import patch
+    from zipfile import ZipFile
+
+    from pydantic_core import to_jsonable_python
+
+    from inspect_ai.log._recorders.buffer.database import resolve_db_dir
+
+    def _to_json(obj: object) -> str:
+        return json.dumps(to_jsonable_python(obj, exclude_none=True))
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "sync_test.eval")
+        output_path = os.path.join(temp_dir, "sync_test-recovered.eval")
+        db_dir = os.path.join(temp_dir, "bufferdb")
+
+        eval_spec = _make_eval_spec(num_samples=2)
+        plan = EvalPlan()
+        log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+        # Create crashed .eval file directly (sync, no ZipLogFile needed)
+        sample1 = _make_realistic_sample(1, epoch=1)
+        with ZipFile(eval_path, "w") as zf:
+            zf.writestr("_journal/start.json", _to_json(log_start))
+            zf.writestr(
+                f"samples/{sample1.id}_epoch_{sample1.epoch}.json",
+                _to_json(sample1),
+            )
+            zf.writestr(
+                "_journal/summaries/1.json",
+                _to_json([sample1.summary()]),
+            )
+
+        # Create buffer DB with one additional sample
+        buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+        started = EvalSampleSummary(
+            id=2,
+            epoch=1,
+            input="Q2",
+            target="4",
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        buffer.start_sample(started)
+        event = _make_model_event([ChatMessageUser(content="What is 2+2?")], "4")
+        buffer.log_events([SampleEvent(id=2, epoch=1, event=event)])
+        completed = EvalSampleSummary(
+            id=2,
+            epoch=1,
+            input="Q2",
+            target="4",
+            scores={"accuracy": Score(value="C", answer="4")},
+            started_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=datetime.now(timezone.utc).isoformat(),
+        )
+        buffer.complete_sample(completed)
+        _simulate_crashed_buffer(buffer)
+
+        # Patch resolve_db_dir so recovery finds the buffer DB in our temp dir
+        real_resolve = resolve_db_dir
+        with patch(
+            "inspect_ai.log._recover._buffer.resolve_db_dir",
+            lambda db_dir=None: real_resolve(
+                Path(db_dir) if db_dir else Path(temp_dir) / "bufferdb"
+            ),
+        ):
+            log = recover_eval_log(eval_path, output=output_path, cleanup=False)
+
+        assert log.status == "error"
+        assert log.samples is not None
+        assert len(log.samples) == 2

@@ -218,3 +218,67 @@ def test_read_buffer_recovery_data_all_in_progress() -> None:
         assert recovery is not None
         assert len(recovery.completed) == 0
         assert len(recovery.in_progress) == 2
+
+
+def test_read_buffer_recovery_data_picks_newest_db() -> None:
+    """Test that when multiple dead-PID DBs exist, the newest one is used."""
+    import time
+
+    from inspect_ai._util.file import filesystem
+    from inspect_ai.log._recorders.buffer.database import (
+        location_dir_and_file,
+        resolve_db_dir,
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_dir = os.path.join(temp_dir, "bufferdb")
+        location = os.path.join(temp_dir, "test.eval")
+
+        # Resolve the subdirectory where DBs are stored
+        resolved_dir = resolve_db_dir(Path(db_dir))
+        uri = filesystem(location).path_as_uri(location)
+        dir_hash, file = location_dir_and_file(uri)
+        log_subdir = resolved_dir / dir_hash
+        log_subdir.mkdir(parents=True, exist_ok=True)
+
+        # Create an older DB with dead PID 99999998
+        older_pid = 99999998
+        older_db = log_subdir / f"{file}.{older_pid}.db"
+        older_buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
+        # Add a sample to the older DB
+        older_buffer.start_sample(_make_started_summary(1))
+        older_buffer.log_events(
+            [SampleEvent(id=1, epoch=1, event=_make_model_event("old response"))]
+        )
+        older_buffer.complete_sample(_make_completed_summary(1))
+        # Rename to dead PID
+        older_buffer.db_path.rename(older_db)
+
+        # Small delay to ensure different mtime
+        time.sleep(0.1)
+
+        # Create a newer DB with dead PID 99999999
+        newer_pid = _DEAD_PID
+        newer_db = log_subdir / f"{file}.{newer_pid}.db"
+        newer_buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
+        # Add different samples to the newer DB
+        newer_buffer.start_sample(_make_started_summary(10))
+        newer_buffer.log_events(
+            [SampleEvent(id=10, epoch=1, event=_make_model_event("new response"))]
+        )
+        newer_buffer.complete_sample(_make_completed_summary(10))
+        newer_buffer.start_sample(_make_started_summary(11))
+        newer_buffer.log_events(
+            [SampleEvent(id=11, epoch=1, event=_make_model_event("new partial"))]
+        )
+        # Rename to dead PID
+        newer_buffer.db_path.rename(newer_db)
+
+        # Read recovery data — should pick the newer DB
+        recovery = read_buffer_recovery_data(location, db_dir=db_dir)
+        assert recovery is not None
+        # Newer DB has 1 completed (id=10) and 1 in-progress (id=11)
+        assert len(recovery.completed) == 1
+        assert recovery.completed[0].id == 10
+        assert len(recovery.in_progress) == 1
+        assert recovery.in_progress[0].id == 11

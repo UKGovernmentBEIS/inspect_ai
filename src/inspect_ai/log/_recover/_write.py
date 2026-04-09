@@ -53,9 +53,10 @@ async def write_recovered_eval_log(
         resolve_scorers,
     )
     from inspect_ai._eval.task.results import eval_results
+    from inspect_ai._util.file import dirname
     from inspect_ai.scorer._metric import SampleScore
 
-    output_dir = output.rsplit("/", 1)[0] if "/" in output else "."
+    output_dir = dirname(output)
     recorder = EvalRecorder(output_dir)
 
     await recorder.log_init(crashed.eval, location=output, clean=True)

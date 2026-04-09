@@ -335,7 +335,7 @@ This mirrors the `eval_retry` integration from Step 7. The recovered log has mor
 
 **Buffer DB cleanup:** Automatic recovery passes `cleanup=False`, so the buffer DB is preserved for post-mortem debugging. The user can later run `inspect log recover <started_log> --output <elsewhere>` to produce a recovered log for investigation. The 3-day TTL handles eventual cleanup of the buffer DB.
 
-**Eval set directory guard:** The public `recover_eval_log()` checks for a `.eval-set-id` file in the log's directory. If found and no explicit `--output` is provided, it raises an error — writing a recovered file into the eval set directory would corrupt eval set state (mtime ordering). Automatic recovery (internal `_recover_eval_log_async`) bypasses this guard since its recovered files are cleaned up by `retry_cleanup`.
+**Successful log guard:** Before writing a recovered file, `recover_eval_log_async` checks whether the output directory already contains a successful log for the same task. If so, it raises `RecoveryNotAvailable` — writing a newer recovered file (status "error") would become the "latest" by mtime and interfere with eval set state. This semantic check naturally allows automatic recovery (eval_retry/eval_set recover crashed logs *before* a successful retry exists) while blocking manual post-mortem recovery that would conflict with an existing successful log. The CLI surfaces this as a clean `UsageError` with guidance to use `--output` or `--overwrite`.
 
 
 ## Relationship Between `eval_retry` and Recovery
@@ -529,11 +529,6 @@ Integrated recovery into the eval set retry loop and refactored the sync/async s
 - Both `eval_retry` and `eval_set` pass `cleanup=False` — buffer DB preserved for post-mortem debugging
 - 3-day TTL in `cleanup_sample_buffer_databases()` handles eventual cleanup
 - Users can investigate crashes via `inspect log list --status started` → `inspect log recover <file> --output <elsewhere>`
-
-**Eval set directory guard** (`recover_eval_log()`):
-- Checks for `.eval-set-id` sentinel file in the log's directory
-- If found and no explicit `--output` provided, raises `ValueError` — prevents writing recovered files into eval set directories (would corrupt mtime-based state tracking)
-- Automatic recovery (`recover_eval_log_async`) bypasses this guard since its files are cleaned up by `retry_cleanup`
 
 **Additional changes:**
 - `--overwrite` flag on `recover_eval_log()` / CLI for in-place recovery

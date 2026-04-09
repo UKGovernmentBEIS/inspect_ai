@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterator
 
 from inspect_ai._util._async import run_coroutine
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import dirname, filesystem
 from inspect_ai.log._file import EvalLogInfo, list_eval_logs
 from inspect_ai.log._log import EvalLog, EvalSample
 
@@ -68,21 +68,7 @@ def recover_eval_log(
 
     Returns:
         The recovered EvalLog.
-
-    Raises:
-        ValueError: If the log is in an eval set directory without an
-            explicit output path.
     """
-    # Guard against writing recovered files into eval set directories,
-    # which would corrupt eval set state (mtime ordering, status checks).
-    if output is None:
-        log_dir = os.path.dirname(os.path.abspath(log))
-        if os.path.exists(os.path.join(log_dir, ".eval-set-id")):
-            raise ValueError(
-                "This log is in an eval set directory. Use --output to write "
-                "the recovered file to a different location."
-            )
-
     return run_coroutine(
         recover_eval_log_async(log, output=output, overwrite=overwrite, cleanup=cleanup)
     )
@@ -103,6 +89,29 @@ async def recover_eval_log_async(
         raise RecoveryNotAvailable(f"Log is not recoverable: {log}")
 
     output = log if overwrite else (output or default_output_path(log))
+
+    # Guard: if a successful log for this task already exists in the
+    # output directory, recovery would create a newer file that interferes
+    # with eval set state (mtime-based log selection). This naturally
+    # allows automatic recovery (eval_retry/eval_set) since they recover
+    # crashed logs before a successful retry exists.
+    if not overwrite:
+        output_dir = dirname(output)
+        task_id = crashed.eval.task_id
+        existing = list_eval_logs(
+            log_dir=output_dir,
+            filter=lambda log_header: (
+                log_header.status == "success" and log_header.eval.task_id == task_id
+            ),
+            recursive=False,
+        )
+        if existing:
+            raise RecoveryNotAvailable(
+                f"A successful log for task '{crashed.eval.task}' already "
+                f"exists in {output_dir}. Use output= to write the recovered "
+                f"file to a different location, or overwrite=True to replace "
+                f"the crashed log in-place."
+            )
 
     # Step 2: Read buffer DB metadata (lightweight — just summaries)
     recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)

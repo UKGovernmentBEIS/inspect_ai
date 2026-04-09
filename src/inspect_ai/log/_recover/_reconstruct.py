@@ -41,23 +41,24 @@ def reconstruct_eval_sample(
         [event_data.event for event_data in sample_data.events]
     )
 
-    # Build timeline and extract messages
-    messages, output = _extract_messages_and_output(events)
+    # Build timeline once (used for both message extraction and the timelines field)
+    timeline: Timeline | None = None
+    if events:
+        try:
+            timeline = timeline_build(events)
+        except Exception:
+            # timeline_build can fail on partial/malformed event streams
+            pass
+
+    # Extract messages using the timeline (or flat fallback)
+    messages, output = _extract_messages_and_output(events, timeline)
 
     # Build attachments dict from buffer DB attachment data
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
 
-    # Build timeline
-    timelines: list[Timeline] | None = None
-    if events:
-        try:
-            timeline = timeline_build(events)
-            timelines = [timeline]
-        except Exception:
-            # timeline_build can fail on partial/malformed event streams
-            pass
+    timelines: list[Timeline] | None = [timeline] if timeline is not None else None
 
     # Set error: synthesize cancellation for in-progress samples,
     # or preserve existing error from completed-but-errored samples
@@ -109,12 +110,17 @@ def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:
 
 def _extract_messages_and_output(
     events: list[Event],
+    timeline: Timeline | None = None,
 ) -> tuple[list[ChatMessage], ModelOutput]:
-    """Extract messages and output from events using timeline_build.
+    """Extract messages and output from events using a pre-built timeline.
 
-    Uses the span_messages pattern: build a timeline to discover the main
-    trajectory, then walk ModelEvents to extract messages, handling
-    compaction boundaries.
+    Uses the span_messages pattern: walk the timeline's main trajectory
+    to extract messages, handling compaction boundaries.
+
+    Args:
+        events: Full event list.
+        timeline: Pre-built timeline (if available). Falls back to flat
+            event walk if None.
 
     Returns:
         Tuple of (messages, output). Messages is the full conversation
@@ -124,11 +130,8 @@ def _extract_messages_and_output(
     if not events:
         return [], ModelOutput()
 
-    # Build timeline to discover main trajectory
-    try:
-        timeline = timeline_build(events)
-    except Exception:
-        # Fall back to flat event walk if timeline_build fails
+    if timeline is None:
+        # Fall back to flat event walk if no timeline available
         return _extract_messages_flat(events)
 
     # Extract events from the timeline's root span

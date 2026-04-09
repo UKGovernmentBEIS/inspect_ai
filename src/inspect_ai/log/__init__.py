@@ -53,7 +53,12 @@ from ._log import (
 )
 from ._metric import recompute_metrics
 from ._pool import resolve_sample_events_data
-from ._recover import recover_eval_log, recoverable_eval_logs
+from ._recover import (
+    RecoverableEvalLog,
+    RecoveryNotAvailable,
+    recover_eval_log,
+    recoverable_eval_logs,
+)
 from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
@@ -114,6 +119,8 @@ __all__ = [
     "uninvalidate_samples",
     "recover_eval_log",
     "recoverable_eval_logs",
+    "RecoverableEvalLog",
+    "RecoveryNotAvailable",
 ]
 
 

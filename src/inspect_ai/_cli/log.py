@@ -368,12 +368,17 @@ def recover_command(
         if log_file is None:
             raise click.UsageError("LOG_FILE is required when not using --list.")
 
-        log = recover_eval_log(
-            log_file,
-            output=output,
-            overwrite=overwrite,
-            cleanup=not no_cleanup,
-        )
+        from inspect_ai.log._recover import RecoveryNotAvailable
+
+        try:
+            log = recover_eval_log(
+                log_file,
+                output=output,
+                overwrite=overwrite,
+                cleanup=not no_cleanup,
+            )
+        except RecoveryNotAvailable as e:
+            raise click.UsageError(str(e))
         sample_count = len(log.samples) if log.samples else 0
         output_path = log.location or output
         print(f"Recovered {sample_count} samples to {output_path}")
