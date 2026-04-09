@@ -255,6 +255,125 @@ def types() -> None:
     print(view_type_resource("generated.ts"))
 
 
+@log_command.command("recover")
+@click.argument("log_file", required=False)
+@click.option(
+    "--output",
+    type=str,
+    default=None,
+    help="Output path for the recovered log file.",
+)
+@click.option(
+    "--no-cleanup",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Don't remove the sample buffer database after recovery.",
+)
+@click.option(
+    "--list",
+    "list_mode",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="List recoverable logs instead of recovering.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Output listing as JSON (only with --list).",
+)
+@common_options
+def recover_command(
+    log_file: str | None,
+    output: str | None,
+    no_cleanup: bool,
+    list_mode: bool,
+    json_output: bool,
+    **common: Unpack[CommonOptions],
+) -> None:
+    """Recover crashed eval logs from sample buffer databases."""
+    from json import dumps as json_dumps
+
+    import anyio
+    import rich
+    from rich.table import Table
+
+    from inspect_ai._util._async import configured_async_backend
+    from inspect_ai._util.platform import platform_init
+    from inspect_ai.log._recover import (
+        recover_eval_log,
+        recoverable_eval_logs,
+    )
+
+    process_common_options(common)
+    platform_init()
+
+    if list_mode:
+        logs = recoverable_eval_logs(log_dir=common["log_dir"])
+
+        if not logs:
+            print("No recoverable logs found.")
+            return
+
+        if json_output:
+            print(
+                json_dumps(
+                    [
+                        {
+                            "name": r.log.name,
+                            "task": r.log.task,
+                            "total_samples": r.total_samples,
+                            "flushed_samples": r.flushed_samples,
+                            "completed_samples": r.completed_samples,
+                            "in_progress_samples": r.in_progress_samples,
+                        }
+                        for r in logs
+                    ],
+                    indent=2,
+                )
+            )
+        else:
+            table = Table(title="Recoverable Logs")
+            table.add_column("Log File")
+            table.add_column("Task")
+            table.add_column("Total", justify="right")
+            table.add_column("Flushed", justify="right")
+            table.add_column("Completed", justify="right")
+            table.add_column("In Progress", justify="right")
+
+            for r in logs:
+                table.add_row(
+                    r.log.name,
+                    r.log.task,
+                    str(r.total_samples),
+                    str(r.flushed_samples),
+                    str(r.completed_samples),
+                    str(r.in_progress_samples),
+                )
+
+            console = rich.get_console()
+            console.print(table)
+
+    else:
+        if log_file is None:
+            raise click.UsageError("LOG_FILE is required when not using --list.")
+
+        async def run_recover() -> None:
+            log = await recover_eval_log(
+                log_file,
+                output=output,
+                cleanup=not no_cleanup,
+            )
+            sample_count = len(log.samples) if log.samples else 0
+            print(f"Recovered {sample_count} samples to {log.location or output}")
+
+        anyio.run(run_recover, backend=configured_async_backend())
+
+
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
 
 _SUBMODULE_MSG = (

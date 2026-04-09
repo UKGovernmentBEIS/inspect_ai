@@ -8,7 +8,7 @@ from zipfile import BadZipFile, ZipFile
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import filesystem, local_path
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs
+from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import SAMPLES_DIR
@@ -36,6 +36,9 @@ class RecoverableEvalLog:
 
     in_progress_samples: int
     """Number of in-progress (unscored) samples in the buffer DB."""
+
+    total_samples: int
+    """Total expected samples (dataset samples * epochs)."""
 
 
 async def recover_eval_log(
@@ -162,8 +165,9 @@ def recoverable_eval_logs(
                 else:
                     in_progress += 1
 
-        # Count flushed samples from the .eval file
+        # Count flushed samples and total expected from the .eval file
         flushed = _count_flushed_samples(location)
+        total = _total_expected_samples(location)
 
         result.append(
             RecoverableEvalLog(
@@ -171,6 +175,7 @@ def recoverable_eval_logs(
                 flushed_samples=flushed,
                 completed_samples=completed,
                 in_progress_samples=in_progress,
+                total_samples=total,
             )
         )
 
@@ -188,4 +193,15 @@ def _count_flushed_samples(location: str) -> int:
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json")
             )
     except (BadZipFile, FileNotFoundError, OSError):
+        return 0
+
+
+def _total_expected_samples(location: str) -> int:
+    """Get total expected samples from a .eval file's EvalSpec."""
+    try:
+        header = read_eval_log(location, header_only=True)
+        samples = (header.eval.dataset.samples or 0) if header.eval.dataset else 0
+        epochs = header.eval.config.epochs or 1
+        return samples * epochs
+    except Exception:
         return 0
