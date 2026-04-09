@@ -3,6 +3,7 @@
 import os
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -81,6 +82,19 @@ def _make_realistic_sample(
     )
 
 
+_DEAD_PID = 99999999
+
+
+def _simulate_crashed_buffer(buffer: SampleBufferDatabase) -> None:
+    """Rename the buffer DB to use a dead PID, simulating a crashed process."""
+    old_path = buffer.db_path
+    new_path = old_path.parent / old_path.name.replace(
+        f".{os.getpid()}.", f".{_DEAD_PID}."
+    )
+    old_path.rename(new_path)
+    buffer.db_path = new_path
+
+
 def _make_model_event(input_msgs: list[ChatMessage], output_content: str) -> ModelEvent:
     return ModelEvent(
         model="mockllm/model",
@@ -127,7 +141,8 @@ async def test_e2e_recovery_with_recorder_created_eval() -> None:
             # This leaves the file without header.json
 
             # Create buffer DB with additional samples (unflushed at crash time)
-            buffer = SampleBufferDatabase(eval_path, create=True)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
             try:
                 # One completed sample in buffer
                 started_summary = EvalSampleSummary(
@@ -180,9 +195,12 @@ async def test_e2e_recovery_with_recorder_created_eval() -> None:
                 )
                 buffer.log_events([SampleEvent(id=2, epoch=2, event=partial_event)])
 
+                # Simulate crash (rename DB to dead PID)
+                _simulate_crashed_buffer(buffer)
+
                 # Recover
                 log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=False
+                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
                 # Verify the recovered log
@@ -263,7 +281,8 @@ async def test_e2e_recovery_multi_epoch_sorting() -> None:
             await zip_log.flush()
             # Crash — no close
 
-            log = await recover_eval_log(eval_path, output=output_path)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            log = await recover_eval_log(eval_path, output=output_path, _db_dir=db_dir)
 
             assert log.samples is not None
             assert len(log.samples) == 4
@@ -295,7 +314,8 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
             # Crash — no samples ever flushed
 
             # All data in buffer DB
-            buffer = SampleBufferDatabase(eval_path, create=True)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
             try:
                 for id in [1, 2]:
                     started = EvalSampleSummary(
@@ -322,8 +342,10 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
                     )
                     buffer.complete_sample(completed)
 
+                _simulate_crashed_buffer(buffer)
+
                 log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=False
+                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
                 assert log.samples is not None
@@ -332,6 +354,7 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
 
                 # Read back
                 read_log = read_eval_log(output_path)
+                assert read_log.samples is not None
                 assert len(read_log.samples) == 2
             finally:
                 buffer.cleanup()
@@ -364,7 +387,8 @@ async def test_e2e_recovery_duplicate_samples_in_buffer_and_eval() -> None:
             # Crash here — sample 1 is in .eval but NOT removed from buffer DB
 
             # Buffer DB still has sample 1 (wasn't cleaned up) plus sample 2
-            buffer = SampleBufferDatabase(eval_path, create=True)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
             try:
                 for id in [1, 2]:
                     started = EvalSampleSummary(
@@ -391,8 +415,10 @@ async def test_e2e_recovery_duplicate_samples_in_buffer_and_eval() -> None:
                     )
                     buffer.complete_sample(completed)
 
+                _simulate_crashed_buffer(buffer)
+
                 log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=False
+                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
                 assert log.samples is not None
@@ -441,7 +467,8 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
 
             # Crash — samples 5,6 completed but unflushed, sample 7 in-progress
 
-            buffer = SampleBufferDatabase(eval_path, create=True)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
             try:
                 # Completed but unflushed
                 for id in [5, 6]:
@@ -483,8 +510,10 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
                 )
                 buffer.log_events([SampleEvent(id=7, epoch=1, event=event)])
 
+                _simulate_crashed_buffer(buffer)
+
                 log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=False
+                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
                 assert log.samples is not None
@@ -505,6 +534,7 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
 
                 # Round-trip
                 read_log = read_eval_log(output_path)
+                assert read_log.samples is not None
                 assert len(read_log.samples) == 7
             finally:
                 buffer.cleanup()
@@ -530,7 +560,8 @@ async def test_e2e_recovery_sample_with_error() -> None:
             await zip_log.start(log_start)
             await zip_log.flush()
 
-            buffer = SampleBufferDatabase(eval_path, create=True)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
             try:
                 # Sample 1: completed with error
                 started = EvalSampleSummary(
@@ -580,8 +611,10 @@ async def test_e2e_recovery_sample_with_error() -> None:
                 )
                 buffer.complete_sample(completed2)
 
+                _simulate_crashed_buffer(buffer)
+
                 log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=False
+                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
                 )
 
                 assert log.samples is not None
@@ -596,6 +629,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
                 assert s2.scores is not None
 
                 read_log = read_eval_log(output_path)
+                assert read_log.samples is not None
                 assert len(read_log.samples) == 2
             finally:
                 buffer.cleanup()
@@ -626,7 +660,8 @@ async def test_e2e_recovery_only_flushed_no_buffer() -> None:
             await zip_log.flush()
             # Crash — no buffer DB exists
 
-            log = await recover_eval_log(eval_path, output=output_path)
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            log = await recover_eval_log(eval_path, output=output_path, _db_dir=db_dir)
 
             assert log.samples is not None
             assert len(log.samples) == 3
@@ -637,4 +672,5 @@ async def test_e2e_recovery_only_flushed_no_buffer() -> None:
                 assert len(s.messages) == 5
 
             read_log = read_eval_log(output_path)
+            assert read_log.samples is not None
             assert len(read_log.samples) == 3

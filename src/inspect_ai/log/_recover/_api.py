@@ -3,6 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -10,7 +11,6 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import filesystem
 from inspect_ai.log._file import EvalLogInfo, list_eval_logs
 from inspect_ai.log._log import EvalLog, EvalSample
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 
 from ._buffer import read_buffer_recovery_data
 from ._read import read_crashed_eval_log, read_flushed_sample
@@ -44,6 +44,7 @@ async def recover_eval_log(
     log: str,
     output: str | None = None,
     cleanup: bool = True,
+    _db_dir: str | Path | None = None,
 ) -> EvalLog:
     """Recover a crashed eval log.
 
@@ -80,7 +81,7 @@ async def recover_eval_log(
 
     # Step 2: Read buffer DB
     buffer_samples: list[EvalSample] = []
-    recovery_data = read_buffer_recovery_data(log)
+    recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
 
     if recovery_data is not None and recovery_data.buffer is not None:
         # Step 3: Reconstruct samples from buffer DB (skip duplicates)
@@ -124,12 +125,13 @@ async def recover_eval_log(
 
 def recoverable_eval_logs(
     log_dir: str | None = None,
+    _db_dir: str | Path | None = None,
 ) -> list[RecoverableEvalLog]:
     """List eval logs that can be recovered.
 
     A log is recoverable when it has status "started" (crashed before
-    completion), a corresponding sample buffer database exists, and
-    no recovered file already exists.
+    completion), a corresponding sample buffer database exists (with a
+    dead owning process), and no recovered file already exists.
 
     Args:
         log_dir: Log directory (defaults to INSPECT_LOG_DIR or ./logs).
@@ -137,11 +139,12 @@ def recoverable_eval_logs(
     Returns:
         List of recoverable logs with recovery stats.
     """
-    return run_coroutine(_recoverable_eval_logs_async(log_dir))
+    return run_coroutine(_recoverable_eval_logs_async(log_dir, _db_dir=_db_dir))
 
 
 async def _recoverable_eval_logs_async(
     log_dir: str | None = None,
+    _db_dir: str | Path | None = None,
 ) -> list[RecoverableEvalLog]:
     log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs")
 
@@ -162,22 +165,13 @@ async def _recoverable_eval_logs_async(
         if fs.exists(recovered_path):
             continue
 
-        # Check if buffer DB exists
-        try:
-            buffer = SampleBufferDatabase(location, create=False)
-        except FileNotFoundError:
+        # Check if buffer DB exists (filters out live PIDs, picks newest)
+        recovery_data = read_buffer_recovery_data(location, db_dir=_db_dir)
+        if recovery_data is None:
             continue
 
-        # Read stats from buffer DB
-        samples_result = buffer.get_samples()
-        completed = 0
-        in_progress = 0
-        if samples_result is not None and samples_result != "NotModified":
-            for sample in samples_result.samples:
-                if sample.completed_at is not None:
-                    completed += 1
-                else:
-                    in_progress += 1
+        completed = len(recovery_data.completed)
+        in_progress = len(recovery_data.in_progress)
 
         # Read crashed log for flushed count and total expected (S3-compatible)
         try:

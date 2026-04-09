@@ -53,13 +53,16 @@ def _make_model_event(content: str = "test response") -> ModelEvent:
     )
 
 
+_DEAD_PID = 99999999
+
+
 def _create_test_buffer(
     location: str,
     completed_ids: list[int],
     in_progress_ids: list[int],
     db_dir: str,
 ) -> SampleBufferDatabase:
-    """Create a test buffer DB with a mix of completed and in-progress samples."""
+    """Create a test buffer DB with a dead PID (simulating crashed process)."""
     buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
 
     # Start and complete some samples
@@ -79,6 +82,14 @@ def _create_test_buffer(
         buffer.log_events(
             [SampleEvent(id=id, epoch=1, event=_make_model_event(f"partial {id}"))]
         )
+
+    # Rename DB to dead PID to simulate crashed process
+    old_path = buffer.db_path
+    new_path = old_path.parent / old_path.name.replace(
+        f".{os.getpid()}.", f".{_DEAD_PID}."
+    )
+    old_path.rename(new_path)
+    buffer.db_path = new_path
 
     return buffer
 
@@ -157,8 +168,13 @@ def test_read_buffer_recovery_data_empty() -> None:
         db_dir = os.path.join(temp_dir, "bufferdb")
         location = os.path.join(temp_dir, "test.eval")
 
-        # Create DB but don't add any samples
-        SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
+        # Create DB but don't add any samples, simulate dead PID
+        buffer = SampleBufferDatabase(location, create=True, db_dir=Path(db_dir))
+        old_path = buffer.db_path
+        new_path = old_path.parent / old_path.name.replace(
+            f".{os.getpid()}.", f".{_DEAD_PID}."
+        )
+        old_path.rename(new_path)
 
         recovery = read_buffer_recovery_data(location, db_dir=db_dir)
         assert recovery is not None

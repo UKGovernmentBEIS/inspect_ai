@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from zipfile import ZipFile
 
 from pydantic_core import to_jsonable_python
@@ -98,13 +99,18 @@ def _write_crashed_eval(
     return log_start
 
 
+_DEAD_PID = 99999999  # PID that doesn't exist
+
+
 def _create_buffer_db(
     location: str,
     completed_ids: list[int],
     in_progress_ids: list[int],
+    db_dir: str | None = None,
 ) -> SampleBufferDatabase:
-    """Create a buffer DB at the default location with completed and in-progress samples."""
-    buffer = SampleBufferDatabase(location, create=True)
+    """Create a buffer DB with a dead PID (simulating crashed process)."""
+    db_path = Path(db_dir) if db_dir else None
+    buffer = SampleBufferDatabase(location, create=True, db_dir=db_path)
 
     for id in completed_ids:
         started = EvalSampleSummary(
@@ -142,6 +148,14 @@ def _create_buffer_db(
             [SampleEvent(id=id, epoch=1, event=_make_model_event(f"partial {id}"))]
         )
 
+    # Rename DB file to use a dead PID (simulating a crashed process)
+    old_path = buffer.db_path
+    new_path = old_path.parent / old_path.name.replace(
+        f".{os.getpid()}.", f".{_DEAD_PID}."
+    )
+    old_path.rename(new_path)
+    buffer.db_path = new_path
+
     return buffer
 
 
@@ -150,34 +164,28 @@ async def test_recover_eval_log_end_to_end() -> None:
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
-            # Create crashed .eval with 2 flushed samples
             flushed = [_make_sample(1), _make_sample(2)]
             _write_crashed_eval(eval_path, samples=flushed)
-
-            # Create buffer DB with 1 completed + 1 in-progress
-            buffer = _create_buffer_db(
-                eval_path, completed_ids=[3], in_progress_ids=[4]
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
             )
 
-            try:
-                log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=False
-                )
+            log = await recover_eval_log(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
 
-                assert log.status == "error"
-                assert log.error is not None
-                assert log.samples is not None
-                assert len(log.samples) == 4
+            assert log.status == "error"
+            assert log.error is not None
+            assert log.samples is not None
+            assert len(log.samples) == 4
 
-                # Read back and verify
-                read_log = read_eval_log(output_path)
-                assert read_log.status == "error"
-                assert read_log.samples is not None
-                assert len(read_log.samples) == 4
-            finally:
-                buffer.cleanup()
+            read_log = read_eval_log(output_path)
+            assert read_log.status == "error"
+            assert read_log.samples is not None
+            assert len(read_log.samples) == 4
 
 
 async def test_recover_eval_log_no_buffer_db() -> None:
@@ -185,12 +193,13 @@ async def test_recover_eval_log_no_buffer_db() -> None:
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
             flushed = [_make_sample(1), _make_sample(2)]
             _write_crashed_eval(eval_path, samples=flushed)
 
-            log = await recover_eval_log(eval_path, output=output_path)
+            log = await recover_eval_log(eval_path, output=output_path, _db_dir=db_dir)
 
             assert log.samples is not None
             assert len(log.samples) == 2
@@ -201,29 +210,24 @@ async def test_recover_eval_log_cleanup() -> None:
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
             _write_crashed_eval(eval_path)
-            buffer = _create_buffer_db(eval_path, completed_ids=[1], in_progress_ids=[])
+            buffer = _create_buffer_db(
+                eval_path, completed_ids=[1], in_progress_ids=[], db_dir=db_dir
+            )
             db_path = buffer.db_path
 
             assert db_path.exists()
 
-            try:
-                log = await recover_eval_log(
-                    eval_path, output=output_path, cleanup=True
-                )
+            log = await recover_eval_log(
+                eval_path, output=output_path, cleanup=True, _db_dir=db_dir
+            )
 
-                # Buffer DB should be cleaned up
-                assert not db_path.exists()
-
-                # Verify the buffer sample was actually recovered
-                assert log.samples is not None
-                assert len(log.samples) >= 1
-            finally:
-                # Safety cleanup in case recovery fails before cleanup
-                if db_path.exists():
-                    buffer.cleanup()
+            assert not db_path.exists()
+            assert log.samples is not None
+            assert len(log.samples) >= 1
 
 
 async def test_recover_eval_log_no_cleanup() -> None:
@@ -231,17 +235,20 @@ async def test_recover_eval_log_no_cleanup() -> None:
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
             _write_crashed_eval(eval_path)
-            buffer = _create_buffer_db(eval_path, completed_ids=[1], in_progress_ids=[])
-            db_path = buffer.db_path
+            _create_buffer_db(
+                eval_path, completed_ids=[1], in_progress_ids=[], db_dir=db_dir
+            )
 
-            try:
-                await recover_eval_log(eval_path, output=output_path, cleanup=False)
-                assert db_path.exists()
-            finally:
-                buffer.cleanup()
+            await recover_eval_log(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            # Buffer DB dir should still have files
+            assert any(Path(db_dir).rglob("*.db"))
 
 
 async def test_recover_eval_log_default_output_path() -> None:
@@ -249,10 +256,11 @@ async def test_recover_eval_log_default_output_path() -> None:
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "mylog.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
 
             _write_crashed_eval(eval_path)
 
-            await recover_eval_log(eval_path)
+            await recover_eval_log(eval_path, _db_dir=db_dir)
 
             expected = os.path.join(temp_dir, "mylog-recovered.eval")
             assert os.path.exists(expected)
@@ -261,10 +269,13 @@ async def test_recover_eval_log_default_output_path() -> None:
 def test_recoverable_eval_logs() -> None:
     """Test discovery of recoverable logs."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a crashed log with buffer DB
+        db_dir = os.path.join(temp_dir, "bufferdb")
+
         crashed_path = os.path.join(temp_dir, "crashed.eval")
         _write_crashed_eval(crashed_path)
-        buffer = _create_buffer_db(crashed_path, completed_ids=[1], in_progress_ids=[2])
+        _create_buffer_db(
+            crashed_path, completed_ids=[1], in_progress_ids=[2], db_dir=db_dir
+        )
 
         # Create a complete log (should be excluded)
         complete_path = os.path.join(temp_dir, "complete.eval")
@@ -281,24 +292,24 @@ def test_recoverable_eval_logs() -> None:
             )
             zf.writestr(HEADER_JSON, _to_json(header))
 
-        try:
-            result = recoverable_eval_logs(log_dir=temp_dir)
+        result = recoverable_eval_logs(log_dir=temp_dir, _db_dir=db_dir)
 
-            assert len(result) == 1
-            assert "crashed.eval" in result[0].log.name
-            assert result[0].completed_samples == 1
-            assert result[0].in_progress_samples == 1
-        finally:
-            buffer.cleanup()
+        assert len(result) == 1
+        assert "crashed.eval" in result[0].log.name
+        assert result[0].completed_samples == 1
+        assert result[0].in_progress_samples == 1
 
 
 def test_recoverable_eval_logs_excludes_already_recovered() -> None:
     """Test that already-recovered logs are excluded."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a crashed log with buffer DB
+        db_dir = os.path.join(temp_dir, "bufferdb")
+
         crashed_path = os.path.join(temp_dir, "test.eval")
         _write_crashed_eval(crashed_path)
-        buffer = _create_buffer_db(crashed_path, completed_ids=[1], in_progress_ids=[])
+        _create_buffer_db(
+            crashed_path, completed_ids=[1], in_progress_ids=[], db_dir=db_dir
+        )
 
         # Create the recovered file (simulating prior recovery)
         recovered_path = os.path.join(temp_dir, "test-recovered.eval")
@@ -315,8 +326,5 @@ def test_recoverable_eval_logs_excludes_already_recovered() -> None:
             )
             zf.writestr(HEADER_JSON, _to_json(header))
 
-        try:
-            result = recoverable_eval_logs(log_dir=temp_dir)
-            assert len(result) == 0
-        finally:
-            buffer.cleanup()
+        result = recoverable_eval_logs(log_dir=temp_dir, _db_dir=db_dir)
+        assert len(result) == 0

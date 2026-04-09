@@ -59,13 +59,20 @@ def reconstruct_eval_sample(
             # timeline_build can fail on partial/malformed event streams
             pass
 
-    # Synthesize cancellation error for in-progress samples
+    # Set error: synthesize cancellation for in-progress samples,
+    # or preserve existing error from completed-but-errored samples
     error: EvalError | None = None
     if cancelled:
         error = EvalError(
             message="CancelledError()",
             traceback="CancelledError: recovered from crashed eval\n",
             traceback_ansi="CancelledError: recovered from crashed eval\n",
+        )
+    elif summary.error is not None:
+        error = EvalError(
+            message=summary.error,
+            traceback=f"{summary.error}\n",
+            traceback_ansi=f"{summary.error}\n",
         )
 
     return EvalSample(
