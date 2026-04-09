@@ -316,11 +316,14 @@ Key design decisions:
 
 **Tests** (`tests/log/test_recover_reconstruct.py`): 7 tests covering completed sample, cancelled sample, no ModelEvents, multiple ModelEvents, empty events, attachments, and `.summary()` round-trip.
 
-### Step 4: Write recovered .eval file
+### Step 4: Write recovered .eval file (done: `493de0a1d`)
 
-Build the logic to assemble a recovered `.eval` file from the pieces: start data from the original, flushed samples from the original, reconstructed samples from the buffer DB. Write `header.json` with status `"error"`, compute `EvalResults`/`EvalStats` from all completed samples, write consolidated `summaries.json`.
+Created `_write.py` in the `_recover` package with:
+- `write_recovered_eval_log(crashed, flushed_samples, buffer_samples, output)` — combines all samples, sorts by epoch/id, computes `EvalStats` (aggregated model/role usage, timestamps), builds `EvalLog` with status `"error"`, calls `recompute_metrics()` to compute `EvalResults` from sample scores using scorer config in `EvalSpec`, writes via `write_eval_log_async()` (which handles `condense_sample()` for message pooling)
+- `default_output_path()` — replaces `.eval` with `-recovered.eval`
+- Logs `logger.warning` if `recompute_metrics()` fails (e.g. missing scorer config)
 
-**Tests:** Create a recovered `.eval` file and verify it can be read back as a valid `EvalLog` with correct status, sample count, and scores.
+**Tests** (`tests/log/test_recover_write.py`): 6 tests covering basic write+readback, sample sorting, stats aggregation, mixed scored/unscored, default output path, empty samples.
 
 ### Step 5: `recover_eval_log()` Python API
 
