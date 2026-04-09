@@ -225,7 +225,10 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
      - `results` = computed from all completed samples (re-run score reduction/aggregation)
      - `stats` = computed from all samples
 
-6. **Clean up** the buffer DB for this log (since data is now in the recovered file). **Important:** the recovered `.eval` file must be fully written and verified before calling `buffer.cleanup()`. The buffer DB is the only source of unflushed sample data — if cleanup happens before the write completes (or if the write fails), that data is permanently lost. The `SampleBufferDatabase` has no persistent connection (connections are per-operation via context manager), so the handle can be held open for the duration of `recover_eval_log()` without resource concerns.
+6. **Buffer DB cleanup** depends on context:
+   - **Manual recovery** (`recover_eval_log()` / CLI): `cleanup=True` by default — the buffer DB is removed after the recovered file is written. The user has the recovered file and no longer needs the buffer DB.
+   - **Automatic recovery** (eval_set / eval_retry): `cleanup=False` — the buffer DB is preserved so the user can investigate the crash post-mortem. The 3-day TTL in `cleanup_sample_buffer_databases()` handles eventual cleanup.
+   - **Important:** the recovered `.eval` file must be fully written and verified before any cleanup. The buffer DB is the only source of unflushed sample data.
 
 ### Extracting Messages from Buffer DB Events
 
@@ -279,7 +282,7 @@ This mirrors the streaming pattern already used by `ZipLogFile` during eval exec
 - **`.eval` file has no samples at all** (crash before first flush): All data comes from buffer DB.
 
 
-## Research: Eval Sets and Recovery
+## Eval Sets and Recovery
 
 ### How Eval Sets Work
 
@@ -323,15 +326,19 @@ This mirrors the `eval_retry` integration from Step 7. The recovered log has mor
 
 **Key difference from `eval_retry`:** Eval sets already have their own retry loop with backoff. Recovery just makes each retry iteration more efficient by recovering buffer DB samples that would otherwise be lost and re-run.
 
-**Cleanup: just works.** The eval set's `retry_cleanup` (`latest_completed_task_eval_logs` at `evalset.py:776`) groups logs by `log.header.eval.task_id` and keeps only the newest (by mtime). Since the recovered log preserves the original `EvalSpec` (same `task_id`) and has status `"error"`:
+**Log cleanup: just works.** The eval set's `retry_cleanup` (`latest_completed_task_eval_logs` at `evalset.py:776`) groups logs by `log.header.eval.task_id` and keeps only the newest (by mtime). Since the recovered log preserves the original `EvalSpec` (same `task_id`) and has status `"error"`:
 
 - The recovered log is grouped with the original and the successful retry
 - After a successful retry, the recovered log (status="error") is older (by mtime) and gets cleaned up
 - The original "started" log is preserved as before (line 808 explicitly skips "started" status)
 - No behavior change for "started" log handling — no special cleanup code needed
 
+**Buffer DB cleanup:** Automatic recovery passes `cleanup=False`, so the buffer DB is preserved for post-mortem debugging. The user can later run `inspect log recover <started_log> --output <elsewhere>` to produce a recovered log for investigation. The 3-day TTL handles eventual cleanup of the buffer DB.
 
-## Research: Relationship Between `eval_retry` and Recovery
+**Eval set directory guard:** The public `recover_eval_log()` checks for a `.eval-set-id` file in the log's directory. If found and no explicit `--output` is provided, it raises an error — writing a recovered file into the eval set directory would corrupt eval set state (mtime ordering). Automatic recovery (internal `_recover_eval_log_async`) bypasses this guard since its recovered files are cleaned up by `retry_cleanup`.
+
+
+## Relationship Between `eval_retry` and Recovery
 
 ### How `eval_retry` Works
 
@@ -485,15 +492,15 @@ Added `recover` subcommand to the `log` Click group in `src/inspect_ai/_cli/log.
 - **List mode**: `inspect log recover --list [--json]` — lists recoverable logs in a rich table with columns: file, task, total samples, flushed, completed, in-progress counts. `--json` outputs JSON instead.
 
 Also added `total_samples` field to `RecoverableEvalLog` (computed as `dataset.samples * epochs` from `EvalSpec`).
-
 ### Step 7: `eval_retry` integration (done: `5aa32c3c3`)
 
 Integrated recovery into the retry flow in two places:
 
 **Automatic recovery in `eval_retry_async`** (`src/inspect_ai/_eval/eval.py`):
-- After reading retry logs, checks each for `status == "started"` and opportunistically calls `recover_eval_log()`. Recovery is speculative — silent on failure, retry proceeds with flushed samples only.
+- After reading retry logs, checks each for `status == "started"` and opportunistically calls `_recover_eval_log_async(cleanup=False)`. Recovery is speculative — `RecoveryNotAvailable` is caught silently, other exceptions logged as warnings.
 - The recovered `EvalLog` has `LazyList` samples (loaded from the `-recovered.eval` file on demand) and `location` set to the recovered file path.
 - Tracks recovered file paths and cleans them up after successful retry. If retry crashes, the recovered file persists as a safety net.
+- Buffer DB is preserved (`cleanup=False`) for post-mortem debugging.
 
 **Post-recovery retry suggestion** (`src/inspect_ai/_cli/log.py`):
 - After `inspect log recover`, counts failed/cancelled samples and prints:
@@ -504,12 +511,31 @@ Integrated recovery into the retry flow in two places:
     inspect eval-retry mylog-recovered.eval
   ```
 
-### Step 8: `eval_set` integration
+### Step 8: `eval_set` integration (done: `59f13c021`)
 
-Integrate opportunistic recovery into the eval set retry loop. When `eval_set` encounters a "started" (crashed) task log during its automatic retry, attempt recovery before creating the `PreviousTask` — same pattern as Step 7.
+Integrated recovery into the eval set retry loop and refactored the sync/async split:
 
-**Integration point:** `as_previous_tasks()` in `src/inspect_ai/_eval/evalset.py:598-625`. Before creating each `PreviousTask`, check if the log has status "started" and attempt recovery. The recovered log provides more completed samples for reuse.
+**Sync/async refactor** (`src/inspect_ai/log/_recover/_api.py`):
+- `recover_eval_log()` — sync public API (uses `run_coroutine`)
+- `recover_eval_log_async()` — async internal (used by `eval_retry_async` directly)
+- `RecoveryNotAvailable` exception — raised when there's nothing to recover (log already complete, no buffer DB). Opportunistic callers catch silently; real errors get warnings.
 
-**Cleanup:** Handled automatically by the existing `retry_cleanup` mechanism. The recovered `-recovered.eval` file has the same `task_id` and status "error", so it gets grouped with the original and cleaned up after a successful retry (see eval set cleanup research above).
+**Eval set integration** (`src/inspect_ai/_eval/evalset.py:as_previous_tasks`):
+- For each failed log with `status == "started"`, calls sync `recover_eval_log(location, cleanup=False)` opportunistically
+- Updates `eval_log` (header) and `log_info` (file path) to point to the recovered file
+- `RecoveryNotAvailable` caught silently, other exceptions logged as warnings
 
-**Tests:** Test eval set retry with a crashed task log + buffer DB. Verify recovery is attempted, completed samples are reused, and `-recovered.eval` is cleaned up after success.
+**Buffer DB preservation:**
+- Both `eval_retry` and `eval_set` pass `cleanup=False` — buffer DB preserved for post-mortem debugging
+- 3-day TTL in `cleanup_sample_buffer_databases()` handles eventual cleanup
+- Users can investigate crashes via `inspect log list --status started` → `inspect log recover <file> --output <elsewhere>`
+
+**Eval set directory guard** (`recover_eval_log()`):
+- Checks for `.eval-set-id` sentinel file in the log's directory
+- If found and no explicit `--output` provided, raises `ValueError` — prevents writing recovered files into eval set directories (would corrupt mtime-based state tracking)
+- Automatic recovery (`recover_eval_log_async`) bypasses this guard since its files are cleaned up by `retry_cleanup`
+
+**Additional changes:**
+- `--overwrite` flag on `recover_eval_log()` / CLI for in-place recovery
+- CLI simplified to call sync `recover_eval_log()` directly (no `anyio.run` wrapper)
+- Documentation split: `errors-and-limits.qmd` → `handling-errors.qmd` + `setting-limits.qmd` with new Crash Recovery section

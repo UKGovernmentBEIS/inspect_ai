@@ -1041,7 +1041,9 @@ async def eval_retry_async(
             )
 
             try:
-                recovered = await recover_eval_log_async(eval_log.location)
+                recovered = await recover_eval_log_async(
+                    eval_log.location, cleanup=False
+                )
                 retry_eval_logs[i] = recovered
                 if recovered.location:
                     recovered_files.append(recovered.location)

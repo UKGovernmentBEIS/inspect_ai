@@ -621,7 +621,7 @@ def as_previous_tasks(
             )
 
             try:
-                recovered = recover_eval_log(eval_log.location)
+                recovered = recover_eval_log(eval_log.location, cleanup=False)
                 eval_log = recovered
                 if recovered.location:
                     log_info = EvalLogInfo(

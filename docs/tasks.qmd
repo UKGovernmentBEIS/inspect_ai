@@ -58,9 +58,9 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 +------------------+-------------------------------------------------------------------------------------------------+-----------------------------------------------------------+
 | `config`         | Config for model generation (also typically specified in `eval`).                               | [Generate Config](options.qmd#model-generation)           |
 +------------------+-------------------------------------------------------------------------------------------------+-----------------------------------------------------------+
-| `fail_on_error`  | Failure tolerance for samples.                                                                  | [Sample Failure](errors-and-limits.qmd#failure-threshold) |
+| `fail_on_error`  | Failure tolerance for samples.                                                                  | [Failure Threshold](handling-errors.qmd#failure-threshold) |
 +------------------+-------------------------------------------------------------------------------------------------+-----------------------------------------------------------+
-| `message_limit`\ | Limits to apply to sample execution.                                                            | [Sample Limits](errors-and-limits.qmd#sample-limits)      |
+| `message_limit`\ | Limits to apply to sample execution.                                                            | [Sample Limits](setting-limits.qmd#sample-limits)      |
 | `token_limit`\   |                                                                                                 |                                                           |
 | `time_limit`\    |                                                                                                 |                                                           |
 | `working_limit`  |                                                                                                 |                                                           |

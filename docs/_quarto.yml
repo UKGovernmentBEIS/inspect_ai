@@ -80,8 +80,10 @@ inspect-docs:
     - text: Advanced
       contents:
         - href: eval-sets.qmd
-        - text: Errors & Limits
-          href: errors-and-limits.qmd
+        - text: Handling Errors
+          href: handling-errors.qmd
+        - text: Setting Limits
+          href: setting-limits.qmd
         - href: typing.qmd
         - href: tracing.qmd
         - href: parallelism.qmd

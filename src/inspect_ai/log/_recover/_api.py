@@ -70,8 +70,19 @@ def recover_eval_log(
         The recovered EvalLog.
 
     Raises:
-        ValueError: If the log is not crashed or is invalid.
+        ValueError: If the log is in an eval set directory without an
+            explicit output path.
     """
+    # Guard against writing recovered files into eval set directories,
+    # which would corrupt eval set state (mtime ordering, status checks).
+    if output is None:
+        log_dir = os.path.dirname(os.path.abspath(log))
+        if os.path.exists(os.path.join(log_dir, ".eval-set-id")):
+            raise ValueError(
+                "This log is in an eval set directory. Use --output to write "
+                "the recovered file to a different location."
+            )
+
     return run_coroutine(
         recover_eval_log_async(log, output=output, overwrite=overwrite, cleanup=cleanup)
     )
