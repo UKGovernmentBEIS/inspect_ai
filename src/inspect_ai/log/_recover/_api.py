@@ -74,13 +74,20 @@ async def recover_eval_log(
                 sample = await read_flushed_sample(reader, entry_name)
                 flushed_samples.append(sample)
 
+    # Track flushed sample keys to deduplicate against buffer DB
+    # (crash can occur between recorder.flush() and buffer_db.remove_samples(),
+    # leaving a sample in both the .eval file and the buffer DB)
+    flushed_keys = {(str(s.id), s.epoch) for s in flushed_samples}
+
     # Step 2: Read buffer DB
     buffer_samples: list[EvalSample] = []
     recovery_data = read_buffer_recovery_data(log)
 
     if recovery_data is not None and recovery_data.buffer is not None:
-        # Step 3: Reconstruct samples from buffer DB
+        # Step 3: Reconstruct samples from buffer DB (skip duplicates)
         for summary in recovery_data.completed:
+            if (str(summary.id), summary.epoch) in flushed_keys:
+                continue
             sample_data = recovery_data.buffer.get_sample_data(
                 summary.id, summary.epoch
             )
@@ -89,6 +96,8 @@ async def recover_eval_log(
                 buffer_samples.append(sample)
 
         for summary in recovery_data.in_progress:
+            if (str(summary.id), summary.epoch) in flushed_keys:
+                continue
             sample_data = recovery_data.buffer.get_sample_data(
                 summary.id, summary.epoch
             )
