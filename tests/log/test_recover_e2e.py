@@ -377,6 +377,103 @@ async def test_e2e_recovery_overwrite() -> None:
                 buffer.cleanup()
 
 
+async def test_e2e_recovery_overwrite_blocked_by_successful_sibling() -> None:
+    """Test that overwrite is blocked when a successful sibling log exists.
+
+    This protects eval-set directories, where mtime determines the "latest"
+    log for a task. Overwriting a crashed log after a successful retry would
+    otherwise make the errored log look newest.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import json
+            from zipfile import ZipFile
+
+            from pydantic_core import to_jsonable_python
+
+            from inspect_ai.log._log import EvalLog
+
+            eval_path = os.path.join(temp_dir, "overwrite-blocked.eval")
+            success_path = os.path.join(temp_dir, "successful.eval")
+
+            # Mark the directory as an eval set and ensure both logs share a task id
+            with open(os.path.join(temp_dir, ".eval-set-id"), "w") as f:
+                f.write("test-eval-set")
+
+            eval_spec = _make_eval_spec(num_samples=2).model_copy(
+                update={"task_id": "shared-task-id"}
+            )
+            plan = EvalPlan()
+            log_start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=plan)
+
+            # Create a crashed log
+            zip_log = ZipLogFile(eval_path)
+            await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+            await zip_log.start(log_start)
+            await zip_log.flush()
+
+            # Create a successful sibling log for the same task
+            success_header = EvalLog(
+                version=LOG_SCHEMA_VERSION,
+                eval=eval_spec,
+                plan=plan,
+                status="success",
+            )
+            with ZipFile(success_path, "w") as zf:
+                zf.writestr(
+                    "_journal/start.json",
+                    json.dumps(to_jsonable_python(log_start, exclude_none=True)),
+                )
+                zf.writestr(
+                    "header.json",
+                    json.dumps(to_jsonable_python(success_header, exclude_none=True)),
+                )
+
+            # Create buffer DB so recovery would otherwise be possible
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            try:
+                started = EvalSampleSummary(
+                    id=1,
+                    epoch=1,
+                    input="Q1",
+                    target="2",
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                )
+                buffer.start_sample(started)
+                event = _make_model_event(
+                    [ChatMessageUser(content="What is 1+1?")], "2"
+                )
+                buffer.log_events([SampleEvent(id=1, epoch=1, event=event)])
+                completed = EvalSampleSummary(
+                    id=1,
+                    epoch=1,
+                    input="Q1",
+                    target="2",
+                    scores={"accuracy": Score(value="C", answer="2")},
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                    completed_at=datetime.now(timezone.utc).isoformat(),
+                )
+                buffer.complete_sample(completed)
+                _simulate_crashed_buffer(buffer)
+
+                with pytest.raises(RecoveryNotAvailable, match="successful log"):
+                    await recover_eval_log_async(
+                        eval_path, overwrite=True, cleanup=False, _db_dir=db_dir
+                    )
+
+                # Recovery should fail before mutating the crashed log
+                crashed_log = read_eval_log(eval_path)
+                assert crashed_log.status == "started"
+                assert crashed_log.samples is not None
+                assert len(crashed_log.samples) == 0
+
+                temp_path = eval_path.replace(".eval", "-recovered.eval")
+                assert not os.path.exists(temp_path)
+            finally:
+                buffer.cleanup()
+
+
 async def test_e2e_recovery_crash_before_first_flush() -> None:
     """Test recovery when crash happens before any samples are flushed.
 

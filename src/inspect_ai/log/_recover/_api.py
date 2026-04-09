@@ -103,23 +103,21 @@ async def recover_eval_log_async(
     # with eval set state (mtime-based log selection). This naturally
     # allows automatic recovery (eval_retry/eval_set) since they recover
     # crashed logs before a successful retry exists.
-    if not overwrite:
-        output_dir = dirname(write_output)
-        task_id = crashed.eval.task_id
-        existing = list_eval_logs(
-            log_dir=output_dir,
-            filter=lambda log_header: (
-                log_header.status == "success" and log_header.eval.task_id == task_id
-            ),
-            recursive=False,
+    output_dir = dirname(write_output)
+    task_id = crashed.eval.task_id
+    existing = list_eval_logs(
+        log_dir=output_dir,
+        filter=lambda log_header: (
+            log_header.status == "success" and log_header.eval.task_id == task_id
+        ),
+        recursive=False,
+    )
+    if existing:
+        raise RecoveryNotAvailable(
+            f"A successful log for task '{crashed.eval.task}' already "
+            f"exists in {output_dir}. Use output= to write the recovered "
+            f"file to a different location."
         )
-        if existing:
-            raise RecoveryNotAvailable(
-                f"A successful log for task '{crashed.eval.task}' already "
-                f"exists in {output_dir}. Use output= to write the recovered "
-                f"file to a different location, or overwrite=True to replace "
-                f"the crashed log in-place."
-            )
 
     # Step 2: Read buffer DB metadata (lightweight — just summaries)
     recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
