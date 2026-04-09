@@ -369,7 +369,13 @@ def recover_command(
                 cleanup=not no_cleanup,
             )
             sample_count = len(log.samples) if log.samples else 0
-            print(f"Recovered {sample_count} samples to {log.location or output}")
+            output_path = log.location or output
+            print(f"Recovered {sample_count} samples to {output_path}")
+
+            failed_count = sum(1 for s in (log.samples or []) if s.error is not None)
+            if failed_count > 0:
+                print(f"\nTo re-run the {failed_count} failed/cancelled samples:")
+                print(f"  inspect eval-retry {output_path}")
 
         anyio.run(run_recover, backend=configured_async_backend())
 

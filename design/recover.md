@@ -278,6 +278,96 @@ This mirrors the streaming pattern already used by `ZipLogFile` during eval exec
 - **Multiple buffer DBs** (from retried evals): Use the most recent one (by file modification time or PID).
 - **`.eval` file has no samples at all** (crash before first flush): All data comes from buffer DB.
 
+
+## Research: Relationship Between `eval_retry` and Recovery
+
+### How `eval_retry` Works
+
+`eval_retry` (`src/inspect_ai/_eval/eval.py:808`) re-runs an evaluation, reusing completed samples from a previous log and re-running only failed/cancelled/invalidated ones. The key mechanism is `eval_log_sample_source()` (`run.py:1354-1422`):
+
+- For each (sample_id, epoch), it checks the previous log for a matching sample
+- If the sample exists with `error is None` and `invalidation is None`, it's **reused** (not re-run)
+- Failed samples (error set), cancelled samples, and invalidated samples are **re-run**
+- Creates a **new log file** (does not modify the original)
+- Token usage stats are accumulated across retries
+
+### Current State: Recovery → Retry Pipeline
+
+Today these are separate manual steps:
+
+```bash
+inspect log recover crashed.eval           # → crashed-recovered.eval (status="error")
+inspect eval-retry crashed-recovered.eval  # → new log re-running cancelled/failed samples
+```
+
+This works because:
+1. `recover_eval_log()` produces a valid `EvalLog` with status `"error"`
+2. Successfully completed samples have `error=None` → reused by retry
+3. In-progress samples recovered as cancelled have `error=CancelledError()` → re-run by retry
+4. Completed-but-errored samples have their error preserved → re-run by retry
+
+### Opportunity: Automatic Recovery During Retry
+
+When `eval_retry` encounters a log with status `"started"` (crashed), it currently reads whatever was flushed to the `.eval` file but misses unflushed samples in the buffer DB. It could automatically run recovery first:
+
+```python
+# In eval_retry, before creating the sample source:
+if eval_log.status == "started":
+    eval_log = await recover_eval_log(location)
+    # Now eval_log has all recoverable samples (flushed + buffer DB)
+    # Retry will reuse completed ones, re-run cancelled/failed ones
+```
+
+**Benefits:**
+- Users don't need to know about `inspect log recover` — retry "just works" on crashed logs
+- Maximizes sample reuse: buffer DB samples that completed before the crash are recovered and reused, not re-run
+- Single command: `inspect eval-retry crashed.eval` handles everything
+
+**Considerations:**
+- Should the recovered log be written to disk (as `-recovered.eval`) or kept in memory?
+- If kept in memory, the recovery data is ephemeral — if the retry also crashes, the original buffer DB may have been cleaned up
+- Writing to disk first (as we do now) is safer: `recover` → `-recovered.eval` → `retry` on that file
+- The automatic flow should probably write the recovered file, then retry on it
+
+**Handling recovery failure:** Recovery is speculative/opportunistic, not required. The buffer DB may not exist (older log, `log_realtime=False`, already cleaned up), or recovery may fail for other reasons. In all cases, retry proceeds with whatever samples were already flushed to the `.eval` file — the same behavior as today. No warning needed; this is the normal case for most "started" logs.
+
+```python
+if eval_log.status == "started":
+    try:
+        eval_log = await recover_eval_log(location)
+        # Recovery succeeded — retry with more completed samples
+        # The -recovered.eval file is written to disk as a safety net.
+        # If the retry succeeds, clean it up. If the retry also crashes,
+        # it remains available for manual inspection.
+    except Exception:
+        pass  # No recovery available — retry with flushed samples only
+```
+
+### Opportunity: Prompting User to Retry After Recovery
+
+After `inspect log recover` completes, we could suggest the next step:
+
+```
+Recovered 47 samples (42 completed, 5 cancelled) to mylog-recovered.eval
+
+To re-run the 5 cancelled samples:
+  inspect eval-retry mylog-recovered.eval
+```
+
+This is a UX improvement — the user sees the natural next action. The interactive TUI (Step 7 in the design) could include a "Recover & Retry" button that chains both operations.
+
+### Sample Status Flow
+
+| Sample state at crash | After recovery | After retry |
+|----------------------|----------------|-------------|
+| Flushed + completed | Preserved (error=None) | Reused |
+| Buffer DB + completed | Recovered (error=None) | Reused |
+| Buffer DB + in-progress | Recovered (error=CancelledError) | Re-run |
+| Buffer DB + errored | Recovered (error=original error) | Re-run |
+| Not in buffer DB (between flush and crash) | Lost | Re-run |
+| Never started | Not in log | Run fresh |
+
+
 ## Implementation Steps
 
 Each step is self-contained and fully tested before moving on. Each step will have a distinct plan created and approved before coding begins.
@@ -343,3 +433,21 @@ Added `recover` subcommand to the `log` Click group in `src/inspect_ai/_cli/log.
 - **List mode**: `inspect log recover --list [--json]` — lists recoverable logs in a rich table with columns: file, task, total samples, flushed, completed, in-progress counts. `--json` outputs JSON instead.
 
 Also added `total_samples` field to `RecoverableEvalLog` (computed as `dataset.samples * epochs` from `EvalSpec`).
+
+### Step 7: `eval_retry` integration
+
+Integrate recovery into the retry flow:
+
+1. **Automatic recovery during retry**: When `eval_retry` encounters a log with status `"started"`, opportunistically attempt recovery before building the sample source. If recovery succeeds, retry uses the recovered log (maximizing sample reuse). If recovery fails (no buffer DB, corrupt file, etc.), retry proceeds silently with flushed samples only — recovery is speculative, not required.
+
+2. **Post-recovery prompt**: After `inspect log recover` completes, print a suggestion to retry if there are cancelled/failed samples:
+   ```
+   Recovered 47 samples (42 completed, 5 cancelled) to mylog-recovered.eval
+   
+   To re-run the 5 cancelled samples:
+     inspect eval-retry mylog-recovered.eval
+   ```
+
+3. **Cleanup**: The `-recovered.eval` file written during automatic recovery is cleaned up after a successful retry. If the retry also crashes, the recovered file persists as a safety net.
+
+**Tests:** Test automatic recovery during retry with a crashed log + buffer DB. Test retry fallback when recovery isn't available. Test post-recovery CLI output.

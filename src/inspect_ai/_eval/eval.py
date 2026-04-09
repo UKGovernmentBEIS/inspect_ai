@@ -35,7 +35,7 @@ from inspect_ai._util.constants import (
     JSON_LOG_FORMAT,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import absolute_file_path
+from inspect_ai._util.file import absolute_file_path, filesystem
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup, registry_package_name
@@ -1031,6 +1031,20 @@ async def eval_retry_async(
         for task in tasks
     ]
 
+    # opportunistically recover crashed logs before retrying
+    recovered_files: list[str] = []
+    for i, eval_log in enumerate(retry_eval_logs):
+        if eval_log.status == "started" and eval_log.location:
+            try:
+                from inspect_ai.log._recover import recover_eval_log
+
+                recovered = await recover_eval_log(eval_log.location)
+                retry_eval_logs[i] = recovered
+                if recovered.location:
+                    recovered_files.append(recovered.location)
+            except Exception:
+                pass  # recovery is opportunistic — proceed with flushed samples
+
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for eval_log in retry_eval_logs:
@@ -1248,6 +1262,13 @@ async def eval_retry_async(
 
         # add it to our results
         eval_logs.append(log)
+
+    # clean up intermediate recovered files from auto-recovery
+    for recovered_file in recovered_files:
+        try:
+            filesystem(recovered_file).rm(recovered_file)
+        except Exception:
+            pass
 
     return EvalLogs(eval_logs)
 
