@@ -434,20 +434,20 @@ Added `recover` subcommand to the `log` Click group in `src/inspect_ai/_cli/log.
 
 Also added `total_samples` field to `RecoverableEvalLog` (computed as `dataset.samples * epochs` from `EvalSpec`).
 
-### Step 7: `eval_retry` integration
+### Step 7: `eval_retry` integration (done: `5aa32c3c3`)
 
-Integrate recovery into the retry flow:
+Integrated recovery into the retry flow in two places:
 
-1. **Automatic recovery during retry**: When `eval_retry` encounters a log with status `"started"`, opportunistically attempt recovery before building the sample source. If recovery succeeds, retry uses the recovered log (maximizing sample reuse). If recovery fails (no buffer DB, corrupt file, etc.), retry proceeds silently with flushed samples only — recovery is speculative, not required.
+**Automatic recovery in `eval_retry_async`** (`src/inspect_ai/_eval/eval.py`):
+- After reading retry logs, checks each for `status == "started"` and opportunistically calls `recover_eval_log()`. Recovery is speculative — silent on failure, retry proceeds with flushed samples only.
+- The recovered `EvalLog` has `LazyList` samples (loaded from the `-recovered.eval` file on demand) and `location` set to the recovered file path.
+- Tracks recovered file paths and cleans them up after successful retry. If retry crashes, the recovered file persists as a safety net.
 
-2. **Post-recovery prompt**: After `inspect log recover` completes, print a suggestion to retry if there are cancelled/failed samples:
-   ```
-   Recovered 47 samples (42 completed, 5 cancelled) to mylog-recovered.eval
-   
-   To re-run the 5 cancelled samples:
-     inspect eval-retry mylog-recovered.eval
-   ```
-
-3. **Cleanup**: The `-recovered.eval` file written during automatic recovery is cleaned up after a successful retry. If the retry also crashes, the recovered file persists as a safety net.
-
-**Tests:** Test automatic recovery during retry with a crashed log + buffer DB. Test retry fallback when recovery isn't available. Test post-recovery CLI output.
+**Post-recovery retry suggestion** (`src/inspect_ai/_cli/log.py`):
+- After `inspect log recover`, counts failed/cancelled samples and prints:
+  ```
+  Recovered 47 samples to mylog-recovered.eval
+  
+  To re-run the 5 failed/cancelled samples:
+    inspect eval-retry mylog-recovered.eval
+  ```
