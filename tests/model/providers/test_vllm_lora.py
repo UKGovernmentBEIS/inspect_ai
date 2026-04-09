@@ -11,6 +11,7 @@ from inspect_ai.model._providers._vllm_lora import (
     VLLMServer,
     _normalize_api_base,
     _vllm_servers,
+    cleanup_servers,
     ensure_adapter_loaded,
     parse_vllm_model,
 )
@@ -20,10 +21,15 @@ from inspect_ai.solver import solver
 
 @pytest.fixture(autouse=True)
 def _clean_vllm_servers():
-    """Reset global server registry between tests."""
-    _vllm_servers.clear()
+    """Reset global server registry between tests.
+
+    Calls cleanup_servers() to terminate any running vLLM server
+    processes before clearing the registry.  Without this, orphaned
+    servers hold GPU memory and cause subsequent tests to OOM.
+    """
+    cleanup_servers()
     yield
-    _vllm_servers.clear()
+    cleanup_servers()
 
 
 # =============================================================================
@@ -135,7 +141,7 @@ class TestVLLMAPIInit:
         """model_name and base_url exist immediately (before _resolve_server)."""
         api = VLLMAPI("base-model:some-adapter")
 
-        assert api.model_name == "base-model"
+        assert api.model_name == "base-model:some-adapter"
         assert api.base_url is None
         assert api._server_resolved is False
 

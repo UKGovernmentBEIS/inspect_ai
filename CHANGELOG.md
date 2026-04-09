@@ -21,6 +21,7 @@
   a loop, causing inconsistent reducer assignment across scorer       
   instances.
 - Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
+- Bugfix: Include LoRA adapter in logged vLLM model name.
 
 ## 0.3.205 (04 April 2026)
 
