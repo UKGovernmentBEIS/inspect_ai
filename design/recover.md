@@ -225,7 +225,7 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
      - `results` = computed from all completed samples (re-run score reduction/aggregation)
      - `stats` = computed from all samples
 
-6. **Clean up** the buffer DB for this log (since data is now in the recovered file)
+6. **Clean up** the buffer DB for this log (since data is now in the recovered file). **Important:** the recovered `.eval` file must be fully written and verified before calling `buffer.cleanup()`. The buffer DB is the only source of unflushed sample data — if cleanup happens before the write completes (or if the write fails), that data is permanently lost. The `SampleBufferDatabase` has no persistent connection (connections are per-operation via context manager), so the handle can be held open for the duration of `recover_eval_log()` without resource concerns.
 
 ### Extracting Messages from Buffer DB Events
 
@@ -292,11 +292,15 @@ Created `src/inspect_ai/log/_recover/` package with:
 
 **Tests** (`tests/log/test_recover_read.py`): 6 tests covering basic reading, no-samples crash, rejection of complete logs, rejection of invalid files, individual sample reading, and multiple flush batches.
 
-### Step 2: Read recovery data from sample buffer database
+### Step 2: Read recovery data from sample buffer database (done: `664a9a43b`)
 
-Build a function to locate and read unflushed samples and events from a buffer DB given a log file path. Return structured data distinguishing completed samples (have scores) from in-progress samples (no scores). This reads from the existing `SampleBufferDatabase` but adds query methods needed for recovery.
+Created `_buffer.py` in the `_recover` package with:
+- `BufferRecoveryData` dataclass — holds `completed` and `in_progress` sample lists plus an open `SampleBufferDatabase` handle for per-sample event/attachment queries
+- `read_buffer_recovery_data(location, db_dir=None)` — locates the buffer DB via `SampleBufferDatabase(location, create=False)`, reads all sample summaries, classifies by `completed_at` field
 
-**Tests:** Create a buffer DB with a mix of completed and in-progress samples, verify correct extraction and classification.
+No new query methods were needed — the existing `get_samples()` and `get_sample_data(id, epoch)` methods on `SampleBufferDatabase` are sufficient.
+
+**Tests** (`tests/log/test_recover_buffer.py`): 6 tests covering mixed completed/in-progress, event accessibility via DB handle, no DB, empty DB, all-completed, all-in-progress.
 
 ### Step 3: Reconstruct EvalSample from buffer DB data
 
