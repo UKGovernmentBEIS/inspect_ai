@@ -347,7 +347,9 @@ def recover_command(
             console = rich.get_console()
             for r in logs:
                 print()
-                console.print(f"[bold]log:[/bold] {pretty_path(r.log.name)}", highlight=False)
+                console.print(
+                    f"[bold]log:[/bold] {pretty_path(r.log.name)}", highlight=False
+                )
                 print(
                     f"  ({r.total_samples} total, "
                     f"{r.flushed_samples} flushed, "
