@@ -197,7 +197,7 @@ async def _recoverable_eval_logs_async(
     log_dir: str | None = None,
     _db_dir: str | Path | None = None,
 ) -> list[RecoverableEvalLog]:
-    log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs")
+    log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs") or "./logs"
 
     crashed_logs = list_eval_logs(
         log_dir=log_dir,

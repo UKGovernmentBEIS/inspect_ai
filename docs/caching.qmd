@@ -120,27 +120,21 @@ $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
 
 ## Provider Caching {#sec-provider-caching}
 
-Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) and will extend this support to other providers over time as they add caching to their APIs.
-
-Provider prompt caching is controlled by the `cache-prompt` generation config option. The default value for `cache-prompt` is `"auto"`, which enables prompt caching automatically if tool definitions are included in the request. Use `true` and `false` to force caching on or off. For example:
+Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. The only provider that currently enables you to turn off prompt caching is Anthropic, and you can do this using `cache-prompt` generation config option. For example:
 
 ``` bash
-inspect eval ctf.py --cache-prompt=auto  # enable if tools defined
-inspect eval ctf.py --cache-prompt=true  # force caching on
 inspect eval ctf.py --cache-prompt=false # force caching off
 ```
 
 Or with the `eval()` function:
 
 ``` python
-eval("ctf.py", cache_prompt=True)
+eval("ctf.py", cache_prompt=False)
 ```
 
 ### Cache Scope
 
 Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
-
-Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)---once this becomes possible this will also be exposed in the Inspect API.
 
 ### Usage Reporting
 
