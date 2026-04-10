@@ -23,6 +23,7 @@
   instances.
 - Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
 - Bugfix: Include LoRA adapter in logged vLLM model name.
+- Computer Use: Restore `sudo` package to computer tool Docker image.
 
 ## 0.3.205 (04 April 2026)
 
