@@ -92,22 +92,9 @@ def resolve_external_registry_package_version(
     return package_name, package_version
 
 
-def _effective_max_samples(eval_config: EvalConfig, model: Model) -> int:
-    """Resolve effective max_samples for high-throughput detection.
-
-    Follows the resolution chain from create_sample_semaphore (run.py),
-    excluding batch mode (which is not inherently high-throughput).
-    """
-    if eval_config.max_samples is not None:
-        return eval_config.max_samples
-    if model.config.max_connections is not None:
-        return model.config.max_connections
-    return model.api.max_connections()
-
-
-def _is_high_throughput(sample_count: int, effective_max_samples: int) -> bool:
+def _is_high_throughput(sample_count: int) -> bool:
     """Detect high-throughput runs that benefit from reduced logging overhead."""
-    return effective_max_samples >= 100 or sample_count >= 1000
+    return sample_count >= 1000
 
 
 class TaskLogger:
@@ -176,8 +163,7 @@ class TaskLogger:
         total_samples = len(sample_ids) * epochs
 
         # adaptive defaults for high-throughput runs
-        eff_max_samples = _effective_max_samples(eval_config, model)
-        high_throughput = _is_high_throughput(total_samples, eff_max_samples)
+        high_throughput = _is_high_throughput(total_samples)
         if high_throughput:
             if eval_config.log_realtime is None:
                 eval_config.log_realtime = False

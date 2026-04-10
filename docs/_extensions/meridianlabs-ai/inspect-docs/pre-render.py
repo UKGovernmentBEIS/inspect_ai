@@ -57,14 +57,14 @@ def main() -> None:
 
 
     # create default .gitignore if none exists
-    gitignore = Path(".gitignore")
-    gitignore.write_text(
+    write_if_changed(
+        Path(".gitignore"),
         "/.quarto/\n"
         "/_site/\n"
         "/_include.yml\n"
         "/reference/refs*.json\n"
         "**/*.quarto_ipynb*\n"
-        "**/*.excalidraw.svg\n"
+        "**/*.excalidraw.svg\n",
     )
 
     # symlink CHANGELOG.md from repo root if it exists
@@ -539,8 +539,7 @@ def generate_reference_artifacts(
         )
 
     # write refs.json
-    with open(ref_dir / "refs.json", "w") as f:
-        json.dump(index_json, f, indent=2)
+    write_if_changed(ref_dir / "refs.json", json.dumps(index_json, indent=2))
 
     return [
         {
@@ -643,7 +642,7 @@ def download_external_refs(ref_dir: Path, opts: YamlDict) -> None:
                 key: base + value.replace(".qmd", ".html")
                 for key, value in raw.items()
             }
-            dest.write_text(json.dumps(absolute, indent=2))
+            write_if_changed(dest, json.dumps(absolute, indent=2))
         except Exception as e:
             if dest.exists():
                 pass  # use cached copy
@@ -651,7 +650,7 @@ def download_external_refs(ref_dir: Path, opts: YamlDict) -> None:
                 print(f"Warning: Could not download {pkg_name} refs: {e}")
 
     # write manifest listing package names in config order
-    manifest_path.write_text(json.dumps(list(external_refs.keys())))
+    write_if_changed(manifest_path, json.dumps(list(external_refs.keys())))
 
 
 def extract_h1(path: Path) -> str | None:
