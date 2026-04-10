@@ -49,15 +49,35 @@ async def test_word_failure():
         ("ANSWER: ☆", "☆"),
         ("ANSWER: ○", "○"),
         ("ANSWER: ◎", "◎"),
+        ("ANSWER: Yes.", "Yes"),
+        ("ANSWER: 42,\n", "42"),
+        ("ANSWER: correct!", "correct"),
+        ("ANSWER: 3.14", "3.14"),
     ],
 )
-async def test_word_unicode_symbols(model_output: str, target: str):
+async def test_word_matching(model_output: str, target: str):
     scorer = answer("word")
     state = simple_task_state(model_output=model_output)
     result = await scorer(state, Target([target]))
 
     assert result is not None
     assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output,target",
+    [
+        ("ANSWER: Yes then more text", "Yes"),
+        ("ANSWER: No, because reasons", "No"),
+    ],
+)
+async def test_word_trailing_prose_noanswer(model_output: str, target: str):
+    scorer = answer("word")
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target([target]))
+
+    assert result is not None and result.text == NOANSWER
 
 
 @pytest.mark.anyio
