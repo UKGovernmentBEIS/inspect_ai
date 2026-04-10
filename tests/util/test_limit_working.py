@@ -287,7 +287,7 @@ def check_working_limit_interrupts_sandbox_exec(sandbox: str):
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="bash",
-                    tool_arguments={"cmd": "sleep 100"},
+                    tool_arguments={"command": "sleep 100"},
                 )
             ],
         ),

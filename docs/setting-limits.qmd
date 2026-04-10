@@ -1,92 +1,21 @@
 ---
-title: "Errors and Limits"
+title: "Setting Limits"
+llms-description: Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
 ---
 
 ## Overview
 
-When developing more complex evaluations, its not uncommon to encounter error conditions during development—these might occur due to a bug in a solver or scorer, an unreliable or overloaded API, or a failure to communicate with a sandbox environment. It's also possible to end up evals that don't terminate properly because models continue running in a tool calling loop even though they are "stuck" and very unlikely to make additional progress.
+In open-ended model conversations (for example, an agent evaluation with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Further, sometimes models will call commands in a sandbox that take an extremely long time (or worst case, hang indefinitely).
 
-This article covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples. Topics covered include:
+For this type of evaluation it's normally a good idea to set limits on some combination of total time, total messages, tokens used, and/or cost. This article covers:
 
-1.  Retrying failed evaluations (while preserving the samples completed during the initial failed run).
-2.  Establishing a threshold (count or percentage) of samples to tolerate errors for before failing an evaluation.
-3.  Setting time limits for samples (either running time or more narrowly execution time).
-4.  Setting a maximum number of messages or tokens in a sample before forcing the model to give up.
-5.  Setting a maximum cost (in dollars) per sample, based on a model pricing configuration.
-
-{{< include _errors_and_retries.md >}}
-
-## Failure Threshold
-
-In some cases you might wish to tolerate some number of errors without failing the evaluation. This might be during development when errors are more commonplace, or could be to deal with a particularly unreliable API used in the evaluation. Add the `fail_on_error` option to your `Task` definition to establish this threshold. For example, here we indicate that we'll tolerate errors in up to 10% of the total sample count before failing:
-
-``` python
-@task
-def intercode_ctf():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            system_message("system.txt"),
-            use_tools([bash(timeout=120)]),
-            generate(),
-        ],
-        fail_on_error=0.1,
-        scorer=includes(),
-        sandbox="docker",
-    )
-```
-
-Failed samples are *not scored* and a warning indicating that some samples failed is both printed in the terminal and shown in Inspect View when this occurs.
-
-You can specify `fail_on_error` as a boolean (turning the behaviour on and off entirely), as a number between 0 and 1 (indicating a proportion of failures to tolerate), or a number greater than 1 to (indicating a count of failures to tolerate):
-
-| Value                 | Behaviour                                           |
-|---------------------------|---------------------------------------------|
-| `fail_on_error=True`  | Fail eval immediately on sample errors (default).   |
-| `fail_on_error=False` | Never fail eval on sample errors.                   |
-| `fail_on_error=0.1`   | Fail if more than 10% of total samples have errors. |
-| `fail_on_error=5`     | Fail eval if more than 5 samples have errors.       |
-
-: {tbl-colwidths=\[40,60\]}
-
-While `fail_on_error` is typically specified at the `Task` level, you can also override the task setting when calling `eval()` or `inspect eval` from the CLI. For example:
-
-``` python
-eval("intercode_ctf.py", fail_on_error=False)
-```
-
-You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.
-
-## Sample Retries
-
-The `retry_on_error` option enables retrying samples with errors some number of times before they are considered failed (and subject to `fail_on_error` processing as described above). For example:
-
-``` bash
-inspect eval ctf.py --retry-on-error    # retry 1 time
-inspect eval ctf.py --retry-on-error=3  # retry up to 3 times
-```
-
-Or from Python:
-
-``` python
-eval("ctf.py", retry_on_error=1)
-```
-
-If a sample is retried, the original error(s) that induced the retries will be recorded in its `error_retries` field.
-
-::: {.callout-warning appearance="simple"}
-#### Retries and Distribution Shift
-
-While sample retries enable improved recovery from transient infrastructure errors, they also carry with them some risk of distribution shift. For example, imagine that the error being retried is a bug in one of your agents that is triggered by only certain classes of input. These classes of input could then potentially have a higher chance of success because they will be "re-rolled" more frequently.
-
-Consequently, when enabling `retry_on_error` you should do some post-hoc analysis to ensure that retried samples don't have significantly different results than samples which are not retried.
-:::
+1. [Sample Limits](#sample-limits) --- limits applied to individual samples within a task.
+2. [Scoped Limits](#scoped-limits) --- limits applied to arbitrary blocks of code.
+3. [Agent Limits](#agent-limits) --- limits applied to agent execution.
 
 ## Sample Limits {#sample-limits}
 
-In open-ended model conversations (for example, an agent evaluation with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Further, sometimes models will call commands in a sandbox that take an extremely long time (or worst case, hang indefinitely).
-
-For this type of evaluation it's normally a good idea to set sample level limits on some combination of total time, total messages, and/or tokens used. Sample limits don't result in errors, but rather an early exit from execution (samples that encounter limits are still scored, albeit nearly always as "incorrect").
+Sample limits don't result in errors, but rather an early exit from execution (samples that encounter limits are still scored, albeit nearly always as "incorrect").
 
 ### Time Limit
 
@@ -270,7 +199,7 @@ When limits are exceeded, a `LimitExceededError` is raised and caught by the mai
 from inspect_ai.util import LimitExceededError
 
 raise LimitExceededError(
-    "custom", 
+    "custom",
     value=value,
     limit=limit,
     message=f"A custom limit was exceeded: {value}"
@@ -350,7 +279,7 @@ with time_limit(15 * 60):
     ...
 ```
 
-Internally, this uses [`anyio`'s cancellation scopes](https://anyio.readthedocs.io/en/stable/cancellation.html). The block will be cancelled at the first yield point (e.g. `await` statement). 
+Internally, this uses [`anyio`'s cancellation scopes](https://anyio.readthedocs.io/en/stable/cancellation.html). The block will be cancelled at the first yield point (e.g. `await` statement).
 
 ### Working Limit
 
@@ -441,7 +370,7 @@ def myagent(budget: float = 2.00) -> Agent:
             ...
 ```
 
-Cost limits work similarly to token limits, with stacking and tracking of costs used while the context manager is open. 
+Cost limits work similarly to token limits, with stacking and tracking of costs used while the context manager is open.
 
 ::: callout-important
 Using `cost_limit()` requires model cost data to be configured via `set_model_cost()` or `--model-cost-config`. See [Model Cost](#model-cost) for details.

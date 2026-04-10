@@ -181,6 +181,39 @@
         "title": "ApproverPolicyConfig",
         "type": "object"
       },
+      "AttachmentData": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sample_id",
+          "epoch",
+          "hash",
+          "content"
+        ],
+        "title": "AttachmentData",
+        "type": "object"
+      },
       "BatchConfig": {
         "description": "Batch processing configuration.",
         "properties": {
@@ -1077,14 +1110,6 @@
         "title": "ContentAudio",
         "type": "object"
       },
-      "ContentAudioFormat": {
-        "enum": [
-          "wav",
-          "mp3"
-        ],
-        "title": "ContentAudioFormat",
-        "type": "string"
-      },
       "ContentCitation": {
         "description": "A generic content citation.",
         "properties": {
@@ -1514,15 +1539,6 @@
         ],
         "title": "ContentVideo",
         "type": "object"
-      },
-      "ContentVideoFormat": {
-        "enum": [
-          "mp4",
-          "mpeg",
-          "mov"
-        ],
-        "title": "ContentVideoFormat",
-        "type": "string"
       },
       "DocumentCitation": {
         "description": "A citation that refers to a page range in a document.",
@@ -2284,6 +2300,17 @@
             "$ref": "#/components/schemas/EvalPlan"
           },
           "reductions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EvalSampleReductions"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Reductions"
           },
           "results": {
@@ -2297,6 +2324,17 @@
             ]
           },
           "samples": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/EvalSample"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Samples"
           },
           "stats": {
@@ -2975,20 +3013,6 @@
         "title": "EvalSampleLimit",
         "type": "object"
       },
-      "EvalSampleLimitType": {
-        "enum": [
-          "context",
-          "time",
-          "working",
-          "message",
-          "token",
-          "cost",
-          "operator",
-          "custom"
-        ],
-        "title": "EvalSampleLimitType",
-        "type": "string"
-      },
       "EvalSampleReductions": {
         "description": "Score reductions.",
         "properties": {
@@ -3144,6 +3168,230 @@
           "history"
         ],
         "title": "EvalSampleScore",
+        "type": "object"
+      },
+      "EvalSampleSummary": {
+        "description": "Summary information (including scoring) for a sample.",
+        "properties": {
+          "choices": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choices"
+          },
+          "completed": {
+            "default": false,
+            "title": "Completed",
+            "type": "boolean"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Id"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ChatMessageSystem"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChatMessageUser"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChatMessageAssistant"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChatMessageTool"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Input"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "message_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Count"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "model_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Model Usage",
+            "type": "object"
+          },
+          "retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retries"
+          },
+          "role_usage": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "title": "Role Usage",
+            "type": "object"
+          },
+          "scores": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/Score"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scores"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Target"
+          },
+          "total_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Time"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working Time"
+          }
+        },
+        "required": [
+          "id",
+          "epoch",
+          "input",
+          "target",
+          "metadata",
+          "model_usage",
+          "role_usage",
+          "completed"
+        ],
+        "title": "EvalSampleSummary",
         "type": "object"
       },
       "EvalScore": {
@@ -3801,6 +4049,42 @@
         ],
         "title": "Event"
       },
+      "EventData": {
+        "properties": {
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "event": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Event",
+            "type": "object"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event_id",
+          "sample_id",
+          "epoch",
+          "event"
+        ],
+        "title": "EventData",
+        "type": "object"
+      },
       "EventsData": {
         "description": "Pooled data extracted by condense_events / condense_sample.",
         "properties": {
@@ -4284,6 +4568,19 @@
         "title": "GenerateConfig",
         "type": "object"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "ImageOutput": {
         "description": "Image output configuration.\n\nUse the `options` field to pass provider-specific options directly\nto the underlying API (e.g. OpenAI image_generation tool parameters).",
         "properties": {
@@ -4533,6 +4830,18 @@
             ],
             "title": "Enum"
           },
+          "examples": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Examples"
+          },
           "format": {
             "anyOf": [
               {
@@ -4553,6 +4862,67 @@
                 "type": "null"
               }
             ]
+          },
+          "maxLength": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxlength"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "minLength": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minlength"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern"
           },
           "properties": {
             "anyOf": [
@@ -4670,19 +5040,136 @@
         "title": "JsonChange",
         "type": "object"
       },
-      "JsonChangeOp": {
-        "enum": [
-          "remove",
-          "add",
-          "replace",
-          "move",
-          "test",
-          "copy"
-        ],
-        "title": "JsonChangeOp",
-        "type": "string"
-      },
       "JsonValue": {},
+      "LogDirResponse": {
+        "properties": {
+          "log_dir": {
+            "title": "Log Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_dir"
+        ],
+        "title": "LogDirResponse",
+        "type": "object"
+      },
+      "LogFilesResponse": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/LogHandle"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "response_type": {
+            "enum": [
+              "incremental",
+              "full"
+            ],
+            "title": "Response Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "response_type",
+          "files"
+        ],
+        "title": "LogFilesResponse",
+        "type": "object"
+      },
+      "LogHandle": {
+        "properties": {
+          "mtime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtime"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "LogHandle",
+        "type": "object"
+      },
+      "LogInfo": {
+        "properties": {
+          "direct_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Url"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "size"
+        ],
+        "title": "LogInfo",
+        "type": "object"
+      },
+      "LogListingResponse": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/LogHandle"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "log_dir": {
+            "title": "Log Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "log_dir",
+          "files"
+        ],
+        "title": "LogListingResponse",
+        "type": "object"
+      },
       "LogUpdate": {
         "description": "A group of edits that share provenance.",
         "properties": {
@@ -5716,6 +6203,30 @@
         "title": "Sample",
         "type": "object"
       },
+      "SampleData": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentData"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventData"
+            },
+            "title": "Events",
+            "type": "array"
+          }
+        },
+        "required": [
+          "events",
+          "attachments"
+        ],
+        "title": "SampleData",
+        "type": "object"
+      },
       "SampleInitEvent": {
         "description": "Beginning of processing a Sample.",
         "properties": {
@@ -5894,6 +6405,40 @@
           "message"
         ],
         "title": "SampleLimitEvent",
+        "type": "object"
+      },
+      "Samples": {
+        "properties": {
+          "etag": {
+            "title": "Etag",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/TaskDisplayMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "refresh": {
+            "title": "Refresh",
+            "type": "integer"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/EvalSampleSummary"
+            },
+            "title": "Samples",
+            "type": "array"
+          }
+        },
+        "required": [
+          "samples",
+          "metrics",
+          "refresh",
+          "etag"
+        ],
+        "title": "Samples",
         "type": "object"
       },
       "SandboxEnvironmentSpec": {
@@ -7111,6 +7656,62 @@
         "title": "TagsEdit",
         "type": "object"
       },
+      "TaskDisplayMetric": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "reducer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reducer"
+          },
+          "scorer": {
+            "title": "Scorer",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "scorer",
+          "name",
+          "value"
+        ],
+        "title": "TaskDisplayMetric",
+        "type": "object"
+      },
       "Timeline": {
         "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
         "properties": {
@@ -7882,6 +8483,46 @@
         ],
         "title": "UrlCitation",
         "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -7945,94 +8586,50 @@
         "summary": " Content"
       }
     },
-    "/content-audio-format": {
-      "get": {
-        "operationId": "_content_audio_format_content_audio_format_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContentAudioFormat"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Content Audio Format"
-      }
-    },
-    "/content-video-format": {
-      "get": {
-        "operationId": "_content_video_format_content_video_format_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContentVideoFormat"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Content Video Format"
-      }
-    },
-    "/eval-log": {
-      "get": {
-        "operationId": "_eval_log_eval_log_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvalLog"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Eval Log"
-      }
-    },
-    "/eval-sample-limit-type": {
-      "get": {
-        "operationId": "_eval_sample_limit_type_eval_sample_limit_type_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvalSampleLimitType"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": " Eval Sample Limit Type"
-      }
-    },
     "/eval-set": {
       "get": {
-        "operationId": "_eval_set_eval_set_get",
+        "operationId": "eval_set_eval_set_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log_dir",
+            "required": false,
+            "schema": {
+              "title": "Log Dir",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dir",
+            "required": false,
+            "schema": {
+              "title": "Dir",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EvalSet"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EvalSet"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Eval Set Eval Set Get"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": " Eval Set"
+        "summary": "Eval Set"
       }
     },
     "/event": {
@@ -8053,22 +8650,575 @@
         "summary": " Event"
       }
     },
-    "/json-change-op": {
+    "/events": {
       "get": {
-        "operationId": "_json_change_op_json_change_op_get",
+        "operationId": "api_events_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "last_eval_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Eval Time"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonChangeOp"
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Api Events Events Get",
+                  "type": "array"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": " Json Change Op"
+        "summary": "Api Events"
+      }
+    },
+    "/flow": {
+      "get": {
+        "operationId": "flow_flow_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log_dir",
+            "required": false,
+            "schema": {
+              "title": "Log Dir",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dir",
+            "required": false,
+            "schema": {
+              "title": "Dir",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Flow"
+      }
+    },
+    "/log-bytes/{log}": {
+      "get": {
+        "operationId": "api_log_bytes_log_bytes__log__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "title": "Start",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "title": "End",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Bytes"
+      }
+    },
+    "/log-delete/{log}": {
+      "get": {
+        "operationId": "api_log_delete_log_delete__log__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Api Log Delete Log Delete  Log  Get",
+                  "type": "boolean"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Delete"
+      }
+    },
+    "/log-dir": {
+      "get": {
+        "operationId": "api_log_dir_log_dir_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log_dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Log Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogDirResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Dir"
+      }
+    },
+    "/log-download/{log}": {
+      "get": {
+        "operationId": "api_log_download_log_download__log__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Download"
+      }
+    },
+    "/log-files": {
+      "get": {
+        "operationId": "api_log_files_log_files_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log_dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Log Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFilesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Files"
+      }
+    },
+    "/log-headers": {
+      "get": {
+        "operationId": "api_log_headers_log_headers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "file",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "File",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalLog"
+                  },
+                  "title": "Response Api Log Headers Log Headers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Headers"
+      }
+    },
+    "/log-info/{log}": {
+      "get": {
+        "operationId": "api_log_info_log_info__log__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Info"
+      }
+    },
+    "/log-message": {
+      "get": {
+        "operationId": "api_log_message_log_message_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log_file",
+            "required": true,
+            "schema": {
+              "title": "Log File",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "message",
+            "required": true,
+            "schema": {
+              "title": "Message",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Message"
+      }
+    },
+    "/log-size/{log}": {
+      "get": {
+        "operationId": "api_log_size_log_size__log__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Api Log Size Log Size  Log  Get",
+                  "type": "integer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Size"
+      }
+    },
+    "/logs": {
+      "get": {
+        "operationId": "api_logs_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log_dir",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Log Dir"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogListingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Logs"
+      }
+    },
+    "/logs/{log}": {
+      "get": {
+        "operationId": "api_log_logs__log__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "header-only",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Header-Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalLog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log"
+      }
+    },
+    "/pending-sample-data": {
+      "get": {
+        "operationId": "api_sample_events_pending_sample_data_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": true,
+            "schema": {
+              "title": "Epoch",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-attachment-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Attachment-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Sample Events"
+      }
+    },
+    "/pending-samples": {
+      "get": {
+        "operationId": "api_pending_samples_pending_samples_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Samples"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Pending Samples"
       }
     },
     "/tool-choice": {

@@ -59,7 +59,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._json import json_schema_to_base_model
+from inspect_ai.util._json import json_schema_dump, json_schema_to_base_model
 
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model_output import (
@@ -380,7 +380,7 @@ class GrokAPI(ModelAPI):
             return tool(
                 name=tool_info.name,
                 description=tool_info.description,
-                parameters=tool_info.parameters.model_dump(exclude_none=True),
+                parameters=json_schema_dump(tool_info.parameters),
             )
 
     def _grok_params(self, config: GenerateConfig) -> dict[str, Any]:

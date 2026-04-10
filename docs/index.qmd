@@ -1,5 +1,6 @@
 ---
 title: Inspect
+llms-description: Welcome and overview of Inspect AI.
 subtitle: An open-source framework for large language model evaluations
 citation:
   id: "UK_AI_Security_Institute_Inspect_AI_Framework_2024"
@@ -262,7 +263,9 @@ These sections discuss more advanced features and workflows. You don't need to r
 
 -   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
--   [Errors and Limits](errors-and-limits.qmd) covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
+-   [Handling Errors](handling-errors.qmd) covers techniques for dealing with runtime errors and recovering from crashes during evaluation.
+
+-   [Setting Limits](setting-limits.qmd) covers setting time, message, token, and cost limits on evaluation tasks and samples.
 
 -   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 

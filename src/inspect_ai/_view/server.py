@@ -92,7 +92,7 @@ def view_server_app(
         file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
         info = await get_log_info(file, generate_direct_url=generate_direct_urls)
-        return web.json_response(info)
+        return web.json_response(info.model_dump(exclude_none=True))
 
     @routes.get("/api/log-delete/{log}")
     async def api_log_delete(request: web.Request) -> web.Response:
@@ -177,7 +177,7 @@ def view_server_app(
         else:
             request_log_dir = log_dir
 
-        return web.json_response(get_log_dir(request_log_dir))
+        return web.json_response(get_log_dir(request_log_dir).model_dump())
 
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:
@@ -196,7 +196,7 @@ def view_server_app(
         )
         if listing is None:
             return web.Response(status=404, reason="File not found")
-        return web.json_response(listing)
+        return web.json_response(listing.model_dump())
 
     @routes.get("/api/log-files")
     async def api_log_files(request: web.Request) -> web.Response:
@@ -217,14 +217,14 @@ def view_server_app(
         if client_etag is not None:
             mtime, file_count = parse_log_token(client_etag)
 
-        log_files_response: dict[str, Any] = await get_log_files(
+        result = await get_log_files(
             request_log_dir,
             recursive=recursive,
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
         )
-        return web.json_response(log_files_response)
+        return web.json_response(result.model_dump())
 
     @routes.get("/api/eval-set")
     async def eval_set(request: web.Request) -> web.Response:

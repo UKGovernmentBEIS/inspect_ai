@@ -35,6 +35,7 @@ from inspect_ai._util.url import is_http_url
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -212,16 +213,16 @@ class GroqAPI(ModelAPI):
         if config.reasoning_effort is not None:
             params["reasoning_effort"] = config.reasoning_effort
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = dict(
+                name=config.response_schema.name,
+                schema=json_schema_dump(config.response_schema.json_schema),
+            )
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
+                type="json_schema", json_schema=json_schema_dict
             )
         return params
 
@@ -378,10 +379,7 @@ async def as_chat_completion_part(
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
-    return [
-        {"type": "function", "function": tool.model_dump(exclude_none=True)}
-        for tool in tools
-    ]
+    return [{"type": "function", "function": json_schema_dump(tool)} for tool in tools]
 
 
 def chat_tool_choice(tool_choice: ToolChoice) -> str | Dict[str, Any]:

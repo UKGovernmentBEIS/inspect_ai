@@ -1,5 +1,6 @@
 ---
 title: Solvers
+llms-description: Solvers encompass prompt engineering and other elicitation strategies. Using built-in solvers and creating your own.
 tbl-colwidths: [20,25,45]
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Using Models
+llms-description: Models provide a uniform API for evaluating a variety of large language models and using models within evaluations.
 ---
 
 ## Overview

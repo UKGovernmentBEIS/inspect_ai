@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.log"
+reference: inspect_ai.log
+description: List, read, write, and analyse logs.
 ---
 
 ## Eval Logs
@@ -30,6 +31,13 @@ title: "inspect_ai.log"
 ### MetadataEdit
 ### TagsEdit
 ### ProvenanceData
+
+## Crash Recovery
+
+### recover_eval_log
+### recoverable_eval_logs
+### RecoverableEvalLog
+### RecoveryNotAvailable
 
 ## Eval Log API
 

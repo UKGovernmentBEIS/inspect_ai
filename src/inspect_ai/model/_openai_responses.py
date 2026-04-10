@@ -117,6 +117,7 @@ from openai.types.responses.tool_param import (
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -160,6 +161,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ._providers._openai_computer_use import (
     computer_call_output,
@@ -174,6 +176,7 @@ MESSAGE_PHASE = "message_phase"
 
 class ResponsesModelInfo(Protocol):
     def has_reasoning_options(self) -> bool: ...
+    def reasoning_only_fallback(self) -> bool: ...
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
@@ -1039,6 +1042,19 @@ def _openai_input_items_from_chat_message_assistant(
         ]
     )
 
+    # If all content is reasoning-only (no text, no tool calls), inject a
+    # NO_CONTENT fallback to prevent the Responses API from rejecting the
+    # next request. This matches the pattern used by other providers
+    # (Anthropic, Google, Mistral, Bedrock) for empty assistant content.
+    if (
+        model_info is not None
+        and model_info.reasoning_only_fallback()
+        and content_items
+        and all(isinstance(c, ContentReasoning) for c in content_items)
+        and len(message.tool_calls or []) == 0
+    ):
+        content_items.append(ContentText(text=NO_CONTENT))
+
     # items to return
     items: list[ResponseInputItemParam] = []
     pending_response_output_id: str | None = None
@@ -1282,7 +1298,7 @@ def _tool_param_for_tool_info(
             type="function",
             name=_responses_tool_alias(tool.name),
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=json_schema_dump(tool.parameters),
             strict=False,  # default parameters don't work in strict mode
         )
 

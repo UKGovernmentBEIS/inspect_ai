@@ -60,6 +60,95 @@ class JSONSchema(BaseModel):
     required: list[str] | None = Field(default=None)
     """Required fields for object parameters."""
 
+    pattern: str | None = Field(default=None)
+    """Regex pattern for string parameters."""
+
+    minLength: int | None = Field(default=None)
+    """Minimum length for string parameters."""
+
+    maxLength: int | None = Field(default=None)
+    """Maximum length for string parameters."""
+
+    minimum: int | float | None = Field(default=None)
+    """Minimum value for numeric parameters."""
+
+    maximum: int | float | None = Field(default=None)
+    """Maximum value for numeric parameters."""
+
+    examples: list[Any] | None = Field(default=None)
+    """Example values for the parameter."""
+
+
+JSON_SCHEMA_EXTENDED_FIELDS = {
+    "pattern",
+    "minLength",
+    "maxLength",
+    "minimum",
+    "maximum",
+    "examples",
+}
+"""Extended JSON Schema validation fields that some providers may not support."""
+
+
+def json_schema_dump(
+    schema: BaseModel,
+    exclude: set[str] | None = None,
+) -> dict[str, Any]:
+    """Dump a JSON Schema model to a dict, excluding None values.
+
+    Centralises the `model_dump(exclude_none=True)` pattern used by every model
+    provider when forwarding tool parameter or response schemas to an API, and
+    adds an optional *exclude* set for provider-specific field filtering.
+
+    The *exclude* set is applied recursively to all nested dicts (e.g. inside
+    ``properties``, ``items``, ``anyOf``), not just the top-level schema.
+
+    Args:
+        schema: A JSONSchema, ToolParams, ToolInfo, or similar Pydantic model.
+        exclude: Optional set of field names to strip from the output
+            (e.g. ``{"additionalProperties"}`` for providers that reject it).
+
+    Returns:
+        Dict representation of the schema with None values removed.
+    """
+    result = schema.model_dump(exclude_none=True)
+    if exclude:
+        _strip_keys_recursive(result, exclude)
+    return result
+
+
+def _strip_keys_recursive(d: dict[str, Any], keys: set[str]) -> None:
+    """Remove schema *keys* from *d* and nested schema dicts recursively.
+
+    Schema-aware: only strips keys that are JSON Schema keywords, not property
+    names. The ``properties`` dict maps user-defined names to schema objects —
+    its keys are never stripped, but each value (a nested schema) is recursed
+    into.
+    """
+    for key in keys:
+        d.pop(key, None)
+
+    # Recurse into nested schema dicts (values of "properties", not its keys)
+    props = d.get("properties")
+    if isinstance(props, dict):
+        for prop_schema in props.values():
+            if isinstance(prop_schema, dict):
+                _strip_keys_recursive(prop_schema, keys)
+
+    items = d.get("items")
+    if isinstance(items, dict):
+        _strip_keys_recursive(items, keys)
+
+    any_of = d.get("anyOf")
+    if isinstance(any_of, list):
+        for item in any_of:
+            if isinstance(item, dict):
+                _strip_keys_recursive(item, keys)
+
+    additional = d.get("additionalProperties")
+    if isinstance(additional, dict):
+        _strip_keys_recursive(additional, keys)
+
 
 def json_schema(t: Type[Any]) -> JSONSchema:
     """Provide a JSON Schema for the specified type.

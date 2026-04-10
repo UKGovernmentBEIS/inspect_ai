@@ -144,7 +144,11 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
-from inspect_ai.util._json import set_additional_properties_false
+from inspect_ai.util._json import (
+    JSON_SCHEMA_EXTENDED_FIELDS,
+    json_schema_dump,
+    set_additional_properties_false,
+)
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import (
@@ -370,10 +374,15 @@ class AnthropicAPI(ModelAPI):
                 tools_param,
                 mcp_servers_param,
                 messages,
+                cache_prompt,
             ) = await self.resolve_chat_input(input, tools, config)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
+
+            # automatic caching for messages (system/tools use explicit breakpoints)
+            if cache_prompt:
+                request["cache_control"] = {"type": "ephemeral"}
 
             # system messages and tools
             if system_param is not None:
@@ -787,7 +796,7 @@ class AnthropicAPI(ModelAPI):
             betas.append("structured-outputs-2025-11-13")
             extra_body["output_format"] = {
                 "type": "json_schema",
-                "schema": schema.model_dump(exclude_none=True),
+                "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
             }
 
         # look for any of our native fields not in GenerateConfig in extra_body
@@ -1054,6 +1063,7 @@ class AnthropicAPI(ModelAPI):
         list["ToolParamDef"],
         list[BetaRequestMCPServerURLDefinitionParam],
         list[MessageParam],
+        bool,
     ]:
         # Convert orphaned tool results to text messages before processing
         # (handles case where native compaction summarized away tool_use blocks)
@@ -1100,11 +1110,7 @@ class AnthropicAPI(ModelAPI):
 
         # add caching directives if necessary
         cache_prompt = (
-            config.cache_prompt
-            if isinstance(config.cache_prompt, bool)
-            else True
-            if len(tools_params)
-            else False
+            config.cache_prompt if isinstance(config.cache_prompt, bool) else True
         )
 
         # only certain claude models qualify
@@ -1124,21 +1130,15 @@ class AnthropicAPI(ModelAPI):
             # tools
             if tools_params:
                 add_cache_control(tools_params[-1])
-            # last 2 user messages
-            user_message_params = list(
-                filter(lambda m: m["role"] == "user", reversed(message_params))
-            )
-            for message in user_message_params[:2]:
-                if isinstance(message["content"], str):
-                    text_param = TextBlockParam(type="text", text=message["content"])
-                    add_cache_control(text_param)
-                    message["content"] = [text_param]
-                else:
-                    content = list(message["content"])
-                    add_cache_control(cast(dict[str, Any], content[-1]))
 
         # return chat input
-        return system_param, tools_params, mcp_server_params, message_params
+        return (
+            system_param,
+            tools_params,
+            mcp_server_params,
+            message_params,
+            cache_prompt,
+        )
 
     def partition_tools(
         self,
@@ -1162,7 +1162,7 @@ class AnthropicAPI(ModelAPI):
             ToolParam(
                 name=tool.name,
                 description=tool.description,
-                input_schema=tool.parameters.model_dump(exclude_none=True),
+                input_schema=json_schema_dump(tool.parameters),
             )
         ]
 

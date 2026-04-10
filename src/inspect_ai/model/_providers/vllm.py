@@ -138,7 +138,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise ValueError("base_url and port cannot both be provided.")
 
         self.api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
-        self.model_name = self.base_model
+        self.model_name = model_name
         self.base_url: str | None = None
 
         # Store for deferred OpenAICompatibleAPI.__init__()
