@@ -624,15 +624,7 @@ def as_previous_tasks(
                 recovered = recover_eval_log(eval_log.location, cleanup=False)
                 eval_log = recovered
                 if recovered.location:
-                    log_info = EvalLogInfo(
-                        name=recovered.location,
-                        type=log_info.type,
-                        size=log_info.size,
-                        mtime=log_info.mtime,
-                        task=log_info.task,
-                        task_id=log_info.task_id,
-                        suffix=log_info.suffix,
-                    )
+                    log_info = log_info.model_copy(update={"name": recovered.location})
             except RecoveryNotAvailable:
                 pass  # no recovery data available
             except Exception as ex:
