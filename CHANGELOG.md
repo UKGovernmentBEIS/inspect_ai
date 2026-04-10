@@ -7,6 +7,7 @@
 - Eval Logs: New `inspect log recover` command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into `eval_set()` and `eval_retry()`.
 - Bash tool: Change name of argument from `cmd` to `command`.
 - Sandboxes: Pass sample_id to sandbox providers via metadata.
+- Sandboxes: `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` and `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environmetn variables for overriding limits.
 - Hooks: Add `on_before_model_generate()` hook.
 - Model API: Support extended json schema fields (validation and examples).
 - Model API: Handle special token strings in tiktoken encoding.

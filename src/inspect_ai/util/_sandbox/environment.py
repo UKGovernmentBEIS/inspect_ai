@@ -116,8 +116,7 @@ class SandboxEnvironment(abc.ABC):
         The current working directory for execution will be the per-sample
         filesystem context.
 
-        Each output stream (stdout and stderr) is limited to 10 MiB. If exceeded, an
-        `OutputLimitExceededError` will be raised.
+        By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environmnt variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
 
         Args:
           cmd: Command or command and arguments to execute.
@@ -143,7 +142,7 @@ class SandboxEnvironment(abc.ABC):
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 10 MiB limit.
+            exceeds the limit.
         """
         ...
 
@@ -178,7 +177,7 @@ class SandboxEnvironment(abc.ABC):
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         """Read a file from the sandbox environment.
 
-        File size is limited to 100 MiB.
+        By default, file size is limited to 100 MiB. You may change this by setting the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
 
         When reading text files, implementations should preserve newline constructs
         (e.g. crlf should be preserved not converted to lf). This is equivalent
@@ -202,7 +201,7 @@ class SandboxEnvironment(abc.ABC):
             permission to read from the specified path.
           IsADirectoryError: If the file is a directory.
           OutputLimitExceededError: If the file size
-            exceeds the 100 MiB limit.
+            exceeds the limit.
         """
         ...
 
