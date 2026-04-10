@@ -27,6 +27,7 @@
 - Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
 - Bugfix: Include LoRA adapter in logged vLLM model name.
 - Bugfix: Remove unused docker-sandbox unhealthy_services computation.
+- Bugfix: Fix `to_uri()` encoding `@` as `%40` in local file paths, breaking round-trip through `filesystem()`/`local_path()`.
 
 ## 0.3.205 (04 April 2026)
 
