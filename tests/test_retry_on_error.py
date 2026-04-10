@@ -5,7 +5,7 @@ from test_helpers.utils import failing_solver_deterministic, skip_if_github_acti
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import example_dataset
-from inspect_ai.log import transcript
+from inspect_ai.log import read_eval_log, transcript
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._prompt import system_message
 
@@ -117,18 +117,51 @@ def _failing_after_generate_solver(should_fail: Sequence[bool]):
     return solve
 
 
+def _check_retry_events(sample):
+    """Verify retry error events have expected content."""
+    assert len(sample.error_retries) == 1
+    retry_error = sample.error_retries[0]
+
+    # error fields should be populated
+    assert "Eval failed after generate!" in retry_error.message
+    assert retry_error.traceback != ""
+    assert retry_error.traceback_ansi != ""
+
+    # events should be present
+    assert retry_error.events is not None
+    assert len(retry_error.events) >= 2
+
+    # first event should be a ModelEvent with actual content
+    model_event = retry_error.events[0]
+    assert model_event.event == "model"
+    assert len(model_event.input) > 0
+    assert model_event.output is not None
+    assert model_event.output.choices is not None
+
+    # should include the InfoEvent with the data we logged
+    info_events = [e for e in retry_error.events if e.event == "info"]
+    assert len(info_events) == 1
+    assert info_events[0].data == "about to check for failure"
+
+    # should also include other intervening events (span_end, logger, etc.)
+    assert len(retry_error.events) > 2
+
+
 def test_retry_on_error_events():
     task = Task(solver=_failing_after_generate_solver([True, False]))
     log = eval(task, retry_on_error=1)[0]
     assert log.status == "success"
     assert log.samples is not None
-    sample = log.samples[0]
-    assert len(sample.error_retries) == 1
-    retry_error = sample.error_retries[0]
-    assert retry_error.events is not None
-    assert len(retry_error.events) >= 2
-    # first event should be a ModelEvent (trimmed to most recent model event)
-    assert retry_error.events[0].event == "model"
-    # should include the InfoEvent emitted after generate
-    info_events = [e for e in retry_error.events if e.event == "info"]
-    assert len(info_events) == 1
+    _check_retry_events(log.samples[0])
+
+
+def test_retry_on_error_events_persisted():
+    """Verify retry error events survive log serialization and readback."""
+    task = Task(solver=_failing_after_generate_solver([True, False]))
+    log = eval(task, retry_on_error=1)[0]
+    assert log.status == "success"
+
+    # read the log back from disk
+    persisted_log = read_eval_log(log.location)
+    assert persisted_log.samples is not None
+    _check_retry_events(persisted_log.samples[0])
