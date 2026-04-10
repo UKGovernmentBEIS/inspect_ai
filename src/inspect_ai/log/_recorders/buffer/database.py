@@ -17,7 +17,6 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
-from inspect_ai._util.constants import log_schema_version
 from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.hash import mm3_hash
@@ -269,10 +268,13 @@ class SampleBufferDatabase(SampleBuffer):
 
                     # Delete associated data
                     for table in ("events", "attachments", "message_pool", "call_pool"):
-                        cursor.execute(
-                            f"DELETE FROM {table} WHERE {placeholders}",
-                            parameters,
-                        )
+                        try:
+                            cursor.execute(
+                                f"DELETE FROM {table} WHERE {placeholders}",
+                                parameters,
+                            )
+                        except OperationalError:
+                            pass  # table may not exist in old DBs
 
                     # Then delete the samples using the same approach
                     placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in batch])
@@ -638,14 +640,16 @@ class SampleBufferDatabase(SampleBuffer):
         self._insert_attachments(conn, event.id, event.epoch, attachments)
 
         # message/call pool dedup for ModelEvents
-        if isinstance(event.event, ModelEvent) and log_schema_version() >= 3:
+        if isinstance(event.event, ModelEvent):
             key = (event.id, event.epoch)
 
             # message pool
             msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
             prev_msg_len = len(msg_pool)
-            condensed = condense_model_event_inputs([event.event], msg_pool, msg_index)
-            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed[0])
+            [condensed_event], msg_pool = condense_model_event_inputs(
+                [event.event], msg_pool, msg_index
+            )
+            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for i in range(prev_msg_len, len(msg_pool)):
                 msg = msg_pool[i]
                 msg_id = msg.id if msg.id is not None else _msg_hash(msg)
@@ -657,8 +661,10 @@ class SampleBufferDatabase(SampleBuffer):
             # call pool
             call_pool, call_index = self._call_pools.get(key, ([], {}))
             prev_call_len = len(call_pool)
-            condensed = condense_model_event_calls([event.event], call_pool, call_index)
-            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed[0])
+            [condensed_event], call_pool = condense_model_event_calls(
+                [event.event], call_pool, call_index
+            )
+            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for i in range(prev_call_len, len(call_pool)):
                 call_msg = call_pool[i]
                 h = mm3_hash(json.dumps(call_msg, sort_keys=True))

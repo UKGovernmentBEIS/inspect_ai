@@ -15,12 +15,6 @@ from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.fixture(autouse=True)
-def _enable_v3_format(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Buffer pool tests require v3 format to be enabled."""
-    monkeypatch.setenv("INSPECT_LOG_FORMAT_V3", "1")
-
-
 @pytest.fixture
 def db() -> Generator[SampleBufferDatabase, None, None]:
     with tempfile.TemporaryDirectory() as db_dir:
