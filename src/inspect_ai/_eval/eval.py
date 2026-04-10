@@ -35,7 +35,7 @@ from inspect_ai._util.constants import (
     JSON_LOG_FORMAT,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import absolute_file_path
+from inspect_ai._util.file import absolute_file_path, filesystem
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup, registry_package_name
@@ -1031,6 +1031,29 @@ async def eval_retry_async(
         for task in tasks
     ]
 
+    # opportunistically recover crashed logs before retrying
+    recovered_files: dict[int, str] = {}
+    for i, eval_log in enumerate(retry_eval_logs):
+        if eval_log.status == "started" and eval_log.location:
+            from inspect_ai.log._recover import (
+                RecoveryNotAvailable,
+                recover_eval_log_async,
+            )
+
+            try:
+                recovered = await recover_eval_log_async(
+                    eval_log.location, cleanup=False
+                )
+                retry_eval_logs[i] = recovered
+                if recovered.location:
+                    recovered_files[i] = recovered.location
+            except RecoveryNotAvailable:
+                pass  # no recovery data available — proceed with flushed samples
+            except Exception as ex:
+                logging.getLogger(__name__).warning(
+                    f"Recovery failed for {eval_log.location}: {ex}"
+                )
+
     # eval them in turn
     eval_logs: list[EvalLog] = []
     for eval_log in retry_eval_logs:
@@ -1248,6 +1271,16 @@ async def eval_retry_async(
 
         # add it to our results
         eval_logs.append(log)
+
+    # Clean up recovered files only for retries that succeeded. On failure,
+    # the recovered file serves as a safety net with samples that would
+    # otherwise be lost.
+    for idx, recovered_file in recovered_files.items():
+        if eval_logs[idx].status == "success":
+            try:
+                filesystem(recovered_file).rm(recovered_file)
+            except Exception:
+                pass
 
     return EvalLogs(eval_logs)
 
