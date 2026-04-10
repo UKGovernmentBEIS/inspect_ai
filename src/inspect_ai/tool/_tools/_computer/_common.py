@@ -316,6 +316,8 @@ _KEY_ALIASES.update(
         "windows": "super",
         "opt": "alt",
         "option": "alt",
+        # xdotool doesn't recognize "," — it needs the keysym name "comma".
+        ",": "comma",
     }
 )
 

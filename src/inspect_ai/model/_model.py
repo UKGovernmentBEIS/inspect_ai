@@ -741,7 +741,6 @@ class Model:
         Args:
           input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
           tools: Tools available for the model to call.
-          config: Model configuration.
           instructions: Additional instructions to give the model about compaction
                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
@@ -800,7 +799,11 @@ class Model:
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
-        from inspect_ai.hooks._hooks import emit_model_cache_usage, emit_model_usage
+        from inspect_ai.hooks._hooks import (
+            emit_before_model_generate,
+            emit_model_cache_usage,
+            emit_model_usage,
+        )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import track_active_model_event
@@ -944,6 +947,16 @@ class Model:
             # record the interaction before the call to generate
             # (we'll update it with the results once we have them)
             complete, event = self._record_model_interaction(
+                input=input,
+                tools=tools_info,
+                tool_choice=tool_choice,
+                config=config,
+                cache="write" if cache else None,
+            )
+
+            # emit before-generate hook
+            await emit_before_model_generate(
+                model_name=str(self),
                 input=input,
                 tools=tools_info,
                 tool_choice=tool_choice,

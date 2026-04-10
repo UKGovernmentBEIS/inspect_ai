@@ -1,5 +1,6 @@
 ---
 title: Compaction
+llms-description: Compacting message histories for long-running agents that exceed the context window.
 ---
 
 ## Overview

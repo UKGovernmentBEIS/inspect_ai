@@ -136,6 +136,12 @@
   author: "[Jason Gwartz](https://github.com/jasongwartz)"
   categories: ["Sandboxes"]
 
+- name: "[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona)"
+  description: |
+    Sandbox environment for Inspect using Daytona's cloud infrastructure.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
+  categories: ["Sandboxes"]
+
 - name: "[Podman Sandbox](https://github.com/VectorInstitute/inspect-podman)"
   description: |
     Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.

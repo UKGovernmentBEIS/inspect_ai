@@ -1,5 +1,6 @@
 ---
 title: Parallelism
+llms-description: Tuning Inspect's parallel async architecture for optimal throughput while respecting rate limits.
 aliases:
   - eval-tuning.html
 ---

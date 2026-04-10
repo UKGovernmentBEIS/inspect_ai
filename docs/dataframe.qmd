@@ -1,5 +1,6 @@
 ---
 title: Log Dataframes
+llms-description: APIs for extracting dataframes of evals, samples, messages, and events from log files.
 ---
 
 ## Overview {#overview}

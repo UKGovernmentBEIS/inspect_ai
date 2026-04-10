@@ -528,7 +528,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
-        help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
+        help="Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.",
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(

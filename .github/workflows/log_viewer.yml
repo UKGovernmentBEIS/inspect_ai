@@ -55,7 +55,8 @@ jobs:
         run: |
           if [[ $(git status --porcelain) != "" ]]
           then
-            echo "Log format JSON Schema and TypeScript types are out of date. Please run python src/inspect_ai/_view/schema.py and check in the changes."
+            echo "Schemas or generated types are out of date. Please run:"
+            echo "  python src/inspect_ai/_view/schema.py"
             git status
             git diff
             exit 1

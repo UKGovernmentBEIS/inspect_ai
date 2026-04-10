@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.scorer"
+reference: inspect_ai.scorer
+description: Task scoring and metrics.
 ---
 
 ## Scorers

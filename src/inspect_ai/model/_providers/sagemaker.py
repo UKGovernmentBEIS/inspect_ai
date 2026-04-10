@@ -16,6 +16,7 @@ from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._openai import chat_choices_from_openai, model_output_from_openai
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -308,7 +309,9 @@ class SagemakerAPI(ModelAPI):
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.parameters.model_dump(exclude_none=True),
+                    "parameters": json_schema_dump(
+                        tool.parameters, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+                    ),
                 },
             }
             for tool in tools
@@ -361,16 +364,20 @@ class SagemakerAPI(ModelAPI):
 
         # Add response schema
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = {
+                "name": config.response_schema.name,
+                "schema": json_schema_dump(
+                    config.response_schema.json_schema,
+                    exclude=JSON_SCHEMA_EXTENDED_FIELDS,
+                ),
+            }
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             request_body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {
-                    "name": config.response_schema.name,
-                    "schema": config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    "description": config.response_schema.description,
-                    "strict": config.response_schema.strict,
-                },
+                "json_schema": json_schema_dict,
             }
 
         # Add extra body parameters

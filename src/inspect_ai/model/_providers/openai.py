@@ -261,7 +261,7 @@ class OpenAIAPI(ModelAPI):
         except KeyError:
             enc = tiktoken.get_encoding("o200k_base")  # fallback
 
-        tokens = enc.encode(text)
+        tokens = enc.encode(text, disallowed_special=())
         return len(tokens)
 
     @override
@@ -328,6 +328,9 @@ class OpenAIAPI(ModelAPI):
             or (self.is_gpt_5() and not self.is_gpt_5_chat())
             or self.is_codex()
         )
+
+    def reasoning_only_fallback(self) -> bool:
+        return False
 
     def is_o_series(self) -> bool:
         return is_o_series_model(self.service_model_name())

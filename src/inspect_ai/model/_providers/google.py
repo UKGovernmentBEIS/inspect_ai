@@ -112,6 +112,7 @@ from inspect_ai.tool import (
     ToolFunction,
     ToolInfo,
 )
+from inspect_ai.util._json import json_schema_dump
 
 from .util import model_base_url
 from .util.hooks import HttpHooks, HttpxHooks
@@ -351,8 +352,8 @@ class GoogleGenAIAPI(ModelAPI):
             )
             if config.response_schema is not None:
                 parameters.response_mime_type = "application/json"
-                parameters.response_json_schema = (
-                    config.response_schema.json_schema.model_dump(exclude_none=True)
+                parameters.response_json_schema = json_schema_dump(
+                    config.response_schema.json_schema
                 )
 
             model_call = start_model_call(
@@ -843,9 +844,7 @@ class GoogleGenAIAPI(ModelAPI):
                         FunctionDeclaration(
                             name=tool.name,
                             description=tool.description,
-                            parameters_json_schema=tool.parameters.model_dump(
-                                exclude_none=True
-                            )
+                            parameters_json_schema=json_schema_dump(tool.parameters)
                             if len(tool.parameters.properties) > 0
                             else None,
                         )

@@ -3,7 +3,7 @@ import textwrap
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, answer
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, answer
 
 
 @pytest.mark.anyio
@@ -39,7 +39,7 @@ async def test_word_failure():
     state = simple_task_state(model_output="ANSWER: Yes")
     result = await scorer(state, Target(["No"]))
 
-    assert result.text == INCORRECT
+    assert result.text == NOANSWER
 
 
 @pytest.mark.anyio

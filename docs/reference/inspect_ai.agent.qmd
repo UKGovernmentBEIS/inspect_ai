@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.agent"
+reference: inspect_ai.agent
+description: Agent scaffolds and protocol.
 ---
 
 ## Agents

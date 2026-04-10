@@ -21,6 +21,7 @@ from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -866,8 +867,9 @@ def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
             name=tool.name,
             description=tool.description,
             inputSchema={
-                "json": tool.parameters.model_dump(
-                    exclude_none=True, exclude={"additionalProperties"}
+                "json": json_schema_dump(
+                    tool.parameters,
+                    exclude={"additionalProperties"},
                 )
             },
         )

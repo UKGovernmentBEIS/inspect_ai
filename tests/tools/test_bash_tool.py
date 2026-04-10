@@ -23,7 +23,7 @@ def test_bash_simple_echo() -> None:
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name=bash.__name__,
-                    tool_arguments={"cmd": "echo 'testing bash tool'"},
+                    tool_arguments={"command": "echo 'testing bash tool'"},
                 ),
             ],
         ),
@@ -64,7 +64,7 @@ def test_bash_profile() -> None:
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name=bash.__name__,
-                    tool_arguments={"cmd": "echo $ENV_VAR"},
+                    tool_arguments={"command": "echo $ENV_VAR"},
                 ),
             ],
         ),

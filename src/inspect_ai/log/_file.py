@@ -137,6 +137,7 @@ def write_eval_log(
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
+    header_only: bool = False,
 ) -> None:
     """Write an evaluation log.
 
@@ -147,6 +148,9 @@ def write_eval_log(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+       header_only (bool): If True, only write the header to the log file.
+          For .eval files, this appends the header to the existing zip
+          without rewriting samples. Defaults to False.
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -160,7 +164,11 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(write_eval_log_async(log, location, format, if_match_etag))
+    run_coroutine(
+        write_eval_log_async(
+            log, location, format, if_match_etag, header_only=header_only
+        )
+    )
 
 
 async def write_eval_log_async(
@@ -168,6 +176,7 @@ async def write_eval_log_async(
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
+    header_only: bool = False,
 ) -> None:
     """Write an evaluation log.
 
@@ -178,6 +187,9 @@ async def write_eval_log_async(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+       header_only (bool): If True, only write the header to the log file.
+          For .eval files, this appends the header to the existing zip
+          without rewriting samples. Defaults to False.
     """
     # resolve location
     if location is None:
@@ -202,7 +214,7 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log, if_match_etag)
+    await recorder_type.write_log(location, log, if_match_etag, header_only=header_only)
 
     logger.debug(f"Writing eval log to {location} completed")
 
@@ -410,10 +422,10 @@ def read_eval_log_sample(
     Args:
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read. Optional, alternatively
-         specify `uuid` (you must specify `id` or `uuid`)
+          specify `uuid` (you must specify `id` or `uuid`)
        epoch (int): Epoch for sample id (defaults to 1)
        uuid: Sample uuid to read. Optional, alternatively specify
-         `id` and `epoch` (you must specify either `uuid` or `id`)
+          `id` and `epoch` (you must specify either `uuid` or `id`)
        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format

@@ -525,7 +525,7 @@ async def test_event_counts_logged_on_task_end(mlflow_env):
                 event=ToolEvent(
                     id="call-001",
                     function="bash",
-                    arguments={"cmd": "ls"},
+                    arguments={"command": "ls"},
                 ),
             )
         )

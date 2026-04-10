@@ -1,5 +1,6 @@
 ---
 title: Typing
+llms-description: Static type checking with Inspect, including typed interfaces to untyped storage (sample metadata and store).
 ---
 
 ## Overview

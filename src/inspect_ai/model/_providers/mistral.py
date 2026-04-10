@@ -9,7 +9,9 @@ from mistralai.client.models import (
     AssistantMessage as MistralAssistantMessage,
 )
 from mistralai.client.models import (
-    AudioChunk,
+    ChatCompletionChoice as MistralChatCompletionChoice,
+)
+from mistralai.client.models import (
     ContentChunk,
     DocumentURLChunk,
     FileChunk,
@@ -20,10 +22,6 @@ from mistralai.client.models import (
     ReferenceChunk,
     TextChunk,
     ThinkChunk,
-    UnknownContentChunk,
-)
-from mistralai.client.models import (
-    ChatCompletionChoice as MistralChatCompletionChoice,
 )
 from mistralai.client.models import Function as MistralFunction
 from mistralai.client.models import (
@@ -58,6 +56,7 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ..._util.httpx import httpx_should_retry
 from .._call_tools import parse_tool_call
@@ -330,9 +329,7 @@ def mistral_function(tool: ToolInfo) -> MistralFunction:
     return MistralFunction(
         name=tool.name,
         description=tool.description,
-        parameters=tool.parameters.model_dump(
-            exclude={"additionalProperties"}, exclude_none=True
-        ),
+        parameters=json_schema_dump(tool.parameters, exclude={"additionalProperties"}),
     )
 
 
@@ -583,7 +580,7 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
                 )
             )
         ]
-    elif isinstance(content, AudioChunk | UnknownContentChunk):
+    else:
         raise TypeError(f"{type(content)} content is not supported by Inspect.")
 
 
