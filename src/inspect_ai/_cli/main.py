@@ -12,6 +12,9 @@ from .log import log_command
 from .sandbox import sandbox_command
 from .score import score_command
 from .trace import trace_command
+from .attach import attach_command
+from .events import events_command
+from .respond import respond_command
 from .view import view_command
 
 
@@ -48,6 +51,9 @@ inspect.add_command(score_command)
 inspect.add_command(view_command)
 inspect.add_command(sandbox_command)
 inspect.add_command(trace_command)
+inspect.add_command(attach_command)
+inspect.add_command(events_command)
+inspect.add_command(respond_command)
 
 
 def main() -> None:
