@@ -1,14 +1,105 @@
+import os
+from contextvars import ContextVar, Token
 from pathlib import Path
+
+_DEFAULT_MAX_EXEC_OUTPUT_SIZE = 10 * 1024**2
+_DEFAULT_MAX_READ_FILE_SIZE = 100 * 1024**2
+
+_max_exec_output_size_var: ContextVar[int] = ContextVar(
+    "max_exec_output_size", default=_DEFAULT_MAX_EXEC_OUTPUT_SIZE
+)
+_max_read_file_size_var: ContextVar[int] = ContextVar(
+    "max_read_file_size", default=_DEFAULT_MAX_READ_FILE_SIZE
+)
+
+
+def _human_readable_size(size_bytes: int) -> str:
+    """Convert bytes to a human-readable string like '100 MiB'."""
+    if size_bytes >= 1024**3 and size_bytes % 1024**3 == 0:
+        return f"{size_bytes // 1024**3} GiB"
+    elif size_bytes >= 1024**2 and size_bytes % 1024**2 == 0:
+        return f"{size_bytes // 1024**2} MiB"
+    elif size_bytes >= 1024 and size_bytes % 1024 == 0:
+        return f"{size_bytes // 1024} KiB"
+    else:
+        return f"{size_bytes} bytes"
+
+
+class _LimitDescriptor:
+    """Descriptor that reads from a ContextVar, allowing class-level access."""
+
+    def __init__(self, var: ContextVar[int]) -> None:
+        self._var = var
+
+    def __get__(self, obj: object, objtype: type | None = None) -> int:
+        return self._var.get()
+
+
+class _LimitStrDescriptor:
+    """Descriptor that derives a human-readable string from a ContextVar."""
+
+    def __init__(self, var: ContextVar[int]) -> None:
+        self._var = var
+
+    def __get__(self, obj: object, objtype: type | None = None) -> str:
+        return _human_readable_size(self._var.get())
 
 
 class SandboxEnvironmentLimits:
     """Encapsulates limits for sandbox environments."""
 
-    MAX_EXEC_OUTPUT_SIZE = 10 * 1024**2
-    MAX_EXEC_OUTPUT_SIZE_STR = "10 MiB"
+    MAX_EXEC_OUTPUT_SIZE: int = _LimitDescriptor(_max_exec_output_size_var)  # type: ignore[assignment]
+    MAX_EXEC_OUTPUT_SIZE_STR: str = _LimitStrDescriptor(_max_exec_output_size_var)  # type: ignore[assignment]
 
-    MAX_READ_FILE_SIZE = 100 * 1024**2
-    MAX_READ_FILE_SIZE_STR = "100 MiB"
+    MAX_READ_FILE_SIZE: int = _LimitDescriptor(_max_read_file_size_var)  # type: ignore[assignment]
+    MAX_READ_FILE_SIZE_STR: str = _LimitStrDescriptor(_max_read_file_size_var)  # type: ignore[assignment]
+
+
+def _parse_limit_env_var(name: str, value: str) -> int:
+    """Parse and validate a sandbox limit environment variable."""
+    try:
+        limit = int(value)
+    except ValueError:
+        raise ValueError(f"{name} must be an integer (bytes), got '{value}'.")
+    if limit <= 0:
+        raise ValueError(f"{name} must be a positive integer (bytes), got {limit}.")
+    return limit
+
+
+def set_sandbox_limits() -> list[Token[int]]:
+    """Override sandbox limits for the current async context.
+
+    Override limits using the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` and `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE`.
+
+    Returns tokens that can be passed to `reset_sandbox_limits()` to restore
+    previous values.
+    """
+    tokens: list[Token[int]] = []
+    max_read_file_size = os.getenv("INSPECT_SANDBOX_MAX_READ_FILE_SIZE", None)
+    if max_read_file_size is not None:
+        tokens.append(
+            _max_read_file_size_var.set(
+                _parse_limit_env_var(
+                    "INSPECT_SANDBOX_MAX_READ_FILE_SIZE", max_read_file_size
+                )
+            )
+        )
+    max_exec_output_size = os.getenv("INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", None)
+    if max_exec_output_size is not None:
+        tokens.append(
+            _max_exec_output_size_var.set(
+                _parse_limit_env_var(
+                    "INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", max_exec_output_size
+                )
+            )
+        )
+    return tokens
+
+
+def reset_sandbox_limits(tokens: list[Token[int]]) -> None:
+    """Restore sandbox limits from tokens returned by `set_sandbox_limits()`."""
+    for token in tokens:
+        token.var.reset(token)
 
 
 class OutputLimitExceededError(Exception):
@@ -26,7 +117,7 @@ def verify_read_file_size(file: str) -> None:
     """Verify the size of a file to be read into memory.
 
     Raises:
-      OutputLimitExceededError: If the file size exceeds the 100 MiB limit.
+      OutputLimitExceededError: If the file size exceeds the limit.
     """
     file_size = Path(file).stat().st_size
     if file_size > SandboxEnvironmentLimits.MAX_READ_FILE_SIZE:
