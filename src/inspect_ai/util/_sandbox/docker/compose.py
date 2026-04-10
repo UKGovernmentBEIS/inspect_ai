@@ -122,9 +122,6 @@ async def compose_check_running(
 
     if len(successful_services) > 0:
         if len(successful_services) != len(services):
-            unhealthy_services = services
-            for successful_service in successful_services:
-                unhealthy_services.remove(successful_service["Service"])
             return []
     else:
         return []
