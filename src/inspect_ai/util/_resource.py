@@ -1,7 +1,6 @@
 import errno
 from typing import Any, Literal
 from urllib.parse import urlparse
-from urllib.request import url2pathname
 
 from inspect_ai._util.file import file, filesystem
 
@@ -50,7 +49,6 @@ def resource(
        Text content of resource.
     """
 
-    # helper function to read the resource as a file
     def read_resource() -> str:
         with file(resource, "r", fs_options=fs_options) as f:
             return f.read()
@@ -58,14 +56,12 @@ def resource(
     if type == "file":
         return read_resource()
     else:
-        # parse the url
         try:
             parsed = urlparse(resource)
         except (ValueError, OSError):
             return resource
 
-        # if it has a scheme then its likely a file
-        if parsed.scheme:
+        if parsed.scheme and "://" in resource:
             try:
                 return read_resource()
             except (ValueError, FileNotFoundError):
@@ -76,24 +72,11 @@ def resource(
                 else:
                     raise ex
 
-        # no scheme means either a local file or a string
-        else:
-            # extract the path
-            try:
-                path = url2pathname(parsed.path)
-            except (ValueError, OSError):
+        try:
+            fs = filesystem(resource)
+            if fs.exists(resource):
+                return read_resource()
+            else:
                 return resource
-
-            # check if there is a path (otherwise return the str)
-            if len(path) == 0:
-                return resource
-
-            # return it if it exists (otherwise return the str)
-            try:
-                fs = filesystem(path)
-                if fs.exists(path):
-                    return read_resource()
-                else:
-                    return resource
-            except ValueError:
-                return resource
+        except (ValueError, OSError):
+            return resource        
