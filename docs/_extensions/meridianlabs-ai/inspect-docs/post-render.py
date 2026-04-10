@@ -1,17 +1,28 @@
 """Post-render script for inspect-docs extension.
 
-Enhances Quarto's built-in llms-txt output:
-1. Renames .llms.md files to .html.md (per llmstxt.org spec)
+Generates per-page Markdown (.html.md) files and structured llms.txt output:
+1. Converts rendered HTML pages to Markdown via pandoc
 2. Generates a structured llms.txt using navigation config and page descriptions
+3. Generates llms-full.txt and llms-guide.txt concatenated docs
 """
 
 import os
+import re
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 YamlDict = dict[str, Any]
+
+# Resolve path to the Lua filter bundled with this extension
+_FILTER_DIR = Path(__file__).resolve().parent / "filters"
+_LLMS_LUA = _FILTER_DIR / "llms.lua"
+
+# HTML files to skip when generating .html.md
+_SKIP_FILES = {"404.html", "sitemap.xml"}
 
 
 def main() -> None:
@@ -24,10 +35,10 @@ def main() -> None:
         raw = os.environ.get("QUARTO_PROJECT_OUTPUT_FILES", "")
         output_files = [Path(f) for f in raw.splitlines() if f.strip()]
 
-    # enhancement 1: rename .llms.md -> .html.md and fix links
-    rename_llms_files(output_dir, output_files)
+    # step 1: generate .html.md for rendered pages
+    generate_html_md_files(output_dir, output_files)
 
-    # enhancement 2: generate structured llms.txt (full render only)
+    # step 2: generate structured llms.txt (full render only)
     if render_all:
         with open("_quarto.yml", "r") as f:
             config: YamlDict = yaml.safe_load(f)
@@ -36,45 +47,103 @@ def main() -> None:
         generate_llms_full_and_guide(output_dir, opts)
 
 
-def rename_llms_files(output_dir: Path, output_files: list[Path] | None) -> None:
-    """Rename .llms.md files to .html.md and update internal links."""
+def generate_html_md_files(
+    output_dir: Path, output_files: list[Path] | None
+) -> None:
+    """Convert rendered HTML pages to Markdown using pandoc."""
     if output_files is not None:
-        # incremental: only process files corresponding to rendered outputs
-        llms_files: list[Path] = []
-        for f in output_files:
-            if f.name.endswith(".html"):
-                candidate = f.with_name(f.name.removesuffix(".html") + ".llms.md")
-                if candidate.exists():
-                    llms_files.append(candidate)
+        # incremental: only process rendered HTML files
+        html_files = [f for f in output_files if f.name.endswith(".html")]
     else:
-        # full render: process all .llms.md files
-        llms_files = list(output_dir.rglob("*.llms.md"))
+        # full render: process all HTML files
+        html_files = list(output_dir.rglob("*.html"))
 
-    # phase 1: rename all files
-    renamed: list[Path] = []
-    for llms_path in llms_files:
-        html_md_path = llms_path.with_name(
-            llms_path.name.replace(".llms.md", ".html.md")
+    for html_path in html_files:
+        if html_path.name in _SKIP_FILES:
+            continue
+        # skip site_libs and other non-content directories
+        try:
+            rel = html_path.relative_to(output_dir)
+        except ValueError:
+            continue
+        if str(rel).startswith("site_libs"):
+            continue
+
+        md_path = html_path.with_name(
+            html_path.name.removesuffix(".html") + ".html.md"
         )
-        llms_path.rename(html_md_path)
-        renamed.append(html_md_path)
-
-    # phase 2: update links in renamed files
-    for path in renamed:
-        update_links_in_file(path)
-
-    # phase 3: update llms.txt references
-    llms_txt = output_dir / "llms.txt"
-    if llms_txt.exists():
-        update_links_in_file(llms_txt)
+        convert_html_to_md(html_path, md_path)
 
 
-def update_links_in_file(path: Path) -> None:
-    """Replace all .llms.md references with .html.md in a file."""
-    content = path.read_text()
-    updated = content.replace(".llms.md", ".html.md")
-    if updated != content:
-        path.write_text(updated)
+def convert_html_to_md(html_path: Path, md_path: Path) -> None:
+    """Run pandoc to convert an HTML file to GFM Markdown."""
+    # Extract just the <main class="content"> section to avoid
+    # converting navigation chrome that the Lua filter would need to strip.
+    html_content = html_path.read_text(encoding="utf-8")
+    main_content = extract_main_content(html_content)
+
+    # Extract the title from the HTML
+    title = extract_html_title(html_content)
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".html", delete=False, encoding="utf-8"
+    ) as tmp:
+        tmp.write(main_content)
+        tmp_path = tmp.name
+
+    try:
+        result = subprocess.run(
+            [
+                "quarto",
+                "pandoc",
+                tmp_path,
+                "-f",
+                "html",
+                "-t",
+                "gfm-raw_html",
+                "--lua-filter",
+                str(_LLMS_LUA),
+                "--wrap=none",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            md_text = result.stdout
+            # Prepend title as H1 if we extracted one
+            if title:
+                md_text = f"# {title}\n\n{md_text}"
+            md_path.write_text(md_text, encoding="utf-8")
+    finally:
+        os.unlink(tmp_path)
+
+
+def extract_main_content(html: str) -> str:
+    """Extract content from <main class="content" ...> to </main>."""
+    match = re.search(
+        r'<main\s[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)</main>',
+        html,
+        re.DOTALL,
+    )
+    if match:
+        return match.group(1)
+    # Fallback: try <main> without class
+    match = re.search(r"<main[^>]*>(.*?)</main>", html, re.DOTALL)
+    if match:
+        return match.group(1)
+    # Last resort: return the full body
+    match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL)
+    if match:
+        return match.group(1)
+    return html
+
+
+def extract_html_title(html: str) -> str | None:
+    """Extract the <title> text from an HTML page."""
+    match = re.search(r"<title>(.*?)</title>", html, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return None
 
 
 def generate_llms_txt(output_dir: Path, opts: YamlDict) -> None:
@@ -205,9 +274,6 @@ def generate_llms_full_and_guide(output_dir: Path, opts: YamlDict) -> None:
 
     - `llms-full.txt`  -- every page, including reference docs.
     - `llms-guide.txt` -- every page except anything under `reference/`.
-
-    The per-page Markdown is already written to `output_dir` by Quarto's
-    llms-txt pass; this function just concatenates what's already there.
     """
     title: str = opts.get("title", "")
     description: str = opts.get("description", "")

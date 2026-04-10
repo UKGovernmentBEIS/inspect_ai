@@ -407,6 +407,9 @@ class ModelInfo(ResponsesModelInfo):
     def has_reasoning_options(self) -> bool:
         return True
 
+    def reasoning_only_fallback(self) -> bool:
+        return True
+
     def is_gpt(self) -> bool:
         return False
 

@@ -329,6 +329,9 @@ class OpenAIAPI(ModelAPI):
             or self.is_codex()
         )
 
+    def reasoning_only_fallback(self) -> bool:
+        return False
+
     def is_o_series(self) -> bool:
         return is_o_series_model(self.service_model_name())
 
