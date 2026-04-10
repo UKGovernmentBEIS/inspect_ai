@@ -6,11 +6,14 @@ import pytest
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentToolUse
+from inspect_ai._util.content import Content, ContentText, ContentToolUse
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
     ChatMessageTool,
+    ChatMessageUser,
     GenerateConfig,
     get_model,
 )
@@ -276,3 +279,73 @@ async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     tool_uses = [c for c in output.message.content if isinstance(c, ContentToolUse)]
     assert len(tool_uses) == 1
     assert tool_uses[0].id == "toolu_1"
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_prompt_caching() -> None:
+    """Verify prompt caching produces cache_read tokens on second request."""
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=50, temperature=0.0),
+    )
+
+    # Large system message to exceed minimum cacheable threshold (2048 tokens
+    # for sonnet 4.6). Anthropic silently skips caching below the threshold.
+    system_text = "You are a helpful assistant. " * 400
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content=system_text),
+        ChatMessageUser(content="Say hello."),
+    ]
+
+    # First call: creates cache or hits existing cache from prior run
+    response1 = await model.generate(input=messages)
+    assert response1.usage is not None
+
+    # Second call with same prefix: should always hit cache
+    response2 = await model.generate(input=messages)
+    assert response2.usage is not None
+    assert (response2.usage.input_tokens_cache_read or 0) > 0
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_prompt_caching_content_blocks() -> None:
+    """Verify caching works at the content block level within messages.
+
+    Builds a multi-turn conversation with multiple content blocks per message
+    (no system message or tools) and confirms that the shared prefix of content
+    blocks from turn 1 produces a cache hit on turn 2.
+    """
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=50, temperature=0.0, cache_prompt=True),
+    )
+
+    # Build a user message with several content blocks totalling >2048 tokens
+    paragraph = "The quick brown fox jumps over the lazy dog. " * 50
+    content_blocks: list[Content] = [
+        ContentText(text=f"Section {i}: {paragraph}") for i in range(5)
+    ]
+
+    # Turn 1: user message with multiple content blocks
+    turn1_messages: list[ChatMessage] = [
+        ChatMessageUser(content=content_blocks),
+    ]
+    response1 = await model.generate(input=turn1_messages)
+    assert response1.usage is not None
+
+    # Turn 2: same user content blocks + assistant reply + new user content
+    turn2_messages: list[ChatMessage] = [
+        ChatMessageUser(content=content_blocks),
+        ChatMessageAssistant(content=response1.completion),
+        ChatMessageUser(
+            content=[
+                ContentText(text="Follow-up question part A."),
+                ContentText(text="Follow-up question part B."),
+            ]
+        ),
+    ]
+    response2 = await model.generate(input=turn2_messages)
+    assert response2.usage is not None
+    assert (response2.usage.input_tokens_cache_read or 0) > 0
