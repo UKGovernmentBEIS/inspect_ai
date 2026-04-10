@@ -116,7 +116,7 @@ class SandboxEnvironment(abc.ABC):
         The current working directory for execution will be the per-sample
         filesystem context.
 
-        By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environmnt variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
+        By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable (specified in bytes). If exceeded, an `OutputLimitExceededError` will be raised.
 
         Args:
           cmd: Command or command and arguments to execute.

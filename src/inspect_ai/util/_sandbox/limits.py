@@ -34,9 +34,6 @@ class _LimitDescriptor:
     def __get__(self, obj: object, objtype: type | None = None) -> int:
         return self._var.get()
 
-    def __set__(self, obj: object, value: int) -> None:
-        self._var.set(value)
-
 
 class _LimitStrDescriptor:
     """Descriptor that derives a human-readable string from a ContextVar."""
@@ -49,18 +46,24 @@ class _LimitStrDescriptor:
 
 
 class SandboxEnvironmentLimits:
-    """Encapsulates limits for sandbox environments.
-
-    Limits are stored in context variables so they are safe for concurrent
-    async tasks. Use `set_sandbox_limits()` / `reset_sandbox_limits()` to
-    override per-task.
-    """
+    """Encapsulates limits for sandbox environments."""
 
     MAX_EXEC_OUTPUT_SIZE: int = _LimitDescriptor(_max_exec_output_size_var)  # type: ignore[assignment]
     MAX_EXEC_OUTPUT_SIZE_STR: str = _LimitStrDescriptor(_max_exec_output_size_var)  # type: ignore[assignment]
 
     MAX_READ_FILE_SIZE: int = _LimitDescriptor(_max_read_file_size_var)  # type: ignore[assignment]
     MAX_READ_FILE_SIZE_STR: str = _LimitStrDescriptor(_max_read_file_size_var)  # type: ignore[assignment]
+
+
+def _parse_limit_env_var(name: str, value: str) -> int:
+    """Parse and validate a sandbox limit environment variable."""
+    try:
+        limit = int(value)
+    except ValueError:
+        raise ValueError(f"{name} must be an integer (bytes), got '{value}'.")
+    if limit <= 0:
+        raise ValueError(f"{name} must be a positive integer (bytes), got {limit}.")
+    return limit
 
 
 def set_sandbox_limits() -> list[Token[int]]:
@@ -74,10 +77,22 @@ def set_sandbox_limits() -> list[Token[int]]:
     tokens: list[Token[int]] = []
     max_read_file_size = os.getenv("INSPECT_SANDBOX_MAX_READ_FILE_SIZE", None)
     if max_read_file_size is not None:
-        tokens.append(_max_read_file_size_var.set(int(max_read_file_size)))
+        tokens.append(
+            _max_read_file_size_var.set(
+                _parse_limit_env_var(
+                    "INSPECT_SANDBOX_MAX_READ_FILE_SIZE", max_read_file_size
+                )
+            )
+        )
     max_exec_output_size = os.getenv("INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", None)
     if max_exec_output_size is not None:
-        tokens.append(_max_exec_output_size_var.set(int(max_exec_output_size)))
+        tokens.append(
+            _max_exec_output_size_var.set(
+                _parse_limit_env_var(
+                    "INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", max_exec_output_size
+                )
+            )
+        )
     return tokens
 
 
