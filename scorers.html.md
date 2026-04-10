@@ -1,4 +1,4 @@
-# Scorers
+# Scorers – Inspect
 
 ## Overview
 
@@ -12,53 +12,53 @@ Scorers evaluate whether solvers were successful in finding the right `output` f
 
 4.  Using another rubric entirely (e.g. did the model produce a valid version of a file format, etc.)
 
-Scorers also define one or more metrics which are used to aggregate scores (e.g. [accuracy()](reference/inspect_ai.scorer.html.md#accuracy) which computes what percentage of scores are correct, or [mean()](reference/inspect_ai.scorer.html.md#mean) which provides an average for scores that exist on a continuum).
+Scorers also define one or more metrics which are used to aggregate scores (e.g. [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy) which computes what percentage of scores are correct, or [mean()](./reference/inspect_ai.scorer.html.md#mean) which provides an average for scores that exist on a continuum).
 
 ## Built-In Scorers
 
 Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
 
-- [includes()](reference/inspect_ai.scorer.html.md#includes)
+- [includes()](./reference/inspect_ai.scorer.html.md#includes)
 
-  Determine whether the `target` from the [Sample](reference/inspect_ai.dataset.html.md#sample) appears anywhere inside the model output. Can be case sensitive or insensitive (defaults to the latter).
+  Determine whether the `target` from the [Sample](./reference/inspect_ai.dataset.html.md#sample) appears anywhere inside the model output. Can be case sensitive or insensitive (defaults to the latter).
 
-- [match()](reference/inspect_ai.scorer.html.md#match)
+- [match()](./reference/inspect_ai.scorer.html.md#match)
 
-  Determine whether the `target` from the [Sample](reference/inspect_ai.dataset.html.md#sample) appears at the beginning or end of model output (defaults to looking at the end). Has options for ignoring case, white-space, and punctuation (all are ignored by default).
+  Determine whether the `target` from the [Sample](./reference/inspect_ai.dataset.html.md#sample) appears at the beginning or end of model output (defaults to looking at the end). Has options for ignoring case, white-space, and punctuation (all are ignored by default).
 
-- [pattern()](reference/inspect_ai.scorer.html.md#pattern)
+- [pattern()](./reference/inspect_ai.scorer.html.md#pattern)
 
   Extract the answer from model output using a regular expression.
 
-- [answer()](reference/inspect_ai.scorer.html.md#answer)
+- [answer()](./reference/inspect_ai.scorer.html.md#answer)
 
   Scorer for model output that preceded answers with “ANSWER:”. Can extract letters, words, or the remainder of the line.
 
-- [exact()](reference/inspect_ai.scorer.html.md#exact)
+- [exact()](./reference/inspect_ai.scorer.html.md#exact)
 
   Scorer which will normalize the text of the answer and target(s) and perform an exact matching comparison of the text. This scorer will return `CORRECT` when the answer is an exact match to one or more targets.
 
-- [f1()](reference/inspect_ai.scorer.html.md#f1)
+- [f1()](./reference/inspect_ai.scorer.html.md#f1)
 
   Scorer which computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
 
-- [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa)
+- [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa)
 
   Have another model assess whether the model output is a correct answer based on the grading guidance contained in `target`. Has a built-in template that can be customised.
 
-- [model_graded_fact()](reference/inspect_ai.scorer.html.md#model_graded_fact)
+- [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact)
 
-  Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa), and is used when model output is too complex to be assessed using a simple [match()](reference/inspect_ai.scorer.html.md#match) or [pattern()](reference/inspect_ai.scorer.html.md#pattern) scorer.
+  Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa), and is used when model output is too complex to be assessed using a simple [match()](./reference/inspect_ai.scorer.html.md#match) or [pattern()](./reference/inspect_ai.scorer.html.md#pattern) scorer.
 
-- [choice()](reference/inspect_ai.scorer.html.md#choice)
+- [choice()](./reference/inspect_ai.scorer.html.md#choice)
 
-  Specialised scorer that is used with the [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) solver.
+  Specialised scorer that is used with the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver.
 
-- [math()](reference/inspect_ai.scorer.html.md#math)
+- [math()](./reference/inspect_ai.scorer.html.md#math)
 
   Scorer for evaluating mathematical expressions and answers. Extracts answers from model output (supporting both `\boxed{}` LaTeX notation and plain text), normalizes mathematical expressions, and uses SymPy to check for mathematical equivalence. Handles various mathematical formats including LaTeX, fractions, roots, percentages, and algebraic expressions. **Note:** Requires the optional `sympy` dependency—install with `pip install sympy`.
 
-Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in [Task](reference/inspect_ai.html.md#task) definitions. For example:
+Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in [Task](./reference/inspect_ai.html.md#task) definitions. For example:
 
 ``` python
 Task(
@@ -72,7 +72,7 @@ Task(
 )
 ```
 
-> **NOTE:**
+> **NOTE: Note**
 >
 > The current development version of Inspect replaces the use of the `bootstrap_stderr` metric with `stderr` for the built in scorers enumerated above.
 >
@@ -84,7 +84,7 @@ Task(
 
 Model graded scorers are well suited to assessing open ended answers as well as factual answers that are embedded in a longer narrative. The built-in model graded scorers can be customised in several ways—you can also create entirely new model scorers (see the model graded example below for a starting point).
 
-Here is the declaration for the [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa) function:
+Here is the declaration for the [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) function:
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -114,7 +114,7 @@ There are a few ways you can customise the default behaviour:
 2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). You may optionally instead pass a function that enables customising the presentation of the chat history.
 3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
 4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
-5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](models.html.md#model-roles) for details.
+5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](./models.html.md#model-roles) for details.
 6.  Specify a different `template`—note that templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
 
 ### Template Variables
@@ -125,14 +125,14 @@ When using a custom `template`, the following variables are available:
 |----|----|----|
 | `{question}` | `Sample.input` | The original prompt sent to the model being evaluated. |
 | `{answer}` | Model output | The completion generated by the model being evaluated. |
-| `{criterion}` | `Sample.target` | The grading criterion—populated from the `target` field in your dataset or [FieldSpec](reference/inspect_ai.dataset.html.md#fieldspec). |
+| `{criterion}` | `Sample.target` | The grading criterion—populated from the `target` field in your dataset or [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec). |
 | `{instructions}` | `instructions` parameter | Grading instructions (defaults ask for `GRADE: C` or `GRADE: I`). |
 
 Variables from `Sample.metadata` are also available in the template (any metadata keys that don’t collide with the four built-in variables above).
 
 #### Where `{criterion}` comes from
 
-The `{criterion}` variable is populated from `Sample.target` (equivalently, the `target` field in your [FieldSpec](reference/inspect_ai.dataset.html.md#fieldspec)). In the default template, this produces a prompt like:
+The `{criterion}` variable is populated from `Sample.target` (equivalently, the `target` field in your [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec)). In the default template, this produces a prompt like:
 
     [Criterion]: The answer should name Paris as the capital of France.
 
@@ -209,9 +209,9 @@ def sycophancy_eval():
     )
 ```
 
-The [model_graded_fact()](reference/inspect_ai.scorer.html.md#model_graded_fact) scorer works identically to [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa) (including model selection precedence and multi-model voting), and simply provides an alternate `template` oriented around judging whether a fact is included in the model output.
+The [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) scorer works identically to [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) (including model selection precedence and multi-model voting), and simply provides an alternate `template` oriented around judging whether a fact is included in the model output.
 
-If you want to understand how the default templates for [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa) and [model_graded_fact()](reference/inspect_ai.scorer.html.md#model_graded_fact) work, see their [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/scorer/_model.py).
+If you want to understand how the default templates for [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) and [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) work, see their [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/scorer/_model.py).
 
 ### Multiple Models
 
@@ -227,11 +227,11 @@ model_graded_qa(
 )
 ```
 
-The implementation of multiple grader models takes advantage of the [multi_scorer()](reference/inspect_ai.scorer.html.md#multi_scorer) and `majority_vote()` functions, both of which can be used in your own scorers (as described in the [Multiple Scorers](#sec-multiple-scorers) section below).
+The implementation of multiple grader models takes advantage of the [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) and `majority_vote()` functions, both of which can be used in your own scorers (as described in the [Multiple Scorers](#sec-multiple-scorers) section below).
 
 ## Custom Scorers
 
-Custom scorers are functions that take a [TaskState](reference/inspect_ai.solver.html.md#taskstate) and [Target](reference/inspect_ai.scorer.html.md#target), and yield a [Score](reference/inspect_ai.scorer.html.md#score).
+Custom scorers are functions that take a [TaskState](./reference/inspect_ai.solver.html.md#taskstate) and [Target](./reference/inspect_ai.scorer.html.md#target), and yield a [Score](./reference/inspect_ai.scorer.html.md#score).
 
 ``` python
 async def score(state: TaskState, target: Target):
@@ -240,24 +240,24 @@ async def score(state: TaskState, target: Target):
      return Score(value=...)
 ```
 
-First we’ll talk about the core [Score](reference/inspect_ai.scorer.html.md#score) and [Value](reference/inspect_ai.scorer.html.md#value) objects, then provide some examples of custom scorers to make things more concrete.
+First we’ll talk about the core [Score](./reference/inspect_ai.scorer.html.md#score) and [Value](./reference/inspect_ai.scorer.html.md#value) objects, then provide some examples of custom scorers to make things more concrete.
 
 > **NOTE:**
 >
-> Note that `score` above is declared as an `async` function. When creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.html.md#sec-parallel-solvers-and-scorers) before proceeding.
+> Note that `score` above is declared as an `async` function. When creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](./parallelism.html.md#sec-parallel-solvers-and-scorers) before proceeding.
 
 ### Score
 
-The components of [Score](reference/inspect_ai.scorer.html.md#score) include:
+The components of [Score](./reference/inspect_ai.scorer.html.md#score) include:
 
 | Field | Type | Description |
 |----|----|----|
-| `value` | [Value](reference/inspect_ai.scorer.html.md#value) | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
+| `value` | [Value](./reference/inspect_ai.scorer.html.md#value) | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
 | `answer` | `str` | Text extracted from model output for comparison (optional). |
 | `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
 | `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
-For example, the following are all valid [Score](reference/inspect_ai.scorer.html.md#score) objects:
+For example, the following are all valid [Score](./reference/inspect_ai.scorer.html.md#score) objects:
 
 ``` python
 Score(value="C")
@@ -270,11 +270,11 @@ Score(
 )
 ```
 
-If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your [Score](reference/inspect_ai.scorer.html.md#score), as this makes it much easier to understand the details of scoring when viewing the eval log file.
+If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your [Score](./reference/inspect_ai.scorer.html.md#score), as this makes it much easier to understand the details of scoring when viewing the eval log file.
 
 ### Value
 
-[Value](reference/inspect_ai.scorer.html.md#value) is union over the main scalar types as well as a `list` or `dict` of the same types:
+[Value](./reference/inspect_ai.scorer.html.md#value) is union over the main scalar types as well as a `list` or `dict` of the same types:
 
 ``` python
 Value = Union[
@@ -284,13 +284,13 @@ Value = Union[
 ]
 ```
 
-The vast majority of scorers will use `str` (e.g. for correct/incorrect via “C” and “I”) or `float` (the other types are there to meet more complex scenarios). One thing to keep in mind is that whatever [Value](reference/inspect_ai.scorer.html.md#value) type you use in a scorer must be supported by the metrics declared for the scorer (more on this below).
+The vast majority of scorers will use `str` (e.g. for correct/incorrect via “C” and “I”) or `float` (the other types are there to meet more complex scenarios). One thing to keep in mind is that whatever [Value](./reference/inspect_ai.scorer.html.md#value) type you use in a scorer must be supported by the metrics declared for the scorer (more on this below).
 
 Next, we’ll take a look at the source code for a couple of the built in scorers as a jumping off point for implementing your own scorers. If you are working on custom scorers, you should also review the [Scorer Workflow](#sec-scorer-workflow) section below for tips on optimising your development process.
 
 ### Models in Scorers
 
-You’ll often want to use models in the implementation of scorers. Use the [get_model()](reference/inspect_ai.model.html.md#get_model) function to get either the currently evaluated model or another model interface. For example:
+You’ll often want to use models in the implementation of scorers. Use the [get_model()](./reference/inspect_ai.model.html.md#get_model) function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for grading
@@ -300,7 +300,7 @@ grader_model = get_model()
 grader_model = get_model("google/gemini-2.5-pro")
 ```
 
-Use the `config` parameter of [get_model()](reference/inspect_ai.model.html.md#get_model) to override default generation options:
+Use the `config` parameter of [get_model()](./reference/inspect_ai.model.html.md#get_model) to override default generation options:
 
 ``` python
 grader_model = get_model(
@@ -311,17 +311,17 @@ grader_model = get_model(
 
 ### Example: Includes
 
-Here is the source code for the built-in [includes()](reference/inspect_ai.scorer.html.md#includes) scorer:
+Here is the source code for the built-in [includes()](./reference/inspect_ai.scorer.html.md#includes) scorer:
 
 ``` python
-@scorer(metrics=[accuracy(), stderr()])   # <1>
+1@scorer(metrics=[accuracy(), stderr()])
 def includes(ignore_case: bool = True):
 
-    async def score(state: TaskState, target: Target):   # <2>
+2    async def score(state: TaskState, target: Target):
 
         # check for correct
         answer = state.output.completion
-        target = target.text   # <3>
+3        target = target.text
         if ignore_case:
             correct = answer.lower().rfind(target.lower()) != -1
         else:
@@ -329,22 +329,31 @@ def includes(ignore_case: bool = True):
 
         # return score
         return Score(
-            value = CORRECT if correct else INCORRECT,    # <4>
-            answer=answer  # <5>
+4            value = CORRECT if correct else INCORRECT,
+5            answer=answer
         )
 
     return score
 ```
 
-1.  The function applies the `@scorer` decorator and registers two metrics for use with the scorer.
-2.  The `score` function is declared as `async`. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this scorer doesn’t call a model but others will).
-3.  We make use of the `text` property on the [Target](reference/inspect_ai.scorer.html.md#target). This is a convenience property to get a simple text value out of the [Target](reference/inspect_ai.scorer.html.md#target) (as targets can technically be a list of strings).
-4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the [accuracy()](reference/inspect_ai.scorer.html.md#accuracy), [stderr()](reference/inspect_ai.scorer.html.md#stderr), and [bootstrap_stderr()](reference/inspect_ai.scorer.html.md#bootstrap_stderr) metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
-5.  We provide the full model completion as the answer for the score (`answer` is optional, but highly recommended as it is often useful to refer to during evaluation development).
+1  
+The function applies the `@scorer` decorator and registers two metrics for use with the scorer.
+
+2  
+The `score` function is declared as `async`. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this scorer doesn’t call a model but others will).
+
+3  
+We make use of the `text` property on the [Target](./reference/inspect_ai.scorer.html.md#target). This is a convenience property to get a simple text value out of the [Target](./reference/inspect_ai.scorer.html.md#target) (as targets can technically be a list of strings).
+
+4  
+We use the special constants `CORRECT` and `INCORRECT` for the score value (as the [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy), [stderr()](./reference/inspect_ai.scorer.html.md#stderr), and [bootstrap_stderr()](./reference/inspect_ai.scorer.html.md#bootstrap_stderr) metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
+
+5  
+We provide the full model completion as the answer for the score (`answer` is optional, but highly recommended as it is often useful to refer to during evaluation development).
 
 ### Example: Model Grading
 
-Here’s a somewhat simplified version of the code for the [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa) scorer:
+Here’s a somewhat simplified version of the code for the [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) scorer:
 
 ``` python
 
@@ -396,19 +405,19 @@ def model_graded_qa(
 
 Note that the call to `model_grader.generate()` is done with `await`—this is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 
-Note also we use the `input_text` property of the [TaskState](reference/inspect_ai.solver.html.md#taskstate) to access a string version of the original user input to substitute it into the grading template. Using the `input_text` has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in `messages`); and (2) It normalises the input to a string (as it could have been a message list).
+Note also we use the `input_text` property of the [TaskState](./reference/inspect_ai.solver.html.md#taskstate) to access a string version of the original user input to substitute it into the grading template. Using the `input_text` has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in `messages`); and (2) It normalises the input to a string (as it could have been a message list).
 
 ## Multiple Scorers
 
 There are several ways to use multiple scorers in an evaluation:
 
-1.  You can provide a list of scorers in a [Task](reference/inspect_ai.html.md#task) definition (this is the best option when scorers are entirely independent)
-2.  You can yield multiple scores from a [Scorer](reference/inspect_ai.scorer.html.md#scorer) (this is the best option when scores share code and/or expensive computations).
+1.  You can provide a list of scorers in a [Task](./reference/inspect_ai.html.md#task) definition (this is the best option when scorers are entirely independent)
+2.  You can yield multiple scores from a [Scorer](./reference/inspect_ai.scorer.html.md#scorer) (this is the best option when scores share code and/or expensive computations).
 3.  You can use multiple scorers and then aggregate them into a single scorer (e.g. majority voting).
 
 ### List of Scorers
 
-[Task](reference/inspect_ai.html.md#task) definitions can specify multiple scorers. For example, the below task will use two different models to grade the results, storing two scores with each sample, one for each of the two models:
+[Task](./reference/inspect_ai.html.md#task) definitions can specify multiple scorers. For example, the below task will use two different models to grade the results, storing two scores with each sample, one for each of the two models:
 
 ``` python
 Task(
@@ -432,20 +441,20 @@ You may also create a scorer which yields multiple scores. This is useful when t
 
 ``` python
 @scorer(
-    metrics={  # <1>
-        "a_count": [mean(), stderr()],  # <1>
-        "e_count": [mean(), stderr()]   # <1>
-    } # <1>
+1    metrics={
+        "a_count": [mean(), stderr()],
+        "e_count": [mean(), stderr()]
+    }
 )
 def letter_count():
     async def score(state: TaskState, target: Target):
         answer = state.output.completion
         a_count = answer.count("a")
         e_count = answer.count("e")
-        return Score(  # <2>
-            value={"a_count": a_count, "e_count": e_count},  # <2>
-            answer=answer  # <2>
-        ) # <2>
+2        return Score(
+            value={"a_count": a_count, "e_count": e_count},
+            answer=answer
+        )
 
     return score
 
@@ -455,8 +464,11 @@ task = Task(
 )
 ```
 
-1.  The metrics for this scorer are a dictionary—this defines metrics to be applied to scores (by name).
-2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+1  
+The metrics for this scorer are a dictionary—this defines metrics to be applied to scores (by name).
+
+2  
+The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
 
 The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
 
@@ -487,20 +499,20 @@ Sometime, it is useful for a scorer to compute multiple values (returning a dict
 
 ``` python
 @scorer(
-    metrics=[{  # <1>
-        "a_count": [mean(), stderr()],  # <1>
-        "e_count": [mean(), stderr()]   # <1>
-    }, total_count()] # <1>
+1    metrics=[{
+        "a_count": [mean(), stderr()],
+        "e_count": [mean(), stderr()]
+    }, total_count()]
 )
 def letter_count():
     async def score(state: TaskState, target: Target):
         answer = state.output.completion
         a_count = answer.count("a")
         e_count = answer.count("e")
-        return Score(  # <2>
-            value={"a_count": a_count, "e_count": e_count},  # <2>
-            answer=answer  # <2>
-        ) # <2>
+2        return Score(
+            value={"a_count": a_count, "e_count": e_count},
+            answer=answer
+        )
 
     return score
 
@@ -509,8 +521,8 @@ def total_count() -> Metric:
     def metric(scores: list[SampleScore]) -> int | float:
         total = 0.0
         for score in scores:
-            total = score.score.value["a_count"] # <3>
-                + score.score.value["e_count"]   # <3>
+3            total = score.score.value["a_count"]
+                + score.score.value["e_count"]
         return total
     return metric
 
@@ -520,13 +532,18 @@ task = Task(
 )
 ```
 
-1.  The metrics for this scorer are a list, one element is a dictionary—this defines metrics to be applied to scores (by name), the other element is a Metric which will receive the entire score dictionary.
-2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
-3.  The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn’t being mapped onto the dictionary by key)
+1  
+The metrics for this scorer are a list, one element is a dictionary—this defines metrics to be applied to scores (by name), the other element is a Metric which will receive the entire score dictionary.
+
+2  
+The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+
+3  
+The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn’t being mapped onto the dictionary by key)
 
 ### Reducing Multiple Scores
 
-It’s possible to use multiple scorers in parallel, then reduce their output into a final overall score. This is done using the [multi_scorer()](reference/inspect_ai.scorer.html.md#multi_scorer) function. For example, this is roughly how the built in model graders use multiple models for grading:
+It’s possible to use multiple scorers in parallel, then reduce their output into a final overall score. This is done using the [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) function. For example, this is roughly how the built in model graders use multiple models for grading:
 
 ``` python
 multi_scorer(
@@ -535,11 +552,11 @@ multi_scorer(
 )
 ```
 
-Use of [multi_scorer()](reference/inspect_ai.scorer.html.md#multi_scorer) requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the “mode” reducer which returns the score that appeared most frequently in the answers.
+Use of [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the “mode” reducer which returns the score that appeared most frequently in the answers.
 
 ### Sandbox Access
 
-If your Solver is an [Agent](agents.html.md) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
+If your Solver is an [Agent](./agents.html.md) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
 
 The contents of the sandbox for the Sample are available to the scorer; simply call `await sandbox().read_file()` (or `.exec()`).
 
@@ -586,7 +603,7 @@ def challenge() -> Task:
 
 Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`) corresponding to the most typically useful metrics for that scorer.
 
-You can override scorer’s built-in metrics by passing an alternate list of `metrics` to the [Task](reference/inspect_ai.html.md#task). For example:
+You can override scorer’s built-in metrics by passing an alternate list of `metrics` to the [Task](./reference/inspect_ai.html.md#task). For example:
 
 ``` python
 Task(
@@ -610,11 +627,11 @@ metrics=[accuracy(), stderr(), custom_metric()]
 
 Inspect includes some simple built in metrics for calculating accuracy, mean, etc. Built in metrics can be imported from the `inspect_ai.scorer` module. Below is a summary of these metrics. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the **Go to Definition** command in your source editor.
 
-- [accuracy()](reference/inspect_ai.scorer.html.md#accuracy)
+- [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy)
 
   Compute proportion of total answers which are correct. For correct/incorrect scores assigned 1 or 0, can optionally assign 0.5 for partially correct answers.
 
-- [mean()](reference/inspect_ai.scorer.html.md#mean)
+- [mean()](./reference/inspect_ai.scorer.html.md#mean)
 
   Mean of all scores.
 
@@ -622,15 +639,15 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
   Sample variance over all scores.
 
-- [std()](reference/inspect_ai.scorer.html.md#std)
+- [std()](./reference/inspect_ai.scorer.html.md#std)
 
   Standard deviation over all scores (see below for details on computing clustered standard errors).
 
-- [stderr()](reference/inspect_ai.scorer.html.md#stderr)
+- [stderr()](./reference/inspect_ai.scorer.html.md#stderr)
 
   Standard error of the mean.
 
-- [bootstrap_stderr()](reference/inspect_ai.scorer.html.md#bootstrap_stderr)
+- [bootstrap_stderr()](./reference/inspect_ai.scorer.html.md#bootstrap_stderr)
 
   Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
@@ -638,7 +655,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.
 
-For example, let’s say you wanted to create a separate accuracy metric for each distinct “category” variable defined in [Sample](reference/inspect_ai.dataset.html.md#sample) metadata:
+For example, let’s say you wanted to create a separate accuracy metric for each distinct “category” variable defined in [Sample](./reference/inspect_ai.dataset.html.md#sample) metadata:
 
 ``` python
 @task
@@ -654,7 +671,7 @@ def gpqa():
     )
 ```
 
-The `metrics` passed to the [Task](reference/inspect_ai.html.md#task) override the default metrics of the [choice()](reference/inspect_ai.scorer.html.md#choice) scorer.
+The `metrics` passed to the [Task](./reference/inspect_ai.html.md#task) override the default metrics of the [choice()](./reference/inspect_ai.scorer.html.md#choice) scorer.
 
 Note that the `"all"` metric by default takes the selected metric over all of the samples. If you prefer that it take the mean of the individual grouped values, pass `all="groups"`:
 
@@ -672,9 +689,9 @@ This would produce metrics named `category_physics`, `category_chemistry`, etc. 
 
 ### Clustered Stderr
 
-The [stderr()](reference/inspect_ai.scorer.html.md#stderr) metric supports computing [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the `cluster` parameter. Most scorers already include [stderr()](reference/inspect_ai.scorer.html.md#stderr) as a built-in metric, so to compute clustered standard errors you’ll want to specify custom `metrics` for your task (which will override the scorer’s built in metrics).
+The [stderr()](./reference/inspect_ai.scorer.html.md#stderr) metric supports computing [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the `cluster` parameter. Most scorers already include [stderr()](./reference/inspect_ai.scorer.html.md#stderr) as a built-in metric, so to compute clustered standard errors you’ll want to specify custom `metrics` for your task (which will override the scorer’s built in metrics).
 
-For example, let’s say you wanted to cluster on a “category” variable defined in [Sample](reference/inspect_ai.dataset.html.md#sample) metadata:
+For example, let’s say you wanted to cluster on a “category” variable defined in [Sample](./reference/inspect_ai.dataset.html.md#sample) metadata:
 
 ``` python
 @task
@@ -690,7 +707,7 @@ def gpqa():
     )
 ```
 
-The `metrics` passed to the [Task](reference/inspect_ai.html.md#task) override the default metrics of the [choice()](reference/inspect_ai.scorer.html.md#choice) scorer.
+The `metrics` passed to the [Task](./reference/inspect_ai.html.md#task) override the default metrics of the [choice()](./reference/inspect_ai.scorer.html.md#choice) scorer.
 
 ### Custom Metrics
 
@@ -715,13 +732,13 @@ def mean() -> Metric:
     return metric
 ```
 
-Note that the [Score](reference/inspect_ai.scorer.html.md#score) class contains a [Value](reference/inspect_ai.scorer.html.md#value) that is a union over several scalar and collection types. As a convenience, [Score](reference/inspect_ai.scorer.html.md#score) includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
+Note that the [Score](./reference/inspect_ai.scorer.html.md#score) class contains a [Value](./reference/inspect_ai.scorer.html.md#value) that is a union over several scalar and collection types. As a convenience, [Score](./reference/inspect_ai.scorer.html.md#score) includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
 
 ## Reducing Epochs
 
 If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs.
 
-By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an [Epochs](reference/inspect_ai.html.md#epochs), which includes both a count and one or more reducers to combine sample scores with. For example:
+By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an [Epochs](./reference/inspect_ai.html.md#epochs), which includes both a count and one or more reducers to combine sample scores with. For example:
 
 ``` python
 @task
@@ -761,7 +778,7 @@ Inspect includes several built in reducers which are summarised below.
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
 
-> **NOTE:**
+> **NOTE: Note**
 >
 > The built in reducers will compute a reduced `value` for the score and populate the fields `answer` and `explanation` only if their value is equal across all epochs. The `metadata` field will always be reduced to the value of `metadata` in the first epoch. If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.
 
@@ -873,7 +890,7 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 
 ### Score Function
 
-You can also use the [score()](reference/inspect_ai.scorer.html.md#score) function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the [score()](reference/inspect_ai.scorer.html.md#score) function using varying scorers or scorer options. For example:
+You can also use the [score()](./reference/inspect_ai.scorer.html.md#score) function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the [score()](./reference/inspect_ai.scorer.html.md#score) function using varying scorers or scorer options. For example:
 
 ``` python
 log = eval(popularity, model="openai/gpt-4")[0]
@@ -918,4 +935,4 @@ for model, scored_log in zip(grader_models, scoring_logs):
 
 ### Editing Scores
 
-You may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](eval-logs.html.md#sec-eval-log-modification)
+You may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](./eval-logs.html.md#sec-eval-log-modification)

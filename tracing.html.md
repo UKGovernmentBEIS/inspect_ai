@@ -1,4 +1,4 @@
-# Tracing
+# Tracing – Inspect
 
 ## Overview
 
@@ -6,8 +6,8 @@ Inspect includes a runtime tracing tool that can be used to diagnose issues that
 
 Trace logs also do explicit enter and exit logging around actions that may encounter errors or fail to complete. For example:
 
-1.  Model API [generate()](reference/inspect_ai.solver.html.md#generate) calls
-2.  Call to [subprocess()](reference/inspect_ai.util.html.md#subprocess) (e.g. tool calls that run commands in sandboxes)
+1.  Model API [generate()](./reference/inspect_ai.solver.html.md#generate) calls
+2.  Call to [subprocess()](./reference/inspect_ai.util.html.md#subprocess) (e.g. tool calls that run commands in sandboxes)
 3.  Control commands sent to Docker Compose.
 4.  Writes to log files in remote storage (e.g. S3).
 5.  Model tool calls
@@ -84,11 +84,11 @@ inspect trace http --failed --filter bedrock
 
 ## Tracing API
 
-In addition to the standard set of actions which are trace logged, you can do your own custom trace logging using the [trace_action()](reference/inspect_ai.util.html.md#trace_action) and [trace_message()](reference/inspect_ai.util.html.md#trace_message) APIs. Trace logging is a great way to make sure that logging context is *always captured* (since the last 10 trace logs are always available) without cluttering up the console or eval transcripts.
+In addition to the standard set of actions which are trace logged, you can do your own custom trace logging using the [trace_action()](./reference/inspect_ai.util.html.md#trace_action) and [trace_message()](./reference/inspect_ai.util.html.md#trace_message) APIs. Trace logging is a great way to make sure that logging context is *always captured* (since the last 10 trace logs are always available) without cluttering up the console or eval transcripts.
 
 ### trace_action()
 
-Use the [trace_action()](reference/inspect_ai.util.html.md#trace_action) context manager to collect data on the resolution (e.g. succeeded, cancelled, failed, timed out, etc.) and duration of actions. For example, let’s say you are interacting with a remote content database:
+Use the [trace_action()](./reference/inspect_ai.util.html.md#trace_action) context manager to collect data on the resolution (e.g. succeeded, cancelled, failed, timed out, etc.) and duration of actions. For example, let’s say you are interacting with a remote content database:
 
 ``` python
 from inspect_ai.util import trace_action
@@ -107,7 +107,7 @@ Your custom trace actions will be reported alongside the standard traced actions
 
 ### trace_message()
 
-Use the [trace_message()](reference/inspect_ai.util.html.md#trace_message) function to trace events that don’t fall into enter/exit pattern supported by [trace_action()](reference/inspect_ai.util.html.md#trace_action). For example, let’s say you want to track every invocation of a custom tool:
+Use the [trace_message()](./reference/inspect_ai.util.html.md#trace_message) function to trace events that don’t fall into enter/exit pattern supported by [trace_action()](./reference/inspect_ai.util.html.md#trace_action). For example, let’s say you want to track every invocation of a custom tool:
 
 ``` python
 from inspect_ai.util import trace_message

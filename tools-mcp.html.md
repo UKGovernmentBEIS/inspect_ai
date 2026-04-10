@@ -1,4 +1,4 @@
-# Model Context Protocol
+# Model Context Protocol – Inspect
 
 ## Overview
 
@@ -8,7 +8,7 @@ Each MCP server provides a set of LLM tools. You can use all of the tools from a
 
 ### Example
 
-For example, here we create a connection to a [Git MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git), and then pass it to a [react()](reference/inspect_ai.agent.html.md#react) agent used as a solver for a task:
+For example, here we create a connection to a [Git MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git), and then pass it to a [react()](./reference/inspect_ai.agent.html.md#react) agent used as a solver for a task:
 
 ``` python
 from inspect_ai import task
@@ -49,10 +49,10 @@ You can use the following functions to create interfaces to the various types of
 
 |  |  |
 |----|----|
-| [mcp_server_stdio()](reference/inspect_ai.tool.html.md#mcp_server_stdio) | Stdio interface to MCP server. Use this for MCP servers that run locally. |
-| [mcp_server_http()](reference/inspect_ai.tool.html.md#mcp_server_http) | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint. |
-| [mcp_server_sandbox()](reference/inspect_ai.tool.html.md#mcp_server_sandbox) | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
-| [mcp_server_sse()](reference/inspect_ai.tool.html.md#mcp_server_sse) | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)) |
+| [mcp_server_stdio()](./reference/inspect_ai.tool.html.md#mcp_server_stdio) | Stdio interface to MCP server. Use this for MCP servers that run locally. |
+| [mcp_server_http()](./reference/inspect_ai.tool.html.md#mcp_server_http) | HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint. |
+| [mcp_server_sandbox()](./reference/inspect_ai.tool.html.md#mcp_server_sandbox) | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
+| [mcp_server_sse()](./reference/inspect_ai.tool.html.md#mcp_server_sse) | SSE interface to MCP server (Note that the SSE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/)) |
 
 We’ll cover using stdio and http based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in [Sandboxes](#sandboxes).
 
@@ -90,7 +90,7 @@ maps_server = mcp_server_stdio(
 )
 ```
 
-> **NOTE:**
+> **NOTE: NoteNode.js Prerequisite**
 >
 > The `"command": "npx"` option indicates that this server was written using Node.js (other servers may be written in Python and use `"command": "python3"`). Using Node.js based MCP servers requires that you install Node.js (<https://nodejs.org/en/download>).
 
@@ -119,7 +119,7 @@ In this example we use all of the tool made available by the server. You can als
 
 #### ToolSource
 
-The [MCPServer](reference/inspect_ai.tool.html.md#mcpserver) interface is a [ToolSource](reference/inspect_ai.tool.html.md#toolsource), which is a new interface for dynamically providing a set of tools. Inspect generation methods that take [Tool](reference/inspect_ai.tool.html.md#tool) or [ToolDef](reference/inspect_ai.tool.html.md#tooldef) now also take [ToolSource](reference/inspect_ai.tool.html.md#toolsource).
+The [MCPServer](./reference/inspect_ai.tool.html.md#mcpserver) interface is a [ToolSource](./reference/inspect_ai.tool.html.md#toolsource), which is a new interface for dynamically providing a set of tools. Inspect generation methods that take [Tool](./reference/inspect_ai.tool.html.md#tool) or [ToolDef](./reference/inspect_ai.tool.html.md#tooldef) now also take [ToolSource](./reference/inspect_ai.tool.html.md#toolsource).
 
 If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
 
@@ -140,11 +140,12 @@ deepwiki = mcp_server_http(
     name="deepwiki", 
     url="https://mcp.deepwiki.com/mcp", 
     authorization="$DEEPWIKI_API_KEY"
-    execution="remote" # <1>
+1    execution="remote"
 )
 ```
 
-1.  This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
+1  
+This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
 
 Note that some remote MCP servers will require credentials—in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme.
 
@@ -152,7 +153,7 @@ Before using remote servers, you should review OpenAI’s [Risks and Safety](htt
 
 ## Tool Selection
 
-To narrow the list of tools made available from an MCP Server you can use the [mcp_tools()](reference/inspect_ai.tool.html.md#mcp_tools) function. For example, to make only the geocode oriented functions available from the Google Maps server:
+To narrow the list of tools made available from an MCP Server you can use the [mcp_tools()](./reference/inspect_ai.tool.html.md#mcp_tools) function. For example, to make only the geocode oriented functions available from the Google Maps server:
 
 ``` python
 return Task(
@@ -170,11 +171,11 @@ return Task(
 
 MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
 
-In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it’s state is maintained across calls. You can do this using the [mcp_connection()](reference/inspect_ai.tool.html.md#mcp_connection) context manager.
+In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it’s state is maintained across calls. You can do this using the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) context manager.
 
 #### ReAct Agent
 
-The [mcp_connection()](reference/inspect_ai.tool.html.md#mcp_connection) context manager is used **automatically** by the [react()](reference/inspect_ai.agent.html.md#react) agent, with the server connection being maintained for the duration of the agent loop.
+The [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) context manager is used **automatically** by the [react()](./reference/inspect_ai.agent.html.md#react) agent, with the server connection being maintained for the duration of the agent loop.
 
 For example, the following will establish a single connection to the memory server and preserve its state across calls:
 
@@ -193,7 +194,7 @@ return Task(
 
 #### Custom Agents
 
-For general purpose custom agents, you will also likely want to use the [mcp_connection()](reference/inspect_ai.tool.html.md#mcp_connection) connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
+For general purpose custom agents, you will also likely want to use the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
 
 ```` python
 @agent
@@ -229,7 +230,7 @@ def web_surfer() -> Agent:
 ```
 ````
 
-Note that the [mcp_connection()](reference/inspect_ai.tool.html.md#mcp_connection) function can take an arbitrary list of `tools` and will discover and connect to any MCP-based [ToolSource](reference/inspect_ai.tool.html.md#toolsource) in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
+Note that the [mcp_connection()](./reference/inspect_ai.tool.html.md#mcp_connection) function can take an arbitrary list of `tools` and will discover and connect to any MCP-based [ToolSource](./reference/inspect_ai.tool.html.md#toolsource) in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 
 ``` python
 @agent
@@ -242,11 +243,13 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 ## Sandboxes
 
-Sandbox servers are stdio servers than run inside a [sandbox](sandboxing.html.md) rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g. git, filesystem, or code execution tools).
+Sandbox servers are stdio servers than run inside a [sandbox](./sandboxing.html.md) rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g. git, filesystem, or code execution tools).
 
 ### Configuration
 
 To run an MCP server inside a sandbox, you should create a `Dockerfile` that includes any MCP servers you want to run. For example, here we create a `Dockerfile` that enables us to use the [Filesystem MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem):
+
+    Dockerfile
 
 ``` Dockerfile
 # base image
@@ -268,7 +271,7 @@ Note that we run the `npx` server during the build of the Dockerfile so that it 
 
 ### Running the Server
 
-We can now use the [mcp_server_sandbox()](reference/inspect_ai.tool.html.md#mcp_server_sandbox) function to run the server as follows:
+We can now use the [mcp_server_sandbox()](./reference/inspect_ai.tool.html.md#mcp_server_sandbox) function to run the server as follows:
 
 ``` python
 filesystem_server = mcp_server_sandbox(

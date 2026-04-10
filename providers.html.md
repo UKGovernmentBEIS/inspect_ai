@@ -1,4 +1,4 @@
-# Model Providers
+# Model Providers – Inspect
 
 ## Overview
 
@@ -6,20 +6,20 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](providers.html.md#openai), [Anthropic](providers.html.md#anthropic), [Google](providers.html.md#google), [Grok](providers.html.md#grok), [Mistral](providers.html.md#mistral), [DeepSeek](providers.html.md#deepseek), [Perplexity](providers.html.md#perplexity) |
-| Cloud APIs | [AWS Bedrock](providers.html.md#aws-bedrock), [AWS SageMaker](providers.html.md#aws-sagemaker), and [Azure AI](providers.html.md#azure-ai) |
-| Open (Hosted) | [Groq](providers.html.md#groq), [Together AI](providers.html.md#together-ai), [Fireworks AI](providers.html.md#fireworks-ai), [Cloudflare](providers.html.md#cloudflare), [HF Inference Providers](providers.html.md#hf-inference-providers), [SambaNova](providers.html.md#sambanova) |
-| Open (Local) | [Hugging Face](providers.html.md#hugging-face), [vLLM](providers.html.md#vllm), [Ollama](providers.html.md#ollama), [Lllama-cpp-python](providers.html.md#llama-cpp-python), [SGLang](providers.html.md#sglang), [TransformerLens](providers.html.md#transformer-lens), [nnterp](providers.html.md#nnterp) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Perplexity](./providers.html.md#perplexity) |
+| Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
+| Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
+| Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
   
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
-1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](providers.html.md#openai-api) interface.
+1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](./providers.html.md#openai-api) interface.
 
-2.  It is available via OpenRouter (see the docs on using [OpenRouter](providers.html.md#openrouter) with Inspect).
+2.  It is available via OpenRouter (see the docs on using [OpenRouter](./providers.html.md#openrouter) with Inspect).
 
-You can also create [Model API Extensions](extensions.html.md#model-apis) to add model providers using their native interface.
+You can also create [Model API Extensions](./extensions.html.md#model-apis) to add model providers using their native interface.
 
 ## OpenAI
 
@@ -476,7 +476,7 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
-> **NOTE:**
+> **NOTE: Note**
 >
 > Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
 
@@ -639,7 +639,7 @@ The following environment variables are supported by the Perplexity provider
 | `PERPLEXITY_API_KEY` | API key credentials (required). |
 | `PERPLEXITY_BASE_URL` | Base URL for requests (optional, defaults to `https://api.perplexity.ai`) |
 
-Perplexity responses include citations when available. These are surfaced as [UrlCitation](reference/inspect_ai.model.html.md#urlcitation)s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
+Perplexity responses include citations when available. These are surfaced as [UrlCitation](./reference/inspect_ai.model.html.md#urlcitation)s attached to the assistant message. Additional usage metrics such as `reasoning_tokens` and `citation_tokens` are recorded in `ModelOutput.metadata`.
 
 ## Hugging Face
 
@@ -652,7 +652,7 @@ inspect eval arc.py --model hf/openai-community/gpt2
 
 ### Batching
 
-Concurrency for REST API based models is managed using the `max_connections` option. The same option is used for `transformers` inference—up to `max_connections` calls to [generate()](reference/inspect_ai.solver.html.md#generate) will be batched together (note that batches will proceed at a smaller size if no new calls to [generate()](reference/inspect_ai.solver.html.md#generate) have occurred in the last 2 seconds).
+Concurrency for REST API based models is managed using the `max_connections` option. The same option is used for `transformers` inference—up to `max_connections` calls to [generate()](./reference/inspect_ai.solver.html.md#generate) will be batched together (note that batches will proceed at a smaller size if no new calls to [generate()](./reference/inspect_ai.solver.html.md#generate) have occurred in the last 2 seconds).
 
 The default batch size for Hugging Face is 32, but you should tune your `max_connections` to maximise performance and ensure that batches don’t exceed available GPU memory. The [Pipeline Batching](https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching) section of the transformers documentation is a helpful guide to the ways batch size and performance interact.
 
@@ -664,13 +664,13 @@ The PyTorch `cuda` device will be used automatically if CUDA is available (as wi
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M device=cuda:0
 ```
 
-This also works in calls to [eval()](reference/inspect_ai.html.md#eval):
+This also works in calls to [eval()](./reference/inspect_ai.html.md#eval):
 
 ``` python
 eval("arc.py", model="hf/openai-community/gpt2", model_args=dict(device="cuda:0"))
 ```
 
-Or in a call to [get_model()](reference/inspect_ai.model.html.md#get_model)
+Or in a call to [get_model()](./reference/inspect_ai.model.html.md#get_model)
 
 ``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
@@ -729,13 +729,13 @@ In addition to using models from the Hugging Face Hub, the Hugging Face provider
 $ inspect eval arc.py --model hf/local -M model_path=./my-model
 ```
 
-Or using the [eval()](reference/inspect_ai.html.md#eval) function:
+Or using the [eval()](./reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("arc.py", model="hf/local", model_args=dict(model_path="./my-model"))
 ```
 
-Or in a call to [get_model()](reference/inspect_ai.model.html.md#get_model)
+Or in a call to [get_model()](./reference/inspect_ai.model.html.md#get_model)
 
 ``` python
 model = get_model("hf/local", model_path="./my-model")
@@ -821,7 +821,7 @@ eval(
 )
 ```
 
-If you need to override the auto-detected rank (e.g. when using [get_model()](reference/inspect_ai.model.html.md#get_model) directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
+If you need to override the auto-detected rank (e.g. when using [get_model()](./reference/inspect_ai.model.html.md#get_model) directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
 
 ``` bash
 inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_rank=128
@@ -1077,7 +1077,7 @@ You can enable the use of the Responses API with the `openai-api` provider by pa
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M responses_api=true
 ```
 
-Or using the [eval()](reference/inspect_ai.html.md#eval) function:
+Or using the [eval()](./reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_api=True))
@@ -1101,7 +1101,7 @@ By default, Inspect sets `"strict": true` on tool function schemas for the `open
 inspect eval arc.py --model openai-api/<provider>/<model> -M strict_tools=false
 ```
 
-Or using the [eval()](reference/inspect_ai.html.md#eval) function:
+Or using the [eval()](./reference/inspect_ai.html.md#eval) function:
 
 ``` python
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
@@ -1179,4 +1179,4 @@ inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream
 
 ## Custom Models
 
-If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.html.md#sec-model-api-extensions) for additional details.
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](./extensions.html.md#sec-model-api-extensions) for additional details.

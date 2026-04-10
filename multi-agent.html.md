@@ -1,8 +1,8 @@
-# Multi Agent
+# Multi Agent – Inspect
 
 ## Overview
 
-There are several ways to implement multi-agent systems using the Inspect [Agent](reference/inspect_ai.agent.html.md#agent) protocol:
+There are several ways to implement multi-agent systems using the Inspect [Agent](./reference/inspect_ai.agent.html.md#agent) protocol:
 
 1.  You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.
 
@@ -14,9 +14,9 @@ We’ll cover examples of each of these below.
 
 ## Methodology
 
-As you explore multi-agent architectures, it’s important to remember that they often don’t out-perform simple [react()](reference/inspect_ai.agent.html.md#react) agents. We therefore recommend the following methodology for agent development:
+As you explore multi-agent architectures, it’s important to remember that they often don’t out-perform simple [react()](./reference/inspect_ai.agent.html.md#react) agents. We therefore recommend the following methodology for agent development:
 
-1.  Start with a baseline [react()](reference/inspect_ai.agent.html.md#react) agent so you can measure whether various improvements help performance.
+1.  Start with a baseline [react()](./reference/inspect_ai.agent.html.md#react) agent so you can measure whether various improvements help performance.
 
 2.  Work on optimizing the environment (task definition), tool selection and prompts, and system prompt for your agent.
 
@@ -28,7 +28,7 @@ The Anthropic blog post on [Building Effective Agents](https://www.anthropic.com
 
 Using handoffs and tools for multi-agent architectures takes maximum advantage of model intelligence to plan and route agent activity. Sometimes though its preferable to explicitly orchestrate agent operations. For example, many deep research agents are implemented with explicit steps for planning, search, and writing.
 
-You can use the [run()](reference/inspect_ai.agent.html.md#run) function to explicitly invoke agents using a predefined or dynamic sequence. For example, imagine we have written agents for various stages of a research pipeline. We can compose them into a research agent as follows:
+You can use the [run()](./reference/inspect_ai.agent.html.md#run) function to explicitly invoke agents using a predefined or dynamic sequence. For example, imagine we have written agents for various stages of a research pipeline. We can compose them into a research agent as follows:
 
 ``` python
 from inspect_ai.agent import Agent, AgentState, agent, run
@@ -66,7 +66,7 @@ plans = await gather(
 )
 ```
 
-Note that the [run()](reference/inspect_ai.agent.html.md#run) method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
+Note that the [run()](./reference/inspect_ai.agent.html.md#run) method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
 
 ## Tools
 
@@ -101,7 +101,7 @@ Handoffs enable a supervisor agent to delegate to other agents. Handoffs are dis
 
 Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.
 
-Create handoffs by enclosing an agent with the [handoff()](reference/inspect_ai.agent.html.md#handoff) function. These agents in turn are often simple [react()](reference/inspect_ai.agent.html.md#react) agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that we can handoff to:
+Create handoffs by enclosing an agent with the [handoff()](./reference/inspect_ai.agent.html.md#handoff) function. These agents in turn are often simple [react()](./reference/inspect_ai.agent.html.md#react) agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that we can handoff to:
 
 ``` python
 from inspect_ai.agent react
@@ -118,9 +118,9 @@ web_surfer = react(
 
 > **NOTE:**
 >
-> When we call the [react()](reference/inspect_ai.agent.html.md#react) function to create the `web_surfer` agent we pass `name` and `description` parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).
+> When we call the [react()](./reference/inspect_ai.agent.html.md#react) function to create the `web_surfer` agent we pass `name` and `description` parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).
 
-We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard [react()](reference/inspect_ai.agent.html.md#react) agent however other approaches to supervision are possible.
+We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard [react()](./reference/inspect_ai.agent.html.md#react) agent however other approaches to supervision are possible.
 
 ``` python
 from inspect_ai.agent import handoff
@@ -143,7 +143,7 @@ task = Task(
 )
 ```
 
-The `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to [handoff()](reference/inspect_ai.agent.html.md#handoff) to the `web_surfer` agent. The web surfer in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
+The `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to [handoff()](./reference/inspect_ai.agent.html.md#handoff) to the `web_surfer` agent. The web surfer in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
 
 ### Handoff Filters
 
@@ -151,7 +151,7 @@ By default when a handoff occurs:
 
 1.  The target agent sees the global message history (except for system messages).
 
-2.  The messages generated by the handoff are processed using the [content_only()](reference/inspect_ai.agent.html.md#content_only) filter, which removes system messages and reasoning traces as well as converts tool calls to text (this is so that the parent model is not confounded by seeing content, e.g. reasoning or tool calls, that it doesn’t understand the origin of.
+2.  The messages generated by the handoff are processed using the [content_only()](./reference/inspect_ai.agent.html.md#content_only) filter, which removes system messages and reasoning traces as well as converts tool calls to text (this is so that the parent model is not confounded by seeing content, e.g. reasoning or tool calls, that it doesn’t understand the origin of.
 
 You can do custom filtering by passing another built-in handoff filter or writing your own filter. For example, you can use the built-in `remove_tools` input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don’t get confused about what tools are available):
 

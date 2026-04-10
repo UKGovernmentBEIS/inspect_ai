@@ -1,4 +1,4 @@
-# Caching
+# Caching – Inspect
 
 ## Overview
 
@@ -8,7 +8,7 @@ There are two types of caching available: Inspect local caching and provider lev
 
 ## Caching Basics
 
-Use the `cache` option of [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
+Use the `cache` option of [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
 - Model name and base URL (e.g. `openai/gpt-4-turbo`)
 - Model prompt (i.e. message history)
@@ -26,13 +26,13 @@ inspect eval arc.py --cache 1D  # 1 day cache
 inspect eval arc.py --cache 4W  # 4 week cache
 ```
 
-Or alternatively from Python when calling [eval()](reference/inspect_ai.html.md#eval):
+Or alternatively from Python when calling [eval()](./reference/inspect_ai.html.md#eval):
 
 ``` python
 eval("arc.py", cache=True)
 ```
 
-You can also use caching with lower-level [generate()](reference/inspect_ai.solver.html.md#generate) calls (e.g. a model instance you have obtained with [get_model()](reference/inspect_ai.model.html.md#get_model). For example:
+You can also use caching with lower-level [generate()](./reference/inspect_ai.solver.html.md#generate) calls (e.g. a model instance you have obtained with [get_model()](./reference/inspect_ai.model.html.md#get_model). For example:
 
 ``` python
 model = get_model("anthropic/claude-sonnet-4-20250514")
@@ -55,7 +55,7 @@ If you do this, then when a new version of `gpt-4-turbo` is deployed a call to t
 
 ## Cache Policy
 
-By default, if you specify `cache = True` then the cache will expire in 1 week. You can customise this by passing a [CachePolicy](reference/inspect_ai.model.html.md#cachepolicy) rather than a boolean. For example:
+By default, if you specify `cache = True` then the cache will expire in 1 week. You can customise this by passing a [CachePolicy](./reference/inspect_ai.model.html.md#cachepolicy) rather than a boolean. For example:
 
 ``` python
 cache = CachePolicy(expiry="3h")
@@ -117,27 +117,21 @@ $ export INSPECT_CACHE_DIR=/tmp/inspect-cache
 
 ## Provider Caching
 
-Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for [Anthropic Prompt Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) and will extend this support to other providers over time as they add caching to their APIs.
-
-Provider prompt caching is controlled by the `cache-prompt` generation config option. The default value for `cache-prompt` is `"auto"`, which enables prompt caching automatically if tool definitions are included in the request. Use `true` and `false` to force caching on or off. For example:
+Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. The only provider that currently enables you to turn off prompt caching is Anthropic, and you can do this using `cache-prompt` generation config option. For example:
 
 ``` bash
-inspect eval ctf.py --cache-prompt=auto  # enable if tools defined
-inspect eval ctf.py --cache-prompt=true  # force caching on
 inspect eval ctf.py --cache-prompt=false # force caching off
 ```
 
-Or with the [eval()](reference/inspect_ai.html.md#eval) function:
+Or with the [eval()](./reference/inspect_ai.html.md#eval) function:
 
 ``` python
-eval("ctf.py", cache_prompt=True)
+eval("ctf.py", cache_prompt=False)
 ```
 
 ### Cache Scope
 
 Providers will typically provide various means of customising the scope of cache usage. The Inspect `cache-prompt` option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).
-
-Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)—once this becomes possible this will also be exposed in the Inspect API.
 
 ### Usage Reporting
 

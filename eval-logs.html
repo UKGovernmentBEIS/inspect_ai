@@ -473,8 +473,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -694,7 +700,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The current development version of Inspect AI includes log storage optimizations that can dramatically affect log file sizes. The first of these <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374">deduplicates repeated messages</a> across model events; the second switches to <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145">zstd compression</a>.</p>
 <p>In combination these optimizations yield huge improvements in log file size. For typical agentic benchmarks (e.g.&nbsp;SWE-Bench, Cybench) we’ve seen 10:1 improvements. For longer horizon tasks the improvements are much greater as the optimization addresses O(N^2) storage growth.</p>
 <p>To try out these changes, install the development version of Inspect from GitHub with:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>pip install git<span class="op">+</span>https:<span class="op">//</span>github.com<span class="op">/</span>UKGovernmentBEIS<span class="op">/</span>inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can convert existing logs to use the new format using the <code>inspect log convert</code> command. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log convert logs_old <span class="dt">\</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--to</span> eval <span class="dt">\</span></span>
@@ -1171,7 +1177,7 @@ inspect view  # streams directly from Azure</code></pre>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb42"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You can use the <code>--retryable</code> option to list only logs that are <a href="#eval-retries">retryable</a></p>
+<p>You can use the <code>--retryable</code> option to list only logs that are <a href="./handling-errors.html#eval-retries">retryable</a></p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb43"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="reading-logs" class="level3">

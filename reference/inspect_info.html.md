@@ -1,6 +1,4 @@
-# inspect info
-
-Read version and configuration.
+# inspect_info – Inspect
 
 Read configuration and log info.
 

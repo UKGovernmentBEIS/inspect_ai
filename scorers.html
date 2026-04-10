@@ -470,8 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -900,26 +906,7 @@ Note
 <section id="example-includes" class="level3">
 <h3 class="anchored" data-anchor-id="example-includes">Example: Includes</h3>
 <p>Here is the source code for the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#includes">includes()</a></span> scorer:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-12" data-llms-code-original="@scorer(metrics=[accuracy(), stderr()])   # <1>
-def includes(ignore_case: bool = True):
-
-    async def score(state: TaskState, target: Target):   # <2>
-
-        # check for correct
-        answer = state.output.completion
-        target = target.text   # <3>
-        if ignore_case:
-            correct = answer.lower().rfind(target.lower()) != -1
-        else:
-            correct = answer.rfind(target) != -1
-
-        # return score
-        return Score(
-            value = CORRECT if correct else INCORRECT,    # <4>
-            answer=answer  # <5>
-        )
-
-    return score"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><a class="code-annotation-anchor" data-target-cell="annotated-cell-12" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-12-1" class="code-annotation-target"><a href="#annotated-cell-12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-12"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><a class="code-annotation-anchor" data-target-cell="annotated-cell-12" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-12-1" class="code-annotation-target"><a href="#annotated-cell-12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="annotated-cell-12-2"><a href="#annotated-cell-12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> includes(ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>):</span>
 <span id="annotated-cell-12-3"><a href="#annotated-cell-12-3" aria-hidden="true" tabindex="-1"></a></span>
 <a class="code-annotation-anchor" data-target-cell="annotated-cell-12" data-target-annotation="2" onclick="event.preventDefault();">2</a><span id="annotated-cell-12-4" class="code-annotation-target"><a href="#annotated-cell-12-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
@@ -1041,28 +1028,7 @@ def includes(ignore_case: bool = True):
 <section id="scorer-with-multiple-values" class="level3">
 <h3 class="anchored" data-anchor-id="scorer-with-multiple-values">Scorer with Multiple Values</h3>
 <p>You may also create a scorer which yields multiple scores. This is useful when the scores use data that is shared or expensive to compute. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-15" data-llms-code-original="@scorer(
-    metrics={  # <1>
-        &quot;a_count&quot;: [mean(), stderr()],  # <1>
-        &quot;e_count&quot;: [mean(), stderr()]   # <1>
-    } # <1>
-)
-def letter_count():
-    async def score(state: TaskState, target: Target):
-        answer = state.output.completion
-        a_count = answer.count(&quot;a&quot;)
-        e_count = answer.count(&quot;e&quot;)
-        return Score(  # <2>
-            value={&quot;a_count&quot;: a_count, &quot;e_count&quot;: e_count},  # <2>
-            answer=answer  # <2>
-        ) # <2>
-
-    return score
-
-task = Task(
-    dataset=[Sample(input=&quot;Tell me a story.&quot;],
-    scorer=letter_count()
-)"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-15-1"><a href="#annotated-cell-15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-15"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-15-1"><a href="#annotated-cell-15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(</span>
 <a class="code-annotation-anchor" data-target-cell="annotated-cell-15" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-15-2" class="code-annotation-target"><a href="#annotated-cell-15-2" aria-hidden="true" tabindex="-1"></a>    metrics<span class="op">=</span>{</span>
 <span id="annotated-cell-15-3"><a href="#annotated-cell-15-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"a_count"</span>: [mean(), stderr()],</span>
 <span id="annotated-cell-15-4"><a href="#annotated-cell-15-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"e_count"</span>: [mean(), stderr()]</span>
@@ -1112,38 +1078,7 @@ task = Task(
 <section id="scorer-with-complex-metrics" class="level3">
 <h3 class="anchored" data-anchor-id="scorer-with-complex-metrics">Scorer with Complex Metrics</h3>
 <p>Sometime, it is useful for a scorer to compute multiple values (returning a dictionary as the score value) and to have metrics computed both for each key in the score dictionary, but also for the dictionary as a whole. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-18" data-llms-code-original="@scorer(
-    metrics=[{  # <1>
-        &quot;a_count&quot;: [mean(), stderr()],  # <1>
-        &quot;e_count&quot;: [mean(), stderr()]   # <1>
-    }, total_count()] # <1>
-)
-def letter_count():
-    async def score(state: TaskState, target: Target):
-        answer = state.output.completion
-        a_count = answer.count(&quot;a&quot;)
-        e_count = answer.count(&quot;e&quot;)
-        return Score(  # <2>
-            value={&quot;a_count&quot;: a_count, &quot;e_count&quot;: e_count},  # <2>
-            answer=answer  # <2>
-        ) # <2>
-
-    return score
-
-@metric
-def total_count() -> Metric:
-    def metric(scores: list[SampleScore]) -> int | float:
-        total = 0.0
-        for score in scores:
-            total = score.score.value[&quot;a_count&quot;] # <3>
-                + score.score.value[&quot;e_count&quot;]   # <3>
-        return total
-    return metric
-
-task = Task(
-    dataset=[Sample(input=&quot;Tell me a story.&quot;],
-    scorer=letter_count()
-)"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-18-1"><a href="#annotated-cell-18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-18"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-18-1"><a href="#annotated-cell-18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(</span>
 <a class="code-annotation-anchor" data-target-cell="annotated-cell-18" data-target-annotation="1" onclick="event.preventDefault();">1</a><span id="annotated-cell-18-2" class="code-annotation-target"><a href="#annotated-cell-18-2" aria-hidden="true" tabindex="-1"></a>    metrics<span class="op">=</span>[{</span>
 <span id="annotated-cell-18-3"><a href="#annotated-cell-18-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"a_count"</span>: [mean(), stderr()],</span>
 <span id="annotated-cell-18-4"><a href="#annotated-cell-18-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"e_count"</span>: [mean(), stderr()]</span>

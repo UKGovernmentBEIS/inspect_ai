@@ -1,4 +1,4 @@
-# Batch Mode
+# Batch Mode – Inspect
 
 ## Overview
 
@@ -6,7 +6,7 @@ Inspect supports calling the batch processing APIs for [OpenAI](https://platform
 
 When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.
 
-> **IMPORTANT:**
+> **IMPORTANT: Important**
 >
 > When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g. a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.
 >
@@ -14,7 +14,7 @@ When batch processing is enabled, individual model requests are automatically co
 
 ## Enabling Batch Mode
 
-Pass the `--batch` CLI option or `batch=True` to [eval()](reference/inspect_ai.html.md#eval) in order to enable batch processing for providers that support it. The `--batch` option supports several formats:
+Pass the `--batch` CLI option or `batch=True` to [eval()](./reference/inspect_ai.html.md#eval) in order to enable batch processing for providers that support it. The `--batch` option supports several formats:
 
 ``` bash
 # Enable batching with default configuration
@@ -38,7 +38,7 @@ If a provider does not support batch processing the `batch` option is ignored fo
 
 ## Batch Configuration
 
-For more advanced batch processing configuration, you can specify a [BatchConfig](reference/inspect_ai.model.html.md#batchconfig) object in Python or pass a YAML/JSON config file via the `--batch` option. For example:
+For more advanced batch processing configuration, you can specify a [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) object in Python or pass a YAML/JSON config file via the `--batch` option. For example:
 
 ``` python
 from inspect_ai.model import BatchConfig
@@ -48,7 +48,7 @@ eval(
 )
 ```
 
-Available [BatchConfig](reference/inspect_ai.model.html.md#batchconfig) options include:
+Available [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) options include:
 
 | Option | Description |
 |----|----|

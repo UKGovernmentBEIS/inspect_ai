@@ -1,6 +1,4 @@
-# inspect log
-
-Query, read, write, and convert logs.
+# inspect_log – Inspect
 
 Query, read, and convert logs.
 
@@ -20,12 +18,13 @@ inspect log [OPTIONS] COMMAND [ARGS]...
 
 #### Subcommands
 
-|                                 |                                     |
-|---------------------------------|-------------------------------------|
-| [list](#inspect-log-list)       | List all logs in the log directory. |
-| [dump](#inspect-log-dump)       | Print log file contents as JSON.    |
-| [convert](#inspect-log-convert) | Convert between log file formats.   |
-| [schema](#inspect-log-schema)   | Print JSON schema for log files.    |
+|  |  |
+|----|----|
+| [list](#inspect-log-list) | List all logs in the log directory. |
+| [dump](#inspect-log-dump) | Print log file contents as JSON. |
+| [convert](#inspect-log-convert) | Convert between log file formats. |
+| [schema](#inspect-log-schema) | Print JSON schema for log files. |
+| [recover](#inspect-log-recover) | Recover crashed eval logs from sample buffer databases. |
 
 ## inspect log list
 
@@ -108,4 +107,33 @@ inspect log schema [OPTIONS]
 
 | Name     | Type    | Description                 | Default |
 |----------|---------|-----------------------------|---------|
+| `--help` | boolean | Show this message and exit. | `False` |
+
+## inspect log recover
+
+Recover crashed eval logs from sample buffer databases.
+
+#### Usage
+
+``` text
+inspect log recover [OPTIONS] [LOG_FILE]
+```
+
+#### Options
+
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--output` | text | Output path for the recovered log file. | None |
+| `--overwrite` | boolean | Overwrite the crashed log file in-place instead of creating a new file. | `False` |
+| `--no-cleanup` | boolean | Don’t remove the sample buffer database after recovery. | `False` |
+| `--list` | boolean | List recoverable logs instead of recovering. | `False` |
+| `--json` | boolean | Output listing as JSON (only with –list). | `False` |
+| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
+| `--log-dir` | text | Directory for log files. | `./logs` |
+| `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
+| `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--debug` | boolean | Wait to attach debugger | `False` |
+| `--debug-port` | integer | Port number for debugger | `5678` |
+| `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |

@@ -1,4 +1,4 @@
-# Options
+# Options – Inspect
 
 ## Overview
 
@@ -15,6 +15,8 @@ For the former, we recommend you specify these options in a `.env` file within y
 While we can include all required options on the `inspect eval` command line, it’s generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
 
 For example, here’s a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
+
+    .env
 
 ``` makefile
 OPENAI_API_KEY=your-api-key
@@ -39,7 +41,7 @@ Note that `.env` files are searched for in parent directories, so if you run an 
 
 ## Specifying Options
 
-Below are sections for the various categories of options supported by `inspect eval`. Note that all of these options are also available for the [eval()](reference/inspect_ai.html.md#eval) function and settable by environment variables. For example:
+Below are sections for the various categories of options supported by `inspect eval`. Note that all of these options are also available for the [eval()](./reference/inspect_ai.html.md#eval) function and settable by environment variables. For example:
 
 | CLI                | eval()           | Environment                   |
 |--------------------|------------------|-------------------------------|
@@ -48,7 +50,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--sample-shuffle` | `sample_shuffle` | `INSPECT_EVAL_SAMPLE_SHUFFLE` |
 | `--limit`          | `limit`          | `INSPECT_EVAL_LIMIT`          |
 
-For more detail on the different methods of configuration, see [Task Configuration](task-configuration.html.md).
+For more detail on the different methods of configuration, see [Task Configuration](./task-configuration.html.md).
 
 ## Model Provider
 
@@ -58,13 +60,13 @@ For more detail on the different methods of configuration, see [Task Configurati
 | `--model-base-url` | Base URL for for model API |
 | `--model-config` | Model specific arguments (JSON or YAML file) |
 | `-M` | Model specific arguments (`key=value`). |
-| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.html.md#model-roles). |
+| `--model-role` | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](./models.html.md#model-roles). |
 
 ## Model Generation
 
 |  |  |
 |----|----|
-| `--generate-config` | YAML or JSON config file with [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig) fields (alternatively, use the individual options below). See [Generation Config](task-configuration.html.md#generate-config). |
+| `--generate-config` | YAML or JSON config file with [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) fields (alternatively, use the individual options below). See [Generation Config](./task-configuration.html.md#generate-config). |
 | `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
@@ -79,7 +81,7 @@ For more detail on the different methods of configuration, see [Task Configurati
 | `--best-of` | Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only. |
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
-| `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. |
+| `--cache-prompt` | Values: `auto`, `true`, or `false`. Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. |
 | `--effort` | Values: `low`, `medium`, `high`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models). |
 | `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, or `high`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
@@ -103,7 +105,7 @@ For more detail on the different methods of configuration, see [Task Configurati
 | `--solver-config` | Solver arguments (JSON or YAML file)              |
 | `-S`              | Solver arguments (`key=value`)                    |
 
-For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with [task_with()](reference/inspect_ai.html.md#task_with), via [eval()](reference/inspect_ai.html.md#eval), or on the CLI, see the [override reference](task-configuration.html.md#override-reference).
+For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with [task_with()](./reference/inspect_ai.html.md#task_with), via [eval()](./reference/inspect_ai.html.md#eval), or on the CLI, see the [override reference](./task-configuration.html.md#override-reference).
 
 ## Sample Selection
 
@@ -136,7 +138,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
 | `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. |
-| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via [set_model_cost()](reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. |
+| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. |
 | `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 
 ## Eval Logs

@@ -1,4 +1,4 @@
-# Parallelism
+# Parallelism – Inspect
 
 ## Overview
 
@@ -73,7 +73,7 @@ inspect trace http --failed  # show only failed requests
 
 ## Multiple Models
 
-You can evaluate multiple models in parallel by passing a list of models to the [eval()](reference/inspect_ai.html.md#eval) function. For example:
+You can evaluate multiple models in parallel by passing a list of models to the [eval()](./reference/inspect_ai.html.md#eval) function. For example:
 
 ``` python
 eval("mathematics.py", model=[
@@ -97,7 +97,7 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-2.5-pro
 
 By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model.
 
-If however, the number of samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel. You can do this via the `--max-tasks` CLI option or `max_tasks` parameter to the [eval()](reference/inspect_ai.html.md#eval) function. For example, here we run all of the tasks in the current working directory with up to 5 tasks run in parallel:
+If however, the number of samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel. You can do this via the `--max-tasks` CLI option or `max_tasks` parameter to the [eval()](./reference/inspect_ai.html.md#eval) function. For example, here we run all of the tasks in the current working directory with up to 5 tasks run in parallel:
 
 ``` bash
 $ inspect eval . --max-tasks=5 
@@ -151,7 +151,7 @@ By default, no memory limit is applied and all samples remain in memory.
 
 ## Sandbox Environments
 
-[Sandbox Environments](sandboxing.html.md) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect [subprocess()](reference/inspect_ai.util.html.md#subprocess) function for executing commands within the environment.
+[Sandbox Environments](./sandboxing.html.md) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function for executing commands within the environment.
 
 ### Max Sandboxes
 
@@ -187,7 +187,7 @@ It’s possible that your custom solvers, tools, or scorers will call other REST
 
 2.  As with model APIs, rate limits may be in play, so it’s important not to over-saturate these connections. Recall that Inspect runs all samples in parallel so if you have 500 samples and don’t do anything to limit concurrency, you will likely end up making hundreds of calls at a time to the API.
 
-Here’s some (oversimplified) example code that illustrates how to call a REST API within an Inspect component. We use the `async` interface of the `httpx` module, and we use Inspect’s [concurrency()](reference/inspect_ai.util.html.md#concurrency) function to limit simultaneous connections to 10:
+Here’s some (oversimplified) example code that illustrates how to call a REST API within an Inspect component. We use the `async` interface of the `httpx` module, and we use Inspect’s [concurrency()](./reference/inspect_ai.util.html.md#concurrency) function to limit simultaneous connections to 10:
 
 ``` python
 import httpx
@@ -204,13 +204,13 @@ async def solve(state: TaskState, generate: Generate):
     response = await client.get("https://example.com/api")
 ```
 
-Note that we pass a name (“my-rest-api”) to the [concurrency()](reference/inspect_ai.util.html.md#concurrency) function. This provides a named scope for managing concurrency for calls to that specific API/service.
+Note that we pass a name (“my-rest-api”) to the [concurrency()](./reference/inspect_ai.util.html.md#concurrency) function. This provides a named scope for managing concurrency for calls to that specific API/service.
 
 ### Parallel Code
 
 Generally speaking, you should try to make all of the code you write within Inspect solvers, tools, and scorers as parallel as possible. The main idea is to eagerly post as much work as you can, and then allow the various concurrency gates described above to take care of not overloading remote APIs or local resources. There are two keys to writing parallel code:
 
-1.  Use `async` for all potentially expensive operations. If you are calling a remote API, use the `httpx.AsyncClient`. If you are running local code, use the [subprocess()](reference/inspect_ai.util.html.md#subprocess) function described above.
+1.  Use `async` for all potentially expensive operations. If you are calling a remote API, use the `httpx.AsyncClient`. If you are running local code, use the [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function described above.
 2.  If your `async` work can be parallelised, do it using `asyncio.gather()`. For example, if you are calling three different model APIs to score a task, you can call them all in parallel. Or if you need to retrieve 10 web pages you don’t need to do it in a loop—rather, you can fetch them all at once.
 
 #### Model Requests
@@ -257,7 +257,7 @@ downloads = [client.get(page) for page in pages]
 results = await asyncio.gather(*downloads)
 ```
 
-Note that we don’t `await` the client requests when building up our list of `downloads`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available. Compared to looping over each page download this will execute much, much quicker. Note that if you are sending requests to a REST API that might have rate limits, you should consider wrapping your HTTP requests in a [concurrency()](reference/inspect_ai.util.html.md#concurrency) block. For example:
+Note that we don’t `await` the client requests when building up our list of `downloads`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available. Compared to looping over each page download this will execute much, much quicker. Note that if you are sending requests to a REST API that might have rate limits, you should consider wrapping your HTTP requests in a [concurrency()](./reference/inspect_ai.util.html.md#concurrency) block. For example:
 
 ``` python
 from inspect_ai.util import concurrency
@@ -275,7 +275,7 @@ results = await asyncio.gather(*downloads)
 
 It’s possible that your custom solvers, tools, or scorers will need to launch child processes to perform various tasks. Subprocesses have similar considerations as calling APIs: you want to make sure that they don’t block the rest of the work in Inspect (so they should be invoked with `async`) and you also want to make sure they don’t provide *too much* concurrency (i.e. you wouldn’t want to launch 200 processes at once on a 4 core machine!)
 
-To assist with this, Inspect provides the [subprocess()](reference/inspect_ai.util.html.md#subprocess) function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The [subprocess()](reference/inspect_ai.util.html.md#subprocess) function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here’s an example from the implementation of a `list_files()` tool:
+To assist with this, Inspect provides the [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function. This `async` function takes a command and arguments and invokes the specified command asynchronously, collecting and returning stdout and stderr. The [subprocess()](./reference/inspect_ai.util.html.md#subprocess) function also automatically limits concurrent child processes to the number of CPUs on your system (`os.cpu_count()`). Here’s an example from the implementation of a `list_files()` tool:
 
 ``` python
 @tool
@@ -304,7 +304,7 @@ The maximum number of concurrent subprocesses can be modified using the `--max-s
 $ inspect eval --model openai/gpt-4 --max-subprocesses 4
 ```
 
-Note that if you need to execute computationally expensive code in an eval, you should always factor it into a call to [subprocess()](reference/inspect_ai.util.html.md#subprocess) so that you get optimal concurrency and performance.
+Note that if you need to execute computationally expensive code in an eval, you should always factor it into a call to [subprocess()](./reference/inspect_ai.util.html.md#subprocess) so that you get optimal concurrency and performance.
 
 #### Timeouts
 
@@ -340,7 +340,7 @@ Note that there are some features of Inspect that do not yet work when using Tri
 
 2.  Interaction with AWS S3 (e.g. for log storage) uses the [s3fs](https://s3fs.readthedocs.io/en/latest/) package, which currently works only with asyncio.
 
-3.  The [Bedrock](providers.html.md#aws-bedrock) and [Grok](providers.html.md#grok) providers depend on asyncio so cannot be used with the Trio backend.
+3.  The [Bedrock](./providers.html.md#aws-bedrock) and [Grok](./providers.html.md#grok) providers depend on asyncio so cannot be used with the Trio backend.
 
 ### Portable Async
 

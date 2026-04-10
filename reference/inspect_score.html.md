@@ -1,6 +1,4 @@
-# inspect score
-
-Score a previous evaluation run.
+# inspect_score – Inspect
 
 Score a previous evaluation run.
 

@@ -1,4 +1,4 @@
-# Structured Output
+# Structured Output – Inspect
 
 ## Overview
 
@@ -42,7 +42,7 @@ class Color(BaseModel):
     blue: int
 ```
 
-To instruct the model to return output in this type, we use the `response_schema` generate config option, using the [json_schema()](reference/inspect_ai.util.html.md#json_schema) function to produce a schema for our type. Here is complete task definition which uses the dataset and color type from above:
+To instruct the model to return output in this type, we use the `response_schema` generate config option, using the [json_schema()](./reference/inspect_ai.util.html.md#json_schema) function to produce a schema for our type. Here is complete task definition which uses the dataset and color type from above:
 
 ``` python
 from inspect_ai import Task, task
@@ -65,7 +65,7 @@ def rgb_color():
     )
 ```
 
-We use the [json_schema()](reference/inspect_ai.util.html.md#json_schema) function to create a JSON schema for our `Color` type, then wrap that in a [ResponseSchema](reference/inspect_ai.model.html.md#responseschema) where we also assign it a name.
+We use the [json_schema()](./reference/inspect_ai.util.html.md#json_schema) function to create a JSON schema for our `Color` type, then wrap that in a [ResponseSchema](./reference/inspect_ai.model.html.md#responseschema) where we also assign it a name.
 
 You’ll also notice that we have specified a custom scorer. We need this to both parse and evaluate our custom type (as models still return JSON output as a string). Here is the scorer:
 
@@ -108,9 +108,9 @@ The Pydantic `Color` type has a convenient `model_validate_json()` method which 
 
 ## Schema
 
-The [json_schema()](reference/inspect_ai.util.html.md#json_schema) function supports creating schemas for any Python type including Pydantic models, dataclasses, and typed dicts. That said, Pydantic models are highly recommended as they provide additional parsing and validation which is generally required for scorers.
+The [json_schema()](./reference/inspect_ai.util.html.md#json_schema) function supports creating schemas for any Python type including Pydantic models, dataclasses, and typed dicts. That said, Pydantic models are highly recommended as they provide additional parsing and validation which is generally required for scorers.
 
-The `response_schema` generation config option takes a [ResponseSchema](reference/inspect_ai.model.html.md#responseschema) object which includes the schema and some additional fields:
+The `response_schema` generation config option takes a [ResponseSchema](./reference/inspect_ai.model.html.md#responseschema) object which includes the schema and some additional fields:
 
 ``` python
 from inspect_ai.model import ResponseSchema
@@ -132,7 +132,7 @@ You should therefore never assume that specifying `strict` gets your scorer off 
 
 ## vLLM/SGLang API
 
-The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details.
+The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the `extra_body` field in the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) object. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details.
 
 The key names for each guided decoding format differ between vLLM and SGLang:
 

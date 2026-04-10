@@ -1,4 +1,4 @@
-# Using Models
+# Using Models – Inspect
 
 ## Overview
 
@@ -6,26 +6,26 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](providers.html.md#openai), [Anthropic](providers.html.md#anthropic), [Google](providers.html.md#google), [Grok](providers.html.md#grok), [Mistral](providers.html.md#mistral), [DeepSeek](providers.html.md#deepseek), [Perplexity](providers.html.md#perplexity) |
-| Cloud APIs | [AWS Bedrock](providers.html.md#aws-bedrock), [AWS SageMaker](providers.html.md#aws-sagemaker), and [Azure AI](providers.html.md#azure-ai) |
-| Open (Hosted) | [Groq](providers.html.md#groq), [Together AI](providers.html.md#together-ai), [Fireworks AI](providers.html.md#fireworks-ai), [Cloudflare](providers.html.md#cloudflare), [HF Inference Providers](providers.html.md#hf-inference-providers), [SambaNova](providers.html.md#sambanova) |
-| Open (Local) | [Hugging Face](providers.html.md#hugging-face), [vLLM](providers.html.md#vllm), [Ollama](providers.html.md#ollama), [Lllama-cpp-python](providers.html.md#llama-cpp-python), [SGLang](providers.html.md#sglang), [TransformerLens](providers.html.md#transformer-lens), [nnterp](providers.html.md#nnterp) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Perplexity](./providers.html.md#perplexity) |
+| Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
+| Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
+| Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
   
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
-1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](providers.html.md#openai-api) interface.
+1.  It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](./providers.html.md#openai-api) interface.
 
-2.  It is available via OpenRouter (see the docs on using [OpenRouter](providers.html.md#openrouter) with Inspect).
+2.  It is available via OpenRouter (see the docs on using [OpenRouter](./providers.html.md#openrouter) with Inspect).
 
-You can also create [Model API Extensions](extensions.html.md#model-apis) to add model providers using their native interface.
+You can also create [Model API Extensions](./extensions.html.md#model-apis) to add model providers using their native interface.
 
 Below we’ll describe various ways to specify and provide options to models in Inspect evaluations. Review this first, then see the provider-specific sections for additional usage details and available options.
 
 ## Selecting a Model
 
-To select a model for an evaluation, pass it’s name on the command line or use the `model` argument of the [eval()](reference/inspect_ai.html.md#eval) function:
+To select a model for an evaluation, pass it’s name on the command line or use the `model` argument of the [eval()](./reference/inspect_ai.html.md#eval) function:
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4o-mini
@@ -47,7 +47,7 @@ INSPECT_EVAL_MODEL=google/gemini-2.5-pro
 
 #### No Model
 
-Some evaluations will either not make use of models or call the lower-level [get_model()](reference/inspect_ai.model.html.md#get_model) function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this).
+Some evaluations will either not make use of models or call the lower-level [get_model()](./reference/inspect_ai.model.html.md#get_model) function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this).
 
 In these cases, you are not required to specify a `--model`. If you happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent your evaluation from using it, you can explicitly specify no model as follows:
 
@@ -65,7 +65,7 @@ eval("arc.py", model=None)
 
 There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
 
-You can specify generation options either on the command line or in direct calls to [eval()](reference/inspect_ai.html.md#eval). For example:
+You can specify generation options either on the command line or in direct calls to [eval()](./reference/inspect_ai.html.md#eval). For example:
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4 --temperature 0.9
@@ -83,7 +83,7 @@ Use `inspect eval --help` to learn about all of the available generation config 
 
 ## Model Args
 
-If there is an additional aspect of a model you want to tweak that isn’t covered by the [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig), you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
+If there is an additional aspect of a model you want to tweak that isn’t covered by the [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig), you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
 
 ``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M location=us-east5
@@ -95,11 +95,11 @@ See the documentation for the requisite model provider for information on how mo
 
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
-By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.html.md) includes additional documentation on how to do this).
+By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](./parallelism.html.md) includes additional documentation on how to do this).
 
 ## Model API
 
-The `--model` which is set for an evaluation is automatically used by the [generate()](reference/inspect_ai.solver.html.md#generate) solver, as well as for other solvers and scorers built to use the currently evaluated model. If you are implementing a [Solver](reference/inspect_ai.solver.html.md#solver) or [Scorer](reference/inspect_ai.scorer.html.md#scorer) and want to use the currently evaluated model, call [get_model()](reference/inspect_ai.model.html.md#get_model) with no arguments:
+The `--model` which is set for an evaluation is automatically used by the [generate()](./reference/inspect_ai.solver.html.md#generate) solver, as well as for other solvers and scorers built to use the currently evaluated model. If you are implementing a [Solver](./reference/inspect_ai.solver.html.md#solver) or [Scorer](./reference/inspect_ai.scorer.html.md#scorer) and want to use the currently evaluated model, call [get_model()](./reference/inspect_ai.model.html.md#get_model) with no arguments:
 
 ``` python
 from inspect_ai.model import get_model
@@ -108,7 +108,7 @@ model = get_model()
 response = await model.generate("Say hello")
 ```
 
-If you want to use other models in your solvers and scorers, call [get_model()](reference/inspect_ai.model.html.md#get_model) with an alternate model name, along with optional generation config. For example:
+If you want to use other models in your solvers and scorers, call [get_model()](./reference/inspect_ai.model.html.md#get_model) with an alternate model name, along with optional generation config. For example:
 
 ``` python
 model = get_model("openai/gpt-4o")
@@ -119,7 +119,7 @@ model = get_model(
 )
 ```
 
-You can also pass provider specific parameters as additional arguments to [get_model()](reference/inspect_ai.model.html.md#get_model). For example:
+You can also pass provider specific parameters as additional arguments to [get_model()](./reference/inspect_ai.model.html.md#get_model). For example:
 
 ``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
@@ -127,13 +127,13 @@ model = get_model("hf/openai-community/gpt2", device="cuda:0")
 
 ### Model Caching
 
-By default, calls to [get_model()](reference/inspect_ai.model.html.md#get_model) are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
+By default, calls to [get_model()](./reference/inspect_ai.model.html.md#get_model) are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
 
 ``` python
 model = get_model("openai/gpt-4o", memoize=False)
 ```
 
-Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the [Model](reference/inspect_ai.model.html.md#model) class. For example:
+Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the [Model](./reference/inspect_ai.model.html.md#model) class. For example:
 
 ``` python
 async with get_model("openai/gpt-4o") as model:
@@ -191,13 +191,13 @@ Task(
 )
 ```
 
-**With [task_with()](reference/inspect_ai.html.md#task_with):**
+**With [task_with()](./reference/inspect_ai.html.md#task_with):**
 
 ``` python
 task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
 ```
 
-**With [eval()](reference/inspect_ai.html.md#eval):**
+**With [eval()](./reference/inspect_ai.html.md#eval):**
 
 ``` python
 eval("math.py", model_roles={"grader": "google/gemini-2.0-flash"})
@@ -220,27 +220,28 @@ inspect eval math.py \
     --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
 ```
 
-Note that the built-in [model-graded scorers](scorers.html.md#model-graded) (e.g. [model_graded_qa()](reference/inspect_ai.scorer.html.md#model_graded_qa), [model_graded_fact()](reference/inspect_ai.scorer.html.md#model_graded_fact)) look for the `grader` role by default.
+Note that the built-in [model-graded scorers](./scorers.html.md#model-graded) (e.g. [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa), [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact)) look for the `grader` role by default.
 
-For how model roles fit into the broader override and precedence model, see [Task Configuration](task-configuration.html.md#model-roles).
+For how model roles fit into the broader override and precedence model, see [Task Configuration](./task-configuration.html.md#model-roles).
 
 ### Role Resolution
 
-Model roles are resolved based on what is passed to [eval()](reference/inspect_ai.html.md#eval). This means that if you fully construct tasks before calling [eval()](reference/inspect_ai.html.md#eval) (e.g. by calling their `@task` function) then the initialization code for tasks, solvers, and scorers for can’t see the model role definitions.
+Model roles are resolved based on what is passed to [eval()](./reference/inspect_ai.html.md#eval). This means that if you fully construct tasks before calling [eval()](./reference/inspect_ai.html.md#eval) (e.g. by calling their `@task` function) then the initialization code for tasks, solvers, and scorers for can’t see the model role definitions.
 
-Given this, you should always call [get_model()](reference/inspect_ai.model.html.md#get_model) *inside* the implementation of your solver or scorer function rather than during initialization. For example:
+Given this, you should always call [get_model()](./reference/inspect_ai.model.html.md#get_model) *inside* the implementation of your solver or scorer function rather than during initialization. For example:
 
 **Don’t do this (model role not yet visible)**
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
 def model_grader() -> Scorer:
-    model = get_model(role="grader") # <1> 
+1    model = get_model(role="grader")
     async def score(state: TaskState, target: Target):   
         ...
 ```
 
-1.  Role is not yet visible when `@task` function is called before [eval()](reference/inspect_ai.html.md#eval).
+1  
+Role is not yet visible when `@task` function is called before [eval()](./reference/inspect_ai.html.md#eval).
 
 **Rather do this (defer until role is visible)**
 
@@ -248,11 +249,12 @@ def model_grader() -> Scorer:
 @scorer(metrics=[accuracy(), stderr()])
 def model_grader() -> Scorer:
     async def score(state: TaskState, target: Target):  
-        model = get_model(role="grader") # <1>  
+1        model = get_model(role="grader")
         ...
 ```
 
-1.  Role is visible since we are calling this after [eval()](reference/inspect_ai.html.md#eval).
+1  
+Role is visible since we are calling this after [eval()](./reference/inspect_ai.html.md#eval).
 
 ### Role Defaults
 
@@ -266,7 +268,7 @@ This means that you can use model roles as a means of external configurability e
 
 ### Roles for Tasks
 
-In some cases it may not be convenient to specify `model_roles` in the top level call to [eval()](reference/inspect_ai.html.md#eval). For example, you might be running an [Eval Set](eval-sets.html.md) to explore the behaviour of different models for a given role. In this case, do not specify `model_roles` at the eval level, rather, specify them at the task level.
+In some cases it may not be convenient to specify `model_roles` in the top level call to [eval()](./reference/inspect_ai.html.md#eval). For example, you might be running an [Eval Set](./eval-sets.html.md) to explore the behaviour of different models for a given role. In this case, do not specify `model_roles` at the eval level, rather, specify them at the task level.
 
 For example, imagine we have a task named `blues_clues` that we want to vary the red and blue teams for in an eval set:
 
@@ -290,7 +292,7 @@ eval_set(tasks, log_dir="...")
 
 Note that we also don’t specify a `model` for this eval (it doesn’t have a main model but rather just the red and blue team roles).
 
-As illustrated above, you can define as many named roles as you need. When using [eval()](reference/inspect_ai.html.md#eval) or [Task](reference/inspect_ai.html.md#task) roles are specified using a dictionary. When using `inspect eval` you can include multiple `--model-role` options on the command line:
+As illustrated above, you can define as many named roles as you need. When using [eval()](./reference/inspect_ai.html.md#eval) or [Task](./reference/inspect_ai.html.md#task) roles are specified using a dictionary. When using `inspect eval` you can include multiple `--model-role` options on the command line:
 
 ``` bash
 inspect eval math.py \
@@ -300,16 +302,16 @@ inspect eval math.py \
 
 ## Learning More
 
-- [Providers](providers.html.md) covers usage details and available options for the various supported providers.
+- [Providers](./providers.html.md) covers usage details and available options for the various supported providers.
 
-- [Caching](caching.html.md) explains how to cache model output to reduce the number of API calls made.
+- [Caching](./caching.html.md) explains how to cache model output to reduce the number of API calls made.
 
-- [Compaction](compaction.html.md) covers compacting message histories for long-running agents that exceed the context window.
+- [Compaction](./compaction.html.md) covers compacting message histories for long-running agents that exceed the context window.
 
-- [Multimodal](multimodal.html.md) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
+- [Multimodal](./multimodal.html.md) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
-- [Reasoning](reasoning.html.md) documents the additional options and data available for reasoning models.
+- [Reasoning](./reasoning.html.md) documents the additional options and data available for reasoning models.
 
-- [Batch Mode](models-batch.html.md) covers using batch processing APIs for model inference.
+- [Batch Mode](./models-batch.html.md) covers using batch processing APIs for model inference.
 
-- [Structured Output](structured.html.md) explains how to constrain model output to a particular JSON schema.
+- [Structured Output](./structured.html.md) explains how to constrain model output to a particular JSON schema.

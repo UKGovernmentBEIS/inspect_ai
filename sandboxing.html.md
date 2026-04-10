@@ -1,4 +1,4 @@
-# Sandboxing
+# Sandboxing – Inspect
 
 ## Overview
 
@@ -10,11 +10,11 @@ By default, model tool calls are executed within the main process running the ev
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](./extensions.html.md#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
-Let’s take a look at a simple example to illustrate. First, we’ll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the [sandbox()](reference/inspect_ai.util.html.md#sandbox) function to get access to the [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) instance for the currently executing [Sample](reference/inspect_ai.dataset.html.md#sample):
+Let’s take a look at a simple example to illustrate. First, we’ll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function to get access to the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) instance for the currently executing [Sample](./reference/inspect_ai.dataset.html.md#sample):
 
 ``` python
 from inspect_ai.tool import ToolError, tool
@@ -72,13 +72,13 @@ def file_probe():
     )
 ```
 
-We’ve included `sandbox="docker"` to indicate that sandbox environment operations should be executed in a Docker container. Specifying a sandbox environment (either at the task or evaluation level) is required if your tools call the [sandbox()](reference/inspect_ai.util.html.md#sandbox) function.
+We’ve included `sandbox="docker"` to indicate that sandbox environment operations should be executed in a Docker container. Specifying a sandbox environment (either at the task or evaluation level) is required if your tools call the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function.
 
-Note that `files` are specified as part of the [Sample](reference/inspect_ai.dataset.html.md#sample). Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
+Note that `files` are specified as part of the [Sample](./reference/inspect_ai.dataset.html.md#sample). Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
 
 ## Environment Interface
 
-The following instance methods are available to tools that need to interact with a [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment):
+The following instance methods are available to tools that need to interact with a [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment):
 
 ``` python
 class SandboxEnvironment:
@@ -172,7 +172,7 @@ The `connection()` method is optional, and provides commands that can be used to
 
 Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is *advisory* (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
 
-For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](reference/inspect_ai.dataset.html.md#sample) with an error state.
+For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](./reference/inspect_ai.dataset.html.md#sample) with an error state.
 
 The sandbox is also available to custom scorers.
 
@@ -190,9 +190,9 @@ There are two sandbox environments built in to Inspect and five available as ext
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `local` | Built-in | No | Local file system (no sandbox). |
 
-Sandbox environment definitions can be bound at the [Sample](reference/inspect_ai.dataset.html.md#sample), [Task](reference/inspect_ai.html.md#task), or [eval()](reference/inspect_ai.html.md#eval) level. Binding precedence goes from [eval()](reference/inspect_ai.html.md#eval), to [Task](reference/inspect_ai.html.md#task) to [Sample](reference/inspect_ai.dataset.html.md#sample), however sandbox config files defined on the [Sample](reference/inspect_ai.dataset.html.md#sample) always take precedence when the sandbox type for the [Sample](reference/inspect_ai.dataset.html.md#sample) is the same as the enclosing [Task](reference/inspect_ai.html.md#task) or [eval()](reference/inspect_ai.html.md#eval).
+Sandbox environment definitions can be bound at the [Sample](./reference/inspect_ai.dataset.html.md#sample), [Task](./reference/inspect_ai.html.md#task), or [eval()](./reference/inspect_ai.html.md#eval) level. Binding precedence goes from [eval()](./reference/inspect_ai.html.md#eval), to [Task](./reference/inspect_ai.html.md#task) to [Sample](./reference/inspect_ai.dataset.html.md#sample), however sandbox config files defined on the [Sample](./reference/inspect_ai.dataset.html.md#sample) always take precedence when the sandbox type for the [Sample](./reference/inspect_ai.dataset.html.md#sample) is the same as the enclosing [Task](./reference/inspect_ai.html.md#task) or [eval()](./reference/inspect_ai.html.md#eval).
 
-Here is a [Task](reference/inspect_ai.html.md#task) that defines a `sandbox`:
+Here is a [Task](./reference/inspect_ai.html.md#task) that defines a `sandbox`:
 
 ``` python
 Task(
@@ -214,7 +214,7 @@ sandbox=("docker", "attacker-compose.yaml")
 
 ### Programmatic Configuration
 
-For more dynamic scenarios, you can construct a [ComposeConfig](reference/inspect_ai.util.html.md#composeconfig) object programmatically rather than using a static YAML file. This is useful when you need to vary container configuration based on task parameters:
+For more dynamic scenarios, you can construct a [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) object programmatically rather than using a static YAML file. This is useful when you need to vary container configuration based on task parameters:
 
 ``` python
 from inspect_ai.util import ComposeConfig, ComposeService, SandboxEnvironmentSpec
@@ -242,17 +242,17 @@ def my_task(cpus: float = 1.0):
   )
 ```
 
-The [ComposeConfig](reference/inspect_ai.util.html.md#composeconfig) and [ComposeService](reference/inspect_ai.util.html.md#composeservice) classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
+The [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) and [ComposeService](./reference/inspect_ai.util.html.md#composeservice) classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
 ## Per Sample Setup
 
-The [Sample](reference/inspect_ai.dataset.html.md#sample) class includes `sandbox`, `files` and `setup` fields that are used to specify per-sample sandbox config, file assets, and setup logic.
+The [Sample](./reference/inspect_ai.dataset.html.md#sample) class includes `sandbox`, `files` and `setup` fields that are used to specify per-sample sandbox config, file assets, and setup logic.
 
 ### Sandbox
 
-You can either define a default `sandbox` for an entire [Task](reference/inspect_ai.html.md#task) as illustrated above, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox *instance*, even if the sandbox is defined at Task level. So samples do not interfere with each other’s sandboxes.)
+You can either define a default `sandbox` for an entire [Task](./reference/inspect_ai.html.md#task) as illustrated above, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox *instance*, even if the sandbox is defined at Task level. So samples do not interfere with each other’s sandboxes.)
 
-The `sandbox` can be specified as a string (e.g. `"docker`“), a tuple of sandbox type and config file (e.g. `("docker", "compose.yaml")`), or a `SandboxEnvironmentSpec` with a [ComposeConfig](reference/inspect_ai.util.html.md#composeconfig) for [Programmatic Configuration](#programmatic-configuration). This last option is particularly useful when you need to vary container configuration (e.g. docker image) on a per-sample basis.
+The `sandbox` can be specified as a string (e.g. `"docker`“), a tuple of sandbox type and config file (e.g. `("docker", "compose.yaml")`), or a `SandboxEnvironmentSpec` with a [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) for [Programmatic Configuration](#programmatic-configuration). This last option is particularly useful when you need to vary container configuration (e.g. docker image) on a per-sample basis.
 
 ### Files
 
@@ -288,6 +288,8 @@ Providing a `compose.yaml` is not strictly required, as Inspect will automatical
 
 Here’s an example of a `compose.yaml` file that sets container resource limits and isolates it from all network interactions including internet access:
 
+    compose.yaml
+
 ``` yaml
 services:
   default: 
@@ -303,6 +305,8 @@ The `init: true` entry enables the container to respond to shutdown requests. Th
 
 Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource and network limits excluded for brevity):
 
+    compose.yaml
+
 ``` yaml
 services:
   default: 
@@ -314,6 +318,8 @@ services:
 
 The `ctf-agent-environment` is not an image that exists on a remote registry, so we add the `x-local: true` to indicate that it should not be pulled. If local images are tagged, they also will not be pulled by default (so `x-local: true` is not required). For example:
 
+    compose.yaml
+
 ``` yaml
 services:
   default: 
@@ -323,6 +329,8 @@ services:
 ```
 
 If we are using an image from a remote registry we similarly don’t need to include `x-local`:
+
+    compose.yaml
 
 ``` yaml
 services:
@@ -337,6 +345,8 @@ See the [Docker Compose](https://docs.docker.com/compose/compose-file/) document
 ### Multiple Environments
 
 In some cases you may want to create multiple sandbox environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
+
+    compose.yaml
 
 ``` yaml
 services:
@@ -354,7 +364,7 @@ services:
     mem_limit: 1gb
 ```
 
-The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to [sandbox()](reference/inspect_ai.util.html.md#sandbox). Other environments would be accessed by name, for example:
+The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to [sandbox()](./reference/inspect_ai.util.html.md#sandbox). Other environments would be accessed by name, for example:
 
 ``` python
 sandbox()          # default sandbox environment
@@ -367,7 +377,7 @@ If you define multiple sandbox environments the default sandbox environment will
 2.  Then, take any environment with the `x-default` key set to `true`;
 3.  Finally, use the first sandbox environment as the default.
 
-You can use the [sandbox_default()](reference/inspect_ai.util.html.md#sandbox_default) context manager to temporarily change the default sandbox (for example, if you have tools that always target the default sandbox that you want to temporarily redirect):
+You can use the [sandbox_default()](./reference/inspect_ai.util.html.md#sandbox_default) context manager to temporarily change the default sandbox (for example, if you have tools that always target the default sandbox that you want to temporarily redirect):
 
 ``` python
 with sandbox_default("victim"):
@@ -483,6 +493,8 @@ By default, Inspect sets the value of `max_samples` to `max_connections + 1` (no
 
 Use a `compose.yaml` file to limit the resources consumed by each running container. For example:
 
+    compose.yaml
+
 ``` yaml
 services:
   default: 
@@ -495,6 +507,6 @@ services:
 
 ## Troubleshooting
 
-To diagnose sandbox execution issues (e.g. commands that don’t terminate properly, container lifecycle issues, etc.) you should use Inspect’s [Tracing](tracing.html.md) facility.
+To diagnose sandbox execution issues (e.g. commands that don’t terminate properly, container lifecycle issues, etc.) you should use Inspect’s [Tracing](./tracing.html.md) facility.
 
-Trace logs record the beginning and end of calls to [subprocess()](reference/inspect_ai.util.html.md#subprocess) (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don’t terminate, timeout, or have errors. See the article on [Tracing](tracing.html.md) for additional details.
+Trace logs record the beginning and end of calls to [subprocess()](./reference/inspect_ai.util.html.md#subprocess) (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don’t terminate, timeout, or have errors. See the article on [Tracing](./tracing.html.md) for additional details.

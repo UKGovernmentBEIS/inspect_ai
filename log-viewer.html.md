@@ -1,4 +1,4 @@
-# Log Viewer
+# Log Viewer – Inspect
 
 ## Overview
 
@@ -8,7 +8,7 @@ Inspect View provides a convenient way to visualize evaluation logs, including d
 
 Below we’ll describe how to get the most out of using Inspect View.
 
-Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](#sec-eval-logs) and [Data Frames](dataframe.html.md) to learn more about how to process log files with code.
+Note that this section covers *interactively* exploring log files. You can also use the [EvalLog](./reference/inspect_ai.log.html.md#evallog) API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the sections on [Eval Logs](#sec-eval-logs) and [Data Frames](./dataframe.html.md) to learn more about how to process log files with code.
 
 ## VS Code Extension
 
@@ -108,7 +108,7 @@ The scoring tab shows additional details including the full input and full model
 
 ### Metadata
 
-The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the [web_search()](reference/inspect_ai.tool.html.md#web_search) tool records which URLs it visited to retrieve additional context):
+The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool records which URLs it visited to retrieve additional context):
 
 [![The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample).](images/inspect-view-metadata.png)](images/inspect-view-metadata.png)
 
@@ -129,7 +129,7 @@ You can use the log viewer to catch and evaluate these sorts of issues. For exam
 
 It’s possible that these answers are legitimately incorrect. However it’s also possible that the correct answer is in the model’s output but just in a format we didn’t quite expect. In each case you’ll need to drill into the sample to investigate.
 
-Answers don’t just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an `answer` in the [Score](reference/inspect_ai.scorer.html.md#score) objects you return if you can. For example:
+Answers don’t just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an `answer` in the [Score](./reference/inspect_ai.scorer.html.md#score) objects you return if you can. For example:
 
 ``` python
 return Score(
@@ -203,7 +203,7 @@ You can use the `--log-level-transcript` option to control what level is written
 $ inspect eval biology_qa.py --log-level-transcript http
 ```
 
-Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are often included in a [.env configuration file](options.html.md).
+Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are often included in a [.env configuration file](./options.html.md).
 
 ### External File
 
@@ -233,7 +233,7 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 ## Publishing
 
-You can use the command `inspect view bundle` (or the [bundle_log_dir()](reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
+You can use the command `inspect view bundle` (or the [bundle_log_dir()](./reference/inspect_ai.log.html.md#bundle_log_dir) function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
 ``` bash
 $ inspect view bundle --log-dir logs --output-dir logs-www
@@ -255,18 +255,25 @@ Bundling the viewer and logs will produce an output directory with the following
 
 ``` bash
 logs-www
- └── index.html # <1>
- └── robots.txt  # <2>
- └── assets     # <3>
+1 └── index.html
+2 └── robots.txt
+3 └── assets
      └──  ..
- └── logs       # <4>
+4 └── logs
      └──  ..
 ```
 
-1.  The root viewer HTML
-2.  Excludes this site from being indexed
-3.  Supporting assets for the viewer
-4.  The logs to be displayed
+1  
+The root viewer HTML
+
+2  
+Excludes this site from being indexed
+
+3  
+Supporting assets for the viewer
+
+4  
+The logs to be displayed
 
 Deploy this folder to a static webserver to publish the log viewer.
 
@@ -296,7 +303,7 @@ Note that publishing to HuggingFace Spaces requires the `huggingface_hub` packag
 
 - You may provide a default output directory for bundling the viewer in your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` variable.
 
-- You may specify an S3 url as the target for bundled views. See the [Amazon S3](eval-logs.html.md#sec-amazon-s3) section for additional information on configuring S3.
+- You may specify an S3 url as the target for bundled views. See the [Amazon S3](./eval-logs.html.md#sec-amazon-s3) section for additional information on configuring S3.
 
 - You can use the `inspect_ai.log.bundle_log_dir` function in Python directly to bundle the viewer and logs into an output directory.
 

@@ -1,4 +1,4 @@
-# Multimodal
+# Multimodal – Inspect
 
 ## Overview
 
@@ -31,7 +31,7 @@ Please see provider specific documentation on which models support image input:
 - [Mistral Vision](https://docs.mistral.ai/capabilities/vision/)
 - [Grok Image Understanding](https://docs.x.ai/docs/guides/image-understanding)
 
-To include an image in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:
+To include an image in a [dataset](./datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:
 
 ``` javascript
 "input": [
@@ -74,7 +74,7 @@ The following models currently support audio inputs:
 - Google: All Gemini models
 - Mistral: All Voxtral models
 
-To include audio in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
+To include audio in a [dataset](./datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
 
 ``` javascript
 "input": [
@@ -116,7 +116,7 @@ The following models currently support video inputs:
 
 - Google: All Gemini models.
 
-To include video in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:
+To include video in a [dataset](./datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:
 
 ``` javascript
 "input": [
@@ -162,7 +162,7 @@ The following model providers support PDF inputs:
 - [Google](https://ai.google.dev/api/files)
 - [Mistral](https://docs.mistral.ai/capabilities/document_ai)
 
-To include PDF in a [dataset](datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include a PDF alongside some text content:
+To include PDF in a [dataset](./datasets.html.md) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include a PDF alongside some text content:
 
 ``` javascript
 "input": [
@@ -203,7 +203,7 @@ Some models can generate multimodal output along with text:
 
 - Google models `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, and `gemini-3.1-flash-image-preview` support image generation.
 
-Enable image output by setting `modalities=["image"]` in your [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig):
+Enable image output by setting `modalities=["image"]` in your [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig):
 
 ``` python
 config = GenerateConfig(modalities=["image"])
@@ -213,7 +213,7 @@ Text output is always implicitly included—you only need to specify additional 
 
 ### OpenAI
 
-Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood (you can custmize this using [ImageOutput](reference/inspect_ai.model.html.md#imageoutput) options).
+Image generation uses `gpt-image-1` / `gpt-image-1.5` under the hood (you can custmize this using [ImageOutput](./reference/inspect_ai.model.html.md#imageoutput) options).
 
 ``` python
 model = get_model("openai/gpt-5.4")
@@ -223,7 +223,7 @@ output = await model.generate(
 )
 ```
 
-For more control over image generation, use [ImageOutput](reference/inspect_ai.model.html.md#imageoutput) with provider-specific options:
+For more control over image generation, use [ImageOutput](./reference/inspect_ai.model.html.md#imageoutput) with provider-specific options:
 
 ``` python
 from inspect_ai.model import ImageOutput
@@ -252,7 +252,7 @@ output = await model.generate(
 
 ### Response Format
 
-Image output appears as [ContentImage](reference/inspect_ai.model.html.md#contentimage) in the assistant message’s `content` list, with a `data:image/png;base64,...` data URI:
+Image output appears as [ContentImage](./reference/inspect_ai.model.html.md#contentimage) in the assistant message’s `content` list, with a `data:image/png;base64,...` data URI:
 
 ``` python
 for content in output.choices[0].message.content:

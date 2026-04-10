@@ -472,8 +472,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -656,24 +662,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-with-filename-file">
 <pre><strong>theory.py</strong></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-1" data-filename="theory.py" data-llms-code-original="from inspect_ai import Task, task
-from inspect_ai.dataset import example_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (               
-  chain_of_thought, generate, self_critique   
-)                                             
-
-@task
-def theory_of_mind():
-    return Task(  # <1>
-        dataset=example_dataset(&quot;theory_of_mind&quot;),
-        solver=[                           # <2>
-          chain_of_thought(),              # <2>
-          generate(),                      # <2>
-          self_critique()                  # <2>
-        ],
-        scorer=model_graded_fact() # <3>
-    )"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-1-1"><a href="#annotated-cell-1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-1" data-filename="theory.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-1-1"><a href="#annotated-cell-1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="annotated-cell-1-2"><a href="#annotated-cell-1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
 <span id="annotated-cell-1-3"><a href="#annotated-cell-1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
 <span id="annotated-cell-1-4"><a href="#annotated-cell-1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> (               </span>
@@ -783,7 +772,8 @@ def theory_of_mind():
 <p>These sections discuss more advanced features and workflows. You don’t need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.</p>
 <ul>
 <li><p><a href="./eval-sets.html">Eval Sets</a> covers Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.</p></li>
-<li><p><a href="./errors-and-limits.html">Errors and Limits</a> covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.</p></li>
+<li><p><a href="./handling-errors.html">Handling Errors</a> covers techniques for dealing with runtime errors and recovering from crashes during evaluation.</p></li>
+<li><p><a href="./setting-limits.html">Setting Limits</a> covers setting time, message, token, and cost limits on evaluation tasks and samples.</p></li>
 <li><p><a href="./typing.html">Typing</a>: provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e.&nbsp;sample metadata and store).</p></li>
 <li><p><a href="./tracing.html">Tracing</a> Describes advanced execution tracing tools used to diagnose runtime issues.</p></li>
 <li><p><a href="./caching.html">Caching</a> enables you to cache model output to reduce the number of API calls made, saving both time and expense.</p></li>

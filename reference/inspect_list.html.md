@@ -1,6 +1,4 @@
-# inspect list
-
-List tasks on the filesystem.
+# inspect_list – Inspect
 
 List tasks on the filesystem.
 

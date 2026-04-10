@@ -1,6 +1,4 @@
-# inspect sandbox
-
-Manage sandbox environments.
+# inspect_sandbox – Inspect
 
 Manage Sandbox Environments.
 

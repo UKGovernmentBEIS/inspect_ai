@@ -1,4 +1,4 @@
-# Compaction
+# Compaction – Inspect
 
 ## Overview
 
@@ -6,13 +6,13 @@ Compaction enables you to automatically manage conversation context as it grows,
 
 | Strategy | Description |
 |----|----|
-| [CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) | Automatic compaction: tries native first, falls back to summary. |
-| [CompactionNative](reference/inspect_ai.model.html.md#compactionnative) | Use provider-specific native compaction API (OpenAI and Anthropic only). |
-| [CompactionSummary](reference/inspect_ai.model.html.md#compactionsummary) | Compact by having a model create a summary of the message history. |
-| [CompactionEdit](reference/inspect_ai.model.html.md#compactionedit) | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
-| [CompactionTrim](reference/inspect_ai.model.html.md#compactiontrim) | Compact by trimming the message history to preserve a percentage of the input. |
+| [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto) | Automatic compaction: tries native first, falls back to summary. |
+| [CompactionNative](./reference/inspect_ai.model.html.md#compactionnative) | Use provider-specific native compaction API (OpenAI and Anthropic only). |
+| [CompactionSummary](./reference/inspect_ai.model.html.md#compactionsummary) | Compact by having a model create a summary of the message history. |
+| [CompactionEdit](./reference/inspect_ai.model.html.md#compactionedit) | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
+| [CompactionTrim](./reference/inspect_ai.model.html.md#compactiontrim) | Compact by trimming the message history to preserve a percentage of the input. |
 
-[CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) is the recommended default for most use cases—it automatically uses native compaction when available and falls back to summary-based compaction otherwise. Edit and trim compaction are good for short or medium horizon tasks where you want to preserve as much context as possible.
+[CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto) is the recommended default for most use cases—it automatically uses native compaction when available and falls back to summary-based compaction otherwise. Edit and trim compaction are good for short or medium horizon tasks where you want to preserve as much context as possible.
 
 Compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
 
@@ -24,7 +24,7 @@ Float values between 0 and 1 (e.g., `0.9`) are interpreted as a percentage of th
 
 ## Basic Usage
 
-Compaction is built-in to the [ReAct Agent](react-agent.html.md) and the [Agent Bridge](agent-bridge.html.md) and can also be added to custom agents. Here are some examples of using compaction with the [react()](reference/inspect_ai.agent.html.md#react) agent:
+Compaction is built-in to the [ReAct Agent](./react-agent.html.md) and the [Agent Bridge](./agent-bridge.html.md) and can also be added to custom agents. Here are some examples of using compaction with the [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -46,15 +46,15 @@ react(
 )
 ```
 
-If you are creating a custom agent, you will need to incorporate compaction into your agent loop. See the [custom agent compaction](agent-custom.html.md#compaction) documentation for details.
+If you are creating a custom agent, you will need to incorporate compaction into your agent loop. See the [custom agent compaction](./agent-custom.html.md#compaction) documentation for details.
 
 One important thing to note about compaction is that it affects only the input that the model sees—the core history with all messages is still retained by agents when using compaction.
 
 ## Automatic Compaction
 
-[CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) provides the best of both worlds: it uses efficient provider-native compaction when available and falls back to summary-based compaction for unsupported providers. This is the recommended default for most use cases.
+[CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto) provides the best of both worlds: it uses efficient provider-native compaction when available and falls back to summary-based compaction for unsupported providers. This is the recommended default for most use cases.
 
-For example, here we add automatic compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent:
+For example, here we add automatic compaction to a [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -67,7 +67,7 @@ react(
 )
 ```
 
-Here are all options available for [CompactionAuto](reference/inspect_ai.model.html.md#compactionauto):
+Here are all options available for [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -79,7 +79,7 @@ Here are all options available for [CompactionAuto](reference/inspect_ai.model.h
 
 Native compaction delegates context management to the model provider’s own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6.
 
-For example, here we add native compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent:
+For example, here we add native compaction to a [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -92,9 +92,9 @@ react(
 )
 ```
 
-Note that [CompactionNative](reference/inspect_ai.model.html.md#compactionnative) will raise `NotImplementedError` if the model provider doesn’t support native compaction. Use [CompactionAuto](reference/inspect_ai.model.html.md#compactionauto) for automatic fallback to summary-based compaction.
+Note that [CompactionNative](./reference/inspect_ai.model.html.md#compactionnative) will raise `NotImplementedError` if the model provider doesn’t support native compaction. Use [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto) for automatic fallback to summary-based compaction.
 
-Here are all options available for [CompactionNative](reference/inspect_ai.model.html.md#compactionnative):
+Here are all options available for [CompactionNative](./reference/inspect_ai.model.html.md#compactionnative):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -106,7 +106,7 @@ Here are all options available for [CompactionNative](reference/inspect_ai.model
 
 Summary compaction uses a model to generate a concise summary of the conversation history, then replaces the conversation with this summary. This approach preserves the semantic content of the conversation while significantly reducing token count. System messages and input messages are preserved, while the conversation history is replaced with a summary message. When compaction triggers multiple times, it builds incrementally—detecting any existing summary and only summarizing content from that point forward.
 
-For example, here we add summary compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent:
+For example, here we add summary compaction to a [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -124,7 +124,7 @@ react(
 
 Note that we explicitly specify a `model`—this isn’t required and will default to the target model for compaction if not specified.
 
-Here are all options available for [CompactionSummary](reference/inspect_ai.model.html.md#compactionsummary):
+Here are all options available for [CompactionSummary](./reference/inspect_ai.model.html.md#compactionsummary):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -140,7 +140,7 @@ The default summarization prompt asks the model to capture the task overview, cu
 
 Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.
 
-For example, here we add edit compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent (all parameters to [CompactionEdit](reference/inspect_ai.model.html.md#compactionedit) reflect the built-in defaults):
+For example, here we add edit compaction to a [react()](./reference/inspect_ai.agent.html.md#react) agent (all parameters to [CompactionEdit](./reference/inspect_ai.model.html.md#compactionedit) reflect the built-in defaults):
 
 ``` python
 from inspect_ai.agent import react
@@ -157,7 +157,7 @@ react(
 )
 ```
 
-Here are all options available for [CompactionEdit](reference/inspect_ai.model.html.md#compactionedit):
+Here are all options available for [CompactionEdit](./reference/inspect_ai.model.html.md#compactionedit):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -172,7 +172,7 @@ Here are all options available for [CompactionEdit](reference/inspect_ai.model.h
 
 Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle.
 
-For example, here we add trim compaction to a [react()](reference/inspect_ai.agent.html.md#react) agent (all parameters to [CompactionTrim](reference/inspect_ai.model.html.md#compactiontrim) reflect the built-in defaults):
+For example, here we add trim compaction to a [react()](./reference/inspect_ai.agent.html.md#react) agent (all parameters to [CompactionTrim](./reference/inspect_ai.model.html.md#compactiontrim) reflect the built-in defaults):
 
 ``` python
 from inspect_ai.agent import react
@@ -188,7 +188,7 @@ react(
 )
 ```
 
-Here are all options available for [CompactionTrim](reference/inspect_ai.model.html.md#compactiontrim):
+Here are all options available for [CompactionTrim](./reference/inspect_ai.model.html.md#compactiontrim):
 
 | Parameter | Default | Description |
 |----|----|----|
@@ -198,9 +198,9 @@ Here are all options available for [CompactionTrim](reference/inspect_ai.model.h
 
 ## Memory Tool
 
-The [memory()](reference/inspect_ai.tool.html.md#memory) tool provides a persistent file-based storage system that agents can use to save important information before compaction occurs. When memory integration is enabled (the default), compaction strategies will warn the model to save critical context to memory before compaction is triggered.
+The [memory()](./reference/inspect_ai.tool.html.md#memory) tool provides a persistent file-based storage system that agents can use to save important information before compaction occurs. When memory integration is enabled (the default), compaction strategies will warn the model to save critical context to memory before compaction is triggered.
 
-To use memory with compaction, add the [memory()](reference/inspect_ai.tool.html.md#memory) tool to your agent:
+To use memory with compaction, add the [memory()](./reference/inspect_ai.tool.html.md#memory) tool to your agent:
 
 ``` python
 from inspect_ai.agent import react

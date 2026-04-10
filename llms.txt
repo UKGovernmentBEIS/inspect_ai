@@ -55,7 +55,8 @@
 ## Advanced
 
 - [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html.md): Describing, running, and analysing larger sets of evaluation tasks.
-- [Errors & Limits](https://inspect.aisi.org.uk/errors-and-limits.html.md): Techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
+- [Handling Errors](https://inspect.aisi.org.uk/handling-errors.html.md): Techniques for dealing with runtime errors and recovering from crashes during evaluation.
+- [Setting Limits](https://inspect.aisi.org.uk/setting-limits.html.md): Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
 - [Typing](https://inspect.aisi.org.uk/typing.html.md): Static type checking with Inspect, including typed interfaces to untyped storage (sample metadata and store).
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Advanced execution tracing tools for diagnosing runtime issues.
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Tuning Inspect's parallel async architecture for optimal throughput while respecting rate limits.

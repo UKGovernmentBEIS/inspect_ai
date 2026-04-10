@@ -1,6 +1,4 @@
-# inspect eval-retry
-
-Retry an evaluation task.
+# inspect_eval-retry – Inspect
 
 Retry failed evaluation(s)
 

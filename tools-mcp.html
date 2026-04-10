@@ -470,8 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -700,12 +706,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="remote-mcp">Remote MCP</h2>
 <p><a href="https://platform.openai.com/docs/guides/tools-remote-mcp">OpenAI</a> and <a href="https://docs.anthropic.com/en/docs/agents-and-tools/remote-mcp-servers">Anthropic</a> both provide a facility for HTTP-based MCP Servers to be called remotely by the model provider. This is especially useful for scenarios where you want the model to make a series of tool calls in a single generation (e.g.&nbsp;when you want to provide custom tools to a deep research model).</p>
 <p>You can specify that you’d like an HTTP-based MCP Server to be executed remotely by passing the <code>execution="remote"</code> option. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-6" data-llms-code-original="deepwiki = mcp_server_http(
-    name=&quot;deepwiki&quot;, 
-    url=&quot;https://mcp.deepwiki.com/mcp&quot;, 
-    authorization=&quot;$DEEPWIKI_API_KEY&quot;
-    execution=&quot;remote&quot; # <1>
-)"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-6-1"><a href="#annotated-cell-6-1" aria-hidden="true" tabindex="-1"></a>deepwiki <span class="op">=</span> mcp_server_http(</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-6"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-6-1"><a href="#annotated-cell-6-1" aria-hidden="true" tabindex="-1"></a>deepwiki <span class="op">=</span> mcp_server_http(</span>
 <span id="annotated-cell-6-2"><a href="#annotated-cell-6-2" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">"deepwiki"</span>, </span>
 <span id="annotated-cell-6-3"><a href="#annotated-cell-6-3" aria-hidden="true" tabindex="-1"></a>    url<span class="op">=</span><span class="st">"https://mcp.deepwiki.com/mcp"</span>, </span>
 <span id="annotated-cell-6-4"><a href="#annotated-cell-6-4" aria-hidden="true" tabindex="-1"></a>    authorization<span class="op">=</span><span class="st">"$DEEPWIKI_API_KEY"</span></span>

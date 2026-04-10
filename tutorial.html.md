@@ -1,4 +1,4 @@
-# Tutorial
+# Tutorial – Inspect
 
 ## Overview
 
@@ -22,7 +22,7 @@ See also the complete list of [Examples](https://github.com/UKGovernmentBEIS/ins
 
 ## Hello World
 
-This is the simplest possible Inspect evaluation task. The solver ([generate()](reference/inspect_ai.solver.html.md#generate)) just calls the model with the prompt and the scorer ([exact()](reference/inspect_ai.scorer.html.md#exact)) checks whether the model produces exactly the `target` from the dataset:
+This is the simplest possible Inspect evaluation task. The solver ([generate()](./reference/inspect_ai.solver.html.md#generate)) just calls the model with the prompt and the scorer ([exact()](./reference/inspect_ai.scorer.html.md#exact)) checks whether the model produces exactly the `target` from the dataset:
 
 ``` python
 from inspect_ai import Task, task
@@ -85,7 +85,7 @@ def security_guide():
     )
 ```
 
-Note that we are using a [model_graded_fact()](reference/inspect_ai.scorer.html.md#model_graded_fact) scorer. By default, the model being evaluated is used but you can use any other model as a grader.
+Note that we are using a [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) scorer. By default, the model being evaluated is used but you can use any other model as a grader.
 
 Now we run the evaluation:
 
@@ -135,7 +135,7 @@ Note that even though we don’t use it for the evaluation, we save the `source_
 
 ### Eval
 
-We’ll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset) function. We’ll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we’ll also pass `trust=True` to indicate that we are okay with locally executing the dataset loading code provided by hellaswag):
+We’ll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) function. We’ll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we’ll also pass `trust=True` to indicate that we are okay with locally executing the dataset loading code provided by hellaswag):
 
 ``` python
 @task
@@ -160,7 +160,7 @@ def hellaswag():
     )
 ```
 
-We use the [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) solver and as you may have noted we don’t call [generate()](reference/inspect_ai.solver.html.md#generate) directly here! This is because [multiple_choice()](reference/inspect_ai.solver.html.md#multiple_choice) calls [generate()](reference/inspect_ai.solver.html.md#generate) internally. We also use the [choice()](reference/inspect_ai.scorer.html.md#choice) scorer (which is a requirement when using the multiple choice solver).
+We use the [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) solver and as you may have noted we don’t call [generate()](./reference/inspect_ai.solver.html.md#generate) directly here! This is because [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice) calls [generate()](./reference/inspect_ai.solver.html.md#generate) internally. We also use the [choice()](./reference/inspect_ai.scorer.html.md#choice) scorer (which is a requirement when using the multiple choice solver).
 
 Now we run the evaluation, limiting the samples read to 50 for development purposes:
 
@@ -183,7 +183,7 @@ Note that the final numeric answers are contained at the end of the **answer** f
 
 We’ll start by importing what we need from Inspect and writing a couple of data handling functions:
 
-1.  `record_to_sample()` to convert raw records to samples. Note that we need a function rather than just mapping field names with a [FieldSpec](reference/inspect_ai.dataset.html.md#fieldspec) because the **answer** field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after `####`).
+1.  `record_to_sample()` to convert raw records to samples. Note that we need a function rather than just mapping field names with a [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec) because the **answer** field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after `####`).
 2.  `sample_to_fewshot()` to generate fewshot examples from samples.
 
 ``` python
@@ -237,7 +237,7 @@ Reasoning:
 
 ### Eval
 
-We’ll load the dataset from [HuggingFace](https://huggingface.co/datasets/gsm8k) using the [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset) function. By default we use 10 fewshot examples, but the `fewshot` task arg can be used to turn this up, down, or off. The `fewshot_seed` is provided for stability of fewshot examples across runs.
+We’ll load the dataset from [HuggingFace](https://huggingface.co/datasets/gsm8k) using the [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) function. By default we use 10 fewshot examples, but the `fewshot` task arg can be used to turn this up, down, or off. The `fewshot_seed` is provided for stability of fewshot examples across runs.
 
 ``` python
 @task
@@ -274,7 +274,7 @@ def gsm8k(fewshot=10, fewshot_seed=42):
     )
 ```
 
-We instruct the [match()](reference/inspect_ai.scorer.html.md#match) scorer to look for numeric matches at the end of the output. Passing `numeric=True` tells [match()](reference/inspect_ai.scorer.html.md#match) that it should disregard punctuation used in numbers (e.g. `$`, `,`, or `.` at the end) when making comparisons.
+We instruct the [match()](./reference/inspect_ai.scorer.html.md#match) scorer to look for numeric matches at the end of the output. Passing `numeric=True` tells [match()](./reference/inspect_ai.scorer.html.md#match) that it should disregard punctuation used in numbers (e.g. `$`, `,`, or `.` at the end) when making comparisons.
 
 Now we run the evaluation, limiting the number of samples to 100 for development purposes:
 
@@ -498,7 +498,7 @@ Args:
 
 Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
 
-Now that we’ve defined the tool, we can use it in an evaluation by passing it to the [use_tools()](reference/inspect_ai.solver.html.md#use_tools) function.
+Now that we’ve defined the tool, we can use it in an evaluation by passing it to the [use_tools()](./reference/inspect_ai.solver.html.md#use_tools) function.
 
 ``` python
 @task
@@ -523,7 +523,7 @@ inspect eval addition_problem.py
 
 “Capture the Flag” is a competitive cybersecurity game that requires expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities to accomplish the primary objective of discovering encrypted “flags” concealed within code snippets or file systems
 
-The [InterCode CTF](https://intercode-benchmark.github.io/#ctf) dataset contains 100 CTF challenges drawn from [picoCTF](https://picoctf.org/). The model is given access to [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools within a sandboxed Docker container, and must discover the value of the flag within a set number of message turns.
+The [InterCode CTF](https://intercode-benchmark.github.io/#ctf) dataset contains 100 CTF challenges drawn from [picoCTF](https://picoctf.org/). The model is given access to [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools within a sandboxed Docker container, and must discover the value of the flag within a set number of message turns.
 
 ### Task
 
@@ -533,7 +533,7 @@ The definition of the task calls out to a couple of helper functions that do mos
 
 &nbsp;
 
-2.  `ctf_agent()`, which defines an agent that will be use as the task’s solver. The agent consists principally of using [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools in a loop until the flag is discovered. We’ll describe this function in more detail below.
+2.  `ctf_agent()`, which defines an agent that will be use as the task’s solver. The agent consists principally of using [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools in a loop until the flag is discovered. We’ll describe this function in more detail below.
 
 ``` python
 from inspect_ai import Task, task
@@ -550,7 +550,7 @@ def intercode_ctf(attempts=3, message_limit=30, shuffle=False):
     )
 ```
 
-Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](sandboxing.html.md).
+Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](./sandboxing.html.md).
 
 Here is the definition of the agent:
 
@@ -579,6 +579,6 @@ def ctf_agent(attempts=3):
     )
 ```
 
-We haven’t previously discussed agents. As demonstrated above, agents can be used as solvers, but have additional capabilities related to composing agents together into multi-agent systems. For now, think of an agent as a type of solver (see the [Agents](agents.html.md) documentation to learn more about agents).
+We haven’t previously discussed agents. As demonstrated above, agents can be used as solvers, but have additional capabilities related to composing agents together into multi-agent systems. For now, think of an agent as a type of solver (see the [Agents](./agents.html.md) documentation to learn more about agents).
 
-The [react()](reference/inspect_ai.agent.html.md#react) agent in particular provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools are provided to the model with a 3-minute timeout to prevent long running commands from getting the evaluation stuck.
+The [react()](./reference/inspect_ai.agent.html.md#react) agent in particular provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools are provided to the model with a 3-minute timeout to prevent long running commands from getting the evaluation stuck.

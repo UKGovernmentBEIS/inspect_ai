@@ -1,6 +1,4 @@
-# inspect trace
-
-List and read execution traces.
+# inspect_trace – Inspect
 
 List and read execution traces.
 

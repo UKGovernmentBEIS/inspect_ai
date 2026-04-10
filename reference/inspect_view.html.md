@@ -1,6 +1,4 @@
-# inspect view
-
-Inspect log viewer.
+# inspect_view – Inspect
 
 Inspect log viewer.
 

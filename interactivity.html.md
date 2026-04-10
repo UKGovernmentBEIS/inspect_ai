@@ -1,4 +1,4 @@
-# Interactivity
+# Interactivity – Inspect
 
 ## Overview
 
@@ -8,7 +8,7 @@ In some cases you may wish to introduce user interaction into the implementation
 - Prompt the model dynamically based on the trajectory of the evaluation
 - Score model output with human judges
 
-The [input_screen()](reference/inspect_ai.util.html.md#input_screen) function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won’t be processed until the input is complete).
+The [input_screen()](./reference/inspect_ai.util.html.md#input_screen) function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won’t be processed until the input is complete).
 
 ## Example
 
@@ -16,7 +16,7 @@ Before diving into the details of how to add interactions to your tasks, you mig
 
 Intervention mode is a prototype of an Inspect agent with human intervention, meant to serve as a starting point for evaluations which need these features (e.g. manual open-ended probing). It implements the following:
 
-1.  Sets up a Linux agent with [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools.
+1.  Sets up a Linux agent with [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools.
 
 2.  Prompts the user for a starting question for the agent.
 
@@ -28,7 +28,7 @@ After reviewing the example and the documentation below you’ll be well equippe
 
 ## Input Screen
 
-You can prompt the user for input at any point in an evaluation using the [input_screen()](reference/inspect_ai.util.html.md#input_screen) context manager, which clears the normal task display and provides access to a [Console](https://rich.readthedocs.io/en/stable/console.html) object for presenting content and asking for user input. For example:
+You can prompt the user for input at any point in an evaluation using the [input_screen()](./reference/inspect_ai.util.html.md#input_screen) context manager, which clears the normal task display and provides access to a [Console](https://rich.readthedocs.io/en/stable/console.html) object for presenting content and asking for user input. For example:
 
 ``` python
 from inspect_ai.util import input_screen

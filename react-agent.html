@@ -470,8 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -723,7 +729,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>react(... truncation<span class="op">=</span><span class="st">"auto"</span>)</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>react(..., truncation<span class="op">=</span>custom_truncation)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The default <code>"auto"</code> truncation scheme calls the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#trim_messages">trim_messages()</a></span> function with a <code>preserve</code> ratio of 0.7.</p>
-<p>Note that if you enable truncation then a <a href="./errors-and-limits.html#message-limit">message limit</a> may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a <a href="./errors-and-limits.html#time-limit">time limit</a> and/or <a href="./errors-and-limits.html#token-limit">token limit</a>.</p>
+<p>Note that if you enable truncation then a <a href="./setting-limits.html#message-limit">message limit</a> may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a <a href="./setting-limits.html#time-limit">time limit</a> and/or <a href="./setting-limits.html#token-limit">token limit</a>.</p>
 </section>
 <section id="model" class="level2">
 <h2 class="anchored" data-anchor-id="model">Model</h2>

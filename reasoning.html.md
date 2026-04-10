@@ -1,4 +1,4 @@
-# Reasoning
+# Reasoning – Inspect
 
 ## Overview
 
@@ -8,17 +8,17 @@ In this article we’ll first cover the basics of [Reasoning Content](#reasoning
 
 ## Reasoning Content
 
-Many reasoning models allow you to see their underlying chain of thought in a special “thinking” or reasoning block. While reasoning is presented in different ways depending on the model, in the Inspect API it is normalised into [ContentReasoning](reference/inspect_ai.model.html.md#contentreasoning) blocks which are parallel to [ContentText](reference/inspect_ai.model.html.md#contenttext), [ContentImage](reference/inspect_ai.model.html.md#contentimage), etc.
+Many reasoning models allow you to see their underlying chain of thought in a special “thinking” or reasoning block. While reasoning is presented in different ways depending on the model, in the Inspect API it is normalised into [ContentReasoning](./reference/inspect_ai.model.html.md#contentreasoning) blocks which are parallel to [ContentText](./reference/inspect_ai.model.html.md#contenttext), [ContentImage](./reference/inspect_ai.model.html.md#contentimage), etc.
 
 Reasoning blocks are presented in their own region in both Inspect View and in terminal conversation views.
 
 While reasoning content isn’t made available in a standard fashion across models, Inspect does attempt to capture it using several heuristics, including responses that include a `reasoning` or `reasoning_content` field in the assistant message, assistant content that includes `<think></think>` tags, as well as using explicit APIs for models that support them (e.g. Claude 3.7).
 
-In addition, some models make available `reasoning_tokens` which will be added to the standard [ModelUsage](reference/inspect_ai.model.html.md#modelusage) object returned along with output.
+In addition, some models make available `reasoning_tokens` which will be added to the standard [ModelUsage](./reference/inspect_ai.model.html.md#modelusage) object returned along with output.
 
 ## Reasoning Options
 
-The following reasoning options are available from the CLI and within [GenerateConfig](reference/inspect_ai.model.html.md#generateconfig):
+The following reasoning options are available from the CLI and within [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig):
 
 | Option | Description | Default | Models |
 |----|----|----|----|
@@ -38,7 +38,7 @@ As you can see from above, models have different means of specifying the tokens 
  )
 ```
 
-The `reasoning_history` option lets you control how much of the model’s previous reasoning is presented in the message history sent to [generate()](reference/inspect_ai.solver.html.md#generate). The default is `auto`, which uses a provider-specific recommended default (normally `all`). Use `last` to not let the reasoning overwhelm the context window.
+The `reasoning_history` option lets you control how much of the model’s previous reasoning is presented in the message history sent to [generate()](./reference/inspect_ai.solver.html.md#generate). The default is `auto`, which uses a provider-specific recommended default (normally `all`). Use `last` to not let the reasoning overwhelm the context window.
 
 ## OpenAI Models
 
@@ -173,9 +173,9 @@ DeepSeek models can be accessed directly using their [OpenAI interface](https://
 
 | Provider | Model |
 |----|----|
-| [Together AI](providers.html.md#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
-| [Groq](providers.html.md#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
-| [Ollama](providers.html.md#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
+| [Together AI](./providers.html.md#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
+| [Groq](./providers.html.md#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
+| [Ollama](./providers.html.md#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
 
 There isn’t currently a way to customise the `reasoning_effort` of DeepSeek models, although they have indicated that this will be [available soon](https://api-docs.deepseek.com/guides/reasoning_model).
 

@@ -1,4 +1,4 @@
-# Inspect Extensions
+# Inspect Extensions – Inspect
 
 ## Sandboxes
 
@@ -19,6 +19,9 @@ Sandbox wrapper that allows fine grained control over command execution and file
 
 [Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) — [Jason Gwartz](https://github.com/jasongwartz)  
 Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
+
+[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) — [Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)  
+Sandbox environment for Inspect using Daytona’s cloud infrastructure.
 
 [Podman Sandbox](https://github.com/VectorInstitute/inspect-podman) — [Vector Institute and National Research Council of Canada](https://github.com/VectorInstitute/inspect-podman)  
 Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.

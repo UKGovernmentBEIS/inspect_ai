@@ -1,4 +1,4 @@
-# Agent Bridge
+# Agent Bridge – Inspect
 
 ## Overview
 
@@ -6,9 +6,9 @@ While Inspect provides facilities for native agent development, you can also ver
 
 Agents are *bridged* into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:
 
-1.  Bridging to Python-based agents that run in the same process as Inspect via the [agent_bridge()](reference/inspect_ai.agent.html.md#agent_bridge) context manager.
+1.  Bridging to Python-based agents that run in the same process as Inspect via the [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) context manager.
 
-2.  Bridging to agents that run in a sandbox via the [sandbox_agent_bridge()](reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager (these agents can be written in any language).
+2.  Bridging to agents that run in a sandbox via the [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager (these agents can be written in any language).
 
 We’ll cover each of these configurations in turn below. You can also learn from the following examples:
 
@@ -22,11 +22,11 @@ We’ll cover each of these configurations in turn below. You can also learn fro
 
 ## Agent Bridge
 
-The [agent_bridge()](reference/inspect_ai.agent.html.md#agent_bridge) can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, Anthropic, and Google. To bridge a Python based agent running in the same process as Inspect:
+The [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, Anthropic, and Google. To bridge a Python based agent running in the same process as Inspect:
 
 1.  Write your custom Python agent as normal using the OpenAI, Anthropic, or Google connector provided by your agent system, specifying “inspect” as the model name.
 
-2.  Run your custom Python agent within the [agent_bridge()](reference/inspect_ai.agent.html.md#agent_bridge) context manager which redirects OpenAI calls to the current Inspect model provider.
+2.  Run your custom Python agent within the [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) context manager which redirects OpenAI calls to the current Inspect model provider.
 
 For example, here we build an agent that uses the OpenAI SDK directly (imaging using your favourite agent framework in its place):
 
@@ -40,33 +40,40 @@ from inspect_ai.model import messages_to_openai
 @agent
 def my_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with agent_bridge(state) as bridge: # <1>
+1        async with agent_bridge(state) as bridge:
             client = AsyncOpenAI()
             
             await client.chat.completions.create(
-                model="inspect", # <2>
-                messages=messages_to_openai(state.messages) # <3>
+2                model="inspect",
+3                messages=messages_to_openai(state.messages)
             )
 
-            return bridge.state # <4>
+4            return bridge.state
 
     return execute
 ```
 
-1.  Use the [agent_bridge()](reference/inspect_ai.agent.html.md#agent_bridge) context manager to redirect the OpenAI API to the Inspect model provider. Pass the `state` so that the bridge can automatically keep track of changes to `messages` and `output` based on model calls passing through the bridge.
-2.  Use the OpenAI API with `model="inspect"`, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.
-3.  Convert the `state.messages` input into native OpenAI messages using the [messages_to_openai()](reference/inspect_ai.model.html.md#messages_to_openai) function.
-4.  Return the `state` changes automatically tracked by the `bridge` .
+1  
+Use the [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) context manager to redirect the OpenAI API to the Inspect model provider. Pass the `state` so that the bridge can automatically keep track of changes to `messages` and `output` based on model calls passing through the bridge.
+
+2  
+Use the OpenAI API with `model="inspect"`, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.
+
+3  
+Convert the `state.messages` input into native OpenAI messages using the [messages_to_openai()](./reference/inspect_ai.model.html.md#messages_to_openai) function.
+
+4  
+Return the `state` changes automatically tracked by the `bridge` .
 
 The [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk), [PydanticAI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/pydantic-ai) [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) example provide a more in-depth demonstration of using the Python agent bridge with Inspect.
 
 ## Sandbox Bridge
 
-The [sandbox_agent_bridge()](reference/inspect_ai.agent.html.md#sandbox_agent_bridge) can bridge agents written against the OpenAI Completions, OpenAI Responses, Anthropic API, or Google API. To bridge an agent running in a sandbox to Inspect:
+The [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) can bridge agents written against the OpenAI Completions, OpenAI Responses, Anthropic API, or Google API. To bridge an agent running in a sandbox to Inspect:
 
 1.  Configure your sandbox (e.g. via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI, Anthropic, or Gemini API on localhost port 13131 (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131/v1beta`).
 
-2.  Write a standard Inspect agent that uses the [sandbox_agent_bridge()](reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager and the `sandbox().exec()` method to invoke the custom agent.
+2.  Write a standard Inspect agent that uses the [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager and the `sandbox().exec()` method to invoke the custom agent.
 
 The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI, Anthropic, and Google APIs. This proxy server in turn relays requests to the current Inspect model provider.
 
@@ -83,31 +90,40 @@ from inspect_ai.util import sandbox
 @agent
 def my_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with sandbox_agent_bridge(state) as bridge: # <1>
+1        async with sandbox_agent_bridge(state) as bridge:
             
-            prompt = user_prompt(state.messages) # <2>
+2            prompt = user_prompt(state.messages)
             
-            result = sandbox().exec(   # <3>
+3            result = sandbox().exec(
                 cmd=[
                     "/opt/my_agent",
                     "--prompt",
                     prompt.text
                 ],
-                env={"OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1"} # <4>
+4                env={"OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1"}
             )
             if not result.success:
                 raise RuntimeError(f"Agent error: {result.stderr}")
 
-            return bridge.state # <5>
+5            return bridge.state
 
     return execute
 ```
 
-1.  Use the [sandbox_agent_bridge()](reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager to redirect the OpenAI API to the Inspect model provider. Pass the `state` so that the bridge can automatically keep track of changes to `messages` and `output` based on model calls passing through the bridge.
-2.  Extract the last user message from the message history with [user_prompt()](reference/inspect_ai.model.html.md#user_prompt).
-3.  Run the agent, using a CLI argument for input and stdout for output (other agents may use more sophisticated encoding schemes for messages in and out).
-4.  Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the `port` to listen on from the `bridge` yielded by the context manager.
-5.  Return the `state` changes automatically tracked by the `bridge`.
+1  
+Use the [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) context manager to redirect the OpenAI API to the Inspect model provider. Pass the `state` so that the bridge can automatically keep track of changes to `messages` and `output` based on model calls passing through the bridge.
+
+2  
+Extract the last user message from the message history with [user_prompt()](./reference/inspect_ai.model.html.md#user_prompt).
+
+3  
+Run the agent, using a CLI argument for input and stdout for output (other agents may use more sophisticated encoding schemes for messages in and out).
+
+4  
+Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the `port` to listen on from the `bridge` yielded by the context manager.
+
+5  
+Return the `state` changes automatically tracked by the `bridge`.
 
 The [Claude Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html) and [Codex CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html) agents in the Inspect SWE package provide more in-depth demonstrations of running custom agents in sandboxes.
 
@@ -115,7 +131,7 @@ The [Claude Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html
 
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.
 
-To bridge tools, wrap them in a [BridgedToolsSpec](reference/inspect_ai.agent.html.md#bridgedtoolsspec) and pass to [sandbox_agent_bridge()](reference/inspect_ai.agent.html.md#sandbox_agent_bridge):
+To bridge tools, wrap them in a [BridgedToolsSpec](./reference/inspect_ai.agent.html.md#bridgedtoolsspec) and pass to [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge):
 
 ``` python
 from inspect_ai.tool import tool
@@ -159,7 +175,7 @@ The bridge handles:
 
 - Starting a host-side service that executes the Inspect tools
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
-- Returning [MCPServerConfigStdio](reference/inspect_ai.tool.html.md#mcpserverconfigstdio) configs that CLI agents can use to connect
+- Returning [MCPServerConfigStdio](./reference/inspect_ai.tool.html.md#mcpserverconfigstdio) configs that CLI agents can use to connect
 
 ## Models
 

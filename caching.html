@@ -470,8 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -638,17 +644,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-provider-caching" class="level2">
 <h2 class="anchored" data-anchor-id="sec-provider-caching">Provider Caching</h2>
-<p>Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching">Anthropic Prompt Caching</a> and will extend this support to other providers over time as they add caching to their APIs.</p>
-<p>Provider prompt caching is controlled by the <code>cache-prompt</code> generation config option. The default value for <code>cache-prompt</code> is <code>"auto"</code>, which enables prompt caching automatically if tool definitions are included in the request. Use <code>true</code> and <code>false</code> to force caching on or off. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>auto  <span class="co"># enable if tools defined</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>true  <span class="co"># force caching on</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>false <span class="co"># force caching off</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. The only provider that currently enables you to turn off prompt caching is Anthropic, and you can do this using <code>cache-prompt</code> generation config option. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>false <span class="co"># force caching off</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, cache_prompt<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, cache_prompt<span class="op">=</span><span class="va">False</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="cache-scope" class="level3">
 <h3 class="anchored" data-anchor-id="cache-scope">Cache Scope</h3>
 <p>Providers will typically provide various means of customising the scope of cache usage. The Inspect <code>cache-prompt</code> option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).</p>
-<p>Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)—once this becomes possible this will also be exposed in the Inspect API.</p>
 </section>
 <section id="usage-reporting" class="level3">
 <h3 class="anchored" data-anchor-id="usage-reporting">Usage Reporting</h3>

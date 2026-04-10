@@ -1,4 +1,4 @@
-# Extensions
+# Extensions – Inspect
 
 ## Overview
 
@@ -18,7 +18,9 @@ For each of these, you can create an extension within a Python package, and then
 
 ## Model APIs
 
-You can add a model provider by deriving a new class from [ModelAPI](reference/inspect_ai.model.html.md#modelapi) and then creating a function decorated by `@modelapi` that returns the class. These are typically implemented in separate files (for reasons described below):
+You can add a model provider by deriving a new class from [ModelAPI](./reference/inspect_ai.model.html.md#modelapi) and then creating a function decorated by `@modelapi` that returns the class. These are typically implemented in separate files (for reasons described below):
+
+    custom.py
 
 ``` python
 class CustomModelAPI(ModelAPI):
@@ -43,6 +45,8 @@ class CustomModelAPI(ModelAPI):
         ...
 ```
 
+    providers.py
+
 ``` python
 @modelapi(name="custom")
 def custom():
@@ -57,7 +61,7 @@ The `__init__()` method *must* call the `super().__init__()` method, and typical
 
 The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` and `--model-config` arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.aisi.org.uk/models.html#model-args>).
 
-The [generate()](reference/inspect_ai.solver.html.md#generate) method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a `tuple[ModelOutput,ModelCall]` in order to record the raw request and response to the model within the sample transcript.
+The [generate()](./reference/inspect_ai.solver.html.md#generate) method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a `tuple[ModelOutput,ModelCall]` in order to record the raw request and response to the model within the sample transcript.
 
 In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.). See the [ModelAPI](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py) source code for further documentation on these properties.
 
@@ -69,21 +73,15 @@ If you are publishing a custom model API within a Python package, you should reg
 
 For example, if your package was named `evaltools` and your model provider was exported from a source file named `_registry.py` at the root of your package, you would register it like this in `pyproject.toml`:
 
-## Setuptools
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
 
-## uv
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
-
-## Poetry
 
 ``` toml
 [tool.poetry.plugins.inspect_ai]
@@ -100,7 +98,7 @@ inspect eval ctf.py --model custom/my-model
 
 Where `my-model` is the name of some model supported by your provider (this will be passed to `__init()__` in the `model_name` argument).
 
-You can also reference it from within Python calls to [get_model()](reference/inspect_ai.model.html.md#get_model) or [eval()](reference/inspect_ai.html.md#eval):
+You can also reference it from within Python calls to [get_model()](./reference/inspect_ai.model.html.md#get_model) or [eval()](./reference/inspect_ai.html.md#eval):
 
 ``` python
 # get a model instance
@@ -112,16 +110,18 @@ eval(math, model = "custom/my-model")
 
 ## Sandboxes
 
-[Sandbox Environments](sandboxing.html.md) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
+[Sandbox Environments](./sandboxing.html.md) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
 | Environment Type | Description |
 |----|----|
-| `local` | Run [sandbox()](reference/inspect_ai.util.html.md#sandbox) methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run [sandbox()](reference/inspect_ai.util.html.md#sandbox) methods within a Docker container |
+| `local` | Run [sandbox()](./reference/inspect_ai.util.html.md#sandbox) methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run [sandbox()](./reference/inspect_ai.util.html.md#sandbox) methods within a Docker container |
 
-To create a custom sandbox environment, derive a class from [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment), implement the required static and instance methods, and add the `@sandboxenv` decorator to it.
+To create a custom sandbox environment, derive a class from [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment), implement the required static and instance methods, and add the `@sandboxenv` decorator to it.
 
-The static class methods control the lifecycle of containers and other computing resources associated with the [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment):
+The static class methods control the lifecycle of containers and other computing resources associated with the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment):
+
+    podman.py
 
 ``` python
 class PodmanSandboxEnvironment(SandboxEnvironment):
@@ -183,6 +183,8 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     # (instance methods shown below)
 ```
 
+    providers.py
+
 ``` python
 def podman():
     from .podman import PodmanSandboxEnvironment
@@ -196,11 +198,11 @@ The class methods take care of various stages of initialisation, setup, and tear
 
 | Method | Lifecycle | Purpose |
 |----|----|----|
-| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an [eval()](reference/inspect_ai.html.md#eval) run. | Expensive initialisation operations (e.g. pulling or building images) |
-| `sample_init()` | Called at the beginning of each [Sample](reference/inspect_ai.dataset.html.md#sample). | Create [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) instances for the sample. |
-| `sample_cleanup()` | Called at the end of each [Sample](reference/inspect_ai.dataset.html.md#sample) | Cleanup [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) instances for the sample. |
-| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an [eval()](reference/inspect_ai.html.md#eval) run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment). |
+| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an [eval()](./reference/inspect_ai.html.md#eval) run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each [Sample](./reference/inspect_ai.dataset.html.md#sample). | Create [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) instances for the sample. |
+| `sample_cleanup()` | Called at the end of each [Sample](./reference/inspect_ai.dataset.html.md#sample) | Cleanup [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) instances for the sample. |
+| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an [eval()](./reference/inspect_ai.html.md#eval) run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment). |
 | `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
 | `is_docker_compatible()` | Called once to determine whether a provider is Docker compatible. | Can the provider take Dockerfile and compose.yaml as config? |
 | `config_deserialize()` | Called when a custom sandbox config type is read from a log file. | Only required if a sandbox supports custom config types. |
@@ -211,7 +213,7 @@ In the case of parallel execution of a group of tasks within the same working di
 
 > **NOTE:**
 >
-> The “default” [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) i.e. that named “default” or marked as default in some other provider-specific way, **must** be the first key/value in the dictionary returned from `sample_init()`.
+> The “default” [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) i.e. that named “default” or marked as default in some other provider-specific way, **must** be the first key/value in the dictionary returned from `sample_init()`.
 
 The `task_cleanup()` has a number of important functions:
 
@@ -229,7 +231,7 @@ The `cli_cleanup()` function is a global cleanup handler that should be able to 
 
 The `task_cleanup()` function will typically print out the information required to invoke `cli_cleanup()` when it is invoked with `cleanup = False`. Try invoking the `DockerSandboxEnvironment` with `--no-sandbox-cleanup` to see an example.
 
-The [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) instance methods provide access to process execution and file input/output within the environment.
+The [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) instance methods provide access to process execution and file input/output within the environment.
 
 ``` python
 class SandboxEnvironment:
@@ -323,9 +325,9 @@ The `connection()` method is optional, and provides commands that can be used to
 
 Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is *advisory* (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
 
-For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](reference/inspect_ai.dataset.html.md#sample) with an error state.
+For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](./reference/inspect_ai.dataset.html.md#sample) with an error state.
 
-Note that the `exec_remote()` method is implemented directly in the [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) base class so should not be implemented by subclasses.
+Note that the `exec_remote()` method is implemented directly in the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) base class so should not be implemented by subclasses.
 
 The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
 
@@ -346,7 +348,7 @@ If a provider is docker compatible, then the `config` argument passed to it’s 
 
 1.  A path to a `Dockerfile`
 2.  A path to a `compose.yaml` file.
-3.  An instance of the [ComposeConfig](reference/inspect_ai.util.html.md#composeconfig) class.
+3.  An instance of the [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) class.
 
 These input for `config` might be handled as follows:
 
@@ -378,21 +380,15 @@ You should build your custom sandbox environment within a Python package, and th
 
 For example, if your package was named `evaltools` and your sandbox environment provider was exported from a source file named `_registry.py` at the root of your package, you would register it like this in `pyproject.toml`:
 
-## Setuptools
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
 
-## uv
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
-
-## Poetry
 
 ``` toml
 [tool.poetry.plugins.inspect_ai]
@@ -437,13 +433,15 @@ Task(
 
 ## Approvers
 
-[Approvers](approval.html.md) enable you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:
+[Approvers](./approval.html.md) enable you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:
 
 1.  All tool calls are approved by a human operator.
 2.  Select tool calls are approved by a human operator (the rest being executed without approval).
 3.  Custom approvers that decide to either approve, reject, or escalate to another approver.
 
 Approvers can be implemented in Python packages and the referred to by package and name from approval policy config files. For example, here is a simple custom approver that just reflects back a decision passed to it at creation time:
+
+    approvers.py
 
 ``` python
 @approver
@@ -476,27 +474,23 @@ For example, let’s say your package is named `evaltools` and has this structur
 
 The `_registry.py` file serves as a place to import things that you want registered with Inspect. For example:
 
+    _registry.py
+
 ``` python
 from .approvers import auto_approver
 ```
 
 You can then register your `auto_approver` Inspect extension (and anything else imported into `_registry.py`) like this in `pyproject.toml`:
 
-## Setuptools
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
 
-## uv
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
-
-## Poetry
 
 ``` toml
 [tool.poetry.plugins.inspect_ai]
@@ -504,6 +498,8 @@ evaltools = "evaltools._registry"
 ```
 
 Once you’ve done this, you can refer to the approver within an approval policy config using its package qualified name. For example:
+
+    approval.yaml
 
 ``` yaml
 approvers:
@@ -524,7 +520,7 @@ Datasets, prompt templates, and evaluation logs can be stored using either the l
 - [Azure Data Lake Storage](https://github.com/fsspec/adlfs)
 - [DVC](https://dvc.org/doc/api-reference/dvcfilesystem)
 
-Support for [Amazon S3](eval-logs.html.md#sec-amazon-s3) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
+Support for [Amazon S3](./eval-logs.html.md#sec-amazon-s3) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
 
 See [Custom Filesystems](#sec-custom-filesystems) below for details on implementing your own fsspec compatible filesystem as a storage back-end.
 
@@ -532,11 +528,11 @@ See [Custom Filesystems](#sec-custom-filesystems) below for details on implement
 
 The following Inspect API functions use **fsspec**:
 
-- [resource()](reference/inspect_ai.util.html.md#resource) for reading prompt templates and other supporting files.
+- [resource()](./reference/inspect_ai.util.html.md#resource) for reading prompt templates and other supporting files.
 
-- [csv_dataset()](reference/inspect_ai.dataset.html.md#csv_dataset) and [json_dataset()](reference/inspect_ai.dataset.html.md#json_dataset) for reading datasets (note that `files` referenced within samples can also use fsspec filesystem references).
+- [csv_dataset()](./reference/inspect_ai.dataset.html.md#csv_dataset) and [json_dataset()](./reference/inspect_ai.dataset.html.md#json_dataset) for reading datasets (note that `files` referenced within samples can also use fsspec filesystem references).
 
-- [list_eval_logs()](reference/inspect_ai.log.html.md#list_eval_logs) , [read_eval_log()](reference/inspect_ai.log.html.md#read_eval_log), [write_eval_log()](reference/inspect_ai.log.html.md#write_eval_log), and [retryable_eval_logs()](reference/inspect_ai.log.html.md#retryable_eval_logs).
+- [list_eval_logs()](./reference/inspect_ai.log.html.md#list_eval_logs) , [read_eval_log()](./reference/inspect_ai.log.html.md#read_eval_log), [write_eval_log()](./reference/inspect_ai.log.html.md#write_eval_log), and [retryable_eval_logs()](./reference/inspect_ai.log.html.md#retryable_eval_logs).
 
 For example, to use S3 you would prefix your paths with `s3://`:
 
@@ -568,21 +564,15 @@ See the fsspec [developer documentation](https://filesystem-spec.readthedocs.io/
 
 As with Model APIs and Sandbox Environments, fsspec filesystems should be registered using a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). For example, if your package is named `evaltools` and you have implemented a `myfs://` filesystem using the `MyFs` class exported from the root of the package, you would register it like this in `pyproject.toml`:
 
-## Setuptools
-
 ``` toml
 [project.entry-points."fsspec.specs"]
 myfs = "evaltools:MyFs"
 ```
 
-## uv
-
 ``` toml
 [project.entry-points."fsspec.specs"]
 myfs = "evaltools:MyFs"
 ```
-
-## Poetry
 
 ``` toml
 [tool.poetry.plugins."fsspec.specs"]
@@ -623,11 +613,13 @@ class WBHooks(Hooks):
 
 For a more complete example of creating hooks see the [wandb_weave.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/wandb_weave.py), [mlflow_tracking.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py), and [mlflow_tracing.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracing.py) examples.
 
-See the [Hooks](reference/inspect_ai.hooks.html.md#hooks) class for more documentation and the full list of available hook events.
+See the [Hooks](./reference/inspect_ai.hooks.html.md#hooks) class for more documentation and the full list of available hook events.
 
 Each set of hooks (i.e. each `@hooks`-decorated class) can register for any events (even if they’re overlapping).
 
-Alternatively, you may decorate a function which returns the type of a [Hooks](reference/inspect_ai.hooks.html.md#hooks) subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).
+Alternatively, you may decorate a function which returns the type of a [Hooks](./reference/inspect_ai.hooks.html.md#hooks) subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).
+
+    providers.py
 
 ``` python
 @hooks(name="w&b_hooks", description="Weights & Biases integration")
@@ -650,27 +642,23 @@ For example, let’s say your package is named `evaltools` and has this structur
 
 The `_registry.py` file serves as a place to import things that you want registered with Inspect. For example:
 
+    _registry.py
+
 ``` python
 from .wandb import wandb_hooks
 ```
 
 You can then register your `wandb_hooks` Inspect extension (and anything else imported into `_registry.py`) like this in `pyproject.toml`:
 
-## Setuptools
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
 
-## uv
-
 ``` toml
 [project.entry-points.inspect_ai]
 evaltools = "evaltools._registry"
 ```
-
-## Poetry
 
 ``` toml
 [tool.poetry.plugins.inspect_ai]

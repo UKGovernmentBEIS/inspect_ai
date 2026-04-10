@@ -1,10 +1,10 @@
-# Datasets
+# Datasets – Inspect
 
 ## Overview
 
 Inspect has native support for reading datasets in the CSV, JSON, and JSON Lines formats, as well as from [Hugging Face](#sec-hugging-face-datasets). In addition, the core dataset interface for the evaluation pipeline is flexible enough to accept data read from just about any source (see the [Custom Reader](#sec-custom-reader) section below for details).
 
-If your data is already in a format amenable for direct reading as an Inspect [Sample](reference/inspect_ai.dataset.html.md#sample), reading a dataset is as simple as this:
+If your data is already in a format amenable for direct reading as an Inspect [Sample](./reference/inspect_ai.dataset.html.md#sample), reading a dataset is as simple as this:
 
 ``` python
 from inspect_ai.dataset import csv_dataset, json_dataset
@@ -16,7 +16,7 @@ Of course, many real-world datasets won’t be so trivial to read. Below we’ll
 
 ## Dataset Samples
 
-The core data type underlying the use of datasets with Inspect is the [Sample](reference/inspect_ai.dataset.html.md#sample), which consists of a required `input` field and several other optional fields:
+The core data type underlying the use of datasets with Inspect is the [Sample](./reference/inspect_ai.dataset.html.md#sample), which consists of a required `input` field and several other optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
@@ -46,7 +46,7 @@ dataset = csv_dataset("security_guide.csv")
 
 Note that samples from datasets without an `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](solvers.html.md#multiple-choice)
+If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](./solvers.html.md#multiple-choice)
 
 ## Sample Files
 
@@ -74,7 +74,7 @@ The `setup` field contains either a path to a bash setup script (resolved relati
 
 ## Field Mapping
 
-If your dataset contains inputs and targets that don’t use `input` and `target` as field names, you can map them into a [Dataset](reference/inspect_ai.dataset.html.md#dataset) using a [FieldSpec](reference/inspect_ai.dataset.html.md#fieldspec). This same mechanism also enables you to collect arbitrary additional fields into the [Sample](reference/inspect_ai.dataset.html.md#sample) `metadata` bucket. For example:
+If your dataset contains inputs and targets that don’t use `input` and `target` as field names, you can map them into a [Dataset](./reference/inspect_ai.dataset.html.md#dataset) using a [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec). This same mechanism also enables you to collect arbitrary additional fields into the [Sample](./reference/inspect_ai.dataset.html.md#sample) `metadata` bucket. For example:
 
 ``` python
 from inspect_ai.dataset import FieldSpec, json_dataset
@@ -90,7 +90,7 @@ dataset = json_dataset(
 )
 ```
 
-If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a `record` (represented as a `dict`) from the underlying file and returns a [Sample](reference/inspect_ai.dataset.html.md#sample). For example:
+If you need to do more than just map field names and actually do custom processing of the data, you can instead pass a function which takes a `record` (represented as a `dict`) from the underlying file and returns a [Sample](./reference/inspect_ai.dataset.html.md#sample). For example:
 
 ``` python
 from inspect_ai.dataset import Sample, json_dataset
@@ -112,7 +112,7 @@ dataset = json_dataset("popularity.jsonl", record_to_sample)
 
 If you want a more strongly typed interface to sample metadata, you can define a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/) and use it to both validate and read metadata.
 
-For validation, pass a `BaseModel` derived class in the [FieldSpec](reference/inspect_ai.dataset.html.md#fieldspec). The interface to metadata is read-only so you must also specify `frozen=True`. For example:
+For validation, pass a `BaseModel` derived class in the [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec). The interface to metadata is read-only so you must also specify `frozen=True`. For example:
 
 ``` python
 from pydantic import BaseModel
@@ -132,7 +132,7 @@ dataset = json_dataset(
 )
 ```
 
-To read metadata in a typesafe fashion, use the `metadata_as()` method on [Sample](reference/inspect_ai.dataset.html.md#sample) or [TaskState](reference/inspect_ai.solver.html.md#taskstate):
+To read metadata in a typesafe fashion, use the `metadata_as()` method on [Sample](./reference/inspect_ai.dataset.html.md#sample) or [TaskState](./reference/inspect_ai.solver.html.md#taskstate):
 
 ``` python
 metadata = state.metadata_as(PopularityMetadata)
@@ -140,11 +140,11 @@ metadata = state.metadata_as(PopularityMetadata)
 
 Note again that the intended semantics of `metadata` are read-only, so attempting to write into the returned metadata will raise a Pydantic `FrozenInstanceError`.
 
-If you need per-sample mutable data, use the [sample store](agent-custom.html.md#sample-store), which also supports [typing](agent-custom.html.md#store-typing) using Pydantic models.
+If you need per-sample mutable data, use the [sample store](./agent-custom.html.md#sample-store), which also supports [typing](./agent-custom.html.md#store-typing) using Pydantic models.
 
 ## Filtering
 
-The [Dataset](reference/inspect_ai.dataset.html.md#dataset) class includes `filter()` and `shuffle()` methods, as well as support for the slice operator.
+The [Dataset](./reference/inspect_ai.dataset.html.md#dataset) class includes `filter()` and `shuffle()` methods, as well as support for the slice operator.
 
 To select a subset of the dataset, use `filter()`:
 
@@ -161,7 +161,7 @@ To select a subset of records, use standard Python slicing:
 dataset = dataset[0:100]
 ```
 
-You can also filter from the CLI or when calling [eval()](reference/inspect_ai.html.md#eval). For example:
+You can also filter from the CLI or when calling [eval()](./reference/inspect_ai.html.md#eval). For example:
 
 ``` bash
 inspect eval ctf.py --sample-id 22
@@ -227,7 +227,7 @@ dataset = json_dataset("data.jsonl", shuffle_choices=42)
 
 ## Hugging Face
 
-[Hugging Face Datasets](https://huggingface.co/docs/datasets/en/index) is a library for easily accessing and sharing datasets for machine learning, and features integration with [Hugging Face Hub](https://huggingface.co/datasets), a repository with a broad selection of publicly shared datasets. Typically datasets on Hugging Face will require specification of which split within the dataset to use (e.g. train, test, or validation) as well as some field mapping. Use the [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset) function to read a dataset and specify the requisite split and field names:
+[Hugging Face Datasets](https://huggingface.co/docs/datasets/en/index) is a library for easily accessing and sharing datasets for machine learning, and features integration with [Hugging Face Hub](https://huggingface.co/datasets), a repository with a broad selection of publicly shared datasets. Typically datasets on Hugging Face will require specification of which split within the dataset to use (e.g. train, test, or validation) as well as some field mapping. Use the [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) function to read a dataset and specify the requisite split and field names:
 
 ``` python
 from inspect_ai.dataset import FieldSpec, hf_dataset
@@ -253,7 +253,7 @@ dataset=hf_dataset("openai_humaneval",
 )
 ```
 
-Under the hood, the [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset) function is calling the [load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset) function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to `load_dataset()` by including them in the call to [hf_dataset()](reference/inspect_ai.dataset.html.md#hf_dataset). For example `hf_dataset(..., cache_dir="~/my-cache-dir")`.
+Under the hood, the [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) function is calling the [load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset) function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to `load_dataset()` by including them in the call to [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset). For example `hf_dataset(..., cache_dir="~/my-cache-dir")`.
 
 ## Amazon S3
 
@@ -269,7 +269,7 @@ S3 buckets are normally access controlled so require authentication to read from
 
 ## Chat Messages
 
-The most important data structure within [Sample](reference/inspect_ai.dataset.html.md#sample) is the [ChatMessage](reference/inspect_ai.model.html.md#chatmessage). Note that often datasets will contain a simple string as their input (which is then internally converted to a [ChatMessageUser](reference/inspect_ai.model.html.md#chatmessageuser)). However, it is possible to include a full message history as the input via [ChatMessage](reference/inspect_ai.model.html.md#chatmessage). Another useful application of [ChatMessage](reference/inspect_ai.model.html.md#chatmessage) is providing multi-modal input (e.g. images).
+The most important data structure within [Sample](./reference/inspect_ai.dataset.html.md#sample) is the [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage). Note that often datasets will contain a simple string as their input (which is then internally converted to a [ChatMessageUser](./reference/inspect_ai.model.html.md#chatmessageuser)). However, it is possible to include a full message history as the input via [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage). Another useful application of [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage) is providing multi-modal input (e.g. images).
 
 **Class** `inspect_ai.model.ChatMessage`
 
@@ -293,7 +293,7 @@ Note that for this example we wouldn’t normally use a full chat message object
 
 ## Custom Reader
 
-You are not restricted to the built in dataset functions for reading samples. You can also construct a [MemoryDataset](reference/inspect_ai.dataset.html.md#memorydataset), and pass that to a task. For example:
+You are not restricted to the built in dataset functions for reading samples. You can also construct a [MemoryDataset](./reference/inspect_ai.dataset.html.md#memorydataset), and pass that to a task. For example:
 
 ``` python
 from inspect_ai import Task, task
@@ -317,4 +317,4 @@ def security_guide():
     )
 ```
 
-So if the built in dataset functions don’t meet your needs, you can create a custom function that yields a [MemoryDataset](reference/inspect_ai.dataset.html.md#memorydataset)and pass those directly to your [Task](reference/inspect_ai.html.md#task).
+So if the built in dataset functions don’t meet your needs, you can create a custom function that yields a [MemoryDataset](./reference/inspect_ai.dataset.html.md#memorydataset)and pass those directly to your [Task](./reference/inspect_ai.html.md#task).

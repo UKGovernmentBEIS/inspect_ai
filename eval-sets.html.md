@@ -1,10 +1,10 @@
-# Eval Sets
+# Eval Sets – Inspect
 
 ## Overview
 
-Most of the examples in the documentation run a single evaluation task by either passing a script name to `inspect eval` or by calling the [eval()](reference/inspect_ai.html.md#eval) function directly. While this is a good workflow for developing single evaluations, you’ll often want to run several evaluations together as a *set*. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.
+Most of the examples in the documentation run a single evaluation task by either passing a script name to `inspect eval` or by calling the [eval()](./reference/inspect_ai.html.md#eval) function directly. While this is a good workflow for developing single evaluations, you’ll often want to run several evaluations together as a *set*. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.
 
-The `inspect eval-set` command and [eval_set()](reference/inspect_ai.html.md#eval_set) function and provide several facilities for running sets of evaluations, including:
+The `inspect eval-set` command and [eval_set()](./reference/inspect_ai.html.md#eval_set) function and provide several facilities for running sets of evaluations, including:
 
 1.  Automatically retrying failed evaluations (with a configurable retry strategy)
 2.  Re-using samples from failed tasks so that work is not repeated during retries.
@@ -15,7 +15,7 @@ Below we’ll cover the various tools and techniques available for creating eval
 
 ## Running Eval Sets
 
-Run a set of evaluations using the `inspect eval-set` command or [eval_set()](reference/inspect_ai.html.md#eval_set) function. For example:
+Run a set of evaluations using the `inspect eval-set` command or [eval_set()](./reference/inspect_ai.html.md#eval_set) function. For example:
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
@@ -37,7 +37,7 @@ success, logs = eval_set(
 
 Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
 
-The [eval_set()](reference/inspect_ai.html.md#eval_set) function returns a tuple of bool (whether all tasks completed successfully) and a list of [EvalLog](reference/inspect_ai.log.html.md#evallog) headers (i.e. raw sample data is not included in the logs returned).
+The [eval_set()](./reference/inspect_ai.html.md#eval_set) function returns a tuple of bool (whether all tasks completed successfully) and a list of [EvalLog](./reference/inspect_ai.log.html.md#evallog) headers (i.e. raw sample data is not included in the logs returned).
 
 ### Re-Running
 
@@ -54,7 +54,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Concurrency
 
-By default, [eval_set()](reference/inspect_ai.html.md#eval_set) will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
+By default, [eval_set()](./reference/inspect_ai.html.md#eval_set) will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
 
 Use the `max_tasks` option to override the default behavior:
 
@@ -69,7 +69,7 @@ eval_set(
 
 ### Dynamic Tasks
 
-In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the [eval_set()](reference/inspect_ai.html.md#eval_set) function. For example:
+In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the [eval_set()](./reference/inspect_ai.html.md#eval_set) function. For example:
 
 ``` python
 from inspect_ai import eval_set
@@ -90,7 +90,7 @@ eval_set(
 
 Notice that we create our tasks from a function decorated with `@task`. Doing this is a critical requirement because it enables Inspect to capture the arguments to `create_task()` and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).
 
-There are two fundamental requirements for dynamic tasks used with [eval_set()](reference/inspect_ai.html.md#eval_set):
+There are two fundamental requirements for dynamic tasks used with [eval_set()](./reference/inspect_ai.html.md#eval_set):
 
 1.  They are created using an `@task` function as described above.
 2.  Their parameters use ordinary Python types (like `str`, `int`, `list`, etc.) as opposed to custom objects (which are hard to serialise consistently).
@@ -116,7 +116,7 @@ inspect eval-set mmlu.py mathematics.py \
    --retry-wait 120
 ```
 
-Or with the [eval_set()](reference/inspect_ai.html.md#eval_set) function:
+Or with the [eval_set()](./reference/inspect_ai.html.md#eval_set) function:
 
 ``` python
 eval_set(
@@ -135,7 +135,7 @@ You can bundle a standalone version of the log viewer for an eval set using the 
 | `--bundle-dir` | Directory to write standalone log viewer files to. |
 | `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
 
-The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](log-viewer.html.md#sec-publishing) for additional details.
+The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](./log-viewer.html.md#sec-publishing) for additional details.
 
 ## Logging Context
 
@@ -145,13 +145,13 @@ We mentioned above that you need to specify a dedicated log directory for each e
 
 2.  This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).
 
-Once all of the tasks in an eval set are complete, re-running `inspect eval-set` or [eval_set()](reference/inspect_ai.html.md#eval_set) on the same log directory will be a no-op as there is no more work to do. At this point you can use the [list_eval_logs()](reference/inspect_ai.log.html.md#list_eval_logs) function to collect up logs for analysis:
+Once all of the tasks in an eval set are complete, re-running `inspect eval-set` or [eval_set()](./reference/inspect_ai.html.md#eval_set) on the same log directory will be a no-op as there is no more work to do. At this point you can use the [list_eval_logs()](./reference/inspect_ai.log.html.md#list_eval_logs) function to collect up logs for analysis:
 
 ``` python
 results = list_eval_logs("logs-run-42")
 ```
 
-If you are calling the [eval_set()](reference/inspect_ai.html.md#eval_set) function it will return a tuple of `bool` and `list[EvalLog]`, where the `bool` indicates whether all tasks were completed:
+If you are calling the [eval_set()](./reference/inspect_ai.html.md#eval_set) function it will return a tuple of `bool` and `list[EvalLog]`, where the `bool` indicates whether all tasks were completed:
 
 ``` python
 success, logs = eval_set(...)
@@ -296,7 +296,7 @@ def jeopardy():
   )
 ```
 
-Given this, you could list all of the light tasks in `security` and pass them to [eval()](reference/inspect_ai.html.md#eval) as follows:
+Given this, you could list all of the light tasks in `security` and pass them to [eval()](./reference/inspect_ai.html.md#eval) as follows:
 
 ``` python
 light_suite = list_tasks(

@@ -1,4 +1,4 @@
-# Tool Approval
+# Tool Approval – Inspect
 
 ## Overview
 
@@ -14,13 +14,13 @@ Approvers can be specified at either the eval level or at the task level. The ex
 
 ## Human Approver
 
-The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to [eval()](reference/inspect_ai.html.md#eval):
+The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to [eval()](./reference/inspect_ai.html.md#eval):
 
 ``` bash
 inspect eval browser.py --approval human
 ```
 
-This example provides the model with the built-in [web browser](tools-standard.html.md#sec-web-browser) tool and asks it to navigate to a web and perform a search.
+This example provides the model with the built-in [web browser](./tools-standard.html.md#sec-web-browser) tool and asks it to navigate to a web and perform a search.
 
 ## Auto Approver
 
@@ -45,7 +45,9 @@ To use this policy, pass the path to the policy YAML file as the approver. For e
 inspect eval browser.py --approval approval.yaml
 ```
 
-You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](tools-standard.html.md#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
+You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](./tools-standard.html.md#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
+
+    approval.yaml
 
 ``` yaml
 approvers:
@@ -80,7 +82,7 @@ eval("browser.py", approval=approval, trace=True)
 
 ## Task Approvers
 
-You can specify approval policies at the task level using the `approval` parameter when creating a [Task](reference/inspect_ai.html.md#task). For example:
+You can specify approval policies at the task level using the `approval` parameter when creating a [Task](./reference/inspect_ai.html.md#task). For example:
 
 ``` python
 from inspect_ai import Task, task
@@ -103,11 +105,11 @@ def linux_task():
     )
 ```
 
-Note that as with all of the other [Task](reference/inspect_ai.html.md#task) options, an `approval` policy defined at the eval-level will override a task-level approval policy.
+Note that as with all of the other [Task](./reference/inspect_ai.html.md#task) options, an `approval` policy defined at the eval-level will override a task-level approval policy.
 
 ## Context Manager
 
-You can temporarily override approval policies within a running evaluation using the [approval()](reference/inspect_ai.approval.html.md#approval) context manager. This is useful when a solver or agent needs different approval policies for a specific section of tool calls:
+You can temporarily override approval policies within a running evaluation using the [approval()](./reference/inspect_ai.approval.html.md#approval) context manager. This is useful when a solver or agent needs different approval policies for a specific section of tool calls:
 
 ``` python
 from inspect_ai.approval import approval, ApprovalPolicy, human_approver, auto_approver
@@ -122,9 +124,9 @@ async def my_solver(state):
     ...
 ```
 
-The context manager replaces the current approval policies for its duration and restores the previous ones on exit. Nesting is supported—each nested [approval()](reference/inspect_ai.approval.html.md#approval) context sets its own policies and correctly restores the outer policies when it exits.
+The context manager replaces the current approval policies for its duration and restores the previous ones on exit. Nesting is supported—each nested [approval()](./reference/inspect_ai.approval.html.md#approval) context sets its own policies and correctly restores the outer policies when it exits.
 
-The [execute_tools()](reference/inspect_ai.model.html.md#execute_tools) function and the [react()](reference/inspect_ai.agent.html.md#react) agent also accept an `approval` parameter for convenience, which applies approval policies for the duration of tool execution:
+The [execute_tools()](./reference/inspect_ai.model.html.md#execute_tools) function and the [react()](./reference/inspect_ai.agent.html.md#react) agent also accept an `approval` parameter for convenience, which applies approval policies for the duration of tool execution:
 
 ``` python
 from inspect_ai.model import execute_tools
@@ -150,7 +152,7 @@ agent = react(
 
 Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
 
-Custom approvers are functions that return an [Approval](reference/inspect_ai.approval.html.md#approval), which consists of a decision and an explanation. Here is the source code for the `auto` approver, which just reflects back the decision that it is initialised with:
+Custom approvers are functions that return an [Approval](./reference/inspect_ai.approval.html.md#approval), which consists of a decision and an explanation. Here is the source code for the `auto` approver, which just reflects back the decision that it is initialised with:
 
 ``` python
 @approver(name="auto")
@@ -172,7 +174,7 @@ There are five possible approval decisions:
 | Decision | Description |
 |----|----|
 | approve | The tool call is approved |
-| modify | The tool call is approved with modification (included in `modified` field of [Approver](reference/inspect_ai.approval.html.md#approver)) |
+| modify | The tool call is approved with modification (included in `modified` field of [Approver](./reference/inspect_ai.approval.html.md#approver)) |
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
@@ -202,7 +204,7 @@ def bash_allowlist(
     return approve
 ```
 
-Assuming we have properly [registered our approver](extensions.html.md#sec-extensions-approvers) as an Inspect extension, we can then use this it in an approval policy:
+Assuming we have properly [registered our approver](./extensions.html.md#sec-extensions-approvers) as an Inspect extension, we can then use this it in an approval policy:
 
 ``` yaml
 approvers:
@@ -222,7 +224,7 @@ These approvers will make one of the following approval decisions for each tool 
 
 Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
 
-See the documentation on [Approver Extensions](extensions.html.md#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
+See the documentation on [Approver Extensions](./extensions.html.md#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
 
 ## Tool Views
 
@@ -232,7 +234,7 @@ By default, when a tool call is presented for human approval the tool function a
 
     ![](images/web-browser-tool-view.png)
 
-2.  The [bash()](reference/inspect_ai.tool.html.md#bash) and [python()](reference/inspect_ai.tool.html.md#python) tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
+2.  The [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
 
     ![](images/python-tool-view.png)
 

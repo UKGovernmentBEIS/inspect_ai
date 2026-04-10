@@ -1,4 +1,4 @@
-# Human Agent
+# Human Agent – Inspect
 
 ## Overview
 
@@ -92,7 +92,7 @@ Note that the instructions are also copied to an `instructions.txt` file in the 
 
 When the human agent has completed the task, they submit their answer using the `task submit`command. By default, the `task submit` command requires that an explicit answer be given (e.g. `task submit picoCTF{73bfc85c1ba7}`).
 
-However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing `answer=False` to the [human_cli()](reference/inspect_ai.agent.html.md#human_cli):
+However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing `answer=False` to the [human_cli()](./reference/inspect_ai.agent.html.md#human_cli):
 
 ``` python
 solver=human_cli(answer=False)

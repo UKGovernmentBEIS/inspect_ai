@@ -1,4 +1,4 @@
-# Tasks
+# Tasks – Inspect
 
 ## Overview
 
@@ -34,15 +34,19 @@ For convenience, tasks always define a default solver. That said, it is often de
 
 ### Task Options
 
-While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful [Task](reference/inspect_ai.html.md#task) options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:
+While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful [Task](./reference/inspect_ai.html.md#task) options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:
 
 [TABLE]
+
+{tbl-colwidths='\[25,50,25\]'} {.caption-top .table}
 
 You by and large don’t need to worry about these options until you want to use the features they are linked to.
 
 ## Parameters
 
 Task parameters make it easy to run variants of your task without changing its source code. Task parameters are simply the arguments to your `@task` decorated function. For example, here we provide parameters (and default values) for system and grader prompts, as well as the grader model:
+
+    security.py
 
 ``` python
 from inspect_ai import Task, task
@@ -80,6 +84,8 @@ inspect eval security.py \
 
 If you have several task parameters you want to specify together, you can put them in a YAML or JSON file and use the `--task-config` CLI option. For example:
 
+    config.yaml
+
 ``` yaml
 system: "researcher.txt"
 grader: "hacker.txt"
@@ -91,7 +97,7 @@ Reference this file from the CLI with:
 inspect eval security.py --task-config=config.yaml
 ```
 
-For a broader view of how task parameters relate to [task_with()](reference/inspect_ai.html.md#task_with), environment variables, [eval()](reference/inspect_ai.html.md#eval), and CLI overrides, see [Task Configuration](task-configuration.html.md).
+For a broader view of how task parameters relate to [task_with()](./reference/inspect_ai.html.md#task_with), environment variables, [eval()](./reference/inspect_ai.html.md#eval), and CLI overrides, see [Task Configuration](./task-configuration.html.md).
 
 ## Solvers
 
@@ -99,7 +105,7 @@ While tasks always include a *default* solver, you can also vary the solver to e
 
 ### Solver Parameter
 
-You can substitute an alternate solver for the solver that is built in to your [Task](reference/inspect_ai.html.md#task) using the `--solver` command line parameter (or `solver` argument to the [eval()](reference/inspect_ai.html.md#eval) function).
+You can substitute an alternate solver for the solver that is built in to your [Task](./reference/inspect_ai.html.md#task) using the `--solver` command line parameter (or `solver` argument to the [eval()](./reference/inspect_ai.html.md#eval) function).
 
 For example, let’s start with a simple CTF challenge task:
 
@@ -125,7 +131,7 @@ def ctf():
     )
 ```
 
-This task uses the most naive solver possible (a simple tool use loop with no additional elicitation). That might be okay for initial task development, but we’ll likely want to try lots of different strategies. We start by breaking the `solver` into its own function and adding an alternative solver that uses a [react()](reference/inspect_ai.agent.html.md#react) agent
+This task uses the most naive solver possible (a simple tool use loop with no additional elicitation). That might be okay for initial task development, but we’ll likely want to try lots of different strategies. We start by breaking the `solver` into its own function and adding an alternative solver that uses a [react()](./reference/inspect_ai.agent.html.md#react) agent
 
 ``` python
 from inspect_ai import Task, task
@@ -165,7 +171,7 @@ def ctf():
     )
 ```
 
-Note that we use the [chain()](reference/inspect_ai.solver.html.md#chain) function to combine multiple solvers into a composite one.
+Note that we use the [chain()](./reference/inspect_ai.solver.html.md#chain) function to combine multiple solvers into a composite one.
 
 You can now switch between solvers when running the evaluation:
 
@@ -216,7 +222,7 @@ def ctf(solver: Solver | None = None):
 
 ## Task Cleanup
 
-You can use the `cleanup` parameter for executing code at the end of each sample run. The `cleanup` function is passed the [TaskState](reference/inspect_ai.solver.html.md#taskstate) and is called for both successful runs and runs where are exception is thrown. Extending the example from above:
+You can use the `cleanup` parameter for executing code at the end of each sample run. The `cleanup` function is passed the [TaskState](./reference/inspect_ai.solver.html.md#taskstate) and is called for both successful runs and runs where are exception is thrown. Extending the example from above:
 
 ``` python
 async def ctf_cleanup(state: TaskState):
@@ -238,13 +244,13 @@ Note that like solvers, cleanup functions should be `async`.
 
 The basic mechanism for task re-use is to create flexible and adaptable base `@task` functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional `@task` functions that call the base function.
 
-In some cases though you might not have full control over the base `@task` function (e.g. it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the [task_with()](reference/inspect_ai.html.md#task_with) function, which provides a straightforward way to modify the properties of an existing task.
+In some cases though you might not have full control over the base `@task` function (e.g. it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the [task_with()](./reference/inspect_ai.html.md#task_with) function, which provides a straightforward way to modify the properties of an existing task.
 
-> **TIP:**
+> **TIP: Tip**
 >
-> For a comprehensive reference on all configuration and override mechanisms — including [task_with()](reference/inspect_ai.html.md#task_with), [eval()](reference/inspect_ai.html.md#eval) overrides, CLI flags, and precedence rules — see [Task Configuration](task-configuration.html.md).
+> For a comprehensive reference on all configuration and override mechanisms — including [task_with()](./reference/inspect_ai.html.md#task_with), [eval()](./reference/inspect_ai.html.md#eval) overrides, CLI flags, and precedence rules — see [Task Configuration](./task-configuration.html.md).
 
-For example, imagine you are dealing with a [Task](reference/inspect_ai.html.md#task) that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
+For example, imagine you are dealing with a [Task](./reference/inspect_ai.html.md#task) that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
 
 ``` python
 from inspect_ai import Task, task
@@ -262,7 +268,7 @@ def hard_coded():
     )
 ```
 
-Using [task_with()](reference/inspect_ai.html.md#task_with), you can adapt this task to use a different `solver` and `sandbox` entirely. For example, here we import the original `hard_coded()` task from a hypothetical `ctf_tasks` package and provide it with a different `solver` and `sandbox`, as well as give it a `message_limit` (which we in turn also expose as a parameter of the adapted task):
+Using [task_with()](./reference/inspect_ai.html.md#task_with), you can adapt this task to use a different `solver` and `sandbox` entirely. For example, here we import the original `hard_coded()` task from a hypothetical `ctf_tasks` package and provide it with a different `solver` and `sandbox`, as well as give it a `message_limit` (which we in turn also expose as a parameter of the adapted task):
 
 ``` python
 from inspect_ai import task, task_with
@@ -285,9 +291,9 @@ def adapted(message_limit: int = 20):
     )
 ```
 
-Tasks are recipes for an evaluation and represent the convergence of many considerations (datasets, solvers, sandbox environments, limits, and scoring). Task variations often lie at the intersection of these, and the [task_with()](reference/inspect_ai.html.md#task_with) function is intended to help you produce exactly the variation you need for a given evaluation.
+Tasks are recipes for an evaluation and represent the convergence of many considerations (datasets, solvers, sandbox environments, limits, and scoring). Task variations often lie at the intersection of these, and the [task_with()](./reference/inspect_ai.html.md#task_with) function is intended to help you produce exactly the variation you need for a given evaluation.
 
-Note that [task_with()](reference/inspect_ai.html.md#task_with) modifies the passed task in-place, so if you want to create multiple variations of a single task using [task_with()](reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times (once for each call to [task_with()](reference/inspect_ai.html.md#task_with)). For example:
+Note that [task_with()](./reference/inspect_ai.html.md#task_with) modifies the passed task in-place, so if you want to create multiple variations of a single task using [task_with()](./reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times (once for each call to [task_with()](./reference/inspect_ai.html.md#task_with)). For example:
 
 ``` python
 adapted1 = task_with(hard_coded(), ...)
@@ -317,20 +323,18 @@ Here’s an example that walks through all of the requirements for registering t
 
 The `_registry.py` file serves as a place to import things that you want registered with Inspect. For example:
 
+    _registry.py
+
 ``` python
 from .tasks import mytask
 ```
 
 You can then register `mytask` (and anything else imported into `_registry.py`) as a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect can resolve references to your package from the CLI. Here is how this looks in `pyproject.toml`:
 
-## Setuptools
-
 ``` toml
 [project.entry-points.inspect_ai]
 evals = "evals._registry"
 ```
-
-## Poetry
 
 ``` toml
 [tool.poetry.plugins.inspect_ai]
@@ -357,7 +361,7 @@ Here are the `eval.yaml` definitions for several Hugging Face datasets:
 - [OpenEvals/SimpleQA](https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml)
 - [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
 
-A dataset’s `eval.yaml` file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing [Task](reference/inspect_ai.html.md#task) instances:
+A dataset’s `eval.yaml` file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing [Task](./reference/inspect_ai.html.md#task) instances:
 
 | Field             | Default   | Usage                       |
 |-------------------|-----------|-----------------------------|
@@ -405,7 +409,7 @@ inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-5
 
 ## Exploratory
 
-When developing tasks and solvers, you often want to explore how changing prompts, generation options, solvers, and models affect performance on a task. You can do this by creating multiple tasks with varying parameters and passing them all to the [eval_set()](reference/inspect_ai.html.md#eval_set) function.
+When developing tasks and solvers, you often want to explore how changing prompts, generation options, solvers, and models affect performance on a task. You can do this by creating multiple tasks with varying parameters and passing them all to the [eval_set()](./reference/inspect_ai.html.md#eval_set) function.
 
 Returning to the example from above, the `system` and `grader` parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters, along with different models. We can use the `itertools.product` function to do this:
 
@@ -436,4 +440,4 @@ plot_results(logs)
 
 Note that we also pass a list of `model` to try out the task on multiple models. This eval set will produce in total 16 tasks accounting for the parameter and model variation.
 
-See the article on [Eval Sets](eval-sets.html.md) to learn more about using eval sets. See the article on [Eval Logs](eval-logs.html.md) for additional details on working with evaluation logs.
+See the article on [Eval Sets](./eval-sets.html.md) to learn more about using eval sets. See the article on [Eval Logs](./eval-logs.html.md) for additional details on working with evaluation logs.

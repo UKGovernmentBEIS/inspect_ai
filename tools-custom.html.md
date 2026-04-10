@@ -1,4 +1,4 @@
-# Custom Tools
+# Custom Tools – Inspect
 
 ## Overview
 
@@ -49,11 +49,11 @@ Args:
 
 Type annotations and descriptions are *required* for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.
 
-Note that you while you are required to provide default descriptions for tools and their parameters within doc comments, you can also make these dynamically customisable by users of your tool (see the section on [Tool Descriptions](tools-custom.html.md#sec-tool-descriptions) for details on how to do this).
+Note that you while you are required to provide default descriptions for tools and their parameters within doc comments, you can also make these dynamically customisable by users of your tool (see the section on [Tool Descriptions](./tools-custom.html.md#sec-tool-descriptions) for details on how to do this).
 
 ## Using Tools
 
-We can use the `addition()` tool in an evaluation by passing it to the [use_tools()](reference/inspect_ai.solver.html.md#use_tools) Solver:
+We can use the `addition()` tool in an evaluation by passing it to the [use_tools()](./reference/inspect_ai.solver.html.md#use_tools) Solver:
 
 ``` python
 from inspect_ai import Task, task
@@ -81,13 +81,13 @@ Note that this tool doesn’t make network requests or do heavy computation, so 
 
 ## Tool Errors
 
-Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Sandbox Environments](sandboxing.html.md) to execute code in a container sandbox. As a tool writer you need to decide how you’d like to handle error conditions. A number of approaches are possible:
+Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Sandbox Environments](./sandboxing.html.md) to execute code in a container sandbox. As a tool writer you need to decide how you’d like to handle error conditions. A number of approaches are possible:
 
 1.  Notify the model that an error occurred to see whether it can recover.
 
 2.  Catch and handle the error internally (trying another code path, etc.).
 
-3.  Allow the error to propagate, resulting in the current [Sample](reference/inspect_ai.dataset.html.md#sample) failing with an error state.
+3.  Allow the error to propagate, resulting in the current [Sample](./reference/inspect_ai.dataset.html.md#sample) failing with an error state.
 
 There are no universally correct approaches as tool usage and semantics can vary widely—some rough guidelines are provided below.
 
@@ -95,7 +95,7 @@ There are no universally correct approaches as tool usage and semantics can vary
 
 If you do not explicitly handle errors, then Inspect provides some default error handling behaviour. Specifically, if any of the following errors are raised they will be handled and reported to the model:
 
-- `TimeoutError` — Occurs when a call to [subprocess()](reference/inspect_ai.util.html.md#subprocess), `sandbox().exec()`, `sandbox().read_file()`, or `sandbox().write_file()` times out.
+- `TimeoutError` — Occurs when a call to [subprocess()](./reference/inspect_ai.util.html.md#subprocess), `sandbox().exec()`, `sandbox().read_file()`, or `sandbox().write_file()` times out.
 
 - `PermissionError` — Occurs when there are inadequate permissions to read or write a file.
 
@@ -103,21 +103,21 @@ If you do not explicitly handle errors, then Inspect provides some default error
 
 - `OutputLimitExceededError` - Occurs when one or both of the output streams from `sandbox().exec()` exceed 10 MiB or when attempting to read a file over 100 MiB in size.
 
-- [ToolError](reference/inspect_ai.tool.html.md#toolerror) — Special error thrown by tools to indicate they’d like to report an error to the model.
+- [ToolError](./reference/inspect_ai.tool.html.md#toolerror) — Special error thrown by tools to indicate they’d like to report an error to the model.
 
-These are all errors that are *expected* (in fact the [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment) interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g. a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the [Sample](reference/inspect_ai.dataset.html.md#sample) failing with an error.
+These are all errors that are *expected* (in fact the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g. a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the [Sample](./reference/inspect_ai.dataset.html.md#sample) failing with an error.
 
 Many tools can simply rely on the default handling to provide reasonable behaviour around both expected and unexpected errors.
 
 > **NOTE:**
 >
-> When we say that the errors are reported directly to the model, this refers to the behaviour when using the default [generate()](reference/inspect_ai.solver.html.md#generate). If on the other hand, you are have created custom scaffolding for an agent, you can intercept tool errors and apply additional filtering and logic.
+> When we say that the errors are reported directly to the model, this refers to the behaviour when using the default [generate()](./reference/inspect_ai.solver.html.md#generate). If on the other hand, you are have created custom scaffolding for an agent, you can intercept tool errors and apply additional filtering and logic.
 
 ### Explicit Handling
 
 In some cases a tool can implement a recovery strategy for error conditions. For example, an HTTP request might fail due to transient network issues, and retrying the request (perhaps after a delay) may resolve the problem. Explicit error handling strategies are generally applied when there are *expected* errors that are not already handled by Inspect’s [Default Handling](#default-handling).
 
-Another type of explicit handling is re-raising an error to bypass Inspect’s default handling. For example, here we catch at re-raise `TimeoutError` so that it fails the [Sample](reference/inspect_ai.dataset.html.md#sample):
+Another type of explicit handling is re-raising an error to bypass Inspect’s default handling. For example, here we catch at re-raise `TimeoutError` so that it fails the [Sample](./reference/inspect_ai.dataset.html.md#sample):
 
 ``` python
 try:
@@ -132,7 +132,7 @@ except TimeoutError:
 
 ## Sandboxing
 
-Tools may have a need to interact with a sandboxed environment (e.g. to provide models with the ability to execute arbitrary bash or python commands). The active sandbox environment can be obtained via the [sandbox()](reference/inspect_ai.util.html.md#sandbox) function. For example:
+Tools may have a need to interact with a sandboxed environment (e.g. to provide models with the ability to execute arbitrary bash or python commands). The active sandbox environment can be obtained via the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function. For example:
 
 ``` python
 from inspect_ai.tool import ToolError, tool
@@ -158,7 +158,7 @@ def list_files():
     return execute
 ```
 
-The following instance methods are available to tools that need to interact with a [SandboxEnvironment](reference/inspect_ai.util.html.md#sandboxenvironment):
+The following instance methods are available to tools that need to interact with a [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment):
 
 ``` python
 class SandboxEnvironment:
@@ -252,15 +252,15 @@ The `connection()` method is optional, and provides commands that can be used to
 
 Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is *advisory* (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
 
-For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](reference/inspect_ai.dataset.html.md#sample) with an error state.
+For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](./reference/inspect_ai.dataset.html.md#sample) with an error state.
 
-See the documentation on [Sandbox Environments](sandboxing.html.md) for additional details.
+See the documentation on [Sandbox Environments](./sandboxing.html.md) for additional details.
 
 ## Stateful Tools
 
-Some tools need to retain state across invocations (for example, the [bash_session()](reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](reference/inspect_ai.tool.html.md#web_browser) tools both interact with a stateful remote process). You can create stateful tools by using the [store_as()](reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
+Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tools both interact with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
 
-For example, imagine we were creating a `web_surfer()` tool that builds on the [web_browser()](reference/inspect_ai.tool.html.md#web_browser) tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
+For example, imagine we were creating a `web_surfer()` tool that builds on the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
 
 Here’s the complete source code for this tool.
 
@@ -347,7 +347,7 @@ def web_surfer(instance: str | None = None) -> Tool:
     return execute
 ```
 
-Note that we make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the [store_as()](reference/inspect_ai.util.html.md#store_as) function (to store our own tool’s message history) and the [web_browser()](reference/inspect_ai.tool.html.md#web_browser) function (so that we also provision a unique browser for the web surfer session).
+Note that we make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the [store_as()](./reference/inspect_ai.util.html.md#store_as) function (to store our own tool’s message history) and the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function (so that we also provision a unique browser for the web surfer session).
 
 For example, this creates a distinct instance of the `web_surfer()` with its own state and browser:
 
@@ -359,7 +359,7 @@ react(..., tools=[web_surfer(instance=uuid())])
 
 ## Tool Choice
 
-By default models will use a tool if they think it’s appropriate for the given task. You can override this behaviour using the `tool_choice` parameter of the [use_tools()](reference/inspect_ai.solver.html.md#use_tools) Solver. For example:
+By default models will use a tool if they think it’s appropriate for the given task. You can override this behaviour using the `tool_choice` parameter of the [use_tools()](./reference/inspect_ai.solver.html.md#use_tools) Solver. For example:
 
 ``` python
 # let the model decide whether to use the tool
@@ -393,7 +393,7 @@ Well crafted tools should include descriptions that provide models with the cont
 
 In some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
 
-The [tool_with()](reference/inspect_ai.tool.html.md#tool_with) function enables you to take any tool and adapt its name and/or descriptions. For example:
+The [tool_with()](./reference/inspect_ai.tool.html.md#tool_with) function enables you to take any tool and adapt its name and/or descriptions. For example:
 
 ``` python
 from inspect_ai.tool import tool_with
@@ -415,11 +415,11 @@ my_add1 = tool_with(addition(), description="a tool to add numbers")
 my_add2 = tool_with(addition(), parameters={"x": "the x argument"})
 ```
 
-Note that [tool_with()](reference/inspect_ai.tool.html.md#tool_with) function modifies the passed tool in-place, so if you want to create multiple variations of a single tool using [tool_with()](reference/inspect_ai.tool.html.md#tool_with) you should create the underlying tool multiple times, once for each call to [tool_with()](reference/inspect_ai.tool.html.md#tool_with) (this is demonsrated in the example above).
+Note that [tool_with()](./reference/inspect_ai.tool.html.md#tool_with) function modifies the passed tool in-place, so if you want to create multiple variations of a single tool using [tool_with()](./reference/inspect_ai.tool.html.md#tool_with) you should create the underlying tool multiple times, once for each call to [tool_with()](./reference/inspect_ai.tool.html.md#tool_with) (this is demonsrated in the example above).
 
 ## Dynamic Tools
 
-As described above, normally tools are defined using `@tool` decorators and documentation comments. It’s also possible to create a tool dynamically from any function by creating a [ToolDef](reference/inspect_ai.tool.html.md#tooldef). For example:
+As described above, normally tools are defined using `@tool` decorators and documentation comments. It’s also possible to create a tool dynamically from any function by creating a [ToolDef](./reference/inspect_ai.tool.html.md#tooldef). For example:
 
 ``` python
 from inspect_ai.solver import use_tools
@@ -441,16 +441,16 @@ add = ToolDef(
 use_tools([add])
 ```
 
-This is effectively what happens under the hood when you use the `@tool` decorator. There is one critical requirement for functions that are bound to tools using [ToolDef](reference/inspect_ai.tool.html.md#tooldef): type annotations must be provided in the function signature (e.g. `x: int, y: int`).
+This is effectively what happens under the hood when you use the `@tool` decorator. There is one critical requirement for functions that are bound to tools using [ToolDef](./reference/inspect_ai.tool.html.md#tooldef): type annotations must be provided in the function signature (e.g. `x: int, y: int`).
 
-For Inspect APIs, [ToolDef](reference/inspect_ai.tool.html.md#tooldef) can generally be used anywhere that [Tool](reference/inspect_ai.tool.html.md#tool) can be used ([use_tools()](reference/inspect_ai.solver.html.md#use_tools), setting `state.tools`, etc.). If you are using a 3rd party API that does not take [Tool](reference/inspect_ai.tool.html.md#tool) in its interface, use the `ToolDef.as_tool()` method to adapt it. For example:
+For Inspect APIs, [ToolDef](./reference/inspect_ai.tool.html.md#tooldef) can generally be used anywhere that [Tool](./reference/inspect_ai.tool.html.md#tool) can be used ([use_tools()](./reference/inspect_ai.solver.html.md#use_tools), setting `state.tools`, etc.). If you are using a 3rd party API that does not take [Tool](./reference/inspect_ai.tool.html.md#tool) in its interface, use the `ToolDef.as_tool()` method to adapt it. For example:
 
 ``` python
 from inspect_agents import my_agent
 agent = my_agent(tools=[add.as_tool()])
 ```
 
-If on the other hand you want to get the [ToolDef](reference/inspect_ai.tool.html.md#tooldef) for an existing tool (e.g. to discover its name, description, and parameters) you can just pass the [Tool](reference/inspect_ai.tool.html.md#tool) to the [ToolDef](reference/inspect_ai.tool.html.md#tooldef) constructor (including whatever overrides for `name`, etc. you want):
+If on the other hand you want to get the [ToolDef](./reference/inspect_ai.tool.html.md#tooldef) for an existing tool (e.g. to discover its name, description, and parameters) you can just pass the [Tool](./reference/inspect_ai.tool.html.md#tool) to the [ToolDef](./reference/inspect_ai.tool.html.md#tooldef) constructor (including whatever overrides for `name`, etc. you want):
 
 ``` python
 from inspect_ai.tool import ToolDef, bash

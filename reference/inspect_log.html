@@ -1177,6 +1177,30 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#recover_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">recover_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#recoverable_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">recoverable_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#recoverableevallog" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecoverableEvalLog</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#recoverynotavailable" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecoveryNotAvailable</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#evalstatus" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalStatus</span></a>
   </div>
@@ -2932,6 +2956,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#inspect-log-dump" id="toc-inspect-log-dump" class="nav-link" data-scroll-target="#inspect-log-dump">inspect log dump</a></li>
   <li><a href="#inspect-log-convert" id="toc-inspect-log-convert" class="nav-link" data-scroll-target="#inspect-log-convert">inspect log convert</a></li>
   <li><a href="#inspect-log-schema" id="toc-inspect-log-schema" class="nav-link" data-scroll-target="#inspect-log-schema">inspect log schema</a></li>
+  <li><a href="#inspect-log-recover" id="toc-inspect-log-recover" class="nav-link" data-scroll-target="#inspect-log-recover">inspect log recover</a></li>
   </ul>
 </nav>
     </div>
@@ -2996,6 +3021,10 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><a href="#inspect-log-schema">schema</a></td>
 <td>Print JSON schema for log files.</td>
+</tr>
+<tr class="odd">
+<td><a href="#inspect-log-recover">recover</a></td>
+<td>Recover crashed eval logs from sample buffer databases.</td>
 </tr>
 </tbody>
 </table>
@@ -3245,6 +3274,119 @@ ul.task-list li input[type="checkbox"] {
 </thead>
 <tbody>
 <tr class="odd">
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="inspect-log-recover" class="level2" data-toc-label="recover">
+<h2 data-toc-label="recover" class="anchored" data-anchor-id="inspect-log-recover">inspect log recover</h2>
+<p>Recover crashed eval logs from sample buffer databases.</p>
+<section id="usage-5" class="level4">
+<h4 class="anchored" data-anchor-id="usage-5">Usage</h4>
+<pre class="text"><code>inspect log recover [OPTIONS] [LOG_FILE]</code></pre>
+</section>
+<section id="options-4" class="level4">
+<h4 class="anchored" data-anchor-id="options-4">Options</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 15%">
+<col style="width: 50%">
+<col style="width: 10%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--output</code></td>
+<td>text</td>
+<td>Output path for the recovered log file.</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--overwrite</code></td>
+<td>boolean</td>
+<td>Overwrite the crashed log file in-place instead of creating a new file.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--no-cleanup</code></td>
+<td>boolean</td>
+<td>Don’t remove the sample buffer database after recovery.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
+<td><code>--list</code></td>
+<td>boolean</td>
+<td>List recoverable logs instead of recovering.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output listing as JSON (only with –list).</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
+<td><code>--log-level</code></td>
+<td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
+<td>Set the log level (defaults to ‘warning’)</td>
+<td><code>warning</code></td>
+</tr>
+<tr class="odd">
+<td><code>--log-dir</code></td>
+<td>text</td>
+<td>Directory for log files.</td>
+<td><code>./logs</code></td>
+</tr>
+<tr class="even">
+<td><code>--display</code></td>
+<td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
+<td>Set the display type (defaults to ‘full’)</td>
+<td><code>full</code></td>
+</tr>
+<tr class="odd">
+<td><code>--traceback-locals</code></td>
+<td>boolean</td>
+<td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
+<td><code>--env</code></td>
+<td>text</td>
+<td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
+<td>None</td>
+</tr>
+<tr class="odd">
+<td><code>--debug</code></td>
+<td>boolean</td>
+<td>Wait to attach debugger</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
+<td><code>--debug-port</code></td>
+<td>integer</td>
+<td>Port number for debugger</td>
+<td><code>5678</code></td>
+</tr>
+<tr class="odd">
+<td><code>--debug-errors</code></td>
+<td>boolean</td>
+<td>Raise task errors (rather than logging them) so they can be debugged.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

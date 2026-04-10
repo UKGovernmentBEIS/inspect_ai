@@ -1,18 +1,18 @@
-# Using Agents
+# Using Agents – Inspect
 
 ## Overview
 
 Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
-1.  Using Inspect’s built-in [ReAct Agent](react-agent.html.md).
+1.  Using Inspect’s built-in [ReAct Agent](./react-agent.html.md).
 
-2.  Implementing a fully [Custom Agent](agent-custom.html.md).
+2.  Implementing a fully [Custom Agent](./agent-custom.html.md).
 
-3.  Composing agents into [Multi Agent](multi-agent.html.md) architectures.
+3.  Composing agents into [Multi Agent](./multi-agent.html.md) architectures.
 
-4.  Integrating external frameworks via the [Agent Bridge](agent-bridge.html.md).
+4.  Integrating external frameworks via the [Agent Bridge](./agent-bridge.html.md).
 
-5.  Using the [Human Agent](human-agent.html.md) for human baselining of computing tasks.
+5.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
 Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct agent, custom agents, and multi-agent systems.
 
@@ -20,21 +20,21 @@ If you are looking for state of the art software engineering agents, check out t
 
 ## Agent Basics
 
-The Inspect [Agent](reference/inspect_ai.agent.html.md#agent) protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
+The Inspect [Agent](./reference/inspect_ai.agent.html.md#agent) protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
 
-1.  Used as a top-level [Solver](reference/inspect_ai.solver.html.md#solver) for a task.
+1.  Used as a top-level [Solver](./reference/inspect_ai.solver.html.md#solver) for a task.
 
 2.  Run as a standalone operation in an agent workflow.
 
 3.  Delegated to in a multi-agent architecture.
 
-4.  Provided as a standard [Tool](reference/inspect_ai.tool.html.md#tool) to a model
+4.  Provided as a standard [Tool](./reference/inspect_ai.tool.html.md#tool) to a model
 
-The agents module includes a flexible, general-purpose [react agent](react-agent.html.md), which can be used standalone or to orchestrate a [multi agent](#multi-agent) system.
+The agents module includes a flexible, general-purpose [react agent](./react-agent.html.md), which can be used standalone or to orchestrate a [multi agent](#multi-agent) system.
 
 ### Example
 
-The following is a simple `web_surfer()` agent that uses the [web_search()](reference/inspect_ai.tool.html.md#web_search) tool to do open-ended web research.
+The following is a simple `web_surfer()` agent that uses the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool to do open-ended web research.
 
 ``` python
 from inspect_ai.agent import Agent, AgentState, agent
@@ -69,7 +69,7 @@ def web_surfer() -> Agent:
 
 The agent calls the `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the [web_search()](https://inspect.aisi.org.uk/tools-standard#sec-web-search) tool to fulfil the request.
 
-While this example illustrates the basic mechanic of agents, you generally wouldn’t write a custom agent that does only this (a system prompt with a tool use loop) as the [react()](reference/inspect_ai.agent.html.md#react) agent provides a more sophisticated and flexible version of this pattern. Here is the equivalent [react()](reference/inspect_ai.agent.html.md#react) agent:
+While this example illustrates the basic mechanic of agents, you generally wouldn’t write a custom agent that does only this (a system prompt with a tool use loop) as the [react()](./reference/inspect_ai.agent.html.md#react) agent provides a more sophisticated and flexible version of this pattern. Here is the equivalent [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from inspect_ai.agent import Agent, agent, react
@@ -86,13 +86,13 @@ def web_surfer() -> Agent:
     )
 ```
 
-See the [ReAct Agent](react-agent.html.md) article for more details on using and customizing ReAct agents.
+See the [ReAct Agent](./react-agent.html.md) article for more details on using and customizing ReAct agents.
 
 ### Using Agents
 
 Agents can be used in the following ways:
 
-1.  Agents can be passed as a [Solver](reference/inspect_ai.solver.html.md#solver) to any Inspect interface that takes a solver:
+1.  Agents can be passed as a [Solver](./reference/inspect_ai.solver.html.md#solver) to any Inspect interface that takes a solver:
 
     ``` python
     from inspect_ai import eval
@@ -100,9 +100,9 @@ Agents can be used in the following ways:
     eval("research_bench", solver=web_surfer())
     ```
 
-    For other interfaces that aren’t aware of agents, you can use the [as_solver()](reference/inspect_ai.agent.html.md#as_solver) function to convert an agent to a solver.
+    For other interfaces that aren’t aware of agents, you can use the [as_solver()](./reference/inspect_ai.agent.html.md#as_solver) function to convert an agent to a solver.
 
-2.  Agents can be executed directly using the [run()](reference/inspect_ai.agent.html.md#run) function (you might do this in a multi-step agent workflow):
+2.  Agents can be executed directly using the [run()](./reference/inspect_ai.agent.html.md#run) function (you might do this in a multi-step agent workflow):
 
     ``` python
     from inspect_ai.agent import run
@@ -113,7 +113,7 @@ Agents can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-3.  Agents can be used as a standard tool using the [as_tool()](reference/inspect_ai.agent.html.md#as_tool) function:
+3.  Agents can be used as a standard tool using the [as_tool()](./reference/inspect_ai.agent.html.md#as_tool) function:
 
     ``` python
     from inspect_ai.agent import as_tool
@@ -129,7 +129,7 @@ Agents can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-4.  Agents can participate in multi-agent systems where the conversation history is shared across agents. Use the [handoff()](reference/inspect_ai.agent.html.md#handoff) function to create a tool that enables handing off the conversation from one agent to another:
+4.  Agents can participate in multi-agent systems where the conversation history is shared across agents. Use the [handoff()](./reference/inspect_ai.agent.html.md#handoff) function to create a tool that enables handing off the conversation from one agent to another:
 
     ``` python
     from inspect_ai.agent import handoff
@@ -145,20 +145,20 @@ Agents can be used in the following ways:
     )
     ```
 
-    The difference between [handoff()](reference/inspect_ai.agent.html.md#handoff) and [as_tool()](reference/inspect_ai.agent.html.md#as_tool) is that [handoff()](reference/inspect_ai.agent.html.md#handoff) forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas [as_tool()](reference/inspect_ai.agent.html.md#as_tool) provides a simple string in, string out interface to the agent.
+    The difference between [handoff()](./reference/inspect_ai.agent.html.md#handoff) and [as_tool()](./reference/inspect_ai.agent.html.md#as_tool) is that [handoff()](./reference/inspect_ai.agent.html.md#handoff) forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas [as_tool()](./reference/inspect_ai.agent.html.md#as_tool) provides a simple string in, string out interface to the agent.
 
 ## Learning More
 
 See these additional articles to learn more about creating agent evaluations with Inspect:
 
-- [ReAct Agent](react-agent.html.md) provides details on using and customizing the built-in ReAct agent.
+- [ReAct Agent](./react-agent.html.md) provides details on using and customizing the built-in ReAct agent.
 
-- [Multi Agent](multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
+- [Multi Agent](./multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
 
-- [Custom Agents](agent-custom.html.md) describes Inspect APIs available for creating custom agents.
+- [Custom Agents](./agent-custom.html.md) describes Inspect APIs available for creating custom agents.
 
-- [Agent Bridge](agent-bridge.html.md) enables the use of agents from 3rd party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI with Inspect.
+- [Agent Bridge](./agent-bridge.html.md) enables the use of agents from 3rd party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI with Inspect.
 
-- [Human Agent](human-agent.html.md) is a solver that enables human baselining on computing tasks.
+- [Human Agent](./human-agent.html.md) is a solver that enables human baselining on computing tasks.
 
-- [Agent Limits](agent-custom.html.md#agent-limits) details how to set token, message, and time limits for agent execution.
+- [Agent Limits](./agent-custom.html.md#agent-limits) details how to set token, message, and time limits for agent execution.

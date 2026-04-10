@@ -1,4 +1,4 @@
-# VS Code Extension
+# VS Code Extension – Inspect
 
 ## Overview
 
@@ -39,7 +39,7 @@ If you prefer not to browse and view logs using the logs pane, you can also use 
 There are several ways to run tasks within VS Code:
 
 1.  `inspect eval` in the terminal
-2.  Calling [eval()](reference/inspect_ai.html.md#eval) in a script
+2.  Calling [eval()](./reference/inspect_ai.html.md#eval) in a script
 3.  Using the **Run Task** button .
 4.  Using the Cmd+Shift+U keyboard shortcut.
 
@@ -59,7 +59,7 @@ In addition to log listings, the Inspect Activity Bar provides interfaces for br
 
 The activity bar has four panels:
 
-- **Configuration** edits global configuration by reading and writing values from the workspace `.env` config file (see the documentation on [Options](options.html.md) for more details on `.env` files).
+- **Configuration** edits global configuration by reading and writing values from the workspace `.env` config file (see the documentation on [Options](./options.html.md) for more details on `.env` files).
 
 - **Tasks** displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.
 

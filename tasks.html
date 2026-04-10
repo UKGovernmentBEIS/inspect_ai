@@ -470,8 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -602,16 +608,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-options">Task Options</h3>
 <p>While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:</p>
 <table class="caption-top table">
+<caption> {tbl-colwidths='[25,50,25]'}</caption>
 <colgroup>
-<col style="width: 25%">
-<col style="width: 50%">
-<col style="width: 25%">
+<col style="width: 10%">
+<col style="width: 54%">
+<col style="width: 33%">
+<col style="width: 0%">
 </colgroup>
 <thead>
 <tr class="header">
 <th>Option</th>
 <th>Description</th>
 <th>Docs</th>
+<th></th>
 </tr>
 </thead>
 <tbody>
@@ -619,46 +628,54 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>epochs</code></td>
 <td>Epochs to run for each dataset sample.</td>
 <td><a href="./scorers.html#reducing-epochs">Epochs</a></td>
+<td></td>
 </tr>
 <tr class="even">
 <td><code>setup</code></td>
 <td>Setup solver(s) to run prior to the main solver.</td>
 <td><a href="#setup-parameter">Sample Setup</a></td>
+<td></td>
 </tr>
 <tr class="odd">
 <td><code>cleanup</code></td>
 <td>Cleanup function to call at task completion</td>
 <td><a href="#task-cleanup">Task Cleanup</a></td>
+<td></td>
 </tr>
 <tr class="even">
 <td><code>sandbox</code></td>
 <td>Sandbox configuration for un-trusted code execution.</td>
 <td><a href="./sandboxing.html">Sandboxing</a></td>
+<td></td>
 </tr>
 <tr class="odd">
 <td><code>approval</code></td>
 <td>Approval policy for tool calls.</td>
 <td><a href="./approval.html">Tool Approval</a></td>
+<td></td>
 </tr>
 <tr class="even">
 <td><code>metrics</code></td>
 <td>Metrics to use in place of scorer metrics.</td>
 <td><a href="./scorers.html#scoring-metrics">Scoring Metrics</a></td>
+<td></td>
 </tr>
 <tr class="odd">
 <td><code>model</code></td>
 <td>Model for evaluation (note that model is typically specified by <code>eval</code> rather than in the task)</td>
 <td><a href="./models.html">Models</a></td>
+<td></td>
 </tr>
 <tr class="even">
 <td><code>config</code></td>
 <td>Config for model generation (also typically specified in <code>eval</code>).</td>
 <td><a href="./options.html#model-generation">Generate Config</a></td>
+<td></td>
 </tr>
 <tr class="odd">
 <td><code>fail_on_error</code></td>
 <td>Failure tolerance for samples.</td>
-<td><a href="./errors-and-limits.html#failure-threshold">Sample Failure</a></td>
+<td colspan="2"><a href="./handling-errors.html#failure-threshold">Failure Threshold</a></td>
 </tr>
 <tr class="even">
 <td><code>message_limit</code><br>
@@ -666,7 +683,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <code>time_limit</code><br>
 <code>working_limit</code></td>
 <td>Limits to apply to sample execution.</td>
-<td><a href="./errors-and-limits.html#sample-limits">Sample Limits</a></td>
+<td colspan="2"><a href="./setting-limits.html#sample-limits">Sample Limits</a> | | | |</td>
 </tr>
 <tr class="odd">
 <td><code>name</code><br>
@@ -674,6 +691,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <code>metadata</code></td>
 <td>Eval log attributes for task.</td>
 <td><a href="./eval-logs.html">Eval Logs</a></td>
+<td></td>
 </tr>
 </tbody>
 </table>

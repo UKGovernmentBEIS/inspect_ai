@@ -1,4 +1,4 @@
-# Early Stopping
+# Early Stopping – Inspect
 
 ## Overview
 
@@ -12,7 +12,7 @@ Common use cases include:
 
 ## EarlyStopping Protocol
 
-To implement early stopping, create a class that implements the [EarlyStopping](reference/inspect_ai.util.html.md#earlystopping) protocol and pass it to the `early_stopping` parameter of a [Task](reference/inspect_ai.html.md#task):
+To implement early stopping, create a class that implements the [EarlyStopping](./reference/inspect_ai.util.html.md#earlystopping) protocol and pass it to the `early_stopping` parameter of a [Task](./reference/inspect_ai.html.md#task):
 
 ``` python
 from inspect_ai import Task, task
@@ -29,12 +29,12 @@ def my_task():
     )
 ```
 
-The [EarlyStopping](reference/inspect_ai.util.html.md#earlystopping) protocol defines four async methods:
+The [EarlyStopping](./reference/inspect_ai.util.html.md#earlystopping) protocol defines four async methods:
 
 | Method | Description |
 |----|----|
 | `start_task()` | Called at the beginning of an eval to register task metadata. |
-| `schedule_sample()` | Called before each sample runs; return [EarlyStop](reference/inspect_ai.util.html.md#earlystop) to skip it. |
+| `schedule_sample()` | Called before each sample runs; return [EarlyStop](./reference/inspect_ai.util.html.md#earlystop) to skip it. |
 | `complete_sample()` | Called when a sample completes with its scores. |
 | `complete_task()` | Called when the task completes; return metadata for the log. |
 
@@ -102,7 +102,7 @@ class RandomEarlyStopping(EarlyStopping):
 
 ## EarlyStop
 
-When `schedule_sample()` returns an [EarlyStop](reference/inspect_ai.util.html.md#earlystop), the sample is skipped. The [EarlyStop](reference/inspect_ai.util.html.md#earlystop) class includes:
+When `schedule_sample()` returns an [EarlyStop](./reference/inspect_ai.util.html.md#earlystop), the sample is skipped. The [EarlyStop](./reference/inspect_ai.util.html.md#earlystop) class includes:
 
 | Field | Type | Description |
 |----|----|----|
@@ -113,7 +113,7 @@ When `schedule_sample()` returns an [EarlyStop](reference/inspect_ai.util.html.m
 
 ## Log Output
 
-Early stopping information is recorded in the eval log as an [EarlyStoppingSummary](reference/inspect_ai.util.html.md#earlystoppingsummary), which includes:
+Early stopping information is recorded in the eval log as an [EarlyStoppingSummary](./reference/inspect_ai.util.html.md#earlystoppingsummary), which includes:
 
 - The name of the early stopping manager
 - A list of all samples that were stopped early

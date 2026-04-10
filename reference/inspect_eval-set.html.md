@@ -1,6 +1,4 @@
-# inspect eval-set
-
-Evaluate a set of tasks with retries.
+# inspect_eval-set – Inspect
 
 Evaluate a set of tasks with retries.
 
@@ -92,7 +90,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--parallel-tool-calls` / `--no-parallel-tool-calls` | boolean | Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only. | `True` |
 | `--internal-tools` / `--no-internal-tools` | boolean | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic). | `True` |
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | None |
-| `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. | None |
+| `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. | None |
 | `--verbosity` | choice (`low` \| `medium` \| `high`) | Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models) | None |
 | `--effort` | choice (`low` \| `medium` \| `high` \| `max`) | Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6). | None |
 | `--reasoning-effort` | choice (`none` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh`) | Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). | None |

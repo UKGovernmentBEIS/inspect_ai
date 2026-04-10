@@ -1,6 +1,4 @@
-# inspect cache
-
-Manage the Inspect model cache.
+# inspect_cache – Inspect
 
 Manage the inspect model output cache.
 

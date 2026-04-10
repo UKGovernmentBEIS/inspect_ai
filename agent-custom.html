@@ -470,8 +470,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Handling Errors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setting-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -649,40 +655,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="tool-loop" class="level2">
 <h2 class="anchored" data-anchor-id="tool-loop">Tool Loop</h2>
 <p>Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has a core similar to the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-2" data-llms-code-original="from typing import Sequence
-from inspect_ai.agent import AgentState, agent
-from inspect_ai.model import execute_tools, get_model
-from inspect_ai.tool import (
-    Tool, ToolDef, ToolSource, mcp_connection
-)
-
-@agent
-def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
-    async def execute(state: AgentState):
-
-        # establish MCP server connections required by tools
-        async with mcp_connection(tools):                          # <2>
-
-            while True:
-                # call model and append to messages
-                state.output = await get_model().generate(         # <3>
-                    input=state.messages,                          
-                    tools=tools,                                   
-                )                                                  
-                state.messages.append(output.message)              
-
-                # make tool calls or terminate if there are none   
-                if output.message.tool_calls:                      
-                    messages, state.output = await execute_tools(  # <4>
-                        message, tools     
-                    )
-                    state.messages.extend(messages)
-                else:
-                    break
-
-            return state
-
-    return execute"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
 <span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> AgentState, agent</span>
 <span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> execute_tools, get_model</span>
 <span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> (</span>
@@ -754,57 +727,7 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
 <h2 class="anchored" data-anchor-id="compaction">Compaction</h2>
 <p><a href="./compaction.html">Compaction</a> enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compaction">compaction()</a></span> function along with a compaction strategy to incorporate compaction into your custom agent.</p>
 <p>For example, here we enhance the simple agent loop example from above with compaction. The <code>compact</code> handler has two methods: <code>compact_input()</code> to prepare input for the model, and <code>record_output()</code> to calibrate token estimation from the model’s actual usage.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4" data-llms-code-original="from typing import Sequence
-from inspect_ai.agent import AgentState, agent
-from inspect_ai.model import (
-    CompactionAuto, compaction, execute_tools, get_model
-)
-from inspect_ai.tool import (
-    Tool, ToolDef, ToolSource, mcp_connection
-)
-
-@agent
-def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
-    async def execute(state: AgentState):
-
-        # create compaction handler              # <1>
-        compact = compaction(                    # <1>
-            CompactionAuto(),                    # <1>
-            prefix=state.messages,               # <1>
-            tools=tools                          # <1>
-        )                                        # <1>
-
-        # establish MCP server connections required by tools
-        async with mcp_connection(tools):
-
-            while True:
-                # compact input                                                # <2>
-                input, c_message = await compact.compact_input(state.messages)  # <2>
-                if c_message:                                                  # <2>
-                    state.messages.append(c_message)                           # <2>
-
-                # call model and append to messages
-                state.output = await get_model().generate(
-                    input=input,
-                    tools=tools,
-                )
-                state.messages.append(state.output.message)
-
-                # record output for token calibration  # <3>
-                compact.record_output(state.output)    # <3>
-
-                # make tool calls or terminate if there are none
-                if state.output.message.tool_calls:
-                    messages, state.output = await execute_tools(
-                        state.output.message, tools
-                    )
-                    state.messages.extend(messages)
-                else:
-                    break
-
-            return state
-
-    return execute"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
 <span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> AgentState, agent</span>
 <span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> (</span>
 <span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a>    CompactionAuto, compaction, execute_tools, get_model</span>
@@ -932,7 +855,7 @@ Note
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>[bash_session(instance<span class="op">=</span>instance)]</span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="f5d9c8dd" class="cell">
+<div id="1f0f4ce3" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>react(..., tools<span class="op">=</span>[bash_explorer(instance<span class="op">=</span>uuid())])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -948,7 +871,7 @@ Note
 </section>
 <section id="agent-limits" class="level2">
 <h2 class="anchored" data-anchor-id="agent-limits">Agent Limits</h2>
-<p>The Inspect <a href="./errors-and-limits.html#scoped-limits">limits system</a> enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).</p>
+<p>The Inspect <a href="./setting-limits.html#scoped-limits">limits system</a> enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).</p>
 <p>Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.</p>
 <p>To run an agent with one or more limits, pass the limit object in the <code>limits</code> argument to a function like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> (see <a href="./agents.html#using-agents">Using Agents</a> for details on the various ways to run agents).</p>
 <p>Here we limit an agent we are including as a solver to 500K tokens:</p>

@@ -1,23 +1,23 @@
-# Custom Agents
+# Custom Agents – Inspect
 
 ## Overview
 
-Inspect agents bear some similarity to [solvers](solvers.html.md) in that they are functions that accept and return a `state`. However, agent state is intentionally much more narrow—it consists of only conversation history (`messages`) and the last model generation (`output`). This in turn enables agents to be used more flexibly: they can be employed as solvers, tools, participants in a workflow, or delegates in multi-agent systems.
+Inspect agents bear some similarity to [solvers](./solvers.html.md) in that they are functions that accept and return a `state`. However, agent state is intentionally much more narrow—it consists of only conversation history (`messages`) and the last model generation (`output`). This in turn enables agents to be used more flexibly: they can be employed as solvers, tools, participants in a workflow, or delegates in multi-agent systems.
 
-Below we’ll cover the core [Agent](reference/inspect_ai.agent.html.md#agent) protocol, implementing a simple tool use loop, and related APIs for agent memory and observability.
+Below we’ll cover the core [Agent](./reference/inspect_ai.agent.html.md#agent) protocol, implementing a simple tool use loop, and related APIs for agent memory and observability.
 
 ## Protocol
 
-An [Agent](reference/inspect_ai.agent.html.md#agent) is a function that takes and returns an [AgentState](reference/inspect_ai.agent.html.md#agentstate). Agent state includes two fields:
+An [Agent](./reference/inspect_ai.agent.html.md#agent) is a function that takes and returns an [AgentState](./reference/inspect_ai.agent.html.md#agentstate). Agent state includes two fields:
 
 | Field | Type | Description |
 |----|----|----|
-| `messages` | List of [ChatMessage](reference/inspect_ai.model.html.md#chatmessage) | Conversation history. |
-| `output` | [ModelOutput](reference/inspect_ai.model.html.md#modeloutput) | Last model output. |
+| `messages` | List of [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage) | Conversation history. |
+| `output` | [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput) | Last model output. |
 
 ### Example
 
-Here’s a simple example that implements a `web_surfer()` agent that uses the [web_search()](reference/inspect_ai.tool.html.md#web_search) tool to do open-ended web research:
+Here’s a simple example that implements a `web_surfer()` agent that uses the [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool to do open-ended web research:
 
 ``` python
 from inspect_ai.agent import Agent, AgentState, agent
@@ -51,11 +51,11 @@ The agent calls the `generate_loop()` function which runs the model in a loop un
 
 > **NOTE:**
 >
-> While this example illustrates the basic mechanic of agents, you generally wouldn’t write an agent that does only this (a system prompt with a tool use loop) as the [react()](reference/inspect_ai.agent.html.md#react) agent provides a more sophisticated and flexible version of this pattern.
+> While this example illustrates the basic mechanic of agents, you generally wouldn’t write an agent that does only this (a system prompt with a tool use loop) as the [react()](./reference/inspect_ai.agent.html.md#react) agent provides a more sophisticated and flexible version of this pattern.
 
 ## Tool Loop
 
-Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has a core similar to the built-in [react()](reference/inspect_ai.agent.html.md#react) agent:
+Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has a core similar to the built-in [react()](./reference/inspect_ai.agent.html.md#react) agent:
 
 ``` python
 from typing import Sequence
@@ -66,15 +66,15 @@ from inspect_ai.tool import (
 )
 
 @agent
-def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
+1def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     async def execute(state: AgentState):
 
         # establish MCP server connections required by tools
-        async with mcp_connection(tools):                          # <2>
+2        async with mcp_connection(tools):
 
             while True:
                 # call model and append to messages
-                state.output = await get_model().generate(         # <3>
+3                state.output = await get_model().generate(
                     input=state.messages,                          
                     tools=tools,                                   
                 )                                                  
@@ -82,7 +82,7 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
 
                 # make tool calls or terminate if there are none   
                 if output.message.tool_calls:                      
-                    messages, state.output = await execute_tools(  # <4>
+4                    messages, state.output = await execute_tools(
                         message, tools     
                     )
                     state.messages.extend(messages)
@@ -94,10 +94,17 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
     return execute
 ```
 
-1.  Enable passing `tools` to the agent using a variety of types (including [ToolSource](reference/inspect_ai.tool.html.md#toolsource) which enables use of tools from [Model Context Protocol](tools-mcp.html.md) (MCP) servers).
-2.  Establish any required connections to MCP servers (this isn’t required, but will improve performance by re-using connections across tool calls).
-3.  Standard LLM inference step yielding an assistant message which we append to our message history.
-4.  Execute tool calls—note that this may update output and/or result in multiple additional messages being appended in the case that one of the tools is a [handoff()](reference/inspect_ai.agent.html.md#handoff) to a sub-agent.
+1  
+Enable passing `tools` to the agent using a variety of types (including [ToolSource](./reference/inspect_ai.tool.html.md#toolsource) which enables use of tools from [Model Context Protocol](./tools-mcp.html.md) (MCP) servers).
+
+2  
+Establish any required connections to MCP servers (this isn’t required, but will improve performance by re-using connections across tool calls).
+
+3  
+Standard LLM inference step yielding an assistant message which we append to our message history.
+
+4  
+Execute tool calls—note that this may update output and/or result in multiple additional messages being appended in the case that one of the tools is a [handoff()](./reference/inspect_ai.agent.html.md#handoff) to a sub-agent.
 
 This above represents a minimal tool use loop—your custom agents may diverge from it in various ways. For example, you might want to:
 
@@ -105,7 +112,7 @@ This above represents a minimal tool use loop—your custom agents may diverge f
 2.  Add a critique / reflection step between tool calling and generate.
 3.  Urge the model to keep going after it decides to stop calling tools.
 4.  Handle context window overflow (`stop_reason=="model_length"`) by truncating or summarising the `messages`.
-5.  Examine and possibly filter the tool calls before invoking [execute_tools()](reference/inspect_ai.model.html.md#execute_tools)
+5.  Examine and possibly filter the tool calls before invoking [execute_tools()](./reference/inspect_ai.model.html.md#execute_tools)
 
 For example, you might implement automatic context window truncation in response to context window overflow:
 
@@ -117,11 +124,11 @@ if state.output.stop_reason == "model_length":
         continue
 ```
 
-Note that the standard [react()](reference/inspect_ai.agent.html.md#react) agent provides some of these agent loop enhancements (urging the model to continue and handling context window overflow).
+Note that the standard [react()](./reference/inspect_ai.agent.html.md#react) agent provides some of these agent loop enhancements (urging the model to continue and handling context window overflow).
 
 ## Compaction
 
-[Compaction](compaction.html.md) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the [compaction()](reference/inspect_ai.model.html.md#compaction) function along with a compaction strategy to incorporate compaction into your custom agent.
+[Compaction](./compaction.html.md) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the [compaction()](./reference/inspect_ai.model.html.md#compaction) function along with a compaction strategy to incorporate compaction into your custom agent.
 
 For example, here we enhance the simple agent loop example from above with compaction. The `compact` handler has two methods: `compact_input()` to prepare input for the model, and `record_output()` to calibrate token estimation from the model’s actual usage.
 
@@ -139,21 +146,21 @@ from inspect_ai.tool import (
 def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     async def execute(state: AgentState):
 
-        # create compaction handler              # <1>
-        compact = compaction(                    # <1>
-            CompactionAuto(),                    # <1>
-            prefix=state.messages,               # <1>
-            tools=tools                          # <1>
-        )                                        # <1>
+1        # create compaction handler
+        compact = compaction(
+            CompactionAuto(),
+            prefix=state.messages,
+            tools=tools
+        )
 
         # establish MCP server connections required by tools
         async with mcp_connection(tools):
 
             while True:
-                # compact input                                                # <2>
-                input, c_message = await compact.compact_input(state.messages)  # <2>
-                if c_message:                                                  # <2>
-                    state.messages.append(c_message)                           # <2>
+2                # compact input
+                input, c_message = await compact.compact_input(state.messages)
+                if c_message:
+                    state.messages.append(c_message)
 
                 # call model and append to messages
                 state.output = await get_model().generate(
@@ -162,8 +169,8 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
                 )
                 state.messages.append(state.output.message)
 
-                # record output for token calibration  # <3>
-                compact.record_output(state.output)    # <3>
+3                # record output for token calibration
+                compact.record_output(state.output)
 
                 # make tool calls or terminate if there are none
                 if state.output.message.tool_calls:
@@ -179,25 +186,30 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     return execute
 ```
 
-1.  Create the compaction handler using the specified strategy. Pass a `prefix` that should always be included in any compacted history as well as `tools` (used for computing the input tokens).
-2.  Call `compact_input()` prior to `model.generate()`—pass the compacted `input` to the model and append the `c_message` (if specified) to the message history.
-3.  Call `record_output()` after `model.generate()` to calibrate token estimation using the model’s actual reported usage. This improves the accuracy of compaction threshold detection.
+1  
+Create the compaction handler using the specified strategy. Pass a `prefix` that should always be included in any compacted history as well as `tools` (used for computing the input tokens).
 
-> **NOTE:**
+2  
+Call `compact_input()` prior to `model.generate()`—pass the compacted `input` to the model and append the `c_message` (if specified) to the message history.
+
+3  
+Call `record_output()` after `model.generate()` to calibrate token estimation using the model’s actual reported usage. This improves the accuracy of compaction threshold detection.
+
+> **NOTE: Note**
 >
 > The returned `compact` handler maintains internal state and is designed for sequential use within a single conversation’s agent loop. Do not call it concurrently.
 
-There are various configurable compaction strategies available—see the [Compaction](compaction.html.md) documentation for details.
+There are various configurable compaction strategies available—see the [Compaction](./compaction.html.md) documentation for details.
 
 ## Sample Store
 
-In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the [Store](reference/inspect_ai.util.html.md#store), which provides a sample-scoped scratchpad for arbitrary values.
+In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the [Store](./reference/inspect_ai.util.html.md#store), which provides a sample-scoped scratchpad for arbitrary values.
 
 ### Typed Store
 
-When developing agents, you should use the [typed-interface](agent-custom.html.md#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed-interface](./agent-custom.html.md#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
 
-For example, here we define a typed accessor to the store by deriving from the [StoreModel](reference/inspect_ai.util.html.md#storemodel) class (which in turn derives from Pydantic `BaseModel`):
+For example, here we define a typed accessor to the store by deriving from the [StoreModel](./reference/inspect_ai.util.html.md#storemodel) class (which in turn derives from Pydantic `BaseModel`):
 
 ``` python
 from pydantic import Field
@@ -209,7 +221,7 @@ class Activity(StoreModel):
     actions: list[str] = Field(default_factory=list)
 ```
 
-We can then get access to a sample scoped instance of the store for use in agents using the [store_as()](reference/inspect_ai.util.html.md#store_as) function:
+We can then get access to a sample scoped instance of the store for use in agents using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function:
 
 ``` python
 from inspect_ai.util import store_as
@@ -219,7 +231,7 @@ activity = store_as(Activity)
 
 ### Agent Instances
 
-If you want an agent to have a store-per-instance by default, add an `instance` parameter to your `@agent` function and pass it a unique value. Then, forward the `instance` on to [store_as()](reference/inspect_ai.util.html.md#store_as) as well as any tools you call that are also stateful (e.g. [bash_session()](reference/inspect_ai.tool.html.md#bash_session)). For example:
+If you want an agent to have a store-per-instance by default, add an `instance` parameter to your `@agent` function and pass it a unique value. Then, forward the `instance` on to [store_as()](./reference/inspect_ai.util.html.md#store_as) as well as any tools you call that are also stateful (e.g. [bash_session()](./reference/inspect_ai.tool.html.md#bash_session)). For example:
 
 ``` python
 from pydantic import Field
@@ -261,7 +273,7 @@ This enables you to have multiple instances of the `bash_explorer()` agent, each
 
 ### Named Instances
 
-It’s also possible that you’ll want to create various named store instances that are shared across agents (e.g. each participant in a game might need their own store). Use the `instance` parameter of [store_as()](reference/inspect_ai.util.html.md#store_as) to explicitly create scoped store accessors:
+It’s also possible that you’ll want to create various named store instances that are shared across agents (e.g. each participant in a game might need their own store). Use the `instance` parameter of [store_as()](./reference/inspect_ai.util.html.md#store_as) to explicitly create scoped store accessors:
 
 ``` python
 red_team_activity = store_as(Activity, instance="red_team")
@@ -270,11 +282,11 @@ blue_team_activity = store_as(Activity, instance="blue_team")
 
 ## Agent Limits
 
-The Inspect [limits system](errors-and-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+The Inspect [limits system](./setting-limits.html.md#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
 
 Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
 
-To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like [handoff()](reference/inspect_ai.agent.html.md#handoff), [as_tool()](reference/inspect_ai.agent.html.md#as_tool), [as_solver()](reference/inspect_ai.agent.html.md#as_solver) or [run()](reference/inspect_ai.agent.html.md#run) (see [Using Agents](agents.html.md#using-agents) for details on the various ways to run agents).
+To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like [handoff()](./reference/inspect_ai.agent.html.md#handoff), [as_tool()](./reference/inspect_ai.agent.html.md#as_tool), [as_solver()](./reference/inspect_ai.agent.html.md#as_solver) or [run()](./reference/inspect_ai.agent.html.md#run) (see [Using Agents](./agents.html.md#using-agents) for details on the various ways to run agents).
 
 Here we limit an agent we are including as a solver to 500K tokens:
 
@@ -285,7 +297,7 @@ eval(
 )
 ```
 
-Here we limit an agent [handoff()](reference/inspect_ai.agent.html.md#handoff) to 500K tokens:
+Here we limit an agent [handoff()](./reference/inspect_ai.agent.html.md#handoff) to 500K tokens:
 
 ``` python
 eval(
@@ -304,9 +316,9 @@ eval(
 
 Note that when limits are exceeded during an agent’s execution, the way this is handled differs depending on how the agent was executed:
 
-- For agents used via [as_solver()](reference/inspect_ai.agent.html.md#as_solver), if a limit is exceeded then the sample will terminate (this is exactly how sample-level limits work).
+- For agents used via [as_solver()](./reference/inspect_ai.agent.html.md#as_solver), if a limit is exceeded then the sample will terminate (this is exactly how sample-level limits work).
 
-- For agents that are [run()](reference/inspect_ai.agent.html.md#run) directly with limits, their limit exceptions will be caught and returned in a tuple. Limits other than the ones passed to [run()](reference/inspect_ai.agent.html.md#run) will propagate up the stack.
+- For agents that are [run()](./reference/inspect_ai.agent.html.md#run) directly with limits, their limit exceptions will be caught and returned in a tuple. Limits other than the ones passed to [run()](./reference/inspect_ai.agent.html.md#run) will propagate up the stack.
 
   ``` python
   from inspect_ai.agent import run
@@ -320,7 +332,7 @@ Note that when limits are exceeded during an agent’s execution, the way this i
       ...
   ```
 
-- For tool based agents ([handoff()](reference/inspect_ai.agent.html.md#handoff) and [as_tool()](reference/inspect_ai.agent.html.md#as_tool)), if a limit is exceeded then a message to that effect is returned to the model but the *sample continues running*.
+- For tool based agents ([handoff()](./reference/inspect_ai.agent.html.md#handoff) and [as_tool()](./reference/inspect_ai.agent.html.md#as_tool)), if a limit is exceeded then a message to that effect is returned to the model but the *sample continues running*.
 
 ## Parameters
 
@@ -386,7 +398,7 @@ solver = [
 ]
 ```
 
-If you need to pass parameters explicitly to the agent `execute` function, you can curry them using the [as_solver()](reference/inspect_ai.agent.html.md#as_solver) function:
+If you need to pass parameters explicitly to the agent `execute` function, you can curry them using the [as_solver()](./reference/inspect_ai.agent.html.md#as_solver) function:
 
 ``` python
 solver = [
@@ -403,7 +415,7 @@ Transcripts provide a rich per-sample sequential view of everything that occurs 
 
 - Model interactions (including the raw API call made to the provider).
 - Tool calls (including a sub-transcript of activitywithin the tool)
-- Changes (in [JSON Patch](https://jsonpatch.com/) format) to the [TaskState](reference/inspect_ai.solver.html.md#taskstate) for the [Sample](reference/inspect_ai.dataset.html.md#sample).
+- Changes (in [JSON Patch](https://jsonpatch.com/) format) to the [TaskState](./reference/inspect_ai.solver.html.md#taskstate) for the [Sample](./reference/inspect_ai.dataset.html.md#sample).
 - Scoring (including a sub-transcript of interactions within the scorer).
 - Custom `info()` messages inserted explicitly into the transcript.
 - Python logger calls (`info` level or designated custom `log-level`).
@@ -412,7 +424,7 @@ This information is provided within the Inspect log viewer in the **Transcript**
 
 ### Custom Info
 
-You can insert custom entries into the transcript via the Transcript `info()` method (which creates an [InfoEvent](reference/inspect_ai.event.html.md#infoevent)). Access the transcript for the current sample using the [transcript()](reference/inspect_ai.log.html.md#transcript) function, for example:
+You can insert custom entries into the transcript via the Transcript `info()` method (which creates an [InfoEvent](./reference/inspect_ai.event.html.md#infoevent)). Access the transcript for the current sample using the [transcript()](./reference/inspect_ai.log.html.md#transcript) function, for example:
 
 ``` python
 from inspect_ai.log import transcript
@@ -424,7 +436,7 @@ Strings passed to `info()` will be rendered as markdown. In addition to strings 
 
 ### Grouping with Spans
 
-You can create arbitrary groupings of transcript activity using the [span()](reference/inspect_ai.util.html.md#span) context manager. For example:
+You can create arbitrary groupings of transcript activity using the [span()](./reference/inspect_ai.util.html.md#span) context manager. For example:
 
 ``` python
 from inspect_ai.util import span
@@ -435,14 +447,14 @@ async with span("planning"):
 
 There are two reasons that you might want to create spans:
 
-1.  Any changes to the store which occur during a span will be collected into a [StoreEvent](reference/inspect_ai.event.html.md#storeevent) that records the changes (in [JSON Patch](https://jsonpatch.com/) format) that occurred.
+1.  Any changes to the store which occur during a span will be collected into a [StoreEvent](./reference/inspect_ai.event.html.md#storeevent) that records the changes (in [JSON Patch](https://jsonpatch.com/) format) that occurred.
 2.  The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
 
 ## Parallelism
 
-You can execute subtasks in parallel using the [collect()](reference/inspect_ai.util.html.md#collect) function. For example, to run 3 [web_search()](reference/inspect_ai.tool.html.md#web_search) coroutines in parallel:
+You can execute subtasks in parallel using the [collect()](./reference/inspect_ai.util.html.md#collect) function. For example, to run 3 [web_search()](./reference/inspect_ai.tool.html.md#web_search) coroutines in parallel:
 
 ``` python
 from inspect_ai.util import collect
@@ -454,15 +466,15 @@ results = collect(
 )
 ```
 
-Note that [collect()](reference/inspect_ai.util.html.md#collect) is similar to [`asyncio.gather()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.gather), but also works when [Trio](https://trio.readthedocs.io/en/stable/) is the Inspect async backend.
+Note that [collect()](./reference/inspect_ai.util.html.md#collect) is similar to [`asyncio.gather()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.gather), but also works when [Trio](https://trio.readthedocs.io/en/stable/) is the Inspect async backend.
 
-The Inspect [collect()](reference/inspect_ai.util.html.md#collect) function also automatically includes each task in a [span()](reference/inspect_ai.util.html.md#span), which ensures that its events are grouped together in the transcript.
+The Inspect [collect()](./reference/inspect_ai.util.html.md#collect) function also automatically includes each task in a [span()](./reference/inspect_ai.util.html.md#span), which ensures that its events are grouped together in the transcript.
 
-Using [collect()](reference/inspect_ai.util.html.md#collect) in preference to `asyncio.gather()` is highly recommended for both Trio compatibility and more legible transcript output.
+Using [collect()](./reference/inspect_ai.util.html.md#collect) in preference to `asyncio.gather()` is highly recommended for both Trio compatibility and more legible transcript output.
 
 ## Background Work
 
-The [background()](reference/inspect_ai.util.html.md#background) function enables you to execute an async task in the background of the current sample. The task terminates when the sample terminates. For example:
+The [background()](./reference/inspect_ai.util.html.md#background) function enables you to execute an async task in the background of the current sample. The task terminates when the sample terminates. For example:
 
 ``` python
 import anyio
@@ -487,9 +499,9 @@ The above code demonstrates a couple of important characteristics of a sample ba
 
 ## Sandbox Service
 
-Sandbox services make available a set of methods to a sandbox for calling back into the main Inspect process. For example, the [Human Agent](human-agent.html.md) uses a sandbox service to enable the human agent to start, stop, score, and submit tasks.
+Sandbox services make available a set of methods to a sandbox for calling back into the main Inspect process. For example, the [Human Agent](./human-agent.html.md) uses a sandbox service to enable the human agent to start, stop, score, and submit tasks.
 
-Sandbox service are often run using the [background()](reference/inspect_ai.util.html.md#background) function to make them available for the lifetime of a sample.
+Sandbox service are often run using the [background()](./reference/inspect_ai.util.html.md#background) function to make them available for the lifetime of a sample.
 
 For example, here’s a simple calculator service that provides add and subtract methods to Python code within a sandbox:
 
@@ -513,7 +525,7 @@ async def calculator_service():
 background(calculator_service)
 ```
 
-Above we run the sandbox service in the background so it doesn’t block the main task while waiting for requests. You can also pass `handle_requests=False` to manually handle requests (e.g. poll for them periodically). In this the [sandbox_service()](reference/inspect_ai.util.html.md#sandbox_service) returns a function you can call to process requests:
+Above we run the sandbox service in the background so it doesn’t block the main task while waiting for requests. You can also pass `handle_requests=False` to manually handle requests (e.g. poll for them periodically). In this the [sandbox_service()](./reference/inspect_ai.util.html.md#sandbox_service) returns a function you can call to process requests:
 
 ``` python
 handle_requests = await sandbox_service(

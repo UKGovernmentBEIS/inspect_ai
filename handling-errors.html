@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Agent Bridge – Inspect</title>
+<title>Handling Errors – Inspect</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,8 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./human-agent.html" rel="next">
-<link href="./agent-custom.html" rel="prev">
+<link href="./setting-limits.html" rel="next">
+<link href="./eval-sets.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -183,7 +183,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agent-bridge.html">Agent Bridge</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./handling-errors.html">Handling Errors</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -418,7 +418,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link active">
+  <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Agent Bridge</span></a>
   </div>
 </li>
@@ -470,7 +470,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link">
+  <a href="./handling-errors.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Handling Errors</span></a>
   </div>
 </li>
@@ -529,20 +529,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#agent-bridge" id="toc-agent-bridge" class="nav-link" data-scroll-target="#agent-bridge">Agent Bridge</a></li>
-  <li><a href="#sandbox-bridge" id="toc-sandbox-bridge" class="nav-link" data-scroll-target="#sandbox-bridge">Sandbox Bridge</a></li>
-  <li><a href="#bridged-tools" id="toc-bridged-tools" class="nav-link" data-scroll-target="#bridged-tools">Bridged Tools</a></li>
-  <li><a href="#models" id="toc-models" class="nav-link" data-scroll-target="#models">Models</a></li>
-  <li><a href="#transcript" id="toc-transcript" class="nav-link" data-scroll-target="#transcript">Transcript</a></li>
+  <li><a href="#runtime-errors" id="toc-runtime-errors" class="nav-link" data-scroll-target="#runtime-errors">Runtime Errors</a></li>
+  <li><a href="#eval-retries" id="toc-eval-retries" class="nav-link" data-scroll-target="#eval-retries">Eval Retries</a></li>
+  <li><a href="#failure-threshold" id="toc-failure-threshold" class="nav-link" data-scroll-target="#failure-threshold">Failure Threshold</a></li>
+  <li><a href="#sample-retries" id="toc-sample-retries" class="nav-link" data-scroll-target="#sample-retries">Sample Retries</a></li>
+  <li><a href="#crash-recovery" id="toc-crash-recovery" class="nav-link" data-scroll-target="#crash-recovery">Crash Recovery</a>
+  <ul class="collapse">
+  <li><a href="#manual-recovery" id="toc-manual-recovery" class="nav-link" data-scroll-target="#manual-recovery">Manual Recovery</a></li>
+  <li><a href="#automatic-recovery" id="toc-automatic-recovery" class="nav-link" data-scroll-target="#automatic-recovery">Automatic Recovery</a></li>
+  <li><a href="#python-api" id="toc-python-api" class="nav-link" data-scroll-target="#python-api">Python API</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agent-bridge.html">Agent Bridge</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./handling-errors.html">Handling Errors</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Agent Bridge</h1>
+<h1 class="title">Handling Errors</h1>
 </div>
 
 
@@ -561,212 +566,179 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like <a href="https://openai.github.io/openai-agents-python/">OpenAI Agents SDK</a>, <a href="https://ai.pydantic.dev/">Pydantic AI</a>, and <a href="https://python.langchain.com/docs/introduction/">LangChain</a>, or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g.&nbsp;<a href="https://www.anthropic.com/claude-code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a>, or <a href="https://github.com/google-gemini/gemini-cli">Gemini CLI</a>).</p>
-<p>Agents are <em>bridged</em> into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:</p>
+<p>Errors during evaluation fall into two distinct categories:</p>
 <ol type="1">
-<li><p>Bridging to Python-based agents that run in the same process as Inspect via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager.</p></li>
-<li><p>Bridging to agents that run in a sandbox via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager (these agents can be written in any language).</p></li>
+<li><p><strong>Runtime Errors</strong> — A Python exception occurs during eval execution (e.g.&nbsp;a bug in a solver, an unreliable API, or a sandbox failure). The process terminates normally and the eval log is written with status <code>"error"</code>, preserving all completed samples.</p></li>
+<li><p><strong>Crash Recovery</strong> — The eval process dies unexpectedly (e.g.&nbsp;out-of-memory, segfault, power failure, or <code>kill -9</code>). The eval log is incomplete — status remains <code>"started"</code>, and samples that were completed but not yet flushed to disk are missing from the log.</p></li>
 </ol>
-<p>We’ll cover each of these configurations in turn below. You can also learn from the following examples:</p>
+<p>The sections below cover techniques for handling both scenarios.</p>
+</section>
+<section id="runtime-errors" class="level2">
+<h2 class="anchored" data-anchor-id="runtime-errors">Runtime Errors</h2>
+<p>Runtime errors result in a log with status <code>"error"</code> that contains all samples completed before the error occurred. These logs can be retried to re-run only the failed samples.</p>
+</section>
+<section id="eval-retries" class="level2">
+<h2 class="anchored" data-anchor-id="eval-retries">Eval Retries</h2>
+<p>When an evaluation task fails due to an error or is otherwise interrupted (e.g.&nbsp;by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g.&nbsp;due to network connectivity or a rate limit) and can be subsequently <em>retried</em>.</p>
+<p>For these cases, Inspect includes an <code>eval-retry</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> function that you can use to resume tasks interrupted by errors (including <a href="./eval-logs.html#sec-sample-preservation">preserving samples</a> already completed within the original task). For example, if you had a failing task with log file <code>logs/2024-05-29T12-38-43_math_Gprr29Mv.json</code>, you could retry it from the shell with:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or from Python with:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Note that retry only works for tasks that are created from <code>@task</code> decorated functions (as if a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> is created dynamically outside of an <code>@task</code> function Inspect does not know how to reconstruct it for the retry).</p>
+<p>Note also that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> does not overwrite the previous log file, but rather creates a new one (preserving the <code>task_id</code> from the original file).</p>
+<p>Here’s an example of retrying a failed eval with a lower number of <code>max_connections</code> (the theory being that too many concurrent connections may have caused a rate limit error):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(my_task)[<span class="dv">0</span>]</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>:</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  eval_retry(log, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="failure-threshold" class="level2">
+<h2 class="anchored" data-anchor-id="failure-threshold">Failure Threshold</h2>
+<p>In some cases you might wish to tolerate some number of errors without failing the evaluation. This might be during development when errors are more commonplace, or could be to deal with a particularly unreliable API used in the evaluation. Add the <code>fail_on_error</code> option to your <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> definition to establish this threshold. For example, here we indicate that we’ll tolerate errors in up to 10% of the total sample count before failing:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>            system_message(<span class="st">"system.txt"</span>),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>            use_tools([bash(timeout<span class="op">=</span><span class="dv">120</span>)]),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        fail_on_error<span class="op">=</span><span class="fl">0.1</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Failed samples are <em>not scored</em> and a warning indicating that some samples failed is both printed in the terminal and shown in Inspect View when this occurs.</p>
+<p>You can specify <code>fail_on_error</code> as a boolean (turning the behaviour on and off entirely), as a number between 0 and 1 (indicating a proportion of failures to tolerate), or a number greater than 1 to (indicating a count of failures to tolerate):</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 30%">
-<col style="width: 70%">
+<col style="width: 40%">
+<col style="width: 60%">
 </colgroup>
+<thead>
+<tr class="header">
+<th>Value</th>
+<th>Behaviour</th>
+</tr>
+</thead>
 <tbody>
 <tr class="odd">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk">OpenAI Agents SDK</a></td>
-<td>Demonstrates using a native <a href="https://openai.github.io/openai-agents-python/">Open AI Agents SDK</a> agent to perform Q/A using web search.</td>
+<td><code>fail_on_error=True</code></td>
+<td>Fail eval immediately on sample errors (default).</td>
 </tr>
 <tr class="even">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a></td>
-<td>Demonstrates using a native <a href="https://www.langchain.com/">LangChain</a> agent to perform Q/A using the <a href="https://tavily.com/">Tavili Search API</a></td>
+<td><code>fail_on_error=False</code></td>
+<td>Never fail eval on sample errors.</td>
 </tr>
 <tr class="odd">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/pydantic-ai">Pydantic AI</a></td>
-<td>Demonstrates using a native <a href="https://ai.pydantic.dev/">Pydantic AI</a> agent to perform Q/A using web search.</td>
+<td><code>fail_on_error=0.1</code></td>
+<td>Fail if more than 10% of total samples have errors.</td>
 </tr>
 <tr class="even">
-<td><a href="https://meridianlabs-ai.github.io/inspect_swe/claude_code.html">Claude Code</a></td>
-<td>Demonstrates using a <a href="https://www.anthropic.com/claude-code">Claude Code</a> agent to explore a Kali Linux system.</td>
-</tr>
-<tr class="odd">
-<td><a href="https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html">Codex CLI</a></td>
-<td>Demonstrates using a <a href="https://github.com/openai/codex">Codex CLI</a> agent to explore a Kali Linux system.</td>
+<td><code>fail_on_error=5</code></td>
+<td>Fail eval if more than 5 samples have errors.</td>
 </tr>
 </tbody>
 </table>
+<p>While <code>fail_on_error</code> is typically specified at the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> level, you can also override the task setting when calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <code>inspect eval</code> from the CLI. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"intercode_ctf.py"</span>, fail_on_error<span class="op">=</span><span class="va">False</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.</p>
 </section>
-<section id="agent-bridge" class="level2">
-<h2 class="anchored" data-anchor-id="agent-bridge">Agent Bridge</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, Anthropic, and Google. To bridge a Python based agent running in the same process as Inspect:</p>
-<ol type="1">
-<li><p>Write your custom Python agent as normal using the OpenAI, Anthropic, or Google connector provided by your agent system, specifying “inspect” as the model name.</p></li>
-<li><p>Run your custom Python agent within the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager which redirects OpenAI calls to the current Inspect model provider.</p></li>
-</ol>
-<p>For example, here we build an agent that uses the OpenAI SDK directly (imaging using your favourite agent framework in its place):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-1"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-1-1"><a href="#annotated-cell-1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai <span class="im">import</span> AsyncOpenAI</span>
-<span id="annotated-cell-1-2"><a href="#annotated-cell-1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
-<span id="annotated-cell-1-3"><a href="#annotated-cell-1-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, agent_bridge</span>
-<span id="annotated-cell-1-4"><a href="#annotated-cell-1-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="annotated-cell-1-5"><a href="#annotated-cell-1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> messages_to_openai</span>
-<span id="annotated-cell-1-6"><a href="#annotated-cell-1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-1-7"><a href="#annotated-cell-1-7" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="annotated-cell-1-8"><a href="#annotated-cell-1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> Agent:</span>
-<span id="annotated-cell-1-9"><a href="#annotated-cell-1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="1">1</button><span id="annotated-cell-1-10" class="code-annotation-target"><a href="#annotated-cell-1-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> agent_bridge(state) <span class="im">as</span> bridge:</span>
-<span id="annotated-cell-1-11"><a href="#annotated-cell-1-11" aria-hidden="true" tabindex="-1"></a>            client <span class="op">=</span> AsyncOpenAI()</span>
-<span id="annotated-cell-1-12"><a href="#annotated-cell-1-12" aria-hidden="true" tabindex="-1"></a>            </span>
-<span id="annotated-cell-1-13"><a href="#annotated-cell-1-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> client.chat.completions.create(</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="2">2</button><span id="annotated-cell-1-14" class="code-annotation-target"><a href="#annotated-cell-1-14" aria-hidden="true" tabindex="-1"></a>                model<span class="op">=</span><span class="st">"inspect"</span>,</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="3">3</button><span id="annotated-cell-1-15" class="code-annotation-target"><a href="#annotated-cell-1-15" aria-hidden="true" tabindex="-1"></a>                messages<span class="op">=</span>messages_to_openai(state.messages)</span>
-<span id="annotated-cell-1-16"><a href="#annotated-cell-1-16" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="annotated-cell-1-17"><a href="#annotated-cell-1-17" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="4">4</button><span id="annotated-cell-1-18" class="code-annotation-target"><a href="#annotated-cell-1-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
-<span id="annotated-cell-1-19"><a href="#annotated-cell-1-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-1-20"><a href="#annotated-cell-1-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-1" data-target-annotation="1">1</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="10" data-code-annotation="1">Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> context manager to redirect the OpenAI API to the Inspect model provider. Pass the <code>state</code> so that the bridge can automatically keep track of changes to <code>messages</code> and <code>output</code> based on model calls passing through the bridge.</span>
-</dd>
-<dt data-target-cell="annotated-cell-1" data-target-annotation="2">2</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="14" data-code-annotation="2">Use the OpenAI API with <code>model="inspect"</code>, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.</span>
-</dd>
-<dt data-target-cell="annotated-cell-1" data-target-annotation="3">3</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="15" data-code-annotation="3">Convert the <code>state.messages</code> input into native OpenAI messages using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> function.</span>
-</dd>
-<dt data-target-cell="annotated-cell-1" data-target-annotation="4">4</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="18" data-code-annotation="4">Return the <code>state</code> changes automatically tracked by the <code>bridge</code> .</span>
-</dd>
-</dl>
-<p>The <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk">OpenAI Agents SDK</a>, <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/pydantic-ai">PydanticAI</a> <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain</a> example provide a more in-depth demonstration of using the Python agent bridge with Inspect.</p>
+<section id="sample-retries" class="level2">
+<h2 class="anchored" data-anchor-id="sample-retries">Sample Retries</h2>
+<p>The <code>retry_on_error</code> option enables retrying samples with errors some number of times before they are considered failed (and subject to <code>fail_on_error</code> processing as described above). For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--retry-on-error</span>    <span class="co"># retry 1 time</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--retry-on-error</span><span class="op">=</span>3  <span class="co"># retry up to 3 times</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or from Python:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, retry_on_error<span class="op">=</span><span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>If a sample is retried, the original error(s) that induced the retries will be recorded in its <code>error_retries</code> field.</p>
+<div class="callout callout-style-simple callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>Retries and Distribution Shift
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>While sample retries enable improved recovery from transient infrastructure errors, they also carry with them some risk of distribution shift. For example, imagine that the error being retried is a bug in one of your agents that is triggered by only certain classes of input. These classes of input could then potentially have a higher chance of success because they will be “re-rolled” more frequently.</p>
+<p>Consequently, when enabling <code>retry_on_error</code> you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.</p>
+</div>
+</div>
 </section>
-<section id="sandbox-bridge" class="level2">
-<h2 class="anchored" data-anchor-id="sandbox-bridge">Sandbox Bridge</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> can bridge agents written against the OpenAI Completions, OpenAI Responses, Anthropic API, or Google API. To bridge an agent running in a sandbox to Inspect:</p>
-<ol type="1">
-<li><p>Configure your sandbox (e.g.&nbsp;via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI, Anthropic, or Gemini API on localhost port 13131 (e.g.&nbsp;<code>OPENAI_BASE_URL=http://localhost:13131/v1</code>, <code>ANTHROPIC_BASE_URL=http://localhost:13131</code>, or <code>GOOGLE_GEMINI_BASE_URL=http://localhost:13131/v1beta</code>).</p></li>
-<li><p>Write a standard Inspect agent that uses the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager and the <code>sandbox().exec()</code> method to invoke the custom agent.</p></li>
-</ol>
-<p>The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI, Anthropic, and Google APIs. This proxy server in turn relays requests to the current Inspect model provider.</p>
-<p>For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai <span class="im">import</span> AsyncOpenAI</span>
-<span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
-<span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, sandbox_agent_bridge</span>
-<span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> user_prompt</span>
-<span id="annotated-cell-2-6"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
-<span id="annotated-cell-2-7"><a href="#annotated-cell-2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-8"><a href="#annotated-cell-2-8" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="annotated-cell-2-9"><a href="#annotated-cell-2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> Agent:</span>
-<span id="annotated-cell-2-10"><a href="#annotated-cell-2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="1">1</button><span id="annotated-cell-2-11" class="code-annotation-target"><a href="#annotated-cell-2-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(state) <span class="im">as</span> bridge:</span>
-<span id="annotated-cell-2-12"><a href="#annotated-cell-2-12" aria-hidden="true" tabindex="-1"></a>            </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="2">2</button><span id="annotated-cell-2-13" class="code-annotation-target"><a href="#annotated-cell-2-13" aria-hidden="true" tabindex="-1"></a>            prompt <span class="op">=</span> user_prompt(state.messages)</span>
-<span id="annotated-cell-2-14"><a href="#annotated-cell-2-14" aria-hidden="true" tabindex="-1"></a>            </span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="3">3</button><span id="annotated-cell-2-15" class="code-annotation-target"><a href="#annotated-cell-2-15" aria-hidden="true" tabindex="-1"></a>            result <span class="op">=</span> sandbox().<span class="bu">exec</span>(</span>
-<span id="annotated-cell-2-16"><a href="#annotated-cell-2-16" aria-hidden="true" tabindex="-1"></a>                cmd<span class="op">=</span>[</span>
-<span id="annotated-cell-2-17"><a href="#annotated-cell-2-17" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"/opt/my_agent"</span>,</span>
-<span id="annotated-cell-2-18"><a href="#annotated-cell-2-18" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"--prompt"</span>,</span>
-<span id="annotated-cell-2-19"><a href="#annotated-cell-2-19" aria-hidden="true" tabindex="-1"></a>                    prompt.text</span>
-<span id="annotated-cell-2-20"><a href="#annotated-cell-2-20" aria-hidden="true" tabindex="-1"></a>                ],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="4">4</button><span id="annotated-cell-2-21" class="code-annotation-target"><a href="#annotated-cell-2-21" aria-hidden="true" tabindex="-1"></a>                env<span class="op">=</span>{<span class="st">"OPENAI_BASE_URL"</span>: <span class="ss">f"http://localhost:</span><span class="sc">{</span>bridge<span class="sc">.</span>port<span class="sc">}</span><span class="ss">/v1"</span>}</span>
-<span id="annotated-cell-2-22"><a href="#annotated-cell-2-22" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="annotated-cell-2-23"><a href="#annotated-cell-2-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> result.success:</span>
-<span id="annotated-cell-2-24"><a href="#annotated-cell-2-24" aria-hidden="true" tabindex="-1"></a>                <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="ss">f"Agent error: </span><span class="sc">{</span>result<span class="sc">.</span>stderr<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="annotated-cell-2-25"><a href="#annotated-cell-2-25" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="5">5</button><span id="annotated-cell-2-26" class="code-annotation-target"><a href="#annotated-cell-2-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
-<span id="annotated-cell-2-27"><a href="#annotated-cell-2-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-28"><a href="#annotated-cell-2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-2" data-target-annotation="1">1</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="11" data-code-annotation="1">Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> context manager to redirect the OpenAI API to the Inspect model provider. Pass the <code>state</code> so that the bridge can automatically keep track of changes to <code>messages</code> and <code>output</code> based on model calls passing through the bridge.</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="13" data-code-annotation="2">Extract the last user message from the message history with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#user_prompt">user_prompt()</a></span>.</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="3">3</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="15" data-code-annotation="3">Run the agent, using a CLI argument for input and stdout for output (other agents may use more sophisticated encoding schemes for messages in and out).</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="4">4</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="21" data-code-annotation="4">Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the <code>port</code> to listen on from the <code>bridge</code> yielded by the context manager.</span>
-</dd>
-<dt data-target-cell="annotated-cell-2" data-target-annotation="5">5</dt>
-<dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="26" data-code-annotation="5">Return the <code>state</code> changes automatically tracked by the <code>bridge</code>.</span>
-</dd>
-</dl>
-<p>The <a href="https://meridianlabs-ai.github.io/inspect_swe/claude_code.html">Claude Code</a> and <a href="https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html">Codex CLI</a> agents in the Inspect SWE package provide more in-depth demonstrations of running custom agents in sandboxes.</p>
-</section>
-<section id="bridged-tools" class="level2">
-<h2 class="anchored" data-anchor-id="bridged-tools">Bridged Tools</h2>
-<p>Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the <code>bridged_tools</code> parameter. This is useful when you have Inspect tools that need to run on the host (e.g.&nbsp;tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.</p>
-<p>To bridge tools, wrap them in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridgedtoolsspec">BridgedToolsSpec</a></span> and pass to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> tool</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, sandbox_agent_bridge, BridgedToolsSpec</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> search_database():</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(query: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Search the internal database.</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">            query: The search query.</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Runs on the host, not the sandbox</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"Results for: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> Agent:</span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>            state,</span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>            bridged_tools<span class="op">=</span>[</span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>                BridgedToolsSpec(</span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>                    name<span class="op">=</span><span class="st">"host_tools"</span>,</span>
-<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>                    tools<span class="op">=</span>[search_database()]</span>
-<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>                )</span>
-<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>            ]</span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>        ) <span class="im">as</span> bridge:</span>
-<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>            <span class="co"># bridge.mcp_server_configs contains resolved MCPServerConfigStdio</span></span>
-<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>            <span class="co"># objects that can be passed to CLI agents</span></span>
-<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
-<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The bridge handles:</p>
+<section id="crash-recovery" class="level2">
+<h2 class="anchored" data-anchor-id="crash-recovery">Crash Recovery</h2>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The crash recovery features described below are available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p>When an eval process dies unexpectedly (out-of-memory, segfault, <code>kill</code>, power failure, etc.), the eval log is left in an incomplete state:</p>
 <ul>
-<li>Starting a host-side service that executes the Inspect tools</li>
-<li>Writing an MCP server script to the sandbox that forwards tool calls to the host</li>
-<li>Returning <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcpserverconfigstdio">MCPServerConfigStdio</a></span> configs that CLI agents can use to connect</li>
+<li>The log has status <code>"started"</code> (the process never got to write the final status).</li>
+<li>Samples that were completed but not yet flushed to the log file are missing.</li>
+<li>Samples that were still running at the time of the crash are missing.</li>
 </ul>
+<p>However, Inspect maintains a separate sample buffer database during evaluation. This database persists on disk after a crash and contains the unflushed sample data. Crash recovery combines the data from the incomplete log file with the sample buffer database to produce a complete recovered log.</p>
+<section id="manual-recovery" class="level3">
+<h3 class="anchored" data-anchor-id="manual-recovery">Manual Recovery</h3>
+<p>You can also recover crashed logs manually using the CLI. You might want to do this if you aren’t running in a retry loop like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> or for the purpose of investigating the cause of crashes (note that samples not yet completed will still appear in the recovered log so you can view what happened prior to the crash).</p>
+<p>To list all recoverable logs in the current log directory:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log recover <span class="at">--list</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To recover a specific log:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log recover path/to/crashed.eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This creates a new file <code>path/to/crashed-recovered.eval</code> containing the recovered samples. To overwrite the original file instead:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log recover path/to/crashed.eval <span class="at">--overwrite</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>After recovery, if there are cancelled or failed samples, the CLI will suggest running <code>eval-retry</code> to re-run them:</p>
+<pre><code>Recovered 47 samples to path/to/crashed-recovered.eval
+
+To re-run the 5 failed/cancelled samples:
+  inspect eval-retry path/to/crashed-recovered.eval</code></pre>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The sample buffer database is retained for 3 days after the eval process exits. Recovery should be performed soon after a crash to ensure the data is still available.</p>
+</div>
+</div>
+</div>
 </section>
-<section id="models" class="level2">
-<h2 class="anchored" data-anchor-id="models">Models</h2>
-<p>As demonstrated above, communication with Inspect models is done by using the OpenAI API with <code>model="inspect"</code>. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.</p>
-<p>For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="automatic-recovery" class="level3">
+<h3 class="anchored" data-anchor-id="automatic-recovery">Automatic Recovery</h3>
+<p>When using <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span>, crash recovery is performed automatically. If a log with status <code>"started"</code> is encountered during retry, Inspect will opportunistically attempt to recover unflushed samples from the buffer database before re-running the evaluation. This maximizes sample reuse—completed samples recovered from the buffer are not re-run.</p>
+<p>No user action is needed. If the buffer database is no longer available (e.g.&nbsp;the crash happened more than 3 days ago), the retry proceeds with only the samples that were flushed to the log file.</p>
+<section id="post-mortem-debugging" class="level4">
+<h4 class="anchored" data-anchor-id="post-mortem-debugging">Post-Mortem Debugging</h4>
+<p>After a successful automatic retry, you may want to investigate what caused the original crash. The “started” logs from crashed tasks are preserved (not cleaned up), and the sample buffer database is also retained during automatic recovery so it remains available for investigation.</p>
+<p>To find and recover crashed logs for analysis:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># List logs with "started" status (crashed tasks)</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log list <span class="at">--status</span> started</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover a crashed log for investigation (write outside the eval set directory)</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log recover path/to/started.eval <span class="at">--output</span> ~/recovered/started-recovered.eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
-<section id="transcript" class="level2">
-<h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
-<p>Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.</p>
-<p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;spans, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="python-api" class="level3">
+<h3 class="anchored" data-anchor-id="python-api">Python API</h3>
+<p>You can also use the Python API perform recovery actions:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> recover_eval_log, recoverable_eval_logs</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># List recoverable logs</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> recoverable_eval_logs()</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Recover a specific log</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> recover_eval_log(<span class="st">"path/to/crashed.eval"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -1281,13 +1253,13 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agent-custom.html" class="pagination-link" aria-label="Custom Agents">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Custom Agents</span>
+      <a href="./eval-sets.html" class="pagination-link" aria-label="Eval Sets">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Eval Sets</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./human-agent.html" class="pagination-link" aria-label="Human Agent">
-        <span class="nav-page-text">Human Agent</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./setting-limits.html" class="pagination-link" aria-label="Setting Limits">
+        <span class="nav-page-text">Setting Limits</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

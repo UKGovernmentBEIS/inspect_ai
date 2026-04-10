@@ -366,24 +366,34 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
+<li>Eval Set: Display explicit <code>--id</code> in task panel headers when provided.</li>
 <li>Eval Logs: Add <code>header_only</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#write_eval_log">write_eval_log()</a></span> for writing only the header to <code>.eval</code> files without rewriting samples.</li>
 <li>Eval Logs: Condense sample events when writing logs.</li>
 <li>Eval Logs: Enable zstd compression by default for writing logs.</li>
+<li>Eval Logs: New <code>inspect log recover</code> command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span>.</li>
 <li>Bash tool: Change name of argument from <code>cmd</code> to <code>command</code>.</li>
 <li>Sandboxes: Pass sample_id to sandbox providers via metadata.</li>
 <li>Hooks: Add <code>on_before_model_generate()</code> hook.</li>
 <li>Model API: Support extended json schema fields (validation and examples).</li>
+<li>Model API: Handle special token strings in tiktoken encoding.</li>
+<li>Scoring: Convert score value of <code>None</code> to <code>NaN</code> during deserialization.</li>
 <li>Computer Use: Map comma character to xdotool <code>comma</code> keysym so key combos like <code>CTRL+,</code> work correctly.</li>
+<li>Computer Use: Restore <code>sudo</code> package to computer tool Docker image.</li>
+<li>OpenAI Compatible: Pad response with content block when only content is reasoning.</li>
+<li>Anthropic: Use request level “auto” caching mode for improved prompt caching.</li>
 <li>Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.</li>
 <li>Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).</li>
 <li>Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).</li>
 <li>Inspect View: Use FastAPI server when <code>fastapi</code> and <code>uvicorn</code> packages are available.</li>
+<li>Inspect View: Transcript viewing improvements for large transcripts (timeline + other fixes)</li>
 <li>Bugfix: Fix <code>eval_results()</code> producing identical aggregate scores<br>
 for multiple instances of the same scorer due to incorrect name resolution using dimension names instead of scorer names.<br>
 </li>
 <li>Bugfix: Fix <code>eval_results()</code> mutating the reducers parameter inside a loop, causing inconsistent reducer assignment across scorer<br>
 instances.</li>
 <li>Bugfix: Fix <code>JSONRecorder</code> returning condensed <code>ModelEvent.input</code> (empty list) when <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> uses <code>log_format="json"</code>.</li>
+<li>Bugfix: Include LoRA adapter in logged vLLM model name.</li>
+<li>Bugfix: Remove unused docker-sandbox unhealthy_services computation.</li>
 </ul>
 </section>
 <section id="april-2026" class="level2">
