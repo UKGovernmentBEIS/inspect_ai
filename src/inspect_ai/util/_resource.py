@@ -79,4 +79,4 @@ def resource(
             else:
                 return resource
         except (ValueError, OSError):
-            return resource        
+            return resource

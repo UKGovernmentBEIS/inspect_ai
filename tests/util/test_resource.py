@@ -44,9 +44,7 @@ class TestResourceAutoMode:
 
     def test_existing_local_file(self) -> None:
         """An existing local file path should be read and its contents returned."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("file contents here")
             f.flush()
             path = f.name
@@ -80,9 +78,7 @@ class TestResourceAutoMode:
 
     def test_file_uri_reads_file(self) -> None:
         """file:// URIs should be read as files."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("file uri contents")
             f.flush()
             path = f.name
@@ -98,7 +94,7 @@ class TestResourceAutoMode:
         assert resource(text) == text
 
     def test_windows_drive_letter_not_treated_as_scheme(self) -> None:
-        """Windows-style paths like C:\\file should not have 'C' treated as a URL scheme.
+        r"""Windows-style paths like C:\\file should not have 'C' treated as a URL scheme.
 
         urlparse('C:\\\\file') parses 'C' as the scheme. The fix ensures
         we require '://' in the string to treat it as a schemed URL.
@@ -123,9 +119,7 @@ class TestResourceFileMode:
     """Tests for resource() with type='file'."""
 
     def test_file_mode_reads_existing_file(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("explicit file content")
             f.flush()
             path = f.name
