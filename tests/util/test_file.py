@@ -9,6 +9,7 @@ from inspect_ai._util.file import (
     cleanup_s3_sessions,
     filesystem,
     strip_trailing_sep,
+    to_uri,
 )
 
 
@@ -86,6 +87,30 @@ def test_absolute_file_path_resolves_relative() -> None:
     assert os.path.isabs(result)
     assert result == os.path.join(os.getcwd(), "somedir")
     assert not result.endswith("/")
+
+
+@pytest.mark.parametrize(
+    "input_path,expected_suffix",
+    [
+        # Raw local path with @ should not encode it
+        ("/path/to/noop.py@noop.eval", "file:///path/to/noop.py@noop.eval"),
+        # Already a file:// URI with @ should pass through unchanged
+        ("file:///path/to/noop.py@noop.eval", "file:///path/to/noop.py@noop.eval"),
+        # S3 URIs should pass through unchanged
+        ("s3://bucket/file.eval", "s3://bucket/file.eval"),
+        # Plain local path without special characters
+        ("/tmp/simple.eval", "file:///tmp/simple.eval"),
+    ],
+)
+def test_to_uri(input_path: str, expected_suffix: str) -> None:
+    result = to_uri(input_path)
+    assert result == expected_suffix
+
+
+def test_to_uri_idempotent() -> None:
+    """to_uri should produce the same result when applied twice."""
+    path = "/path/to/noop.py@noop.eval"
+    assert to_uri(to_uri(path)) == to_uri(path)
 
 
 async def test_cleanup_s3_sessions_no_instances() -> None:
