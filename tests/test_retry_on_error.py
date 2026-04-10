@@ -1,9 +1,12 @@
 import random
+from typing import Sequence
 
 from test_helpers.utils import failing_solver_deterministic, skip_if_github_action
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import example_dataset
+from inspect_ai.log import transcript
+from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._prompt import system_message
 
 
@@ -97,3 +100,35 @@ def test_retry_on_error_with_epochs():
         assert sample.uuid and len(sample.uuid) > 0
     # Different epochs must have different UUIDs
     assert log.samples[0].uuid != log.samples[1].uuid
+
+
+@solver
+def _failing_after_generate_solver(should_fail: Sequence[bool]):
+    """Solver that calls generate then conditionally fails."""
+    it = iter(should_fail)
+
+    async def solve(state: TaskState, generate: Generate):
+        state = await generate(state)
+        transcript().info("about to check for failure")
+        if next(it):
+            raise ValueError("Eval failed after generate!")
+        return state
+
+    return solve
+
+
+def test_retry_on_error_events():
+    task = Task(solver=_failing_after_generate_solver([True, False]))
+    log = eval(task, retry_on_error=1)[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert len(sample.error_retries) == 1
+    retry_error = sample.error_retries[0]
+    assert retry_error.events is not None
+    assert len(retry_error.events) >= 2
+    # first event should be a ModelEvent (trimmed to most recent model event)
+    assert retry_error.events[0].event == "model"
+    # should include the InfoEvent emitted after generate
+    info_events = [e for e in retry_error.events if e.event == "info"]
+    assert len(info_events) == 1

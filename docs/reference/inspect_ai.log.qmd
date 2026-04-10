@@ -60,6 +60,7 @@ description: List, read, write, and analyse logs.
 ### EvalSampleLimit
 ### EvalSampleReductions
 ### EvalSampleScore
+### EvalRetryError
 ### WriteConflictError
 
 ## Condense API

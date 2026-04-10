@@ -311,6 +311,22 @@ class EvalSampleSummary(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
+class EvalRetryError(BaseModel):
+    """Error from a retried sample attempt."""
+
+    message: str
+    """Error message."""
+
+    traceback: str
+    """Error traceback."""
+
+    traceback_ansi: str
+    """Error traceback with ANSI color codes."""
+
+    events: list[Event] | None = Field(default=None)
+    """Events prior to error (goes back to last ModelEvent)."""
+
+
 class EvalSample(BaseModel):
     """Sample from evaluation task."""
 
@@ -423,7 +439,7 @@ class EvalSample(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
-    error_retries: list[EvalError] | None = Field(default=None)
+    error_retries: list[EvalRetryError] | None = Field(default=None)
     """Errors that were retried for this sample."""
 
     attachments: dict[str, str] = Field(default_factory=dict)
