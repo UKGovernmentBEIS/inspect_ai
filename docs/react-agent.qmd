@@ -219,7 +219,7 @@ react(..., truncation=custom_truncation)
 
 The default `"auto"` truncation scheme calls the `trim_messages()` function with a `preserve` ratio of 0.7.
 
-Note that if you enable truncation then a [message limit](errors-and-limits.qmd#message-limit) may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a [time limit](errors-and-limits.qmd#time-limit) and/or [token limit](errors-and-limits.qmd#token-limit).
+Note that if you enable truncation then a [message limit](setting-limits.qmd#message-limit) may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a [time limit](setting-limits.qmd#time-limit) and/or [token limit](setting-limits.qmd#token-limit).
 
 ## Model
 

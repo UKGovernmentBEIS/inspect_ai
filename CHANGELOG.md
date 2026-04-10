@@ -4,12 +4,15 @@
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
 - Eval Logs: Condense sample events when writing logs.
 - Eval Logs: Enable zstd compression by default for writing logs.
+- Eval Logs: New `inspect log recover` command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into `eval_set()` and `eval_retry()`.
 - Bash tool: Change name of argument from `cmd` to `command`.
 - Sandboxes: Pass sample_id to sandbox providers via metadata.
 - Hooks: Add `on_before_model_generate()` hook.
 - Model API: Support extended json schema fields (validation and examples).
 - Model API: Handle special token strings in tiktoken encoding.
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
+- Computer Use: Restore `sudo` package to computer tool Docker image.
+- OpenAI Compatible: Pad response with content block when only content is reasoning.
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
@@ -21,6 +24,8 @@
   a loop, causing inconsistent reducer assignment across scorer       
   instances.
 - Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
+- Bugfix: Include LoRA adapter in logged vLLM model name.
+- Bugfix: Remove unused docker-sandbox unhealthy_services computation.
 
 ## 0.3.205 (04 April 2026)
 

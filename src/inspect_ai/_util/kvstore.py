@@ -63,6 +63,15 @@ class KVStore(AbstractContextManager["KVStore"]):
         self.conn.commit()
         return cursor.rowcount > 0
 
+    def list_by_prefix(self, prefix: str) -> list[tuple[str, str]]:
+        """Return all (key, value) pairs whose key starts with prefix, newest first."""
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        cursor = self.conn.execute(
+            "SELECT key, value FROM kv_store WHERE key LIKE ? ESCAPE '\\' ORDER BY created_at DESC",
+            (escaped + "%",),
+        )
+        return cursor.fetchall()
+
     def count(self) -> int:
         cursor = self.conn.execute("SELECT COUNT(*) FROM kv_store")
         return cast(int, cursor.fetchone()[0])
