@@ -1130,6 +1130,18 @@ class AnthropicAPI(ModelAPI):
             # tools
             if tools_params:
                 add_cache_control(tools_params[-1])
+            # last user message: if content was deliberately split into blocks,
+            # mark the penultimate one. auto-cache will mark content[-1]; when
+            # that block is a changing suffix (RAG query, scorer criterion,
+            # etc.), lookback walks back from it and finds this write. for the
+            # append-only case (agentic loops, tool results) this is a harmless
+            # extra write that lookback never reads.
+            for msg in reversed(message_params):
+                if msg["role"] == "user":
+                    content = msg["content"]
+                    if isinstance(content, list) and len(content) >= 2:
+                        add_cache_control(cast(dict[str, Any], content[-2]))
+                    break
 
         # return chat input
         return (

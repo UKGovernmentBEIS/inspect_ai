@@ -349,3 +349,93 @@ async def test_anthropic_prompt_caching_content_blocks() -> None:
     response2 = await model.generate(input=turn2_messages)
     assert response2.usage is not None
     assert (response2.usage.input_tokens_cache_read or 0) > 0
+
+
+@pytest.mark.anyio
+async def test_anthropic_cache_marks_penultimate_block() -> None:
+    """Verify the penultimate content block gets an explicit cache marker.
+
+    When the last user message has multiple content blocks, content[-2] should
+    get an explicit cache_control marker (in addition to the auto-cache marker
+    the API places on content[-1]). This gives the 20-block lookback a write
+    to find when only the last block changes.
+    """
+    api = create_autospec(AnthropicAPI, instance=True)
+    api.service_model_name.return_value = "claude-sonnet-4-6"
+    api.partition_tools.return_value = ([], [])
+    api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
+
+    blocks: list[Content] = [
+        ContentText(text="header"),
+        ContentText(text="body 1"),
+        ContentText(text="body 2"),
+        ContentText(text="suffix"),
+    ]
+
+    _, _, _, msgs, cache_prompt = await api.resolve_chat_input(
+        input=[ChatMessageUser(content=blocks)],
+        tools=[],
+        config=GenerateConfig(cache_prompt=True),
+    )
+
+    assert cache_prompt is True
+    content = msgs[0]["content"]
+    assert isinstance(content, list)
+    cc = [i for i, b in enumerate(content) if "cache_control" in b]
+    assert cc == [2], f"expected marker on content[-2] only, got indices {cc}"
+
+    # single-block content should not get a marker
+    _, _, _, msgs, _ = await api.resolve_chat_input(
+        input=[ChatMessageUser(content=[ContentText(text="only block")])],
+        tools=[],
+        config=GenerateConfig(cache_prompt=True),
+    )
+    content = msgs[0]["content"]
+    assert isinstance(content, list)
+    assert not any("cache_control" in b for b in content)
+
+    # cache_prompt=False should not mark anything
+    _, _, _, msgs, cache_prompt = await api.resolve_chat_input(
+        input=[ChatMessageUser(content=blocks)],
+        tools=[],
+        config=GenerateConfig(cache_prompt=False),
+    )
+    assert cache_prompt is False
+    content = msgs[0]["content"]
+    assert isinstance(content, list)
+    assert not any("cache_control" in b for b in content)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_prompt_caching_changing_suffix() -> None:
+    """Verify caching when only the last content block changes.
+
+    Builds a user message with several stable blocks plus a final block that
+    differs between calls. The penultimate-block marker should give the
+    auto-cache lookback a write to fall back to.
+    """
+    model = get_model(
+        "anthropic/claude-sonnet-4-6",
+        config=GenerateConfig(max_tokens=50, temperature=0.0, cache_prompt=True),
+    )
+
+    # stable prefix blocks totalling >2048 tokens
+    paragraph = "The quick brown fox jumps over the lazy dog. " * 50
+    stable: list[Content] = [
+        ContentText(text=f"Section {i}: {paragraph}") for i in range(5)
+    ]
+
+    msgs1: list[ChatMessage] = [
+        ChatMessageUser(content=stable + [ContentText(text="Question one?")]),
+    ]
+    msgs2: list[ChatMessage] = [
+        ChatMessageUser(content=stable + [ContentText(text="Question two?")]),
+    ]
+
+    response1 = await model.generate(input=msgs1)
+    assert response1.usage is not None
+
+    response2 = await model.generate(input=msgs2)
+    assert response2.usage is not None
+    assert (response2.usage.input_tokens_cache_read or 0) > 0
