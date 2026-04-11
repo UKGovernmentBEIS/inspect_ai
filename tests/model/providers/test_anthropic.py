@@ -353,57 +353,56 @@ async def test_anthropic_prompt_caching_content_blocks() -> None:
 
 @pytest.mark.anyio
 async def test_anthropic_cache_marks_penultimate_block() -> None:
-    """Verify the penultimate content block gets an explicit cache marker.
+    """Verify the second-to-last content block gets an explicit cache marker.
 
-    When the last user message has multiple content blocks, content[-2] should
-    get an explicit cache_control marker (in addition to the auto-cache marker
-    the API places on content[-1]). This gives the 20-block lookback a write
-    to find when only the last block changes.
+    Auto-cache marks the last block; this marker gives the 20-block lookback
+    a write to find when only the last block changes. The penultimate block
+    is content[-2] of the last message when it has multiple blocks, otherwise
+    content[-1] of the previous message.
     """
     api = create_autospec(AnthropicAPI, instance=True)
     api.service_model_name.return_value = "claude-sonnet-4-6"
     api.partition_tools.return_value = ([], [])
     api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
 
-    blocks: list[Content] = [
-        ContentText(text="header"),
-        ContentText(text="body 1"),
-        ContentText(text="body 2"),
-        ContentText(text="suffix"),
-    ]
+    def marked(content: Any) -> list[int]:
+        assert isinstance(content, list)
+        return [i for i, b in enumerate(content) if "cache_control" in b]
 
-    _, _, _, msgs, cache_prompt = await api.resolve_chat_input(
-        input=[ChatMessageUser(content=blocks)],
-        tools=[],
-        config=GenerateConfig(cache_prompt=True),
+    async def resolve(input: list[ChatMessage], cache: bool = True) -> Any:
+        return await api.resolve_chat_input(
+            input=input, tools=[], config=GenerateConfig(cache_prompt=cache)
+        )
+
+    # multi-block last message: mark content[-2]
+    blocks: list[Content] = [ContentText(text=f"block {i}") for i in range(4)]
+    _, _, _, msgs, _ = await resolve([ChatMessageUser(content=blocks)])
+    assert marked(msgs[0]["content"]) == [2]
+
+    # single-block last message: mark previous message's content[-1]
+    _, _, _, msgs, _ = await resolve(
+        [
+            ChatMessageUser(content="context"),
+            ChatMessageAssistant(content="reply with two parts. " * 2),
+            ChatMessageUser(content="follow-up"),
+        ]
     )
+    # assistant content is always a list; its last block should be marked
+    assert marked(msgs[1]["content"]) == [len(msgs[1]["content"]) - 1]
+    # neither user message should be marked
+    assert "cache_control" not in msgs[0]
+    assert "cache_control" not in msgs[2]
 
-    assert cache_prompt is True
-    content = msgs[0]["content"]
-    assert isinstance(content, list)
-    cc = [i for i, b in enumerate(content) if "cache_control" in b]
-    assert cc == [2], f"expected marker on content[-2] only, got indices {cc}"
+    # single message, single block: no penultimate position, no marker
+    _, _, _, msgs, _ = await resolve([ChatMessageUser(content="only")])
+    assert msgs[0]["content"] == "only"
 
-    # single-block content should not get a marker
-    _, _, _, msgs, _ = await api.resolve_chat_input(
-        input=[ChatMessageUser(content=[ContentText(text="only block")])],
-        tools=[],
-        config=GenerateConfig(cache_prompt=True),
-    )
-    content = msgs[0]["content"]
-    assert isinstance(content, list)
-    assert not any("cache_control" in b for b in content)
-
-    # cache_prompt=False should not mark anything
-    _, _, _, msgs, cache_prompt = await api.resolve_chat_input(
-        input=[ChatMessageUser(content=blocks)],
-        tools=[],
-        config=GenerateConfig(cache_prompt=False),
+    # cache_prompt=False: nothing marked
+    _, _, _, msgs, cache_prompt = await resolve(
+        [ChatMessageUser(content=blocks)], cache=False
     )
     assert cache_prompt is False
-    content = msgs[0]["content"]
-    assert isinstance(content, list)
-    assert not any("cache_control" in b for b in content)
+    assert marked(msgs[0]["content"]) == []
 
 
 @pytest.mark.anyio
