@@ -149,7 +149,7 @@ def _check_retry_events(sample):
 
 def test_retry_on_error_events():
     task = Task(solver=_failing_after_generate_solver([True, False]))
-    log = eval(task, retry_on_error=1)[0]
+    log = eval(task, model="mockllm/model", retry_on_error=1)[0]
     assert log.status == "success"
     assert log.samples is not None
     _check_retry_events(log.samples[0])
@@ -158,7 +158,7 @@ def test_retry_on_error_events():
 def test_retry_on_error_events_persisted():
     """Verify retry error events survive log serialization and readback."""
     task = Task(solver=_failing_after_generate_solver([True, False]))
-    log = eval(task, retry_on_error=1)[0]
+    log = eval(task, model="mockllm/model", retry_on_error=1)[0]
     assert log.status == "success"
 
     # read the log back from disk
