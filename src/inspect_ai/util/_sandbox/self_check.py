@@ -1,5 +1,9 @@
+import random
+import string
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 from unittest import mock
+
+import anyio
 
 from inspect_ai.util import (
     OutputLimitExceededError,
@@ -68,6 +72,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_stderr,
         test_exec_returncode,
         test_exec_timeout,
+        test_exec_timeout_kills_process,
+        test_exec_timeout_kills_child_processes,
         test_exec_permission_error,
         test_exec_env_vars,
         test_exec_as_user,
@@ -409,6 +415,68 @@ async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
         await sandbox_env.exec(["sleep", "4"], timeout=2)
+
+
+async def test_exec_timeout_kills_process(sandbox_env: SandboxEnvironment) -> None:
+    # use a unique random marker so we can find the process later via ps,
+    # avoiding PID reuse issues and conflicts with other test runs
+    unique_marker = "timeout_test_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+
+    with Raises(TimeoutError):
+        await sandbox_env.exec(
+            ["sh", "-c", f"echo '{unique_marker}' > /dev/null && sleep 30"], timeout=2
+        )
+
+    # give cleanup a moment to complete
+    await anyio.sleep(5)
+
+    # the process containing our unique marker must not still be running.
+    # use ps + grep so we don't depend on pgrep being installed; the
+    # `grep -v grep` filter excludes the grep process itself.
+    result = await sandbox_env.exec(
+        ["sh", "-c", f"ps aux | grep '{unique_marker}' | grep -v grep"]
+    )
+    assert not result.success or result.stdout.strip() == "", (
+        f"Process with marker '{unique_marker}' should have been killed after timeout, "
+        f"but it's still running. ps output: [{result.stdout}]"
+    )
+
+
+async def test_exec_timeout_kills_child_processes(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # spawn a backgrounded child sleep with its own marker, then wait on
+    # a parent sleep with a different marker. when the timeout fires, BOTH
+    # processes must be killed (not just the parent).
+    parent_marker = "timeout_parent_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+    child_marker = "timeout_child_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+
+    with Raises(TimeoutError):
+        await sandbox_env.exec(
+            [
+                "sh",
+                "-c",
+                f"sleep 30 # {child_marker} & sleep 30 # {parent_marker}",
+            ],
+            timeout=2,
+        )
+
+    await anyio.sleep(5)
+
+    for marker in (parent_marker, child_marker):
+        result = await sandbox_env.exec(
+            ["sh", "-c", f"ps aux | grep '{marker}' | grep -v grep"]
+        )
+        assert not result.success or result.stdout.strip() == "", (
+            f"Process with marker '{marker}' should have been killed after timeout, "
+            f"but it's still running. ps output: [{result.stdout}]"
+        )
 
 
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
