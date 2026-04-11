@@ -257,7 +257,7 @@ def truncate_lines(
     text: str, max_lines: int = 100, max_characters: int | None = 100 * 100
 ) -> tuple[str, int | None]:
     if max_characters is not None:
-        text = truncate(text, max_characters)
+        text = truncate(text, max_characters, pad=False)
     lines = text.splitlines()
     if len(lines) > max_lines:
         output = "\n".join(lines[0:max_lines])
