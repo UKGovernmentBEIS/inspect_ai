@@ -143,7 +143,7 @@ class TestVLLMAPIInit:
 
         assert api.model_name == "base-model:some-adapter"
         assert api.base_url is None
-        assert api._server_resolved is False
+        assert api._resolved_epoch != api._server._epoch
 
     @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
     def test_shared_server_across_instances(self, _mock_rank: object) -> None:
@@ -204,6 +204,144 @@ class TestVLLMAPIInit:
     def test_base_url_and_port_raises(self, _mock_rank: object) -> None:
         with pytest.raises(ValueError, match="cannot both be provided"):
             VLLMAPI("model", base_url="http://x", port=8000)
+
+
+# =============================================================================
+# VLLMAPI.close — state invalidation and restartability
+# =============================================================================
+
+
+class TestVLLMAPIClose:
+    """Test that close() resets runtime state so the provider can restart."""
+
+    def _simulate_resolved(self, *apis: VLLMAPI) -> None:
+        """Mark instances as resolved against their shared server."""
+        for api in apis:
+            api._resolved_epoch = api._server._epoch
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_close_clears_runtime_state(self, _mock_rank: object) -> None:
+        """close() must reset all runtime connection state."""
+        api = VLLMAPI("base-model:adapter")
+
+        # Simulate a resolved server.
+        api._server.base_url = "http://localhost:8000/v1"
+        api._server.api_key = "test-key"
+        api._server.port = 8000
+        api._server.loaded_adapters.add("adapter")
+        self._simulate_resolved(api)
+
+        api.close()
+
+        assert api._server.base_url is None
+        assert api._server.api_key is None
+        assert api._server.port is None
+        assert api._server.process is None
+        assert len(api._server.loaded_adapters) == 0
+        assert api._resolved_epoch != api._server._epoch
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_close_preserves_lora_metadata(self, _mock_rank: object) -> None:
+        """close() must keep enable_lora and max_lora_rank intact."""
+        api = VLLMAPI("base-model:adapter")
+        api._server.enable_lora = True
+        api._server.max_lora_rank = 64
+        self._simulate_resolved(api)
+
+        api.close()
+
+        assert api._server.enable_lora is True
+        assert api._server.max_lora_rank == 64
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_same_instance_can_re_resolve_after_close(
+        self, _mock_rank: object
+    ) -> None:
+        """After close(), _resolve_server() should enter the startup path again."""
+        api = VLLMAPI("base-model")
+
+        # Simulate first resolve cycle.
+        api._server.base_url = "http://localhost:8000/v1"
+        api._server.api_key = "test-key"
+        self._simulate_resolved(api)
+
+        api.close()
+
+        # _resolve_server should no longer short-circuit.
+        assert api._resolved_epoch != api._server._epoch
+        assert api._server.base_url is None
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_second_instance_can_resolve_after_first_closes(
+        self, _mock_rank: object
+    ) -> None:
+        """A different VLLMAPI sharing the same base model can restart after close."""
+        api1 = VLLMAPI("base-model:adapter-a")
+        api2 = VLLMAPI("base-model:adapter-b")
+        shared_server = api1._server
+        assert api2._server is shared_server
+
+        # Simulate api1 resolving and then closing.
+        shared_server.base_url = "http://localhost:8000/v1"
+        shared_server.api_key = "test-key"
+        self._simulate_resolved(api1)
+        api1.close()
+
+        # Shared server state is reset — api2 should be able to resolve.
+        assert shared_server.base_url is None
+        assert api2._resolved_epoch != api2._server._epoch
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_close_invalidates_all_sibling_instances(
+        self, _mock_rank: object
+    ) -> None:
+        """When one instance closes, all siblings see the epoch bump."""
+        api1 = VLLMAPI("base-model:adapter-a")
+        api2 = VLLMAPI("base-model:adapter-b")
+
+        # Both instances are resolved against the shared server.
+        api1._server.base_url = "http://localhost:8000/v1"
+        api1._server.api_key = "test-key"
+        self._simulate_resolved(api1, api2)
+
+        # api1 closes — api2's epoch should no longer match.
+        api1.close()
+
+        assert api1._resolved_epoch != api1._server._epoch
+        assert api2._resolved_epoch != api2._server._epoch
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_close_idempotent(self, _mock_rank: object) -> None:
+        """Calling close() twice should not raise."""
+        api = VLLMAPI("base-model")
+        self._simulate_resolved(api)
+
+        api.close()
+        api.close()  # should not raise
+
+        assert api._resolved_epoch != api._server._epoch
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    @patch("inspect_ai.model._providers.vllm.VLLMAPI._start_server")
+    def test_restart_calls_start_server_again(
+        self,
+        mock_start: object,
+        _mock_rank: object,
+    ) -> None:
+        """After close(), _resolve_server() must re-enter the startup path."""
+        api = VLLMAPI("base-model")
+
+        # First resolve — simulate the server starting.
+        api._server.base_url = "http://localhost:9000/v1"
+        api._server.api_key = "inspectai"
+        self._simulate_resolved(api)
+
+        api.close()
+
+        # _resolve_server should now try to start a new server because
+        # both _resolved_epoch and base_url have been invalidated.
+        assert api._resolved_epoch != api._server._epoch
+        assert api._server.base_url is None
 
 
 # =============================================================================
