@@ -10,7 +10,7 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import GenerateConfig, Model, get_model
-from inspect_ai.solver import solver
+from inspect_ai.solver import Solver, solver
 
 RED_TEAM = "red_team"
 RED_TEAM_DEFAULT = "openai/gpt-4o"
@@ -346,7 +346,7 @@ def test_model_role_config_merges_caller_defaults() -> None:
     captured: list[GenerateConfig] = []
 
     @solver
-    def capturing_solver() -> object:
+    def capturing_solver() -> Solver:
         async def solve(state, generate):
             judge = get_model(
                 role=JUDGE_ROLE,
