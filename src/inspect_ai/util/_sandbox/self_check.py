@@ -72,6 +72,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_stderr,
         test_exec_returncode,
         test_exec_timeout,
+        test_exec_timeout_not_raised_on_fast_signal_death,
         test_exec_timeout_kills_process,
         test_exec_timeout_kills_child_processes,
         test_exec_permission_error,
@@ -415,6 +416,19 @@ async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
         await sandbox_env.exec(["sleep", "4"], timeout=2)
+
+
+async def test_exec_timeout_not_raised_on_fast_signal_death(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # a command that dies from SIGTERM immediately (exit 143) should NOT
+    # be misinterpreted as a timeout when the timeout is much longer.
+    # this guards against false positives from OOM kills, external
+    # signals, etc.
+    result = await sandbox_env.exec(["sh", "-c", "kill -TERM $$"], timeout=30)
+    assert result.returncode == 143, (
+        f"Expected exit 143 from self-SIGTERM, got {result.returncode}"
+    )
 
 
 async def test_exec_timeout_kills_process(sandbox_env: SandboxEnvironment) -> None:
