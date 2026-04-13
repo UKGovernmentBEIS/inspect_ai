@@ -124,7 +124,6 @@ def pytest_collection_modifyitems(config, items):
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
-            fn._flaky_retry = True  # prevent re-wrap for parametrized variants
             item.obj = _retry(fn)
 
 

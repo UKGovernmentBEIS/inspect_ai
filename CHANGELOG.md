@@ -8,6 +8,7 @@
 - Bash tool: Change name of argument from `cmd` to `command`.
 - Sandboxes: Pass sample_id to sandbox providers via metadata.
 - Sandboxes: `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` and `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variables for overriding limits.
+- Docker Sandbox: Implement in-sandbox timeout enforcement using `timeout` command.
 - Hooks: Add `on_before_model_generate()` hook.
 - Model API: Support extended json schema fields (validation and examples).
 - Model API: Handle special token strings in tiktoken encoding.
