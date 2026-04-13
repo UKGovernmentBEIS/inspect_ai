@@ -1807,9 +1807,7 @@ async def model_proxy_server(
             )
 
             resp = (
-                completion
-                if isinstance(completion, dict)
-                else json.loads(completion)
+                completion if isinstance(completion, dict) else json.loads(completion)
             )
 
             if not is_streaming:
