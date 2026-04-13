@@ -1417,3 +1417,91 @@ def test_eval_set_parallel_flush_error() -> None:
                     model="mockllm/model",
                     retry_attempts=0,
                 )
+
+
+def test_eval_set_retry_immediate() -> None:
+    """Test that retry_immediate retries a failed task reusing completed samples.
+
+    Task A has 2 samples. On the first run, sample 1 completes and sample 2
+    errors. On retry, sample 1 should be reused (solver not called again) and
+    only sample 2 should be re-run.
+
+    Task B waits until Task A's retry has completed before returning, ensuring
+    deterministic ordering.
+    """
+    import anyio
+
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    # Coordination: task_b waits until task_a's retry finishes.
+    task_a_retry_completed: anyio.Event | None = None
+
+    # Track which (sample_id, run_number) pairs the solver actually executes.
+    task_a_run_count = 0
+    task_a_solver_calls: list[tuple[int | str | None, int]] = []
+
+    @solver
+    def task_a_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal task_a_retry_completed, task_a_run_count
+            task_a_run_count += 1
+            run = task_a_run_count
+            task_a_solver_calls.append((state.sample_id, run))
+            # First run, second sample: error to trigger retry
+            if run == 2:
+                raise ValueError("Task A sample 2 error")
+            # Retry run: signal completion so task B can finish
+            if run == 3 and task_a_retry_completed is not None:
+                task_a_retry_completed.set()
+            return state
+
+        return solve
+
+    @solver
+    def task_b_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal task_a_retry_completed
+            if task_a_retry_completed is None:
+                task_a_retry_completed = anyio.Event()
+            await task_a_retry_completed.wait()
+            return state
+
+        return solve
+
+    @task
+    def task_a():
+        return Task(
+            dataset=[
+                Sample(id="s1", input="x", target="y"),
+                Sample(id="s2", input="x", target="y"),
+            ],
+            solver=[task_a_solver()],
+            name="task_a",
+        )
+
+    @task
+    def task_b():
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[task_b_solver()],
+            name="task_b",
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=[task_a(), task_b()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=1,
+            retry_immediate=True,
+            max_tasks=2,
+        )
+        assert success
+        assert len(logs) == 2
+        assert all(log.status == "success" for log in logs)
+
+        # The solver should have been called 3 times total for task A:
+        # run 1: s1 (success), run 2: s2 (error), run 3: s2 (retry success)
+        # s1 is reused from the failed log on retry — solver not called again.
+        assert task_a_run_count == 3
+        assert task_a_solver_calls == [("s1", 1), ("s2", 2), ("s2", 3)]

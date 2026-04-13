@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from dataclasses import replace
 from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
@@ -27,6 +28,7 @@ from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
+from inspect_ai.log._file import EvalLogInfo
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import ModelName
@@ -51,7 +53,7 @@ from .loader import (
 )
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
-from .task.run import TaskRunOptions, task_run
+from .task.run import TaskRunOptions, eval_log_sample_source, task_run
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
 from .task.util import slice_dataset, task_run_dir
 
@@ -498,7 +500,7 @@ async def run_task_retry_attempts(
     pending_tasks: list[PendingTask] = [
         PendingTask(options=t, retries_remaining=task_retry_attempts) for t in tasks
     ]
-    results: list[tuple[int, EvalLog]] = []
+    results: dict[int, EvalLog] = {}
     tasks_completed = 0
     total_tasks = len(tasks)
 
@@ -569,8 +571,7 @@ async def run_task_retry_attempts(
                                 async def run_task() -> None:
                                     nonlocal result
                                     result = await task_run(options)
-                                    # Store result with its original index
-                                    results.append((idx, result))
+                                    results[idx] = result
 
                                 return run_task
 
@@ -594,8 +595,28 @@ async def run_task_retry_attempts(
 
                 # retry on error if retries remain
                 if result.status == "error" and pending_task.retries_remaining > 0:
+                    # build sample_source from the failed log so completed
+                    # samples are reused on retry (mirrors legacy eval_set retry)
+                    failed_log_info = EvalLogInfo(
+                        name=task_options.logger.location,
+                        type="file",
+                        size=0,
+                        mtime=None,
+                        task=task_options.task.name,
+                        task_id=task_options.logger.eval.task_id,
+                        suffix=None,
+                    )
+                    sample_source = eval_log_sample_source(
+                        result, failed_log_info, task_options.task.dataset
+                    )
+
+                    # reinit logger for a fresh eval entry
+                    await task_options.logger.reinit()
+
+                    retry_options = replace(task_options, sample_source=sample_source)
+                    task_to_original_index[id(retry_options)] = original_index
                     retry_pending = PendingTask(
-                        options=task_options,
+                        options=retry_options,
                         retries_remaining=pending_task.retries_remaining - 1,
                     )
                     pending_tasks.append(retry_pending)
@@ -652,8 +673,8 @@ async def run_task_retry_attempts(
 
             clear_task_screen()
 
-        # Sort results by original index and return just the values
-        return [r for _, r in sorted(results)]
+        # Return results ordered by original task index
+        return [v for k, v in sorted(results.items())]
 
 
 def resolve_task_sample_ids(

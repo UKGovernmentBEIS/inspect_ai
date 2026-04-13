@@ -252,6 +252,14 @@ class TaskLogger:
             log_shared=self.eval.config.log_shared,
         )
 
+    async def reinit(self) -> None:
+        """Reset this logger for a retry attempt with a fresh eval entry."""
+        self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
+        self._samples_completed = 0
+        self.flush_pending = []
+        self._buffer_db = None
+        await self.init()
+
     @property
     def location(self) -> str:
         return self._location
