@@ -858,6 +858,18 @@ inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
 
 Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
 
+### Chat Templates
+
+For vLLM models, the `chat_template` model arg is forwarded to the vLLM server's `--chat-template` flag. Use `use_chat_template=false` to bypass chat-template rendering entirely (useful for base models):
+
+``` bash
+inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
+::: {.callout-note}
+`use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
+:::
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.

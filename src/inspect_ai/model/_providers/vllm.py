@@ -154,6 +154,15 @@ class VLLMAPI(OpenAICompatibleAPI):
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
+        # Handle use_chat_template (same semantics as HF provider)
+        self._use_chat_template = self.server_args.pop("use_chat_template", None)
+        if self._use_chat_template is False:
+            self.server_args["chat_template"] = (
+                "{% for message in messages %}"
+                "{{ message.role }}: {{ message.content }}\n"
+                "{% endfor %}"
+            )
+
         # Get or create the shared server entry for this base model
         # and incrementally update LoRA config.
         self._server = _vllm_servers.setdefault(self.base_model, VLLMServer())
@@ -180,6 +189,12 @@ class VLLMAPI(OpenAICompatibleAPI):
             server.api_key = self.api_key
             if external_url:
                 server.base_url = external_url
+                if self._use_chat_template is False:
+                    logger.warning(
+                        "use_chat_template=False has no effect when connecting "
+                        "to an existing vLLM server. Set --chat-template when "
+                        "starting the server instead."
+                    )
             else:
                 base_url, process, port = self._start_server(self.base_model, self.port)
                 logger.info(f"vLLM server started at {base_url}")
