@@ -4,6 +4,7 @@ import json
 import os
 import shlex
 import tempfile
+import time
 from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, NamedTuple, Union, overload
@@ -308,15 +309,52 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 args.append("--env")
                 args.append(f"{key}={value}")
 
+        # wrap with in-container `timeout` so the actual process tree
+        # is killed when the timeout fires (docker exec detaches on
+        # signal rather than forwarding it, so a host-level timeout
+        # alone leaves orphaned processes inside the container).
+        in_container_cmd = cmd
+        if timeout is not None:
+            in_container_cmd = ["timeout", "-k", "5s", f"{timeout}s", *cmd]
+
+        # add a buffer to the host timeout so the in-container timeout
+        # fires first under normal conditions. the in-container timeout
+        # takes up to {timeout + 5}s to complete (timeout + SIGKILL grace),
+        # so add 10s for slack and daemon round-trip. the existing host
+        # timeout retry mechanism in compose_command only fires on host
+        # TimeoutError (genuine daemon hangs); when the in-container
+        # timeout fires we get exit 124 returned cleanly and no retry.
+        host_timeout = timeout + 10 if timeout is not None else None
+
+        start_time = time.monotonic()
         exec_result = await compose_exec(
-            args + [self._service] + cmd,
+            args + [self._service] + in_container_cmd,
             project=self._project,
-            timeout=timeout,
+            timeout=host_timeout,
             timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
             concurrency=concurrency,
         )
+
+        # in-container timeout fired. the docker CLI returned cleanly
+        # — this is NOT a daemon hang — so fail hard with a TimeoutError
+        # rather than returning the exit code. exit codes vary by
+        # implementation:
+        #   124: GNU timeout, command killed by SIGTERM (the normal case)
+        #   137: SIGKILL escalation via -k (command ignored SIGTERM)
+        #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
+        #
+        # 137 and 143 are ambiguous: OOM kills also produce 137, and
+        # any SIGTERM from any source produces 143. we use wall-clock
+        # time to disambiguate these from actual timeouts.
+        elapsed = time.monotonic() - start_time
+        if timeout is not None and exec_result.returncode in (124, 137, 143):
+            if exec_result.returncode == 124 or elapsed >= timeout:
+                raise TimeoutError(f"Command timed out after {timeout} seconds")
+            # else: signal-death exit code but too fast to be a timeout
+            # (e.g. OOM kill) — fall through and return the ExecResult
+
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
             raise PermissionError(f"Permission denied executing command: {exec_result}")
 
