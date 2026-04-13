@@ -4,6 +4,7 @@ import json
 import os
 import shlex
 import tempfile
+import time
 from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, NamedTuple, Union, overload
@@ -325,6 +326,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # timeout fires we get exit 124 returned cleanly and no retry.
         host_timeout = timeout + 10 if timeout is not None else None
 
+        start_time = time.monotonic()
         exec_result = await compose_exec(
             args + [self._service] + in_container_cmd,
             project=self._project,
@@ -341,12 +343,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # implementation:
         #   124: GNU timeout, command killed by SIGTERM (the normal case)
         #   137: SIGKILL escalation via -k (command ignored SIGTERM)
-        #   143: BusyBox timeout, command killed by SIGTERM (BusyBox
-        #        doesn't override the command's exit code, so we get
-        #        128 + 15 = 143 directly from sh/bash reporting the
-        #        signal that killed sleep/the wrapped process)
+        #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
+        #
+        # 137 and 143 are ambiguous: OOM kills also produce 137, and
+        # any SIGTERM from any source produces 143. we use wall-clock
+        # time to disambiguate these from actual timeouts.
+        elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
-            raise TimeoutError(f"Command timed out after {timeout} seconds")
+            if exec_result.returncode == 124 or elapsed >= timeout:
+                raise TimeoutError(f"Command timed out after {timeout} seconds")
+            # else: signal-death exit code but too fast to be a timeout
+            # (e.g. OOM kill) — fall through and return the ExecResult
 
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
             raise PermissionError(f"Permission denied executing command: {exec_result}")
