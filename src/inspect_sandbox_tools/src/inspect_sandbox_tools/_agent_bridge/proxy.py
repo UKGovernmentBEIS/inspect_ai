@@ -33,6 +33,7 @@ MAX_BODY_BYTES = 50 * 1024 * 1024
 READ_TIMEOUT_S = 300
 WRITE_TIMEOUT_S = 300
 STREAM_CHUNK = 8192
+PING_INTERVAL_S = 5.0
 
 HOP_BY_HOP = {
     "connection",
@@ -552,13 +553,24 @@ async def model_proxy_server(
             json_body = request.get("json", {}) or {}
             stream = json_body.get("stream", False)
 
-            completion = await call_bridge_model_service_async(
-                "generate_responses", json_data=json_body
-            )
-
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
+                    # Send an SSE comment immediately so clients see
+                    # data on the connection right away.
+                    yield b": \n\n"
+
+                    # Await the actual completion, sending pings to
+                    # keep the connection alive.
+                    task = asyncio.create_task(
+                        call_bridge_model_service_async(
+                            "generate_responses", json_data=json_body
+                        )
+                    )
+                    async for ping in _ping_loop(task, b": \n\n"):
+                        yield ping
+                    completion = task.result()
+
                     # Parse the completion as a dict
                     resp = (
                         completion
@@ -1254,6 +1266,9 @@ async def model_proxy_server(
                     "chunked": True,
                 }
             else:
+                completion = await call_bridge_model_service_async(
+                    "generate_responses", json_data=json_body
+                )
                 return {"status": 200, "body": completion}
 
         except Exception as ex:
@@ -1273,13 +1288,24 @@ async def model_proxy_server(
             # API). Disable so we can side-step the bug.
             json_body["parallel_tool_calls"] = False
 
-            completion = await call_bridge_model_service_async(
-                "generate_completions", json_data=json_body
-            )
-
             if stream:
 
                 async def stream_response() -> AsyncIterator[bytes]:
+                    # Send an SSE comment immediately so clients see
+                    # data on the connection right away.
+                    yield b": \n\n"
+
+                    # Await the actual completion, sending pings to
+                    # keep the connection alive.
+                    task = asyncio.create_task(
+                        call_bridge_model_service_async(
+                            "generate_completions", json_data=json_body
+                        )
+                    )
+                    async for ping in _ping_loop(task, b": \n\n"):
+                        yield ping
+                    completion = task.result()
+
                     # Parse the completion as a dict
                     chat_completion = (
                         completion
@@ -1465,6 +1491,9 @@ async def model_proxy_server(
                     "chunked": True,
                 }
             else:
+                completion = await call_bridge_model_service_async(
+                    "generate_completions", json_data=json_body
+                )
                 return {"status": 200, "body": completion}
         except Exception as ex:
             _handle_model_proxy_error(ex)
@@ -1505,32 +1534,17 @@ async def model_proxy_server(
                     }
                     yield _sse_anthropic("message_start", message_start)
 
-                    # 2. Await the actual completion, sending pings to keep alive.
-                    #    try/finally ensures the task is cancelled if the
-                    #    generator is abandoned (e.g. client disconnect).
-                    PING_INTERVAL_S = 5.0
+                    # 2. Await the actual completion, sending pings to
+                    #    keep the connection alive.
+                    ping_payload = _sse_anthropic("ping", {"type": "ping"})
                     task = asyncio.create_task(
                         call_bridge_model_service_async(
                             "generate_anthropic", json_data=json_body
                         )
                     )
-                    try:
-                        while not task.done():
-                            try:
-                                await asyncio.wait_for(
-                                    asyncio.shield(task), timeout=PING_INTERVAL_S
-                                )
-                            except asyncio.TimeoutError:
-                                yield _sse_anthropic("ping", {"type": "ping"})
-                        completion = task.result()
-                    except BaseException:
-                        if not task.done():
-                            task.cancel()
-                            try:
-                                await task
-                            except asyncio.CancelledError:
-                                pass
-                        raise
+                    async for ping in _ping_loop(task, ping_payload):
+                        yield ping
+                    completion = task.result()
 
                     try:
                         # Parse the completion as a dict
@@ -1793,7 +1807,9 @@ async def model_proxy_server(
             )
 
             resp = (
-                completion if isinstance(completion, dict) else json.loads(completion)
+                completion
+                if isinstance(completion, dict)
+                else json.loads(completion)
             )
 
             if not is_streaming:
@@ -1931,6 +1947,34 @@ async def model_proxy_server(
 
     # return configured server
     return server
+
+
+async def _ping_loop(
+    task: asyncio.Task[Any],
+    ping_payload: bytes,
+    interval: float | None = None,
+) -> AsyncIterator[bytes]:
+    """Yield *ping_payload* every *interval* seconds until *task* completes.
+
+    Cancels the task if an exception propagates out of the caller.
+    After iteration the caller can retrieve the result via ``task.result()``.
+    """
+    if interval is None:
+        interval = PING_INTERVAL_S
+    try:
+        while not task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=interval)
+            except asyncio.TimeoutError:
+                yield ping_payload
+    except BaseException:
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        raise
 
 
 async def run_model_proxy_server() -> None:

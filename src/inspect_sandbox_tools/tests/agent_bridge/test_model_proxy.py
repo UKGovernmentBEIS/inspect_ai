@@ -2466,3 +2466,207 @@ async def test_google_generate_content_streaming_web_search(
     assert "search" in collected_text.lower()
     assert function_call_name == "web_search"
     assert function_call_args["query"] == "latest AI news"
+
+
+# ---------- Streaming keep-alive ping tests ----------
+
+
+@pytest.fixture
+async def slow_proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
+    """Proxy server with a slow mock bridge service to exercise ping keep-alive.
+
+    The mock sleeps for 0.6s before returning, and PING_INTERVAL_S is
+    patched to 0.2s so we expect ~2-3 pings per request without making
+    the test slow.
+    """
+    import inspect_ai.agent._bridge.sandbox.proxy as proxy_mod
+
+    original_interval = proxy_mod.PING_INTERVAL_S
+    proxy_mod.PING_INTERVAL_S = 0.2
+
+    from inspect_ai.agent._bridge.sandbox.proxy import model_proxy_server
+
+    DELAY = 0.6
+
+    async def slow_bridge_service(
+        method: str, json_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        await asyncio.sleep(DELAY)
+        if method == "generate_completions":
+            return {
+                "id": "chatcmpl-slow",
+                "object": "chat.completion",
+                "created": 1234567890,
+                "model": json_data.get("model", "gpt-4o"),
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "slow response"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            }
+        elif method == "generate_responses":
+            return {
+                "id": "resp_slow",
+                "object": "response",
+                "created_at": 1234567890,
+                "model": json_data.get("model", "gpt-4o"),
+                "output": [
+                    {
+                        "id": "msg_slow",
+                        "type": "message",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [{"type": "output_text", "text": "slow response"}],
+                    }
+                ],
+                "status": "completed",
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                },
+            }
+        elif method == "generate_anthropic":
+            return {
+                "id": "msg_slow",
+                "type": "message",
+                "role": "assistant",
+                "model": json_data.get("model", "claude-sonnet-4-20250514"),
+                "content": [{"type": "text", "text": "slow response"}],
+                "stop_reason": "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            }
+        else:
+            raise ValueError(f"Unknown method: {method}")
+
+    server = await model_proxy_server(
+        port=0, call_bridge_model_service_async=slow_bridge_service
+    )
+    server.server = await asyncio.start_server(
+        server._handle_client, server.host, server.port
+    )
+    port = server.server.sockets[0].getsockname()[1]
+    base_url = f"http://127.0.0.1:{port}"
+
+    try:
+        yield server, base_url
+    finally:
+        proxy_mod.PING_INTERVAL_S = original_interval
+        if server.server:
+            server.server.close()
+            await server.server.wait_closed()
+
+
+async def _collect_raw_sse(
+    base_url: str,
+    path: str,
+    body: dict[str, Any],
+) -> tuple[list[bytes], bytes]:
+    """POST to an SSE endpoint and return (list of raw chunks, full body).
+
+    Returns the individual chunks as received from the chunked transfer
+    encoding so we can inspect timing/ordering of pings vs real data.
+    """
+    raw_chunks: list[bytes] = []
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base_url}{path}",
+            json=body,
+            headers={"Accept": "text/event-stream"},
+        ) as resp:
+            assert resp.status == 200
+            async for chunk in resp.content.iter_any():
+                raw_chunks.append(chunk)
+    full_body = b"".join(raw_chunks)
+    return raw_chunks, full_body
+
+
+@pytest.mark.asyncio
+async def test_streaming_ping_chat_completions(
+    slow_proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Verify SSE comment pings are sent during slow completions (OpenAI chat)."""
+    _server, base_url = slow_proxy_server
+
+    _chunks, full_body = await _collect_raw_sse(
+        base_url,
+        "/v1/chat/completions",
+        {
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        },
+    )
+
+    lines = full_body.split(b"\n")
+    ping_lines = [line for line in lines if line == b": "]
+    data_lines = [line for line in lines if line.startswith(b"data: ")]
+
+    # We should have at least 2 pings (0.6s delay / 0.2s interval)
+    assert len(ping_lines) >= 2, f"Expected >=2 pings, got {len(ping_lines)}"
+    # And real data should also be present
+    assert len(data_lines) >= 1
+    assert any(b"[DONE]" in line for line in data_lines)
+
+
+@pytest.mark.asyncio
+async def test_streaming_ping_responses(
+    slow_proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Verify SSE comment pings are sent during slow completions (OpenAI responses)."""
+    _server, base_url = slow_proxy_server
+
+    _chunks, full_body = await _collect_raw_sse(
+        base_url,
+        "/v1/responses",
+        {"model": "gpt-4o", "input": "hi", "stream": True},
+    )
+
+    lines = full_body.split(b"\n")
+    ping_lines = [line for line in lines if line == b": "]
+    event_lines = [line for line in lines if line.startswith(b"event: ")]
+
+    assert len(ping_lines) >= 2, f"Expected >=2 pings, got {len(ping_lines)}"
+    assert any(b"response.completed" in line for line in event_lines)
+
+
+@pytest.mark.asyncio
+async def test_streaming_ping_anthropic(
+    slow_proxy_server: tuple[AsyncHTTPServer, str],
+) -> None:
+    """Verify Anthropic ping events are sent during slow completions."""
+    _server, base_url = slow_proxy_server
+
+    _chunks, full_body = await _collect_raw_sse(
+        base_url,
+        "/v1/messages",
+        {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 100,
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        },
+    )
+
+    lines = full_body.split(b"\n")
+    # Anthropic pings are real SSE events, not comments
+    ping_event_lines = [line for line in lines if line == b"event: ping"]
+    message_stop_lines = [line for line in lines if line == b"event: message_stop"]
+
+    assert len(ping_event_lines) >= 2, (
+        f"Expected >=2 pings, got {len(ping_event_lines)}"
+    )
+    assert len(message_stop_lines) == 1
+
+
+# Note: Google Gemini streaming does not support SSE comment pings.
+# The Google SDK parses every chunk as JSON, so SSE comments (`: `)
+# cause parse errors. The Google handler is left without ping support.
