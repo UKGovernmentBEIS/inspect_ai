@@ -30,3 +30,22 @@ async def test_vllm_api() -> None:
     message = ChatMessageUser(content="Lorem ipsum dolor")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_github_action
+@skip_if_no_vllm
+async def test_vllm_disable_chat_template() -> None:
+    model = get_model(
+        "vllm/EleutherAI/pythia-70m",
+        config=GenerateConfig(
+            max_tokens=1,
+            seed=42,
+            temperature=0.7,
+        ),
+        device=0,
+        use_chat_template=False,
+    )
+    message = ChatMessageUser(content="Lorem ipsum dolor")
+    response = await model.generate(input=[message])
+    assert len(response.completion) >= 1

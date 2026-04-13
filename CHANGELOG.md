@@ -12,6 +12,7 @@
 - Hooks: Add `on_before_model_generate()` hook.
 - Model API: Support extended json schema fields (validation and examples).
 - Model API: Handle special token strings in tiktoken encoding.
+- vLLM: Support `use_chat_template=false` for base model evaluation (complements existing HF provider support).
 - Task Display: Truncate all content to a maximum of 50 lines.
 - Scoring: Convert score value of `None` to `NaN` during deserialization.
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
