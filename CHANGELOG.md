@@ -22,7 +22,8 @@
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
-- Inspect View: Transcript viewing improvements for large transcripts (timeline + other fixes)
+- Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
+- Inspect View: Introduce new 'Tasks' view of log directory which shows tasks recursively as a flat list.
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           
