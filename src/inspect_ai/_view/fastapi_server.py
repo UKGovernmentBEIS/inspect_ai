@@ -416,6 +416,8 @@ def view_server_app(
         epoch: int,
         last_event_id: int | None = Query(None, alias="last-event-id"),
         after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
+        after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
+        after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
     ) -> SampleData | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
@@ -426,6 +428,8 @@ def view_server_app(
             epoch=epoch,
             after_event_id=last_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
 
         if sample_data is None:
