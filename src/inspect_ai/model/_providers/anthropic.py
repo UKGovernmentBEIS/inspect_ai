@@ -774,12 +774,14 @@ class AnthropicAPI(ModelAPI):
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
-                params["thinking"] = dict(type="adaptive")
+                params["thinking"] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)
             else:
                 params["thinking"] = dict(
-                    type="enabled", budget_tokens=config.reasoning_tokens
+                    type="enabled",
+                    budget_tokens=config.reasoning_tokens,
+                    display="summarized",
                 )
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:

@@ -15714,7 +15714,7 @@ so disabling selection can break that functionality */
 .btn._toolButton_wcmr6_1._subtle_wcmr6_25 {
   background-color: var(--bs-body-bg);
 }
-._headerContainer_idrkc_1 {
+._headerContainer_gh2j2_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0rem;
@@ -15724,28 +15724,30 @@ so disabling selection can break that functionality */
   border-bottom: solid 1px var(--bs-light-border-subtle);
 }
 
-._headerContainer_idrkc_1._headerModern_idrkc_11 {
+._headerContainer_gh2j2_1._headerModern_gh2j2_11 {
   color: var(--bs-secondary);
-  padding: 0.5rem 0.5rem 0rem 0.5rem;
+  padding: 0.25rem 0.5rem 0rem 0.5rem;
+  border-bottom: none;
+  background-color: var(--bs-body-bg);
 }
 
-._headerIcon_idrkc_16:not(._headerIconEmpty_idrkc_16) {
+._headerIcon_gh2j2_18:not(._headerIconEmpty_gh2j2_18) {
   padding-right: 0.2rem;
 }
 
-._body_idrkc_20 {
+._body_gh2j2_22 {
   background-color: var(--bs-body-bg);
   padding: 0.5rem !important;
 }
 
-._card_idrkc_25 {
-  background-color: var(--bs-light-bg-subtle);
+._card_gh2j2_27 {
+  background-color: var(--bs-body-bg);
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
   overflow: hidden;
 }
 
-._body_idrkc_20._noPadding_idrkc_32 {
+._body_gh2j2_22._noPadding_gh2j2_34 {
   padding: 0;
 }
 ._copyButton_1goi8_1 {
@@ -18409,6 +18411,23 @@ a._citationLink_1ggvf_9:hover {
 ._invalidationReason_1foh6_76 {
   flex-basis: 100%;
 }
+._statusCell_hunte_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+._error_hunte_7 {
+  color: var(--bs-danger);
+}
+
+._success_hunte_11 {
+  color: var(--bs-success);
+}
+
+._cancelled_hunte_15 {
+  color: var(--bs-secondary);
+}
 ._container_kwhbh_1 {
   display: grid;
   grid-template-columns:
@@ -20168,23 +20187,6 @@ a._citationLink_1ggvf_9:hover {
   grid-column: -1/1;
   height: 1px;
   background-color: var(--bs-light-border-subtle);
-}
-._statusCell_hunte_1 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-._error_hunte_7 {
-  color: var(--bs-danger);
-}
-
-._success_hunte_11 {
-  color: var(--bs-success);
-}
-
-._cancelled_hunte_15 {
-  color: var(--bs-secondary);
 }
 ._mainLayout_1pg7l_1 {
   display: flex;

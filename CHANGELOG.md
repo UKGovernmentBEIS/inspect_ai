@@ -17,12 +17,14 @@
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
 - Computer Use: Restore `sudo` package to computer tool Docker image.
 - OpenAI Compatible: Pad response with content block when only content is reasoning.
+- Anthropic: Pass `display="summarized"` in thinking configuration.
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
-- Inspect View: Transcript viewing improvements for large transcripts (timeline + other fixes)
+- Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
+- Inspect View: Introduce new 'Tasks' view of log directory which shows tasks recursively as a flat list.
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           
@@ -34,6 +36,7 @@
 - Bugfix: Remove unused docker-sandbox unhealthy_services computation.
 - Bugfix: Fix `to_uri()` encoding `@` as `%40` in local file paths, breaking round-trip through `filesystem()`/`local_path()`.
 - Bugfix: Fix `answer("word")` scorer failing to match Unicode symbol characters (e.g. ☆, ○, ◎).
+- Bugfix: Eliminate spurious logging when bridge model proxy server is terminated.
 
 ## 0.3.205 (04 April 2026)
 
@@ -242,6 +245,7 @@
 - Inspect View: Fix regression displaying running samples when switching samples.
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 - Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
+- Eval logs: Stream deduplicated message pools to the viewer during in-progress evaluations.
 
 ## 0.3.185 (01 March 2026)
 
