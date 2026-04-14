@@ -166,6 +166,7 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
+    display_name: str | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -280,7 +281,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     # create task profile for display
     profile = TaskProfile(
-        name=task.name,
+        name=options.display_name or task.name,
         file=logger.eval.task_file,
         model=model_name,
         dataset=task.dataset.name or "(samples)",
@@ -292,6 +293,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         generate_config=generate_config,
         tags=tags,
         log_location=log_location,
+        task_id=logger.eval.task_id,
     )
 
     # set custom sandbox limits

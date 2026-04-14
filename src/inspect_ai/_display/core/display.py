@@ -51,6 +51,7 @@ class TaskProfile:
     generate_config: GenerateConfig
     tags: list[str] | None
     log_location: str
+    task_id: str
 
 
 @dataclass
