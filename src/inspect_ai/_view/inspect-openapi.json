@@ -403,6 +403,39 @@
         "title": "CachePolicy",
         "type": "object"
       },
+      "CallPoolData": {
+        "properties": {
+          "data": {
+            "title": "Data",
+            "type": "string"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sample_id",
+          "epoch",
+          "hash",
+          "data"
+        ],
+        "title": "CallPoolData",
+        "type": "object"
+      },
       "ChatCompletionChoice": {
         "description": "Choice generated for completion.",
         "properties": {
@@ -5407,6 +5440,39 @@
         "title": "Logprobs",
         "type": "object"
       },
+      "MessagePoolData": {
+        "properties": {
+          "data": {
+            "title": "Data",
+            "type": "string"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "msg_id": {
+            "title": "Msg Id",
+            "type": "string"
+          },
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sample_id",
+          "epoch",
+          "msg_id",
+          "data"
+        ],
+        "title": "MessagePoolData",
+        "type": "object"
+      },
       "MetadataEdit": {
         "description": "Edit action for metadata.",
         "properties": {
@@ -6212,17 +6278,35 @@
             "title": "Attachments",
             "type": "array"
           },
+          "call_pool": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CallPoolData"
+            },
+            "title": "Call Pool",
+            "type": "array"
+          },
           "events": {
             "items": {
               "$ref": "#/components/schemas/EventData"
             },
             "title": "Events",
             "type": "array"
+          },
+          "message_pool": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MessagePoolData"
+            },
+            "title": "Message Pool",
+            "type": "array"
           }
         },
         "required": [
           "events",
-          "attachments"
+          "attachments",
+          "message_pool",
+          "call_pool"
         ],
         "title": "SampleData",
         "type": "object"
@@ -9176,6 +9260,38 @@
                 }
               ],
               "title": "After-Attachment-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-message-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Message-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-call-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Call-Pool-Id"
             }
           }
         ],

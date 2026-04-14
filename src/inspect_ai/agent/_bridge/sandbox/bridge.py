@@ -182,7 +182,7 @@ async def sandbox_agent_bridge(
         # log the error but don't fail the sample.
         if agent_completed:
             logger.warning(
-                f"Error during sandbox_agent_bridge cleanup (agent completed successfully): {ex}"
+                f"Error during sandbox_agent_bridge cleanup (agent completed successfully): {inner_exception(ex)}"
             )
         else:
             # Error occurred before or during agent execution
@@ -227,8 +227,3 @@ async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
                     "model_proxy stderr output on clean exit:\n%s",
                     "".join(stderr).rstrip(),
                 )
-            return
-    # Stream ended without ExecCompleted
-    raise RuntimeError(
-        f"Model proxy process stream ended unexpectedly: {''.join(stderr)}."
-    )
