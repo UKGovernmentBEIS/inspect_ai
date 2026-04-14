@@ -176,9 +176,11 @@ export const messagesFromEvents = (runningEvents: Events): Messages => {
           messages.set(inputMessage.id, inputMessage);
         }
       }
-      const outputMessage = e.output.choices[0].message;
-      if (outputMessage.id) {
-        messages.set(outputMessage.id, outputMessage);
+      if (e.output.choices.length > 0) {
+        const outputMessage = e.output.choices[0].message;
+        if (outputMessage.id) {
+          messages.set(outputMessage.id, outputMessage);
+        }
       }
     });
 

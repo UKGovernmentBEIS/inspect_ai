@@ -222,14 +222,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const transcriptMessages = useMemo((): Messages => {
-    const events = sample?.events;
-    if (events && events.length > 0) {
-      const fromEvents = messagesFromEvents(events);
-      if (fromEvents.length > 0) {
-        return fromEvents;
-      }
-    }
-    return sample?.messages ?? [];
+    const fromEvents = sample?.events
+      ? messagesFromEvents(sample.events)
+      : [];
+    return fromEvents.length > 0 ? fromEvents : (sample?.messages ?? []);
   }, [sample?.events, sample?.messages]);
 
   const tools = [];
@@ -252,24 +248,38 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       label="Copy"
       icon={icon}
       items={{
-        UUID: () => {
+        UUID: async () => {
           if (sample?.uuid) {
-            navigator.clipboard.writeText(sample.uuid);
-            flashCopyIcon();
+            try {
+              await navigator.clipboard.writeText(sample.uuid);
+              flashCopyIcon();
+            } catch {
+              // clipboard access denied
+            }
           }
         },
-        Messages: () => {
+        Messages: async () => {
           if (sample?.messages && sample.messages.length > 0) {
-            navigator.clipboard.writeText(messagesToStr(sample.messages));
-            flashCopyIcon();
+            try {
+              await navigator.clipboard.writeText(
+                messagesToStr(sample.messages),
+              );
+              flashCopyIcon();
+            } catch {
+              // clipboard access denied
+            }
           }
         },
-        Transcript: () => {
+        Transcript: async () => {
           if (transcriptMessages.length > 0) {
-            navigator.clipboard.writeText(
-              messagesToStr(transcriptMessages),
-            );
-            flashCopyIcon();
+            try {
+              await navigator.clipboard.writeText(
+                messagesToStr(transcriptMessages),
+              );
+              flashCopyIcon();
+            } catch {
+              // clipboard access denied
+            }
           }
         },
       }}
