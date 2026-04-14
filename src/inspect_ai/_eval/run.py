@@ -76,7 +76,7 @@ async def eval_run(
     debug_errors: bool = False,
     run_samples: bool = True,
     score: bool = True,
-    task_retry_attempts: int = 0,
+    task_retry_attempts: int | None = 0,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # are sandboxes in play?
