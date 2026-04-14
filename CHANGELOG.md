@@ -28,6 +28,7 @@
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
 - Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
 - Inspect View: Introduce new 'Tasks' view of log directory which shows tasks recursively as a flat list.
+- Inspect View: Fix error when viewing the API information for a running Model Event.
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           
