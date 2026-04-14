@@ -292,6 +292,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         generate_config=generate_config,
         tags=tags,
         log_location=log_location,
+        task_id=logger.eval.task_id,
     )
 
     # set custom sandbox limits
