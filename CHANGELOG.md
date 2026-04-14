@@ -280,6 +280,7 @@
 - Testing: Run `--runtrio` as trio-only in a separate process to prevent cross-backend global state contamination; convert batch tests from asyncio to anyio.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
 - Inspect View: Presigned URL support for S3 log files, enabling direct browser-to-S3 byte-range fetches with parallel chunk downloads and a determinate progress bar for large samples.
+- Eval Logs: Batch log-headers validation and file mapping concurrently.
 
 ## 0.3.183 (24 February 2026)
 
