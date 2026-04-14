@@ -2596,6 +2596,105 @@
         "title": "EvalResults",
         "type": "object"
       },
+      "EvalRetryError": {
+        "description": "Error from a retried sample attempt.",
+        "properties": {
+          "events": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SampleInitEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SampleLimitEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SandboxEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StateEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StoreEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ModelEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ToolEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BranchEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CompactionEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InputEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ScoreEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ScoreEditEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LoggerEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InfoEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SpanBeginEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SpanEndEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StepEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SubtaskEvent"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "traceback": {
+            "title": "Traceback",
+            "type": "string"
+          },
+          "traceback_ansi": {
+            "title": "Traceback Ansi",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "traceback",
+          "traceback_ansi"
+        ],
+        "title": "EvalRetryError",
+        "type": "object"
+      },
       "EvalRevision": {
         "description": "Git revision for evaluation.",
         "properties": {
@@ -2685,7 +2784,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/EvalError"
+                  "$ref": "#/components/schemas/EvalRetryError"
                 },
                 "type": "array"
               },

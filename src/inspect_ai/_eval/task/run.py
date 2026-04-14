@@ -66,6 +66,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_async,
 )
 from inspect_ai.log._log import (
+    EvalRetryError,
     EvalSampleLimit,
     EvalSampleReductions,
     EvalSampleSummary,
@@ -717,7 +718,7 @@ async def task_run_sample(
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     retry_on_error: int,
-    error_retries: list[EvalError],
+    error_retries: list[EvalRetryError],
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore,
@@ -1267,7 +1268,7 @@ async def task_run_sample(
             # tick retry count down
             retry_on_error=retry_on_error - 1,
             # forward on error that caused retry
-            error_retries=copy(error_retries) + [error],
+            error_retries=copy(error_retries) + [_eval_retry_error(error)],
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -1304,7 +1305,7 @@ def create_eval_sample(
     scores: dict[str, SampleScore],
     error: EvalError | None,
     limit: EvalSampleLimit | None,
-    error_retries: list[EvalError],
+    error_retries: list[EvalRetryError],
     started_at: datetime | None = None,
 ) -> EvalSample:
     # sample must have id to be logged
@@ -1478,3 +1479,21 @@ def init_sample_assistant_internal() -> None:
             init_sample_anthropic_assistant_internal()
         except ImportError:
             pass
+
+
+def _eval_retry_error(error: EvalError) -> EvalRetryError:
+    """Create retry error with events from the most recent ModelEvent onward."""
+    from inspect_ai.event._model import ModelEvent
+
+    events = transcript().events
+    recent_events = list(events)
+    for i in range(len(events) - 1, -1, -1):
+        if isinstance(events[i], ModelEvent):
+            recent_events = list(events[i:])
+            break
+    return EvalRetryError(
+        message=error.message,
+        traceback=error.traceback,
+        traceback_ansi=error.traceback_ansi,
+        events=recent_events,
+    )

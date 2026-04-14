@@ -5,6 +5,7 @@
 - Eval Logs: Condense sample events when writing logs.
 - Eval Logs: Enable zstd compression by default for writing logs.
 - Eval Logs: New `inspect log recover` command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into `eval_set()` and `eval_retry()`.
+- Eval Logs: Save recent events (up to last `ModelEvent`) when retrying samples.
 - Bash tool: Change name of argument from `cmd` to `command`.
 - Sandboxes: Pass sample_id to sandbox providers via metadata.
 - Sandboxes: `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` and `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variables for overriding limits.
@@ -20,6 +21,7 @@
 - OpenAI Compatible: Pad response with content block when only content is reasoning.
 - Anthropic: Pass `display="summarized"` in thinking configuration.
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
+- vLLM: Allow vLLM provider to restart after close().
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
@@ -280,6 +282,7 @@
 - Testing: Run `--runtrio` as trio-only in a separate process to prevent cross-backend global state contamination; convert batch tests from asyncio to anyio.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
 - Inspect View: Presigned URL support for S3 log files, enabling direct browser-to-S3 byte-range fetches with parallel chunk downloads and a determinate progress bar for large samples.
+- Eval Logs: Batch log-headers validation and file mapping concurrently.
 
 ## 0.3.183 (24 February 2026)
 
