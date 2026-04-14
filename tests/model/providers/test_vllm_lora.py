@@ -254,9 +254,7 @@ class TestVLLMAPIClose:
         assert api._server.max_lora_rank == 64
 
     @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
-    def test_same_instance_can_re_resolve_after_close(
-        self, _mock_rank: object
-    ) -> None:
+    def test_same_instance_can_re_resolve_after_close(self, _mock_rank: object) -> None:
         """After close(), _resolve_server() should enter the startup path again."""
         api = VLLMAPI("base-model")
 
@@ -292,9 +290,7 @@ class TestVLLMAPIClose:
         assert api2._resolved_epoch != api2._server._epoch
 
     @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
-    def test_close_invalidates_all_sibling_instances(
-        self, _mock_rank: object
-    ) -> None:
+    def test_close_invalidates_all_sibling_instances(self, _mock_rank: object) -> None:
         """When one instance closes, all siblings see the epoch bump."""
         api1 = VLLMAPI("base-model:adapter-a")
         api2 = VLLMAPI("base-model:adapter-b")
