@@ -19,6 +19,7 @@
 - OpenAI Compatible: Pad response with content block when only content is reasoning.
 - Anthropic: Pass `display="summarized"` in thinking configuration.
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
+- vLLM: Allow vLLM provider to restart after close().
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
