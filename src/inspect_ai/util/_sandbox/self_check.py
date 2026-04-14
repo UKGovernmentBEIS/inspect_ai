@@ -438,9 +438,13 @@ async def test_exec_timeout_kills_process(sandbox_env: SandboxEnvironment) -> No
         random.choices(string.ascii_lowercase + string.digits, k=16)
     )
 
+    # The trailing "; :" prevents the shell from exec-optimizing into
+    # `sleep 30` (which would strip the marker from the process cmdline,
+    # making ps unable to detect a leaked process).
     with Raises(TimeoutError):
         await sandbox_env.exec(
-            ["sh", "-c", f"echo '{unique_marker}' > /dev/null && sleep 30"], timeout=2
+            ["sh", "-c", f"echo '{unique_marker}' > /dev/null && sleep 30; :"],
+            timeout=2,
         )
 
     # give cleanup a moment to complete
