@@ -13,6 +13,7 @@
 - Hooks: Add `on_before_model_generate()` hook.
 - Model API: Support extended json schema fields (validation and examples).
 - Model API: Handle special token strings in tiktoken encoding.
+- Eval Set: Add `retry_immediate` option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.
 - Task Display: Truncate all content to a maximum of 50 lines.
 - Scoring: Convert score value of `None` to `NaN` during deserialization.
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
