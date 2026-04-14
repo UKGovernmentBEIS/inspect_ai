@@ -8039,6 +8039,7 @@
         "type": "object"
       },
       "ToolCallError": {
+        "description": "Error raised by a tool call.",
         "properties": {
           "message": {
             "title": "Message",
@@ -8376,6 +8377,7 @@
         "type": "object"
       },
       "ToolFunction": {
+        "description": "Indicate that a specific tool function should be called.",
         "properties": {
           "name": {
             "title": "Name",
