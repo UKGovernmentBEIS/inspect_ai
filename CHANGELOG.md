@@ -17,6 +17,7 @@
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
 - Computer Use: Restore `sudo` package to computer tool Docker image.
 - OpenAI Compatible: Pad response with content block when only content is reasoning.
+- Anthropic: Pass `display="summarized"` in thinking configuration.
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
