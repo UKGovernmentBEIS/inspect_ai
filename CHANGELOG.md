@@ -4,17 +4,28 @@
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
 - Eval Logs: Condense sample events when writing logs.
 - Eval Logs: Enable zstd compression by default for writing logs.
+- Eval Logs: New `inspect log recover` command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into `eval_set()` and `eval_retry()`.
 - Bash tool: Change name of argument from `cmd` to `command`.
 - Sandboxes: Pass sample_id to sandbox providers via metadata.
+- Sandboxes: `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` and `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variables for overriding limits.
+- Docker Sandbox: Implement in-sandbox timeout enforcement using `timeout` command.
 - Hooks: Add `on_before_model_generate()` hook.
 - Model API: Support extended json schema fields (validation and examples).
 - Model API: Handle special token strings in tiktoken encoding.
+- Task Display: Truncate all content to a maximum of 50 lines.
+- Scoring: Convert score value of `None` to `NaN` during deserialization.
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
+- Computer Use: Restore `sudo` package to computer tool Docker image.
 - OpenAI Compatible: Pad response with content block when only content is reasoning.
+- Anthropic: Pass `display="summarized"` in thinking configuration.
+- Anthropic: Use request level "auto" caching mode for improved prompt caching.
+- vLLM: Allow vLLM provider to restart after close().
 - Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
 - Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
 - Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
+- Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
+- Inspect View: Introduce new 'Tasks' view of log directory which shows tasks recursively as a flat list.
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           
@@ -23,7 +34,10 @@
   instances.
 - Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
 - Bugfix: Include LoRA adapter in logged vLLM model name.
-- Computer Use: Restore `sudo` package to computer tool Docker image.
+- Bugfix: Remove unused docker-sandbox unhealthy_services computation.
+- Bugfix: Fix `to_uri()` encoding `@` as `%40` in local file paths, breaking round-trip through `filesystem()`/`local_path()`.
+- Bugfix: Fix `answer("word")` scorer failing to match Unicode symbol characters (e.g. ☆, ○, ◎).
+- Bugfix: Eliminate spurious logging when bridge model proxy server is terminated.
 
 ## 0.3.205 (04 April 2026)
 
@@ -232,6 +246,7 @@
 - Inspect View: Fix regression displaying running samples when switching samples.
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 - Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
+- Eval logs: Stream deduplicated message pools to the viewer during in-progress evaluations.
 
 ## 0.3.185 (01 March 2026)
 
