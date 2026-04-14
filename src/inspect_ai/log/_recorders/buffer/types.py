@@ -33,9 +33,27 @@ class AttachmentData(BaseModel):
     content: str
 
 
+class MessagePoolData(BaseModel):
+    id: int
+    sample_id: str
+    epoch: int
+    msg_id: str
+    data: str
+
+
+class CallPoolData(BaseModel):
+    id: int
+    sample_id: str
+    epoch: int
+    hash: str
+    data: str
+
+
 class SampleData(BaseModel):
     events: list[EventData]
     attachments: list[AttachmentData]
+    message_pool: list[MessagePoolData] = []
+    call_pool: list[CallPoolData] = []
 
 
 class SampleBuffer(abc.ABC):
@@ -68,6 +86,8 @@ class SampleBuffer(abc.ABC):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
+        after_message_pool_id: int | None = None,
+        after_call_pool_id: int | None = None,
     ) -> SampleData | None:
         """Get event and attachment data for a sample.
 
@@ -75,10 +95,12 @@ class SampleBuffer(abc.ABC):
           id: Sample id
           epoch: Sample epoch
           after_event_id: Optional. Fetch only event data greater than this id.
-          after_attachment_id: Optioinal. Fetch only attachment data greater than this id.
+          after_attachment_id: Optional. Fetch only attachment data greater than this id.
+          after_message_pool_id: Optional. Fetch only message pool data greater than this id.
+          after_call_pool_id: Optional. Fetch only call pool data greater than this id.
 
         Returns:
-          - `SampleData` with event and attachment data.
+          - `SampleData` with event, attachment, and pool data.
           - None if the database no longer exists
         """
         ...
