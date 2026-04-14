@@ -110,8 +110,9 @@ There are a number of options that control the retry behaviour of eval sets:
 | **Option** | Description |
 |------------------------------------|------------------------------------|
 | `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
+| `--retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. |
 | `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction) |
 | `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 : {tbl-colwidths=\[40,60\]}

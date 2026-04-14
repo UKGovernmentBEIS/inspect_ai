@@ -171,8 +171,7 @@ def eval_set(
             (defaults to 1.0, which results in no reduction).
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        retry_immediate: If False, will maintain legacy retry behavior
-            of waiting for all tasks to complete before retrying any tasks. If True, will immediately retry tasks as they fail without waiting for all tasks to complete. Immediate retry is potentially significantly more efficient. Default may be switched to True in the future. When True, retry_wait and retry_connections are ignored(defaults to False).
+        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -268,6 +267,12 @@ def eval_set(
 
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
     task_retry_attempts = num_retry_attempts if retry_immediate else 0
+
+    if retry_immediate and num_retry_attempts == 0:
+        logger.warning(
+            "retry_immediate=True has no effect when retry_attempts=0; "
+            "no task-level retries will be performed."
+        )
 
     # helper function to run a set of evals
     def run_eval(
