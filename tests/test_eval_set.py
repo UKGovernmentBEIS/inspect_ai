@@ -52,7 +52,8 @@ from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Solver, generate
 
 
-def test_eval_set() -> None:
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set(retry_immediate: bool) -> None:
     # run eval with a solver that fails 10% of the time
     with tempfile.TemporaryDirectory() as log_dir:
         success, logs = eval_set(
@@ -60,6 +61,7 @@ def test_eval_set() -> None:
             log_dir=log_dir,
             retry_attempts=1000,
             retry_wait=0.1,
+            retry_immediate=retry_immediate,
             model="mockllm/model",
         )
         assert success
@@ -81,6 +83,7 @@ def test_eval_set() -> None:
             log_dir=log_dir,
             retry_attempts=1,
             retry_wait=0.1,
+            retry_immediate=retry_immediate,
             model="mockllm/model",
         )
         assert not success
