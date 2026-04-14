@@ -21,7 +21,8 @@ import {
   useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { EvalSample, Events } from "../../@types/log";
+import { EvalSample, Events, Messages } from "../../@types/log";
+import api from "../../client/api/index";
 import { SampleSummary } from "../../client/api/types";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { JSONPanel } from "../../components/JsonPanel";
@@ -220,8 +221,30 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
+  const transcriptMessages = useMemo((): Messages => {
+    const events = sample?.events;
+    if (events && events.length > 0) {
+      const fromEvents = messagesFromEvents(events);
+      if (fromEvents.length > 0) {
+        return fromEvents;
+      }
+    }
+    return sample?.messages ?? [];
+  }, [sample?.events, sample?.messages]);
+
   const tools = [];
   const [icon, setIcon] = useState(ApplicationIcons.copy);
+
+  const flashCopyIcon = useCallback(() => {
+    setIcon(ApplicationIcons.confirm);
+    setTimeout(() => {
+      setIcon(ApplicationIcons.copy);
+    }, 1250);
+  }, []);
+
+  const canDownloadFiles = useStore(
+    (state) => state.capabilities.downloadFiles,
+  );
 
   tools.push(
     <ToolDropdownButton
@@ -232,24 +255,57 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         UUID: () => {
           if (sample?.uuid) {
             navigator.clipboard.writeText(sample.uuid);
-            setIcon(ApplicationIcons.confirm);
-            setTimeout(() => {
-              setIcon(ApplicationIcons.copy);
-            }, 1250);
+            flashCopyIcon();
+          }
+        },
+        Messages: () => {
+          if (sample?.messages && sample.messages.length > 0) {
+            navigator.clipboard.writeText(messagesToStr(sample.messages));
+            flashCopyIcon();
           }
         },
         Transcript: () => {
-          if (sample?.messages) {
-            navigator.clipboard.writeText(messagesToStr(sample.messages));
-            setIcon(ApplicationIcons.confirm);
-            setTimeout(() => {
-              setIcon(ApplicationIcons.copy);
-            }, 1250);
+          if (transcriptMessages.length > 0) {
+            navigator.clipboard.writeText(
+              messagesToStr(transcriptMessages),
+            );
+            flashCopyIcon();
           }
         },
       }}
     />,
   );
+
+  if (canDownloadFiles && sample) {
+    const sampleId = sample.id ?? "sample";
+    tools.push(
+      <ToolDropdownButton
+        key="sample-download"
+        label="Download"
+        icon={ApplicationIcons.downloadLog}
+        items={{
+          "Sample JSON": () => {
+            api.download_file(
+              `${sampleId}.json`,
+              JSON.stringify(sample, null, 2),
+            );
+          },
+          Messages: () => {
+            api.download_file(
+              `${sampleId}-messages.txt`,
+              messagesToStr(sample.messages ?? []),
+            );
+          },
+          Transcript: () => {
+            api.download_file(
+              `${sampleId}-transcript.txt`,
+              messagesToStr(transcriptMessages),
+            );
+          },
+        }}
+      />,
+    );
+  }
 
   if (selectedTab === kSampleTranscriptTabId) {
     const label = isDebugFilter
