@@ -33,6 +33,7 @@ def hf_dataset(
     limit: int | None = None,
     trust: bool = False,
     cached: bool = True,
+    auto_decode_json: bool = True,
     **kwargs: Any,
 ) -> Dataset:
     """Datasets read using the Hugging Face `datasets` package.
@@ -70,6 +71,10 @@ def hf_dataset(
         Hub and then cached for future reads. Pass `cached=False` to force
         re-reading the dataset from Hugging Face. Ignored when the `revision`
         option is specified.
+      auto_decode_json: Automatically decode columns with the
+        `Json` feature type (introduced in datasets v4.7.0) from
+        JSON strings back to Python objects to match behaviour prior to v4.7.0.
+        Defaults to `True`.
       **kwargs (dict[str, Any]): Additional arguments to pass through to the
           `load_dataset` function of the `datasets` package.
 
@@ -118,9 +123,12 @@ def hf_dataset(
     if limit:
         dataset = dataset.select(range(limit))
 
+    # preprocess json strings if requested
+    records = _dataset_to_record_list(dataset, auto_decode_json)
+
     # return the dataset
     memory_dataset = MemoryDataset(
-        samples=data_to_samples(dataset.to_list(), data_to_sample, auto_id),
+        samples=data_to_samples(records, data_to_sample, auto_id),
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
     )
@@ -128,3 +136,51 @@ def hf_dataset(
     shuffle_choices_if_requested(memory_dataset, shuffle_choices)
 
     return memory_dataset
+
+
+def _dataset_to_record_list(
+    dataset: Any, auto_decode_json: bool
+) -> list[dict[str, Any]]:
+    """Convert a HuggingFace dataset to a list of records.
+
+    When ``auto_decode_json`` is enabled, columns with the ``Json`` feature
+    type (datasets v4.7.0+) are parsed from JSON strings back into native
+    Python objects to match the _get_item implementation.
+    """
+    records = dataset.to_list()
+
+    # Identify hf json types
+    if auto_decode_json:
+        json_columns = [
+            col
+            for col, feature in dataset.features.items()
+            if _has_json_feature(feature)
+        ]
+    else:
+        json_columns = []
+
+    # Decode JSON strings.
+    for record in records:
+        for col in json_columns:
+            if col in record:
+                record[col] = _decode_json_value(record[col])
+
+    return records
+
+
+def _has_json_feature(feature: Any) -> bool:
+    """Check whether a dataset feature is a decodable Json type."""
+    from datasets.features import Json
+
+    return isinstance(feature, Json) and feature.decode
+
+
+def _decode_json_value(value: Any) -> Any:
+    """Parse a JSON-encoded string back into a Python object.
+
+    Mirrors the decoding logic in ``datasets.features.Json.decode_example``,
+    which uses ``ujson_loads`` internally.
+    """
+    from datasets.utils.json import ujson_loads
+
+    return ujson_loads(value)
