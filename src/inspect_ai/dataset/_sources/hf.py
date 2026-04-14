@@ -169,18 +169,32 @@ def _dataset_to_record_list(
 
 
 def _has_json_feature(feature: Any) -> bool:
-    """Check whether a dataset feature is a decodable Json type."""
+    """Check whether a dataset feature contains a decodable Json type.
+
+    Handles both top-level ``Json`` columns and container types like
+    ``Sequence(Json())`` / ``LargeList(Json())``.
+    """
     from datasets.features import Json
 
-    return isinstance(feature, Json) and feature.decode
+    if isinstance(feature, Json):
+        return feature.decode
+    # Recurse into container types (Sequence, LargeList) which wrap
+    # a single feature type in a `.feature` attribute.
+    if hasattr(feature, "feature"):
+        return _has_json_feature(feature.feature)
+    return False
 
 
 def _decode_json_value(value: Any) -> Any:
-    """Parse a JSON-encoded string back into a Python object.
+    """Parse a JSON-encoded value back into a Python object.
 
-    Mirrors the decoding logic in ``datasets.features.Json.decode_example``,
-    which uses ``ujson_loads`` internally.
+    Handles both scalar JSON strings and lists of JSON strings (from
+    ``Sequence(Json())``). Mirrors the decoding logic in
+    ``datasets.features.Json.decode_example``, which uses ``ujson_loads``.
     """
     from datasets.utils.json import ujson_loads
 
+    # Sequence(Json()) produces a list of JSON strings from to_list()
+    if isinstance(value, list):
+        return [ujson_loads(v) if isinstance(v, str) else v for v in value]
     return ujson_loads(value)
