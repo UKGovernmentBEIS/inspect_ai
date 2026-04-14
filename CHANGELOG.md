@@ -36,6 +36,7 @@
 - Bugfix: Remove unused docker-sandbox unhealthy_services computation.
 - Bugfix: Fix `to_uri()` encoding `@` as `%40` in local file paths, breaking round-trip through `filesystem()`/`local_path()`.
 - Bugfix: Fix `answer("word")` scorer failing to match Unicode symbol characters (e.g. ☆, ○, ◎).
+- Bugfix: Eliminate spurious logging when bridge model proxy server is terminated.
 
 ## 0.3.205 (04 April 2026)
 
