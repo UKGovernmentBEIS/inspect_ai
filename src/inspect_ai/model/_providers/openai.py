@@ -35,6 +35,7 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    is_gpt_5_4_plus_model,
     is_gpt_5_model,
     is_o_series_model,
     openai_should_retry,
@@ -352,6 +353,9 @@ class OpenAIAPI(ModelAPI):
     def is_gpt_5_chat(self) -> bool:
         name = self.service_model_name()
         return self.is_gpt_5() and "-chat" in name
+
+    def is_gpt_5_4_plus(self) -> bool:
+        return is_gpt_5_4_plus_model(self.service_model_name())
 
     def is_o1(self) -> bool:
         name = self.service_model_name()

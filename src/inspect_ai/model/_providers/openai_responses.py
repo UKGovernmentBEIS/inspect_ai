@@ -56,6 +56,17 @@ from .util.hooks import HttpxHooks
 logger = getLogger(__name__)
 
 
+def _should_use_phase(model_info: ResponsesModelInfo, config: GenerateConfig) -> bool:
+    """Decide whether to populate the assistant `phase` field.
+
+    Explicit ``config.openai_phase`` wins; otherwise auto-enable for
+    GPT-5.4 and later.
+    """
+    if config.openai_phase is not None:
+        return config.openai_phase
+    return model_info.is_gpt_5_4_plus()
+
+
 def _fix_function_tool_parameters(response: Response) -> None:
     """Fix string parameters in FunctionTool objects.
 
@@ -111,7 +122,9 @@ async def generate_responses(
     )
 
     request = dict(
-        input=await openai_responses_inputs(input, model_info),
+        input=await openai_responses_inputs(
+            input, model_info, use_phase=_should_use_phase(model_info, config)
+        ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0

@@ -768,6 +768,146 @@ def test_phase_round_trip_mixed():
     assert message_items[1]["phase"] == "commentary"
 
 
+def test_auto_phase_final_answer_for_message_without_tool_calls():
+    """When use_phase=True, a message without tool_calls is tagged final_answer."""
+    message = ChatMessageAssistant(
+        content=[ContentText(text="The answer is 42.")],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, use_phase=True)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "final_answer"
+
+
+def test_auto_phase_commentary_for_message_with_tool_calls():
+    """When use_phase=True, a message with tool_calls is tagged commentary."""
+    from inspect_ai.tool import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[ContentText(text="Let me look that up.")],
+        tool_calls=[ToolCall(id="call_1", function="search", arguments={"q": "42"})],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, use_phase=True)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+def test_auto_phase_disabled_by_default():
+    """Without use_phase, no phase field is added to messages lacking internal phase."""
+    message = ChatMessageAssistant(
+        content=[ContentText(text="Hello")],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert "phase" not in message_items[0]
+
+
+def test_auto_phase_preserves_existing_phase():
+    """When internal already sets a phase, use_phase does not overwrite it."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Some text",
+                internal={MESSAGE_ID: "msg_1", MESSAGE_PHASE: "commentary"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    # Even though there are no tool_calls (auto would assign final_answer),
+    # the explicit commentary from internal must win.
+    items = _openai_input_items_from_chat_message_assistant(message, use_phase=True)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+def test_is_gpt_5_4_plus_model_detection():
+    """Detection of gpt-5.4 and later gpt-5.x minor versions."""
+    from inspect_ai.model._openai import is_gpt_5_4_plus_model
+
+    assert is_gpt_5_4_plus_model("gpt-5.4") is True
+    assert is_gpt_5_4_plus_model("gpt-5.5-preview") is True
+    assert is_gpt_5_4_plus_model("gpt-5.10") is True
+    assert is_gpt_5_4_plus_model("gpt-5.3") is False
+    assert is_gpt_5_4_plus_model("gpt-5") is False
+    assert is_gpt_5_4_plus_model("gpt-5-chat") is False
+    assert is_gpt_5_4_plus_model("gpt-4o") is False
+    assert is_gpt_5_4_plus_model("o3-mini") is False
+
+
+def test_should_use_phase_config_overrides_auto_detection():
+    """Explicit config.openai_phase overrides GPT-5.4 auto-detection."""
+    from inspect_ai.model._providers.openai_responses import _should_use_phase
+
+    class _Stub:
+        def __init__(self, gpt_5_4: bool) -> None:
+            self._gpt_5_4 = gpt_5_4
+
+        def is_gpt_5_4_plus(self) -> bool:
+            return self._gpt_5_4
+
+    # Auto: gpt-5.4+ → on, otherwise → off
+    assert _should_use_phase(_Stub(True), GenerateConfig()) is True
+    assert _should_use_phase(_Stub(False), GenerateConfig()) is False
+
+    # Explicit True forces on for any model
+    assert _should_use_phase(_Stub(False), GenerateConfig(openai_phase=True)) is True
+
+    # Explicit False forces off even for gpt-5.4+
+    assert _should_use_phase(_Stub(True), GenerateConfig(openai_phase=False)) is False
+
+
+async def test_openai_responses_inputs_propagates_use_phase():
+    """use_phase must propagate from openai_responses_inputs down to assistant conversion."""
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import openai_responses_inputs
+    from inspect_ai.tool import ToolCall
+
+    messages = [
+        ChatMessageUser(content="What is 2+2?"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Let me compute.")],
+            tool_calls=[ToolCall(id="c1", function="calc", arguments={"x": "2+2"})],
+            model="test",
+            source="generate",
+        ),
+        ChatMessageAssistant(
+            content=[ContentText(text="The answer is 4.")],
+            model="test",
+            source="generate",
+        ),
+    ]
+
+    # Without use_phase: no phase annotations
+    items_off = await openai_responses_inputs(messages)
+    msg_items_off = [item for item in items_off if item.get("type") == "message"]
+    assistant_msg_items_off = [m for m in msg_items_off if m.get("role") == "assistant"]
+    assert len(assistant_msg_items_off) == 2
+    assert all("phase" not in m for m in assistant_msg_items_off)
+
+    # With use_phase: first assistant (has tool_calls) → commentary,
+    # second assistant (no tool_calls) → final_answer.
+    items_on = await openai_responses_inputs(messages, use_phase=True)
+    msg_items_on = [item for item in items_on if item.get("type") == "message"]
+    assistant_msg_items_on = [m for m in msg_items_on if m.get("role") == "assistant"]
+    assert len(assistant_msg_items_on) == 2
+    assert assistant_msg_items_on[0]["phase"] == "commentary"
+    assert assistant_msg_items_on[1]["phase"] == "final_answer"
+
+
 def test_web_search_to_tool_use_handles_missing_action() -> None:
     """Ensure missing web search action does not break tool-use conversion."""
     from openai.types.responses import ResponseFunctionWebSearch
