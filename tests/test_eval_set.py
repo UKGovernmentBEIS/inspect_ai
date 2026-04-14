@@ -89,7 +89,8 @@ def test_eval_set() -> None:
 
 @pytest.mark.slow
 @pytest.mark.parametrize("eval_set_id", [None, "test-eval-set-id"])
-def test_eval_set_dynamic(eval_set_id: str | None) -> None:
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_dynamic(eval_set_id: str | None, retry_immediate: bool) -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
         for _ in range(0, 10):
@@ -112,6 +113,7 @@ def test_eval_set_dynamic(eval_set_id: str | None) -> None:
             model=[get_model("mockllm/model"), get_model("mockllm/model2")],
             retry_attempts=10000,
             retry_wait=0.001,
+            retry_immediate=retry_immediate,
             eval_set_id=eval_set_id,
         )
         assert len(logs) == 4
@@ -1390,7 +1392,8 @@ def test_eval_set_single_flush_error() -> None:
                 )
 
 
-def test_eval_set_parallel_flush_error() -> None:
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
     """run_parallel must not swallow task exceptions and return success=True."""
 
     async def broken_flush(self: ZipLogFile) -> None:
@@ -1416,6 +1419,7 @@ def test_eval_set_parallel_flush_error() -> None:
                     log_dir=log_dir,
                     model="mockllm/model",
                     retry_attempts=0,
+                    retry_immediate=retry_immediate,
                 )
 
 
@@ -1436,28 +1440,37 @@ def test_eval_set_retry_immediate() -> None:
     # Coordination: task_b waits until task_a's retry finishes.
     task_a_retry_completed: anyio.Event | None = None
 
-    # Track which (sample_id, run_number) pairs the solver actually executes.
-    task_a_run_count = 0
-    task_a_solver_calls: list[tuple[int | str | None, int]] = []
+    # Track which sample_ids the solver executes, in order.
+    task_a_solver_calls: list[str | int | None] = []
+    # Samples already seen — the second unique sample errors.
+    seen_samples: set[str | int | None] = set()
+    # Sample that errored (so we can verify it re-runs on retry).
+    errored_sample: str | int | None = None
 
-    @solver
+    # Use unique solver names to avoid registry caching across test runs.
+    solver_id = id(task_a_solver_calls)
+
+    @solver(name=f"task_a_solver_{solver_id}")
     def task_a_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            nonlocal task_a_retry_completed, task_a_run_count
-            task_a_run_count += 1
-            run = task_a_run_count
-            task_a_solver_calls.append((state.sample_id, run))
-            # First run, second sample: error to trigger retry
-            if run == 2:
-                raise ValueError("Task A sample 2 error")
-            # Retry run: signal completion so task B can finish
-            if run == 3 and task_a_retry_completed is not None:
-                task_a_retry_completed.set()
+            nonlocal task_a_retry_completed, errored_sample
+            task_a_solver_calls.append(state.sample_id)
+
+            if errored_sample is None:
+                # First task run: succeed on the 1st sample, error on the 2nd
+                seen_samples.add(state.sample_id)
+                if len(seen_samples) == 2:
+                    errored_sample = state.sample_id
+                    raise ValueError("Task A second sample error")
+            else:
+                # Retry run: signal completion so task B can finish
+                if task_a_retry_completed is not None:
+                    task_a_retry_completed.set()
             return state
 
         return solve
 
-    @solver
+    @solver(name=f"task_b_solver_{solver_id}")
     def task_b_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             nonlocal task_a_retry_completed
@@ -1468,40 +1481,41 @@ def test_eval_set_retry_immediate() -> None:
 
         return solve
 
-    @task
-    def task_a():
-        return Task(
-            dataset=[
-                Sample(id="s1", input="x", target="y"),
-                Sample(id="s2", input="x", target="y"),
-            ],
-            solver=[task_a_solver()],
-            name="task_a",
-        )
-
-    @task
-    def task_b():
-        return Task(
-            dataset=[Sample(input="x", target="y")],
-            solver=[task_b_solver()],
-            name="task_b",
-        )
-
     with tempfile.TemporaryDirectory() as log_dir:
         success, logs = eval_set(
-            tasks=[task_a(), task_b()],
+            tasks=[
+                Task(
+                    dataset=[
+                        Sample(id="s1", input="x", target="y"),
+                        Sample(id="s2", input="x", target="y"),
+                    ],
+                    solver=[task_a_solver()],
+                    name="task_a",
+                ),
+                Task(
+                    dataset=[Sample(input="x", target="y")],
+                    solver=[task_b_solver()],
+                    name="task_b",
+                ),
+            ],
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=1,
             retry_immediate=True,
             max_tasks=2,
+            max_samples=1,
         )
         assert success
         assert len(logs) == 2
         assert all(log.status == "success" for log in logs)
 
-        # The solver should have been called 3 times total for task A:
-        # run 1: s1 (success), run 2: s2 (error), run 3: s2 (retry success)
-        # s1 is reused from the failed log on retry — solver not called again.
-        assert task_a_run_count == 3
-        assert task_a_solver_calls == [("s1", 1), ("s2", 2), ("s2", 3)]
+        # The solver ran 3 times for task A: first sample succeeded,
+        # second sample errored, then on retry only the failed sample
+        # re-ran (the succeeded one was reused from the log).
+        succeeded_id = [s for s in ("s1", "s2") if s != errored_sample][0]
+        assert len(task_a_solver_calls) == 3
+        assert task_a_solver_calls == [
+            succeeded_id,
+            errored_sample,
+            errored_sample,
+        ]

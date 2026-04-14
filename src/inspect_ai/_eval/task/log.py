@@ -254,7 +254,14 @@ class TaskLogger:
 
     async def reinit(self) -> None:
         """Reset this logger for a retry attempt with a fresh eval entry."""
-        self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
+        created = iso_now()
+        if created == self.eval.created:
+            # Ensure the filename is unique by bumping the timestamp by one second
+            from datetime import datetime, timedelta, timezone
+
+            dt = datetime.fromisoformat(created) + timedelta(seconds=1)
+            created = dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+        self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=created))
         self._samples_completed = 0
         self.flush_pending = []
         self._buffer_db = None
