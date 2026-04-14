@@ -94,6 +94,10 @@ class TasksView(Container):
 
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         self.update_count_width(task.profile.samples)
+        self.description_width = min(
+            max(self.description_width, len(task.profile.name)),
+            MAX_DESCRIPTION_WIDTH,
+        )
         task_display = TaskProgressView(
             task,
             self.description_width,

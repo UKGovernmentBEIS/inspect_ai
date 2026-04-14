@@ -613,7 +613,18 @@ async def run_task_retry_attempts(
                     # reinit logger for a fresh eval entry
                     await task_options.logger.reinit()
 
-                    retry_options = replace(task_options, sample_source=sample_source)
+                    retry_attempt = (
+                        task_retry_attempts - pending_task.retries_remaining + 1
+                    )
+                    retry_display_name = (
+                        f"{task_options.task.name} "
+                        f"(retry {retry_attempt} of {task_retry_attempts})"
+                    )
+                    retry_options = replace(
+                        task_options,
+                        sample_source=sample_source,
+                        display_name=retry_display_name,
+                    )
                     task_to_original_index[id(retry_options)] = original_index
                     retry_pending = PendingTask(
                         options=retry_options,
