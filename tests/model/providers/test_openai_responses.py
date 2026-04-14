@@ -850,7 +850,7 @@ def test_is_gpt_5_4_plus_model_detection():
 
 def test_should_use_phase_config_overrides_auto_detection():
     """Explicit config.openai_phase overrides GPT-5.4 auto-detection."""
-    from inspect_ai.model._providers.openai_responses import _should_use_phase
+    from inspect_ai.model._openai_responses import should_use_phase
 
     class _Stub:
         def __init__(self, gpt_5_4: bool) -> None:
@@ -860,14 +860,25 @@ def test_should_use_phase_config_overrides_auto_detection():
             return self._gpt_5_4
 
     # Auto: gpt-5.4+ → on, otherwise → off
-    assert _should_use_phase(_Stub(True), GenerateConfig()) is True
-    assert _should_use_phase(_Stub(False), GenerateConfig()) is False
+    assert should_use_phase(_Stub(True), GenerateConfig()) is True  # type: ignore[arg-type]
+    assert should_use_phase(_Stub(False), GenerateConfig()) is False  # type: ignore[arg-type]
 
     # Explicit True forces on for any model
-    assert _should_use_phase(_Stub(False), GenerateConfig(openai_phase=True)) is True
+    assert (
+        should_use_phase(_Stub(False), GenerateConfig(openai_phase=True))  # type: ignore[arg-type]
+        is True
+    )
 
     # Explicit False forces off even for gpt-5.4+
-    assert _should_use_phase(_Stub(True), GenerateConfig(openai_phase=False)) is False
+    assert (
+        should_use_phase(_Stub(True), GenerateConfig(openai_phase=False))  # type: ignore[arg-type]
+        is False
+    )
+
+    # model_info=None with auto defaults to off
+    assert should_use_phase(None, GenerateConfig()) is False
+    # model_info=None with explicit True still forces on
+    assert should_use_phase(None, GenerateConfig(openai_phase=True)) is True
 
 
 async def test_openai_responses_inputs_propagates_use_phase():

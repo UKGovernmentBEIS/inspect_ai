@@ -46,6 +46,7 @@ from .._openai_responses import (
     model_usage_from_compact_response,
     openai_responses_inputs,
     pad_tool_messages_for_token_counting,
+    should_use_phase,
 )
 from ._openai_batch import OpenAIBatcher
 from .util import (
@@ -305,8 +306,13 @@ class OpenAIAPI(ModelAPI):
         that cannot be counted using tiktoken. Uses padding to handle
         orphaned tool calls/outputs for per-message counting.
         """
-        # Convert messages to OpenAI input format
-        input_items = await openai_responses_inputs(messages, self)
+        # Convert messages to OpenAI input format (match the phase shape
+        # that generate_responses will send so counts stay consistent).
+        input_items = await openai_responses_inputs(
+            messages,
+            self,
+            use_phase=should_use_phase(self, config or GenerateConfig()),
+        )
 
         # Apply padding to handle orphaned tool calls for per-message counting
         padded_items = pad_tool_messages_for_token_counting(input_items)
@@ -566,8 +572,12 @@ class OpenAIAPI(ModelAPI):
                 f"Native compaction requires the Responses API for {self.service_model_name()}"
             )
 
-        # Convert messages to OpenAI format
-        input_params = await openai_responses_inputs(input, self)
+        # Convert messages to OpenAI format (match the phase shape that
+        # generate_responses will send so compact operates on the same
+        # prompt shape).
+        input_params = await openai_responses_inputs(
+            input, self, use_phase=should_use_phase(self, config)
+        )
 
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
         try:

@@ -190,6 +190,20 @@ class ResponsesModelInfo(Protocol):
     def is_codex(self) -> bool: ...
 
 
+def should_use_phase(
+    model_info: ResponsesModelInfo | None, config: GenerateConfig
+) -> bool:
+    """Decide whether to populate the Responses API assistant `phase` field.
+
+    Explicit ``config.openai_phase`` wins; otherwise auto-enable for
+    GPT-5.4 and later. Shared between the generate, token-counting, and
+    compaction paths so they all see the same prompt shape.
+    """
+    if config.openai_phase is not None:
+        return config.openai_phase
+    return model_info is not None and model_info.is_gpt_5_4_plus()
+
+
 def _extract_compaction_from_content_data(
     content: str | list[Content],
 ) -> ResponseCompactionItemParamParam | None:
