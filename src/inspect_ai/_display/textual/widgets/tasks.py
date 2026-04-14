@@ -1,6 +1,6 @@
 import contextlib
 from datetime import datetime
-from typing import Iterator, cast
+from typing import Callable, Iterator, cast
 
 from rich.console import RenderableType
 from rich.text import Text
@@ -10,7 +10,7 @@ from textual.containers import Container, Horizontal, ScrollableContainer
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import ProgressBar, Static
+from textual.widgets import Link, ProgressBar, Static
 from typing_extensions import override
 
 from inspect_ai._display.core.results import task_metric
@@ -223,6 +223,11 @@ class TaskProgressView(Widget):
                 else [],
             ),
         )
+        self.cancel_link: Widget = (
+            CancelLink(task.profile.cancel_task)
+            if task.profile.cancel_task is not None
+            else Static()
+        )
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -249,6 +254,7 @@ class TaskProgressView(Widget):
             yield self.metrics_display
             yield Clock()
             yield self.view_log_link
+            yield self.cancel_link
 
         yield self.task_detail
 
@@ -271,6 +277,7 @@ class TaskProgressView(Widget):
             self.query_one(Clock).stop()
         except NoMatches:
             pass
+        self.cancel_link.display = False
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
@@ -382,3 +389,15 @@ class TaskProgress(Progress):
     def complete(self) -> None:
         if self.progress_bar.total is not None:
             self.progress_bar.update(progress=self.progress_bar.total)
+
+
+class CancelLink(Link):
+    def __init__(self, cancel_task: Callable[[], None]) -> None:
+        super().__init__("[Cancel]")
+        self._cancel_task = cancel_task
+
+    def on_click(self) -> None:
+        self._cancel_task()
+
+    def action_open_link(self) -> None:
+        return None

@@ -52,6 +52,7 @@ class TaskProfile:
     tags: list[str] | None
     log_location: str
     task_id: str
+    cancel_task: Callable[[], None] | None
 
 
 @dataclass

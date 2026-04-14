@@ -305,7 +305,9 @@ async def run_single(tasks: list[TaskRunOptions], debug_errors: bool) -> list[Ev
             async with anyio.create_task_group() as tg:
 
                 async def run_task(index: int) -> None:
-                    result = await task_run(tasks[index])
+                    # In run_single all tasks share a task group, so we don't want to cancel the entire group.
+                    # Instead, do not support cancel for run_single.
+                    result = await task_run(tasks[index], cancel_tg=None)
                     results.append((index, result))
 
                 for i in range(0, len(tasks)):
@@ -403,7 +405,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                             ) -> Callable[[], Awaitable[None]]:
                                 async def run_task() -> None:
                                     nonlocal result
-                                    result = await task_run(options)
+                                    result = await task_run(options, cancel_tg=tg)
                                     # Store result with its original index
                                     results.append((idx, result))
 
@@ -570,7 +572,7 @@ async def run_task_retry_attempts(
                             ) -> Callable[[], Awaitable[None]]:
                                 async def run_task() -> None:
                                     nonlocal result
-                                    result = await task_run(options)
+                                    result = await task_run(options, cancel_tg=tg)
                                     results[idx] = result
 
                                 return run_task
