@@ -13,6 +13,7 @@ from textual.widgets import Static
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import (
+    content_display,
     set_transcript_markdown_options,
     transcript_function,
     transcript_markdown,
@@ -406,13 +407,13 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
 
         # deal with plain text or with content blocks
         if isinstance(message.content, str):
-            content.extend([transcript_markdown(message.text.strip(), escape=True)])
+            content.extend(content_display(message.text.strip()))
         else:
             for c in message.content:
                 if isinstance(c, ContentReasoning):
                     content.extend(transcript_reasoning(c))
                 elif isinstance(c, ContentText):
-                    content.extend([transcript_markdown(c.text.strip(), escape=True)])
+                    content.extend(content_display(c.text.strip()))
 
     return content
 

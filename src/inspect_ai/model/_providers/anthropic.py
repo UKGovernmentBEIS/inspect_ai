@@ -374,10 +374,15 @@ class AnthropicAPI(ModelAPI):
                 tools_param,
                 mcp_servers_param,
                 messages,
+                cache_prompt,
             ) = await self.resolve_chat_input(input, tools, config)
 
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
+
+            # automatic caching for messages (system/tools use explicit breakpoints)
+            if cache_prompt:
+                request["cache_control"] = {"type": "ephemeral"}
 
             # system messages and tools
             if system_param is not None:
@@ -769,12 +774,14 @@ class AnthropicAPI(ModelAPI):
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
-                params["thinking"] = dict(type="adaptive")
+                params["thinking"] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)
             else:
                 params["thinking"] = dict(
-                    type="enabled", budget_tokens=config.reasoning_tokens
+                    type="enabled",
+                    budget_tokens=config.reasoning_tokens,
+                    display="summarized",
                 )
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
@@ -1058,6 +1065,7 @@ class AnthropicAPI(ModelAPI):
         list["ToolParamDef"],
         list[BetaRequestMCPServerURLDefinitionParam],
         list[MessageParam],
+        bool,
     ]:
         # Convert orphaned tool results to text messages before processing
         # (handles case where native compaction summarized away tool_use blocks)
@@ -1104,11 +1112,7 @@ class AnthropicAPI(ModelAPI):
 
         # add caching directives if necessary
         cache_prompt = (
-            config.cache_prompt
-            if isinstance(config.cache_prompt, bool)
-            else True
-            if len(tools_params)
-            else False
+            config.cache_prompt if isinstance(config.cache_prompt, bool) else True
         )
 
         # only certain claude models qualify
@@ -1128,21 +1132,27 @@ class AnthropicAPI(ModelAPI):
             # tools
             if tools_params:
                 add_cache_control(tools_params[-1])
-            # last 2 user messages
-            user_message_params = list(
-                filter(lambda m: m["role"] == "user", reversed(message_params))
-            )
-            for message in user_message_params[:2]:
-                if isinstance(message["content"], str):
-                    text_param = TextBlockParam(type="text", text=message["content"])
-                    add_cache_control(text_param)
-                    message["content"] = [text_param]
-                else:
-                    content = list(message["content"])
-                    add_cache_control(cast(dict[str, Any], content[-1]))
+            # mark the second-to-last block. auto-cache marks the last; this
+            # write gives lookback a fallback when that block changes (RAG,
+            # scorers, approvers, branching evals). harmless extra write for
+            # append-only growth where auto-cache alone suffices.
+            if message_params:
+                last_content = message_params[-1]["content"]
+                if isinstance(last_content, list) and len(last_content) >= 2:
+                    add_cache_control(cast(dict[str, Any], last_content[-2]))
+                elif len(message_params) >= 2:
+                    prev_content = message_params[-2]["content"]
+                    if isinstance(prev_content, list) and prev_content:
+                        add_cache_control(cast(dict[str, Any], prev_content[-1]))
 
         # return chat input
-        return system_param, tools_params, mcp_server_params, message_params
+        return (
+            system_param,
+            tools_params,
+            mcp_server_params,
+            message_params,
+            cache_prompt,
+        )
 
     def partition_tools(
         self,

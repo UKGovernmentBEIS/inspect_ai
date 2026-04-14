@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
-from urllib.parse import urlparse
+from urllib.parse import quote_from_bytes, urlparse
 
 import fsspec  # type: ignore  # type: ignore
 from fsspec.core import split_protocol  # type: ignore  # type: ignore
@@ -392,9 +392,12 @@ def to_uri(path_or_uri: str) -> str:
         # Already has a scheme, return as is
         return path_or_uri
 
-    # It's a file path, convert to URI
+    # It's a file path, convert to URI.
+    # Note: Path.as_uri() encodes @ as %40, but @ is valid in URI path
+    # components (RFC 3986) and the encoded form breaks round-tripping
+    # through filesystem()/local_path().
     path_obj = Path(path_or_uri).absolute()
-    return path_obj.as_uri()
+    return "file://" + quote_from_bytes(bytes(path_obj), safe="/:@")
 
 
 def local_path(filename: str) -> str:

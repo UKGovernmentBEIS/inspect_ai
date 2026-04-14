@@ -112,7 +112,7 @@ In combination these optimizations yield huge improvements in log file size. For
 
 To try out these changes, install the development version of Inspect from GitHub with:
 
-```python
+```bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 
@@ -586,7 +586,7 @@ $ inspect log list --json --status success
 $ inspect log list --json --status error
 ```
 
-You can use the `--retryable` option to list only logs that are [retryable](#eval-retries)
+You can use the `--retryable` option to list only logs that are [retryable](handling-errors.qmd#eval-retries)
 
 ``` bash
 $ inspect log list --json --retryable
