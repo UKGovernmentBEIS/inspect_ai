@@ -360,6 +360,10 @@ def view_server_app(
         # get sync info
         after_event_id = query_param_optional("last-event-id", request, int)
         after_attachment_id = query_param_optional("after-attachment-id", request, int)
+        after_message_pool_id = query_param_optional(
+            "after-message-pool-id", request, int
+        )
+        after_call_pool_id = query_param_optional("after-call-pool-id", request, int)
 
         # get samples and responsd
         buffer = sample_buffer(file)
@@ -368,6 +372,8 @@ def view_server_app(
             epoch=epoch,
             after_event_id=after_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
 
         # respond

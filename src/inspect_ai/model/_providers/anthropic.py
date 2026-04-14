@@ -774,12 +774,14 @@ class AnthropicAPI(ModelAPI):
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
-                params["thinking"] = dict(type="adaptive")
+                params["thinking"] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)
             else:
                 params["thinking"] = dict(
-                    type="enabled", budget_tokens=config.reasoning_tokens
+                    type="enabled",
+                    budget_tokens=config.reasoning_tokens,
+                    display="summarized",
                 )
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
@@ -1130,6 +1132,18 @@ class AnthropicAPI(ModelAPI):
             # tools
             if tools_params:
                 add_cache_control(tools_params[-1])
+            # mark the second-to-last block. auto-cache marks the last; this
+            # write gives lookback a fallback when that block changes (RAG,
+            # scorers, approvers, branching evals). harmless extra write for
+            # append-only growth where auto-cache alone suffices.
+            if message_params:
+                last_content = message_params[-1]["content"]
+                if isinstance(last_content, list) and len(last_content) >= 2:
+                    add_cache_control(cast(dict[str, Any], last_content[-2]))
+                elif len(message_params) >= 2:
+                    prev_content = message_params[-2]["content"]
+                    if isinstance(prev_content, list) and prev_content:
+                        add_cache_control(cast(dict[str, Any], prev_content[-1]))
 
         # return chat input
         return (
