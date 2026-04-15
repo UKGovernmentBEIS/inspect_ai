@@ -104,6 +104,7 @@ def eval_set(
     retry_wait: float | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    retry_immediate: bool | None = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
@@ -170,6 +171,7 @@ def eval_set(
             (defaults to 1.0, which results in no reduction).
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
+        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -263,6 +265,15 @@ def eval_set(
     """
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
+    num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    task_retry_attempts = num_retry_attempts if retry_immediate else 0
+
+    if retry_immediate and num_retry_attempts == 0:
+        logger.warning(
+            "retry_immediate=True has no effect when retry_attempts=0; "
+            "no task-level retries will be performed."
+        )
+
     # helper function to run a set of evals
     def run_eval(
         eval_set_id: str,
@@ -319,6 +330,7 @@ def eval_set(
             log_header_only=True,
             score=score,
             eval_set_id=eval_set_id,
+            task_retry_attempts=task_retry_attempts,
             **kwargs,
         )
 
@@ -505,7 +517,7 @@ def eval_set(
         retry=retry_if_not_result(all_evals_succeeded),
         retry_error_callback=return_last_value,
         reraise=True,
-        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
+        stop=stop_after_attempt(num_retry_attempts),
         wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
@@ -515,8 +527,12 @@ def eval_set(
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-        # execute w/ retry
-        results = retry(try_eval)
+        if retry_immediate:
+            # retry handled by eval
+            results = try_eval()
+        else:
+            # execute w/ retry
+            results = retry(try_eval)
 
         # final sweep to remove failed log files
         if retry_cleanup:

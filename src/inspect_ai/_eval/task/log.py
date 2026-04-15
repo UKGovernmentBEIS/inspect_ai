@@ -252,6 +252,21 @@ class TaskLogger:
             log_shared=self.eval.config.log_shared,
         )
 
+    async def reinit(self) -> None:
+        """Reset this logger for a retry attempt with a fresh eval entry."""
+        created = iso_now()
+        if created <= self.eval.created:
+            # Ensure the filename is unique by bumping past the previous timestamp
+            from datetime import datetime, timedelta, timezone
+
+            dt = datetime.fromisoformat(self.eval.created) + timedelta(seconds=1)
+            created = dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+        self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=created))
+        self._samples_completed = 0
+        self.flush_pending = []
+        self._buffer_db = None
+        await self.init()
+
     @property
     def location(self) -> str:
         return self._location

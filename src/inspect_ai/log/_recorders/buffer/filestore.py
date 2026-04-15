@@ -25,6 +25,8 @@ class Segment(BaseModel):
     id: int
     last_event_id: int
     last_attachment_id: int
+    last_message_pool_id: int = 0
+    last_call_pool_id: int = 0
 
 
 class SegmentFile(BaseModel):
@@ -159,6 +161,8 @@ class SampleBufferFilestore(SampleBuffer):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
+        after_message_pool_id: int | None = None,
+        after_call_pool_id: int | None = None,
     ) -> SampleData | None:
         # read the manifest
         manifest = self.read_manifest()
@@ -178,9 +182,17 @@ class SampleBufferFilestore(SampleBuffer):
             return None
 
         # determine which segments we need to return in order to
-        # satisfy the after_event_id and after_attachment_id
-        after_event_id = after_event_id or -1
-        after_attachment_id = after_attachment_id or -1
+        # satisfy the cursor parameters
+        after_event_id = after_event_id if after_event_id is not None else -1
+        after_attachment_id = (
+            after_attachment_id if after_attachment_id is not None else -1
+        )
+        after_message_pool_id = (
+            after_message_pool_id if after_message_pool_id is not None else -1
+        )
+        after_call_pool_id = (
+            after_call_pool_id if after_call_pool_id is not None else -1
+        )
         segments = [
             segment for segment in manifest.segments if segment.id in sample.segments
         ]
@@ -189,19 +201,39 @@ class SampleBufferFilestore(SampleBuffer):
             for segment in segments
             if segment.last_event_id > after_event_id
             or segment.last_attachment_id > after_attachment_id
+            or segment.last_message_pool_id > after_message_pool_id
+            or segment.last_call_pool_id > after_call_pool_id
         ]
 
         # collect data from the segments
         try:
-            sample_data = SampleData(events=[], attachments=[])
+            sample_data = SampleData(
+                events=[], attachments=[], message_pool=[], call_pool=[]
+            )
             for segment in segments:
                 data = self.read_segment_data(segment.id, id, epoch)
                 sample_data.events.extend(data.events)
                 sample_data.attachments.extend(data.attachments)
+                sample_data.message_pool.extend(data.message_pool)
+                sample_data.call_pool.extend(data.call_pool)
         except FileNotFoundError:
             # the sample might complete while this is running, in which case
             # we'll just return None
             return None
+
+        # The segment-level OR-filter above includes entire segments when any
+        # cursor type has new data, so individual items already seen by the
+        # client may be included. Post-filter to exclude them.
+        sample_data.events = [e for e in sample_data.events if e.id > after_event_id]
+        sample_data.attachments = [
+            a for a in sample_data.attachments if a.id > after_attachment_id
+        ]
+        sample_data.message_pool = [
+            m for m in sample_data.message_pool if m.id > after_message_pool_id
+        ]
+        sample_data.call_pool = [
+            c for c in sample_data.call_pool if c.id > after_call_pool_id
+        ]
 
         return sample_data
 
