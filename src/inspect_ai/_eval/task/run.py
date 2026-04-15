@@ -563,18 +563,33 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 )
             )
 
-        except anyio.get_cancelled_exc_class():
+        except anyio.get_cancelled_exc_class() as ex:
             with anyio.CancelScope(shield=True):
                 # collect eval data
                 collect_eval_data(stats)
 
-                # finish w/ cancelled status
-                eval_log = await logger.log_finish(
-                    "cancelled", stats, results, reductions
-                )
-
-                # display task cancelled
-                td.complete(TaskCancelled(logger.samples_completed, stats))
+                if task_cancel and task_cancel.cancel_type is not None:
+                    # User-initiated cancel (abort/retry) — log as error so
+                    # eval_set doesn't interpret it as external cancellation
+                    exc_type = ex.__class__
+                    error = eval_error(ex, exc_type, ex, ex.__traceback__)
+                    eval_log = await logger.log_finish(
+                        "error", stats, results, reductions, error
+                    )
+                    td.complete(
+                        TaskError(
+                            logger.samples_completed,
+                            exc_type,
+                            ex,
+                            ex.__traceback__,
+                        )
+                    )
+                else:
+                    # External cancellation (ctrl+c)
+                    eval_log = await logger.log_finish(
+                        "cancelled", stats, results, reductions
+                    )
+                    td.complete(TaskCancelled(logger.samples_completed, stats))
 
         except BaseException as ex:
             if options.debug_errors:

@@ -45,6 +45,7 @@ CancelType = Literal["abort", "retry"] | None
 class TaskCancel:
     can_retry: bool
     cancel_task: Callable[[CancelType], None]
+    cancel_type: CancelType = None
 
 
 @dataclass

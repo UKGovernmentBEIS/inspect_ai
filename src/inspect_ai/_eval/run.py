@@ -570,10 +570,16 @@ async def run_task_retry_attempts(
                             # late/by reference binding behavior.
                             # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
 
+                            task_cancel = TaskCancel(
+                                can_retry=pending_task.retries_remaining > 0,
+                                cancel_task=lambda _: None,
+                            )
+
                             def cancel_task(
                                 type: CancelType,
                                 cancel_tg: TaskGroup = tg,
                                 seq: int = task_seq,
+                                tc: TaskCancel = task_cancel,
                             ) -> None:
                                 nonlocal cancel_type, task_seq
                                 if seq != task_seq:  # noqa: B023
@@ -582,13 +588,11 @@ async def run_task_retry_attempts(
                                     )
                                     return
                                 cancel_type = type
+                                tc.cancel_type = type
                                 if type:
                                     cancel_tg.cancel_scope.cancel()
 
-                            task_cancel = TaskCancel(
-                                can_retry=pending_task.retries_remaining > 0,
-                                cancel_task=cancel_task,
-                            )
+                            task_cancel.cancel_task = cancel_task
 
                             def create_task_runner(
                                 options: TaskRunOptions = task_options,
@@ -601,6 +605,9 @@ async def run_task_retry_attempts(
                                         options, task_cancel=task_cancel
                                     )
                                     results[idx] = result
+                                    log.info(
+                                        f"results[{idx}] = status={result.status} location={result.location}"
+                                    )
 
                                 return run_task
 
@@ -622,19 +629,17 @@ async def run_task_retry_attempts(
                 if not result:
                     break
                 elif result.status == "cancelled":
-                    # if cancelled with a retryable type and we have retries remaining, retry
-                    if cancel_type == "retry":
-                        log.info(
-                            f"Task '{task_options.task.name}' was cancelled with retry requested — {pending_task.retries_remaining} retries remaining"
-                        )
-                        retry = True
-                    elif cancel_type == "abort":
-                        log.info(
-                            f"Task '{task_options.task.name}' was cancelled with abort requested"
-                        )
-                    else:
-                        # user cancelled (ctrl+c) - stop the worker
-                        break
+                    # external cancellation (ctrl+c) - stop the worker
+                    break
+                elif cancel_type == "retry":
+                    log.info(
+                        f"Task '{task_options.task.name}' was cancelled with retry requested — {pending_task.retries_remaining} retries remaining"
+                    )
+                    retry = True
+                elif cancel_type == "abort":
+                    log.info(
+                        f"Task '{task_options.task.name}' was cancelled with abort requested"
+                    )
                 # retry on error if retries remain
                 elif result.status == "error":
                     retry = True
@@ -731,6 +736,8 @@ async def run_task_retry_attempts(
             clear_task_screen()
 
         # Return results ordered by original task index
+        for k, v in sorted(results.items()):
+            log.info(f"final results[{k}] = status={v.status} location={v.location}")
         return [v for k, v in sorted(results.items())]
 
 
