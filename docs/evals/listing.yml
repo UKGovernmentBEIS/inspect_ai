@@ -1303,8 +1303,10 @@
   description: |
     A popular benchmark for measuring the capabilities of agents and language models to perform realistic, end-to-end challenges in containerized environments.
     It measures whether an agent can execute workflows that resemble real engineering, data, devops, and software-automation tasks, not just text generation.
+    This benchmark is now run via Inspect Harbor rather than the removed inspect_evals implementation.
   path: src/inspect_evals/terminal_bench_2
   arxiv: https://www.tbench.ai/
+  url: https://github.com/meridianlabs-ai/inspect_harbor
   group: Coding
   contributors: ["iphan"]
   tasks:
