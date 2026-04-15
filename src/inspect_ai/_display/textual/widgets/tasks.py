@@ -223,11 +223,7 @@ class TaskProgressView(Widget):
                 else [],
             ),
         )
-        self.cancel_link: Widget = (
-            CancelLink(task.profile.cancel_task)
-            if task.profile.cancel_task is not None
-            else Static()
-        )
+        self.cancel_link = CancelLink(task.profile.cancel_task)
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -277,7 +273,7 @@ class TaskProgressView(Widget):
             self.query_one(Clock).stop()
         except NoMatches:
             pass
-        self.cancel_link.display = False
+        self.cancel_link.complete()
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
@@ -392,12 +388,32 @@ class TaskProgress(Progress):
 
 
 class CancelLink(Link):
-    def __init__(self, cancel_task: Callable[[], None]) -> None:
-        super().__init__("[Cancel]")
+    LABEL = "[Cancel]"
+
+    DEFAULT_CSS = """
+    CancelLink.completed {
+        text-style: none;
+        &:hover { text-style: none; }
+        &:focus { text-style: none; }
+    }
+    """
+
+    def __init__(self, cancel_task: Callable[[], None] | None) -> None:
+        super().__init__(self.LABEL if cancel_task is not None else "")
         self._cancel_task = cancel_task
 
     def on_click(self) -> None:
-        self._cancel_task()
+        if self._cancel_task is not None:
+            self._cancel_task()
 
     def action_open_link(self) -> None:
         return None
+
+    def complete(self) -> None:
+        if self._cancel_task is not None:
+            self._cancel_task = None
+            self.update(" " * len(self.LABEL))
+            if self.has_focus:
+                self.app.set_focus(None)
+            self.add_class("completed")
+            self.can_focus = False
