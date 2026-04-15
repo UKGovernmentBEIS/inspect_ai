@@ -182,11 +182,26 @@ class ResponsesModelInfo(Protocol):
     def is_gpt_5_plus(self) -> bool: ...
     def is_gpt_5_pro(self) -> bool: ...
     def is_gpt_5_chat(self) -> bool: ...
+    def is_gpt_5_4_plus(self) -> bool: ...
     def is_o_series(self) -> bool: ...
     def is_o1(self) -> bool: ...
     def is_o3_mini(self) -> bool: ...
     def is_deep_research(self) -> bool: ...
     def is_codex(self) -> bool: ...
+
+
+def should_use_phase(
+    model_info: ResponsesModelInfo | None, config: GenerateConfig
+) -> bool:
+    """Decide whether to populate the Responses API assistant `phase` field.
+
+    Explicit ``config.openai_phase`` wins; otherwise auto-enable for
+    GPT-5.4 and later. Shared between the generate, token-counting, and
+    compaction paths so they all see the same prompt shape.
+    """
+    if config.openai_phase is not None:
+        return config.openai_phase
+    return model_info is not None and model_info.is_gpt_5_4_plus()
 
 
 def _extract_compaction_from_content_data(
@@ -220,17 +235,23 @@ def _extract_compaction_from_content_data(
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model_info: ResponsesModelInfo | None = None
+    messages: list[ChatMessage],
+    model_info: ResponsesModelInfo | None = None,
+    use_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model_info)
+        for item in await _openai_input_item_from_chat_message(
+            message, model_info, use_phase
+        )
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model_info: ResponsesModelInfo | None = None
+    message: ChatMessage,
+    model_info: ResponsesModelInfo | None = None,
+    use_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -251,7 +272,9 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message, model_info)
+        return _openai_input_items_from_chat_message_assistant(
+            message, model_info, use_phase
+        )
     elif message.role == "tool":
         # see if we need to recover the call id for the computer tool calls
         responses_tool_call = assistant_internal().tool_calls.get(
@@ -1012,7 +1035,9 @@ def tool_use_to_web_search_param(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant, model_info: ResponsesModelInfo | None = None
+    message: ChatMessageAssistant,
+    model_info: ResponsesModelInfo | None = None,
+    use_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1021,6 +1046,12 @@ def _openai_input_items_from_chat_message_assistant(
     `_chat_message_assistant_from_openai_response`. It relies on the `internal`
     field of the `ChatMessageAssistant` to help it provide the proper id's the
     items in the returned list.
+
+    When ``use_phase`` is ``True``, assistant text content that does not
+    already carry a ``MESSAGE_PHASE`` value in ``internal`` is annotated
+    with ``"commentary"`` when the message contains tool calls, or
+    ``"final_answer"`` otherwise. This matches OpenAI's GPT-5.4 guidance
+    for long-running or tool-heavy Responses API flows.
     """
     # we want to prevent yielding output messages in the case where we have an
     # 'internal' field (so the message came from the model API as opposed to
@@ -1167,6 +1198,12 @@ def _openai_input_items_from_chat_message_assistant(
                         message_phase = (
                             phase_value if isinstance(phase_value, str) else None
                         )
+
+                # auto-assign phase when requested and not already set
+                if message_phase is None and use_phase:
+                    message_phase = (
+                        "commentary" if message.tool_calls else "final_answer"
+                    )
 
                 # see if we need to flush d
                 if (

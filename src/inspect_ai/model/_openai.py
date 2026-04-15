@@ -96,6 +96,17 @@ def is_gpt_5_model(model_name: str) -> bool:
     return "gpt-5" in model_name.lower()
 
 
+def is_gpt_5_4_plus_model(model_name: str) -> bool:
+    """Whether the model is gpt-5.4 or a later gpt-5.x minor version.
+
+    Used to decide whether to auto-populate the assistant-message
+    ``phase`` field in the Responses API, which OpenAI introduced
+    with gpt-5.4.
+    """
+    match = re.search(r"gpt-5\.(\d+)", model_name.lower())
+    return match is not None and int(match.group(1)) >= 4
+
+
 def is_o_series_model(model_name: str) -> bool:
     name = model_name.lower()
     if bool(re.match(r"^o\d+", name)):
