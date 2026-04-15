@@ -308,7 +308,7 @@ async def run_single(tasks: list[TaskRunOptions], debug_errors: bool) -> list[Ev
                 async def run_task(index: int) -> None:
                     # In run_single all tasks share a task group, so we don't want to cancel the entire group.
                     # Instead, do not support cancel for run_single.
-                    result = await task_run(tasks[index], cancel_tg=None)
+                    result = await task_run(tasks[index], task_cancel=None)
                     results.append((index, result))
 
                 for i in range(0, len(tasks)):
@@ -400,13 +400,33 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                             # task_options. Otherwise, we suffer from Python's
                             # late/by reference binding behavior.
                             # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+
+                            task_cancel = TaskCancel(
+                                can_retry=False,
+                                cancel_task=lambda _: None,
+                            )
+
+                            def cancel_task(
+                                type: CancelType,
+                                cancel_tg: TaskGroup = tg,
+                                tc: TaskCancel = task_cancel,
+                            ) -> None:
+                                tc.cancel_type = type
+                                if type:
+                                    cancel_tg.cancel_scope.cancel()
+
+                            task_cancel.cancel_task = cancel_task
+
                             def create_task_runner(
                                 options: TaskRunOptions = task_options,
                                 idx: int = original_index,
+                                task_cancel: TaskCancel = task_cancel,
                             ) -> Callable[[], Awaitable[None]]:
                                 async def run_task() -> None:
                                     nonlocal result
-                                    result = await task_run(options, cancel_tg=tg)
+                                    result = await task_run(
+                                        options, task_cancel=task_cancel
+                                    )
                                     # Store result with its original index
                                     results.append((idx, result))
 
