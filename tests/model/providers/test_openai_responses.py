@@ -864,14 +864,10 @@ def test_should_use_phase_config_overrides_auto_detection():
     assert should_use_phase(_Stub(False), GenerateConfig()) is False
 
     # Explicit True forces on for any model
-    assert (
-        should_use_phase(_Stub(False), GenerateConfig(openai_phase=True)) is True
-    )
+    assert should_use_phase(_Stub(False), GenerateConfig(openai_phase=True)) is True
 
     # Explicit False forces off even for gpt-5.4+
-    assert (
-        should_use_phase(_Stub(True), GenerateConfig(openai_phase=False)) is False
-    )
+    assert should_use_phase(_Stub(True), GenerateConfig(openai_phase=False)) is False
 
     # model_info=None with auto defaults to off
     assert should_use_phase(None, GenerateConfig()) is False
