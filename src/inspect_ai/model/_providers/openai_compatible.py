@@ -39,6 +39,7 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    OpenAIResponseError,
     messages_to_openai,
     model_output_from_openai,
     needs_max_completion_tokens,
@@ -232,6 +233,17 @@ class OpenAICompatibleAPI(ModelAPI):
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
+
+                # guard against the openai SDK returning a non-ChatCompletion
+                # (this can occur when the server returns a 200 with a body
+                # that parses as JSON but is not a JSON object — e.g. a bare
+                # string — which openai's construct_type passes through as-is)
+                if not isinstance(completion, ChatCompletion):
+                    raise OpenAIResponseError(
+                        "server_error",
+                        f"Unexpected non-ChatCompletion response: {completion!r}",
+                    )
+
                 response = completion.model_dump()
                 model_call.set_response(
                     response, self._http_hooks.end_request(request_id)

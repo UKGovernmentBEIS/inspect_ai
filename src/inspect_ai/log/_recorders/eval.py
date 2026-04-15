@@ -94,8 +94,8 @@ class EvalRecorder(FileRecorder):
     @override
     def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int:
         if high_throughput:
-            # High-throughput: flush ~10 times over the run
-            return max(10, sample_count // 10)
+            # High-throughput: flush ~20 times over the run
+            return max(10, sample_count // 20)
         else:
             # .eval files are 5-8x smaller than .json files so we
             # are much less worried about flushing frequently
