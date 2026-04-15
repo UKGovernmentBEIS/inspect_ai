@@ -784,6 +784,14 @@ def eval_command(
     envvar="INSPECT_EVAL_RETRY_ATTEMPS",
 )
 @click.option(
+    "--retry-immediate",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored.",
+    envvar="INSPECT_EVAL_RETRY_IMMEDIATE",
+)
+@click.option(
     "--retry-wait",
     type=int,
     help="Time in seconds wait between attempts, increased exponentially. "
@@ -840,6 +848,7 @@ def eval_set_command(
     ctx: click.Context,
     tasks: tuple[str, ...] | None,
     retry_attempts: int | None,
+    retry_immediate: bool | None,
     retry_wait: int | None,
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
@@ -997,6 +1006,7 @@ def eval_set_command(
         no_score_display=no_score_display,
         is_eval_set=True,
         retry_attempts=retry_attempts,
+        retry_immediate=retry_immediate,
         retry_wait=retry_wait,
         retry_connections=retry_connections,
         retry_cleanup=not no_retry_cleanup,
@@ -1067,6 +1077,7 @@ def eval_exec(
     no_score_display: bool | None,
     is_eval_set: bool = False,
     retry_attempts: int | None = None,
+    retry_immediate: bool | None = None,
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
@@ -1189,6 +1200,7 @@ def eval_exec(
     # evaluate
     if is_eval_set:
         params["retry_attempts"] = retry_attempts
+        params["retry_immediate"] = retry_immediate
         params["retry_wait"] = retry_wait
         params["retry_connections"] = retry_connections
         params["retry_cleanup"] = retry_cleanup

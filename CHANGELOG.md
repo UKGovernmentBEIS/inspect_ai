@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval Set: Display explicit `--id` in task panel headers when provided.
+- Eval Set: Add `--retry-immediate` option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
 - Eval Logs: Condense sample events when writing logs.
 - Eval Logs: Enable zstd compression by default for writing logs.
@@ -18,6 +19,7 @@
 - Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
 - Computer Use: Restore `sudo` package to computer tool Docker image.
 - OpenAI Compatible: Pad response with content block when only content is reasoning.
+- OpenAI Compatible: Return `server_error` when server returns non-ChatCompletion (which can occur in some cases for OpenRouter).
 - Anthropic: Pass `display="summarized"` in thinking configuration.
 - Anthropic: Use request level "auto" caching mode for improved prompt caching.
 - vLLM: Allow vLLM provider to restart after close().
@@ -27,6 +29,7 @@
 - Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
 - Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
 - Inspect View: Introduce new 'Tasks' view of log directory which shows tasks recursively as a flat list.
+- Inspect View: Fix error when viewing the API information for a running Model Event.
 - Bugfix: Fix `eval_results()` producing identical aggregate scores   
   for multiple instances of the same scorer due to incorrect name
   resolution using dimension names instead of scorer names.           

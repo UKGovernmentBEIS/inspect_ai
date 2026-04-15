@@ -337,8 +337,11 @@ def tasks_live_status(
     console = rich.get_console()
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
-    # compute completed tasks
-    completed = sum(1 for task in tasks if task.result is not None)
+    # Only count the last task per task_id (retries supersede earlier attempts)
+    last_by_id: dict[str, TaskStatus] = {}
+    for task in tasks:
+        last_by_id[task.profile.task_id] = task
+    completed = sum(1 for task in last_by_id.values() if task.result is not None)
 
     # get config
     config = task_config(tasks[0].profile, generate_config=False, style=theme.light)
