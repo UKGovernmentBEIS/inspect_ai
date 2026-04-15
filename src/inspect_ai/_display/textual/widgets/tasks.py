@@ -1,6 +1,6 @@
 import contextlib
 from datetime import datetime
-from typing import Callable, Iterator, cast
+from typing import Iterator, cast
 
 from rich.console import RenderableType
 from rich.text import Text
@@ -9,8 +9,9 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, ScrollableContainer
 from textual.css.query import NoMatches
 from textual.reactive import reactive
+from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Link, ProgressBar, Static
+from textual.widgets import Button, Link, ProgressBar, Static
 from typing_extensions import override
 
 from inspect_ai._display.core.results import task_metric
@@ -24,7 +25,9 @@ from inspect_ai._util.vscode import (
 )
 
 from ...core.display import (
+    CancelType,
     Progress,
+    TaskCancel,
     TaskCancelled,
     TaskDisplay,
     TaskDisplayMetric,
@@ -223,7 +226,7 @@ class TaskProgressView(Widget):
                 else [],
             ),
         )
-        self.cancel_link = CancelLink(task.profile.cancel_task)
+        self.cancel_link = CancelLink(task.profile.task_cancel)
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -398,22 +401,76 @@ class CancelLink(Link):
     }
     """
 
-    def __init__(self, cancel_task: Callable[[], None] | None) -> None:
-        super().__init__(self.LABEL if cancel_task is not None else "")
-        self._cancel_task = cancel_task
+    def __init__(self, task_cancel: TaskCancel | None) -> None:
+        super().__init__(self.LABEL if task_cancel is not None else "")
+        self._task_cancel = task_cancel
 
     def on_click(self) -> None:
-        if self._cancel_task is not None:
-            self._cancel_task()
+        if self._task_cancel is None:
+            return
+        if self._task_cancel.can_retry:
+            self.app.push_screen(CancelDialog(), callback=self._task_cancel.cancel_task)
+        else:
+            self._task_cancel.cancel_task("abort")
 
     def action_open_link(self) -> None:
         return None
 
     def complete(self) -> None:
-        if self._cancel_task is not None:
-            self._cancel_task = None
+        if self._task_cancel is not None:
+            self._task_cancel = None
             self.update(" " * len(self.LABEL))
             if self.has_focus:
                 self.app.set_focus(None)
             self.add_class("completed")
             self.can_focus = False
+
+
+class CancelDialog(ModalScreen[CancelType]):
+    DEFAULT_CSS = """
+    CancelDialog {
+        align: center middle;
+    }
+    #cancel-dialog {
+        width: 50;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: thick $border;
+    }
+    #cancel-dialog-title {
+        width: 100%;
+        content-align: center middle;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    #cancel-dialog-buttons {
+        width: 100%;
+        height: auto;
+        align: center middle;
+        margin-top: 1;
+    }
+    #cancel-dialog-buttons Button {
+        margin: 0 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Container(id="cancel-dialog"):
+            yield Static("Cancel Task", id="cancel-dialog-title")
+            with Horizontal(id="cancel-dialog-buttons"):
+                yield Button("Retry", id="cancel-retry", variant="warning")
+                yield Button("Abort", id="cancel-abort", variant="error")
+                yield Button("Continue", id="cancel-continue")
+
+    @on(Button.Pressed, "#cancel-retry")
+    def handle_retry(self) -> None:
+        self.dismiss("retry")
+
+    @on(Button.Pressed, "#cancel-abort")
+    def handle_abort(self) -> None:
+        self.dismiss("abort")
+
+    @on(Button.Pressed, "#cancel-continue")
+    def handle_continue(self) -> None:
+        self.dismiss(None)

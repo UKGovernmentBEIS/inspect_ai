@@ -21,7 +21,7 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -187,7 +187,7 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
     return plan
 
 
-async def task_run(options: TaskRunOptions, cancel_tg: TaskGroup | None) -> EvalLog:
+async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
         emit_task_start,
@@ -280,14 +280,6 @@ async def task_run(options: TaskRunOptions, cancel_tg: TaskGroup | None) -> Eval
     else:
         log_location = logger.location
 
-    task_canceled = False
-
-    def cancel_task() -> None:
-        nonlocal task_canceled
-        if cancel_tg is not None:
-            task_canceled = True
-            cancel_tg.cancel_scope.cancel()
-
     # create task profile for display
     profile = TaskProfile(
         name=options.display_name or task.name,
@@ -303,7 +295,7 @@ async def task_run(options: TaskRunOptions, cancel_tg: TaskGroup | None) -> Eval
         tags=tags,
         log_location=log_location,
         task_id=logger.eval.task_id,
-        cancel_task=cancel_task if cancel_tg else None,
+        task_cancel=task_cancel,
     )
 
     # set custom sandbox limits
@@ -571,44 +563,41 @@ async def task_run(options: TaskRunOptions, cancel_tg: TaskGroup | None) -> Eval
                 )
             )
 
-        except BaseException as ex:
+        except anyio.get_cancelled_exc_class():
             with anyio.CancelScope(shield=True):
-                if not task_canceled and isinstance(
-                    ex, anyio.get_cancelled_exc_class()
-                ):
-                    # collect eval data
-                    collect_eval_data(stats)
+                # collect eval data
+                collect_eval_data(stats)
 
-                    # finish w/ cancelled status
-                    eval_log = await logger.log_finish(
-                        "cancelled", stats, results, reductions
-                    )
+                # finish w/ cancelled status
+                eval_log = await logger.log_finish(
+                    "cancelled", stats, results, reductions
+                )
 
-                    # display task cancelled
-                    td.complete(TaskCancelled(logger.samples_completed, stats))
-                elif not task_canceled and options.debug_errors:
-                    raise
-                else:
-                    # get exception info
-                    type, value, traceback = sys.exc_info()
-                    type = type if type else BaseException
-                    value = value if value else ex
+                # display task cancelled
+                td.complete(TaskCancelled(logger.samples_completed, stats))
 
-                    # build eval error
-                    error = eval_error(ex, type, value, traceback)
+        except BaseException as ex:
+            if options.debug_errors:
+                raise
+            else:
+                # get exception info
+                type, value, traceback = sys.exc_info()
+                type = type if type else BaseException
+                value = value if value else ex
 
-                    # collect eval data
-                    collect_eval_data(stats)
+                # build eval error
+                error = eval_error(ex, type, value, traceback)
 
-                    # finish with error status
-                    eval_log = await logger.log_finish(
-                        "error", stats, results, reductions, error
-                    )
+                # collect eval data
+                collect_eval_data(stats)
 
-                    # display it
-                    td.complete(
-                        TaskError(logger.samples_completed, type, value, traceback)
-                    )
+                # finish with error status
+                eval_log = await logger.log_finish(
+                    "error", stats, results, reductions, error
+                )
+
+                # display it
+                td.complete(TaskError(logger.samples_completed, type, value, traceback))
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):
@@ -617,8 +606,6 @@ async def task_run(options: TaskRunOptions, cancel_tg: TaskGroup | None) -> Eval
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
-
-    assert eval_log is not None
 
     try:
         # Log file locations are emitted to the "new" hooks via the "task end" event,
