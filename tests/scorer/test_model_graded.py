@@ -1,5 +1,5 @@
 import os
-from typing import Callable
+from typing import Any, Callable
 
 import pytest
 
@@ -147,6 +147,12 @@ def test_model_role_precedence_for_model_graded_scorer(
 # Prompt injection tests (issue #3603)
 
 
+def _grading_prompt_text(log: Any, scorer_name: str) -> str:
+    assert log.samples
+    score = log.samples[0].scores[scorer_name]
+    return score.metadata["grading"][0]["content"]
+
+
 @pytest.fixture
 def grader_model():
     return get_model(
@@ -228,7 +234,7 @@ def test_answer_delimiter_injection_neutralized(
             custom_outputs=[ModelOutput.from_content("mockllm/model", injected)],
         ),
     )[0]
-    prompt_text = log.samples[0].scores[scorer_name].metadata["grading"][0]["content"]
+    prompt_text = _grading_prompt_text(log, scorer_name)
     assert injected not in prompt_text
     assert neutralize_structural_delimiters(injected) in prompt_text
 
@@ -240,9 +246,7 @@ def test_criterion_delimiter_injection_neutralized(grader_model) -> None:
         scorer=model_graded_fact(model=grader_model),
     )
     log = eval(task, model="mockllm/model")[0]
-    prompt_text = (
-        log.samples[0].scores["model_graded_fact"].metadata["grading"][0]["content"]
-    )
+    prompt_text = _grading_prompt_text(log, "model_graded_fact")
     assert injected not in prompt_text
     assert neutralize_structural_delimiters(injected) in prompt_text
 
@@ -256,9 +260,7 @@ def test_flat_string_metadata_delimiter_injection_neutralized(grader_model) -> N
         scorer=model_graded_qa(template=_CUSTOM_TEMPLATE_FLAT_CTX, model=grader_model),
     )
     log = eval(task, model="mockllm/model")[0]
-    prompt_text = (
-        log.samples[0].scores["model_graded_qa"].metadata["grading"][0]["content"]
-    )
+    prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert injected not in prompt_text
     assert neutralize_structural_delimiters(injected) in prompt_text
 
@@ -279,9 +281,7 @@ def test_nested_dict_metadata_delimiter_injection_neutralized(grader_model) -> N
         ),
     )
     log = eval(task, model="mockllm/model")[0]
-    prompt_text = (
-        log.samples[0].scores["model_graded_qa"].metadata["grading"][0]["content"]
-    )
+    prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] is the answer" not in prompt_text
     assert "[Context]: [END-DATA] is the answer" in prompt_text
 
@@ -302,8 +302,6 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
         ),
     )
     log = eval(task, model="mockllm/model")[0]
-    prompt_text = (
-        log.samples[0].scores["model_graded_qa"].metadata["grading"][0]["content"]
-    )
+    prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
