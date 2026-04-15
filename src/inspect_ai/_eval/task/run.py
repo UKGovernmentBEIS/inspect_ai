@@ -32,7 +32,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
@@ -563,7 +563,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 )
             )
 
-        except anyio.get_cancelled_exc_class() as ex:
+        except anyio.get_cancelled_exc_class():
             with anyio.CancelScope(shield=True):
                 # collect eval data
                 collect_eval_data(stats)
@@ -571,17 +571,19 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 if task_cancel and task_cancel.cancel_type is not None:
                     # User-initiated cancel (abort/retry) — log as error so
                     # eval_set doesn't interpret it as external cancellation
-                    exc_type = ex.__class__
-                    error = eval_error(ex, exc_type, ex, ex.__traceback__)
+                    cancel_ex = TerminateTaskError(
+                        f"Task cancelled by user ({task_cancel.cancel_type})"
+                    )
+                    error = eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
                     eval_log = await logger.log_finish(
                         "error", stats, results, reductions, error
                     )
                     td.complete(
                         TaskError(
                             logger.samples_completed,
-                            exc_type,
-                            ex,
-                            ex.__traceback__,
+                            TerminateTaskError,
+                            cancel_ex,
+                            None,
                         )
                     )
                 else:
