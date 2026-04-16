@@ -1,12 +1,14 @@
 import json
 import os
 import subprocess
+import tempfile
 import time
+from pathlib import Path
 from typing import Any, Dict
 
 import pytest
 
-from inspect_sandbox_tools._util.constants import SOCKET_PATH
+from inspect_sandbox_tools._util.constants import SOCKET_PATH, SOCKET_PATH_ENV
 
 
 def cleanup_socket():
@@ -37,17 +39,24 @@ def setup_and_teardown():
     cleanup_server_processes()
 
 
-def exec_rpc_request(request: Dict[str, Any], timeout: int = 10) -> Dict[str, Any]:
+def exec_rpc_request(
+    request: Dict[str, Any],
+    timeout: int = 10,
+    cwd: str | None = None,
+    env: Dict[str, str] | None = None,
+) -> Dict[str, Any]:
     """Execute an RPC request via the CLI and return the parsed response."""
     request_json = json.dumps(request)
 
+    run_env = {**os.environ, **(env or {})}
     result = subprocess.run(
         ["python", "-m", "src.inspect_sandbox_tools._cli.main", "exec"],
         input=request_json,
         text=True,
         capture_output=True,
         timeout=timeout,
-        cwd=os.getcwd(),
+        cwd=cwd or os.getcwd(),
+        env=run_env,
         check=False,
     )
 
@@ -141,3 +150,23 @@ def test_malformed_jsonrpc_request():
 
     # Should fail with validation error
     assert result.returncode != 0
+
+
+def test_custom_socket_path():
+    """Test that INSPECT_SANDBOX_TOOLS_SOCKET env var is respected."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        custom_socket = str(Path(tmpdir) / "custom.sock")
+
+        # Use a remote method to trigger server startup on the custom socket
+        response = exec_rpc_request(
+            {"jsonrpc": "2.0", "method": "bash_session_new_session", "id": 1},
+            env={SOCKET_PATH_ENV: custom_socket},
+        )
+
+        assert "result" in response
+        assert Path(custom_socket).exists(), (
+            "Server should have started on the custom socket path"
+        )
+        assert not SOCKET_PATH.exists(), (
+            "Default socket path should not have been created"
+        )
