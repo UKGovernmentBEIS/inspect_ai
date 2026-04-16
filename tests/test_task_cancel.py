@@ -8,7 +8,7 @@ import anyio
 from inspect_ai import Task
 from inspect_ai._display.core.display import TaskCancel
 from inspect_ai._eval.evalset import eval_set
-from inspect_ai._eval.run import task_run as original_task_run
+from inspect_ai._eval.task.run import task_run as original_task_run
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, solver
 
@@ -33,7 +33,7 @@ def test_abort_cancel_produces_error_status() -> None:
     solver_id = id(cancel_holder)
 
     @solver(name=f"abort_solver_{solver_id}")
-    def abort_solver() -> object:
+    def abort_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # Wait until the TaskCancel has been captured
             while not cancel_holder:
@@ -90,7 +90,7 @@ def test_abort_cancel_not_retried_in_run_multiple() -> None:
     solver_id = id(cancel_holder)
 
     @solver(name=f"abort_multi_solver_{solver_id}")
-    def abort_solver() -> object:
+    def abort_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             nonlocal run_count
             run_count += 1
@@ -106,7 +106,7 @@ def test_abort_cancel_not_retried_in_run_multiple() -> None:
         return solve
 
     @solver(name=f"noop_solver_{solver_id}")
-    def noop_solver() -> object:
+    def noop_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             return state
 

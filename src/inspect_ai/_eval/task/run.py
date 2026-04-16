@@ -624,6 +624,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
 
+    assert eval_log is not None
+
     try:
         # Log file locations are emitted to the "new" hooks via the "task end" event,
         if (
