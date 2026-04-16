@@ -141,7 +141,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5+ only (`max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None
@@ -251,7 +251,7 @@ class GenerateConfig(BaseModel):
     effort: Literal["low", "medium", "high", "xhigh", "max"] | None = Field(
         default=None
     )
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5+ only (`max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None

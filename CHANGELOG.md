@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Anthropic: Support for new `max` reasoning effort option.
+- Anthropic: Support for new `xhigh` value for `effort` (Claude 4.7).                       
+- Anthropic: Support for `max` value for `reasoning_effort`.   
 
 ## 0.3.206 (15 April 2026)
 

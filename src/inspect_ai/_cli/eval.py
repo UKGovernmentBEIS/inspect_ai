@@ -540,7 +540,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--effort",
         type=click.Choice(["low", "medium", "high", "xhigh", "max"]),
-        help="Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5, 4.6, 4.7 only (`max` only supported on 4.6, `xhigh` only supported on 4.7).",
+        help="Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Claude 4.5, 4.6, 4.7 only (`max` only supported on 4.6+, `xhigh` only supported on 4.7).",
         envvar="INSPECT_EVAL_EFFORT",
     )
     @click.option(

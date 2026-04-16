@@ -763,10 +763,11 @@ class AnthropicAPI(ModelAPI):
         if config.effort is not None:
             betas.append("effort-2025-11-24")
             effort = config.effort
-            # max is claude 4.6 only
-            if effort in ["xhigh", "max"] and not (
+            if effort == "max" and not (
                 self.is_claude_4_6() or self.is_claude_latest()
             ):
+                effort = "high"
+            if effort == "xhigh" and not self.is_claude_latest():
                 effort = "high"
             params["output_config"] = OutputConfigParam(effort=effort)  # type: ignore[typeddict-item] # (no support for 'xhigh' in sdk yet)
 
@@ -1384,7 +1385,7 @@ class AnthropicAPI(ModelAPI):
                 case "high":
                     return "high"
                 case "xhigh":
-                    return "xhigh"
+                    return "xhigh" if self.is_claude_latest() else "high"
                 case "max":
                     return "max"
 
