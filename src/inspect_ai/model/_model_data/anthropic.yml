@@ -26,6 +26,18 @@ anthropic:
           snapshot: "20260205"
           aliases:
             - anthropic.claude-opus-4-6-v1
+    claude-opus-4-7:
+      display_name: Claude Opus 4.7
+      release_date: 2026-04-15
+      knowledge_cutoff_date: 2026-01-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      versions:
+        claude-opus-4-7:
+          snapshot: "20260415"
+          aliases:
+            - anthropic.claude-opus-4-7
     claude-haiku-4-5:
       display_name: Claude Haiku 4.5
       release_date: 2025-10-01
