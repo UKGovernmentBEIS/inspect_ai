@@ -338,6 +338,37 @@ def chat_history(state: TaskState) -> str:
     return "\n\n".join(history)
 
 
+# Structural delimiters used in the default grading templates. Literal space (not
+# \s) is intentional — \s also matches U+00A0 (NBSP), which would let a model
+# pre-neutralize its own output and bypass the mitigation.
+_STRUCTURAL_DELIMITER_RE = re.compile(r"\[(BEGIN|END) DATA\]", re.IGNORECASE)
+
+
+def neutralize_structural_delimiters(text: str) -> str:
+    """Neutralize ``[BEGIN DATA]``/``[END DATA]`` to prevent judge prompt injection.
+
+    Replaces the space with a dash (``[END-DATA]``) so the marker is distinct
+    from the template's own structural tokens. Idempotent — the dash form
+    cannot match the pattern.
+    """
+    return _STRUCTURAL_DELIMITER_RE.sub(lambda m: m.group(0).replace(" ", "-"), text)
+
+
+def _sanitize_metadata_value(v: Any) -> Any:
+    # Recursively sanitize string leaves while preserving container structure so
+    # that {ctx[key]} subscript access and typed format specs still work.
+    if isinstance(v, str):
+        return neutralize_structural_delimiters(v)
+    elif isinstance(v, dict):
+        return {k: _sanitize_metadata_value(val) for k, val in v.items()}
+    elif isinstance(v, list):
+        return [_sanitize_metadata_value(item) for item in v]
+    elif isinstance(v, tuple):
+        return tuple(_sanitize_metadata_value(item) for item in v)
+    else:
+        return v
+
+
 def model_scoring_prompt(
     *,
     template: str,
@@ -347,8 +378,17 @@ def model_scoring_prompt(
     instructions: str,
     metadata: dict[str, Any],
 ) -> ChatMessageUser:
+    # Neutralize structural delimiters in all dataset-controlled inputs so a model
+    # cannot inject fake [END DATA] / [BEGIN DATA] markers into the judge prompt.
+    # `instructions` is author-controlled and intentionally left as-is.
+    answer = neutralize_structural_delimiters(output.completion)
+    question = neutralize_structural_delimiters(question)
+    criterion = neutralize_structural_delimiters(criterion)
+    sanitized_metadata: dict[str, Any] = {
+        k: _sanitize_metadata_value(v) for k, v in metadata.items()
+    }
+
     # we need to remove media objects from output and reference them as attachements in the answer
-    answer = output.completion
     media: list[Content] = (
         [
             content
@@ -370,7 +410,7 @@ def model_scoring_prompt(
         answer=answer,
         criterion=criterion,
         instructions=instructions,
-        **metadata,
+        **sanitized_metadata,
     )
 
     # return with media if necessary
