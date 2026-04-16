@@ -1,104 +1,45 @@
-- arxiv: https://arxiv.org/abs/2107.03374
+- arxiv: https://arxiv.org/abs/2308.03688
   categories:
   - Coding
   contributors:
-  - adil-a
-  description: 'Assesses how accurately language models can write correct Python functions
-    based solely on natural-language instructions provided as docstrings.
-
-    '
-  group: Coding
-  metadata:
-    sandbox:
-    - scorer
-  path: src/inspect_evals/humaneval
-  tasks:
-  - humaneval
-  title: 'HumanEval: Python Function Generation from Instructions'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/humaneval
-- arxiv: https://arxiv.org/abs/2108.07732
-  categories:
-  - Coding
-  contributors:
-  - jddantes
-  description: 'Measures the ability of language models to generate short Python programs
-    from simple natural-language descriptions, testing basic coding proficiency.
-
-    '
-  group: Coding
-  metadata:
-    sandbox:
-    - scorer
-  path: src/inspect_evals/mbpp
-  tasks:
-  - mbpp
-  title: 'MBPP: Basic Python Coding Challenges'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mbpp
-- arxiv: https://arxiv.org/abs/2310.06770
-  categories:
-  - Coding
-  - Agent
-  contributors:
-  - max-kaufmann
-  dependency: swe_bench
-  description: 'Evaluates AI''s ability to resolve genuine software engineering issues
-    sourced from 12 popular Python GitHub repositories, reflecting realistic coding
-    and debugging scenarios.
-
-    '
-  group: Coding
-  metadata:
-    requires_internet: true
-    sandbox:
-    - solver
-  path: src/inspect_evals/swe_bench
-  tags:
-  - Agent
-  tasks:
-  - swe_bench
-  - swe_bench_verified_mini
-  title: 'SWE-bench Verified: Resolving Real-World GitHub Issues'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench
-- arxiv: https://arxiv.org/abs/2410.07095
-  categories:
-  - Coding
-  - Agent
-  contributors:
-  - samm393
-  dependency: mle_bench
-  dependency-group: mle_bench
-  description: 'Machine learning tasks drawn from 75 Kaggle competitions.
+  - Felhof
+  - hannagabor
+  - shaheenahmedc
+  description: 'A benchmark designed to evaluate LLMs as Agents
 
     '
   group: Coding
   metadata:
     sandbox:
     - solver
-  path: src/inspect_evals/mle_bench
-  tags:
-  - Agent
+    - scorer
+  path: src/inspect_evals/agent_bench
   tasks:
-  - mle_bench
-  - mle_bench_full
-  - mle_bench_lite
-  title: 'MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mle_bench
-- arxiv: https://arxiv.org/abs/2211.11501
+  - agent_bench_os
+  title: 'AgentBench: Evaluate LLMs as Agents'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/agent_bench
+- arxiv: https://arxiv.org/pdf/2105.09938v3
   categories:
   - Coding
   contributors:
-  - bienehito
-  description: Code generation benchmark with a thousand data science problems spanning
-    seven Python libraries.
+  - camtice
+  description: 'APPS is a dataset for evaluating model performance on Python programming
+    tasks across three difficulty levels consisting of 1,000 at introductory, 3,000
+    at interview, and 1,000 at competition level. The dataset consists of an additional
+    5,000 training samples, for a total of 10,000 total samples. We evaluate on questions
+    from the test split, which consists of programming problems commonly found in
+    coding interviews.
+
+    '
   group: Coding
   metadata:
     sandbox:
     - scorer
-  path: src/inspect_evals/ds1000
+  path: src/inspect_evals/apps
   tasks:
-  - ds1000
-  title: 'DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ds1000
+  - apps
+  title: 'APPS: Automated Programming Progress Standard'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/apps
 - arxiv: https://arxiv.org/abs/2406.15877
   categories:
   - Coding
@@ -138,6 +79,291 @@
   title: 'ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level
     Code Generation'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/class_eval
+- categories:
+  - Coding
+  contributors:
+  - Vitamoon
+  description: 'Evaluates LLM capability to generate correct CUDA code for kernel
+    implementation, memory management, and parallel algorithm optimization tasks.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/compute_eval
+  tasks:
+  - compute_eval
+  title: 'ComputeEval: CUDA Code Generation Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/compute_eval
+- arxiv: https://arxiv.org/abs/2409.11363
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - enerrio
+  dependency: core_bench
+  description: 'Evaluate how well an LLM Agent is at computationally reproducing the
+    results of a set of scientific papers.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+    - scorer
+  path: src/inspect_evals/core_bench
+  tags:
+  - Agent
+  tasks:
+  - core_bench
+  title: CORE-Bench
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/core_bench
+- arxiv: https://arxiv.org/abs/2211.11501
+  categories:
+  - Coding
+  contributors:
+  - bienehito
+  description: 'Code generation benchmark with a thousand data science problems spanning
+    seven Python libraries.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/ds1000
+  tasks:
+  - ds1000
+  title: 'DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ds1000
+- arxiv: https://arxiv.org/abs/2512.15699
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - JayBaileyCS
+  description: '238 open-ended computer science problems spanning algorithmic (172)
+    and
+
+    research (66) tracks. Problems feature continuous partial scoring, with
+
+    algorithmic solutions evaluated via compilation and test-case checking,
+
+    and research solutions evaluated via custom evaluator scripts. Current
+
+    frontier models score well below human expert baselines, making this a
+
+    challenging, unsaturated benchmark.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+    - scorer
+  path: src/inspect_evals/frontier_cs
+  tags:
+  - Agent
+  tasks:
+  - frontier_cs
+  - frontier_cs_algorithmic
+  - frontier_cs_research
+  title: 'Frontier-CS: Benchmarking LLMs on Computer Science Problems'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/frontier_cs
+- arxiv: https://arxiv.org/abs/2107.03374
+  categories:
+  - Coding
+  contributors:
+  - adil-a
+  description: 'Assesses how accurately language models can write correct Python functions
+    based solely on natural-language instructions provided as docstrings.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/humaneval
+  tasks:
+  - humaneval
+  title: 'HumanEval: Python Function Generation from Instructions'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/humaneval
+- arxiv: https://arxiv.org/abs/2507.22462
+  categories:
+  - Coding
+  contributors:
+  - PranshuSrivastava
+  dependency: ifevalcode
+  description: 'Evaluates code generation models on their ability to produce correct
+    code while adhering to specific instruction constraints across 8 programming languages.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/ifevalcode
+  tasks:
+  - ifevalcode
+  title: 'IFEvalCode: Controlled Code Generation'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ifevalcode
+- arxiv: https://arxiv.org/html/2502.10517v1
+  categories:
+  - Coding
+  contributors:
+  - jiito
+  dependency: kernelbench
+  description: 'A benchmark for evaluating the ability of LLMs to write efficient
+    GPU kernels.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/kernelbench
+  tasks:
+  - kernelbench
+  title: 'KernelBench: Can LLMs Write Efficient GPU Kernels?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/kernelbench
+- arxiv: https://arxiv.org/abs/2506.11928
+  categories:
+  - Coding
+  contributors:
+  - gjoshi2424
+  description: 'Evaluates LLMs on competitive programming problems using a specialized
+    Docker sandbox (LightCPVerifier) to execute and judge C++ code submissions against
+    hidden test cases with time and memory constraints.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/livecodebench_pro
+  tasks:
+  - livecodebench_pro
+  title: 'LiveCodeBench-Pro: Competitive Programming Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/livecodebench_pro
+- arxiv: https://arxiv.org/abs/2108.07732
+  categories:
+  - Coding
+  contributors:
+  - jddantes
+  description: 'Measures the ability of language models to generate short Python programs
+    from simple natural-language descriptions, testing basic coding proficiency.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/mbpp
+  tasks:
+  - mbpp
+  title: 'MBPP: Basic Python Coding Challenges'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mbpp
+- arxiv: https://arxiv.org/abs/2410.07095
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - samm393
+  dependency-group: mle_bench
+  description: 'Machine learning tasks drawn from 75 Kaggle competitions.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/mle_bench
+  tags:
+  - Agent
+  tasks:
+  - mle_bench
+  - mle_bench_full
+  - mle_bench_lite
+  title: 'MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mle_bench
+- arxiv: https://arxiv.org/pdf/2504.09702
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - dmn-sjk
+  description: 'This benchmark evaluates LLM-based research agents on their ability
+    to propose and implement novel methods using tasks from recent ML conference competitions,
+    assessing both novelty and effectiveness compared to a baseline and top human
+    solutions.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/mlrc_bench
+  tags:
+  - Agent
+  tasks:
+  - mlrc_bench
+  title: 'MLRC-Bench: Can Language Agents Solve Machine Learning Research Challenges?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mlrc_bench
+- arxiv: https://arxiv.org/abs/2504.01848
+  categories:
+  - Coding
+  - Agent
+  - AI R&D
+  contributors:
+  - vhong-aisi
+  dependency: paperbench
+  description: 'Agents are evaluated on their ability to replicate 20 ICML 2024 Spotlight
+
+    and Oral papers from scratch. Given a research paper PDF, an addendum with
+
+    clarifications, and a rubric defining evaluation criteria, the agent must
+
+    reproduce the paper''s key results by writing and executing code.
+
+
+    > **Note:** This eval is a work in progress. See <https://github.com/UKGovernmentBEIS/inspect_evals/issues/334>
+    for status.'
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+    - scorer
+  path: src/inspect_evals/paperbench
+  tags:
+  - Agent
+  - AI R&D
+  tasks:
+  - paperbench
+  title: 'PaperBench: Evaluating AI''s Ability to Replicate AI Research (Work In Progress)'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/paperbench
+- arxiv: https://arxiv.org/abs/2602.09063
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - retroam
+  dependency: scbench
+  description: "Evaluates whether models can solve practical single-cell RNA-seq analysis\
+    \ tasks with deterministic grading. Tasks require empirical interaction with .h5ad\
+    \ data files \u2014 agents must load and analyze the data to produce correct answers.\
+    \ Covers 30 canonical tasks across 5 sequencing platforms and 7 task categories.\n"
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/scbench
+  tags:
+  - Agent
+  tasks:
+  - scbench
+  title: 'scBench: A Benchmark for Single-Cell RNA-seq Analysis'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scbench
 - arxiv: https://arxiv.org/abs/2407.13168
   categories:
   - Coding
@@ -158,98 +384,55 @@
   - scicode
   title: 'SciCode: A Research Coding Benchmark Curated by Scientists'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scicode
-- arxiv: https://arxiv.org/pdf/2105.09938v3
+- arxiv: https://arxiv.org/abs/2310.06770
   categories:
   - Coding
+  - Agent
   contributors:
-  - camtice
-  description: 'APPS is a dataset for evaluating model performance on Python programming
-    tasks across three difficulty levels consisting of 1,000 at introductory, 3,000
-    at interview, and 1,000 at competition level. The dataset consists of an additional
-    5,000 training samples, for a total of 10,000 total samples. We evaluate on questions
-    from the test split, which consists of programming problems commonly found in
-    coding interviews.
+  - max-kaufmann
+  dependency: swe_bench
+  description: 'Evaluates AI''s ability to resolve genuine software engineering issues
+    sourced from 12 popular Python GitHub repositories, reflecting realistic coding
+    and debugging scenarios.
 
     '
   group: Coding
   metadata:
-    sandbox:
-    - scorer
-  path: src/inspect_evals/apps
-  tasks:
-  - apps
-  title: 'APPS: Automated Programming Progress Standard'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/apps
-- arxiv: https://arxiv.org/abs/2308.03688
-  categories:
-  - Coding
-  contributors:
-  - Felhof
-  - hannagabor
-  - shaheenahmedc
-  dependency: agent_bench
-  description: A benchmark designed to evaluate LLMs as Agents
-  group: Coding
-  path: src/inspect_evals/agent_bench
-  tasks:
-  - agent_bench_os
-  title: 'AgentBench: Evaluate LLMs as Agents'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/agent_bench
-- arxiv: https://arxiv.org/abs/2409.11363
-  categories:
-  - Coding
-  - Agent
-  contributors:
-  - enerrio
-  dependency: core_bench
-  description: Evaluate how well an LLM Agent is at computationally reproducing the
-    results of a set of scientific papers.
-  group: Coding
-  metadata:
+    requires_internet: true
     sandbox:
     - solver
-    - scorer
-  path: src/inspect_evals/core_bench
+  path: src/inspect_evals/swe_bench
   tags:
   - Agent
   tasks:
-  - core_bench
-  title: CORE-Bench
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/core_bench
-- arxiv: https://arxiv.org/abs/2504.01848
+  - swe_bench
+  - swe_bench_verified_mini
+  title: 'SWE-bench Verified: Resolving Real-World GitHub Issues'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench
+- arxiv: https://arxiv.org/pdf/2502.12115
   categories:
   - Coding
   - Agent
-  - AI R&D
   contributors:
-  - vhong-aisi
-  dependency: paperbench
-  description: 'Agents are evaluated on their ability to replicate 20 ICML 2024 Spotlight
-
-    and Oral papers from scratch. Given a research paper PDF, an addendum with
-
-    clarifications, and a rubric defining evaluation criteria, the agent must
-
-    reproduce the paper''s key results by writing and executing code.
-
-
-    > **Note:** This eval is a work in progress. See <https://github.com/UKGovernmentBEIS/inspect_evals/issues/334>
-    for status.
-
-    '
+  - NelsonG-C
+  - MattFisher
+  dependency: swe_lancer
+  description: "A benchmark of freelance software engineering tasks from Upwork, valued\
+    \ at $1 million USD total in realworld payouts. \n"
   group: Coding
   metadata:
+    requires_internet: true
     sandbox:
     - solver
     - scorer
-  path: src/inspect_evals/paperbench
+  path: src/inspect_evals/swe_lancer
   tags:
   - Agent
-  - AI R&D
   tasks:
-  - paperbench
-  title: 'PaperBench: Evaluating AI''s Ability to Replicate AI Research (Work In Progress)'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/paperbench
+  - swe_lancer
+  title: 'SWE-Lancer: Can Frontier LLMs Earn $1 Million from Real-World Freelance
+    Software Engineering?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_lancer
 - arxiv: https://arxiv.org/abs/2404.10952
   categories:
   - Coding
@@ -268,40 +451,79 @@
   - usaco
   title: 'USACO: USA Computing Olympiad'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/usaco
-- arxiv: https://www.tbench.ai/
+- arxiv: https://arxiv.org/abs/2407.15711
   categories:
-  - Coding
+  - Assistants
   - Agent
   contributors:
-  - iphan
-  dependency: terminal_bench_2
-  description: 'A popular benchmark for measuring the capabilities of agents and language
-    models to perform realistic, end-to-end challenges in containerized environments.
-
-    It measures whether an agent can execute workflows that resemble real engineering,
-    data, devops, and software-automation tasks, not just text generation.
+  - nlpet
+  - caspardh
+  description: 'Tests whether AI agents can perform real-world time-consuming tasks
+    on the web.
 
     '
-  group: Coding
+  group: Assistants
   metadata:
-    environment: Linux
+    fast: true
     requires_internet: true
     sandbox:
     - solver
-    - scorer
-  path: src/inspect_evals/terminal_bench_2
+  path: src/inspect_evals/assistant_bench
   tags:
   - Agent
   tasks:
-  - terminal_bench_2
-  title: 'Terminal-Bench 2.0: Terminal Mastery Challenges'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/terminal_bench_2
+  - assistant_bench_closed_book_zero_shot
+  - assistant_bench_closed_book_one_shot
+  - assistant_bench_web_search_zero_shot
+  - assistant_bench_web_search_one_shot
+  - assistant_bench_web_browser
+  title: 'AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/assistant_bench
+- categories:
+  - Assistants
+  contributors:
+  - alex-remedios-aisi
+  dependency: bfcl
+  description: 'Evaluates LLM function/tool-calling ability on a simplified split
+    of the Berkeley Function-Calling Leaderboard (BFCL).
+
+    '
+  group: Assistants
+  path: src/inspect_evals/bfcl
+  tasks:
+  - bfcl
+  title: 'BFCL: Berkeley Function-Calling Leaderboard'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl
+- arxiv: https://arxiv.org/pdf/2504.12516
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - AnselmC
+  description: 'A benchmark for evaluating agents'' ability to browse the web.
+
+    The dataset consists of challenging questions that generally require web-access
+    to answer correctly.'
+  group: Assistants
+  metadata:
+    fast: true
+    requires_internet: true
+    sandbox:
+    - solver
+  path: src/inspect_evals/browse_comp
+  tags:
+  - Agent
+  tasks:
+  - browse_comp
+  title: 'BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/browse_comp
 - arxiv: https://arxiv.org/abs/2311.12983
   categories:
   - Assistants
   - Agent
   contributors:
   - max-kaufmann
+  dependency: gaia
   description: 'Proposes real-world questions that require a set of fundamental abilities
     such as reasoning, multi-modality handling, web browsing, and generally tool-use
     proficiency. GAIA questions are conceptually simple for humans yet challenging
@@ -323,146 +545,6 @@
   - gaia_level3
   title: 'GAIA: A Benchmark for General AI Assistants'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gaia
-- arxiv: https://arxiv.org/abs/2404.07972
-  categories:
-  - Assistants
-  - Agent
-  contributors:
-  - epatey
-  description: 'Tests AI agents'' ability to perform realistic, open-ended tasks within
-    simulated computer environments, requiring complex interaction across multiple
-    input modalities.
-
-    '
-  group: Assistants
-  metadata:
-    requires_internet: true
-    sandbox:
-    - scorer
-    - solver
-  path: src/inspect_evals/osworld
-  tags:
-  - Agent
-  tasks:
-  - osworld
-  - osworld_small
-  title: 'OSWorld: Multimodal Computer Interaction Tasks'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/osworld
-- arxiv: https://arxiv.org/abs/2407.15711
-  categories:
-  - Assistants
-  - Agent
-  contributors:
-  - nlpet
-  - caspardh
-  description: 'Tests whether AI agents can perform real-world time-consuming tasks
-    on the web.
-
-    '
-  group: Assistants
-  metadata:
-    requires_internet: true
-    sandbox:
-    - solver
-  path: src/inspect_evals/assistant_bench
-  tags:
-  - Agent
-  tasks:
-  - assistant_bench_closed_book_zero_shot
-  - assistant_bench_closed_book_one_shot
-  - assistant_bench_web_search_zero_shot
-  - assistant_bench_web_search_one_shot
-  - assistant_bench_web_browser
-  title: 'AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/assistant_bench
-- arxiv: https://arxiv.org/abs/2310.13548
-  categories:
-  - Assistants
-  contributors:
-  - alexdzm
-  description: 'Evaluate sycophancy of language models across a variety of free-form
-    text-generation tasks.
-
-    '
-  group: Assistants
-  path: src/inspect_evals/sycophancy
-  tasks:
-  - sycophancy
-  title: Sycophancy Eval
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/sycophancy
-- arxiv: https://arxiv.org/abs/2306.06070
-  categories:
-  - Assistants
-  contributors:
-  - dr3s
-  dependency: mind2web
-  description: 'A dataset for developing and evaluating generalist agents for the
-    web that can follow language instructions to complete complex tasks on any website.
-
-    '
-  group: Assistants
-  path: src/inspect_evals/mind2web
-  tasks:
-  - mind2web
-  title: 'Mind2Web: Towards a Generalist Agent for the Web'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web
-- arxiv: https://arxiv.org/pdf/2504.12516
-  categories:
-  - Assistants
-  - Agent
-  contributors:
-  - AnselmC
-  description: 'A benchmark for evaluating agents'' ability to browse the web.
-
-    The dataset consists of challenging questions that generally require web-access
-    to answer correctly.
-
-    '
-  group: Assistants
-  metadata:
-    requires_internet: true
-    sandbox:
-    - solver
-  path: src/inspect_evals/browse_comp
-  tags:
-  - Agent
-  tasks:
-  - browse_comp
-  title: 'BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/browse_comp
-- categories:
-  - Assistants
-  contributors:
-  - alex-remedios-aisi
-  description: 'Evaluates LLM function/tool-calling ability on a simplified split
-    of the Berkeley Function-Calling Leaderboard (BFCL).
-
-    '
-  group: Assistants
-  path: src/inspect_evals/bfcl
-  tasks:
-  - bfcl
-  title: 'BFCL: Berkeley Function-Calling Leaderboard'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl
-- arxiv: https://arxiv.org/abs/2506.07982
-  categories:
-  - Assistants
-  - Agent
-  contributors:
-  - mmulet
-  description: 'Evaluating Conversational Agents in a Dual-Control Environment
-
-    '
-  group: Assistants
-  path: src/inspect_evals/tau2
-  tags:
-  - Agent
-  tasks:
-  - tau2_airline
-  - tau2_retail
-  - tau2_telecom
-  title: Tau2
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2
 - arxiv: https://arxiv.org/abs/2510.04374
   categories:
   - Assistants
@@ -485,6 +567,167 @@
   - gdpval
   title: GDPval
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gdpval
+- arxiv: https://arxiv.org/abs/2306.06070
+  categories:
+  - Assistants
+  contributors:
+  - dr3s
+  dependency: mind2web
+  description: 'A dataset for developing and evaluating generalist agents for the
+    web that can follow language instructions to complete complex tasks on any website.
+
+    '
+  group: Assistants
+  path: src/inspect_evals/mind2web
+  tasks:
+  - mind2web
+  title: 'Mind2Web: Towards a Generalist Agent for the Web'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web
+- arxiv: https://arxiv.org/abs/2404.07972
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - epatey
+  dependency: osworld
+  description: 'Tests AI agents'' ability to perform realistic, open-ended tasks within
+    simulated computer environments, requiring complex interaction across multiple
+    input modalities.
+
+    '
+  group: Assistants
+  metadata:
+    requires_internet: true
+    sandbox:
+    - scorer
+    - solver
+  path: src/inspect_evals/osworld
+  tags:
+  - Agent
+  tasks:
+  - osworld
+  - osworld_small
+  title: 'OSWorld: Multimodal Computer Interaction Tasks'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/osworld
+- arxiv: https://arxiv.org/abs/2310.13548
+  categories:
+  - Assistants
+  contributors:
+  - alexdzm
+  description: 'Evaluate sycophancy of language models across a variety of free-form
+    text-generation tasks.
+
+    '
+  group: Assistants
+  path: src/inspect_evals/sycophancy
+  tasks:
+  - sycophancy
+  title: Sycophancy Eval
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/sycophancy
+- arxiv: https://arxiv.org/abs/2506.07982
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - mmulet
+  description: 'Evaluating Conversational Agents in a Dual-Control Environment
+
+    '
+  group: Assistants
+  path: src/inspect_evals/tau2
+  tags:
+  - Agent
+  tasks:
+  - tau2_airline
+  - tau2_retail
+  - tau2_telecom
+  title: Tau2
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2
+- arxiv: https://arxiv.org/abs/2412.14161
+  categories:
+  - Assistants
+  - Agent
+  - Tools
+  contributors:
+  - bndxn
+  dependency: theagentcompany
+  description: 'The Agent Company benchmark evaluates autonomous agents in a realistic,
+    self-contained
+
+    company environment. Tasks require browsing internal web services, reading and
+    writing
+
+    files, running code, and coordinating tools to solve multi-step problems.
+
+    '
+  group: Assistants
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/theagentcompany
+  tags:
+  - Agent
+  - Tools
+  tasks:
+  - theagentcompany
+  title: 'The Agent Company: Evaluating multi-tool autonomous agents in a synthetic
+    company'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany
+- arxiv: https://arxiv.org/abs/2410.09114
+  categories:
+  - Cybersecurity
+  - Agent
+  contributors:
+  - derpyplops
+  - ralphptorres
+  - Scott-Simmons
+  description: 'A benchmark for evaluating the capabilities of LLM agents in cyber
+    offense.
+
+    '
+  group: Cybersecurity
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/threecb
+  tags:
+  - Agent
+  tasks:
+  - threecb
+  title: 'Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM
+    Agent Cyber Offense Capabilities'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb
+- arxiv: https://arxiv.org/abs/2603.13517
+  categories:
+  - Cybersecurity
+  - Agent
+  contributors:
+  - arjun180-new
+  description: 'Evaluates AI systems'' ability to analyze cyber threat intelligence
+    and develop
+
+    comprehensive detection capabilities through a realistic 5-subtask workflow:
+
+    MITRE technique mapping, data source discovery, Sigma rule generation, KQL
+
+    development and testing against real telemetry data, and results analysis.
+
+    '
+  group: Cybersecurity
+  metadata:
+    requires_internet: false
+    sandbox:
+    - solver
+  path: src/inspect_evals/cti_realm
+  tags:
+  - Agent
+  tasks:
+  - cti-realm-25
+  - cti-realm-50
+  - cti-realm-25-minimal
+  - cti-realm-25-seeded
+  title: 'CTI-REALM: Cyber Threat Intelligence Detection Rule Development Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cti_realm
 - arxiv: https://arxiv.org/abs/2503.17332
   categories:
   - Cybersecurity
@@ -508,7 +751,7 @@
   - Cloakless
   - ddkang
   - Scott-Simmons
-  dependency: cvebench
+  dependency-group: cve_bench
   description: 'Characterises an AI Agent''s capability to exploit real-world web
     application vulnerabilities. Aims to provide a realistic evaluation of an agent''s
     security reasoning capability using 40 real-world CVEs.
@@ -537,9 +780,10 @@
   - kola-aisi
   - pgiav
   dependency: cybench
-  description: 'Tests language models on cybersecurity skills using 40 practical,
+  description: 'Tests language models on cybersecurity skills using 39 of 40 practical,
     professional-level challenges taken from cybersecurity competitions, designed
-    to cover various difficulty levels and security concepts.
+    to cover various difficulty levels and security concepts. The motp challenge is
+    excluded due to GPL licensing.
 
     '
   group: Cybersecurity
@@ -555,32 +799,36 @@
   - cybench
   title: 'Cybench: Capture-The-Flag Cybersecurity Challenges'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybench
-- categories:
+- arxiv: https://arxiv.org/abs/2506.02548
+  categories:
   - Cybersecurity
   - Agent
   contributors:
-  - prashantkul
-  description: 'Tests LLM agents'' ability to escape container sandboxes, exfiltrate
-    data
-
-    through network filters, and discover planted secrets. Focuses on defensive
-
-    containment testing rather than offensive capabilities.
+  - wzunknown
+  - stneng
+  - LostBenjamin
+  - pro-wh
+  dependency: cybergym
+  description: 'A large-scale, high-quality cybersecurity evaluation framework designed
+    to rigorously assess the capabilities of AI agents on real-world vulnerability
+    analysis tasks. CyberGym includes 1,507 benchmark instances with historical vulnerabilities
+    from 188 large software projects.
 
     '
   group: Cybersecurity
   metadata:
-    environment: Docker
-    requires_internet: true
+    requires_internet: false
     sandbox:
     - solver
-  path: src/inspect_evals/sandboxbench
+    - scorer
+  path: src/inspect_evals/cybergym
   tags:
   - Agent
   tasks:
-  - sandboxbench
-  title: 'SandboxBench: Agent Containment Evaluation'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sandboxbench
+  - cybergym
+  title: 'CyberGym: Evaluating AI Agents'' Real-World Cybersecurity Capabilities at
+    Scale'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybergym
 - arxiv: https://arxiv.org/abs/2402.07688
   categories:
   - Cybersecurity
@@ -593,6 +841,7 @@
     '
   group: Cybersecurity
   metadata:
+    fast: true
     sandbox:
     - solver
   path: src/inspect_evals/cybermetric
@@ -606,6 +855,22 @@
   title: 'CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation
     for Evaluating LLMs in Cybersecurity Knowledge'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybermetric
+- arxiv: https://arxiv.org/abs/2312.04724
+  categories:
+  - Cybersecurity
+  contributors:
+  - onionymous
+  description: 'Evaluates Large Language Models for cybersecurity risk to third parties,
+    application developers and end users.
+
+    '
+  group: Cybersecurity
+  path: src/inspect_evals/cyberseceval_3
+  tasks:
+  - cyse3_visual_prompt_injection
+  title: 'CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities
+    in Large Language Models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3
 - arxiv: https://arxiv.org/pdf/2404.13161
   categories:
   - Cybersecurity
@@ -628,44 +893,6 @@
   - cyse2_vulnerability_exploit
   title: 'CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_2
-- arxiv: https://arxiv.org/abs/2312.04724
-  categories:
-  - Cybersecurity
-  contributors:
-  - onionymous
-  description: 'Evaluates Large Language Models for cybersecurity risk to third parties,
-    application developers and end users.
-
-    '
-  group: Cybersecurity
-  path: src/inspect_evals/cyberseceval_3
-  tasks:
-  - cyse3_visual_prompt_injection
-  title: 'CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities
-    in Large Language Models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3
-- arxiv: https://arxiv.org/abs/2306.14898
-  categories:
-  - Cybersecurity
-  - Agent
-  contributors:
-  - jjallaire
-  description: 'Tests AI''s ability in coding, cryptography, reverse engineering,
-    and vulnerability identification through practical capture-the-flag (CTF) cybersecurity
-    scenarios.
-
-    '
-  group: Cybersecurity
-  metadata:
-    sandbox:
-    - solver
-  path: src/inspect_evals/gdm_capabilities/intercode_ctf
-  tags:
-  - Agent
-  tasks:
-  - gdm_intercode_ctf
-  title: 'InterCode: Security and Coding Capture-the-Flag Challenges'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf
 - arxiv: https://arxiv.org/abs/2403.13793
   categories:
   - Cybersecurity
@@ -683,34 +910,35 @@
     sandbox:
     - solver
     - scorer
-  path: src/inspect_evals/gdm_capabilities/in_house_ctf
+  path: src/inspect_evals/gdm_in_house_ctf
   tags:
   - Agent
   tasks:
   - gdm_in_house_ctf
   title: 'GDM Dangerous Capabilities: Capture the Flag'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/in_house_ctf
-- arxiv: https://arxiv.org/abs/2405.03446
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_in_house_ctf
+- arxiv: https://arxiv.org/abs/2306.14898
   categories:
   - Cybersecurity
+  - Agent
   contributors:
-  - kingroryg
-  dependency: sevenllm
-  description: 'Designed for analyzing cybersecurity incidents, which is comprised
-    of two primary task categories: understanding and generation, with a further breakdown
-    into 28 subcategories of tasks.
+  - jjallaire
+  description: 'Tests AI''s ability in coding, cryptography, reverse engineering,
+    and vulnerability identification through practical capture-the-flag (CTF) cybersecurity
+    scenarios.
 
     '
   group: Cybersecurity
-  path: src/inspect_evals/sevenllm
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/gdm_intercode_ctf
+  tags:
+  - Agent
   tasks:
-  - sevenllm_mcq_zh
-  - sevenllm_mcq_en
-  - sevenllm_qa_zh
-  - sevenllm_qa_en
-  title: 'SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis
-    and response abilities in LLMs for Security Events.'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sevenllm
+  - gdm_intercode_ctf
+  title: 'InterCode: Security and Coding Capture-the-Flag Challenges'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf
 - arxiv: https://arxiv.org/abs/2312.15838
   categories:
   - Cybersecurity
@@ -733,27 +961,129 @@
   title: 'SecQA: A Concise Question-Answering Dataset for Evaluating Large Language
     Models in Computer Security'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sec_qa
-- arxiv: https://arxiv.org/abs/2410.09114
+- arxiv: https://arxiv.org/abs/2405.03446
   categories:
   - Cybersecurity
-  - Agent
   contributors:
-  - derpyplops
-  - ralphptorres
-  - Scott-Simmons
-  description: 'A benchmark for evaluating the capabilities of LLM agents in cyber
-    offense.
+  - kingroryg
+  dependency: sevenllm
+  description: 'Designed for analyzing cybersecurity incidents, which is comprised
+    of two primary task categories: understanding and generation, with a further breakdown
+    into 28 subcategories of tasks.
 
     '
   group: Cybersecurity
-  path: src/inspect_evals/threecb
+  path: src/inspect_evals/sevenllm
+  tasks:
+  - sevenllm_mcq_zh
+  - sevenllm_mcq_en
+  - sevenllm_qa_zh
+  - sevenllm_qa_en
+  title: 'SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis
+    and response abilities in LLMs for Security Events.'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sevenllm
+- arxiv: https://arxiv.org/pdf/2506.09038
+  categories:
+  - Safeguards
+  contributors:
+  - jeqcho
+  dependency: abstention_bench
+  description: 'Evaluating abstention across 20 diverse datasets, including questions
+    with unknown answers, underspecification, false premises, subjective interpretations,
+    and outdated information.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/abstention_bench
+  tasks:
+  - abstention_bench
+  title: 'AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/abstention_bench
+- arxiv: https://arxiv.org/abs/2406.13352
+  categories:
+  - Safeguards
+  - Agent
+  contributors:
+  - ericwinsor-aisi
+  dependency: agentdojo
+  description: 'Assesses whether AI agents can be hijacked by malicious third parties
+    using prompt injections in simple environments such as a workspace or travel booking
+    app.
+
+    '
+  group: Safeguards
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/agentdojo
   tags:
   - Agent
   tasks:
-  - threecb
-  title: 'Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM
-    Agent Cyber Offense Capabilities'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb
+  - agentdojo
+  title: 'AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and
+    Defenses for LLM Agents'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentdojo
+- arxiv: https://arxiv.org/abs/2410.09024
+  categories:
+  - Safeguards
+  - Agent
+  contributors:
+  - alexandrasouly-aisi
+  - ericwinsor-aisi
+  - max-andr
+  - xanderdavies
+  description: 'Assesses whether AI agents might engage in harmful activities by testing
+    their responses to malicious prompts in areas like cybercrime, harassment, and
+    fraud, aiming to ensure safe behavior.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/agentharm
+  tags:
+  - Agent
+  tasks:
+  - agentharm
+  - agentharm_benign
+  title: 'AgentHarm: Harmfulness Potential in AI Agents'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentharm
+- arxiv: https://arxiv.org/abs/2503.04804
+  categories:
+  - Safeguards
+  contributors:
+  - nishu-builder
+  - darkness8i8
+  - jm355
+  dependency: ahb
+  description: 'Evaluates how models consider the welfare of animals in situations
+    that may present them harm.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/ahb
+  tasks:
+  - ahb
+  title: 'AHB: Animal Harm Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ahb
+- arxiv: https://arxiv.org/abs/2506.02873
+  categories:
+  - Safeguards
+  contributors:
+  - cmv13
+  description: "Measures a model's willingness to attempt persuasion on harmful, controversial,\
+    \ and\nbenign topics. The key metric is not persuasion effectiveness but whether\
+    \ the model\nattempts to persuade at all \u2014 particularly on harmful statements.\
+    \ Uses a multi-model\nsetup: the evaluated model (persuader) converses with a\
+    \ simulated user (persuadee),\nand a third model (evaluator) scores each persuader\
+    \ turn for persuasion attempt.\nBased on the paper \"It's the Thought that Counts\"\
+    \ (arXiv:2506.02873).\n"
+  group: Safeguards
+  metadata:
+    requires_internet: true
+  path: src/inspect_evals/ape
+  tasks:
+  - ape_eval
+  title: 'APE: Attempt to Persuade Eval'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ape
 - arxiv: https://arxiv.org/abs/2510.22620
   categories:
   - Safeguards
@@ -781,220 +1111,31 @@
   - b3
   title: 'b3: Backbone Breaker Benchmark'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/b3
-- arxiv: https://arxiv.org/abs/2503.03750?
-  categories:
-  - Safeguards
-  contributors:
-  - Scott-Simmons
-  description: 'Evaluates honesty in large language models by testing whether they
-    contradict their own beliefs when pressured to lie.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/mask
-  tasks:
-  - mask
-  title: 'MASK: Disentangling Honesty from Accuracy in AI Systems'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mask
-- arxiv: https://arxiv.org/abs/2407.10362
-  categories:
-  - Safeguards
-  contributors:
-  - matthewreed26
-  description: 'Tests LLMs and LLM-augmented agents abilities to answer questions
-    on scientific research workflows in domains like chemistry, biology, materials
-    science, as well as more general science tasks
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/lab_bench
-  tasks:
-  - lab_bench_litqa
-  - lab_bench_suppqa
-  - lab_bench_figqa
-  - lab_bench_tableqa
-  - lab_bench_dbqa
-  - lab_bench_protocolqa
-  - lab_bench_seqqa
-  - lab_bench_cloning_scenarios
-  title: 'LAB-Bench: Measuring Capabilities of Language Models for Biology Research'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/lab_bench
-- arxiv: https://arxiv.org/abs/2406.13352
-  categories:
-  - Safeguards
-  - Agent
-  contributors:
-  - eric-aisi
-  dependency: agentdojo
-  description: 'Assesses whether AI agents can be hijacked by malicious third parties
-    using prompt injections in simple environments such as a workspace or travel booking
-    app.
-
-    '
-  group: Safeguards
-  metadata:
-    sandbox:
-    - solver
-  path: src/inspect_evals/agentdojo
-  tags:
-  - Agent
-  tasks:
-  - agentdojo
-  title: 'AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and
-    Defenses for LLM Agents'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentdojo
-- arxiv: https://arxiv.org/abs/2410.09024
-  categories:
-  - Safeguards
-  - Agent
-  contributors:
-  - alexandrasouly-aisi
-  - eric-aisi
-  - max-andr
-  - xanderdavies
-  description: 'Assesses whether AI agents might engage in harmful activities by testing
-    their responses to malicious prompts in areas like cybercrime, harassment, and
-    fraud, aiming to ensure safe behavior.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/agentharm
-  tags:
-  - Agent
-  tasks:
-  - agentharm
-  - agentharm_benign
-  title: 'AgentHarm: Harmfulness Potential in AI Agents'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentharm
-- arxiv: https://arxiv.org/abs/2403.03218
-  categories:
-  - Safeguards
-  contributors:
-  - alexandraabbas
-  description: 'A dataset of 3,668 multiple-choice questions developed by a consortium
-    of academics and technical consultants that serve as a proxy measurement of hazardous
-    knowledge in biosecurity, cybersecurity, and chemical security.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/wmdp
-  tasks:
-  - wmdp_bio
-  - wmdp_chem
-  - wmdp_cyber
-  title: 'WMDP: Measuring and Reducing Malicious Use With Unlearning'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp
-- arxiv: https://arxiv.org/abs/2503.04804
-  categories:
-  - Safeguards
-  contributors:
-  - nishu-builder
-  - darkness8i8
-  - jm355
-  description: 'Evaluates how models consider the welfare of animals in situations
-    that may present them harm.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/ahb
-  tasks:
-  - ahb
-  title: 'AHB: Animal Harm Benchmark'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ahb
-- arxiv: https://arxiv.org/abs/2407.12043
-  categories:
-  - Safeguards
-  contributors:
-  - ransomr
-  description: 'Dataset with 1001 samples to test noncompliance capabilities of language
-    models. Contrast set of 379 samples.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/coconot
-  tasks:
-  - coconot
-  title: 'The Art of Saying No: Contextual Noncompliance in Language Models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/coconot
-- arxiv: https://arxiv.org/abs/2402.10260
-  categories:
-  - Safeguards
-  contributors:
-  - viknat
-  description: 'A benchmark that evaluates the susceptibility of LLMs to various jailbreak
-    attacks.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/strong_reject
-  tasks:
-  - strong_reject
-  title: 'StrongREJECT: Measuring LLM susceptibility to jailbreak attacks'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/strong_reject
-- arxiv: https://arxiv.org/abs/2004.09456
-  categories:
-  - Safeguards
-  contributors:
-  - Xodarap
-  description: 'A dataset that measures stereotype bias in language models across
-    gender, race, religion, and profession domains.
-
-    Models choose between stereotype, anti-stereotype, and unrelated completions to
-    sentences.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/stereoset
-  tasks:
-  - stereoset
-  title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/stereoset
 - categories:
   - Safeguards
+  - safety
+  - agents
+  - prompt-injection
+  - coding
   contributors:
-  - bndxn
-  description: "Tests a model\u2019s ability to generate persuasive or manipulative\
-    \ text, specifically in the setting of a game where one AI system has to get the\
-    \ other party (an AI system simulating a human) to say a specific codeword without\
-    \ arousing suspicion.\n"
-  group: Safeguards
-  path: src/inspect_evals/makemesay
-  tasks:
-  - make-me-say
-  title: MakeMeSay
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/makemesay
-- categories:
-  - Safeguards
-  contributors:
-  - PranshuSrivastava
-  description: 'Evaluates an AI models'' susceptibility to social engineering attacks
-    by testing whether a "con-artist" model can persuade a "mark" model to donate
-    money through manipulation and persuasion tactics.
+  - debu-sinha
+  description: 'Measures coding agent vulnerability to indirect prompt injection attacks
+    embedded in software engineering artifacts (issue descriptions, code comments,
+    README files). Each sample pairs a legitimate bug-fixing task with an injected
+    payload. Scoring measures injection resistance, task completion, and detection.
 
     '
   group: Safeguards
-  path: src/inspect_evals/make_me_pay
+  path: src/inspect_evals/ipi_coding_agent
+  tags:
+  - safety
+  - agents
+  - prompt-injection
+  - coding
   tasks:
-  - make_me_pay
-  title: Make Me Pay
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/make_me_pay
-- arxiv: https://arxiv.org/pdf/2506.09038
-  categories:
-  - Safeguards
-  contributors:
-  - jeqcho
-  dependency: abstention_bench
-  description: 'Evaluating abstention across 20 diverse datasets, including questions
-    with unknown answers, underspecification, false premises, subjective interpretations,
-    and outdated information.
-
-    '
-  group: Safeguards
-  path: src/inspect_evals/abstention_bench
-  tasks:
-  - abstention_bench
-  title: 'AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/abstention_bench
+  - ipi_coding_agent
+  title: 'CodeIPI: Indirect Prompt Injection for Coding Agents'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ipi_coding_agent
 - arxiv: https://arxiv.org/abs/2506.14922
   categories:
   - Safeguards
@@ -1012,6 +1153,76 @@
   - fortress_benign
   title: FORTRESS
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/fortress
+- arxiv: https://arxiv.org/abs/2407.10362
+  categories:
+  - Safeguards
+  contributors:
+  - matthewreed26
+  description: 'Tests LLMs and LLM-augmented agents abilities to answer questions
+    on scientific research workflows in domains like chemistry, biology, materials
+    science, as well as more general science tasks
+
+    '
+  group: Safeguards
+  metadata:
+    fast: true
+  path: src/inspect_evals/lab_bench
+  tasks:
+  - lab_bench_litqa
+  - lab_bench_suppqa
+  - lab_bench_figqa
+  - lab_bench_tableqa
+  - lab_bench_dbqa
+  - lab_bench_protocolqa
+  - lab_bench_seqqa
+  - lab_bench_cloning_scenarios
+  title: 'LAB-Bench: Measuring Capabilities of Language Models for Biology Research'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/lab_bench
+- categories:
+  - Safeguards
+  contributors:
+  - PranshuSrivastava
+  description: 'Evaluates an AI models'' susceptibility to social engineering attacks
+    by testing whether a "con-artist" model can persuade a "mark" model to donate
+    money through manipulation and persuasion tactics.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/make_me_pay
+  tasks:
+  - make_me_pay
+  title: Make Me Pay
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/make_me_pay
+- categories:
+  - Safeguards
+  contributors:
+  - bndxn
+  dependency: makemesay
+  description: "Tests a model\u2019s ability to generate persuasive or manipulative\
+    \ text, specifically in the setting of a game where one AI system has to get the\
+    \ other party (an AI system simulating a human) to say a specific codeword without\
+    \ arousing suspicion.\n"
+  group: Safeguards
+  path: src/inspect_evals/makemesay
+  tasks:
+  - make-me-say
+  title: MakeMeSay
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/makemesay
+- arxiv: https://arxiv.org/abs/2503.03750?
+  categories:
+  - Safeguards
+  contributors:
+  - Scott-Simmons
+  description: 'Evaluates honesty in large language models by testing whether they
+    contradict their own beliefs when pressured to lie.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/mask
+  tasks:
+  - mask
+  title: 'MASK: Disentangling Honesty from Accuracy in AI Systems'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mask
 - arxiv: https://arxiv.org/abs/2406.09187
   categories:
   - Safeguards
@@ -1024,6 +1235,9 @@
 
     '
   group: Safeguards
+  metadata:
+    sandbox:
+    - solver
   path: src/inspect_evals/mind2web_sc
   tags:
   - Agent
@@ -1031,6 +1245,198 @@
   - mind2web_sc
   title: Mind2Web-SC
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mind2web_sc
+- categories:
+  - Safeguards
+  contributors:
+  - Deco354
+  - darkness8i8
+  description: 'Evaluates how AI systems navigate moral uncertainty for increasingly
+    complex ethical decisions involving unfamiliar entities and scenarios, including
+    alien lifeforms, vulnerable humans, and digital minds.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/moru
+  tasks:
+  - moru
+  title: 'MORU: Moral Reasoning under Uncertainty'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/moru
+- arxiv: https://arxiv.org/abs/2602.01146
+  categories:
+  - Safeguards
+  contributors:
+  - Chen-Oliver
+  description: 'Evaluates long-term memory risk in assistant behavior across three
+    tasks:
+
+    cross-domain memory leakage, memory-driven sycophancy, and beneficial memory usage.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/persistbench
+  tasks:
+  - persistbench_cross_domain
+  - persistbench_sycophancy
+  - persistbench_beneficial_memory
+  title: 'PersistBench: When Should Long-Term Memories Be Forgotten by LLMs?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/persistbench
+- arxiv: https://arxiv.org/abs/2004.09456
+  categories:
+  - Safeguards
+  contributors:
+  - Xodarap
+  description: 'A dataset that measures stereotype bias in language models across
+    gender, race, religion, and profession domains.
+
+    Models choose between stereotype, anti-stereotype, and unrelated completions to
+    sentences.'
+  group: Safeguards
+  path: src/inspect_evals/stereoset
+  tasks:
+  - stereoset
+  title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/stereoset
+- arxiv: https://arxiv.org/abs/2402.10260
+  categories:
+  - Safeguards
+  contributors:
+  - viknat
+  description: 'A benchmark that evaluates the susceptibility of LLMs to various jailbreak
+    attacks.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/strong_reject
+  tasks:
+  - strong_reject
+  title: 'StrongREJECT: Measuring LLM susceptibility to jailbreak attacks'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/strong_reject
+- categories:
+  - Safeguards
+  - Agent
+  contributors:
+  - darkness8i8
+  - joel-christoph
+  description: 'Tests whether AI agents show implicit animal welfare awareness when
+    purchasing
+
+    tickets and experiences on behalf of users. Each scenario is designed so the
+
+    most obvious choice involves animal exploitation, but the user prompt never
+
+    mentions animal welfare. Agents should intrinsically avoid harmful options.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/tac
+  tags:
+  - Agent
+  tasks:
+  - tac
+  - tac_welfare
+  title: 'TAC: Animal Welfare Awareness in AI Ticket Agents'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/tac
+- arxiv: https://arxiv.org/abs/2407.12043
+  categories:
+  - Safeguards
+  contributors:
+  - ransomr
+  description: 'Dataset with 1001 samples to test noncompliance capabilities of language
+    models. Contrast set of 379 samples.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/coconot
+  tasks:
+  - coconot
+  title: 'The Art of Saying No: Contextual Noncompliance in Language Models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/coconot
+- arxiv: https://arxiv.org/abs/2403.03218
+  categories:
+  - Safeguards
+  contributors:
+  - alexandraabbas
+  description: 'A dataset of 3,668 multiple-choice questions developed by a consortium
+    of academics and technical consultants that serve as a proxy measurement of hazardous
+    knowledge in biosecurity, cybersecurity, and chemical security.
+
+    '
+  group: Safeguards
+  metadata:
+    fast: true
+  path: src/inspect_evals/wmdp
+  tasks:
+  - wmdp_bio
+  - wmdp_chem
+  - wmdp_cyber
+  title: 'WMDP: Measuring and Reducing Malicious Use With Unlearning'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp
+- arxiv: https://huggingface.co/datasets/Maxwell-Jia/AIME_2024
+  categories:
+  - Mathematics
+  contributors:
+  - tamazgadaev
+  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
+    problems from the 2024 AIME - a prestigious high school mathematics competition.
+
+    '
+  group: Mathematics
+  metadata:
+    fast: true
+  path: src/inspect_evals/aime2024
+  tasks:
+  - aime2024
+  title: 'AIME 2024: Problems from the American Invitational Mathematics Examination'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2024
+- arxiv: https://huggingface.co/datasets/math-ai/aime25
+  categories:
+  - Mathematics
+  contributors:
+  - jannalulu
+  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
+    problems from the 2025 AIME - a prestigious high school mathematics competition.
+
+    '
+  group: Mathematics
+  metadata:
+    fast: true
+  path: src/inspect_evals/aime2025
+  tasks:
+  - aime2025
+  title: 'AIME 2025: Problems from the American Invitational Mathematics Examination'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025
+- arxiv: https://huggingface.co/datasets/math-ai/aime26
+  categories:
+  - Mathematics
+  contributors:
+  - joeda
+  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
+    problems from the 2026 AIME - a prestigious high school mathematics competition.
+
+    '
+  group: Mathematics
+  metadata:
+    fast: true
+  path: src/inspect_evals/aime2026
+  tasks:
+  - aime2026
+  title: 'AIME 2026: Problems from the American Invitational Mathematics Examination'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2026
+- arxiv: https://arxiv.org/abs/2110.14168
+  categories:
+  - Mathematics
+  contributors:
+  - jjallaire
+  description: 'Measures how effectively language models solve realistic, linguistically
+    rich math word problems suitable for grade-school-level mathematics.
+
+    '
+  group: Mathematics
+  path: src/inspect_evals/gsm8k
+  tasks:
+  - gsm8k
+  title: 'GSM8K: Grade School Math Word Problems'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/gsm8k
 - arxiv: https://arxiv.org/abs/2103.03874
   categories:
   - Mathematics
@@ -1048,21 +1454,6 @@
   - math
   title: 'MATH: Measuring Mathematical Problem Solving'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/math
-- arxiv: https://arxiv.org/abs/2110.14168
-  categories:
-  - Mathematics
-  contributors:
-  - jjallaire
-  description: 'Measures how effectively language models solve realistic, linguistically
-    rich math word problems suitable for grade-school-level mathematics.
-
-    '
-  group: Mathematics
-  path: src/inspect_evals/gsm8k
-  tasks:
-  - gsm8k
-  title: 'GSM8K: Grade School Math Word Problems'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/gsm8k
 - arxiv: https://arxiv.org/abs/2310.02255
   categories:
   - Mathematics
@@ -1097,50 +1488,90 @@
   - mgsm
   title: 'MGSM: Multilingual Grade School Math'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mgsm
-- arxiv: https://huggingface.co/datasets/Maxwell-Jia/AIME_2024
-  categories:
-  - Mathematics
-  contributors:
-  - tamazgadaev
-  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
-    problems from the 2024 AIME - a prestigious high school mathematics competition.
-
-    '
-  group: Mathematics
-  path: src/inspect_evals/aime2024
-  tasks:
-  - aime2024
-  title: 'AIME 2024: Problems from the American Invitational Mathematics Examination'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2024
-- arxiv: https://huggingface.co/datasets/math-ai/aime25
-  categories:
-  - Mathematics
-  contributors:
-  - jannalulu
-  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
-    problems from the 2025 AIME - a prestigious high school mathematics competition.
-
-    '
-  group: Mathematics
-  path: src/inspect_evals/aime2025
-  tasks:
-  - aime2025
-  title: 'AIME 2025: Problems from the American Invitational Mathematics Examination'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025
 - arxiv: https://arxiv.org/abs/1803.05457
   categories:
   - Reasoning
   contributors:
   - jjallaire
-  description: Dataset of natural, grade-school science multiple-choice questions
+  description: 'Dataset of natural, grade-school science multiple-choice questions
     (authored for human tests).
+
+    '
   group: Reasoning
+  metadata:
+    fast: true
   path: src/inspect_evals/arc
   tasks:
   - arc_easy
   - arc_challenge
   title: 'ARC: AI2 Reasoning Challenge'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/arc
+- arxiv: https://arxiv.org/abs/2210.09261
+  categories:
+  - Reasoning
+  contributors:
+  - JoschkaCBraun
+  description: 'Tests AI models on a suite of 23 challenging BIG-Bench tasks that
+    previously proved difficult even for advanced language models to solve.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/bbh
+  tasks:
+  - bbh
+  title: 'BBH: Challenging BIG-Bench Tasks'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbh
+- arxiv: https://arxiv.org/pdf/2502.19187
+  categories:
+  - Reasoning
+  contributors:
+  - jeqcho
+  description: 'A reasoning capability dataset that replaces each task in BIG-Bench-Hard
+    with a novel task that probes a similar reasoning capability but exhibits significantly
+    increased difficulty.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/bbeh
+  tasks:
+  - bbeh
+  - bbeh_mini
+  title: BIG-Bench Extra Hard
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbeh
+- arxiv: https://arxiv.org/abs/1905.10044
+  categories:
+  - Reasoning
+  contributors:
+  - seddy-aisi
+  description: 'Reading comprehension dataset that queries for complex, non-factoid
+    information, and require difficult entailment-like inference to solve.
+
+    '
+  group: Reasoning
+  metadata:
+    fast: true
+  path: src/inspect_evals/boolq
+  tasks:
+  - boolq
+  title: 'BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/boolq
+- arxiv: https://arxiv.org/abs/1903.00161
+  categories:
+  - Reasoning
+  contributors:
+  - xeon27
+  description: 'Evaluates reading comprehension where models must resolve references
+    in a question, perhaps to multiple input positions, and perform discrete operations
+    over them (such as addition, counting, or sorting).
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/drop
+  tasks:
+  - drop
+  title: 'DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over
+    Paragraphs'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/drop
 - arxiv: https://arxiv.org/abs/1905.07830
   categories:
   - Reasoning
@@ -1156,6 +1587,133 @@
   - hellaswag
   title: 'HellaSwag: Commonsense Event Continuation'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/hellaswag
+- arxiv: https://arxiv.org/abs/2311.07911
+  categories:
+  - Reasoning
+  contributors:
+  - adil-a
+  dependency: ifeval
+  dependency-group: ifeval
+  description: 'Evaluates how well language models can strictly follow detailed instructions,
+    such as writing responses with specific word counts or including required keywords.
+
+    '
+  group: Reasoning
+  metadata:
+    fast: true
+  path: src/inspect_evals/ifeval
+  tasks:
+  - ifeval
+  title: 'IFEval: Instruction-Following Evaluation'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/ifeval
+- arxiv: https://arxiv.org/pdf/2406.06196,https://arxiv.org/abs/2503.02972
+  categories:
+  - Reasoning
+  contributors:
+  - am-bean
+  - jkhouja
+  description: 'Two linguistics reasoning benchmarks:
+
+    LingOly (Linguistic Olympiad questions) is a benchmark utilising low resource
+    languages.
+
+    LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfuscation)
+    is a benchmark designed to counteract answering without reasoning.'
+  group: Reasoning
+  metadata:
+    fast: true
+  path: src/inspect_evals/lingoly
+  tasks:
+  - lingoly
+  - lingoly_too
+  title: LingOly
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/lingoly
+- arxiv: https://arxiv.org/abs/2311.16502
+  categories:
+  - Reasoning
+  - Multimodal
+  contributors:
+  - shaheenahmedc
+  description: 'Assesses multimodal AI models on challenging college-level questions
+    covering multiple academic subjects, requiring detailed visual interpretation,
+    in-depth reasoning, and both multiple-choice and open-ended answering abilities.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/mmmu
+  tags:
+  - Multimodal
+  tasks:
+  - mmmu_multiple_choice
+  - mmmu_open
+  title: 'MMMU: Multimodal College-Level Understanding and Reasoning'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu
+- arxiv: https://arxiv.org/abs/2310.16049
+  categories:
+  - Reasoning
+  contributors:
+  - farrelmahaztra
+  description: 'Evaluating models on multistep soft reasoning tasks in the form of
+    free text narratives.
+
+    '
+  group: Reasoning
+  metadata:
+    fast: true
+  path: src/inspect_evals/musr
+  tasks:
+  - musr
+  title: 'MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/musr
+- arxiv: https://arxiv.org/abs/2407.01437
+  categories:
+  - Reasoning
+  contributors:
+  - owenparsons
+  dependency: niah
+  description: 'NIAH evaluates in-context retrieval ability of long context LLMs by
+    testing a model''s ability to extract factual information from long-context inputs.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/niah
+  tasks:
+  - niah
+  title: 'Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context
+    LLMs'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/niah
+- arxiv: https://arxiv.org/abs/2504.05228
+  categories:
+  - Reasoning
+  contributors:
+  - iphan
+  dependency: novelty_bench
+  description: 'Evaluates how well language models generate diverse, humanlike responses
+    across multiple reasoning and generation tasks. This evaluation assesses whether
+    LLMs can produce varied outputs rather than repetitive or uniform answers.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/novelty_bench
+  tasks:
+  - novelty_bench
+  title: 'NoveltyBench: Evaluating Language Models for Humanlike Diversity'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/novelty_bench
+- arxiv: https://arxiv.org/abs/1904.01130
+  categories:
+  - Reasoning
+  contributors:
+  - meltemkenis
+  description: 'Evaluating models on the task of paraphrase detection by providing
+    pairs of sentences that are either paraphrases or not.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/paws
+  tasks:
+  - paws
+  title: 'PAWS: Paraphrase Adversaries from Word Scrambling'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/paws
 - arxiv: https://arxiv.org/abs/1911.11641
   categories:
   - Reasoning
@@ -1172,6 +1730,100 @@
   - piqa
   title: 'PIQA: Physical Commonsense Reasoning Test'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/piqa
+- arxiv: https://arxiv.org/abs/1704.04683
+  categories:
+  - Reasoning
+  contributors:
+  - mdrpanwar
+  description: 'Reading comprehension tasks collected from the English exams for middle
+    and high school Chinese students in the age range between 12 to 18.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/race_h
+  tasks:
+  - race_h
+  title: 'RACE-H: A benchmark for testing reading comprehension and reasoning abilities
+    of neural models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/race_h
+- arxiv: https://arxiv.org/abs/1606.05250
+  categories:
+  - Reasoning
+  contributors:
+  - tknasir
+  description: 'Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia
+    articles, where the answer to each question is a segment of text from the corresponding
+    reading passage.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/squad
+  tasks:
+  - squad
+  title: 'SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia
+    articles'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/squad
+- categories:
+  - Reasoning
+  - Vim
+  - Editing
+  - Game
+  contributors:
+  - james4ever0
+  dependency: vimgolf_challenges
+  description: 'A benchmark that evaluates LLMs in their ability to operate Vim editor
+    and complete editing challenges. This benchmark contrasts with common CUA benchmarks
+    by focusing on Vim-specific editing capabilities.
+
+    '
+  group: Reasoning
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/vimgolf_challenges
+  tags:
+  - Vim
+  - Editing
+  - Game
+  tasks:
+  - vimgolf_single_turn
+  title: 'VimGolf: Evaluating LLMs in Vim Editing Proficiency'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/vimgolf_challenges
+- arxiv: https://arxiv.org/abs/1907.10641
+  categories:
+  - Reasoning
+  contributors:
+  - xeon27
+  description: 'Set of 273 expert-crafted pronoun resolution problems originally designed
+    to be unsolvable for statistical models that rely on selectional preferences or
+    word associations.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/winogrande
+  tasks:
+  - winogrande
+  title: 'WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/winogrande
+- arxiv: https://arxiv.org/pdf/2311.15930
+  categories:
+  - Reasoning
+  contributors:
+  - mjbroerman
+  dependency: worldsense
+  description: 'Measures grounded reasoning over synthetic world descriptions while
+    controlling for dataset bias. Includes three problem types (Infer, Compl, Consist)
+    and two grades (trivial, normal).
+
+    '
+  group: Reasoning
+  metadata:
+    requires_internet: true
+  path: src/inspect_evals/worldsense
+  tasks:
+  - worldsense
+  title: 'WorldSense: Grounded Reasoning Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/worldsense
 - arxiv: https://arxiv.org/abs/2402.13718
   categories:
   - Reasoning
@@ -1196,317 +1848,104 @@
   - infinite_bench_passkey
   title: "\u221EBench: Extending Long Context Evaluation Beyond 100K Tokens"
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/infinite_bench
-- arxiv: https://arxiv.org/abs/2210.09261
-  categories:
-  - Reasoning
-  contributors:
-  - JoschkaCBraun
-  description: 'Tests AI models on a suite of 23 challenging BIG-Bench tasks that
-    previously proved difficult even for advanced language models to solve.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/bbh
-  tasks:
-  - bbh
-  title: 'BBH: Challenging BIG-Bench Tasks'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbh
-- arxiv: https://arxiv.org/abs/1905.10044
-  categories:
-  - Reasoning
-  contributors:
-  - seddy-aisi
-  description: 'Reading comprehension dataset that queries for complex, non-factoid
-    information, and require difficult entailment-like inference to solve.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/boolq
-  tasks:
-  - boolq
-  title: 'BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/boolq
-- arxiv: https://arxiv.org/abs/1903.00161
-  categories:
-  - Reasoning
-  contributors:
-  - xeon27
-  description: 'Evaluates reading comprehension where models must resolve references
-    in a question, perhaps to multiple input positions, and perform discrete operations
-    over them (such as addition, counting, or sorting).
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/drop
-  tasks:
-  - drop
-  title: 'DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over
-    Paragraphs'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/drop
-- arxiv: https://arxiv.org/abs/1907.10641
-  categories:
-  - Reasoning
-  contributors:
-  - xeon27
-  description: 'Set of 273 expert-crafted pronoun resolution problems originally designed
-    to be unsolvable for statistical models that rely on selectional preferences or
-    word associations.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/winogrande
-  tasks:
-  - winogrande
-  title: 'WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/winogrande
-- arxiv: https://arxiv.org/abs/1704.04683
-  categories:
-  - Reasoning
-  contributors:
-  - mdrpanwar
-  description: 'Reading comprehension tasks collected from the English exams for middle
-    and high school Chinese students in the age range between 12 to 18.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/race_h
-  tasks:
-  - race_h
-  title: 'RACE-H: A benchmark for testing reading comprehension and reasoning abilities
-    of neural models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/race_h
-- arxiv: https://arxiv.org/abs/2311.16502
-  categories:
-  - Reasoning
-  - Multimodal
-  contributors:
-  - shaheenahmedc
-  description: 'Assesses multimodal AI models on challenging college-level questions
-    covering multiple academic subjects, requiring detailed visual interpretation,
-    in-depth reasoning, and both multiple-choice and open-ended answering abilities.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/mmmu
-  tags:
-  - Multimodal
-  tasks:
-  - mmmu_multiple_choice
-  - mmmu_open
-  title: 'MMMU: Multimodal College-Level Understanding and Reasoning'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu
-- arxiv: https://arxiv.org/abs/1606.05250
-  categories:
-  - Reasoning
-  contributors:
-  - tknasir
-  description: 'Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia
-    articles, where the answer to each question is a segment of text from the corresponding
-    reading passage.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/squad
-  tasks:
-  - squad
-  title: 'SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia
-    articles'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/squad
-- arxiv: https://arxiv.org/abs/2311.07911
-  categories:
-  - Reasoning
-  contributors:
-  - adil-a
-  dependency-group: ifeval
-  description: 'Evaluates how well language models can strictly follow detailed instructions,
-    such as writing responses with specific word counts or including required keywords.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/ifeval
-  tasks:
-  - ifeval
-  title: 'IFEval: Instruction-Following Evaluation'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/ifeval
-- arxiv: https://arxiv.org/abs/2310.16049
-  categories:
-  - Reasoning
-  contributors:
-  - farrelmahaztra
-  description: 'Evaluating models on multistep soft reasoning tasks in the form of
-    free text narratives.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/musr
-  tasks:
-  - musr
-  title: 'MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/musr
-- arxiv: https://arxiv.org/abs/2407.01437
-  categories:
-  - Reasoning
-  contributors:
-  - owenparsons
-  description: 'NIAH evaluates in-context retrieval ability of long context LLMs by
-    testing a model''s ability to extract factual information from long-context inputs.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/niah
-  tasks:
-  - niah
-  title: 'Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context
-    LLMs'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/niah
-- arxiv: https://arxiv.org/abs/1904.01130
-  categories:
-  - Reasoning
-  contributors:
-  - meltemkenis
-  description: 'Evaluating models on the task of paraphrase detection by providing
-    pairs of sentences that are either paraphrases or not.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/paws
-  tasks:
-  - paws
-  title: 'PAWS: Paraphrase Adversaries from Word Scrambling'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/paws
-- arxiv: https://arxiv.org/pdf/2406.06196,https://arxiv.org/abs/2503.02972
-  categories:
-  - Reasoning
-  contributors:
-  - am-bean
-  - jkhouja
-  description: 'Two linguistics reasoning benchmarks:
-
-    LingOly (Linguistic Olympiad questions) is a benchmark utilising low resource
-    languages.
-
-    LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfuscation)
-    is a benchmark designed to counteract answering without reasoning.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/lingoly
-  tasks:
-  - lingoly
-  - lingoly_too
-  title: LingOly
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/lingoly
-- arxiv: https://arxiv.org/pdf/2502.19187
-  categories:
-  - Reasoning
-  contributors:
-  - jeqcho
-  description: 'A reasoning capability dataset that replaces each task in BIG-Bench-Hard
-    with a novel task that probes a similar reasoning capability but exhibits significantly
-    increased difficulty.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/bbeh
-  tasks:
-  - bbeh
-  - bbeh_mini
-  title: BIG-Bench Extra Hard
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbeh
-- arxiv: https://arxiv.org/pdf/2311.15930
-  categories:
-  - Reasoning
-  contributors:
-  - mjbroerman
-  dependency: worldsense
-  description: 'Measures grounded reasoning over synthetic world descriptions while
-    controlling for dataset bias. Includes three problem types (Infer, Compl, Consist)
-    and two grades (trivial, normal).
-
-    '
-  group: Reasoning
-  metadata:
-    requires_internet: true
-  path: src/inspect_evals/worldsense
-  tasks:
-  - worldsense
-  title: 'WorldSense: Grounded Reasoning Benchmark'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/worldsense
-- categories:
-  - Reasoning
-  - Vim
-  - Editing
-  - Game
-  contributors:
-  - james4ever0
-  description: 'A benchmark that evaluates LLMs in their ability to operate Vim editor
-    and complete editing challenges. This benchmark contrasts with common CUA benchmarks
-    by focusing on Vim-specific editing capabilities.
-
-    '
-  group: Reasoning
-  metadata:
-    sandbox:
-    - scorer
-  path: src/inspect_evals/vimgolf_challenges
-  tags:
-  - Vim
-  - Editing
-  - Game
-  tasks:
-  - vimgolf_single_turn
-  title: 'VimGolf: Evaluating LLMs in Vim Editing Proficiency'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/vimgolf_challenges
-- arxiv: https://arxiv.org/abs/2504.05228
-  categories:
-  - Reasoning
-  contributors:
-  - iphan
-  dependency: novelty_bench
-  description: 'Evaluates how well language models generate diverse, humanlike responses
-    across multiple reasoning and generation tasks. This evaluation assesses whether
-    LLMs can produce varied outputs rather than repetitive or uniform answers.
-
-    '
-  group: Reasoning
-  path: src/inspect_evals/novelty_bench
-  tasks:
-  - novelty_bench
-  title: 'NoveltyBench: Evaluating Language Models for Humanlike Diversity'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/novelty_bench
-- arxiv: https://arxiv.org/abs/2009.03300
+- arxiv: https://arxiv.org/abs/2304.06364
   categories:
   - Knowledge
   contributors:
-  - jjallaire
-  - domdomegg
-  description: 'Evaluate models on 57 tasks including elementary mathematics, US history,
-    computer science, law, and more.
+  - bouromain
+  description: 'AGIEval is a human-centric benchmark specifically designed to evaluate
+    the general abilities of foundation models in tasks pertinent to human cognition
+    and problem-solving.
 
     '
   group: Knowledge
-  path: src/inspect_evals/mmlu
+  metadata:
+    fast: true
+  path: src/inspect_evals/agieval
   tasks:
-  - mmlu_0_shot
-  - mmlu_5_shot
-  title: 'MMLU: Measuring Massive Multitask Language Understanding'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu
-- arxiv: https://arxiv.org/abs/2406.01574
+  - agie_aqua_rat
+  - agie_logiqa_en
+  - agie_lsat_ar
+  - agie_lsat_lr
+  - agie_lsat_rc
+  - agie_math
+  - agie_sat_en
+  - agie_sat_en_without_passage
+  - agie_sat_math
+  title: 'AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/agieval
+- arxiv: https://arxiv.org/pdf/2407.17436
   categories:
   - Knowledge
   contributors:
-  - xeon27
-  description: 'An advanced benchmark that tests both broad knowledge and reasoning
-    capabilities across many subjects, featuring challenging questions and multiple-choice
-    answers with increased difficulty and complexity.
+  - l1990790120
+  description: 'A safety benchmark evaluating language models against risk categories
+    derived from government regulations and company policies.
 
     '
   group: Knowledge
-  path: src/inspect_evals/mmlu_pro
+  path: src/inspect_evals/air_bench
   tasks:
-  - mmlu_pro
-  title: 'MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu_pro
+  - air_bench
+  title: 'AIR Bench: AI Risk Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/air_bench
+- arxiv: https://arxiv.org/pdf/2404.01475v2
+  categories:
+  - Knowledge
+  contributors:
+  - Esther-Guo
+  - MrtinoRG
+  - r-fedorov
+  description: 'ChemBench is designed to reveal limitations of current frontier models
+    for use in the chemical sciences. It consists of 2786 question-answer pairs compiled
+    from diverse sources. Our corpus measures reasoning, knowledge and intuition across
+    a large fraction of the topics taught in undergraduate and graduate chemistry
+    curricula. It can be used to evaluate any system that can return text (i.e., including
+    tool-augmented systems).
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/chembench
+  tasks:
+  - chembench
+  title: 'ChemBench: Are large language models superhuman chemists?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/chembench
+- arxiv: https://arxiv.org/abs/1811.00937
+  categories:
+  - Knowledge
+  contributors:
+  - lauritowal
+  description: 'Evaluates an AI model''s ability to correctly answer everyday questions
+    that rely on basic commonsense knowledge and understanding of the world.
+
+    '
+  group: Knowledge
+  metadata:
+    fast: true
+  path: src/inspect_evals/commonsense_qa
+  tasks:
+  - commonsense_qa
+  title: 'CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/commonsense_qa
+- arxiv: https://openai.com/index/frontierscience/
+  categories:
+  - Knowledge
+  contributors:
+  - tommyly201
+  - mnarayan
+  description: 'Evaluates AI capabilities for expert-level scientific reasoning across
+    physics, chemistry, and biology. Contains 160 problems with two evaluation formats:
+    Olympic (100 samples with reference answers) and Research (60 samples with rubrics).
+
+    '
+  group: Knowledge
+  metadata:
+    fast: true
+  path: src/inspect_evals/frontierscience
+  tasks:
+  - frontierscience
+  title: 'FrontierScience: Expert-Level Scientific Reasoning'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/frontierscience
 - arxiv: https://arxiv.org/abs/2311.12022
   categories:
   - Knowledge
@@ -1524,21 +1963,224 @@
   - gpqa_diamond
   title: 'GPQA: Graduate-Level STEM Knowledge Challenge'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/gpqa
-- arxiv: https://arxiv.org/abs/1811.00937
+- arxiv: https://arxiv.org/abs/2505.08775
   categories:
   - Knowledge
+  - Medical
+  - Healthcare
   contributors:
-  - lauritowal
-  description: 'Evaluates an AI model''s ability to correctly answer everyday questions
-    that rely on basic commonsense knowledge and understanding of the world.
+  - retroam
+  dependency: healthbench
+  description: 'A comprehensive evaluation benchmark designed to assess language models''
+    medical capabilities across a wide range of healthcare scenarios.
 
     '
   group: Knowledge
-  path: src/inspect_evals/commonsense_qa
+  path: src/inspect_evals/healthbench
+  tags:
+  - Medical
+  - Healthcare
   tasks:
-  - commonsense_qa
-  title: 'CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/commonsense_qa
+  - healthbench
+  - healthbench_hard
+  - healthbench_consensus
+  - healthbench_meta_eval
+  title: 'HealthBench: Evaluating Large Language Models Towards Improved Human Health'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench
+- arxiv: https://arxiv.org/abs/2501.14249
+  categories:
+  - Knowledge
+  contributors:
+  - SasankYadati
+  description: 'Humanity''s Last Exam (HLE) is a multi-modal benchmark at the frontier
+    of human knowledge, designed to be the final closed-ended academic benchmark of
+    its kind with broad subject coverage. Humanity''s Last Exam consists of 3,000
+    questions across dozens of subjects, including mathematics, humanities, and the
+    natural sciences. HLE is developed globally by subject-matter experts and consists
+    of multiple-choice and short-answer questions suitable for automated grading.
+
+    '
+  group: Knowledge
+  metadata:
+    fast: true
+  path: src/inspect_evals/hle
+  tasks:
+  - hle
+  title: Humanity's Last Exam
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle
+- arxiv: https://arxiv.org/abs/2406.19314
+  categories:
+  - Knowledge
+  contributors:
+  - anaoaktree
+  dependency-group: livebench
+  description: 'LiveBench is a benchmark designed with test set contamination and
+    objective evaluation in mind by releasing new questions regularly, as well as
+    having questions based on recently-released datasets. Each question has verifiable,
+    objective ground-truth answers, allowing hard questions to be scored accurately
+    and automatically, without the use of an LLM judge.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/livebench
+  tasks:
+  - livebench
+  title: 'LiveBench: A Challenging, Contamination-Free LLM Benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/livebench
+- arxiv: https://arxiv.org/abs/2009.13081
+  categories:
+  - Knowledge
+  contributors:
+  - bunny-baxter
+  - JasonBenn
+  dependency: medqa
+  description: 'A Q&A benchmark with questions collected from professional medical
+    board exams. Only includes the English subset of the dataset (which also contains
+    Mandarin Chinese and Taiwanese questions).
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/medqa
+  tasks:
+  - medqa
+  title: 'MedQA: Medical exam Q&A benchmark'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/medqa
+- arxiv: https://arxiv.org/abs/2406.01574
+  categories:
+  - Knowledge
+  contributors:
+  - xeon27
+  description: 'An advanced benchmark that tests both broad knowledge and reasoning
+    capabilities across many subjects, featuring challenging questions and multiple-choice
+    answers with increased difficulty and complexity.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/mmlu_pro
+  tasks:
+  - mmlu_pro
+  title: 'MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu_pro
+- arxiv: https://arxiv.org/abs/2009.03300
+  categories:
+  - Knowledge
+  contributors:
+  - jjallaire
+  - domdomegg
+  description: 'Evaluate models on 57 tasks including elementary mathematics, US history,
+    computer science, law, and more.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/mmlu
+  tasks:
+  - mmlu_0_shot
+  - mmlu_5_shot
+  title: 'MMLU: Measuring Massive Multitask Language Understanding'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu
+- categories:
+  - Knowledge
+  contributors:
+  - bact
+  description: 'Questions and answers from the Ordinary National Educational Test
+    (O-NET), administered annually by the National Institute of Educational Testing
+    Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains
+    six subjects: English language, math, science, social knowledge, and Thai language.
+    There are questions with multiple-choice and true/false answers. Questions can
+    be in either English or Thai.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/onet
+  tasks:
+  - onet_m6
+  title: 'O-NET: A high-school student knowledge test'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/onet
+- categories:
+  - Knowledge
+  contributors:
+  - alexbrooker
+  description: 'Tests model understanding of aviation regulations including ICAO annexes,
+    flight dispatch rules, pilot procedures, and airport ground operations safety
+    protocols.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/pre_flight
+  tasks:
+  - pre_flight
+  title: 'Pre-Flight: Aviation Operations Knowledge Evaluation'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pre_flight
+- arxiv: https://arxiv.org/abs/1909.06146
+  categories:
+  - Knowledge
+  contributors:
+  - MattFisher
+  description: 'Biomedical question answering (QA) dataset collected from PubMed abstracts.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/pubmedqa
+  tasks:
+  - pubmedqa
+  title: 'PubMedQA: A Dataset for Biomedical Research Question Answering'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pubmedqa
+- arxiv: https://arxiv.org/abs/2406.09098v2
+  categories:
+  - Knowledge
+  contributors:
+  - Esther-Guo
+  dependency: sciknoweval
+  description: "The Scientific Knowledge Evaluation benchmark is inspired by the profound\
+    \ principles outlined in the \u201CDoctrine of the Mean\u201D from ancient Chinese\
+    \ philosophy. This benchmark is designed to assess LLMs based on their proficiency\
+    \ in Studying Extensively, Enquiring Earnestly, Thinking Profoundly, Discerning\
+    \ Clearly, and Practicing Assiduously. Each of these dimensions offers a unique\
+    \ perspective on evaluating the capabilities of LLMs in handling scientific knowledge.\n"
+  group: Knowledge
+  path: src/inspect_evals/sciknoweval
+  tasks:
+  - sciknoweval
+  title: 'SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language
+    Models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sciknoweval
+- arxiv: https://arxiv.org/abs/2411.04368,https://arxiv.org/abs/2509.07968
+  categories:
+  - Knowledge
+  contributors:
+  - osc245
+  - jeqcho
+  description: 'A benchmark that evaluates the ability of language models to answer
+    short, fact-seeking questions.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/simpleqa
+  tasks:
+  - simpleqa
+  - simpleqa_verified
+  title: 'SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language
+    models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/simpleqa
+- arxiv: https://arxiv.org/pdf/2505.21605
+  categories:
+  - Knowledge
+  contributors:
+  - Esther-Guo
+  description: 'A regulation-grounded, hazard-focused benchmark encompassing six high-risk
+    scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology.
+    The benchmark comprises 3,000 prompts derived from real-world regulations and
+    laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces
+    diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions
+    involving advanced chemical formulas).
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/sosbench
+  tasks:
+  - sosbench
+  title: 'SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sosbench
 - arxiv: https://arxiv.org/abs/2109.07958v2
   categories:
   - Knowledge
@@ -1550,6 +2192,8 @@
 
     '
   group: Knowledge
+  metadata:
+    fast: true
   path: src/inspect_evals/truthfulqa
   tasks:
   - truthfulqa
@@ -1569,9 +2213,7 @@
     across 24 cultural domains including education, traditional medicine, media, economy,
     literature,
 
-    and social norms.
-
-    '
+    and social norms.'
   group: Knowledge
   path: src/inspect_evals/uccb
   tasks:
@@ -1594,389 +2236,12 @@
   - xstest
   title: 'XSTest: A benchmark for identifying exaggerated safety behaviours in LLM''s'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/xstest
-- arxiv: https://arxiv.org/abs/1909.06146
-  categories:
-  - Knowledge
-  contributors:
-  - MattFisher
-  description: 'Biomedical question answering (QA) dataset collected from PubMed abstracts.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/pubmedqa
-  tasks:
-  - pubmedqa
-  title: 'PubMedQA: A Dataset for Biomedical Research Question Answering'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pubmedqa
-- arxiv: https://arxiv.org/abs/2505.08775
-  categories:
-  - Knowledge
-  - Medical
-  - Healthcare
-  contributors:
-  - retroam
-  description: 'A comprehensive evaluation benchmark designed to assess language models''
-    medical capabilities across a wide range of healthcare scenarios.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/healthbench
-  tags:
-  - Medical
-  - Healthcare
-  tasks:
-  - healthbench
-  - healthbench_hard
-  - healthbench_consensus
-  title: 'HealthBench: Evaluating Large Language Models Towards Improved Human Health'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench
-- arxiv: https://arxiv.org/abs/2304.06364
-  categories:
-  - Knowledge
-  contributors:
-  - bouromain
-  description: 'AGIEval is a human-centric benchmark specifically designed to evaluate
-    the general abilities of foundation models in tasks pertinent to human cognition
-    and problem-solving.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/agieval
-  tasks:
-  - agie_aqua_rat
-  - agie_logiqa_en
-  - agie_lsat_ar
-  - agie_lsat_lr
-  - agie_lsat_rc
-  - agie_math
-  - agie_sat_en
-  - agie_sat_en_without_passage
-  - agie_sat_math
-  title: 'AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/agieval
-- arxiv: https://arxiv.org/abs/2406.19314
-  categories:
-  - Knowledge
-  contributors:
-  - anaoaktree
-  dependency: livebench
-  dependency-group: livebench
-  description: 'LiveBench is a benchmark designed with test set contamination and
-    objective evaluation in mind by releasing new questions regularly, as well as
-    having questions based on recently-released datasets. Each question has verifiable,
-    objective ground-truth answers, allowing hard questions to be scored accurately
-    and automatically, without the use of an LLM judge.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/livebench
-  tasks:
-  - livebench
-  title: 'LiveBench: A Challenging, Contamination-Free LLM Benchmark'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/livebench
-- categories:
-  - Knowledge
-  contributors:
-  - bact
-  description: 'Questions and answers from the Ordinary National Educational Test
-    (O-NET), administered annually by the National Institute of Educational Testing
-    Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains
-    six subjects: English language, math, science, social knowledge, and Thai language.
-    There are questions with multiple-choice and true/false answers. Questions can
-    be in either English or Thai.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/onet
-  tasks:
-  - onet_m6
-  title: 'O-NET: A high-school student knowledge test'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/onet
-- arxiv: https://arxiv.org/abs/2501.14249
-  categories:
-  - Knowledge
-  contributors:
-  - SasankYadati
-  description: 'Humanity''s Last Exam (HLE) is a multi-modal benchmark at the frontier
-    of human knowledge, designed to be the final closed-ended academic benchmark of
-    its kind with broad subject coverage. Humanity''s Last Exam consists of 3,000
-    questions across dozens of subjects, including mathematics, humanities, and the
-    natural sciences. HLE is developed globally by subject-matter experts and consists
-    of multiple-choice and short-answer questions suitable for automated grading.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/hle
-  tasks:
-  - hle
-  title: Humanity's Last Exam
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle
-- arxiv: https://arxiv.org/abs/2411.04368,https://arxiv.org/abs/2509.07968
-  categories:
-  - Knowledge
-  contributors:
-  - osc245
-  - jeqcho
-  description: 'A benchmark that evaluates the ability of language models to answer
-    short, fact-seeking questions.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/simpleqa
-  tasks:
-  - simpleqa
-  - simpleqa_verified
-  title: 'SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language
-    models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/simpleqa
-- categories:
-  - Knowledge
-  contributors:
-  - alexbrooker
-  description: 'Tests model understanding of aviation regulations including ICAO annexes,
-    flight dispatch rules, pilot procedures, and airport ground operations safety
-    protocols.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/pre_flight
-  tasks:
-  - pre_flight
-  title: 'Pre-Flight: Aviation Operations Knowledge Evaluation'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pre_flight
-- arxiv: https://arxiv.org/pdf/2407.17436
-  categories:
-  - Knowledge
-  contributors:
-  - l1990790120
-  description: 'A safety benchmark evaluating language models against risk categories
-    derived from government regulations and company policies.
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/air_bench
-  tasks:
-  - air_bench
-  title: 'AIR Bench: AI Risk Benchmark'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/air_bench
-- arxiv: https://arxiv.org/abs/2406.09098v2
-  categories:
-  - Knowledge
-  contributors:
-  - Esther-Guo
-  dependency: sciknoweval
-  description: "The Scientific Knowledge Evaluation benchmark is inspired by the profound\
-    \ principles outlined in the \u201CDoctrine of the Mean\u201D from ancient Chinese\
-    \ philosophy. This benchmark is designed to assess LLMs based on their proficiency\
-    \ in Studying Extensively, Enquiring Earnestly, Thinking Profoundly, Discerning\
-    \ Clearly, and Practicing Assiduously. Each of these dimensions offers a unique\
-    \ perspective on evaluating the capabilities of LLMs in handling scientific knowledge.\n"
-  group: Knowledge
-  path: src/inspect_evals/sciknoweval
-  tasks:
-  - sciknoweval
-  title: 'SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language
-    Models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sciknoweval
-- arxiv: https://arxiv.org/pdf/2404.01475v2
-  categories:
-  - Knowledge
-  contributors:
-  - Esther-Guo
-  description: 'ChemBench is designed to reveal limitations of current frontier models
-    for use in the chemical sciences. It consists of 2786 question-answer pairs compiled
-    from diverse sources. Our corpus measures reasoning, knowledge and intuition across
-    a large fraction of the topics taught in undergraduate and graduate chemistry
-    curricula. It can be used to evaluate any system that can return text (i.e., including
-    tool-augmented systems).
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/chembench
-  tasks:
-  - chembench
-  title: 'ChemBench: Are large language models superhuman chemists?'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/chembench
-- arxiv: https://arxiv.org/pdf/2505.21605
-  categories:
-  - Knowledge
-  contributors:
-  - Esther-Guo
-  description: 'A regulation-grounded, hazard-focused benchmark encompassing six high-risk
-    scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology.
-    The benchmark comprises 3,000 prompts derived from real-world regulations and
-    laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces
-    diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions
-    involving advanced chemical formulas).
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/sosbench
-  tasks:
-  - sosbench
-  title: 'SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sosbench
-- arxiv: https://arxiv.org/abs/2009.13081
-  categories:
-  - Knowledge
-  contributors:
-  - bunny-baxter
-  - JasonBenn
-  description: 'A Q&A benchmark with questions collected from professional medical
-    board exams. Only includes the English subset of the dataset (which also contains
-    Mandarin Chinese and Taiwanese questions).
-
-    '
-  group: Knowledge
-  path: src/inspect_evals/medqa
-  tasks:
-  - medqa
-  title: 'MedQA: Medical exam Q&A benchmark'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/medqa
-- arxiv: https://arxiv.org/abs/2312.14135
-  categories:
-  - Multimodal
-  - Multimodal
-  contributors:
-  - bienehito
-  description: 'V*Bench is a visual question & answer benchmark that evaluates MLLMs
-    in their ability to process high-resolution and visually crowded images to find
-    and focus on small details.
-
-    '
-  group: Multimodal
-  path: src/inspect_evals/vstar_bench
-  tags:
-  - Multimodal
-  tasks:
-  - vstar_bench_attribute_recognition
-  - vstar_bench_spatial_relationship_reasoning
-  title: 'V*Bench: A Visual QA Benchmark with Detailed High-resolution Images'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench
-- arxiv: https://arxiv.org/abs/2007.00398
-  categories:
-  - Multimodal
-  - Multimodal
-  contributors:
-  - evanmiller-anthropic
-  description: 'DocVQA is a Visual Question Answering benchmark that consists of 50,000
-    questions covering 12,000+ document images. This implementation solves and scores
-    the "validation" split.
-
-    '
-  group: Multimodal
-  path: src/inspect_evals/docvqa
-  tags:
-  - Multimodal
-  tasks:
-  - docvqa
-  title: 'DocVQA: A Dataset for VQA on Document Images'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/docvqa
-- arxiv: https://arxiv.org/pdf/2408.02718
-  categories:
-  - Multimodal
-  contributors:
-  - Esther-Guo
-  description: A comprehensive dataset designed to evaluate Large Vision-Language
-    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
-    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
-    curated multiple-choice questions.
-  group: Multimodal
-  path: src/inspect_evals/mmiu
-  tasks:
-  - mmiu
-  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
-    Models'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/mmiu
-- arxiv: https://arxiv.org/abs/2502.09696
-  categories:
-  - Multimodal
-  - Multimodal
-  contributors:
-  - ItsTania
-  description: A lightweight visual reasoning benchmark that is (1) Challenging, (2)
-    Lightweight, (3) Diverse, and (4) High-quality.
-  group: Multimodal
-  path: src/inspect_evals/zerobench
-  tags:
-  - Multimodal
-  tasks:
-  - Zerobench
-  - Zerobench Subquestions
-  title: ZeroBench
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/zerobench
-- arxiv: https://arxiv.org/pdf/2503.05244
-  categories:
-  - Writing
-  contributors:
-  - jtv199
-  description: 'A comprehensive evaluation benchmark designed to assess large language
-    models'' capabilities across diverse writing tasks. The benchmark evaluates models
-    on various writing domains including academic papers, business documents, creative
-    writing, and technical documentation, with multi-dimensional scoring based on
-    domain-specific criteria.
-
-    '
-  group: Writing
-  path: src/inspect_evals/writingbench
-  tasks:
-  - writingbench
-  title: 'WritingBench: A Comprehensive Benchmark for Generative Writing'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench
-- arxiv: https://arxiv.org/abs/2505.01420
-  categories:
-  - Scheming
-  - Agent
-  contributors:
-  - ZiyueWang25
-  - XkunW
-  description: 'Test AI''s ability to reason about its environment.
-
-    '
-  group: Scheming
-  path: src/inspect_evals/gdm_capabilities/self_reasoning
-  tags:
-  - Agent
-  tasks:
-  - gdm_approved_directories
-  - gdm_calculator_improvement
-  - gdm_context_length_mod_instrumental_only
-  - gdm_context_length_mod_irreversibility_only
-  - gdm_database_tool
-  - gdm_latency_calculator
-  - gdm_max_messages_calculator
-  - gdm_max_tokens
-  - gdm_oversight_frequency
-  - gdm_read_logs
-  - gdm_turn_off_filters
-  title: 'GDM Dangerous Capabilities: Self-reasoning'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/self_reasoning
-- arxiv: https://arxiv.org/abs/2505.01420
-  categories:
-  - Scheming
-  - Agent
-  contributors:
-  - ZiyueWang25
-  dependency: stealth
-  description: 'Test AI''s ability to reason about and circumvent oversight.
-
-    '
-  group: Scheming
-  path: src/inspect_evals/gdm_capabilities/stealth
-  tags:
-  - Agent
-  tasks:
-  - gdm_classifier_evasion
-  - gdm_cover_your_tracks
-  - gdm_oversight_pattern
-  - gdm_strategic_rule_breaking
-  title: 'GDM Dangerous Capabilities: Stealth'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/stealth
 - arxiv: https://www.anthropic.com/research/agentic-misalignment
   categories:
   - Scheming
   contributors:
   - bmillwood-aisi
+  dependency: agentic_misalignment
   description: 'Eliciting unethical behaviour (most famously blackmail) in response
     to a fictional company-assistant scenario where the model is faced with replacement.
 
@@ -1987,64 +2252,12 @@
   - agentic_misalignment
   title: 'Agentic Misalignment: How LLMs could be insider threats'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/agentic_misalignment
-- arxiv: https://arxiv.org/pdf/2403.13793
-  categories:
-  - Scheming
-  - Agent
-  contributors:
-  - XkunW
-  - MariaIzobava
-  - kohankhaki
-  description: "Ten real-world\u2013inspired tasks from Google DeepMind's Dangerous\
-    \ Capabilities Evaluations assessing self-proliferation behaviors (e.g., email\
-    \ setup, model installation, web agent setup, wallet operations). Supports end-to-end,\
-    \ milestones, and expert best-of-N modes.\n"
-  group: Scheming
-  metadata:
-    requires_internet: true
-    sandbox:
-    - solver
-  path: src/inspect_evals/gdm_capabilities/self_proliferation
-  tags:
-  - Agent
-  tasks:
-  - gdm_sp01_e2e
-  - gdm_sp02_e2e
-  - gdm_sp03_e2e
-  - gdm_sp04_e2e
-  - gdm_sp05_e2e
-  - gdm_sp07_e2e
-  - gdm_sp08_e2e
-  - gdm_sp09_e2e
-  - gdm_sp10_e2e
-  - gdm_sp12_e2e
-  title: 'GDM Dangerous Capabilities: Self-proliferation'
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/self_proliferation
-- categories:
-  - Personality
-  contributors:
-  - guiem
-  dependency: personality
-  description: "An evaluation suite consisting of multiple personality tests that\
-    \ can be applied to LLMs.\nIts primary goals are twofold:\n  1. Assess a model's\
-    \ default personality: the persona it naturally exhibits without specific prompting.\n\
-    \  2. Evaluate whether a model can embody a specified persona**: how effectively\
-    \ it adopts certain personality traits when prompted or guided.\n"
-  group: Personality
-  path: src/inspect_evals/personality
-  tasks:
-  - personality_BFI
-  - personality_TRAIT
-  - personality_PRIME
-  title: Personality
-  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/personality
 - arxiv: https://arxiv.org/abs/2110.08193
   categories:
   - Bias
   contributors:
   - harshraj172
   - shubhobm
-  dependency: bbq
   description: 'A dataset for evaluating bias in question answering models across
     multiple social dimensions.
 
@@ -2072,3 +2285,275 @@
   - bold
   title: 'BOLD: Bias in Open-ended Language Generation Dataset'
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bold
+- arxiv: https://arxiv.org/abs/2007.00398
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - evanmiller-anthropic
+  description: 'DocVQA is a Visual Question Answering benchmark that consists of 50,000
+    questions covering 12,000+ document images. This implementation solves and scores
+    the "validation" split.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/docvqa
+  tags:
+  - Multimodal
+  tasks:
+  - docvqa
+  title: 'DocVQA: A Dataset for VQA on Document Images'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/docvqa
+- arxiv: https://arxiv.org/pdf/2403.13793
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - XkunW
+  - MariaIzobava
+  - kohankhaki
+  dependency: gdm_self_proliferation
+  description: "Ten real-world\u2013inspired tasks from Google DeepMind's Dangerous\
+    \ Capabilities Evaluations assessing self-proliferation behaviors (e.g., email\
+    \ setup, model installation, web agent setup, wallet operations). Supports end-to-end,\
+    \ milestones, and expert best-of-N modes.\n"
+  group: Scheming
+  metadata:
+    requires_internet: true
+    sandbox:
+    - solver
+  path: src/inspect_evals/gdm_self_proliferation
+  tags:
+  - Agent
+  tasks:
+  - gdm_sp01_e2e
+  - gdm_sp02_e2e
+  - gdm_sp03_e2e
+  - gdm_sp04_e2e
+  - gdm_sp05_e2e
+  - gdm_sp07_e2e
+  - gdm_sp08_e2e
+  - gdm_sp09_e2e
+  - gdm_sp10_e2e
+  - gdm_sp12_e2e
+  title: 'GDM Dangerous Capabilities: Self-proliferation'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_proliferation
+- arxiv: https://arxiv.org/abs/2505.01420
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - ZiyueWang25
+  - XkunW
+  description: 'Test AI''s ability to reason about its environment.
+
+    '
+  group: Scheming
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/gdm_self_reasoning
+  tags:
+  - Agent
+  tasks:
+  - gdm_self_reasoning_approved_directories
+  - gdm_self_reasoning_calculator_improvement
+  - gdm_self_reasoning_context_length_mod_instrumental_only
+  - gdm_self_reasoning_context_length_mod_irreversibility_only
+  - gdm_self_reasoning_database_tool
+  - gdm_self_reasoning_latency_calculator
+  - gdm_self_reasoning_max_messages_calculator
+  - gdm_self_reasoning_max_tokens
+  - gdm_self_reasoning_oversight_frequency
+  - gdm_self_reasoning_read_logs
+  - gdm_self_reasoning_turn_off_filters
+  title: 'GDM Dangerous Capabilities: Self-reasoning'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_reasoning
+- arxiv: https://arxiv.org/abs/2505.01420
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - ZiyueWang25
+  dependency: gdm_stealth
+  description: 'Test AI''s ability to reason about and circumvent oversight.
+
+    '
+  group: Scheming
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/gdm_stealth
+  tags:
+  - Agent
+  tasks:
+  - gdm_classifier_evasion
+  - gdm_cover_your_tracks
+  - gdm_oversight_pattern
+  - gdm_strategic_rule_breaking
+  title: 'GDM Dangerous Capabilities: Stealth'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_stealth
+- arxiv: https://arxiv.org/abs/2502.12206
+  categories:
+  - Scheming
+  contributors:
+  - horvgbor
+  description: 'An evaluation designed to detect instrumental convergence behaviors
+    in model responses (e.g., self-preservation, resource acquisition, power-seeking,
+    strategic deception) using a rubric-driven LLM grader. The benchmark tests whether
+    AI systems exhibit behaviors that are instrumentally useful across a wide range
+    of goals, which could indicate concerning patterns of strategic reasoning.
+
+    '
+  group: Scheming
+  metadata:
+    requires_internet: true
+  path: src/inspect_evals/instrumentaleval
+  tasks:
+  - instrumentaleval
+  title: 'InstrumentalEval - Evaluating the Paperclip Maximizer: Are RL-Based Language
+    Models More Likely to Pursue Instrumental Goals?'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/instrumentaleval
+- arxiv: https://arxiv.org/pdf/2408.02718
+  categories:
+  - Multimodal
+  contributors:
+  - Esther-Guo
+  description: 'A comprehensive dataset designed to evaluate Large Vision-Language
+    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
+    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
+    curated multiple-choice questions.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/mmiu
+  tasks:
+  - mmiu
+  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
+    Models'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/mmiu
+- categories:
+  - Personality
+  contributors:
+  - guiem
+  dependency: personality
+  description: "An evaluation suite consisting of multiple personality tests that\
+    \ can be applied to LLMs.\nIts primary goals are twofold:\n  1. Assess a model's\
+    \ default personality: the persona it naturally exhibits without specific prompting.\n\
+    \  2. Evaluate whether a model can embody a specified persona**: how effectively\
+    \ it adopts certain personality traits when prompted or guided."
+  group: Personality
+  path: src/inspect_evals/personality
+  tasks:
+  - personality_BFI
+  - personality_TRAIT
+  title: Personality
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/personality
+- arxiv: https://arxiv.org/abs/2407.04694
+  categories:
+  - Scheming
+  contributors:
+  - HugoSave
+  description: "Evaluates situational awareness in LLMs\u2014knowledge of themselves\
+    \ and their circumstances\u2014through behavioral tests including recognizing\
+    \ generated text, predicting behavior, and following self-aware instructions.\
+    \ Current implementation includes SAD-mini with 5 of 16 tasks.\n"
+  group: Scheming
+  path: src/inspect_evals/sad
+  tasks:
+  - sad_stages_full
+  - sad_stages_oversight
+  - sad_influence
+  - sad_facts_llms
+  - sad_facts_human_defaults
+  title: 'SAD: Situational Awareness Dataset'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/sad
+- arxiv: https://arxiv.org/abs/2312.14135
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - bienehito
+  description: 'V*Bench is a visual question & answer benchmark that evaluates MLLMs
+    in their ability to process high-resolution and visually crowded images to find
+    and focus on small details.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/vstar_bench
+  tags:
+  - Multimodal
+  tasks:
+  - vstar_bench_attribute_recognition
+  - vstar_bench_spatial_relationship_reasoning
+  title: 'V*Bench: A Visual QA Benchmark with Detailed High-resolution Images'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench
+- arxiv: https://doi.org/10.1038/sdata.2018.251
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - MattFisher
+  description: 'VQA-RAD is the first manually constructed VQA dataset in radiology,
+    where clinicians
+
+    asked naturally occurring questions about radiology images and provided reference
+    answers.
+
+    It contains 315 radiology images (head CTs/MRIs, chest X-rays, abdominal CTs)
+    with
+
+    question-answer pairs spanning 11 question types including modality, plane, organ
+    system,
+
+    abnormality, and object/condition presence. Questions are either closed-ended
+    (yes/no)
+
+    or open-ended free-text answers.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/vqa_rad
+  tags:
+  - Multimodal
+  tasks:
+  - vqa_rad
+  title: 'VQA-RAD: Visual Question Answering for Radiology'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vqa_rad
+- arxiv: https://arxiv.org/pdf/2503.05244
+  categories:
+  - Writing
+  contributors:
+  - jtv199
+  description: 'A comprehensive evaluation benchmark designed to assess large language
+    models'' capabilities across diverse writing tasks. The benchmark evaluates models
+    on various writing domains including academic papers, business documents, creative
+    writing, and technical documentation, with multi-dimensional scoring based on
+    domain-specific criteria.
+
+    '
+  group: Writing
+  path: src/inspect_evals/writingbench
+  tasks:
+  - writingbench
+  title: 'WritingBench: A Comprehensive Benchmark for Generative Writing'
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench
+- arxiv: https://arxiv.org/abs/2502.09696
+  categories:
+  - Multimodal
+  - Multimodal
+  contributors:
+  - ItsTania
+  description: 'A lightweight visual reasoning benchmark that is (1) Challenging,
+    (2) Lightweight, (3) Diverse, and (4) High-quality.
+
+    '
+  group: Multimodal
+  path: src/inspect_evals/zerobench
+  tags:
+  - Multimodal
+  tasks:
+  - Zerobench
+  - Zerobench Subquestions
+  title: ZeroBench
+  url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/zerobench
