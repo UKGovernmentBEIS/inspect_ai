@@ -1,3 +1,7 @@
+## Unreleased
+
+- Task Display: Add cancel button to cancel individual tasks during parallel execution.
+
 ## 0.3.206 (15 April 2026)
 
 - Eval Set: Display explicit `--id` in task panel headers when provided.
