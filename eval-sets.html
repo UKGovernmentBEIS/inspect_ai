@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-00bb9cb7cda113ac4013fc9b55ca6f24.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -669,14 +669,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Maximum number of retry attempts (defaults to 10)</td>
 </tr>
 <tr class="even">
+<td><code>--retry-immediate</code></td>
+<td>Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, <code>--retry-wait</code> and <code>--retry-connections</code> are ignored.</td>
+</tr>
+<tr class="odd">
 <td><code>--retry-wait</code></td>
 <td>Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)</td>
 </tr>
-<tr class="odd">
-<td><code>--retry-connections</code></td>
-<td>Reduce max connections at this rate with each retry (defaults to 0.5)</td>
-</tr>
 <tr class="even">
+<td><code>--retry-connections</code></td>
+<td>Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction)</td>
+</tr>
+<tr class="odd">
 <td><code>--no-retry-cleanup</code></td>
 <td>Do not cleanup failed log files after retries.</td>
 </tr>

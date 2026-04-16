@@ -162,9 +162,9 @@ class SandboxEnvironment:
         """
 ```
 
-The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (currently 10MB) and front-truncate its output to the limit when it is exceeded.
+The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (currently 100MB) and raise an `OutputLimitExceededError` when it is exceeded.
+The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
@@ -243,6 +243,17 @@ def my_task(cpus: float = 1.0):
 ```
 
 The [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) and [ComposeService](./reference/inspect_ai.util.html.md#composeservice) classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
+
+## Sandbox Limits
+
+By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don’t terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
+
+You can however increase these limits using environment variables. For example, here we set the read file limit to 200MB and the exec output size to 20MB:
+
+``` bash
+export INSPECT_SANDBOX_MAX_READ_FILE_SIZE=209715200
+export INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE=20971520 
+```
 
 ## Per Sample Setup
 
@@ -471,7 +482,7 @@ The `max_sandboxes` option determines how many sandboxes can be executed in para
 
 When a `max_sandboxes` is applied, an indicator at the bottom of the task status screen will be shown:
 
-![](images/task-max-sandboxes.png)
+[![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
 Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
 

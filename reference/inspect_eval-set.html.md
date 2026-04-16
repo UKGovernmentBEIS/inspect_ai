@@ -15,6 +15,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--retry-attempts` | integer | Maximum number of retry attempts before giving up (defaults to 10). | None |
+| `--retry-immediate` | boolean | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. | `False` |
 | `--retry-wait` | integer | Time in seconds wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour. | None |
 | `--retry-connections` | float | Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). | None |
 | `--no-retry-cleanup` | boolean | Do not cleanup failed log files after retries | `False` |

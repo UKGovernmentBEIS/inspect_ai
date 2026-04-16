@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-00bb9cb7cda113ac4013fc9b55ca6f24.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -594,13 +594,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="vs-code-extension" class="level2">
 <h2 class="anchored" data-anchor-id="vs-code-extension">VS Code Extension</h2>
 <p>If you are using Inspect within VS Code, the Inspect VS Code Extension has several features for integrated log viewing. To install the extension, search for <strong>“Inspect AI”</strong> in the extensions marketplace panel within VS Code.</p>
-<p><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:90.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></p>
+<p><a href="images/inspect-vscode-install.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:90.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></a></p>
 <p>The <strong>Logs</strong> pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:</p>
-<p><img src="images/logs.png" class="border img-fluid"></p>
+<p><a href="images/logs.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/logs.png" class="border img-fluid"></a></p>
 <p>Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g.&nbsp;for logs on Amazon S3):</p>
 <p><img src="images/logs-open-button.png" class="border img-fluid" style="margin-right: 2%;;width:27.0%"> <img src="images/logs-drop-down.png" class="border img-fluid" style="width:70.0%"></p>
 <p>Links to evaluation logs are also displayed at the bottom of every task result:</p>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
+<p><a href="images/eval-log.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></a></p>
 <p>If you prefer not to browse and view logs using the logs pane, you can also use the <strong>Inspect: Inspect View…</strong> command to open up a new pane running <code>inspect view</code>.</p>
 </section>
 <section id="view-command" class="level2">
@@ -617,14 +617,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="log-history" class="level3">
 <h3 class="anchored" data-anchor-id="log-history">Log History</h3>
 <p>You can view and navigate between a history of all evals in the log directory using the menu at the top right:</p>
-<p><a href="images/inspect-view-history.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-history.png" class="border img-fluid" alt="The Inspect log viewer, with the history panel displayed on the left overlaying the main interface. Several log files are displayed in the log history, each of which includes a summary of the results."></a></p>
+<p><a href="images/inspect-view-history.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-view-history.png" class="border img-fluid" alt="The Inspect log viewer, with the history panel displayed on the left overlaying the main interface. Several log files are displayed in the log history, each of which includes a summary of the results."></a></p>
 </section>
 </section>
 <section id="live-view" class="level2">
 <h2 class="anchored" data-anchor-id="live-view">Live View</h2>
 <p>Inspect View provides a live view into the status of your evaluation task. The main shows shows what samples have completed (along with incremental metric calculations) and the sample view (described below) let’s you follow sample transcripts and message history as events occur.</p>
 <p>If you are running VS Code, you can click the <strong>View Log</strong> link within the task progress screen to access a live view of your task:</p>
-<p><img src="images/inspect-view-log-link.png" class="img-fluid"></p>
+<p><a href="images/inspect-view-log-link.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-view-log-link.png" class="img-fluid"></a></p>
 <p>If you are running with the <code>inspect view</code> command-line then you can access logs for in-progress tasks using the <a href="#log-history">Log History</a> as described above.</p>
 <section id="s3-logs" class="level3">
 <h3 class="anchored" data-anchor-id="s3-logs">S3 Logs</h3>
@@ -640,18 +640,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="messages" class="level3">
 <h3 class="anchored" data-anchor-id="messages">Messages</h3>
 <p>The messages tab displays the message history. In this example we see that the model make two tool calls before answering (the final assistant message is not fully displayed for brevity):</p>
-<p><a href="images/inspect-view-messages.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/inspect-view-messages.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the user, assistant, and tool messages for the sample."></a></p>
+<p><a href="images/inspect-view-messages.png" class="lightbox" data-gallery="quarto-lightbox-gallery-7"><img src="images/inspect-view-messages.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the user, assistant, and tool messages for the sample."></a></p>
 <p>Looking carefully at the message history (especially for agents or multi-turn solvers) is critically important for understanding how well your evaluation is constructed.</p>
 </section>
 <section id="scoring" class="level3">
 <h3 class="anchored" data-anchor-id="scoring">Scoring</h3>
 <p>The scoring tab shows additional details including the full input and full model explanation for answers:</p>
-<p><a href="images/inspect-view-scoring.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-view-scoring.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation."></a></p>
+<p><a href="images/inspect-view-scoring.png" class="lightbox" data-gallery="quarto-lightbox-gallery-8"><img src="images/inspect-view-scoring.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation."></a></p>
 </section>
 <section id="metadata" class="level3">
 <h3 class="anchored" data-anchor-id="metadata">Metadata</h3>
 <p>The metadata tab shows additional data made available by solvers, tools, an scorers (in this case the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool records which URLs it visited to retrieve additional context):</p>
-<p><a href="images/inspect-view-metadata.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-view-metadata.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample)."></a></p>
+<p><a href="images/inspect-view-metadata.png" class="lightbox" data-gallery="quarto-lightbox-gallery-9"><img src="images/inspect-view-metadata.png" class="border img-fluid" alt="The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample)."></a></p>
 </section>
 </section>
 <section id="scores-and-answers" class="level2">
@@ -664,7 +664,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ol>
 <p>A scorer can fail to correctly score output at either of these steps. Failing to extract an answer entirely can occur (e.g.&nbsp;due to a regex that’s not quite flexible enough) and as can failing to correctly identify equivalent answers (e.g.&nbsp;thinking that “1,242” is different from “1242.00” or that “Yes.” is different than “yes”).</p>
 <p>You can use the log viewer to catch and evaluate these sorts of issues. For example, here we can see that we were unable to extract answers for a couple of questions that were scored incorrect:</p>
-<p><a href="images/inspect-view-answers.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-view-answers.png" class="border img-fluid" alt="The Inspect log viewer with several 5 samples displayed, 3 of which are incorrect. The Answer column displays the answer extracted from the model output for each sample."></a></p>
+<p><a href="images/inspect-view-answers.png" class="lightbox" data-gallery="quarto-lightbox-gallery-10"><img src="images/inspect-view-answers.png" class="border img-fluid" alt="The Inspect log viewer with several 5 samples displayed, 3 of which are incorrect. The Answer column displays the answer extracted from the model output for each sample."></a></p>
 <p>It’s possible that these answers are legitimately incorrect. However it’s also possible that the correct answer is in the model’s output but just in a format we didn’t quite expect. In each case you’ll need to drill into the sample to investigate.</p>
 <p>Answers don’t just appear magically, scorers need to produce them during scoring. The scorers built in to Inspect all do this, but when you create a custom scorer, you should be sure to always include an <code>answer</code> in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> objects you return if you can. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Score(</span>
@@ -678,9 +678,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="filtering-and-sorting" class="level2">
 <h2 class="anchored" data-anchor-id="filtering-and-sorting">Filtering and Sorting</h2>
 <p>It’s often useful to filter log entries by score (for example, to investigate whether incorrect answers are due to scorer issues or are true negatives). Use the <strong>Scores</strong> picker to filter by specific scores:</p>
-<p><a href="images/inspect-view-filter.png" class="lightbox" data-gallery="quarto-lightbox-gallery-7"><img src="images/inspect-view-filter.png" class="border img-fluid" alt="The Inspect log view, with 4 samples displayed, each of which are marked incorrect. The Scores picker is focused, and has selected 'Incorrect', indicating that only incorrect scores should be displayed."></a></p>
+<p><a href="images/inspect-view-filter.png" class="lightbox" data-gallery="quarto-lightbox-gallery-11"><img src="images/inspect-view-filter.png" class="border img-fluid" alt="The Inspect log view, with 4 samples displayed, each of which are marked incorrect. The Scores picker is focused, and has selected 'Incorrect', indicating that only incorrect scores should be displayed."></a></p>
 <p>By default, samples are ordered (with all samples for an epoch presented in sequence). However you can also order by score, or order by samples (so you see all of the results for a given sample across all epochs presented together). Use the <strong>Sort</strong> picker to control this:</p>
-<p><a href="images/inspect-view-sort.png" class="lightbox" data-gallery="quarto-lightbox-gallery-8"><img src="images/inspect-view-sort.png" class="border img-fluid" alt="The Inspect log view, with the results of a single sample for each of the 4 epochs of the evaluation."></a></p>
+<p><a href="images/inspect-view-sort.png" class="lightbox" data-gallery="quarto-lightbox-gallery-12"><img src="images/inspect-view-sort.png" class="border img-fluid" alt="The Inspect log view, with the results of a single sample for each of the 4 epochs of the evaluation."></a></p>
 <p>Viewing by sample can be especially valuable for diagnosing the sources of inconsistency (and determining whether they are inherent or an artifact of the evaluation methodology). Above we can see that sample 1 is incorrect in epoch 1 because of issue the model had with forming a correct function call.</p>
 </section>
 <section id="python-logging" class="level2">
@@ -743,7 +743,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>By default, messages of log level <code>warning</code> and higher are printed to the console, and messages of log level <code>info</code> and higher are included in the sample transcript. This enables you to include many calls to <code>logger.info()</code> in your code without having them show by default, while also making them available in the log viewer should you need them.</p>
 <p>If you’d like to see ‘info’ messages in the console as well, use the <code>--log-level info</code> option:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval biology_qa.py <span class="at">--log-level</span> info</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><a href="images/inspect-view-logging-console.png" class="lightbox" data-gallery="quarto-lightbox-gallery-9"><img src="images/inspect-view-logging-console.png" class="img-fluid" alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."></a></p>
+<p><a href="images/inspect-view-logging-console.png" class="lightbox" data-gallery="quarto-lightbox-gallery-13"><img src="images/inspect-view-logging-console.png" class="img-fluid" alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."></a></p>
 <p>You can use the <code>--log-level-transcript</code> option to control what level is written to the sample transcript:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval biology_qa.py <span class="at">--log-level-transcript</span> http</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that you can also set the log levels using the <code>INSPECT_LOG_LEVEL</code> and <code>INSPECT_LOG_LEVEL_TRANSCRIPT</code> environment variables (which are often included in a <a href="./options.html">.env configuration file</a>.</p>
@@ -762,7 +762,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="task-information" class="level2">
 <h2 class="anchored" data-anchor-id="task-information">Task Information</h2>
 <p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, solver, and scorer details, git revision, and model token usage:</p>
-<p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-10"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, solver, and scorer details, git revision, and model token usage."></a></p>
+<p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-14"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, solver, and scorer details, git revision, and model token usage."></a></p>
 </section>
 <section id="sec-publishing" class="level2">
 <h2 class="anchored" data-anchor-id="sec-publishing">Publishing</h2>

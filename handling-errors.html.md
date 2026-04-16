@@ -106,14 +106,6 @@ If a sample is retried, the original error(s) that induced the retries will be r
 
 ## Crash Recovery
 
-> **NOTE:**
->
-> The crash recovery features described below are available only in the development version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 When an eval process dies unexpectedly (out-of-memory, segfault, `kill`, power failure, etc.), the eval log is left in an incomplete state:
 
 - The log has status `"started"` (the process never got to write the final status).

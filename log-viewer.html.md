@@ -14,11 +14,11 @@ Note that this section covers *interactively* exploring log files. You can also 
 
 If you are using Inspect within VS Code, the Inspect VS Code Extension has several features for integrated log viewing. To install the extension, search for **“Inspect AI”** in the extensions marketplace panel within VS Code.
 
-![The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right.](images/inspect-vscode-install.png)
+[![The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right.](images/inspect-vscode-install.png)](images/inspect-vscode-install.png)
 
 The **Logs** pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:
 
-![](images/logs.png)
+[![](images/logs.png)](images/logs.png)
 
 Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g. for logs on Amazon S3):
 
@@ -26,7 +26,7 @@ Click the open folder button at the top of the logs pane to browse any directory
 
 Links to evaluation logs are also displayed at the bottom of every task result:
 
-![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)
+[![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
 
 If you prefer not to browse and view logs using the logs pane, you can also use the **Inspect: Inspect View…** command to open up a new pane running `inspect view`.
 
@@ -70,7 +70,7 @@ Inspect View provides a live view into the status of your evaluation task. The m
 
 If you are running VS Code, you can click the **View Log** link within the task progress screen to access a live view of your task:
 
-![](images/inspect-view-log-link.png)
+[![](images/inspect-view-log-link.png)](images/inspect-view-log-link.png)
 
 If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
 

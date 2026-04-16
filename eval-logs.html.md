@@ -8,7 +8,7 @@ Every time you use `inspect eval` or call the [eval()](./reference/inspect_ai.ht
 $ inspect eval security_guide.py --model openai/gpt-4
 ```
 
-![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)
+[![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
 
 You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):
 
@@ -102,14 +102,14 @@ No matter which format you choose, the [EvalLog](./reference/inspect_ai.log.html
 
 ### Storage Optimization
 
-The current development version of Inspect AI includes log storage optimizations that can dramatically affect log file sizes. The first of these [deduplicates repeated messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374) across model events; the second switches to [zstd compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
+As of version 0.3.206, Inspect includes log storage optimizations that can dramatically affect log file sizes. The first of these [deduplicates repeated messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374) across model events; the second switches to [zstd compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
 
 In combination these optimizations yield huge improvements in log file size. For typical agentic benchmarks (e.g. SWE-Bench, Cybench) we’ve seen 10:1 improvements. For longer horizon tasks the improvements are much greater as the optimization addresses O(N^2) storage growth.
 
-To try out these changes, install the development version of Inspect from GitHub with:
+To try out these changes, first ensure you are running version 0.3.206 or later:
 
 ``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+pip show inspect_ai
 ```
 
 You can convert existing logs to use the new format using the `inspect log convert` command. For example:

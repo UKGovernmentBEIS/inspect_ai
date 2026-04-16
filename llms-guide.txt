@@ -135,7 +135,7 @@ The `@task` decorator applied to the `theory_of_mind()` function is what enables
 inspect eval theory.py --model openai/gpt-4
 ```
 
-![The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete.](images/running-theory.png)
+[![The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete.](images/running-theory.png)](images/running-theory.png)
 
 ## Evaluation Logs
 
@@ -1079,11 +1079,11 @@ Note that this section covers *interactively* exploring log files. You can also 
 
 If you are using Inspect within VS Code, the Inspect VS Code Extension has several features for integrated log viewing. To install the extension, search for **“Inspect AI”** in the extensions marketplace panel within VS Code.
 
-![The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right.](images/inspect-vscode-install.png)
+[![The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right.](images/inspect-vscode-install.png)](images/inspect-vscode-install.png)
 
 The **Logs** pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:
 
-![](images/logs.png)
+[![](images/logs.png)](images/logs.png)
 
 Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g. for logs on Amazon S3):
 
@@ -1091,7 +1091,7 @@ Click the open folder button at the top of the logs pane to browse any directory
 
 Links to evaluation logs are also displayed at the bottom of every task result:
 
-![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)
+[![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
 
 If you prefer not to browse and view logs using the logs pane, you can also use the **Inspect: Inspect View…** command to open up a new pane running `inspect view`.
 
@@ -1135,7 +1135,7 @@ Inspect View provides a live view into the status of your evaluation task. The m
 
 If you are running VS Code, you can click the **View Log** link within the task progress screen to access a live view of your task:
 
-![](images/inspect-view-log-link.png)
+[![](images/inspect-view-log-link.png)](images/inspect-view-log-link.png)
 
 If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
 
@@ -7273,7 +7273,7 @@ Click on the link for the noVNC browser client, or use a native VNC client to co
 
 The browser based client provides a view-only interface. If you use a native VNC client you should also set it to “view only” so as to not interfere with the model’s use of the computer. For example, for Real VNC Viewer:
 
-![](images/vnc-view-only.png)
+[![](images/vnc-view-only.png)](images/vnc-view-only.png)
 
 ### Approval
 
@@ -8257,9 +8257,9 @@ class SandboxEnvironment:
         """
 ```
 
-The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (currently 10MB) and front-truncate its output to the limit when it is exceeded.
+The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (currently 100MB) and raise an `OutputLimitExceededError` when it is exceeded.
+The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
@@ -8637,9 +8637,9 @@ class SandboxEnvironment:
         """
 ```
 
-The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (currently 10MB) and front-truncate its output to the limit when it is exceeded.
+The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (currently 100MB) and raise an `OutputLimitExceededError` when it is exceeded.
+The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
@@ -8718,6 +8718,17 @@ def my_task(cpus: float = 1.0):
 ```
 
 The [ComposeConfig](./reference/inspect_ai.util.html.md#composeconfig) and [ComposeService](./reference/inspect_ai.util.html.md#composeservice) classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
+
+## Sandbox Limits
+
+By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don’t terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
+
+You can however increase these limits using environment variables. For example, here we set the read file limit to 200MB and the exec output size to 20MB:
+
+``` bash
+export INSPECT_SANDBOX_MAX_READ_FILE_SIZE=209715200
+export INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE=20971520 
+```
 
 ## Per Sample Setup
 
@@ -8946,7 +8957,7 @@ The `max_sandboxes` option determines how many sandboxes can be executed in para
 
 When a `max_sandboxes` is applied, an indicator at the bottom of the task status screen will be shown:
 
-![](images/task-max-sandboxes.png)
+[![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
 Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
 
@@ -9221,11 +9232,11 @@ By default, when a tool call is presented for human approval the tool function a
 
 1.  The interactive features of the web browser tool (clicking, typing, submitting forms, etc.) reference an `element_id`, however this ID isn’t enough context to approve or reject the call. To compensate, the web browser tool provides some additional context (a snippet of the page around the `element_id` being interacted with).
 
-    ![](images/web-browser-tool-view.png)
+    [![](images/web-browser-tool-view.png)](images/web-browser-tool-view.png)
 
 2.  The [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
 
-    ![](images/python-tool-view.png)
+    [![](images/python-tool-view.png)](images/python-tool-view.png)
 
 ### Example
 
@@ -10807,7 +10818,7 @@ Every time you use `inspect eval` or call the [eval()](./reference/inspect_ai.ht
 $ inspect eval security_guide.py --model openai/gpt-4
 ```
 
-![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)
+[![The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display.](images/eval-log.png)](images/eval-log.png)
 
 You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):
 
@@ -10901,14 +10912,14 @@ No matter which format you choose, the [EvalLog](./reference/inspect_ai.log.html
 
 ### Storage Optimization
 
-The current development version of Inspect AI includes log storage optimizations that can dramatically affect log file sizes. The first of these [deduplicates repeated messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374) across model events; the second switches to [zstd compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
+As of version 0.3.206, Inspect includes log storage optimizations that can dramatically affect log file sizes. The first of these [deduplicates repeated messages](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374) across model events; the second switches to [zstd compression](https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145).
 
 In combination these optimizations yield huge improvements in log file size. For typical agentic benchmarks (e.g. SWE-Bench, Cybench) we’ve seen 10:1 improvements. For longer horizon tasks the improvements are much greater as the optimization addresses O(N^2) storage growth.
 
-To try out these changes, install the development version of Inspect from GitHub with:
+To try out these changes, first ensure you are running version 0.3.206 or later:
 
 ``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+pip show inspect_ai
 ```
 
 You can convert existing logs to use the new format using the `inspect log convert` command. For example:
@@ -12302,8 +12313,9 @@ There are a number of options that control the retry behaviour of eval sets:
 | **Option** | Description |
 |----|----|
 | `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
+| `--retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. |
 | `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction) |
 | `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 For example, here we specify a base wait time of 120 seconds:
@@ -12643,14 +12655,6 @@ If a sample is retried, the original error(s) that induced the retries will be r
 > Consequently, when enabling `retry_on_error` you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.
 
 ## Crash Recovery
-
-> **NOTE:**
->
-> The crash recovery features described below are available only in the development version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 When an eval process dies unexpectedly (out-of-memory, segfault, `kill`, power failure, etc.), the eval log is left in an incomplete state:
 
@@ -13445,7 +13449,7 @@ The default value for max connections is 10. By increasing it we might get bette
 
 When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
 
-![The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results.](images/rate-limit.png)
+[![The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results.](images/rate-limit.png)](images/rate-limit.png)
 
 Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
 
@@ -13494,7 +13498,7 @@ eval("mathematics.py", model=[
 ])
 ```
 
-![An evaluation task display showing the progress for 3 different models.](images/inspect-multiple-models.png)
+[![An evaluation task display showing the progress for 3 different models.](images/inspect-multiple-models.png)](images/inspect-multiple-models.png)
 
 Since each model provider has its own `max_connections` they don’t contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.
 
@@ -13570,7 +13574,7 @@ The `max_sandboxes` option determines how many sandboxes can be executed in para
 
 When a `max_sandboxes` is applied, an indicator at the bottom of the task status screen will be shown:
 
-![](images/task-max-sandboxes.png)
+[![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
 Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
 
@@ -14349,9 +14353,9 @@ class SandboxEnvironment:
         """
 ```
 
-The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (currently 10MB) and front-truncate its output to the limit when it is exceeded.
+The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (currently 100MB) and raise an `OutputLimitExceededError` when it is exceeded.
+The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 

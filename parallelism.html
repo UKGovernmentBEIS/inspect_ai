@@ -80,7 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-00bb9cb7cda113ac4013fc9b55ca6f24.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -615,7 +618,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="rate-limits" class="level3">
 <h3 class="anchored" data-anchor-id="rate-limits">Rate Limits</h3>
 <p>When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):</p>
-<p><img src="images/rate-limit.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."></p>
+<p><a href="images/rate-limit.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/rate-limit.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."></a></p>
 <p>Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using <a href="https://en.wikipedia.org/wiki/Exponential_backoff">exponential backoff</a>, and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.</p>
 <p>You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.</p>
 </section>
@@ -644,7 +647,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-2.5-pro"</span></span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><img src="images/inspect-multiple-models.png" class="img-fluid" alt="An evaluation task display showing the progress for 3 different models."></p>
+<p><a href="images/inspect-multiple-models.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-multiple-models.png" class="img-fluid" alt="An evaluation task display showing the progress for 3 different models."></a></p>
 <p>Since each model provider has its own <code>max_connections</code> they don’t contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.</p>
 <p>If you want to specify multiple models when using the <code>--model</code> CLI argument or <code>INSPECT_EVAL_MODEL</code> environment variable, just separate the model names with commas. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>openai/gpt-4-turbo,google/gemini-2.5-pro</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -690,7 +693,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="max-sandboxes">Max Sandboxes</h3>
 <p>The <code>max_sandboxes</code> option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider has a default of <code>2 * os.cpu_count()</code>). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.</p>
 <p>When a <code>max_sandboxes</code> is applied, an indicator at the bottom of the task status screen will be shown:</p>
-<p><img src="images/task-max-sandboxes.png" class="img-fluid"></p>
+<p><a href="images/task-max-sandboxes.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/task-max-sandboxes.png" class="img-fluid"></a></p>
 <p>Note that when <code>max_sandboxes</code> is applied this effectively creates a global <code>max_samples</code> limit that is equal to the <code>max_sandboxes</code>.</p>
 </section>
 <section id="max-subprocesses" class="level3">
@@ -1434,6 +1437,38 @@ document.addEventListener("DOMContentLoaded", function () {
     </div>
   </div>
 </footer>
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
 
 
 

@@ -173,6 +173,7 @@
   "EvalSampleSummary": "inspect_ai.log.qmd#evalsamplesummary",
   "EvalSampleLimit": "inspect_ai.log.qmd#evalsamplelimit",
   "EvalSampleScore": "inspect_ai.log.qmd#evalsamplescore",
+  "EvalRetryError": "inspect_ai.log.qmd#evalretryerror",
   "WriteConflictError": "inspect_ai.log.qmd#writeconflicterror",
   "condense_sample": "inspect_ai.log.qmd#condense_sample",
   "condense_events": "inspect_ai.log.qmd#condense_events",

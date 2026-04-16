@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-ab1bf0485cdc037c1916ce67db55c611.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-00bb9cb7cda113ac4013fc9b55ca6f24.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -605,10 +605,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Every time you use <code>inspect eval</code> or call the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function, an evaluation log is written for each task evaluated. By default, logs are written to the <code>./logs</code> sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide.py <span class="at">--model</span> openai/gpt-4</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
+<p><a href="images/eval-log.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></a></p>
 <p>You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
+<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
 <p>This section won’t cover using <code>inspect view</code> though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the <a href="#sec-log-viewer">Log Viewer</a> section for details on interactively exploring logs.</p>
 </section>
 <section id="log-analysis" class="level2">
@@ -697,10 +697,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="storage-optimization" class="level3">
 <h3 class="anchored" data-anchor-id="storage-optimization">Storage Optimization</h3>
-<p>The current development version of Inspect AI includes log storage optimizations that can dramatically affect log file sizes. The first of these <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374">deduplicates repeated messages</a> across model events; the second switches to <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145">zstd compression</a>.</p>
+<p>As of version 0.3.206, Inspect includes log storage optimizations that can dramatically affect log file sizes. The first of these <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/3374">deduplicates repeated messages</a> across model events; the second switches to <a href="https://github.com/UKGovernmentBEIS/inspect_ai/pull/3145">zstd compression</a>.</p>
 <p>In combination these optimizations yield huge improvements in log file size. For typical agentic benchmarks (e.g.&nbsp;SWE-Bench, Cybench) we’ve seen 10:1 improvements. For longer horizon tasks the improvements are much greater as the optimization addresses O(N^2) storage growth.</p>
-<p>To try out these changes, install the development version of Inspect from GitHub with:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To try out these changes, first ensure you are running version 0.3.206 or later:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> show inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can convert existing logs to use the new format using the <code>inspect log convert</code> command. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log convert logs_old <span class="dt">\</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--to</span> eval <span class="dt">\</span></span>

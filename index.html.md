@@ -130,7 +130,7 @@ The `@task` decorator applied to the `theory_of_mind()` function is what enables
 inspect eval theory.py --model openai/gpt-4
 ```
 
-![The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete.](images/running-theory.png)
+[![The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete.](images/running-theory.png)](images/running-theory.png)
 
 ## Evaluation Logs
 

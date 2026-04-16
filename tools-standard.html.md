@@ -403,7 +403,7 @@ Click on the link for the noVNC browser client, or use a native VNC client to co
 
 The browser based client provides a view-only interface. If you use a native VNC client you should also set it to “view only” so as to not interfere with the model’s use of the computer. For example, for Real VNC Viewer:
 
-![](images/vnc-view-only.png)
+[![](images/vnc-view-only.png)](images/vnc-view-only.png)
 
 ### Approval
 

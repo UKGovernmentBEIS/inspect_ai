@@ -34,7 +34,7 @@ The default value for max connections is 10. By increasing it we might get bette
 
 When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
 
-![The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results.](images/rate-limit.png)
+[![The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results.](images/rate-limit.png)](images/rate-limit.png)
 
 Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
 
@@ -83,7 +83,7 @@ eval("mathematics.py", model=[
 ])
 ```
 
-![An evaluation task display showing the progress for 3 different models.](images/inspect-multiple-models.png)
+[![An evaluation task display showing the progress for 3 different models.](images/inspect-multiple-models.png)](images/inspect-multiple-models.png)
 
 Since each model provider has its own `max_connections` they don’t contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.
 
@@ -159,7 +159,7 @@ The `max_sandboxes` option determines how many sandboxes can be executed in para
 
 When a `max_sandboxes` is applied, an indicator at the bottom of the task status screen will be shown:
 
-![](images/task-max-sandboxes.png)
+[![](images/task-max-sandboxes.png)](images/task-max-sandboxes.png)
 
 Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
 

@@ -232,11 +232,11 @@ By default, when a tool call is presented for human approval the tool function a
 
 1.  The interactive features of the web browser tool (clicking, typing, submitting forms, etc.) reference an `element_id`, however this ID isn’t enough context to approve or reject the call. To compensate, the web browser tool provides some additional context (a snippet of the page around the `element_id` being interacted with).
 
-    ![](images/web-browser-tool-view.png)
+    [![](images/web-browser-tool-view.png)](images/web-browser-tool-view.png)
 
 2.  The [bash()](./reference/inspect_ai.tool.html.md#bash) and [python()](./reference/inspect_ai.tool.html.md#python) tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
 
-    ![](images/python-tool-view.png)
+    [![](images/python-tool-view.png)](images/python-tool-view.png)
 
 ### Example
 
