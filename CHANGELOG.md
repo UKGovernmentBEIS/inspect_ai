@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Support for new `max` reasoning effort option.
+
 ## 0.3.206 (15 April 2026)
 
 - Eval Set: Display explicit `--id` in task panel headers when provided.

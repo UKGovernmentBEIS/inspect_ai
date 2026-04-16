@@ -764,11 +764,11 @@ class AnthropicAPI(ModelAPI):
             betas.append("effort-2025-11-24")
             effort = config.effort
             # max is claude 4.6 only
-            if effort == "max" and not (
+            if effort in ["xhigh", "max"] and not (
                 self.is_claude_4_6() or self.is_claude_latest()
             ):
                 effort = "high"
-            params["output_config"] = OutputConfigParam(effort=effort)
+            params["output_config"] = OutputConfigParam(effort=effort)  # type: ignore[typeddict-item] # (no support for 'xhigh' in sdk yet)
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
@@ -776,7 +776,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 params["thinking"] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
-                params["output_config"] = OutputConfigParam(effort=reasoning_effort)
+                params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
                 params["thinking"] = dict(
                     type="enabled",
@@ -1369,7 +1369,7 @@ class AnthropicAPI(ModelAPI):
 
     def effort_from_reasoning_effort(
         self, config: GenerateConfig
-    ) -> Literal["max", "high", "medium", "low"] | None:
+    ) -> Literal["max", "high", "medium", "low", "xhigh"] | None:
         # claude 4.6 supports reasoning effort via type: "adaptive"
         if (
             config.reasoning_effort is not None
@@ -1384,7 +1384,10 @@ class AnthropicAPI(ModelAPI):
                 case "high":
                     return "high"
                 case "xhigh":
+                    return "xhigh"
+                case "max":
                     return "max"
+
         else:
             return None
 
