@@ -1,3 +1,7 @@
+## Unreleased
+
+- Model API: Log model retries at WARNING when backoff >= 60s.
+
 ## 0.3.207 (16 April 2026)
 
 - Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
