@@ -7,11 +7,13 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, ScrollableContainer
+from textual.content import Content, ContentText
 from textual.css.query import NoMatches
+from textual.geometry import Size
 from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Button, Link, ProgressBar, Static
+from textual.widgets import Button, Checkbox, Link, ProgressBar, Static
 from typing_extensions import override
 
 from inspect_ai._display.core.results import task_metric
@@ -27,11 +29,11 @@ from inspect_ai._util.vscode import (
 from ...core.display import (
     CancelType,
     Progress,
-    TaskCancel,
     TaskCancelled,
     TaskDisplay,
     TaskDisplayMetric,
     TaskError,
+    TaskProfile,
     TaskResult,
     TaskSpec,
     TaskWithResult,
@@ -226,7 +228,7 @@ class TaskProgressView(Widget):
                 else [],
             ),
         )
-        self.cancel_link = CancelLink(task.profile.task_cancel)
+        self.cancel_link = CancelLink(task.profile)
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -401,15 +403,22 @@ class CancelLink(Link):
     }
     """
 
-    def __init__(self, task_cancel: TaskCancel | None) -> None:
-        super().__init__(self.LABEL if task_cancel is not None else "")
-        self._task_cancel = task_cancel
+    def __init__(self, profile: "TaskProfile") -> None:
+        super().__init__(self.LABEL if profile.task_cancel is not None else "")
+        self._profile = profile
+        self._task_cancel = profile.task_cancel
 
     def on_click(self) -> None:
         if self._task_cancel is None:
             return
         if self._task_cancel.can_retry:
-            self.app.push_screen(CancelDialog(), callback=self._task_cancel.cancel_task)
+            self.app.push_screen(
+                CancelDialog(
+                    task_name=self._profile.name,
+                    model_name=str(self._profile.model),
+                ),
+                callback=self._task_cancel.cancel_task,
+            )
         else:
             self._task_cancel.cancel_task("abort")
 
@@ -426,74 +435,108 @@ class CancelLink(Link):
             self.can_focus = False
 
 
+class RetryCheckbox(Checkbox):
+    """Checkbox that shows empty box when unchecked and supports multi-line labels."""
+
+    BUTTON_INNER = " "
+
+    DEFAULT_CSS = """
+    RetryCheckbox {
+        height: auto;
+    }
+    """
+
+    def _make_label(self, label: ContentText) -> Content:
+        return Content.from_text(label).rstrip()
+
+    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
+        lines = str(self._label).split("\n")
+        return max(1, len(lines))
+
+    def watch_value(self) -> None:
+        self.BUTTON_INNER = "X" if self.value else " "
+        super().watch_value()
+
+
 class CancelDialog(ModalScreen[CancelType]):
-    BINDINGS = [("escape", "continue", "Continue")]
+    BINDINGS = [("escape", "dismiss_dialog", "Close")]
 
     DEFAULT_CSS = """
     CancelDialog {
         align: center middle;
         background: $background 60%;
     }
+    #cancel-dialog-wrapper {
+        width: 58;
+        height: auto;
+    }
     #cancel-dialog {
-        width: 60;
+        width: 100%;
         height: auto;
         padding: 1 2;
         background: $surface;
         border: solid $foreground 20%;
+        border-title-color: $text;
+        border-title-style: bold;
     }
-    #cancel-dialog-title {
-        width: 100%;
-        text-style: bold;
-        margin-bottom: 1;
-    }
-    .cancel-option {
-        margin-bottom: 1;
+    #cancel-dialog-close {
+        width: 3;
+        height: 1;
+        dock: right;
+        offset: -3 0;
         color: $text-muted;
+        &:hover { color: $text; }
     }
-    .cancel-option-key {
-        text-style: bold;
-        color: $text;
+    #cancel-task-info {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    #cancel-retry-checkbox {
+        margin: 1 0;
+    }
+    #cancel-retry-checkbox > .toggle--button {
+        color: transparent;
+    }
+    #cancel-retry-checkbox.-on > .toggle--button {
+        color: $success;
     }
     #cancel-dialog-buttons {
         width: 100%;
         height: auto;
         align: center middle;
-        margin-top: 1;
-    }
-    #cancel-dialog-buttons Button {
-        margin: 0 1;
     }
     """
 
+    def __init__(self, task_name: str, model_name: str) -> None:
+        super().__init__()
+        self._task_name = task_name
+        self._model_name = model_name
+
     def compose(self) -> ComposeResult:
-        with Container(id="cancel-dialog"):
-            yield Static("Cancel Task", id="cancel-dialog-title")
+        with Container(id="cancel-dialog-wrapper"):
             yield Static(
-                "[bold]Retry[/bold]    — Cancel this run and retry the task, "
-                "reusing any completed samples.",
-                classes="cancel-option",
+                "[@click=screen.dismiss_dialog] X [/]", id="cancel-dialog-close"
             )
-            yield Static(
-                "[bold]Abort[/bold]    — Cancel this run with no retry.",
-                classes="cancel-option",
-            )
-            yield Static(
-                "[bold]Continue[/bold] — Dismiss this dialog and keep running.",
-                classes="cancel-option",
-            )
-            with Horizontal(id="cancel-dialog-buttons"):
-                yield Button("Retry", id="cancel-retry", variant="warning")
-                yield Button("Abort", id="cancel-abort", variant="error")
-                yield Button("Continue", id="cancel-continue", variant="success")
+            with Container(id="cancel-dialog") as dialog:
+                dialog.border_title = "Cancel Task"
+                yield Static(
+                    f"{self._task_name}  {self._model_name}", id="cancel-task-info"
+                )
+                yield RetryCheckbox(
+                    "Schedule task for retry\n(completed samples will be re-used)",
+                    id="cancel-retry-checkbox",
+                    value=False,
+                )
+                with Horizontal(id="cancel-dialog-buttons"):
+                    yield Button("Cancel Task", id="cancel-confirm", variant="error")
 
-    @on(Button.Pressed, "#cancel-retry")
-    def handle_retry(self) -> None:
-        self.dismiss("retry")
+    def on_mount(self) -> None:
+        self.query_one("#cancel-confirm", Button).focus()
 
-    @on(Button.Pressed, "#cancel-abort")
-    def handle_abort(self) -> None:
-        self.dismiss("abort")
+    @on(Button.Pressed, "#cancel-confirm")
+    def handle_cancel(self) -> None:
+        retry = self.query_one("#cancel-retry-checkbox", RetryCheckbox).value
+        self.dismiss("retry" if retry else "abort")
 
-    @on(Button.Pressed, "#cancel-continue")
-    def action_continue(self) -> None:
+    def action_dismiss_dialog(self) -> None:
         self.dismiss(None)
