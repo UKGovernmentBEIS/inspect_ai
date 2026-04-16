@@ -427,22 +427,32 @@ class CancelLink(Link):
 
 
 class CancelDialog(ModalScreen[CancelType]):
+    BINDINGS = [("escape", "continue", "Continue")]
+
     DEFAULT_CSS = """
     CancelDialog {
         align: center middle;
+        background: $background 60%;
     }
     #cancel-dialog {
-        width: 50;
+        width: 60;
         height: auto;
         padding: 1 2;
         background: $surface;
-        border: thick $border;
+        border: solid $foreground 20%;
     }
     #cancel-dialog-title {
         width: 100%;
-        content-align: center middle;
         text-style: bold;
         margin-bottom: 1;
+    }
+    .cancel-option {
+        margin-bottom: 1;
+        color: $text-muted;
+    }
+    .cancel-option-key {
+        text-style: bold;
+        color: $text;
     }
     #cancel-dialog-buttons {
         width: 100%;
@@ -458,10 +468,23 @@ class CancelDialog(ModalScreen[CancelType]):
     def compose(self) -> ComposeResult:
         with Container(id="cancel-dialog"):
             yield Static("Cancel Task", id="cancel-dialog-title")
+            yield Static(
+                "[bold]Retry[/bold]    — Cancel this run and retry the task, "
+                "reusing any completed samples.",
+                classes="cancel-option",
+            )
+            yield Static(
+                "[bold]Abort[/bold]    — Cancel this run with no retry.",
+                classes="cancel-option",
+            )
+            yield Static(
+                "[bold]Continue[/bold] — Dismiss this dialog and keep running.",
+                classes="cancel-option",
+            )
             with Horizontal(id="cancel-dialog-buttons"):
                 yield Button("Retry", id="cancel-retry", variant="warning")
                 yield Button("Abort", id="cancel-abort", variant="error")
-                yield Button("Continue", id="cancel-continue")
+                yield Button("Continue", id="cancel-continue", variant="success")
 
     @on(Button.Pressed, "#cancel-retry")
     def handle_retry(self) -> None:
@@ -472,5 +495,5 @@ class CancelDialog(ModalScreen[CancelType]):
         self.dismiss("abort")
 
     @on(Button.Pressed, "#cancel-continue")
-    def handle_continue(self) -> None:
+    def action_continue(self) -> None:
         self.dismiss(None)
