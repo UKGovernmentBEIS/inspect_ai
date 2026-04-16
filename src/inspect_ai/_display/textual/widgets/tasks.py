@@ -493,12 +493,21 @@ class CancelDialog(ModalScreen[CancelType]):
     }
     #cancel-retry-checkbox {
         margin: 1 0;
+        &:focus > .toggle--label {
+            color: $text;
+            background: transparent;
+            text-style: none;
+        }
     }
     #cancel-retry-checkbox > .toggle--button {
         color: transparent;
     }
     #cancel-retry-checkbox.-on > .toggle--button {
         color: $success;
+    }
+    #cancel-confirm:focus {
+        text-style: none;
+        background-tint: transparent;
     }
     #cancel-dialog-buttons {
         width: 100%;
