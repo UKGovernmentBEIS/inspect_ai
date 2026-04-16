@@ -539,3 +539,40 @@ async def test_anthropic_reasoning_effort_xhigh_max_live(
     )
     response = await model.generate(input="What is 2 + 2? Briefly.")
     assert len(response.completion) >= 1
+
+
+# ---------------------------------------------------------------------------
+# max_tokens caps across model versions (incl. forward-compat routing)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_cap",
+    [
+        # Opus 4.6+: 128k
+        ("claude-opus-4-6", 128000),
+        ("claude-opus-4-7", 128000),
+        # Hypothetical future minor opus version: 128k via frontier+opus
+        ("claude-opus-4-8", 128000),
+        # Hypothetical future major version: 128k via "claude 5+" branch
+        ("claude-opus-5-0", 128000),
+        ("claude-sonnet-5-0", 128000),
+        # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
+        ("claude-sonnet-4-5", 64000),
+        ("claude-sonnet-4-6", 64000),
+        ("claude-sonnet-4-7", 64000),
+        ("claude-sonnet-4-8", 64000),
+        ("claude-haiku-4-5", 64000),
+        # Opus 4.0 / 4.1: 32k
+        ("claude-opus-4-0", 32000),
+        ("claude-opus-4-1", 32000),
+        # Claude 3.7: 128k (extended output beta)
+        ("claude-3-7-sonnet-latest", 128000),
+    ],
+)
+def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
+    """Verify max_tokens cap routing for current and hypothetical future models."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    # Inflate via reasoning_tokens so the cap (not the base) decides the result.
+    config = GenerateConfig(reasoning_tokens=200000)
+    assert api.max_tokens_for_config(config) == expected_cap
