@@ -6,7 +6,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/eval.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/eval.py#L87)
 
 ``` python
 def eval(
@@ -84,8 +84,8 @@ def eval(
     max_tool_output: int | None = ...,
     cache_prompt: Literal['auto'] | bool | None = ...,
     verbosity: Literal['low', 'medium', 'high'] | None = ...,
-    effort: Literal['low', 'medium', 'high', 'max'] | None = ...,
-    reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] | None = ...,
+    effort: Literal['low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
+    reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
     reasoning_tokens: int | None = ...,
     reasoning_summary: Literal['none', 'concise', 'detailed', 'auto'] | None = ...,
     reasoning_history: Literal['none', 'all', 'last', 'auto'] | None = ...,
@@ -317,10 +317,10 @@ Whether to cache the prompt prefix. Enabled by default. Set to False to disable.
 `verbosity` Literal\['low', 'medium', 'high'\] \| None  
 Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models).
 
-`effort` Literal\['low', 'medium', 'high', 'max'\] \| None  
-Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6).
+`effort` Literal\['low', 'medium', 'high', 'xhigh', 'max'\] \| None  
+Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5+ only (`max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7).
 
-`reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh'\] \| None  
+`reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'\] \| None  
 Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
 
 `reasoning_tokens` int \| None  
@@ -354,7 +354,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/eval.py#L817)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/eval.py#L817)
 
 ``` python
 def eval_retry(
@@ -481,7 +481,7 @@ Maximum number of concurrent connections to Model API (default is per Model API)
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/evalset.py#L100)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/evalset.py#L100)
 
 ``` python
 def eval_set(
@@ -564,8 +564,8 @@ def eval_set(
     max_tool_output: int | None = ...,
     cache_prompt: Literal['auto'] | bool | None = ...,
     verbosity: Literal['low', 'medium', 'high'] | None = ...,
-    effort: Literal['low', 'medium', 'high', 'max'] | None = ...,
-    reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] | None = ...,
+    effort: Literal['low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
+    reasoning_effort: Literal['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] | None = ...,
     reasoning_tokens: int | None = ...,
     reasoning_summary: Literal['none', 'concise', 'detailed', 'auto'] | None = ...,
     reasoning_history: Literal['none', 'all', 'last', 'auto'] | None = ...,
@@ -812,10 +812,10 @@ Whether to cache the prompt prefix. Enabled by default. Set to False to disable.
 `verbosity` Literal\['low', 'medium', 'high'\] \| None  
 Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models).
 
-`effort` Literal\['low', 'medium', 'high', 'max'\] \| None  
-Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6).
+`effort` Literal\['low', 'medium', 'high', 'xhigh', 'max'\] \| None  
+Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5+ only (`max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7).
 
-`reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh'\] \| None  
+`reasoning_effort` Literal\['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'\] \| None  
 Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).
 
 `reasoning_tokens` int \| None  
@@ -849,7 +849,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/score.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/score.py#L70)
 
 ``` python
 def score(
@@ -894,7 +894,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/task.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/task.py#L59)
 
 ``` python
 class Task
@@ -905,7 +905,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/task.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/task.py#L65)
 
 ``` python
 def __init__(
@@ -1032,7 +1032,7 @@ Task adapted with alternate values for one or more options.
 
 This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using [task_with()](../reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/task.py#L226)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/task.py#L226)
 
 ``` python
 def task_with(
@@ -1153,7 +1153,7 @@ Task epochs.
 
 Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -1169,7 +1169,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -1185,7 +1185,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/task.py#L367)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/task.py#L367)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -1208,7 +1208,7 @@ One or more tasks.
 
 Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1237,7 +1237,7 @@ Tasks: TypeAlias = (
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_view/view.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_view/view.py#L25)
 
 ``` python
 def view(
@@ -1278,7 +1278,7 @@ Additional arguments to pass through to the filesystem provider (e.g. `S3FileSy
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0250d6d10e06b35c1da2c7bb963b712a557b22c0/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f208313ac25a49d80f5f4c66bf046c1a091fae39/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any

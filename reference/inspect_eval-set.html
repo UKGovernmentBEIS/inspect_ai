@@ -3485,13 +3485,13 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><code>--effort</code></td>
-<td>choice (<code>low</code> | <code>medium</code> | <code>high</code> | <code>max</code>)</td>
-<td>Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (<code>max</code> only supported on 4.6).</td>
+<td>choice (<code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code> | <code>max</code>)</td>
+<td>Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Claude 4.5, 4.6, 4.7 only (<code>max</code> only supported on 4.6+, <code>xhigh</code> only supported on 4.7).</td>
 <td>None</td>
 </tr>
 <tr class="odd">
 <td><code>--reasoning-effort</code></td>
-<td>choice (<code>none</code> | <code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code>)</td>
+<td>choice (<code>none</code> | <code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code> | <code>max</code>)</td>
 <td>Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
 <td>None</td>
 </tr>
