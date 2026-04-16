@@ -134,6 +134,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -227,6 +228,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
 
     Returns:
@@ -290,6 +292,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
         # exceptions can escape when debug_errors is True and that's okay
@@ -354,6 +357,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -426,6 +430,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
 
     Returns:
@@ -485,6 +490,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
         finally:
@@ -554,6 +560,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
@@ -756,6 +763,7 @@ async def _eval_async_inner(
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
+                        task_retry_attempts=task_retry_attempts,
                         **kwargs,
                     )
                 )
@@ -783,6 +791,7 @@ async def _eval_async_inner(
                 metadata=metadata,
                 run_samples=run_samples,
                 score=score,
+                task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
             logs = EvalLogs(results)

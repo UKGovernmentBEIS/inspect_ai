@@ -354,12 +354,17 @@ def view_server_app(
         request: Request, file: list[str] = Query([])
     ) -> list[EvalLog]:
         files = [normalize_uri(f) for f in file]
+        mapped_files: list[str] = [""] * len(files)
+
+        async def _validate_and_map(idx: int, f: str) -> None:
+            await _validate_read(request, f)
+            mapped_files[idx] = await _map_file(request, f)
+
         async with anyio.create_task_group() as tg:
-            for f in files:
-                tg.start_soon(_validate_read, request, f)
-        return await read_eval_log_headers_async(
-            [await _map_file(request, file) for file in files]
-        )
+            for i, f in enumerate(files):
+                tg.start_soon(_validate_and_map, i, f)
+
+        return await read_eval_log_headers_async(mapped_files)
 
     @app.get("/events")
     async def api_events(
@@ -416,6 +421,8 @@ def view_server_app(
         epoch: int,
         last_event_id: int | None = Query(None, alias="last-event-id"),
         after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
+        after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
+        after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
     ) -> SampleData | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
@@ -426,6 +433,8 @@ def view_server_app(
             epoch=epoch,
             after_event_id=last_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
 
         if sample_data is None:

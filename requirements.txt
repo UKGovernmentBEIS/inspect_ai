@@ -20,7 +20,7 @@ nest_asyncio2>=1.7.2
 numpy
 platformdirs>=2.3.0
 psutil
-pydantic>=2.11.4
+pydantic>=2.13.0
 python-dotenv>=0.16.0
 pyyaml
 rich>=13.3.3,!=14.0.0
