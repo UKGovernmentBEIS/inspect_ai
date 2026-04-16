@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.207 (16 April 2026)
 
 - Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
 - Anthropic: Support for new `xhigh` value for `effort`.                     
