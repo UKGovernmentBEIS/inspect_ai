@@ -210,7 +210,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.80.0"
+version = "0.96.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -222,9 +222,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/63/791e14ef5a8ecb485cef5b5d058c7ca3ad6c50a2f94cf4cea5231c6b7c16/anthropic-0.80.0.tar.gz", hash = "sha256:ef042586673fdcab2a6ffd381aa5f9a1bcce38ffe73c07fe70bd56d12b8124ba", size = 533291, upload-time = "2026-02-17T19:26:26.717Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/7e/672f533dee813028d2c699bfd2a7f52c9118d7353680d9aa44b9e23f717f/anthropic-0.96.0.tar.gz", hash = "sha256:9de947b737f39452f68aa520f1c2239d44119c9b73b0fb6d4e6ca80f00279ee6", size = 658210, upload-time = "2026-04-16T14:28:02.846Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/4b/665f29338f51d0c2f9e04b276ea54cc1e957ae5c521a0ad868aa80abc608/anthropic-0.80.0-py3-none-any.whl", hash = "sha256:dad0e40ec371ee686e9ffb2e0cb461a0ed51447fa100927fb5d39b174c286d6f", size = 453667, upload-time = "2026-02-17T19:26:29.96Z" },
+    { url = "https://files.pythonhosted.org/packages/48/5a/72f33204064b6e87601a71a6baf8d855769f8a0c1eaae8d06a1094872371/anthropic-0.96.0-py3-none-any.whl", hash = "sha256:9a6e335a354602a521cd9e777e92bfd46ba6e115bf9bbfe6135311e8fb2015b2", size = 635930, upload-time = "2026-04-16T14:28:01.436Z" },
 ]
 
 [[package]]
@@ -1753,7 +1753,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
     { name = "aiohttp", specifier = ">=3.9.0" },
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.80.0" },
+    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.96.0" },
     { name = "anyio", specifier = ">=4.8.0" },
     { name = "azure-ai-inference", marker = "extra == 'dev'" },
     { name = "azure-identity", marker = "extra == 'dev'" },
