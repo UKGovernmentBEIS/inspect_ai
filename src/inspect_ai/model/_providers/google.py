@@ -779,7 +779,7 @@ class GoogleGenAIAPI(ModelAPI):
                         thinking_level = (
                             ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
                         )
-                    case "high" | "xhigh":
+                    case "high" | "xhigh" | "max":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
                         thinking_level = None  # can't happen, keep mypy happy
