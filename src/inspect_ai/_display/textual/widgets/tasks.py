@@ -503,7 +503,8 @@ class CancelDialog(ModalScreen[CancelType]):
         color: transparent;
     }
     #cancel-retry-checkbox.-on > .toggle--button {
-        color: $success;
+        color: white;
+        text-style: bold;
     }
     #cancel-confirm:focus {
         text-style: none;
