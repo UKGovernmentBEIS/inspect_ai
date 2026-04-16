@@ -32,16 +32,25 @@ class _LiteralStr(str):
     """Serialises as a YAML block scalar (style '|')."""
 
 
+class _QuotedStr(str):
+    """Serialises as a double-quoted YAML scalar."""
+
+
 class _FlowList(list):
-    """Serialises as a YAML flow sequence ([a, b, c])."""
+    """Serialises as a YAML flow sequence (["a", "b", "c"])."""
 
 
 class _ListingDumper(yaml.Dumper):
-    pass
+    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:  # noqa: ARG002
+        super().increase_indent(flow=flow, indentless=False)
 
 
 def _literal_representer(dumper: yaml.Dumper, data: _LiteralStr) -> yaml.ScalarNode:
     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+
+
+def _quoted_str_representer(dumper: yaml.Dumper, data: _QuotedStr) -> yaml.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
 
 
 def _flow_list_representer(dumper: yaml.Dumper, data: _FlowList) -> yaml.SequenceNode:
@@ -49,6 +58,7 @@ def _flow_list_representer(dumper: yaml.Dumper, data: _FlowList) -> yaml.Sequenc
 
 
 _ListingDumper.add_representer(_LiteralStr, _literal_representer)
+_ListingDumper.add_representer(_QuotedStr, _quoted_str_representer)
 _ListingDumper.add_representer(_FlowList, _flow_list_representer)
 
 
@@ -66,13 +76,18 @@ def _prepare_for_yaml(record: dict) -> dict:
         if key not in record:
             continue
         val = record[key]
-        if key == "description":
+        if key == "title":
+            r[key] = _QuotedStr(val)
+        elif key == "description":
             r[key] = _LiteralStr(val.rstrip() + "\n")
         elif key in ("contributors", "tags"):
-            r[key] = _FlowList(val)
+            r[key] = _FlowList([_QuotedStr(v) for v in val])
+        elif key in ("dependency", "dependency-group"):
+            r[key] = _QuotedStr(val)
         elif key == "metadata":
             r[key] = {
-                mk: _FlowList(mv) if isinstance(mv, list) else mv
+                mk: _FlowList([_QuotedStr(v) if isinstance(v, str) else v for v in mv])
+                if isinstance(mv, list) else mv
                 for mk, mv in val.items()
             }
         else:
