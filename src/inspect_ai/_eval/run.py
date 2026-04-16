@@ -625,9 +625,6 @@ async def run_task_retry_attempts(
                                         options, task_cancel=task_cancel
                                     )
                                     results[idx] = result
-                                    log.info(
-                                        f"results[{idx}] = status={result.status} location={result.location}"
-                                    )
 
                                 return run_task
 
@@ -756,8 +753,6 @@ async def run_task_retry_attempts(
             clear_task_screen()
 
         # Return results ordered by original task index
-        for k, v in sorted(results.items()):
-            log.info(f"final results[{k}] = status={v.status} location={v.location}")
         return [v for k, v in sorted(results.items())]
 
 
