@@ -13,14 +13,29 @@
 
 local pandoc = require('pandoc')
 
--- resolve refs path based on whether the current doc is in reference/
-local is_reference = string.find(quarto.doc.input_file, "reference/") ~= nil
+-- resolve refs path relative to the project root. Quarto runs filters with
+-- CWD set to the source file's directory, so we need an absolute path to the
+-- reference/ directory that holds refs.json.
+local project_dir = quarto.project.directory
+local reference_dir = project_dir .. "/reference/"
+
+local is_reference = string.find(quarto.doc.input_file, "/reference/") ~= nil
 local function refs_path(name)
+    return reference_dir .. name
+end
+
+-- link prefix, used to build hrefs back into reference/ from the current doc
+local function link_prefix()
     if is_reference then
-        return name
-    else
-        return "reference/" .. name
+        return ""
     end
+    -- compute how many directory hops from the current doc to the project root
+    local rel = string.sub(quarto.doc.input_file, #project_dir + 2)  -- skip "/"
+    local hops = 0
+    for _ in string.gmatch(rel, "/") do
+        hops = hops + 1
+    end
+    return string.rep("../", hops) .. "reference/"
 end
 
 local function load_json(path)
@@ -55,8 +70,7 @@ local function is_function_call(str)
 end
 
 local function create_interlink(text, ref)
-    local prefix = is_reference and "" or "reference/"
-    return pandoc.Span(pandoc.Link(pandoc.Str(text), prefix .. ref),
+    return pandoc.Span(pandoc.Link(pandoc.Str(text), link_prefix() .. ref),
         { class = "element-type-name ref-interlink" })
 end
 

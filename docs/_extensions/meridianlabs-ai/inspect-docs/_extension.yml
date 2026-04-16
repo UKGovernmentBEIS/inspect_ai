@@ -1,6 +1,6 @@
 title: Inspect Docs
 author: Meridian Labs
-version: 1.0.2
+version: 1.0.4
 quarto-required: ">=1.7"
 contributes:
   project:
@@ -24,6 +24,7 @@ contributes:
       toc: true
       toc-depth: 3
       toc-expand: 1
+      lightbox: true
       code-overflow: wrap
       code-annotations: select
       fig-width: 8

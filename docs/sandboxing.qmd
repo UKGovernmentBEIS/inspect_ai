@@ -157,14 +157,6 @@ The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker 
 
 ## Sandbox Limits
 
-::: {.callout-note appearance="simple"}
-The sandbox limits described below are available only in the development version of Inspect. To install the development version from GitHub:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don't terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
 
 You can however increase these limits using environment variables. For example, here we set the read file limit to 200MB and the exec output size to 20MB:

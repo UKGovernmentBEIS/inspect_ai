@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.206 (15 April 2026)
 
 - Eval Set: Display explicit `--id` in task panel headers when provided.
 - Eval Set: Add `--retry-immediate` option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.

@@ -170,5 +170,15 @@ svgString = svgString.replace(
   "$1" + payload
 );
 
+// Replace remote Cascadia font with system monospace fallbacks
+svgString = svgString.replace(
+  /src: url\("https:\/\/excalidraw\.com\/Cascadia\.woff2"\);/g,
+  "/* remote font replaced with system monospace */",
+);
+svgString = svgString.replace(
+  /font-family="Cascadia, Segoe UI Emoji"/g,
+  `font-family="'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace"`,
+);
+
 writeFileSync(resolve(outputPath), svgString, "utf-8");
 dom.window.close();
