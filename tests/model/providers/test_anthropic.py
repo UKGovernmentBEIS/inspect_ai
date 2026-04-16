@@ -576,3 +576,38 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
     # Inflate via reasoning_tokens so the cap (not the base) decides the result.
     config = GenerateConfig(reasoning_tokens=200000)
     assert api.max_tokens_for_config(config) == expected_cap
+
+
+# ---------------------------------------------------------------------------
+# max_tokens default-bump for xhigh / max effort (migration-guide ≥64k floor)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,config_kwargs,expected",
+    [
+        # reasoning_effort: low/medium/high baseline (unchanged)
+        ("claude-opus-4-7", {"reasoning_effort": "low"}, 32000 + 4096),
+        ("claude-opus-4-7", {"reasoning_effort": "medium"}, 32000 + 10000),
+        ("claude-opus-4-7", {"reasoning_effort": "high"}, 32000 + 16000),
+        # reasoning_effort xhigh / max → 64k via dict bump (migration guide floor)
+        ("claude-opus-4-7", {"reasoning_effort": "xhigh"}, 64000),
+        ("claude-opus-4-7", {"reasoning_effort": "max"}, 64000),
+        # standalone effort xhigh / max → 64k via post-bump floor
+        ("claude-opus-4-7", {"effort": "xhigh"}, 64000),
+        ("claude-opus-4-7", {"effort": "max"}, 64000),
+        # standalone effort low/medium/high: no bump (just the 32k base)
+        ("claude-opus-4-7", {"effort": "high"}, 32000),
+        # opus-4-0 caps at 32k even when xhigh requested (cap wins over floor)
+        ("claude-opus-4-0", {"effort": "xhigh"}, 32000),
+        # sonnet-4-7 (non-opus, 64k cap) with xhigh effort → 64k
+        ("claude-sonnet-4-7", {"effort": "xhigh"}, 64000),
+    ],
+)
+def test_anthropic_max_tokens_xhigh_max_floor(
+    model_name: str, config_kwargs: dict, expected: int
+) -> None:
+    """xhigh/max effort should default max_tokens to ≥64k per the migration guide."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    config = GenerateConfig(**config_kwargs)
+    assert api.max_tokens_for_config(config) == expected

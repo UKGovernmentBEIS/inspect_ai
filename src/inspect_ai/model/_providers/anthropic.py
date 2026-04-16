@@ -836,15 +836,23 @@ class AnthropicAPI(ModelAPI):
         if self.is_thinking_model():
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
+                # xhigh/max sized to reach the migration-guide floor of 64k
+                # on top of the 32k base for thinking models.
                 effort_tokens = {
                     "low": 4096,
                     "medium": 10000,
                     "high": 16000,
-                    "max": 24000,
+                    "xhigh": 32000,
+                    "max": 32000,
                 }
                 max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
             elif config.reasoning_tokens is not None:
                 max_tokens = max_tokens + config.reasoning_tokens
+
+        # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
+        # (model caps below will still clamp on older models)
+        if config.effort in ("xhigh", "max") and max_tokens < 64000:
+            max_tokens = 64000
 
         # apply caps after bumping for reasoning
         if self.is_claude_frontier() and self.is_claude_4_opus():
