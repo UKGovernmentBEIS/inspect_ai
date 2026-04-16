@@ -438,3 +438,104 @@ async def test_anthropic_prompt_caching_changing_suffix() -> None:
     response2 = await model.generate(input=msgs2)
     assert response2.usage is not None
     assert (response2.usage.input_tokens_cache_read or 0) > 0
+
+
+# ---------------------------------------------------------------------------
+# effort / reasoning_effort downgrade behavior across model versions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,requested,expected",
+    [
+        # xhigh: requires 4.7+ (is_claude_latest), downgrades to high otherwise
+        ("claude-opus-4-5", "xhigh", "high"),
+        ("claude-opus-4-6", "xhigh", "high"),
+        ("claude-opus-4-7", "xhigh", "xhigh"),
+        # max: requires 4.6+, downgrades to high otherwise
+        ("claude-opus-4-5", "max", "high"),
+        ("claude-opus-4-6", "max", "max"),
+        ("claude-opus-4-7", "max", "max"),
+        # baseline values pass through on every supported model
+        ("claude-opus-4-5", "low", "low"),
+        ("claude-opus-4-6", "medium", "medium"),
+        ("claude-opus-4-7", "high", "high"),
+    ],
+)
+def test_anthropic_effort_downgrade(
+    model_name: str, requested: str, expected: str
+) -> None:
+    """The explicit `effort` setting downgrades to `high` when the model is too old."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    config = GenerateConfig(effort=requested, max_tokens=64)  # type: ignore[arg-type]
+    params, _extra_body, _headers, betas = api.completion_config(config)
+    assert "effort-2025-11-24" in betas
+    assert params["output_config"] == {"effort": expected}
+
+
+@pytest.mark.parametrize(
+    "model_name,requested,expected",
+    [
+        # xhigh: requires 4.7+ in the reasoning_effort path too
+        ("claude-opus-4-6", "xhigh", "high"),
+        ("claude-opus-4-7", "xhigh", "xhigh"),
+        # max: gated by the outer 4.6+ check (returns None on older models)
+        ("claude-opus-4-6", "max", "max"),
+        ("claude-opus-4-7", "max", "max"),
+        # baseline mappings on a supported model
+        ("claude-opus-4-6", "minimal", "low"),
+        ("claude-opus-4-6", "medium", "medium"),
+        ("claude-opus-4-6", "high", "high"),
+    ],
+)
+def test_anthropic_reasoning_effort_downgrade(
+    model_name: str, requested: str, expected: str
+) -> None:
+    """`effort_from_reasoning_effort` mirrors the `effort` downgrade rules for xhigh."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    config = GenerateConfig(reasoning_effort=requested)  # type: ignore[arg-type]
+    assert api.effort_from_reasoning_effort(config) == expected
+
+
+def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
+    """Models older than 4.6 should not get any reasoning_effort mapping."""
+    api = AnthropicAPI(model_name="claude-opus-4-5", api_key="test-key")
+    for value in ["low", "medium", "high", "xhigh", "max"]:
+        config = GenerateConfig(reasoning_effort=value)  # type: ignore[arg-type]
+        assert api.effort_from_reasoning_effort(config) is None
+
+
+# ---------------------------------------------------------------------------
+# live API exercises against claude-opus-4-7 (require --runapi)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("effort", ["xhigh", "max"])
+async def test_anthropic_effort_xhigh_max_live(effort: str) -> None:
+    """Verify the API accepts the new effort values on Claude Opus 4.7."""
+    model = get_model(
+        "anthropic/claude-opus-4-7",
+        config=GenerateConfig(effort=effort, max_tokens=128),  # type: ignore[arg-type]
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("reasoning_effort", ["xhigh", "max"])
+async def test_anthropic_reasoning_effort_xhigh_max_live(
+    reasoning_effort: str,
+) -> None:
+    """Verify the API accepts the new reasoning_effort values on Claude Opus 4.7."""
+    model = get_model(
+        "anthropic/claude-opus-4-7",
+        config=GenerateConfig(
+            reasoning_effort=reasoning_effort,  # type: ignore[arg-type]
+            max_tokens=2048,
+        ),
+    )
+    response = await model.generate(input="What is 2 + 2? Briefly.")
+    assert len(response.completion) >= 1

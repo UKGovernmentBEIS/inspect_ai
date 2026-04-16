@@ -594,7 +594,10 @@ class OpenAIAPI(ModelAPI):
 
         reasoning: Reasoning = {}
         if config.reasoning_effort is not None:
-            reasoning["effort"] = config.reasoning_effort
+            effort = (
+                config.reasoning_effort if config.reasoning_effort != "max" else "xhigh"
+            )
+            reasoning["effort"] = effort
         if config.reasoning_summary is not None and config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary
 

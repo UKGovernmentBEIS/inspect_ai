@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Anthropic: Support for new `xhigh` value for `effort` (Claude 4.7).                       
+- Anthropic: Support for `max` value for `reasoning_effort`.   
 - Task Display: Add cancel button to cancel individual tasks during parallel execution.
 
 ## 0.3.206 (15 April 2026)
