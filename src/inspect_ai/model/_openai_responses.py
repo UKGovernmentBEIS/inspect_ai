@@ -44,6 +44,7 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
+from openai.types.responses.namespace_tool_param import NamespaceToolParam
 from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_code_interpreter_tool_call import (
     OutputImage,
@@ -1541,6 +1542,10 @@ def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam
 
 def is_custom_tool_param(tool_param: ToolParam) -> TypeGuard[CustomToolParam]:
     return tool_param.get("type") == "custom"
+
+
+def is_namespace_tool_param(tool_param: ToolParam) -> TypeGuard[NamespaceToolParam]:
+    return tool_param.get("type") == "namespace"
 
 
 def maybe_code_interpreter_tool(
