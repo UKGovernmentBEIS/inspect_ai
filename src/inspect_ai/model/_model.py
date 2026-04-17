@@ -1903,8 +1903,9 @@ def combine_messages(
 
 
 def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+    level = logging.WARNING if retry_state.upcoming_sleep >= 60 else HTTP
     logger.log(
-        HTTP,
+        level,
         f"-> {model_name} retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
     )
 

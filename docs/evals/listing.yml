@@ -284,7 +284,7 @@
 
 - title: "SWE-Lancer: Can Frontier LLMs Earn $1 Million from Real-World Freelance Software Engineering?"
   description: |
-    A benchmark of freelance software engineering tasks from Upwork, valued at $1 million USD total in realworld payouts. 
+    A benchmark of freelance software engineering tasks from Upwork, valued at $1 million USD total in realworld payouts.
   path: src/inspect_evals/swe_lancer
   arxiv: https://arxiv.org/pdf/2502.12115
   group: Coding

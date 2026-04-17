@@ -539,3 +539,75 @@ async def test_anthropic_reasoning_effort_xhigh_max_live(
     )
     response = await model.generate(input="What is 2 + 2? Briefly.")
     assert len(response.completion) >= 1
+
+
+# ---------------------------------------------------------------------------
+# max_tokens caps across model versions (incl. forward-compat routing)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,expected_cap",
+    [
+        # Opus 4.6+: 128k
+        ("claude-opus-4-6", 128000),
+        ("claude-opus-4-7", 128000),
+        # Hypothetical future minor opus version: 128k via frontier+opus
+        ("claude-opus-4-8", 128000),
+        # Hypothetical future major version: 128k via "claude 5+" branch
+        ("claude-opus-5-0", 128000),
+        ("claude-sonnet-5-0", 128000),
+        # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
+        ("claude-sonnet-4-5", 64000),
+        ("claude-sonnet-4-6", 64000),
+        ("claude-sonnet-4-7", 64000),
+        ("claude-sonnet-4-8", 64000),
+        ("claude-haiku-4-5", 64000),
+        # Opus 4.0 / 4.1: 32k
+        ("claude-opus-4-0", 32000),
+        ("claude-opus-4-1", 32000),
+        # Claude 3.7: 128k (extended output beta)
+        ("claude-3-7-sonnet-latest", 128000),
+    ],
+)
+def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
+    """Verify max_tokens cap routing for current and hypothetical future models."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    # Inflate via reasoning_tokens so the cap (not the base) decides the result.
+    config = GenerateConfig(reasoning_tokens=200000)
+    assert api.max_tokens_for_config(config) == expected_cap
+
+
+# ---------------------------------------------------------------------------
+# max_tokens default-bump for xhigh / max effort (migration-guide ≥64k floor)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "model_name,config_kwargs,expected",
+    [
+        # reasoning_effort: low/medium/high baseline (unchanged)
+        ("claude-opus-4-7", {"reasoning_effort": "low"}, 32000 + 4096),
+        ("claude-opus-4-7", {"reasoning_effort": "medium"}, 32000 + 10000),
+        ("claude-opus-4-7", {"reasoning_effort": "high"}, 32000 + 16000),
+        # reasoning_effort xhigh / max → 64k via dict bump (migration guide floor)
+        ("claude-opus-4-7", {"reasoning_effort": "xhigh"}, 64000),
+        ("claude-opus-4-7", {"reasoning_effort": "max"}, 64000),
+        # standalone effort xhigh / max → 64k via post-bump floor
+        ("claude-opus-4-7", {"effort": "xhigh"}, 64000),
+        ("claude-opus-4-7", {"effort": "max"}, 64000),
+        # standalone effort low/medium/high: no bump (just the 32k base)
+        ("claude-opus-4-7", {"effort": "high"}, 32000),
+        # opus-4-0 caps at 32k even when xhigh requested (cap wins over floor)
+        ("claude-opus-4-0", {"effort": "xhigh"}, 32000),
+        # sonnet-4-7 (non-opus, 64k cap) with xhigh effort → 64k
+        ("claude-sonnet-4-7", {"effort": "xhigh"}, 64000),
+    ],
+)
+def test_anthropic_max_tokens_xhigh_max_floor(
+    model_name: str, config_kwargs: dict, expected: int
+) -> None:
+    """xhigh/max effort should default max_tokens to ≥64k per the migration guide."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    config = GenerateConfig(**config_kwargs)
+    assert api.max_tokens_for_config(config) == expected
