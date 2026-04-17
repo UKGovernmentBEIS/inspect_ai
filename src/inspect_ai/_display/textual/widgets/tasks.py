@@ -7,7 +7,6 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, ScrollableContainer
-from textual.content import Content, ContentText
 from textual.css.query import NoMatches
 from textual.geometry import Size
 from textual.reactive import reactive
@@ -446,12 +445,23 @@ class RetryCheckbox(Checkbox):
     }
     """
 
-    def _make_label(self, label: ContentText) -> Content:
-        return Content.from_text(label).rstrip()
+    def _make_label(self, label: "Text | str") -> Text:  # type: ignore[override]
+        """Allow newlines through instead of truncating to first line.
+
+        Note: in Textual 8.x the parent signature uses Content/ContentText
+        instead of Text/TextType. The override annotation targets the older
+        API (2.x) that CI pins; the runtime branch handles both.
+        """
+        try:
+            from textual.content import Content
+
+            return Content.from_text(label).rstrip()  # type: ignore
+        except (ImportError, AttributeError):
+            return Text.from_markup(label) if isinstance(label, str) else label
 
     def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
-        lines = str(self._label).split("\n")
-        return max(1, len(lines))
+        label_text = str(self._label) if hasattr(self, "_label") else ""
+        return max(1, label_text.count("\n") + 1)
 
     def watch_value(self) -> None:
         self.BUTTON_INNER = "X" if self.value else " "
@@ -493,6 +503,7 @@ class CancelDialog(ModalScreen[CancelType]):
     }
     #cancel-retry-checkbox {
         margin: 1 0;
+        max-width: 100%;
         &:focus > .toggle--label {
             color: $text;
             background: transparent;
