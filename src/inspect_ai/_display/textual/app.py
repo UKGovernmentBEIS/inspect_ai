@@ -265,12 +265,18 @@ class TaskScreenApp(App[TR]):
 
     # update dynamic parts of display
     def update_display(self) -> None:
-        self.update_title()
-        self.update_tasks()
-        self.update_samples()
-        self.update_footer()
-        for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
-            cast(InputPanel, input_panel).update()
+        try:
+            self.update_title()
+            self.update_tasks()
+            self.update_samples()
+            self.update_footer()
+            for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
+                cast(InputPanel, input_panel).update()
+        except NoMatches:
+            # In Textual <8.x, query_one searches the active screen's DOM.
+            # When a modal (e.g. CancelDialog) is active, main app widgets
+            # like AppTitlebar and TasksView are not found.
+            pass
 
     # update the header title
     def update_title(self) -> None:
