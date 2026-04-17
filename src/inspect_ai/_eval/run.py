@@ -639,14 +639,15 @@ async def run_task_retry_attempts(
                     raise
 
                 # tracking
-                tasks_completed += 1
                 model_counts[str(task_options.model)] -= 1
 
                 retry = False
                 if not result:
+                    tasks_completed += 1
                     break
                 elif result.status == "cancelled":
                     # external cancellation (ctrl+c) - stop the worker
+                    tasks_completed += 1
                     break
                 elif cancel_type == "retry":
                     log.info(
@@ -662,6 +663,8 @@ async def run_task_retry_attempts(
                     retry = True
 
                 retry = retry and pending_task.retries_remaining > 0
+                if not retry:
+                    tasks_completed += 1
                 if retry:
                     # build sample_source from the failed log so completed
                     # samples are reused on retry (mirrors legacy eval_set retry)
