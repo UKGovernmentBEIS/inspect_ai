@@ -1,12 +1,15 @@
 ## Unreleased
 
 - Model API: Log model retries at WARNING when backoff >= 60s.
+- Model API: Enrich retry log messages with task/sample/model context and error summary.
+- Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.
 
 ## 0.3.207 (16 April 2026)
 
 - Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
 - Anthropic: Support for new `xhigh` value for `effort`.                     
 - Anthropic: Support for `max` value for `reasoning_effort`.   
+- Task Display: Add cancel button to cancel individual tasks during parallel execution.
 
 ## 0.3.206 (15 April 2026)
 
