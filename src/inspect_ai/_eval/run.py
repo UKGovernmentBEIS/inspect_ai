@@ -665,7 +665,7 @@ async def run_task_retry_attempts(
                 retry = retry and pending_task.retries_remaining > 0
                 if not retry:
                     tasks_completed += 1
-                if retry:
+                else:
                     # build sample_source from the failed log so completed
                     # samples are reused on retry (mirrors legacy eval_set retry)
                     failed_log_info = EvalLogInfo(
