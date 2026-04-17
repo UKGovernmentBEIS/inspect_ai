@@ -106,7 +106,9 @@ def main() -> None:
 
     # build sidebar: user navigation + reference sidebar
     sidebars: list[YamlDict] = []
-    show_sidebar = opts.get("sidebar", has_navigation)
+    sidebar_opt = opts.get("sidebar", has_navigation)
+    show_sidebar = sidebar_opt is not False
+    unified_sidebar = sidebar_opt == "unified"
     if show_sidebar:
         sidebars.append(
             {
@@ -125,7 +127,43 @@ def main() -> None:
     if Path("reference").is_dir():
         ref_sidebar = generate_reference_artifacts(cli_name)
         if ref_sidebar is not None:
-            sidebars.extend(ref_sidebar)
+            if unified_sidebar and sidebars:
+                ref_contents = ref_sidebar[0]["contents"]
+                # The first entry is reference/index.qmd — pull it out
+                # to use as the section href (so Quarto associates that
+                # page with this sidebar) rather than showing a redundant
+                # child link.
+                ref_index_href: str | None = None
+                if ref_contents and isinstance(ref_contents[0], str):
+                    ref_index_href = ref_contents[0]
+                    ref_contents = ref_contents[1:]
+                # Nest reference items under an existing "Reference"
+                # nav entry, or create a new section for them.
+                main_contents = sidebars[0]["contents"]
+                ref_entry = next(
+                    (
+                        item
+                        for item in main_contents
+                        if isinstance(item, dict)
+                        and item.get("text", "").lower() == "reference"
+                    ),
+                    None,
+                )
+                if ref_entry:
+                    ref_entry.pop("text", None)
+                    ref_entry["section"] = "Reference"
+                    ref_entry["href"] = ref_index_href or ref_entry.get("href")
+                    ref_entry["contents"] = ref_contents
+                else:
+                    entry: YamlDict = dict(
+                        section="Reference", contents=ref_contents
+                    )
+                    if ref_index_href:
+                        entry["href"] = ref_index_href
+                    main_contents.append(entry)
+                sidebars[0]["collapse-level"] = 2
+            else:
+                sidebars.extend(ref_sidebar)
 
     # download external refs even when no local reference docs are generated
     ref_dir = Path("reference")
@@ -139,7 +177,10 @@ def main() -> None:
     if any(
         p
         for p in Path(".").glob("**/*.excalidraw")
-        if not any(part.startswith((".", "_")) or part == "node_modules" for part in p.parts)
+        if not any(
+            part.startswith((".", "_")) or part == "node_modules"
+            for part in p.parts
+        )
     ):
         ensure_excalidraw_deps()
 
@@ -194,6 +235,8 @@ def ensure_excalidraw_deps() -> None:
     """Install Node.js dependencies for excalidraw SVG conversion if needed."""
     ext_dir = Path(__file__).parent
     excalidraw_dir = ext_dir / "resources" / "excalidraw"
+    if (excalidraw_dir / "node_modules").is_dir():
+        return
     subprocess.run(
         ["npm", "install", "--prefix", str(excalidraw_dir)],
         check=True,
@@ -481,7 +524,10 @@ def generate_reference_artifacts(
             # reference pages must declare a 'reference:' field
             continue
         reference = str(reference)
-        description = str(frontmatter.get("description", ""))
+        description = str(
+            frontmatter.get("description", "")
+            or frontmatter.get("llms-description", "")
+        )
         title = str(frontmatter.get("title") or reference)
 
         if cli_name and (

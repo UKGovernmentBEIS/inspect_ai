@@ -90,14 +90,6 @@ Consequently, when enabling `retry_on_error` you should do some post-hoc analysi
 
 ## Crash Recovery {#crash-recovery}
 
-::: {.callout-note appearance="simple"}
-The crash recovery features described below are available only in the development version of Inspect. To install the development version from GitHub:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 When an eval process dies unexpectedly (out-of-memory, segfault, `kill`, power failure, etc.), the eval log is left in an incomplete state:
 
 - The log has status `"started"` (the process never got to write the final status).

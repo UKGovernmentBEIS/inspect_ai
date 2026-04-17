@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Model API: Log model retries at WARNING when backoff >= 60s.
+
+## 0.3.207 (16 April 2026)
+
+- Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
+- Anthropic: Support for new `xhigh` value for `effort`.                     
+- Anthropic: Support for `max` value for `reasoning_effort`.   
+
+## 0.3.206 (15 April 2026)
+
 - Eval Set: Display explicit `--id` in task panel headers when provided.
 - Eval Set: Add `--retry-immediate` option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.

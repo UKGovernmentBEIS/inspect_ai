@@ -402,6 +402,8 @@ def _format_table_option_row(option: click.Option) -> str:
 
     # -> "Show version info."
     description = option.help if option.help is not None else "N/A"
+    # Collapse newlines — markdown table cells must be a single line
+    description = " ".join(description.split())
 
     # -> `False`
     none_default_msg = "_required" if option.required else "None"
