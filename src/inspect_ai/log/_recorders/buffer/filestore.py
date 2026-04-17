@@ -1,5 +1,4 @@
 import os
-import sys
 import tempfile
 from logging import getLogger
 from pathlib import Path
@@ -7,9 +6,6 @@ from typing import Literal
 from zipfile import ZipFile
 
 import anyio
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
@@ -21,6 +17,7 @@ from inspect_ai._util.file import FileSystem, basename, dirname, file, filesyste
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
+from inspect_ai.util._anyio import inner_exception
 
 from ..._log import EvalSampleSummary
 from .types import SampleBuffer, SampleData, Samples
@@ -243,12 +240,11 @@ class SampleBufferFilestore(SampleBuffer):
                 async with anyio.create_task_group() as tg:
                     for i, seg in enumerate(segments):
                         tg.start_soon(read_segment, i, seg.id)
-        except ExceptionGroup as eg:
-            if any(isinstance(e, FileNotFoundError) for e in eg.exceptions):
+        except Exception as ex:
+            inner_ex = inner_exception(ex)
+            if isinstance(inner_ex, FileNotFoundError):
                 return None
-            raise
-        except FileNotFoundError:
-            return None
+            raise inner_ex.with_traceback(inner_ex.__traceback__)
 
         # reassemble in segment order
         sample_data = SampleData(
