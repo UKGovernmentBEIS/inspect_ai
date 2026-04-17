@@ -173,6 +173,21 @@ jobs:
           uv venv
           uv pip install .[dev]
 
+      - name: Pre-seed sandbox tools -dev binary (CI stopgap)
+        # The `edited` install-state triggers a `-dev`-suffixed binary lookup
+        # that isn't published to S3 by design. Download the published non-dev
+        # v{N} and save it under the `-dev` name so the local-binary check in
+        # `_open_executable_for_arch` short-circuits before the interactive
+        # build prompt. Remove once the install-state logic is fixed.
+        run: |
+          VERSION=$(cat src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+          ARCH=amd64  # ubuntu-latest runner
+          mkdir -p src/inspect_ai/binaries
+          curl -fSL \
+            -o "src/inspect_ai/binaries/inspect-sandbox-tools-${ARCH}-v${VERSION}-dev" \
+            "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-${ARCH}-v${VERSION}"
+          chmod +x "src/inspect_ai/binaries/inspect-sandbox-tools-${ARCH}-v${VERSION}-dev"
+
       - name: Run slow tool tests
         env:
           DOCKER_BUILDKIT: 1
