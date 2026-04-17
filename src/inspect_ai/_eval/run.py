@@ -585,16 +585,28 @@ async def run_task_retry_attempts(
                     )
                     raise
 
+                # Determine synchronously whether this task will be retried.
+                # tasks_completed must not reach total_tasks while a retry is
+                # in flight — otherwise another worker could see the transient
+                # equality across our await-point below and close the channel
+                # before the retry is enqueued.
+                will_retry = (
+                    result is not None
+                    and result.status == "error"
+                    and pending_task.retries_remaining > 0
+                )
+
                 # tracking
-                tasks_completed += 1
                 model_counts[str(task_options.model)] -= 1
+                if not will_retry:
+                    tasks_completed += 1
 
                 # if a task was cancelled we are done
                 if not result or result.status == "cancelled":
                     break
 
                 # retry on error if retries remain
-                if result.status == "error" and pending_task.retries_remaining > 0:
+                if will_retry:
                     # build sample_source from the failed log so completed
                     # samples are reused on retry (mirrors legacy eval_set retry)
                     failed_log_info = EvalLogInfo(
@@ -631,7 +643,6 @@ async def run_task_retry_attempts(
                         retries_remaining=pending_task.retries_remaining - 1,
                     )
                     pending_tasks.append(retry_pending)
-                    tasks_completed -= 1
                     log.info(
                         f"Retrying task '{task_options.task.name}' ({task_options.model}) "
                         f"— {retry_pending.retries_remaining} retries remaining"

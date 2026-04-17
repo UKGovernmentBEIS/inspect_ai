@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: Log model retries at WARNING when backoff >= 60s.
+- Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
 
 ## 0.3.207 (16 April 2026)
 
