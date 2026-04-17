@@ -148,6 +148,41 @@ def test_read_sample_with_exclude_fields():
     assert not sample.events
 
 
+def test_read_sample_with_nan_exclude_fields_fallback():
+    # Exercises the ijson NaN/Inf fallback in the .eval recorder's
+    # exclude_fields streaming path. The C backend rejects NaN tokens,
+    # so the fallback must still honor exclude_fields and preserve NaN.
+    # Pydantic serializes NaN/Inf as null, so patch the sample JSON
+    # directly inside the zip to inject raw NaN/Infinity tokens.
+    import json
+    import zipfile
+
+    src = os.path.join("tests", "log", "test_eval_log", "log_read_sample.eval")
+    sample_member = "samples/1_epoch_1.json"
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        path = os.path.join(tmpdirname, "log_with_nan.eval")
+        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(path, "w") as zout:
+            for info in zin.infolist():
+                data = zin.read(info.filename)
+                if info.filename == sample_member:
+                    sample_obj = json.loads(data)
+                    sample_obj.setdefault("metadata", {})
+                    sample_obj["metadata"]["nan_value"] = float("nan")
+                    sample_obj["metadata"]["inf_value"] = float("inf")
+                    data = json.dumps(sample_obj).encode()  # allow_nan=True default
+                zout.writestr(info, data)
+
+        sample = read_eval_log_sample(
+            path, id=1, epoch=1, exclude_fields={"store", "events"}
+        )
+        assert sample.input is not None
+        assert not sample.store
+        assert not sample.events
+        assert math.isnan(sample.metadata["nan_value"])
+        assert math.isinf(sample.metadata["inf_value"])
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)
