@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: Log model retries at WARNING when backoff >= 60s.
+- Model API: Enrich retry log messages with task/sample/model context and error summary.
 
 ## 0.3.207 (16 April 2026)
 
