@@ -98,17 +98,23 @@ class TasksView(Container):
 
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         self.update_count_width(task.profile.samples)
-        self.description_width = min(
+        new_description_width = min(
             max(self.description_width, len(task.profile.name)),
             MAX_DESCRIPTION_WIDTH,
         )
         task_display = TaskProgressView(
             task,
-            self.description_width,
+            new_description_width,
             self.model_name_width,
             self.sample_count_width,
             self.display_metrics,
         )
+        # Update existing tasks if description width grew
+        if new_description_width > self.description_width:
+            self.description_width = new_description_width
+            for progress_view in self.tasks.query_children(TaskProgressView):
+                progress_view.update_description_width(new_description_width)
+        self.description_width = new_description_width
         self.tasks.mount(task_display)
         self.tasks.scroll_to_widget(task_display)
         self.update_progress_widths()
@@ -241,6 +247,7 @@ class TaskProgressView(Widget):
             yield TaskStatusIcon()
             yield Static(
                 progress_description(self.t.profile, self.description_width, pad=True),
+                id="task-description",
                 markup=False,
             )
             yield Static(
@@ -286,6 +293,14 @@ class TaskProgressView(Widget):
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         self.metrics = metrics
+
+    def update_description_width(self, width: int) -> None:
+        self.description_width = width
+        try:
+            desc = self.query_one("#task-description", Static)
+            desc.update(progress_description(self.t.profile, width, pad=True))
+        except NoMatches:
+            pass
 
     def update_metrics_width(self, width: int) -> None:
         self.metrics_width = width
