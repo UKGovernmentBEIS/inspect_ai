@@ -365,15 +365,25 @@ class EvalRecorder(FileRecorder):
                     IncompleteJSONError,
                     UnexpectedSymbol,
                 ) as ex:
-                    # ijson doesn't support NaN/Inf which are valid in
-                    # Python's JSON. Fall back to standard json.load
-                    # and manually remove excluded fields.
+                    # The C backend of ijson doesn't support
+                    # NaN/Inf. Fall back to the pure-Python backend
+                    # which handles them natively, preserving streaming
+                    # field exclusion (unlike json.loads which loads
+                    # everything into memory).
                     if is_ijson_nan_inf_error(ex):
-                        data = json.loads(
-                            await reader.read_member_fully(_sample_filename(id, epoch))
+                        import io
+
+                        import ijson.backends.python as ijson_py  # type: ignore[import-untyped]
+
+                        raw = await reader.read_member_fully(
+                            _sample_filename(id, epoch)
                         )
-                        for field in exclude_fields:
-                            data.pop(field, None)
+                        data = {}
+                        for key, value in ijson_py.kvitems(
+                            io.BytesIO(raw), "", use_float=True
+                        ):
+                            if key not in exclude_fields:
+                                data[key] = value
                     else:
                         raise
             else:
