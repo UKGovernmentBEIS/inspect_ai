@@ -1,7 +1,6 @@
 """Unit tests for `_validated_path` in the text_editor sandbox tool."""
 
 import pytest
-
 from inspect_sandbox_tools._in_process_tools._text_editor.text_editor import (
     _validated_path,
 )
