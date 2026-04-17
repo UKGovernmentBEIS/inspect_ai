@@ -5,15 +5,19 @@ from pathlib import Path
 from typing import Literal
 from zipfile import ZipFile
 
+import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
+from inspect_ai.util._anyio import inner_exception
 
 from ..._log import EvalSampleSummary
 from .types import SampleBuffer, SampleData, Samples
@@ -154,8 +158,20 @@ class SampleBufferFilestore(SampleBuffer):
             etag=fs_etag,
         )
 
+    async def _read_segment_data_async(
+        self,
+        async_fs: AsyncFilesystem,
+        segment_id: int,
+        sample_id: str | int,
+        epoch_id: int,
+    ) -> SampleData:
+        seg_file = f"{self._dir}{segment_name(segment_id)}"
+        reader = AsyncZipReader(async_fs, seg_file)
+        data = await reader.read_member_fully(segment_file_name(sample_id, epoch_id))
+        return SampleData.model_validate_json(data)
+
     @override
-    def get_sample_data(
+    async def get_sample_data(
         self,
         id: str | int,
         epoch: int,
@@ -205,21 +221,41 @@ class SampleBufferFilestore(SampleBuffer):
             or segment.last_call_pool_id > after_call_pool_id
         ]
 
-        # collect data from the segments
-        try:
-            sample_data = SampleData(
-                events=[], attachments=[], message_pool=[], call_pool=[]
+        if not segments:
+            return SampleData(events=[], attachments=[])
+
+        # read all segments concurrently using AsyncZipReader
+        results: list[SampleData | None] = [None] * len(segments)
+
+        async def read_segment(index: int, segment_id: int) -> None:
+            results[index] = await self._read_segment_data_async(
+                async_fs, segment_id, id, epoch
             )
-            for segment in segments:
-                data = self.read_segment_data(segment.id, id, epoch)
+
+        # the sample might complete while this is running, in which case
+        # segment files will be missing — return None so the caller
+        # falls back to the completed log file
+        try:
+            async with AsyncFilesystem() as async_fs:
+                async with anyio.create_task_group() as tg:
+                    for i, seg in enumerate(segments):
+                        tg.start_soon(read_segment, i, seg.id)
+        except Exception as ex:
+            inner_ex = inner_exception(ex)
+            if isinstance(inner_ex, FileNotFoundError):
+                return None
+            raise inner_ex.with_traceback(inner_ex.__traceback__)
+
+        # reassemble in segment order
+        sample_data = SampleData(
+            events=[], attachments=[], message_pool=[], call_pool=[]
+        )
+        for data in results:
+            if data is not None:
                 sample_data.events.extend(data.events)
                 sample_data.attachments.extend(data.attachments)
                 sample_data.message_pool.extend(data.message_pool)
                 sample_data.call_pool.extend(data.call_pool)
-        except FileNotFoundError:
-            # the sample might complete while this is running, in which case
-            # we'll just return None
-            return None
 
         # The segment-level OR-filter above includes entire segments when any
         # cursor type has new data, so individual items already seen by the

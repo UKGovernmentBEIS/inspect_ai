@@ -264,6 +264,7 @@
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 - Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
 - Eval logs: Stream deduplicated message pools to the viewer during in-progress evaluations.
+- Log Viewer: Read sample buffer segments concurrently for faster loading of in-progress samples.
 
 ## 0.3.185 (01 March 2026)
 

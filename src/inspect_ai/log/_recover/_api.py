@@ -4,7 +4,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import AsyncIterator
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import dirname, filesystem
@@ -127,8 +127,8 @@ async def recover_eval_log_async(
     # Derive flushed sample keys for deduplication against buffer DB
     flushed_keys = set(crashed.sample_entries)
 
-    # Step 3: Create a lazy generator for buffer DB samples
-    def _buffer_samples() -> Iterator[EvalSample]:
+    # Step 3: Create an async generator for buffer DB samples
+    async def _buffer_samples() -> AsyncIterator[EvalSample]:
         if recovery_data is None or recovery_data.buffer is None:
             return
 
@@ -136,7 +136,7 @@ async def recover_eval_log_async(
             entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
             if entry in flushed_keys:
                 continue
-            sample_data = recovery_data.buffer.get_sample_data(
+            sample_data = await recovery_data.buffer.get_sample_data(
                 summary.id, summary.epoch
             )
             if sample_data is not None:
@@ -146,7 +146,7 @@ async def recover_eval_log_async(
             entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
             if entry in flushed_keys:
                 continue
-            sample_data = recovery_data.buffer.get_sample_data(
+            sample_data = await recovery_data.buffer.get_sample_data(
                 summary.id, summary.epoch
             )
             if sample_data is not None:

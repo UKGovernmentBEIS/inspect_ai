@@ -124,7 +124,7 @@ def test_read_buffer_recovery_data_mixed() -> None:
             assert sample.completed_at is None
 
 
-def test_read_buffer_recovery_data_events_accessible() -> None:
+async def test_read_buffer_recovery_data_events_accessible() -> None:
     """Test that per-sample events are accessible via the buffer handle."""
     with tempfile.TemporaryDirectory() as temp_dir:
         db_dir = os.path.join(temp_dir, "bufferdb")
@@ -142,12 +142,12 @@ def test_read_buffer_recovery_data_events_accessible() -> None:
         assert recovery.buffer is not None
 
         # Can get events for completed sample
-        data = recovery.buffer.get_sample_data(1, 1)
+        data = await recovery.buffer.get_sample_data(1, 1)
         assert data is not None
         assert len(data.events) > 0
 
         # Can get events for in-progress sample
-        data = recovery.buffer.get_sample_data(2, 1)
+        data = await recovery.buffer.get_sample_data(2, 1)
         assert data is not None
         assert len(data.events) > 0
 

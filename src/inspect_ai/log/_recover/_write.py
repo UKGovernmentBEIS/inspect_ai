@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from logging import getLogger
-from typing import Iterator
+from typing import AsyncIterator
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -29,7 +29,7 @@ _FLUSH_INTERVAL = 10
 
 async def write_recovered_eval_log(
     crashed: CrashedEvalLog,
-    buffer_samples: Iterator[EvalSample],
+    buffer_samples: AsyncIterator[EvalSample],
     output: str,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
@@ -41,7 +41,7 @@ async def write_recovered_eval_log(
 
     Args:
         crashed: Start data from the crashed .eval file.
-        buffer_samples: Iterator of reconstructed buffer DB samples.
+        buffer_samples: AsyncIterator of reconstructed buffer DB samples.
         output: Output file path.
 
     Returns:
@@ -95,7 +95,7 @@ async def write_recovered_eval_log(
                 await _write_sample(sample)
 
     # Stream buffer DB samples from the iterator
-    for sample in buffer_samples:
+    async for sample in buffer_samples:
         await _write_sample(sample)
 
     # Compute results from collected scores
