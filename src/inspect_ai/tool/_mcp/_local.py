@@ -98,6 +98,14 @@ class MCPServerLocal(MCPServer):
         self._name = name
         self._events = events
         self._timeout = timeout
+        # Per-instance session table. Keyed on anyio task id, which is
+        # id(asyncio.current_task()) — a memory address that Python recycles
+        # once the task is GC'd. Storing this on the instance (rather than
+        # the class) means task-id collisions across different MCPServerLocal
+        # instances can't leak one sample's cached session — including its
+        # cached tool list — into another sample that happens to run on a
+        # reused task id.
+        self._task_sessions: dict[str, "MCPServerLocalSession"] = {}
 
     @override
     async def __aenter__(self) -> MCPServer:
@@ -116,20 +124,17 @@ class MCPServerLocal(MCPServer):
     async def tools(self) -> list[Tool]:
         return await self._task_session().tools()
 
-    # create a separate MCPServer session per async task / server name
-    _task_sessions: dict[str, "MCPServerLocalSession"] = {}
-
     def _task_session(self) -> "MCPServerLocalSession":
         task_id = anyio.get_current_task().id
         session_key = f"{task_id}_{self._name}"
         if session_key not in self._task_sessions:
-            MCPServerLocal._task_sessions[session_key] = MCPServerLocalSession(
+            self._task_sessions[session_key] = MCPServerLocalSession(
                 self._client,
                 name=self._name,
                 events=self._events,
                 timeout=self._timeout,
             )
-        return MCPServerLocal._task_sessions[session_key]
+        return self._task_sessions[session_key]
 
 
 class MCPServerLocalSession(MCPServer):
@@ -194,6 +199,11 @@ class MCPServerLocalSession(MCPServer):
                 finally:
                     self._session = None
                     self._exit_stack = None
+                    # Drop the cached tool list so a reused session object
+                    # (e.g., if an outer cache hands this instance to a
+                    # different sample) re-fetches tools from the server on
+                    # next __aenter__ rather than returning a stale list.
+                    self._cached_tool_list = None
 
     @override
     async def tools(self) -> list[Tool]:
