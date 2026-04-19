@@ -130,7 +130,9 @@ def write_evals(records: list[dict]) -> None:
             f"https://ukgovernmentbeis.github.io/inspect_evals/evals/"
             f"{r['group'].lower()}/{r['path'].split('/')[-1]}"
         )
-        r["categories"] = [r["group"]] + list(r.get("tags", []))
+        categories = [r["group"]]
+        categories.extend(tag for tag in r.get("tags", []) if tag not in categories)
+        r["categories"] = categories
         r["tasks"] = [task["name"] for task in r["tasks"]]
         evals.append(r)
 
