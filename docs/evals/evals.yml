@@ -2288,7 +2288,6 @@
 - arxiv: https://arxiv.org/abs/2007.00398
   categories:
   - Multimodal
-  - Multimodal
   contributors:
   - evanmiller-anthropic
   description: 'DocVQA is a Visual Question Answering benchmark that consists of 50,000
@@ -2471,7 +2470,6 @@
 - arxiv: https://arxiv.org/abs/2312.14135
   categories:
   - Multimodal
-  - Multimodal
   contributors:
   - bienehito
   description: 'V*Bench is a visual question & answer benchmark that evaluates MLLMs
@@ -2490,7 +2488,6 @@
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench
 - arxiv: https://doi.org/10.1038/sdata.2018.251
   categories:
-  - Multimodal
   - Multimodal
   contributors:
   - MattFisher
@@ -2540,7 +2537,6 @@
   url: https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench
 - arxiv: https://arxiv.org/abs/2502.09696
   categories:
-  - Multimodal
   - Multimodal
   contributors:
   - ItsTania
