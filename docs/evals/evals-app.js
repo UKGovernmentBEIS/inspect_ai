@@ -200,9 +200,18 @@ function mainHeader({ state, count, onSearchInput, onClearSearch, onClearSource,
     value: state.searchQ,
     placeholder: 'Search evals…',
     oninput: (e) => onSearchInput(e.target.value),
-    style: { maxWidth: '240px' },
+    style: { paddingLeft: '2rem' },
   });
   searchInput.dataset.role = 'search-input';
+
+  const searchIcon = h('span', {
+    style: {
+      position: 'absolute', left: '.6rem', top: '50%',
+      transform: 'translateY(-50%)', pointerEvents: 'none',
+      color: 'var(--bs-secondary-color, #6c757d)',
+    },
+    html: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
+  });
 
   const sourceChip = state.source !== 'All'
     ? filterChip(
@@ -219,7 +228,7 @@ function mainHeader({ state, count, onSearchInput, onClearSearch, onClearSource,
     sourceChip,
     categoryChip,
     h('span', { class: 'text-body-tertiary small' }, `${count} evals`),
-    h('div', { class: 'ms-auto' }, searchInput),
+    h('div', { class: 'ms-auto position-relative', style: { width: '280px' } }, searchIcon, searchInput),
   );
 }
 
