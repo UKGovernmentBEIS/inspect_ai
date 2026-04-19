@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Correct counting for cached input tokens. 
 - Model API: Log model retries at WARNING when backoff >= 60s.
 - Model API: Enrich retry log messages with task/sample/model context and error summary.
 - Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.
