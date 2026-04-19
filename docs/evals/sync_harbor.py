@@ -1,19 +1,19 @@
-"""Sync inspect_harbor evals into harbor.yml.
+"""Load inspect_harbor evals into normalized EvalRecord dicts.
 
 Fetches the Harbor dataset registry plus inspect_harbor's generated `_tasks.py`
-(for exposed Python function names), joins with a local overlay file for fields
-the registry lacks (arxiv, repo, group, tags), and writes `harbor.yml`.
+(for exposed Python function names), joins with `harbor_overrides.yml` for
+fields the registry lacks, and returns records matching the design schema.
 
-Usage:
-    python docs/evals/sync_harbor.py [--no-fetch]
+Writes are handled by sync_all.py.
+
+`category` is REQUIRED per entry in harbor_overrides.yml; entries missing a
+category are reported back to the caller via a HarborCategoryError list.
 """
 
 from __future__ import annotations
 
-import argparse
 import ast
 import json
-import sys
 from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
@@ -22,7 +22,6 @@ import yaml
 
 HERE = Path(__file__).parent
 CACHE_DIR = HERE / ".cache"
-OUTPUT_FILE = HERE / "harbor.yml"
 OVERLAY_FILE = HERE / "harbor_overrides.yml"
 
 REGISTRY_URL = (
@@ -40,13 +39,12 @@ GENERIC_IMPLEMENTATION_REPOS = {
 }
 
 
-def derive_title(name: str) -> str:
-    # Drop any owner/namespace prefix (e.g. "scale-ai/swe-atlas-qna" → "swe-atlas-qna")
+def _derive_title(name: str) -> str:
     leaf = name.rsplit("/", 1)[-1]
     return leaf.replace("-", " ").replace("_", " ").strip().title()
 
 
-def fetch_to_cache(url: str, dest: Path, use_cache: bool) -> str:
+def _fetch_to_cache(url: str, dest: Path, use_cache: bool) -> str:
     if use_cache and dest.exists():
         return dest.read_text()
     print(f"fetching {url}")
@@ -57,12 +55,12 @@ def fetch_to_cache(url: str, dest: Path, use_cache: bool) -> str:
     return text
 
 
-def extract_dataset_function_map(tasks_py_source: str) -> dict[str, str]:
-    """Map dataset identifier (name or name@version) → Python function name.
+def _extract_dataset_function_map(tasks_py_source: str) -> dict[str, str]:
+    """Map dataset id (name or name@version) → Python function name.
 
     Built by parsing `_tasks.py` for `@task`-decorated functions and reading
-    the `Dataset: <id>` line in each docstring. This is more robust than
-    mirroring inspect_harbor's naming transform, which has exceptions
+    the `Dataset: <id>` line in each docstring — more robust than mirroring
+    inspect_harbor's naming transform, which has exceptions
     (e.g. `scale-ai/swe-atlas-qna@1.0` → `swe_atlas_qna_1_0`).
     """
     tree = ast.parse(tasks_py_source)
@@ -88,16 +86,7 @@ def extract_dataset_function_map(tasks_py_source: str) -> dict[str, str]:
     return mapping
 
 
-def unique_task_git_url(tasks: list[dict[str, Any]]) -> str | None:
-    urls = {t.get("git_url") for t in tasks if t.get("git_url")}
-    if len(urls) == 1:
-        (url,) = urls
-        if url and url not in GENERIC_IMPLEMENTATION_REPOS:
-            return url
-    return None
-
-
-def load_overlay() -> dict[str, dict[str, Any]]:
+def _load_overlay() -> dict[str, dict[str, Any]]:
     if not OVERLAY_FILE.exists():
         return {}
     data = yaml.safe_load(OVERLAY_FILE.read_text()) or {}
@@ -106,17 +95,27 @@ def load_overlay() -> dict[str, dict[str, Any]]:
     return data
 
 
-def build_records(
-    registry: list[dict[str, Any]],
-    function_map: dict[str, str],
-    overlay: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
+def load_harbor(
+    *, use_cache: bool = False
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Return (records, missing_category_names).
+
+    Callers (sync_all.py) error out when missing_category_names is non-empty.
+    """
+    registry_text = _fetch_to_cache(REGISTRY_URL, CACHE_DIR / "registry.json", use_cache)
+    tasks_text = _fetch_to_cache(TASKS_URL, CACHE_DIR / "_tasks.py", use_cache)
+
+    registry = json.loads(registry_text)
+    function_map = _extract_dataset_function_map(tasks_text)
+    overlay = _load_overlay()
+
     sorted_registry = sorted(
         registry, key=lambda d: (d.get("name", ""), d.get("version", ""))
     )
 
     seen_names: set[str] = set()
     records: list[dict[str, Any]] = []
+    missing_category: list[str] = []
     skipped: list[str] = []
 
     for entry in sorted_registry:
@@ -127,91 +126,40 @@ def build_records(
 
         name_version = f"{name}@{version}"
         function_name = function_map.get(name_version)
-
         if function_name is None:
             skipped.append(f"{name_version} (not exposed in _tasks.py)")
             continue
 
         is_latest = name not in seen_names
         seen_names.add(name)
-        latest_alias: str | None = function_map.get(name) if is_latest else None
 
         ov = overlay.get(name, {})
+        category = ov.get("category")
+        if not category and is_latest:
+            missing_category.append(name)
+
         tasks = entry.get("tasks", []) or []
-        source_repo = unique_task_git_url(tasks)
 
-        record: dict[str, Any] = {
-            "name": name,
-            "version": version,
-            "title": ov.get("title") or derive_title(name),
-            "description": entry.get("description", ""),
-            "function_name": function_name,
-            "latest_alias": latest_alias,
-            "sample_count": len(tasks),
-            "source_repo": source_repo,
-            "repo": ov.get("repo") or source_repo,
-            "arxiv": ov.get("arxiv"),
-            "group": ov.get("group", "Harbor"),
-            "tags": ov.get("tags", []) or [],
-            "registry_url": f"https://harborframework.com/registry/{name}/{version}",
-            "url": f"https://harborframework.com/registry/{name}/{version}",
-            "tasks": tasks,
-        }
-        records.append(record)
-
-    records.sort(
-        key=lambda r: (r["group"].lower(), r["title"].lower(), r["name"], r["version"])
-    )
+        records.append({
+            "id": function_name,
+            "name": ov.get("title") or _derive_title(name),
+            "source": "harbor",
+            "category": category or "Other",
+            "tags": list(ov.get("tags") or []),
+            "kind": ov.get("kind", "agent"),
+            "modalities": list(ov.get("modalities") or ["agent", "sandbox"]),
+            "desc": entry.get("description", ""),
+            "paper": ov.get("arxiv"),
+            "code": f"inspect_harbor/{function_name}",
+            "contributors": list(ov.get("contributors") or []),
+            "samples": len(tasks),
+            "featured": bool(ov.get("featured", False)),
+            "url": f"https://registry.harborframework.com/datasets/{name}/{name}/latest",
+        })
 
     if skipped:
         print(f"skipped {len(skipped)} registry entries not exposed by inspect_harbor:")
         for s in skipped:
             print(f"  - {s}")
 
-    return records
-
-
-def write_harbor_yaml(records: list[dict[str, Any]]) -> None:
-    with OUTPUT_FILE.open("w") as f:
-        yaml.safe_dump(
-            records,
-            f,
-            sort_keys=False,
-            allow_unicode=True,
-            width=2**31 - 1,
-        )
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--no-fetch",
-        action="store_true",
-        help="Reuse cached registry.json and _tasks.py; do not hit the network.",
-    )
-    parser.add_argument("--registry-url", default=REGISTRY_URL)
-    parser.add_argument("--tasks-url", default=TASKS_URL)
-    args = parser.parse_args()
-
-    use_cache = args.no_fetch
-    try:
-        registry_text = fetch_to_cache(
-            args.registry_url, CACHE_DIR / "registry.json", use_cache
-        )
-        tasks_text = fetch_to_cache(args.tasks_url, CACHE_DIR / "_tasks.py", use_cache)
-    except Exception as e:
-        print(f"error fetching inputs: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    registry = json.loads(registry_text)
-    function_map = extract_dataset_function_map(tasks_text)
-    overlay = load_overlay()
-
-    records = build_records(registry, function_map, overlay)
-    write_harbor_yaml(records)
-
-    print(f"synced {len(records)} harbor evals → {OUTPUT_FILE.relative_to(HERE.parent.parent)}")
-
-
-if __name__ == "__main__":
-    main()
+    return records, missing_category

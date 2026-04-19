@@ -1,160 +1,95 @@
-"""Sync inspect_evals eval.yaml files into listing.yml and evals.yml.
+"""Load inspect_evals eval.yaml files into normalized EvalRecord dicts.
 
-Usage:
-    python docs/evals/sync.py [path/to/inspect_evals]
+Reads `{inspect_evals}/src/inspect_evals/*/eval.yaml` and emits records matching
+the design schema consumed by the /docs/evals SPA. Categories come from the
+upstream `group` field (Coding, Assistants, …), already in the expected
+vocabulary. Writes are handled by sync_all.py — this module only loads.
 """
 
-import argparse
-import sys
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
 
 import yaml
 
-HERE = Path(__file__).parent
-
-KEEP_FIELDS = {
-    "title", "description", "arxiv", "group", "contributors",
-    "tasks", "tags", "metadata", "dependency", "dependency-group",
+CATEGORY_VOCAB = {
+    "Coding", "Assistants", "Cybersecurity", "Safeguards", "Mathematics",
+    "Reasoning", "Knowledge", "Multimodal", "Scheming", "Bias", "Behavior",
+    "Personality", "Writing", "Other",
 }
 
-FIELD_ORDER = [
-    "title", "description", "path", "arxiv", "group",
-    "contributors", "tasks", "tags", "dependency", "dependency-group", "metadata",
-]
 
-GROUP_SORT_ORDER = (
-    "Coding", "Assistants", "Cybersecurity", "Safeguards",
-    "Mathematics", "Reasoning", "Knowledge",
-)
-
-
-class _LiteralStr(str):
-    """Serialises as a YAML block scalar (style '|')."""
+def _first_sentence(text: str) -> str:
+    text = " ".join(text.split())
+    for sep in (". ", "! ", "? "):
+        idx = text.find(sep)
+        if idx != -1:
+            return text[: idx + 1]
+    return text
 
 
-class _QuotedStr(str):
-    """Serialises as a double-quoted YAML scalar."""
+def _derive_kind(tags: list[str]) -> str:
+    tag_set = {t.lower() for t in tags}
+    if "multimodal" in tag_set:
+        return "multimodal"
+    if "agent" in tag_set:
+        return "agent"
+    if "knowledge" in tag_set:
+        return "qa"
+    return "generation"
 
 
-class _FlowList(list):
-    """Serialises as a YAML flow sequence (["a", "b", "c"])."""
+def _derive_modalities(tags: list[str], metadata: dict[str, Any]) -> list[str]:
+    tag_set = {t.lower() for t in tags}
+    mods: list[str] = []
+    if "agent" in tag_set:
+        mods.append("agent")
+    if "tools" in tag_set or "tool-use" in tag_set:
+        mods.append("tool-use")
+    if metadata.get("sandbox"):
+        mods.append("sandbox")
+    if "multimodal" in tag_set:
+        mods.append("vision")
+    if "multi-turn" in tag_set:
+        mods.append("multi-turn")
+    if not mods:
+        mods.append("text")
+    return mods
 
 
-class _ListingDumper(yaml.Dumper):
-    def increase_indent(self, flow: bool = False, indentless: bool = False) -> None:  # noqa: ARG002
-        super().increase_indent(flow=flow, indentless=False)
+def _derive_samples(tasks: list[dict[str, Any]]) -> int | None:
+    for task in tasks or []:
+        n = task.get("dataset_samples")
+        if isinstance(n, int):
+            return n
+    return None
 
 
-def _literal_representer(dumper: yaml.Dumper, data: _LiteralStr) -> yaml.ScalarNode:
-    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+def _to_record(yaml_path: Path, inspect_evals_path: Path) -> dict[str, Any]:
+    data = yaml.safe_load(yaml_path.read_text())
+    slug = yaml_path.parent.name
+    tags = data.get("tags") or []
+    metadata = data.get("metadata") or {}
+    return {
+        "id": slug,
+        "name": data.get("title", slug),
+        "source": "evals",
+        "category": data.get("group", "Other"),
+        "tags": list(tags),
+        "kind": _derive_kind(tags),
+        "modalities": _derive_modalities(tags, metadata),
+        "desc": _first_sentence((data.get("description") or "").strip()),
+        "paper": data.get("arxiv"),
+        "code": f"inspect_evals/{slug}",
+        "contributors": list(data.get("contributors") or []),
+        "samples": _derive_samples(data.get("tasks") or []),
+        "featured": False,
+    }
 
 
-def _quoted_str_representer(dumper: yaml.Dumper, data: _QuotedStr) -> yaml.ScalarNode:
-    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
-
-
-def _flow_list_representer(dumper: yaml.Dumper, data: _FlowList) -> yaml.SequenceNode:
-    return dumper.represent_sequence("tag:yaml.org,2002:seq", list(data), flow_style=True)
-
-
-_ListingDumper.add_representer(_LiteralStr, _literal_representer)
-_ListingDumper.add_representer(_QuotedStr, _quoted_str_representer)
-_ListingDumper.add_representer(_FlowList, _flow_list_representer)
-
-
-def _sort_key(record: dict) -> tuple:
-    group_index = next(
-        (i for i, g in enumerate(GROUP_SORT_ORDER) if g == record["group"]),
-        len(GROUP_SORT_ORDER),
-    )
-    return (group_index, record.get("title", "").lower(), record.get("path", "").lower())
-
-
-def _prepare_for_yaml(record: dict) -> dict:
-    r = {}
-    for key in FIELD_ORDER:
-        if key not in record:
-            continue
-        val = record[key]
-        if key == "title":
-            r[key] = _QuotedStr(val)
-        elif key == "description":
-            r[key] = _LiteralStr(val.rstrip() + "\n")
-        elif key in ("contributors", "tags"):
-            r[key] = _FlowList([_QuotedStr(v) for v in val])
-        elif key in ("dependency", "dependency-group"):
-            r[key] = _QuotedStr(val)
-        elif key == "metadata":
-            r[key] = {
-                mk: _FlowList([_QuotedStr(v) if isinstance(v, str) else v for v in mv])
-                if isinstance(mv, list) else mv
-                for mk, mv in val.items()
-            }
-        else:
-            r[key] = val
-    return r
-
-
-def load_evals(inspect_evals_path: Path) -> list[dict]:
-    records = []
+def load_evals(inspect_evals_path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
     for yaml_path in sorted((inspect_evals_path / "src" / "inspect_evals").glob("*/eval.yaml")):
-        data = yaml.safe_load(yaml_path.read_text())
-        rel_path = yaml_path.parent.relative_to(inspect_evals_path)
-        record = {"path": str(rel_path)}
-        record.update({k: v for k, v in data.items() if k in KEEP_FIELDS})
-        records.append(record)
-    return sorted(records, key=_sort_key)
-
-
-def write_listing(records: list[dict]) -> None:
-    header = "# Groups: Assistants Bias Coding Cybersecurity Knowledge Mathematics Multimodal Personality Reasoning Safeguards Scheming Writing\n\n"
-    chunks = [
-        yaml.dump(
-            [_prepare_for_yaml(r)],
-            Dumper=_ListingDumper,
-            sort_keys=False,
-            default_flow_style=False,
-            allow_unicode=True,
-            width=2**31 - 1,
-        ).rstrip("\n")
-        for r in records
-    ]
-    (HERE / "listing.yml").write_text(header + "\n\n".join(chunks) + "\n")
-
-
-def write_evals(records: list[dict]) -> None:
-    evals = []
-    for record in records:
-        r = dict(record)
-        r["url"] = (
-            f"https://ukgovernmentbeis.github.io/inspect_evals/evals/"
-            f"{r['group'].lower()}/{r['path'].split('/')[-1]}"
-        )
-        categories = [r["group"]]
-        categories.extend(tag for tag in r.get("tags", []) if tag not in categories)
-        r["categories"] = categories
-        r["tasks"] = [task["name"] for task in r["tasks"]]
-        evals.append(r)
-
-    with open(HERE / "evals.yml", "w") as f:
-        yaml.safe_dump(evals, f)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("inspect_evals_path", nargs="?", default="../inspect_evals", type=Path)
-    args = parser.parse_args()
-
-    path = args.inspect_evals_path.resolve()
-    if not path.is_dir():
-        print(f"error: {path} is not a directory", file=sys.stderr)
-        sys.exit(1)
-
-    records = load_evals(path)
-    write_listing(records)
-    write_evals(records)
-    print(f"synced {len(records)} evals → listing.yml, evals.yml")
-
-
-if __name__ == "__main__":
-    main()
+        records.append(_to_record(yaml_path, inspect_evals_path))
+    return records
