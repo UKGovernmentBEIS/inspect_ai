@@ -311,7 +311,8 @@ function detailPage(eval_) {
       contribLine ? heroMeta('Contributed by', contribLine) : null,
       heroMeta('Source', h('a', { href: eval_.url || sourceUrl, target: '_blank', rel: 'noopener' },
         `${eval_.code.split('/').pop()} ↗`)),
-      eval_.paper ? heroMeta('Paper', h('a', { href: eval_.paper, target: '_blank', rel: 'noopener' }, 'arXiv ↗')) : null,
+      eval_.paper ? heroMeta('Paper', h('a', { href: eval_.paper, target: '_blank', rel: 'noopener' },
+        (eval_.paper.includes('arxiv.org') ? 'arXiv' : 'Link') + ' ↗')) : null,
       eval_.samples != null ? heroMeta('Samples', Number(eval_.samples).toLocaleString()) : null,
     ),
   );

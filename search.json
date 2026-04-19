@@ -2604,43 +2604,43 @@
     "text": "Google: Correct counting for cached input tokens.\nModel API: Log model retries at WARNING when backoff &gt;= 60s.\nModel API: Enrich retry log messages with task/sample/model context and error summary.\nText Editor: Return OSError from path validation (e.g. ENAMETOOLONG) to the model as a tool error instead of crashing the eval."
   },
   {
-    "objectID": "CHANGELOG.html#unreleased",
-    "href": "CHANGELOG.html#unreleased",
+    "objectID": "CHANGELOG.html#april-2026",
+    "href": "CHANGELOG.html#april-2026",
     "title": "Inspect",
     "section": "",
     "text": "Google: Correct counting for cached input tokens.\nModel API: Log model retries at WARNING when backoff &gt;= 60s.\nModel API: Enrich retry log messages with task/sample/model context and error summary.\nText Editor: Return OSError from path validation (e.g. ENAMETOOLONG) to the model as a tool error instead of crashing the eval."
   },
   {
-    "objectID": "CHANGELOG.html#april-2026",
-    "href": "CHANGELOG.html#april-2026",
+    "objectID": "CHANGELOG.html#april-2026-1",
+    "href": "CHANGELOG.html#april-2026-1",
     "title": "Inspect",
     "section": "0.3.207 (16 April 2026)",
     "text": "0.3.207 (16 April 2026)\n\nAnthropic: Auto-detect correct context window and max tokens for Opus 4.7.\nAnthropic: Support for new xhigh value for effort.\n\nAnthropic: Support for max value for reasoning_effort.\n\nTask Display: Add cancel button to cancel individual tasks during parallel execution."
   },
   {
-    "objectID": "CHANGELOG.html#april-2026-1",
-    "href": "CHANGELOG.html#april-2026-1",
+    "objectID": "CHANGELOG.html#april-2026-2",
+    "href": "CHANGELOG.html#april-2026-2",
     "title": "Inspect",
     "section": "0.3.206 (15 April 2026)",
     "text": "0.3.206 (15 April 2026)\n\nEval Set: Display explicit --id in task panel headers when provided.\nEval Set: Add --retry-immediate option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.\nEval Logs: Add header_only parameter to write_eval_log() for writing only the header to .eval files without rewriting samples.\nEval Logs: Condense sample events when writing logs.\nEval Logs: Enable zstd compression by default for writing logs.\nEval Logs: New inspect log recover command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into eval_set() and eval_retry().\nEval Logs: Save recent events (up to last ModelEvent) when retrying samples.\nBash tool: Change name of argument from cmd to command.\nSandboxes: Pass sample_id to sandbox providers via metadata.\nSandboxes: INSPECT_SANDBOX_MAX_READ_FILE_SIZE and INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE environment variables for overriding limits.\nDocker Sandbox: Implement in-sandbox timeout enforcement using timeout command.\nHooks: Add on_before_model_generate() hook.\nModel API: Support extended json schema fields (validation and examples).\nModel API: Handle special token strings in tiktoken encoding.\nTask Display: Truncate all content to a maximum of 50 lines.\nScoring: Convert score value of None to NaN during deserialization.\nComputer Use: Map comma character to xdotool comma keysym so key combos like CTRL+, work correctly.\nComputer Use: Restore sudo package to computer tool Docker image.\nOpenAI Compatible: Pad response with content block when only content is reasoning.\nOpenAI Compatible: Return server_error when server returns non-ChatCompletion (which can occur in some cases for OpenRouter).\nAnthropic: Pass display=\"summarized\" in thinking configuration.\nAnthropic: Use request level “auto” caching mode for improved prompt caching.\nvLLM: Allow vLLM provider to restart after close().\nSchemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.\nSchemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).\nSchemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).\nInspect View: Use FastAPI server when fastapi and uvicorn packages are available.\nInspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)\nInspect View: Introduce new ‘Tasks’ view of log directory which shows tasks recursively as a flat list.\nInspect View: Fix error when viewing the API information for a running Model Event.\nBugfix: Fix eval_results() producing identical aggregate scores\nfor multiple instances of the same scorer due to incorrect name resolution using dimension names instead of scorer names.\n\nBugfix: Fix eval_results() mutating the reducers parameter inside a loop, causing inconsistent reducer assignment across scorer\ninstances.\nBugfix: Fix JSONRecorder returning condensed ModelEvent.input (empty list) when eval() uses log_format=\"json\".\nBugfix: Include LoRA adapter in logged vLLM model name.\nBugfix: Remove unused docker-sandbox unhealthy_services computation.\nBugfix: Fix to_uri() encoding @ as %40 in local file paths, breaking round-trip through filesystem()/local_path().\nBugfix: Fix answer(\"word\") scorer failing to match Unicode symbol characters (e.g. ☆, ○, ◎).\nBugfix: Eliminate spurious logging when bridge model proxy server is terminated."
   },
   {
-    "objectID": "CHANGELOG.html#april-2026-2",
-    "href": "CHANGELOG.html#april-2026-2",
+    "objectID": "CHANGELOG.html#april-2026-3",
+    "href": "CHANGELOG.html#april-2026-3",
     "title": "Inspect",
     "section": "0.3.205 (04 April 2026)",
     "text": "0.3.205 (04 April 2026)\n\nEval Logs: Ensure that condense_events() is called when re-writing eval logs.\nEval Logs: Correct import ordering for patching use of zstd compressions.\nScorers: Return NOANSWER instead of INCORRECT when the pattern scorer fails to match."
   },
   {
-    "objectID": "CHANGELOG.html#april-2026-3",
-    "href": "CHANGELOG.html#april-2026-3",
+    "objectID": "CHANGELOG.html#april-2026-4",
+    "href": "CHANGELOG.html#april-2026-4",
     "title": "Inspect",
     "section": "0.3.204 (02 April 2026)",
     "text": "0.3.204 (02 April 2026)\n\nTimelines: Improved detection of forked_at for branches from user or system messages.\nTimelines: Provide option to include or exclude branches when computing span time and token usage.\nInspect View: Inline application assets."
   },
   {
-    "objectID": "CHANGELOG.html#april-2026-4",
-    "href": "CHANGELOG.html#april-2026-4",
+    "objectID": "CHANGELOG.html#april-2026-5",
+    "href": "CHANGELOG.html#april-2026-5",
     "title": "Inspect",
     "section": "0.3.203 (01 April 2026)",
     "text": "0.3.203 (01 April 2026)\n\nOpenAI: Add cyber_policy to “content_filter” stop reason\nTimelines: BranchEvent and timeline_branch() to delineate timeline branches.\nTimelines: Consolidate TimelineBranch into TimelineSpan via forked_at property."
