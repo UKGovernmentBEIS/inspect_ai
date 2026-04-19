@@ -21,10 +21,17 @@ import {
 
 // ── Categories (ordered) ───────────────────────────────────────────────────
 const CATEGORIES = [
-  'Coding', 'Assistants', 'Cybersecurity', 'Safeguards', 'Mathematics',
-  'Reasoning', 'Knowledge', 'Multimodal', 'Scheming', 'Bias', 'Behavior',
-  'Personality', 'Writing', 'Other',
+  'Coding', 'Assistants', 'Reasoning', 'Knowledge',
+  'Cybersecurity', 'Safeguards',
+  'Science', 'Mathematics', 'Biology', 'Chemistry', 'Physics',
+  'Professional', 'Finance', 'Medicine', 'Law',
+  'Behavior', 'Multimodal', 'Scheming',
 ];
+
+const SUB_CATEGORIES = {
+  Biology: 'Science', Chemistry: 'Science', Physics: 'Science', Mathematics: 'Science',
+  Finance: 'Professional', Medicine: 'Professional', Law: 'Professional',
+};
 
 // ── DOM helpers ────────────────────────────────────────────────────────────
 function h(tag, attrs = {}, ...children) {
@@ -126,10 +133,11 @@ function evalCard(eval_) {
   );
 }
 
-function sidebarFilterBtn({ active, label, count, onClick }) {
+function sidebarFilterBtn({ active, label, count, onClick, indent }) {
   return h('button', {
     type: 'button',
     class: `list-group-item list-group-item-action d-flex justify-content-between align-items-center${active ? ' active' : ''}`,
+    style: indent ? { paddingLeft: '1.1rem' } : undefined,
     onclick: onClick,
   },
     h('span', {}, label),
@@ -168,6 +176,7 @@ function sidebar({ state, categoryCounts, sourceCounts, onPackage, onCategory })
           .map((c) => sidebarFilterBtn({
             active: state.category === c, label: c,
             count: categoryCounts[c], onClick: () => onCategory(c),
+            indent: !!SUB_CATEGORIES[c],
           })),
       ),
     ),
@@ -275,24 +284,28 @@ function detailPage(eval_) {
     `inspect eval ${eval_.code} --reasoning-effort medium`,
   ].join('\n');
 
+  const pillStyle = { color: 'inherit', background: 'transparent', borderRadius: '.25rem', padding: '.4em .8em' };
+
   const sourcePill = h('a', {
     class: 'badge border text-decoration-none fw-normal',
     href: '#/',
     onclick: (e) => { e.preventDefault(); navigate({ route: 'index', filters: { source: eval_.source } }); },
-    style: { color: 'inherit', background: 'transparent', borderRadius: '.25rem', padding: '.4em .8em' },
+    style: pillStyle,
   }, eval_.source === 'harbor' ? 'inspect_harbor' : 'inspect_evals');
 
-  const categoryPill = h('a', {
-    class: 'badge border text-decoration-none fw-normal',
-    href: buildHash({ route: 'index', filters: { category: eval_.category } }),
-    onclick: (e) => { e.preventDefault(); navigate({ route: 'index', filters: { category: eval_.category } }); },
-    style: { color: 'inherit', background: 'transparent', borderRadius: '.25rem', padding: '.4em .8em' },
-  }, eval_.category);
+  const categoryPills = (eval_.categories || []).map((cat) =>
+    h('a', {
+      class: 'badge border text-decoration-none fw-normal',
+      href: buildHash({ route: 'index', filters: { category: cat } }),
+      onclick: (e) => { e.preventDefault(); navigate({ route: 'index', filters: { category: cat } }); },
+      style: pillStyle,
+    }, cat),
+  );
 
   const hero = h('div', { class: 'border-bottom pb-4' },
     h('h1', { class: 'fw-semibold mb-2' }, eval_.name),
     h('div', { class: 'd-flex align-items-center gap-2 flex-wrap mb-3' },
-      sourcePill, categoryPill,
+      sourcePill, ...categoryPills,
     ),
     h('div', { class: 'd-flex flex-wrap gap-4' },
       contribLine ? heroMeta('Contributed by', contribLine) : null,

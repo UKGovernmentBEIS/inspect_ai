@@ -3,7 +3,9 @@
     "id": "ade_bench_1_0",
     "name": "Ade Bench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -11,7 +13,7 @@
       "sandbox"
     ],
     "desc": "Analytics Data Engineer Bench: tasks evaluating AI agents on dbt/SQL data analytics engineering bugs. Original benchmark: https://github.com/dbt-labs/ade-bench.",
-    "paper": null,
+    "paper": "https://github.com/dbt-labs/ade-bench",
     "code": "inspect_harbor/ade_bench_1_0",
     "contributors": [],
     "samples": 48,
@@ -22,7 +24,9 @@
     "id": "agent_bench",
     "name": "AgentBench: Evaluate LLMs as Agents",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -43,7 +47,9 @@
     "id": "aider_polyglot_1_0",
     "name": "Aider Polyglot",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -51,7 +57,7 @@
       "sandbox"
     ],
     "desc": "A polyglot coding benchmark that evaluates AI agents' ability to perform code editing and generation tasks across multiple programming languages.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2503.03656",
     "code": "inspect_harbor/aider_polyglot_1_0",
     "contributors": [],
     "samples": 225,
@@ -62,7 +68,9 @@
     "id": "algotune_1_0",
     "name": "Algotune",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -70,7 +78,7 @@
       "sandbox"
     ],
     "desc": "AlgoTune: 154 algorithm optimization tasks focusing on speedup-based scoring from the AlgoTune benchmark.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2507.15887",
     "code": "inspect_harbor/algotune_1_0",
     "contributors": [],
     "samples": 154,
@@ -81,7 +89,9 @@
     "id": "apps",
     "name": "APPS: Automated Programming Progress Standard",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -100,7 +110,9 @@
     "id": "autocodebench_lite200",
     "name": "Autocodebench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -108,7 +120,7 @@
       "sandbox"
     ],
     "desc": "Adapter for AutoCodeBench (https://github.com/Tencent-Hunyuan/AutoCodeBenchmark).",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2508.09101",
     "code": "inspect_harbor/autocodebench_lite200",
     "contributors": [],
     "samples": 200,
@@ -119,7 +131,9 @@
     "id": "bigcodebench_hard_complete_1_0_0",
     "name": "Bigcodebench Hard Complete",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -127,7 +141,7 @@
       "sandbox"
     ],
     "desc": "BigCodeBench-Hard complete benchmark adapter for Harbor - challenging Python programming tasks with reward-based verification",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2406.15877",
     "code": "inspect_harbor/bigcodebench_hard_complete_1_0_0",
     "contributors": [],
     "samples": 145,
@@ -138,7 +152,9 @@
     "id": "bigcodebench",
     "name": "BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and Complex Instructions",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -157,7 +173,9 @@
     "id": "bird_bench_parity",
     "name": "Bird Bench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -165,7 +183,7 @@
       "sandbox"
     ],
     "desc": "BIRD SQL parity subset (150 tasks, seed 42). Original benchmark: https://huggingface.co/datasets/birdsql/bird_sql_dev_20251106. Adapter: https://github.com/laude-institute/harbor/tree/main/adapters/bird-bench.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2305.03111",
     "code": "inspect_harbor/bird_bench_parity",
     "contributors": [],
     "samples": 150,
@@ -173,48 +191,12 @@
     "url": "https://registry.harborframework.com/datasets/bird-bench/bird-bench/latest"
   },
   {
-    "id": "bixbench_1_5",
-    "name": "Bixbench",
-    "source": "harbor",
-    "category": "Coding",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "BixBench - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks.",
-    "paper": null,
-    "code": "inspect_harbor/bixbench_1_5",
-    "contributors": [],
-    "samples": 205,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bixbench/bixbench/latest"
-  },
-  {
-    "id": "bixbench_cli_1_5",
-    "name": "Bixbench Cli",
-    "source": "harbor",
-    "category": "Coding",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "bixbench-cli - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks. (Adapted for CLI execution)",
-    "paper": null,
-    "code": "inspect_harbor/bixbench_cli_1_5",
-    "contributors": [],
-    "samples": 205,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bixbench-cli/bixbench-cli/latest"
-  },
-  {
     "id": "class_eval",
     "name": "ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -233,7 +215,9 @@
     "id": "code_contests_1_0",
     "name": "Code Contests",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -241,7 +225,7 @@
       "sandbox"
     ],
     "desc": "A competitive programming benchmark from DeepMind that evaluates AI agents' ability to solve algorithmic problems, covering algorithms, data structures, and competitive programming challenges.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2203.07814",
     "code": "inspect_harbor/code_contests_1_0",
     "contributors": [],
     "samples": 9644,
@@ -249,29 +233,12 @@
     "url": "https://registry.harborframework.com/datasets/code-contests/code-contests/latest"
   },
   {
-    "id": "codepde_1_0",
-    "name": "Codepde",
-    "source": "harbor",
-    "category": "Coding",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "CodePDE evaluates code generation capabilities on scientific computing tasks, specifically focusing on Partial Differential Equation (PDE) solving.",
-    "paper": null,
-    "code": "inspect_harbor/codepde_1_0",
-    "contributors": [],
-    "samples": 5,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/codepde/codepde/latest"
-  },
-  {
     "id": "compilebench_1_0",
     "name": "Compilebench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -279,7 +246,7 @@
       "sandbox"
     ],
     "desc": "Version 1.0 of CompileBench, a benchmark on real open-source projects against dependency hell, legacy toolchains, and complex build systems.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2509.25248",
     "code": "inspect_harbor/compilebench_1_0",
     "contributors": [],
     "samples": 15,
@@ -290,7 +257,9 @@
     "id": "compute_eval",
     "name": "ComputeEval: CUDA Code Generation Benchmark",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -306,32 +275,12 @@
     "featured": false
   },
   {
-    "id": "core_bench",
-    "name": "CORE-Bench",
-    "source": "evals",
-    "category": "Coding",
-    "tags": [
-      "Agent"
-    ],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Evaluate how well an LLM Agent is at computationally reproducing the results of a set of scientific papers.",
-    "paper": "https://arxiv.org/abs/2409.11363",
-    "code": "inspect_evals/core_bench",
-    "contributors": [
-      "enerrio"
-    ],
-    "samples": 45,
-    "featured": false
-  },
-  {
     "id": "crustbench_1_0",
     "name": "Crustbench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -339,7 +288,7 @@
       "sandbox"
     ],
     "desc": "CRUST-bench: 100 C-to-safe-Rust transpilation tasks from real-world C repositories.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2504.15254",
     "code": "inspect_harbor/crustbench_1_0",
     "contributors": [],
     "samples": 100,
@@ -350,7 +299,9 @@
     "id": "deveval_1_0",
     "name": "Deveval",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -358,7 +309,7 @@
       "sandbox"
     ],
     "desc": "DevEval benchmark: comprehensive evaluation of LLMs across software development lifecycle (implementation, unit testing, acceptance testing) for 21 real-world repositories across Python, C++, Java, and JavaScript",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2403.08604",
     "code": "inspect_harbor/deveval_1_0",
     "contributors": [],
     "samples": 63,
@@ -369,7 +320,9 @@
     "id": "ds_1000_head",
     "name": "Ds 1000",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -377,7 +330,7 @@
       "sandbox"
     ],
     "desc": "DS-1000 is a code generation benchmark with 1000 realistic data science problems across seven popular Python libraries.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2211.11501",
     "code": "inspect_harbor/ds_1000_head",
     "contributors": [],
     "samples": 1000,
@@ -388,7 +341,9 @@
     "id": "ds1000",
     "name": "DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -407,7 +362,9 @@
     "id": "evoeval_1_0",
     "name": "Evoeval",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -415,7 +372,7 @@
       "sandbox"
     ],
     "desc": "EvoEval_difficult: 100 challenging Python programming tasks evolved from HumanEval.",
-    "paper": null,
+    "paper": "https://github.com/evo-eval/evoeval",
     "code": "inspect_harbor/evoeval_1_0",
     "contributors": [],
     "samples": 100,
@@ -426,7 +383,9 @@
     "id": "featurebench_1_0",
     "name": "Featurebench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -434,7 +393,7 @@
       "sandbox"
     ],
     "desc": "FeatureBench full split: 200 feature-implementation tasks across 24 Python repos. 7 tasks require Ampere+ GPU. Original benchmark: https://github.com/LiberCoders/FeatureBench. Adapter: https://github.com/harbor-framework/harbor/pull/875.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_1_0",
     "contributors": [],
     "samples": 200,
@@ -445,7 +404,9 @@
     "id": "featurebench_lite_1_0",
     "name": "Featurebench Lite",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -453,7 +414,7 @@
       "sandbox"
     ],
     "desc": "FeatureBench lite split: 30 feature-implementation tasks (26 lv1 + 4 lv2) across Python repos. Original benchmark: https://github.com/LiberCoders/FeatureBench. Adapter: https://github.com/harbor-framework/harbor/pull/875.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_lite_1_0",
     "contributors": [],
     "samples": 30,
@@ -464,7 +425,9 @@
     "id": "featurebench_lite_modal_1_0",
     "name": "Featurebench Lite Modal",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -472,7 +435,7 @@
       "sandbox"
     ],
     "desc": "FeatureBench lite split for Modal: 30 feature-implementation tasks with gpus=1 for GPU tasks (7/30). Use with -e modal. Original benchmark: https://github.com/LiberCoders/FeatureBench.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_lite_modal_1_0",
     "contributors": [],
     "samples": 30,
@@ -483,7 +446,9 @@
     "id": "featurebench_modal_1_0",
     "name": "Featurebench Modal",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -491,7 +456,7 @@
       "sandbox"
     ],
     "desc": "FeatureBench full split for Modal: 200 feature-implementation tasks with gpus=1 for GPU tasks (44/200). Use with -e modal. Original benchmark: https://github.com/LiberCoders/FeatureBench.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_modal_1_0",
     "contributors": [],
     "samples": 200,
@@ -502,7 +467,9 @@
     "id": "frontier_cs",
     "name": "Frontier-CS: Benchmarking LLMs on Computer Science Problems",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [
       "Agent"
     ],
@@ -524,7 +491,9 @@
     "id": "gso_1_0",
     "name": "Gso",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -532,7 +501,7 @@
       "sandbox"
     ],
     "desc": "GSO: 102 software optimization tasks focusing on performance improvement.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2505.23671",
     "code": "inspect_harbor/gso_1_0",
     "contributors": [],
     "samples": 102,
@@ -540,10 +509,33 @@
     "url": "https://registry.harborframework.com/datasets/gso/gso/latest"
   },
   {
+    "id": "hello_world_1_0",
+    "name": "Hello World",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A simple example task to create a hello.txt file with 'Hello, world!' as content.",
+    "paper": null,
+    "code": "inspect_harbor/hello_world_1_0",
+    "contributors": [],
+    "samples": 1,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/hello-world/hello-world/latest"
+  },
+  {
     "id": "humaneval",
     "name": "HumanEval: Python Function Generation from Instructions",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -562,7 +554,9 @@
     "id": "humanevalfix_1_0",
     "name": "Humanevalfix",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -570,7 +564,7 @@
       "sandbox"
     ],
     "desc": "HumanEvalFix: 164 Python code repair tasks from HumanEvalPack.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2308.07124",
     "code": "inspect_harbor/humanevalfix_1_0",
     "contributors": [],
     "samples": 164,
@@ -581,7 +575,9 @@
     "id": "ifevalcode",
     "name": "IFEvalCode: Controlled Code Generation",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -600,7 +596,9 @@
     "id": "kernelbench",
     "name": "KernelBench: Can LLMs Write Efficient GPU Kernels?",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -619,7 +617,9 @@
     "id": "legacy_bench_1_0",
     "name": "Legacy Bench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -627,7 +627,7 @@
       "sandbox"
     ],
     "desc": "A benchmark for evaluating AI agents on legacy code maintenance and modernization tasks across multiple language families including COBOL, Java 7, C, Fortran, and Assembly.",
-    "paper": null,
+    "paper": "https://factory.ai/news/legacy-bench",
     "code": "inspect_harbor/legacy_bench_1_0",
     "contributors": [],
     "samples": 10,
@@ -638,7 +638,9 @@
     "id": "livecodebench_6_0",
     "name": "Livecodebench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -646,7 +648,7 @@
       "sandbox"
     ],
     "desc": "A subset of 100 sampled tasks from the release_v6 version of LiveCodeBench tasks.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2403.07974",
     "code": "inspect_harbor/livecodebench_6_0",
     "contributors": [],
     "samples": 100,
@@ -657,7 +659,9 @@
     "id": "livecodebench_pro",
     "name": "LiveCodeBench-Pro: Competitive Programming Benchmark",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -676,7 +680,9 @@
     "id": "mbpp",
     "name": "MBPP: Basic Python Coding Challenges",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -695,7 +701,9 @@
     "id": "ml_dev_bench_1_0",
     "name": "Ml Dev Bench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -703,7 +711,7 @@
       "sandbox"
     ],
     "desc": "ML-Dev-Bench: A benchmark for testing AI agents on machine learning development tasks including model implementation, training, debugging, and optimization.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2502.00964",
     "code": "inspect_harbor/ml_dev_bench_1_0",
     "contributors": [],
     "samples": 33,
@@ -714,7 +722,9 @@
     "id": "mle_bench",
     "name": "MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [
       "Agent"
     ],
@@ -736,7 +746,9 @@
     "id": "mlgym_bench_1_0",
     "name": "Mlgym Bench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -744,7 +756,7 @@
       "sandbox"
     ],
     "desc": "Evaluates agents on ML tasks across computer vision, RL, tabular ML, and game theory.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2502.14499",
     "code": "inspect_harbor/mlgym_bench_1_0",
     "contributors": [],
     "samples": 12,
@@ -755,7 +767,9 @@
     "id": "mlrc_bench",
     "name": "MLRC-Bench: Can Language Agents Solve Machine Learning Research Challenges?",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [
       "Agent"
     ],
@@ -777,7 +791,9 @@
     "id": "otel_bench_1_0",
     "name": "Otel Bench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -785,7 +801,7 @@
       "sandbox"
     ],
     "desc": "OpenTelemetry Benchmark - evaluates AI agents' ability to instrument applications with OpenTelemetry tracing across multiple languages.",
-    "paper": null,
+    "paper": "https://github.com/QuesmaOrg/otel-bench",
     "code": "inspect_harbor/otel_bench_1_0",
     "contributors": [],
     "samples": 26,
@@ -796,7 +812,9 @@
     "id": "paperbench",
     "name": "PaperBench: Evaluating AI's Ability to Replicate AI Research (Work In Progress)",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [
       "Agent",
       "AI R&D"
@@ -816,29 +834,12 @@
     "featured": false
   },
   {
-    "id": "qcircuitbench_1_0",
-    "name": "Qcircuitbench",
-    "source": "harbor",
-    "category": "Coding",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "QCircuitBench evaluates agents on quantum algorithm design using quantum programming languages. Original benchmark: https://github.com/EstelYang/QCircuitBench.",
-    "paper": null,
-    "code": "inspect_harbor/qcircuitbench_1_0",
-    "contributors": [],
-    "samples": 28,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/qcircuitbench/qcircuitbench/latest"
-  },
-  {
     "id": "quixbugs_1_0",
     "name": "Quixbugs",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -846,7 +847,7 @@
       "sandbox"
     ],
     "desc": "QuixBugs is a multi-lingual program repair benchmark with 40 Python and 40 Java programs, each containing a single-line defect. Tasks cover algorithms and data structures including sorting, graph, dynamic programming, math, and string/array operations.",
-    "paper": null,
+    "paper": "https://github.com/jkoppel/QuixBugs",
     "code": "inspect_harbor/quixbugs_1_0",
     "contributors": [],
     "samples": 80,
@@ -854,29 +855,12 @@
     "url": "https://registry.harborframework.com/datasets/quixbugs/quixbugs/latest"
   },
   {
-    "id": "replicationbench_1_0",
-    "name": "Replicationbench",
-    "source": "harbor",
-    "category": "Coding",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "ReplicationBench - A benchmark for evaluating AI agents on reproducing computational results from astrophysics research papers. Adapted from Christine8888/replicationbench-release.",
-    "paper": null,
-    "code": "inspect_harbor/replicationbench_1_0",
-    "contributors": [],
-    "samples": 90,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/replicationbench/replicationbench/latest"
-  },
-  {
     "id": "rexbench_1_0",
     "name": "Rexbench",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -884,7 +868,7 @@
       "sandbox"
     ],
     "desc": "A benchmark to evaluate the ability of AI agents to extend existing AI research through research experiment implementation tasks. Original benchmark: https://github.com/tinlaboratory/rexbench. Website: https://rexbench.com/.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2506.22598",
     "code": "inspect_harbor/rexbench_1_0",
     "contributors": [],
     "samples": 2,
@@ -892,51 +876,12 @@
     "url": "https://registry.harborframework.com/datasets/rexbench/rexbench/latest"
   },
   {
-    "id": "scbench",
-    "name": "scBench: A Benchmark for Single-Cell RNA-seq Analysis",
-    "source": "evals",
-    "category": "Coding",
-    "tags": [
-      "Agent"
-    ],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Evaluates whether models can solve practical single-cell RNA-seq analysis tasks with deterministic grading.",
-    "paper": "https://arxiv.org/abs/2602.09063",
-    "code": "inspect_evals/scbench",
-    "contributors": [
-      "retroam"
-    ],
-    "samples": 30,
-    "featured": false
-  },
-  {
-    "id": "scicode",
-    "name": "SciCode: A Research Coding Benchmark Curated by Scientists",
-    "source": "evals",
-    "category": "Coding",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "sandbox"
-    ],
-    "desc": "SciCode tests the ability of language models to generate code to solve scientific research problems.",
-    "paper": "https://arxiv.org/abs/2407.13168",
-    "code": "inspect_evals/scicode",
-    "contributors": [
-      "xantheocracy"
-    ],
-    "samples": 65,
-    "featured": false
-  },
-  {
     "id": "spider2_dbt_1_0",
     "name": "Spider2 Dbt",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -944,7 +889,7 @@
       "sandbox"
     ],
     "desc": "Spider 2.0-DBT is a comprehensive code generation agent task that includes 68 examples. Solving these tasks requires models to understand project code, navigating complex SQL environments and handling long contexts, surpassing traditional text-to-SQL challenges.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2411.07763",
     "code": "inspect_harbor/spider2_dbt_1_0",
     "contributors": [],
     "samples": 64,
@@ -955,7 +900,9 @@
     "id": "swe_atlas_qna_1_0",
     "name": "Swe Atlas Qna",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -963,7 +910,7 @@
       "sandbox"
     ],
     "desc": "SWE-Atlas Codebase QnA benchmark that evaluates AI agents' ability to comprehend and query existing codebases.",
-    "paper": null,
+    "paper": "https://github.com/scaleapi/SWE-Atlas",
     "code": "inspect_harbor/swe_atlas_qna_1_0",
     "contributors": [],
     "samples": 124,
@@ -974,7 +921,9 @@
     "id": "swe_atlas_tw_1_0",
     "name": "Swe Atlas Tw",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -982,7 +931,7 @@
       "sandbox"
     ],
     "desc": "SWE-Atlas Test Writing benchmark that evaluates AI agents' ability to write comprehensive unit tests.",
-    "paper": null,
+    "paper": "https://github.com/scaleapi/SWE-Atlas",
     "code": "inspect_harbor/swe_atlas_tw_1_0",
     "contributors": [],
     "samples": 90,
@@ -993,7 +942,9 @@
     "id": "swe_gen_js_1_0",
     "name": "Swe Gen Js",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1001,7 +952,7 @@
       "sandbox"
     ],
     "desc": "SWE-gen-JS: 1000 JavaScript/TypeScript bug fix tasks from 30 open-source GitHub repos, generated using SWE-gen.",
-    "paper": null,
+    "paper": "https://www.swebench.com/post-260113-swesmith-javascript.html",
     "code": "inspect_harbor/swe_gen_js_1_0",
     "contributors": [],
     "samples": 1000,
@@ -1012,7 +963,9 @@
     "id": "swe_lancer_diamond_all",
     "name": "Swe Lancer Diamond",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1020,7 +973,7 @@
       "sandbox"
     ],
     "desc": "Adapter for SWE-Lancer (https://github.com/openai/preparedness/blob/main/project/swelancer/README.md). Both manager and individual contributor tasks.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/swe_lancer_diamond_all",
     "contributors": [],
     "samples": 463,
@@ -1031,7 +984,9 @@
     "id": "swe_lancer_diamond_ic",
     "name": "Swe Lancer Diamond",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1039,7 +994,7 @@
       "sandbox"
     ],
     "desc": "Adapter for SWE-Lancer (https://github.com/openai/preparedness/blob/main/project/swelancer/README.md). Only the individual contributor SWE tasks.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/swe_lancer_diamond_ic",
     "contributors": [],
     "samples": 198,
@@ -1050,7 +1005,9 @@
     "id": "swe_lancer_diamond_manager",
     "name": "Swe Lancer Diamond",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1058,7 +1015,7 @@
       "sandbox"
     ],
     "desc": "Adapter for SWE-Lancer (https://github.com/openai/preparedness/blob/main/project/swelancer/README.md). Only the manager tasks.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/swe_lancer_diamond_manager",
     "contributors": [],
     "samples": 265,
@@ -1069,7 +1026,9 @@
     "id": "swe_bench",
     "name": "SWE-bench Verified: Resolving Real-World GitHub Issues",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1091,7 +1050,9 @@
     "id": "swe_lancer",
     "name": "SWE-Lancer: Can Frontier LLMs Earn $1 Million from Real-World Freelance Software Engineering?",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1114,7 +1075,9 @@
     "id": "swebench_multilingual_1_0",
     "name": "Swebench Multilingual",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1122,7 +1085,7 @@
       "sandbox"
     ],
     "desc": "SWE-bench Multilingual extends the original Python-focused SWE-bench benchmark to support multiple programming languages. Original benchmark: https://www.swebench.com/multilingual.html.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2504.02605",
     "code": "inspect_harbor/swebench_multilingual_1_0",
     "contributors": [],
     "samples": 300,
@@ -1133,7 +1096,9 @@
     "id": "swebench_verified_1_0",
     "name": "Swebench Verified",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1141,7 +1106,7 @@
       "sandbox"
     ],
     "desc": "A human-validated subset of 500 SWE-bench tasks",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2310.06770",
     "code": "inspect_harbor/swebench_verified_1_0",
     "contributors": [],
     "samples": 500,
@@ -1152,7 +1117,9 @@
     "id": "swebenchpro_1_0",
     "name": "Swebenchpro",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1160,7 +1127,7 @@
       "sandbox"
     ],
     "desc": "SWE-bench Pro: A multi-language software engineering benchmark with 731 instances covering Python, JavaScript/TypeScript, and Go. Evaluates AI systems' ability to resolve real-world bugs and implement features across diverse production codebases. Original benchmark: https://github.com/scaleapi/SWE-bench_Pro-os. Adapter details: https://github.com/laude-institute/harbor/tree/main/adapters/swebenchpro",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2509.16941",
     "code": "inspect_harbor/swebenchpro_1_0",
     "contributors": [],
     "samples": 731,
@@ -1171,7 +1138,9 @@
     "id": "swesmith_1_0",
     "name": "Swesmith",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1179,7 +1148,7 @@
       "sandbox"
     ],
     "desc": "SWE-smith is a synthetically generated dataset of software engineering tasks derived from GitHub issues for training and evaluating code generation models.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2504.21798",
     "code": "inspect_harbor/swesmith_1_0",
     "contributors": [],
     "samples": 100,
@@ -1190,7 +1159,9 @@
     "id": "swtbench_verified_1_0",
     "name": "Swtbench Verified",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1198,7 +1169,7 @@
       "sandbox"
     ],
     "desc": "SWTBench Verified - Software Testing Benchmark for code generation",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2406.12952",
     "code": "inspect_harbor/swtbench_verified_1_0",
     "contributors": [],
     "samples": 433,
@@ -1209,7 +1180,9 @@
     "id": "usaco_2_0",
     "name": "Usaco",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1217,7 +1190,7 @@
       "sandbox"
     ],
     "desc": "USACO: 304 Python programming problems from USACO competition.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2404.10952",
     "code": "inspect_harbor/usaco_2_0",
     "contributors": [],
     "samples": 304,
@@ -1228,7 +1201,9 @@
     "id": "usaco",
     "name": "USACO: USA Computing Olympiad",
     "source": "evals",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1247,7 +1222,9 @@
     "id": "vmax_tasks_1_0",
     "name": "Vmax Tasks",
     "source": "harbor",
-    "category": "Coding",
+    "categories": [
+      "Coding"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1266,7 +1243,9 @@
     "id": "assistant_bench",
     "name": "AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1289,7 +1268,9 @@
     "id": "bfcl_1_0",
     "name": "Bfcl",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1297,7 +1278,7 @@
       "sandbox"
     ],
     "desc": "Berkeley Function-Calling Leaderboard: 3,641 function calling tasks for evaluating LLM tool use capabilities across simple, multiple, parallel, and irrelevance categories.",
-    "paper": null,
+    "paper": "https://github.com/ShishirPatil/gorilla",
     "code": "inspect_harbor/bfcl_1_0",
     "contributors": [],
     "samples": 3641,
@@ -1308,7 +1289,9 @@
     "id": "bfcl_parity_1_0",
     "name": "Bfcl Parity",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1316,7 +1299,7 @@
       "sandbox"
     ],
     "desc": "BFCL parity subset: 123 stratified sampled tasks for validating Harbor adapter equivalence with original BFCL benchmark.",
-    "paper": null,
+    "paper": "https://github.com/ShishirPatil/gorilla",
     "code": "inspect_harbor/bfcl_parity_1_0",
     "contributors": [],
     "samples": 123,
@@ -1327,7 +1310,9 @@
     "id": "bfcl",
     "name": "BFCL: Berkeley Function-Calling Leaderboard",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1346,7 +1331,9 @@
     "id": "browse_comp",
     "name": "BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1365,29 +1352,12 @@
     "featured": false
   },
   {
-    "id": "financeagent_public",
-    "name": "Financeagent",
-    "source": "harbor",
-    "category": "Assistants",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Finance Agent is a tool for financial research and analysis that leverages large language models and specialized financial tools to answer complex queries about companies, financial statements, and SEC filings.Original benchmark: https://github.com/vals-ai/finance-agent",
-    "paper": null,
-    "code": "inspect_harbor/financeagent_public",
-    "contributors": [],
-    "samples": 50,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/financeagent/financeagent/latest"
-  },
-  {
     "id": "gaia_1_0",
     "name": "Gaia",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1395,7 +1365,7 @@
       "sandbox"
     ],
     "desc": "GAIA (General AI Assistants): 165 validation tasks for multi-step reasoning, tool use, and multimodal question answering.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2311.12983",
     "code": "inspect_harbor/gaia_1_0",
     "contributors": [],
     "samples": 165,
@@ -1406,7 +1376,9 @@
     "id": "gaia",
     "name": "GAIA: A Benchmark for General AI Assistants",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1425,51 +1397,12 @@
     "featured": false
   },
   {
-    "id": "gdpval",
-    "name": "GDPval",
-    "source": "evals",
-    "category": "Assistants",
-    "tags": [
-      "Agent"
-    ],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "GDPval measures model performance on economically valuable, real-world tasks across 44 occupations.",
-    "paper": "https://arxiv.org/abs/2510.04374",
-    "code": "inspect_evals/gdpval",
-    "contributors": [
-      "jeqcho"
-    ],
-    "samples": 220,
-    "featured": false
-  },
-  {
-    "id": "medagentbench_1_0",
-    "name": "Medagentbench",
-    "source": "harbor",
-    "category": "Assistants",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "MedAgentBench: 300 patient-specific clinically-derived tasks across 10 categories in a FHIR-compliant interactive healthcare environment.",
-    "paper": null,
-    "code": "inspect_harbor/medagentbench_1_0",
-    "contributors": [],
-    "samples": 300,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/medagentbench/medagentbench/latest"
-  },
-  {
     "id": "mind2web",
     "name": "Mind2Web: Towards a Generalist Agent for the Web",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1488,7 +1421,9 @@
     "id": "openthoughts_tblite_2_0",
     "name": "Openthoughts Tblite",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1496,7 +1431,7 @@
       "sandbox"
     ],
     "desc": "OpenThoughts-TBLite: A difficulty-calibrated benchmark of 100 tasks for building terminal agents. By OpenThoughts Agent team, Snorkel AI, Bespoke Labs.",
-    "paper": null,
+    "paper": "https://github.com/open-thoughts/OpenThoughts-TBLite",
     "code": "inspect_harbor/openthoughts_tblite_2_0",
     "contributors": [],
     "samples": 100,
@@ -1507,7 +1442,9 @@
     "id": "osworld",
     "name": "OSWorld: Multimodal Computer Interaction Tasks",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1526,29 +1463,12 @@
     "featured": false
   },
   {
-    "id": "spreadsheetbench_verified_1_0",
-    "name": "Spreadsheetbench Verified",
-    "source": "harbor",
-    "category": "Assistants",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "A benchmark evaluating AI agents on real-world spreadsheet manipulation tasks (400 tasks from verified_400). Tasks involve Excel file manipulation including formula writing, data transformation, formatting, and conditional logic.",
-    "paper": null,
-    "code": "inspect_harbor/spreadsheetbench_verified_1_0",
-    "contributors": [],
-    "samples": 400,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/spreadsheetbench-verified/spreadsheetbench-verified/latest"
-  },
-  {
     "id": "sycophancy",
     "name": "Sycophancy Eval",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1567,7 +1487,9 @@
     "id": "tau2",
     "name": "Tau2",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1588,7 +1510,9 @@
     "id": "termigen_environments_1_0",
     "name": "Termigen Environments",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1607,7 +1531,9 @@
     "id": "terminal_bench_2_0",
     "name": "Terminal Bench",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1615,7 +1541,7 @@
       "sandbox"
     ],
     "desc": "Version 2.0 of Terminal-Bench, a benchmark for testing agents in terminal environments. More tasks, harder, and higher quality than 1.0.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2601.11868",
     "code": "inspect_harbor/terminal_bench_2_0",
     "contributors": [],
     "samples": 89,
@@ -1626,7 +1552,9 @@
     "id": "terminal_bench_pro_1_0",
     "name": "Terminal Bench Pro",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1634,7 +1562,7 @@
       "sandbox"
     ],
     "desc": "Terminal-Bench Pro (Public Set) is an extended benchmark dataset for testing AI agents in real terminal environments. From compiling code to training models and setting up servers, Terminal-Bench Pro evaluates how well agents can handle real-world, end-to-end tasks autonomously.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2601.11868",
     "code": "inspect_harbor/terminal_bench_pro_1_0",
     "contributors": [],
     "samples": 200,
@@ -1645,7 +1573,9 @@
     "id": "terminal_bench_sample_2_0",
     "name": "Terminal Bench Sample",
     "source": "harbor",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1653,7 +1583,7 @@
       "sandbox"
     ],
     "desc": "A sample of tasks from Terminal-Bench 2.0.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2601.11868",
     "code": "inspect_harbor/terminal_bench_sample_2_0",
     "contributors": [],
     "samples": 10,
@@ -1664,7 +1594,9 @@
     "id": "theagentcompany",
     "name": "The Agent Company: Evaluating multi-tool autonomous agents in a synthetic company",
     "source": "evals",
-    "category": "Assistants",
+    "categories": [
+      "Assistants"
+    ],
     "tags": [
       "Agent",
       "Tools"
@@ -1685,10 +1617,947 @@
     "featured": false
   },
   {
+    "id": "arc_agi_2_1_0",
+    "name": "Arc Agi 2",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ARC-AGI-2: A benchmark measuring abstract reasoning through visual grid puzzles requiring rule inference and generalization.",
+    "paper": "https://arxiv.org/abs/2505.11831",
+    "code": "inspect_harbor/arc_agi_2_1_0",
+    "contributors": [],
+    "samples": 167,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/arc_agi_2/arc_agi_2/latest"
+  },
+  {
+    "id": "bbh",
+    "name": "BBH: Challenging BIG-Bench Tasks",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Tests AI models on a suite of 23 challenging BIG-Bench tasks that previously proved difficult even for advanced language models to solve.",
+    "paper": "https://arxiv.org/abs/2210.09261",
+    "code": "inspect_evals/bbh",
+    "contributors": [
+      "JoschkaCBraun"
+    ],
+    "samples": 250,
+    "featured": false
+  },
+  {
+    "id": "bbeh",
+    "name": "BIG-Bench Extra Hard",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A reasoning capability dataset that replaces each task in BIG-Bench-Hard with a novel task that probes a similar reasoning capability but exhibits significantly increased difficulty.",
+    "paper": "https://arxiv.org/pdf/2502.19187",
+    "code": "inspect_evals/bbeh",
+    "contributors": [
+      "jeqcho"
+    ],
+    "samples": 4520,
+    "featured": false
+  },
+  {
+    "id": "boolq",
+    "name": "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.",
+    "paper": "https://arxiv.org/abs/1905.10044",
+    "code": "inspect_evals/boolq",
+    "contributors": [
+      "seddy-aisi"
+    ],
+    "samples": 3270,
+    "featured": false
+  },
+  {
+    "id": "drop",
+    "name": "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluates reading comprehension where models must resolve references in a question, perhaps to multiple input positions, and perform discrete operations over them (such as addition, counting, or sorting).",
+    "paper": "https://arxiv.org/abs/1903.00161",
+    "code": "inspect_evals/drop",
+    "contributors": [
+      "xeon27"
+    ],
+    "samples": 9535,
+    "featured": false
+  },
+  {
+    "id": "hellaswag",
+    "name": "HellaSwag: Commonsense Event Continuation",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Tests models' commonsense reasoning abilities by asking them to select the most likely next step or continuation for a given everyday situation.",
+    "paper": "https://arxiv.org/abs/1905.07830",
+    "code": "inspect_evals/hellaswag",
+    "contributors": [
+      "jjallaire"
+    ],
+    "samples": 10042,
+    "featured": false
+  },
+  {
+    "id": "ifeval",
+    "name": "IFEval: Instruction-Following Evaluation",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluates how well language models can strictly follow detailed instructions, such as writing responses with specific word counts or including required keywords.",
+    "paper": "https://arxiv.org/abs/2311.07911",
+    "code": "inspect_evals/ifeval",
+    "contributors": [
+      "adil-a"
+    ],
+    "samples": 541,
+    "featured": false
+  },
+  {
+    "id": "kumo_1_0",
+    "name": "Kumo",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "KUMO full dataset (5300 tasks; 50 instances per scenario).",
+    "paper": null,
+    "code": "inspect_harbor/kumo_1_0",
+    "contributors": [],
+    "samples": 5300,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+  },
+  {
+    "id": "kumo_easy",
+    "name": "Kumo",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "KUMO(easy) split (5050 tasks; 50 instances per scenario).",
+    "paper": null,
+    "code": "inspect_harbor/kumo_easy",
+    "contributors": [],
+    "samples": 5050,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+  },
+  {
+    "id": "kumo_hard",
+    "name": "Kumo",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "KUMO(hard) split (250 tasks; 50 instances per scenario).",
+    "paper": null,
+    "code": "inspect_harbor/kumo_hard",
+    "contributors": [],
+    "samples": 250,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+  },
+  {
+    "id": "kumo_parity",
+    "name": "Kumo",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "KUMO parity subset (seeds 0/1; 212 tasks).",
+    "paper": null,
+    "code": "inspect_harbor/kumo_parity",
+    "contributors": [],
+    "samples": 212,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+  },
+  {
+    "id": "lingoly",
+    "name": "LingOly",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Two linguistics reasoning benchmarks: LingOly (Linguistic Olympiad questions) is a benchmark utilising low resource languages.",
+    "paper": "https://arxiv.org/pdf/2406.06196,https://arxiv.org/abs/2503.02972",
+    "code": "inspect_evals/lingoly",
+    "contributors": [
+      "am-bean",
+      "jkhouja"
+    ],
+    "samples": 408,
+    "featured": false
+  },
+  {
+    "id": "mmmu",
+    "name": "MMMU: Multimodal College-Level Understanding and Reasoning",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [
+      "Multimodal"
+    ],
+    "kind": "multimodal",
+    "modalities": [
+      "vision"
+    ],
+    "desc": "Assesses multimodal AI models on challenging college-level questions covering multiple academic subjects, requiring detailed visual interpretation, in-depth reasoning, and both multiple-choice and open-ended answering abilities.",
+    "paper": "https://arxiv.org/abs/2311.16502",
+    "code": "inspect_evals/mmmu",
+    "contributors": [
+      "shaheenahmedc"
+    ],
+    "samples": 847,
+    "featured": false
+  },
+  {
+    "id": "musr",
+    "name": "MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluating models on multistep soft reasoning tasks in the form of free text narratives.",
+    "paper": "https://arxiv.org/abs/2310.16049",
+    "code": "inspect_evals/musr",
+    "contributors": [
+      "farrelmahaztra"
+    ],
+    "samples": 250,
+    "featured": false
+  },
+  {
+    "id": "niah",
+    "name": "Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context LLMs",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "NIAH evaluates in-context retrieval ability of long context LLMs by testing a model's ability to extract factual information from long-context inputs.",
+    "paper": "https://arxiv.org/abs/2407.01437",
+    "code": "inspect_evals/niah",
+    "contributors": [
+      "owenparsons"
+    ],
+    "samples": 225,
+    "featured": false
+  },
+  {
+    "id": "novelty_bench",
+    "name": "NoveltyBench: Evaluating Language Models for Humanlike Diversity",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluates how well language models generate diverse, humanlike responses across multiple reasoning and generation tasks.",
+    "paper": "https://arxiv.org/abs/2504.05228",
+    "code": "inspect_evals/novelty_bench",
+    "contributors": [
+      "iphan"
+    ],
+    "samples": 1100,
+    "featured": false
+  },
+  {
+    "id": "paws",
+    "name": "PAWS: Paraphrase Adversaries from Word Scrambling",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluating models on the task of paraphrase detection by providing pairs of sentences that are either paraphrases or not.",
+    "paper": "https://arxiv.org/abs/1904.01130",
+    "code": "inspect_evals/paws",
+    "contributors": [
+      "meltemkenis"
+    ],
+    "samples": 8000,
+    "featured": false
+  },
+  {
+    "id": "piqa",
+    "name": "PIQA: Physical Commonsense Reasoning Test",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Measures the model's ability to apply practical, everyday commonsense reasoning about physical objects and scenarios through simple decision-making questions.",
+    "paper": "https://arxiv.org/abs/1911.11641",
+    "code": "inspect_evals/piqa",
+    "contributors": [
+      "seddy-aisi"
+    ],
+    "samples": 1838,
+    "featured": false
+  },
+  {
+    "id": "race_h",
+    "name": "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Reading comprehension tasks collected from the English exams for middle and high school Chinese students in the age range between 12 to 18.",
+    "paper": "https://arxiv.org/abs/1704.04683",
+    "code": "inspect_evals/race_h",
+    "contributors": [
+      "mdrpanwar"
+    ],
+    "samples": 3498,
+    "featured": false
+  },
+  {
+    "id": "reasoning_gym_easy_parity",
+    "name": "Reasoning Gym Easy",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Reasoning Gym benchmark (easy difficulty). Original benchmark: https://github.com/open-thought/reasoning-gym",
+    "paper": "https://arxiv.org/abs/2505.24760",
+    "code": "inspect_harbor/reasoning_gym_easy_parity",
+    "contributors": [],
+    "samples": 288,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/reasoning-gym-easy/reasoning-gym-easy/latest"
+  },
+  {
+    "id": "reasoning_gym_hard_parity",
+    "name": "Reasoning Gym Hard",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Reasoning Gym benchmark (hard difficulty). Original benchmark: https://github.com/open-thought/reasoning-gym",
+    "paper": "https://arxiv.org/abs/2505.24760",
+    "code": "inspect_harbor/reasoning_gym_hard_parity",
+    "contributors": [],
+    "samples": 288,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/reasoning-gym-hard/reasoning-gym-hard/latest"
+  },
+  {
+    "id": "satbench_1_0",
+    "name": "Satbench",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SATBench is a benchmark for evaluating the logical reasoning capabilities of LLMs through logical puzzles derived from Boolean satisfiability (SAT) problems.",
+    "paper": "https://arxiv.org/abs/2505.14615",
+    "code": "inspect_harbor/satbench_1_0",
+    "contributors": [],
+    "samples": 2100,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/satbench/satbench/latest"
+  },
+  {
+    "id": "seta_env_1_0",
+    "name": "Seta Env",
+    "source": "harbor",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "CAMEL SETA Environment for RL training",
+    "paper": null,
+    "code": "inspect_harbor/seta_env_1_0",
+    "contributors": [],
+    "samples": 1376,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/seta-env/seta-env/latest"
+  },
+  {
+    "id": "squad",
+    "name": "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.",
+    "paper": "https://arxiv.org/abs/1606.05250",
+    "code": "inspect_evals/squad",
+    "contributors": [
+      "tknasir"
+    ],
+    "samples": 11873,
+    "featured": false
+  },
+  {
+    "id": "vimgolf_challenges",
+    "name": "VimGolf: Evaluating LLMs in Vim Editing Proficiency",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [
+      "Vim",
+      "Editing",
+      "Game"
+    ],
+    "kind": "generation",
+    "modalities": [
+      "sandbox"
+    ],
+    "desc": "A benchmark that evaluates LLMs in their ability to operate Vim editor and complete editing challenges.",
+    "paper": null,
+    "code": "inspect_evals/vimgolf_challenges",
+    "contributors": [
+      "james4ever0"
+    ],
+    "samples": 612,
+    "featured": false
+  },
+  {
+    "id": "winogrande",
+    "name": "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.",
+    "paper": "https://arxiv.org/abs/1907.10641",
+    "code": "inspect_evals/winogrande",
+    "contributors": [
+      "xeon27"
+    ],
+    "samples": 1267,
+    "featured": false
+  },
+  {
+    "id": "worldsense",
+    "name": "WorldSense: Grounded Reasoning Benchmark",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Measures grounded reasoning over synthetic world descriptions while controlling for dataset bias.",
+    "paper": "https://arxiv.org/pdf/2311.15930",
+    "code": "inspect_evals/worldsense",
+    "contributors": [
+      "mjbroerman"
+    ],
+    "samples": 87048,
+    "featured": false
+  },
+  {
+    "id": "writingbench",
+    "name": "WritingBench: A Comprehensive Benchmark for Generative Writing",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A comprehensive evaluation benchmark designed to assess large language models' capabilities across diverse writing tasks.",
+    "paper": "https://arxiv.org/pdf/2503.05244",
+    "code": "inspect_evals/writingbench",
+    "contributors": [
+      "jtv199"
+    ],
+    "samples": 1000,
+    "featured": false
+  },
+  {
+    "id": "infinite_bench",
+    "name": "∞Bench: Extending Long Context Evaluation Beyond 100K Tokens",
+    "source": "evals",
+    "categories": [
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "LLM benchmark featuring an average data length surpassing 100K tokens.",
+    "paper": "https://arxiv.org/abs/2402.13718",
+    "code": "inspect_evals/infinite_bench",
+    "contributors": [
+      "celiawaggoner"
+    ],
+    "samples": 394,
+    "featured": false
+  },
+  {
+    "id": "agieval",
+    "name": "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.",
+    "paper": "https://arxiv.org/abs/2304.06364",
+    "code": "inspect_evals/agieval",
+    "contributors": [
+      "bouromain"
+    ],
+    "samples": 254,
+    "featured": false
+  },
+  {
+    "id": "bbq",
+    "name": "BBQ: Bias Benchmark for Question Answering",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A dataset for evaluating bias in question answering models across multiple social dimensions.",
+    "paper": "https://arxiv.org/abs/2110.08193",
+    "code": "inspect_evals/bbq",
+    "contributors": [
+      "harshraj172",
+      "shubhobm"
+    ],
+    "samples": 58492,
+    "featured": false
+  },
+  {
+    "id": "bold",
+    "name": "BOLD: Bias in Open-ended Language Generation Dataset",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A dataset to measure fairness in open-ended text generation, covering five domains: profession, gender, race, religious ideologies, and political ideologies.",
+    "paper": "https://arxiv.org/abs/2101.11718",
+    "code": "inspect_evals/bold",
+    "contributors": [
+      "harshraj172",
+      "shubhobm"
+    ],
+    "samples": 7200,
+    "featured": false
+  },
+  {
+    "id": "commonsense_qa",
+    "name": "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluates an AI model's ability to correctly answer everyday questions that rely on basic commonsense knowledge and understanding of the world.",
+    "paper": "https://arxiv.org/abs/1811.00937",
+    "code": "inspect_evals/commonsense_qa",
+    "contributors": [
+      "lauritowal"
+    ],
+    "samples": 1221,
+    "featured": false
+  },
+  {
+    "id": "hle",
+    "name": "Humanity's Last Exam",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage.",
+    "paper": "https://arxiv.org/abs/2501.14249",
+    "code": "inspect_evals/hle",
+    "contributors": [
+      "SasankYadati"
+    ],
+    "samples": 3000,
+    "featured": false
+  },
+  {
+    "id": "livebench",
+    "name": "LiveBench: A Challenging, Contamination-Free LLM Benchmark",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "LiveBench is a benchmark designed with test set contamination and objective evaluation in mind by releasing new questions regularly, as well as having questions based on recently-released datasets.",
+    "paper": "https://arxiv.org/abs/2406.19314",
+    "code": "inspect_evals/livebench",
+    "contributors": [
+      "anaoaktree"
+    ],
+    "samples": 910,
+    "featured": false
+  },
+  {
+    "id": "mmlu_pro",
+    "name": "MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "An advanced benchmark that tests both broad knowledge and reasoning capabilities across many subjects, featuring challenging questions and multiple-choice answers with increased difficulty and complexity.",
+    "paper": "https://arxiv.org/abs/2406.01574",
+    "code": "inspect_evals/mmlu_pro",
+    "contributors": [
+      "xeon27"
+    ],
+    "samples": 12032,
+    "featured": false
+  },
+  {
+    "id": "mmlu",
+    "name": "MMLU: Measuring Massive Multitask Language Understanding",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.",
+    "paper": "https://arxiv.org/abs/2009.03300",
+    "code": "inspect_evals/mmlu",
+    "contributors": [
+      "jjallaire",
+      "domdomegg"
+    ],
+    "samples": 14042,
+    "featured": false
+  },
+  {
+    "id": "mmmlu_parity",
+    "name": "Mmmlu",
+    "source": "harbor",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "MMMLU (Multilingual MMLU) parity validation subset with 10 tasks per language across 15 languages (150 tasks total). Evaluates language models' subject knowledge and reasoning across multiple languages using multiple-choice questions covering 57 academic subjects.",
+    "paper": "https://arxiv.org/abs/2503.10497",
+    "code": "inspect_harbor/mmmlu_parity",
+    "contributors": [],
+    "samples": 150,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/mmmlu/mmmlu/latest"
+  },
+  {
+    "id": "onet",
+    "name": "O-NET: A high-school student knowledge test",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand.",
+    "paper": null,
+    "code": "inspect_evals/onet",
+    "contributors": [
+      "bact"
+    ],
+    "samples": 397,
+    "featured": false
+  },
+  {
+    "id": "personality",
+    "name": "Personality",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "An evaluation suite consisting of multiple personality tests that can be applied to LLMs.",
+    "paper": null,
+    "code": "inspect_evals/personality",
+    "contributors": [
+      "guiem"
+    ],
+    "samples": 44,
+    "featured": false
+  },
+  {
+    "id": "simpleqa_1_0",
+    "name": "Simpleqa",
+    "source": "harbor",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SimpleQA: 4,326 short, fact-seeking questions from OpenAI for evaluating language model factuality. Uses LLM-as-a-judge grading. Source: https://openai.com/index/introducing-simpleqa/",
+    "paper": "https://arxiv.org/abs/2411.04368",
+    "code": "inspect_harbor/simpleqa_1_0",
+    "contributors": [],
+    "samples": 4326,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/simpleqa/simpleqa/latest"
+  },
+  {
+    "id": "simpleqa",
+    "name": "SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language models",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A benchmark that evaluates the ability of language models to answer short, fact-seeking questions.",
+    "paper": "https://arxiv.org/abs/2411.04368,https://arxiv.org/abs/2509.07968",
+    "code": "inspect_evals/simpleqa",
+    "contributors": [
+      "osc245",
+      "jeqcho"
+    ],
+    "samples": 4326,
+    "featured": false
+  },
+  {
+    "id": "truthfulqa",
+    "name": "TruthfulQA: Measuring How Models Mimic Human Falsehoods",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.",
+    "paper": "https://arxiv.org/abs/2109.07958v2",
+    "code": "inspect_evals/truthfulqa",
+    "contributors": [
+      "seddy-aisi"
+    ],
+    "samples": 817,
+    "featured": false
+  },
+  {
+    "id": "xstest",
+    "name": "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.",
+    "paper": "https://arxiv.org/abs/2308.01263",
+    "code": "inspect_evals/xstest",
+    "contributors": [
+      "NelsonG-C"
+    ],
+    "samples": 250,
+    "featured": false
+  },
+  {
     "id": "binary_audit_1_0",
     "name": "Binary Audit",
     "source": "harbor",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -1696,7 +2565,7 @@
       "sandbox"
     ],
     "desc": "An open-source benchmark for evaluating AI agents' ability to find backdoors hidden in compiled binaries.",
-    "paper": null,
+    "paper": "https://github.com/QuesmaOrg/BinaryAudit",
     "code": "inspect_harbor/binary_audit_1_0",
     "contributors": [],
     "samples": 46,
@@ -1707,7 +2576,9 @@
     "id": "threecb",
     "name": "Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM Agent Cyber Offense Capabilities",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1731,7 +2602,9 @@
     "id": "cti_realm",
     "name": "CTI-REALM: Cyber Threat Intelligence Detection Rule Development Benchmark",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1753,7 +2626,9 @@
     "id": "cve_bench",
     "name": "CVEBench:  Benchmark for AI Agents Ability to Exploit Real-World Web Application Vulnerabilities",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1792,7 +2667,9 @@
     "id": "cybench",
     "name": "Cybench: Capture-The-Flag Cybersecurity Challenges",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1817,7 +2694,9 @@
     "id": "cybergym",
     "name": "CyberGym: Evaluating AI Agents' Real-World Cybersecurity Capabilities at Scale",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1842,7 +2721,9 @@
     "id": "cybermetric",
     "name": "CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1864,7 +2745,9 @@
     "id": "cyberseceval_3",
     "name": "CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1883,7 +2766,9 @@
     "id": "cyberseceval_2",
     "name": "CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1902,7 +2787,9 @@
     "id": "gdm_in_house_ctf",
     "name": "GDM Dangerous Capabilities: Capture the Flag",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1924,7 +2811,9 @@
     "id": "gdm_intercode_ctf",
     "name": "InterCode: Security and Coding Capture-the-Flag Challenges",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [
       "Agent"
     ],
@@ -1946,7 +2835,9 @@
     "id": "sec_qa",
     "name": "SecQA: A Concise Question-Answering Dataset for Evaluating Large Language Models in Computer Security",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1965,7 +2856,9 @@
     "id": "sevenllm",
     "name": "SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events.",
     "source": "evals",
-    "category": "Cybersecurity",
+    "categories": [
+      "Cybersecurity"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -1984,7 +2877,9 @@
     "id": "abstention_bench",
     "name": "AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2003,7 +2898,9 @@
     "id": "agentdojo",
     "name": "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [
       "Agent"
     ],
@@ -2025,7 +2922,9 @@
     "id": "agentharm",
     "name": "AgentHarm: Harmfulness Potential in AI Agents",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [
       "Agent"
     ],
@@ -2049,7 +2948,9 @@
     "id": "ahb",
     "name": "AHB: Animal Harm Benchmark",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2070,7 +2971,9 @@
     "id": "ape",
     "name": "APE: Attempt to Persuade Eval",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2089,7 +2992,9 @@
     "id": "b3",
     "name": "b3: Backbone Breaker Benchmark",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [
       "Agent"
     ],
@@ -2116,7 +3021,9 @@
     "id": "ipi_coding_agent",
     "name": "CodeIPI: Indirect Prompt Injection for Coding Agents",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [
       "safety",
       "agents",
@@ -2140,7 +3047,9 @@
     "id": "fortress",
     "name": "FORTRESS",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2156,29 +3065,12 @@
     "featured": false
   },
   {
-    "id": "lab_bench",
-    "name": "LAB-Bench: Measuring Capabilities of Language Models for Biology Research",
-    "source": "evals",
-    "category": "Safeguards",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Tests LLMs and LLM-augmented agents abilities to answer questions on scientific research workflows in domains like chemistry, biology, materials science, as well as more general science tasks",
-    "paper": "https://arxiv.org/abs/2407.10362",
-    "code": "inspect_evals/lab_bench",
-    "contributors": [
-      "matthewreed26"
-    ],
-    "samples": 199,
-    "featured": false
-  },
-  {
     "id": "make_me_pay",
     "name": "Make Me Pay",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2197,7 +3089,9 @@
     "id": "makemesay",
     "name": "MakeMeSay",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2216,7 +3110,9 @@
     "id": "mask",
     "name": "MASK: Disentangling Honesty from Accuracy in AI Systems",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2235,7 +3131,9 @@
     "id": "mind2web_sc",
     "name": "Mind2Web-SC",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [
       "Agent"
     ],
@@ -2257,7 +3155,9 @@
     "id": "moru",
     "name": "MORU: Moral Reasoning under Uncertainty",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2277,7 +3177,9 @@
     "id": "persistbench",
     "name": "PersistBench: When Should Long-Term Memories Be Forgotten by LLMs?",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2296,7 +3198,9 @@
     "id": "stereoset",
     "name": "StereoSet: Measuring stereotypical bias in pretrained language models",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2315,7 +3219,9 @@
     "id": "strongreject_parity",
     "name": "Strongreject",
     "source": "harbor",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -2323,7 +3229,7 @@
       "sandbox"
     ],
     "desc": "StrongReject benchmark for evaluating LLM safety and jailbreak resistance. Parity subset with 150 tasks (50 prompts * 3 jailbreaks).",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2402.10260",
     "code": "inspect_harbor/strongreject_parity",
     "contributors": [],
     "samples": 150,
@@ -2334,7 +3240,9 @@
     "id": "strong_reject",
     "name": "StrongREJECT: Measuring LLM susceptibility to jailbreak attacks",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2353,7 +3261,9 @@
     "id": "tac",
     "name": "TAC: Animal Welfare Awareness in AI Ticket Agents",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [
       "Agent"
     ],
@@ -2375,7 +3285,9 @@
     "id": "coconot",
     "name": "The Art of Saying No: Contextual Noncompliance in Language Models",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2394,7 +3306,9 @@
     "id": "wmdp",
     "name": "WMDP: Measuring and Reducing Malicious Use With Unlearning",
     "source": "evals",
-    "category": "Safeguards",
+    "categories": [
+      "Safeguards"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2410,10 +3324,461 @@
     "featured": false
   },
   {
+    "id": "arc",
+    "name": "ARC: AI2 Reasoning Challenge",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Dataset of natural, grade-school science multiple-choice questions (authored for human tests).",
+    "paper": "https://arxiv.org/abs/1803.05457",
+    "code": "inspect_evals/arc",
+    "contributors": [
+      "jjallaire"
+    ],
+    "samples": 2376,
+    "featured": false
+  },
+  {
+    "id": "bixbench_1_5",
+    "name": "Bixbench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Biology",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "BixBench - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks.",
+    "paper": "https://arxiv.org/abs/2503.00096",
+    "code": "inspect_harbor/bixbench_1_5",
+    "contributors": [],
+    "samples": 205,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/bixbench/bixbench/latest"
+  },
+  {
+    "id": "bixbench_cli_1_5",
+    "name": "Bixbench Cli",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Biology",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "bixbench-cli - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks. (Adapted for CLI execution)",
+    "paper": "https://arxiv.org/abs/2503.00096",
+    "code": "inspect_harbor/bixbench_cli_1_5",
+    "contributors": [],
+    "samples": 205,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/bixbench-cli/bixbench-cli/latest"
+  },
+  {
+    "id": "chembench",
+    "name": "ChemBench: Are large language models superhuman chemists?",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Chemistry",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "ChemBench is designed to reveal limitations of current frontier models for use in the chemical sciences.",
+    "paper": "https://arxiv.org/pdf/2404.01475v2",
+    "code": "inspect_evals/chembench",
+    "contributors": [
+      "Esther-Guo",
+      "MrtinoRG",
+      "r-fedorov"
+    ],
+    "samples": 2786,
+    "featured": false
+  },
+  {
+    "id": "codepde_1_0",
+    "name": "Codepde",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Physics",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "CodePDE evaluates code generation capabilities on scientific computing tasks, specifically focusing on Partial Differential Equation (PDE) solving.",
+    "paper": "https://arxiv.org/abs/2505.08783",
+    "code": "inspect_harbor/codepde_1_0",
+    "contributors": [],
+    "samples": 5,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/codepde/codepde/latest"
+  },
+  {
+    "id": "core_bench",
+    "name": "CORE-Bench",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Coding"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Evaluate how well an LLM Agent is at computationally reproducing the results of a set of scientific papers.",
+    "paper": "https://arxiv.org/abs/2409.11363",
+    "code": "inspect_evals/core_bench",
+    "contributors": [
+      "enerrio"
+    ],
+    "samples": 45,
+    "featured": false
+  },
+  {
+    "id": "frontierscience",
+    "name": "FrontierScience: Expert-Level Scientific Reasoning",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Chemistry",
+      "Physics",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluates AI capabilities for expert-level scientific reasoning across physics, chemistry, and biology.",
+    "paper": "https://openai.com/index/frontierscience/",
+    "code": "inspect_evals/frontierscience",
+    "contributors": [
+      "tommyly201",
+      "mnarayan"
+    ],
+    "samples": 160,
+    "featured": false
+  },
+  {
+    "id": "gpqa_diamond_1_0",
+    "name": "Gpqa Diamond",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Biology",
+      "Chemistry",
+      "Physics",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "GPQA Diamond subset: 198 graduate-level multiple-choice questions in biology, physics, and chemistry for evaluating scientific reasoning.",
+    "paper": "https://arxiv.org/abs/2311.12022",
+    "code": "inspect_harbor/gpqa_diamond_1_0",
+    "contributors": [],
+    "samples": 198,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/gpqa-diamond/gpqa-diamond/latest"
+  },
+  {
+    "id": "gpqa",
+    "name": "GPQA: Graduate-Level STEM Knowledge Challenge",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Chemistry",
+      "Physics",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches.",
+    "paper": "https://arxiv.org/abs/2311.12022",
+    "code": "inspect_evals/gpqa",
+    "contributors": [
+      "jjallaire"
+    ],
+    "samples": 198,
+    "featured": false
+  },
+  {
+    "id": "lab_bench",
+    "name": "LAB-Bench: Measuring Capabilities of Language Models for Biology Research",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Safeguards"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Tests LLMs and LLM-augmented agents abilities to answer questions on scientific research workflows in domains like chemistry, biology, materials science, as well as more general science tasks",
+    "paper": "https://arxiv.org/abs/2407.10362",
+    "code": "inspect_evals/lab_bench",
+    "contributors": [
+      "matthewreed26"
+    ],
+    "samples": 199,
+    "featured": false
+  },
+  {
+    "id": "labbench_1_0",
+    "name": "Labbench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Biology",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "LAB-Bench FigQA: 181 scientific figure reasoning tasks in biology from Future-House LAB-Bench.",
+    "paper": "https://arxiv.org/abs/2407.10362",
+    "code": "inspect_harbor/labbench_1_0",
+    "contributors": [],
+    "samples": 181,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/labbench/labbench/latest"
+  },
+  {
+    "id": "pubmedqa",
+    "name": "PubMedQA: A Dataset for Biomedical Research Question Answering",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Medicine",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Biomedical question answering (QA) dataset collected from PubMed abstracts.",
+    "paper": "https://arxiv.org/abs/1909.06146",
+    "code": "inspect_evals/pubmedqa",
+    "contributors": [
+      "MattFisher"
+    ],
+    "samples": 500,
+    "featured": false
+  },
+  {
+    "id": "qcircuitbench_1_0",
+    "name": "Qcircuitbench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Physics",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "QCircuitBench evaluates agents on quantum algorithm design using quantum programming languages. Original benchmark: https://github.com/EstelYang/QCircuitBench.",
+    "paper": "https://arxiv.org/abs/2410.07961",
+    "code": "inspect_harbor/qcircuitbench_1_0",
+    "contributors": [],
+    "samples": 28,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/qcircuitbench/qcircuitbench/latest"
+  },
+  {
+    "id": "replicationbench_1_0",
+    "name": "Replicationbench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Physics",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "ReplicationBench - A benchmark for evaluating AI agents on reproducing computational results from astrophysics research papers. Adapted from Christine8888/replicationbench-release.",
+    "paper": "https://arxiv.org/abs/2510.24591",
+    "code": "inspect_harbor/replicationbench_1_0",
+    "contributors": [],
+    "samples": 90,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/replicationbench/replicationbench/latest"
+  },
+  {
+    "id": "scbench",
+    "name": "scBench: A Benchmark for Single-Cell RNA-seq Analysis",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Coding"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Evaluates whether models can solve practical single-cell RNA-seq analysis tasks with deterministic grading.",
+    "paper": "https://arxiv.org/abs/2602.09063",
+    "code": "inspect_evals/scbench",
+    "contributors": [
+      "retroam"
+    ],
+    "samples": 30,
+    "featured": false
+  },
+  {
+    "id": "scicode",
+    "name": "SciCode: A Research Coding Benchmark Curated by Scientists",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "sandbox"
+    ],
+    "desc": "SciCode tests the ability of language models to generate code to solve scientific research problems.",
+    "paper": "https://arxiv.org/abs/2407.13168",
+    "code": "inspect_evals/scicode",
+    "contributors": [
+      "xantheocracy"
+    ],
+    "samples": 65,
+    "featured": false
+  },
+  {
+    "id": "sciknoweval",
+    "name": "SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "The Scientific Knowledge Evaluation benchmark is inspired by the profound principles outlined in the “Doctrine of the Mean” from ancient Chinese philosophy.",
+    "paper": "https://arxiv.org/abs/2406.09098v2",
+    "code": "inspect_evals/sciknoweval",
+    "contributors": [
+      "Esther-Guo"
+    ],
+    "samples": 70196,
+    "featured": false
+  },
+  {
+    "id": "sldbench_1_0",
+    "name": "Sldbench",
+    "source": "harbor",
+    "categories": [
+      "Science",
+      "Reasoning"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SLDBench: A benchmark for scaling law discovery with symbolic regression tasks.",
+    "paper": "https://arxiv.org/abs/2507.21184",
+    "code": "inspect_harbor/sldbench_1_0",
+    "contributors": [],
+    "samples": 8,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/sldbench/sldbench/latest"
+  },
+  {
+    "id": "sosbench",
+    "name": "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Chemistry",
+      "Biology",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology.",
+    "paper": "https://arxiv.org/pdf/2505.21605",
+    "code": "inspect_evals/sosbench",
+    "contributors": [
+      "Esther-Guo"
+    ],
+    "samples": 3000,
+    "featured": false
+  },
+  {
     "id": "aime_1_0",
     "name": "Aime",
     "source": "harbor",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -2432,7 +3797,9 @@
     "id": "aime2024",
     "name": "AIME 2024: Problems from the American Invitational Mathematics Examination",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2451,7 +3818,9 @@
     "id": "aime2025",
     "name": "AIME 2025: Problems from the American Invitational Mathematics Examination",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2470,7 +3839,9 @@
     "id": "aime2026",
     "name": "AIME 2026: Problems from the American Invitational Mathematics Examination",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2489,7 +3860,9 @@
     "id": "gsm8k",
     "name": "GSM8K: Grade School Math Word Problems",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2508,7 +3881,9 @@
     "id": "ineqmath_1_0",
     "name": "Ineqmath",
     "source": "harbor",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -2516,7 +3891,7 @@
       "sandbox"
     ],
     "desc": "This adapter brings IneqMath, the dev set of the first inequality-proof Q\\&A benchmark for LLMs, into Harbor, enabling standardized evaluation of models on mathematical reasoning and proof construction.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2506.07927",
     "code": "inspect_harbor/ineqmath_1_0",
     "contributors": [],
     "samples": 100,
@@ -2527,7 +3902,9 @@
     "id": "math",
     "name": "MATH: Measuring Mathematical Problem Solving",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2546,7 +3923,9 @@
     "id": "mathvista",
     "name": "MathVista: Visual Math Problem-Solving",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [
       "Multimodal"
     ],
@@ -2567,7 +3946,9 @@
     "id": "mgsm",
     "name": "MGSM: Multilingual Grade School Math",
     "source": "evals",
-    "category": "Mathematics",
+    "categories": [
+      "Mathematics"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -2583,606 +3964,14 @@
     "featured": false
   },
   {
-    "id": "arc_agi_2_1_0",
-    "name": "Arc Agi 2",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "ARC-AGI-2: A benchmark measuring abstract reasoning through visual grid puzzles requiring rule inference and generalization.",
-    "paper": null,
-    "code": "inspect_harbor/arc_agi_2_1_0",
-    "contributors": [],
-    "samples": 167,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/arc_agi_2/arc_agi_2/latest"
-  },
-  {
-    "id": "arc",
-    "name": "ARC: AI2 Reasoning Challenge",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Dataset of natural, grade-school science multiple-choice questions (authored for human tests).",
-    "paper": "https://arxiv.org/abs/1803.05457",
-    "code": "inspect_evals/arc",
-    "contributors": [
-      "jjallaire"
-    ],
-    "samples": 2376,
-    "featured": false
-  },
-  {
-    "id": "bbh",
-    "name": "BBH: Challenging BIG-Bench Tasks",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Tests AI models on a suite of 23 challenging BIG-Bench tasks that previously proved difficult even for advanced language models to solve.",
-    "paper": "https://arxiv.org/abs/2210.09261",
-    "code": "inspect_evals/bbh",
-    "contributors": [
-      "JoschkaCBraun"
-    ],
-    "samples": 250,
-    "featured": false
-  },
-  {
-    "id": "bbeh",
-    "name": "BIG-Bench Extra Hard",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A reasoning capability dataset that replaces each task in BIG-Bench-Hard with a novel task that probes a similar reasoning capability but exhibits significantly increased difficulty.",
-    "paper": "https://arxiv.org/pdf/2502.19187",
-    "code": "inspect_evals/bbeh",
-    "contributors": [
-      "jeqcho"
-    ],
-    "samples": 4520,
-    "featured": false
-  },
-  {
-    "id": "boolq",
-    "name": "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.",
-    "paper": "https://arxiv.org/abs/1905.10044",
-    "code": "inspect_evals/boolq",
-    "contributors": [
-      "seddy-aisi"
-    ],
-    "samples": 3270,
-    "featured": false
-  },
-  {
-    "id": "dabstep_1_0",
-    "name": "Dabstep",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "DABstep: Data Agent Benchmark for Multi-step Reasoning. 450 tasks where agents analyze payment transaction data with Python/pandas to answer business questions.",
-    "paper": null,
-    "code": "inspect_harbor/dabstep_1_0",
-    "contributors": [],
-    "samples": 450,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/dabstep/dabstep/latest"
-  },
-  {
-    "id": "drop",
-    "name": "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluates reading comprehension where models must resolve references in a question, perhaps to multiple input positions, and perform discrete operations over them (such as addition, counting, or sorting).",
-    "paper": "https://arxiv.org/abs/1903.00161",
-    "code": "inspect_evals/drop",
-    "contributors": [
-      "xeon27"
-    ],
-    "samples": 9535,
-    "featured": false
-  },
-  {
-    "id": "hellaswag",
-    "name": "HellaSwag: Commonsense Event Continuation",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Tests models' commonsense reasoning abilities by asking them to select the most likely next step or continuation for a given everyday situation.",
-    "paper": "https://arxiv.org/abs/1905.07830",
-    "code": "inspect_evals/hellaswag",
-    "contributors": [
-      "jjallaire"
-    ],
-    "samples": 10042,
-    "featured": false
-  },
-  {
-    "id": "ifeval",
-    "name": "IFEval: Instruction-Following Evaluation",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluates how well language models can strictly follow detailed instructions, such as writing responses with specific word counts or including required keywords.",
-    "paper": "https://arxiv.org/abs/2311.07911",
-    "code": "inspect_evals/ifeval",
-    "contributors": [
-      "adil-a"
-    ],
-    "samples": 541,
-    "featured": false
-  },
-  {
-    "id": "kumo_1_0",
-    "name": "Kumo",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "KUMO full dataset (5300 tasks; 50 instances per scenario).",
-    "paper": null,
-    "code": "inspect_harbor/kumo_1_0",
-    "contributors": [],
-    "samples": 5300,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
-  },
-  {
-    "id": "kumo_easy",
-    "name": "Kumo",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "KUMO(easy) split (5050 tasks; 50 instances per scenario).",
-    "paper": null,
-    "code": "inspect_harbor/kumo_easy",
-    "contributors": [],
-    "samples": 5050,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
-  },
-  {
-    "id": "kumo_hard",
-    "name": "Kumo",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "KUMO(hard) split (250 tasks; 50 instances per scenario).",
-    "paper": null,
-    "code": "inspect_harbor/kumo_hard",
-    "contributors": [],
-    "samples": 250,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
-  },
-  {
-    "id": "kumo_parity",
-    "name": "Kumo",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "KUMO parity subset (seeds 0/1; 212 tasks).",
-    "paper": null,
-    "code": "inspect_harbor/kumo_parity",
-    "contributors": [],
-    "samples": 212,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
-  },
-  {
-    "id": "lingoly",
-    "name": "LingOly",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Two linguistics reasoning benchmarks: LingOly (Linguistic Olympiad questions) is a benchmark utilising low resource languages.",
-    "paper": "https://arxiv.org/pdf/2406.06196,https://arxiv.org/abs/2503.02972",
-    "code": "inspect_evals/lingoly",
-    "contributors": [
-      "am-bean",
-      "jkhouja"
-    ],
-    "samples": 408,
-    "featured": false
-  },
-  {
-    "id": "mmmu",
-    "name": "MMMU: Multimodal College-Level Understanding and Reasoning",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [
-      "Multimodal"
-    ],
-    "kind": "multimodal",
-    "modalities": [
-      "vision"
-    ],
-    "desc": "Assesses multimodal AI models on challenging college-level questions covering multiple academic subjects, requiring detailed visual interpretation, in-depth reasoning, and both multiple-choice and open-ended answering abilities.",
-    "paper": "https://arxiv.org/abs/2311.16502",
-    "code": "inspect_evals/mmmu",
-    "contributors": [
-      "shaheenahmedc"
-    ],
-    "samples": 847,
-    "featured": false
-  },
-  {
-    "id": "musr",
-    "name": "MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluating models on multistep soft reasoning tasks in the form of free text narratives.",
-    "paper": "https://arxiv.org/abs/2310.16049",
-    "code": "inspect_evals/musr",
-    "contributors": [
-      "farrelmahaztra"
-    ],
-    "samples": 250,
-    "featured": false
-  },
-  {
-    "id": "niah",
-    "name": "Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context LLMs",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "NIAH evaluates in-context retrieval ability of long context LLMs by testing a model's ability to extract factual information from long-context inputs.",
-    "paper": "https://arxiv.org/abs/2407.01437",
-    "code": "inspect_evals/niah",
-    "contributors": [
-      "owenparsons"
-    ],
-    "samples": 225,
-    "featured": false
-  },
-  {
-    "id": "novelty_bench",
-    "name": "NoveltyBench: Evaluating Language Models for Humanlike Diversity",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluates how well language models generate diverse, humanlike responses across multiple reasoning and generation tasks.",
-    "paper": "https://arxiv.org/abs/2504.05228",
-    "code": "inspect_evals/novelty_bench",
-    "contributors": [
-      "iphan"
-    ],
-    "samples": 1100,
-    "featured": false
-  },
-  {
-    "id": "paws",
-    "name": "PAWS: Paraphrase Adversaries from Word Scrambling",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluating models on the task of paraphrase detection by providing pairs of sentences that are either paraphrases or not.",
-    "paper": "https://arxiv.org/abs/1904.01130",
-    "code": "inspect_evals/paws",
-    "contributors": [
-      "meltemkenis"
-    ],
-    "samples": 8000,
-    "featured": false
-  },
-  {
-    "id": "piqa",
-    "name": "PIQA: Physical Commonsense Reasoning Test",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Measures the model's ability to apply practical, everyday commonsense reasoning about physical objects and scenarios through simple decision-making questions.",
-    "paper": "https://arxiv.org/abs/1911.11641",
-    "code": "inspect_evals/piqa",
-    "contributors": [
-      "seddy-aisi"
-    ],
-    "samples": 1838,
-    "featured": false
-  },
-  {
-    "id": "race_h",
-    "name": "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Reading comprehension tasks collected from the English exams for middle and high school Chinese students in the age range between 12 to 18.",
-    "paper": "https://arxiv.org/abs/1704.04683",
-    "code": "inspect_evals/race_h",
-    "contributors": [
-      "mdrpanwar"
-    ],
-    "samples": 3498,
-    "featured": false
-  },
-  {
-    "id": "reasoning_gym_easy_parity",
-    "name": "Reasoning Gym Easy",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Reasoning Gym benchmark (easy difficulty). Original benchmark: https://github.com/open-thought/reasoning-gym",
-    "paper": null,
-    "code": "inspect_harbor/reasoning_gym_easy_parity",
-    "contributors": [],
-    "samples": 288,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/reasoning-gym-easy/reasoning-gym-easy/latest"
-  },
-  {
-    "id": "reasoning_gym_hard_parity",
-    "name": "Reasoning Gym Hard",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Reasoning Gym benchmark (hard difficulty). Original benchmark: https://github.com/open-thought/reasoning-gym",
-    "paper": null,
-    "code": "inspect_harbor/reasoning_gym_hard_parity",
-    "contributors": [],
-    "samples": 288,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/reasoning-gym-hard/reasoning-gym-hard/latest"
-  },
-  {
-    "id": "satbench_1_0",
-    "name": "Satbench",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "SATBench is a benchmark for evaluating the logical reasoning capabilities of LLMs through logical puzzles derived from Boolean satisfiability (SAT) problems.",
-    "paper": null,
-    "code": "inspect_harbor/satbench_1_0",
-    "contributors": [],
-    "samples": 2100,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/satbench/satbench/latest"
-  },
-  {
-    "id": "sldbench_1_0",
-    "name": "Sldbench",
-    "source": "harbor",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "SLDBench: A benchmark for scaling law discovery with symbolic regression tasks.",
-    "paper": null,
-    "code": "inspect_harbor/sldbench_1_0",
-    "contributors": [],
-    "samples": 8,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/sldbench/sldbench/latest"
-  },
-  {
-    "id": "squad",
-    "name": "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.",
-    "paper": "https://arxiv.org/abs/1606.05250",
-    "code": "inspect_evals/squad",
-    "contributors": [
-      "tknasir"
-    ],
-    "samples": 11873,
-    "featured": false
-  },
-  {
-    "id": "vimgolf_challenges",
-    "name": "VimGolf: Evaluating LLMs in Vim Editing Proficiency",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [
-      "Vim",
-      "Editing",
-      "Game"
-    ],
-    "kind": "generation",
-    "modalities": [
-      "sandbox"
-    ],
-    "desc": "A benchmark that evaluates LLMs in their ability to operate Vim editor and complete editing challenges.",
-    "paper": null,
-    "code": "inspect_evals/vimgolf_challenges",
-    "contributors": [
-      "james4ever0"
-    ],
-    "samples": 612,
-    "featured": false
-  },
-  {
-    "id": "winogrande",
-    "name": "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.",
-    "paper": "https://arxiv.org/abs/1907.10641",
-    "code": "inspect_evals/winogrande",
-    "contributors": [
-      "xeon27"
-    ],
-    "samples": 1267,
-    "featured": false
-  },
-  {
-    "id": "worldsense",
-    "name": "WorldSense: Grounded Reasoning Benchmark",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Measures grounded reasoning over synthetic world descriptions while controlling for dataset bias.",
-    "paper": "https://arxiv.org/pdf/2311.15930",
-    "code": "inspect_evals/worldsense",
-    "contributors": [
-      "mjbroerman"
-    ],
-    "samples": 87048,
-    "featured": false
-  },
-  {
-    "id": "infinite_bench",
-    "name": "∞Bench: Extending Long Context Evaluation Beyond 100K Tokens",
-    "source": "evals",
-    "category": "Reasoning",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "LLM benchmark featuring an average data length surpassing 100K tokens.",
-    "paper": "https://arxiv.org/abs/2402.13718",
-    "code": "inspect_evals/infinite_bench",
-    "contributors": [
-      "celiawaggoner"
-    ],
-    "samples": 394,
-    "featured": false
-  },
-  {
-    "id": "agieval",
-    "name": "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.",
-    "paper": "https://arxiv.org/abs/2304.06364",
-    "code": "inspect_evals/agieval",
-    "contributors": [
-      "bouromain"
-    ],
-    "samples": 254,
-    "featured": false
-  },
-  {
     "id": "air_bench",
     "name": "AIR Bench: AI Risk Benchmark",
     "source": "evals",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Law",
+      "Knowledge"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3198,108 +3987,86 @@
     "featured": false
   },
   {
-    "id": "chembench",
-    "name": "ChemBench: Are large language models superhuman chemists?",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "ChemBench is designed to reveal limitations of current frontier models for use in the chemical sciences.",
-    "paper": "https://arxiv.org/pdf/2404.01475v2",
-    "code": "inspect_evals/chembench",
-    "contributors": [
-      "Esther-Guo",
-      "MrtinoRG",
-      "r-fedorov"
-    ],
-    "samples": 2786,
-    "featured": false
-  },
-  {
-    "id": "commonsense_qa",
-    "name": "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluates an AI model's ability to correctly answer everyday questions that rely on basic commonsense knowledge and understanding of the world.",
-    "paper": "https://arxiv.org/abs/1811.00937",
-    "code": "inspect_evals/commonsense_qa",
-    "contributors": [
-      "lauritowal"
-    ],
-    "samples": 1221,
-    "featured": false
-  },
-  {
-    "id": "frontierscience",
-    "name": "FrontierScience: Expert-Level Scientific Reasoning",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluates AI capabilities for expert-level scientific reasoning across physics, chemistry, and biology.",
-    "paper": "https://openai.com/index/frontierscience/",
-    "code": "inspect_evals/frontierscience",
-    "contributors": [
-      "tommyly201",
-      "mnarayan"
-    ],
-    "samples": 160,
-    "featured": false
-  },
-  {
-    "id": "gpqa_diamond_1_0",
-    "name": "Gpqa Diamond",
+    "id": "dabstep_1_0",
+    "name": "Dabstep",
     "source": "harbor",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Finance",
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
       "agent",
       "sandbox"
     ],
-    "desc": "GPQA Diamond subset: 198 graduate-level multiple-choice questions in biology, physics, and chemistry for evaluating scientific reasoning.",
-    "paper": null,
-    "code": "inspect_harbor/gpqa_diamond_1_0",
+    "desc": "DABstep: Data Agent Benchmark for Multi-step Reasoning. 450 tasks where agents analyze payment transaction data with Python/pandas to answer business questions.",
+    "paper": "https://arxiv.org/abs/2506.23719",
+    "code": "inspect_harbor/dabstep_1_0",
     "contributors": [],
-    "samples": 198,
+    "samples": 450,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gpqa-diamond/gpqa-diamond/latest"
+    "url": "https://registry.harborframework.com/datasets/dabstep/dabstep/latest"
   },
   {
-    "id": "gpqa",
-    "name": "GPQA: Graduate-Level STEM Knowledge Challenge",
-    "source": "evals",
-    "category": "Knowledge",
+    "id": "financeagent_public",
+    "name": "Financeagent",
+    "source": "harbor",
+    "categories": [
+      "Professional",
+      "Finance",
+      "Assistants"
+    ],
     "tags": [],
-    "kind": "generation",
+    "kind": "agent",
     "modalities": [
-      "text"
+      "agent",
+      "sandbox"
     ],
-    "desc": "Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches.",
-    "paper": "https://arxiv.org/abs/2311.12022",
-    "code": "inspect_evals/gpqa",
+    "desc": "Finance Agent is a tool for financial research and analysis that leverages large language models and specialized financial tools to answer complex queries about companies, financial statements, and SEC filings.Original benchmark: https://github.com/vals-ai/finance-agent",
+    "paper": "https://arxiv.org/abs/2508.00828",
+    "code": "inspect_harbor/financeagent_public",
+    "contributors": [],
+    "samples": 50,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/financeagent/financeagent/latest"
+  },
+  {
+    "id": "gdpval",
+    "name": "GDPval",
+    "source": "evals",
+    "categories": [
+      "Professional",
+      "Finance",
+      "Assistants"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "GDPval measures model performance on economically valuable, real-world tasks across 44 occupations.",
+    "paper": "https://arxiv.org/abs/2510.04374",
+    "code": "inspect_evals/gdpval",
     "contributors": [
-      "jjallaire"
+      "jeqcho"
     ],
-    "samples": 198,
+    "samples": 220,
     "featured": false
   },
   {
     "id": "healthbench",
     "name": "HealthBench: Evaluating Large Language Models Towards Improved Human Health",
     "source": "evals",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Medicine",
+      "Knowledge"
+    ],
     "tags": [
       "Medical",
       "Healthcare"
@@ -3318,48 +4085,14 @@
     "featured": false
   },
   {
-    "id": "hle",
-    "name": "Humanity's Last Exam",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage.",
-    "paper": "https://arxiv.org/abs/2501.14249",
-    "code": "inspect_evals/hle",
-    "contributors": [
-      "SasankYadati"
-    ],
-    "samples": 3000,
-    "featured": false
-  },
-  {
-    "id": "labbench_1_0",
-    "name": "Labbench",
-    "source": "harbor",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "LAB-Bench FigQA: 181 scientific figure reasoning tasks in biology from Future-House LAB-Bench.",
-    "paper": null,
-    "code": "inspect_harbor/labbench_1_0",
-    "contributors": [],
-    "samples": 181,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/labbench/labbench/latest"
-  },
-  {
     "id": "lawbench_1_0",
     "name": "Lawbench",
     "source": "harbor",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Law",
+      "Knowledge"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -3367,7 +4100,7 @@
       "sandbox"
     ],
     "desc": "LawBench: Benchmarking Legal Knowledge of Large Language Models",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2309.16289",
     "code": "inspect_harbor/lawbench_1_0",
     "contributors": [],
     "samples": 1000,
@@ -3375,29 +4108,37 @@
     "url": "https://registry.harborframework.com/datasets/lawbench/lawbench/latest"
   },
   {
-    "id": "livebench",
-    "name": "LiveBench: A Challenging, Contamination-Free LLM Benchmark",
-    "source": "evals",
-    "category": "Knowledge",
+    "id": "medagentbench_1_0",
+    "name": "Medagentbench",
+    "source": "harbor",
+    "categories": [
+      "Professional",
+      "Medicine",
+      "Assistants"
+    ],
     "tags": [],
-    "kind": "generation",
+    "kind": "agent",
     "modalities": [
-      "text"
+      "agent",
+      "sandbox"
     ],
-    "desc": "LiveBench is a benchmark designed with test set contamination and objective evaluation in mind by releasing new questions regularly, as well as having questions based on recently-released datasets.",
-    "paper": "https://arxiv.org/abs/2406.19314",
-    "code": "inspect_evals/livebench",
-    "contributors": [
-      "anaoaktree"
-    ],
-    "samples": 910,
-    "featured": false
+    "desc": "MedAgentBench: 300 patient-specific clinically-derived tasks across 10 categories in a FHIR-compliant interactive healthcare environment.",
+    "paper": "https://arxiv.org/abs/2501.14654",
+    "code": "inspect_harbor/medagentbench_1_0",
+    "contributors": [],
+    "samples": 300,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/medagentbench/medagentbench/latest"
   },
   {
     "id": "medqa",
     "name": "MedQA: Medical exam Q&A benchmark",
     "source": "evals",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Medicine",
+      "Knowledge"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3414,87 +4155,14 @@
     "featured": false
   },
   {
-    "id": "mmlu_pro",
-    "name": "MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "An advanced benchmark that tests both broad knowledge and reasoning capabilities across many subjects, featuring challenging questions and multiple-choice answers with increased difficulty and complexity.",
-    "paper": "https://arxiv.org/abs/2406.01574",
-    "code": "inspect_evals/mmlu_pro",
-    "contributors": [
-      "xeon27"
-    ],
-    "samples": 12032,
-    "featured": false
-  },
-  {
-    "id": "mmlu",
-    "name": "MMLU: Measuring Massive Multitask Language Understanding",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.",
-    "paper": "https://arxiv.org/abs/2009.03300",
-    "code": "inspect_evals/mmlu",
-    "contributors": [
-      "jjallaire",
-      "domdomegg"
-    ],
-    "samples": 14042,
-    "featured": false
-  },
-  {
-    "id": "mmmlu_parity",
-    "name": "Mmmlu",
-    "source": "harbor",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "MMMLU (Multilingual MMLU) parity validation subset with 10 tasks per language across 15 languages (150 tasks total). Evaluates language models' subject knowledge and reasoning across multiple languages using multiple-choice questions covering 57 academic subjects.",
-    "paper": null,
-    "code": "inspect_harbor/mmmlu_parity",
-    "contributors": [],
-    "samples": 150,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/mmmlu/mmmlu/latest"
-  },
-  {
-    "id": "onet",
-    "name": "O-NET: A high-school student knowledge test",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand.",
-    "paper": null,
-    "code": "inspect_evals/onet",
-    "contributors": [
-      "bact"
-    ],
-    "samples": 397,
-    "featured": false
-  },
-  {
     "id": "pixiu_parity",
     "name": "Pixiu",
     "source": "harbor",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Finance",
+      "Knowledge"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -3502,7 +4170,7 @@
       "sandbox"
     ],
     "desc": "PIXIU: A Large Language Model, Instruction Data and Evaluation Benchmark for Finance. Original benchmark: https://github.com/TheFinAI/PIXIU. Adapter details: https://github.com/laude-institute/harbor/tree/main/adapters/pixiu. Total tasks: 435 across 29 financial NLP datasets.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2306.05443",
     "code": "inspect_harbor/pixiu_parity",
     "contributors": [],
     "samples": 435,
@@ -3513,7 +4181,11 @@
     "id": "pre_flight",
     "name": "Pre-Flight: Aviation Operations Knowledge Evaluation",
     "source": "evals",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Law",
+      "Knowledge"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3529,125 +4201,37 @@
     "featured": false
   },
   {
-    "id": "pubmedqa",
-    "name": "PubMedQA: A Dataset for Biomedical Research Question Answering",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Biomedical question answering (QA) dataset collected from PubMed abstracts.",
-    "paper": "https://arxiv.org/abs/1909.06146",
-    "code": "inspect_evals/pubmedqa",
-    "contributors": [
-      "MattFisher"
-    ],
-    "samples": 500,
-    "featured": false
-  },
-  {
-    "id": "sciknoweval",
-    "name": "SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "The Scientific Knowledge Evaluation benchmark is inspired by the profound principles outlined in the “Doctrine of the Mean” from ancient Chinese philosophy.",
-    "paper": "https://arxiv.org/abs/2406.09098v2",
-    "code": "inspect_evals/sciknoweval",
-    "contributors": [
-      "Esther-Guo"
-    ],
-    "samples": 70196,
-    "featured": false
-  },
-  {
-    "id": "simpleqa_1_0",
-    "name": "Simpleqa",
+    "id": "spreadsheetbench_verified_1_0",
+    "name": "Spreadsheetbench Verified",
     "source": "harbor",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Finance",
+      "Assistants"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
       "agent",
       "sandbox"
     ],
-    "desc": "SimpleQA: 4,326 short, fact-seeking questions from OpenAI for evaluating language model factuality. Uses LLM-as-a-judge grading. Source: https://openai.com/index/introducing-simpleqa/",
-    "paper": null,
-    "code": "inspect_harbor/simpleqa_1_0",
+    "desc": "A benchmark evaluating AI agents on real-world spreadsheet manipulation tasks (400 tasks from verified_400). Tasks involve Excel file manipulation including formula writing, data transformation, formatting, and conditional logic.",
+    "paper": "https://arxiv.org/abs/2406.14991",
+    "code": "inspect_harbor/spreadsheetbench_verified_1_0",
     "contributors": [],
-    "samples": 4326,
+    "samples": 400,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/simpleqa/simpleqa/latest"
-  },
-  {
-    "id": "simpleqa",
-    "name": "SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language models",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A benchmark that evaluates the ability of language models to answer short, fact-seeking questions.",
-    "paper": "https://arxiv.org/abs/2411.04368,https://arxiv.org/abs/2509.07968",
-    "code": "inspect_evals/simpleqa",
-    "contributors": [
-      "osc245",
-      "jeqcho"
-    ],
-    "samples": 4326,
-    "featured": false
-  },
-  {
-    "id": "sosbench",
-    "name": "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology.",
-    "paper": "https://arxiv.org/pdf/2505.21605",
-    "code": "inspect_evals/sosbench",
-    "contributors": [
-      "Esther-Guo"
-    ],
-    "samples": 3000,
-    "featured": false
-  },
-  {
-    "id": "truthfulqa",
-    "name": "TruthfulQA: Measuring How Models Mimic Human Falsehoods",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.",
-    "paper": "https://arxiv.org/abs/2109.07958v2",
-    "code": "inspect_evals/truthfulqa",
-    "contributors": [
-      "seddy-aisi"
-    ],
-    "samples": 817,
-    "featured": false
+    "url": "https://registry.harborframework.com/datasets/spreadsheetbench-verified/spreadsheetbench-verified/latest"
   },
   {
     "id": "uccb",
     "name": "Uganda Cultural and Cognitive Benchmark (UCCB)",
     "source": "evals",
-    "category": "Knowledge",
+    "categories": [
+      "Professional",
+      "Medicine",
+      "Knowledge"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3663,29 +4247,12 @@
     "featured": false
   },
   {
-    "id": "xstest",
-    "name": "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's",
-    "source": "evals",
-    "category": "Knowledge",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.",
-    "paper": "https://arxiv.org/abs/2308.01263",
-    "code": "inspect_evals/xstest",
-    "contributors": [
-      "NelsonG-C"
-    ],
-    "samples": 250,
-    "featured": false
-  },
-  {
     "id": "docvqa",
     "name": "DocVQA: A Dataset for VQA on Document Images",
     "source": "evals",
-    "category": "Multimodal",
+    "categories": [
+      "Multimodal"
+    ],
     "tags": [
       "Multimodal"
     ],
@@ -3706,7 +4273,9 @@
     "id": "mmau_1_0",
     "name": "Mmau",
     "source": "harbor",
-    "category": "Multimodal",
+    "categories": [
+      "Multimodal"
+    ],
     "tags": [],
     "kind": "agent",
     "modalities": [
@@ -3714,7 +4283,7 @@
       "sandbox"
     ],
     "desc": "MMAU: 1000 carefully curated audio clips paired with human-annotated natural language questions and answers spanning speech, environmental sounds, and music.",
-    "paper": null,
+    "paper": "https://arxiv.org/abs/2410.19168",
     "code": "inspect_harbor/mmau_1_0",
     "contributors": [],
     "samples": 1000,
@@ -3725,7 +4294,9 @@
     "id": "mmiu",
     "name": "MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models",
     "source": "evals",
-    "category": "Multimodal",
+    "categories": [
+      "Multimodal"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3744,7 +4315,9 @@
     "id": "vstar_bench",
     "name": "V*Bench: A Visual QA Benchmark with Detailed High-resolution Images",
     "source": "evals",
-    "category": "Multimodal",
+    "categories": [
+      "Multimodal"
+    ],
     "tags": [
       "Multimodal"
     ],
@@ -3765,7 +4338,9 @@
     "id": "vqa_rad",
     "name": "VQA-RAD: Visual Question Answering for Radiology",
     "source": "evals",
-    "category": "Multimodal",
+    "categories": [
+      "Multimodal"
+    ],
     "tags": [
       "Multimodal"
     ],
@@ -3786,7 +4361,9 @@
     "id": "zerobench",
     "name": "ZeroBench",
     "source": "evals",
-    "category": "Multimodal",
+    "categories": [
+      "Multimodal"
+    ],
     "tags": [
       "Multimodal"
     ],
@@ -3807,7 +4384,9 @@
     "id": "agentic_misalignment",
     "name": "Agentic Misalignment: How LLMs could be insider threats",
     "source": "evals",
-    "category": "Scheming",
+    "categories": [
+      "Scheming"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3826,7 +4405,9 @@
     "id": "gdm_self_proliferation",
     "name": "GDM Dangerous Capabilities: Self-proliferation",
     "source": "evals",
-    "category": "Scheming",
+    "categories": [
+      "Scheming"
+    ],
     "tags": [
       "Agent"
     ],
@@ -3850,7 +4431,9 @@
     "id": "gdm_self_reasoning",
     "name": "GDM Dangerous Capabilities: Self-reasoning",
     "source": "evals",
-    "category": "Scheming",
+    "categories": [
+      "Scheming"
+    ],
     "tags": [
       "Agent"
     ],
@@ -3873,7 +4456,9 @@
     "id": "gdm_stealth",
     "name": "GDM Dangerous Capabilities: Stealth",
     "source": "evals",
-    "category": "Scheming",
+    "categories": [
+      "Scheming"
+    ],
     "tags": [
       "Agent"
     ],
@@ -3895,7 +4480,9 @@
     "id": "instrumentaleval",
     "name": "InstrumentalEval - Evaluating the Paperclip Maximizer: Are RL-Based Language Models More Likely to Pursue Instrumental Goals?",
     "source": "evals",
-    "category": "Scheming",
+    "categories": [
+      "Scheming"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3914,7 +4501,9 @@
     "id": "sad",
     "name": "SAD: Situational Awareness Dataset",
     "source": "evals",
-    "category": "Scheming",
+    "categories": [
+      "Scheming"
+    ],
     "tags": [],
     "kind": "generation",
     "modalities": [
@@ -3928,121 +4517,5 @@
     ],
     "samples": 800,
     "featured": false
-  },
-  {
-    "id": "bbq",
-    "name": "BBQ: Bias Benchmark for Question Answering",
-    "source": "evals",
-    "category": "Bias",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A dataset for evaluating bias in question answering models across multiple social dimensions.",
-    "paper": "https://arxiv.org/abs/2110.08193",
-    "code": "inspect_evals/bbq",
-    "contributors": [
-      "harshraj172",
-      "shubhobm"
-    ],
-    "samples": 58492,
-    "featured": false
-  },
-  {
-    "id": "bold",
-    "name": "BOLD: Bias in Open-ended Language Generation Dataset",
-    "source": "evals",
-    "category": "Bias",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A dataset to measure fairness in open-ended text generation, covering five domains: profession, gender, race, religious ideologies, and political ideologies.",
-    "paper": "https://arxiv.org/abs/2101.11718",
-    "code": "inspect_evals/bold",
-    "contributors": [
-      "harshraj172",
-      "shubhobm"
-    ],
-    "samples": 7200,
-    "featured": false
-  },
-  {
-    "id": "personality",
-    "name": "Personality",
-    "source": "evals",
-    "category": "Personality",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "An evaluation suite consisting of multiple personality tests that can be applied to LLMs.",
-    "paper": null,
-    "code": "inspect_evals/personality",
-    "contributors": [
-      "guiem"
-    ],
-    "samples": 44,
-    "featured": false
-  },
-  {
-    "id": "writingbench",
-    "name": "WritingBench: A Comprehensive Benchmark for Generative Writing",
-    "source": "evals",
-    "category": "Writing",
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A comprehensive evaluation benchmark designed to assess large language models' capabilities across diverse writing tasks.",
-    "paper": "https://arxiv.org/pdf/2503.05244",
-    "code": "inspect_evals/writingbench",
-    "contributors": [
-      "jtv199"
-    ],
-    "samples": 1000,
-    "featured": false
-  },
-  {
-    "id": "hello_world_1_0",
-    "name": "Hello World",
-    "source": "harbor",
-    "category": "Other",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "A simple example task to create a hello.txt file with 'Hello, world!' as content.",
-    "paper": null,
-    "code": "inspect_harbor/hello_world_1_0",
-    "contributors": [],
-    "samples": 1,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/hello-world/hello-world/latest"
-  },
-  {
-    "id": "seta_env_1_0",
-    "name": "Seta Env",
-    "source": "harbor",
-    "category": "Other",
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "CAMEL SETA Environment for RL training",
-    "paper": null,
-    "code": "inspect_harbor/seta_env_1_0",
-    "contributors": [],
-    "samples": 1376,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/seta-env/seta-env/latest"
   }
 ]

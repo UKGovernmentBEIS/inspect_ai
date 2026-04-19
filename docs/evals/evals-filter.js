@@ -101,11 +101,11 @@ export function filterEvals(evals, options = {}) {
     list = list.filter(e =>
       e.name.toLowerCase().includes(lq) ||
       e.desc.toLowerCase().includes(lq) ||
-      e.category.toLowerCase().includes(lq) ||
+      (e.categories || []).some(c => c.toLowerCase().includes(lq)) ||
       e.tags.some(t => t.toLowerCase().includes(lq))
     );
   } else {
-    if (category !== 'All') list = list.filter(e => e.category === category);
+    if (category !== 'All') list = list.filter(e => (e.categories || []).includes(category));
     if (source   !== 'All') list = list.filter(e => e.source   === source);
   }
 
@@ -140,7 +140,9 @@ export function getCategoryCounts(evals, sourceFilter = 'All') {
   const base = sourceFilter === 'All' ? evals : evals.filter(e => e.source === sourceFilter);
   const counts = { All: base.length };
   for (const e of base) {
-    counts[e.category] = (counts[e.category] || 0) + 1;
+    for (const cat of (e.categories || [])) {
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
   }
   return counts;
 }
@@ -172,7 +174,7 @@ export function getSourceCounts(evals) {
  */
 export function getRelated(evals, current, limit = 4) {
   return evals
-    .filter(e => e.category === current.category && e.id !== current.id)
+    .filter(e => e.id !== current.id && (e.categories || []).some(c => (current.categories || []).includes(c)))
     .slice(0, limit);
 }
 

@@ -6,8 +6,8 @@ fields the registry lacks, and returns records matching the design schema.
 
 Writes are handled by sync_all.py.
 
-`category` is REQUIRED per entry in harbor_overrides.yml; entries missing a
-category are reported back to the caller via a HarborCategoryError list.
+`categories` (array) is REQUIRED per entry in harbor_overrides.yml; entries
+missing categories are reported back to the caller.
 """
 
 from __future__ import annotations
@@ -134,22 +134,23 @@ def load_harbor(
         seen_names.add(name)
 
         ov = overlay.get(name, {})
-        category = ov.get("category")
-        if not category and is_latest:
+        categories = ov.get("categories") or []
+        if not categories and is_latest:
             missing_category.append(name)
 
         tasks = entry.get("tasks", []) or []
+        paper = ov.get("arxiv") or ov.get("repo")
 
         records.append({
             "id": function_name,
             "name": ov.get("title") or _derive_title(name),
             "source": "harbor",
-            "category": category or "Other",
+            "categories": categories or ["Other"],
             "tags": list(ov.get("tags") or []),
             "kind": ov.get("kind", "agent"),
             "modalities": list(ov.get("modalities") or ["agent", "sandbox"]),
             "desc": entry.get("description", ""),
-            "paper": ov.get("arxiv"),
+            "paper": paper,
             "code": f"inspect_harbor/{function_name}",
             "contributors": list(ov.get("contributors") or []),
             "samples": len(tasks),

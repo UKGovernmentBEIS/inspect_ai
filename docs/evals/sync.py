@@ -2,8 +2,8 @@
 
 Reads `{inspect_evals}/src/inspect_evals/*/eval.yaml` and emits records matching
 the design schema consumed by the /docs/evals SPA. Categories come from the
-upstream `group` field (Coding, Assistants, …), already in the expected
-vocabulary. Writes are handled by sync_all.py — this module only loads.
+upstream `group` field plus optional additions from `evals_overrides.yml`.
+Writes are handled by sync_all.py — this module only loads.
 """
 
 from __future__ import annotations
@@ -13,10 +13,14 @@ from typing import Any
 
 import yaml
 
+HERE = Path(__file__).parent
+OVERLAY_FILE = HERE / "evals_overrides.yml"
+
 CATEGORY_VOCAB = {
     "Coding", "Assistants", "Cybersecurity", "Safeguards", "Mathematics",
-    "Reasoning", "Knowledge", "Multimodal", "Scheming", "Bias", "Behavior",
-    "Personality", "Writing", "Other",
+    "Reasoning", "Knowledge", "Science", "Biology", "Chemistry", "Physics",
+    "Professional", "Finance", "Medicine", "Law", "Multimodal", "Scheming",
+    "Behavior",
 }
 
 
@@ -66,21 +70,44 @@ def _derive_samples(tasks: list[dict[str, Any]]) -> int | None:
     return None
 
 
-def _to_record(yaml_path: Path, inspect_evals_path: Path) -> dict[str, Any]:
+def _load_overlay() -> dict[str, dict[str, Any]]:
+    if not OVERLAY_FILE.exists():
+        return {}
+    data = yaml.safe_load(OVERLAY_FILE.read_text()) or {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _to_record(
+    yaml_path: Path,
+    inspect_evals_path: Path,
+    overlay: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     data = yaml.safe_load(yaml_path.read_text())
     slug = yaml_path.parent.name
     tags = data.get("tags") or []
     metadata = data.get("metadata") or {}
+    ov = overlay.get(slug, {})
+
+    group = data.get("group", "Other")
+    if "categories" in ov:
+        categories = list(ov["categories"])
+    else:
+        categories = [group]
+
+    paper = ov.get("arxiv") or ov.get("paper") or data.get("arxiv")
+
     return {
         "id": slug,
         "name": data.get("title", slug),
         "source": "evals",
-        "category": data.get("group", "Other"),
+        "categories": categories,
         "tags": list(tags),
         "kind": _derive_kind(tags),
         "modalities": _derive_modalities(tags, metadata),
         "desc": _first_sentence((data.get("description") or "").strip()),
-        "paper": data.get("arxiv"),
+        "paper": paper,
         "code": f"inspect_evals/{slug}",
         "contributors": list(data.get("contributors") or []),
         "samples": _derive_samples(data.get("tasks") or []),
@@ -89,7 +116,8 @@ def _to_record(yaml_path: Path, inspect_evals_path: Path) -> dict[str, Any]:
 
 
 def load_evals(inspect_evals_path: Path) -> list[dict[str, Any]]:
+    overlay = _load_overlay()
     records: list[dict[str, Any]] = []
     for yaml_path in sorted((inspect_evals_path / "src" / "inspect_evals").glob("*/eval.yaml")):
-        records.append(_to_record(yaml_path, inspect_evals_path))
+        records.append(_to_record(yaml_path, inspect_evals_path, overlay))
     return records

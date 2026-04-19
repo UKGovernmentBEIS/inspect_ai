@@ -1,6 +1,6 @@
 """Merge inspect_evals and inspect_harbor into a single evals.json.
 
-The /docs/evals SPA consumes this file directly. Schema matches DESIGN_SPEC.md.
+The /docs/evals SPA consumes this file directly.
 
 Usage:
     python docs/evals/sync_all.py [--inspect-evals PATH] [--no-fetch]
@@ -19,17 +19,20 @@ from sync_harbor import load_harbor
 HERE = Path(__file__).parent
 OUTPUT_FILE = HERE / "evals.json"
 
+CATEGORY_ORDER = [
+    "Coding", "Assistants", "Reasoning", "Knowledge",
+    "Cybersecurity", "Safeguards",
+    "Science", "Mathematics", "Biology", "Chemistry", "Physics",
+    "Professional", "Finance", "Medicine", "Law",
+    "Behavior", "Multimodal", "Scheming",
+]
+
 
 def _category_index(cat: str) -> int:
-    order = [
-        "Coding", "Assistants", "Cybersecurity", "Safeguards", "Mathematics",
-        "Reasoning", "Knowledge", "Multimodal", "Scheming", "Bias", "Behavior",
-        "Personality", "Writing", "Other",
-    ]
     try:
-        return order.index(cat)
+        return CATEGORY_ORDER.index(cat)
     except ValueError:
-        return len(order)
+        return len(CATEGORY_ORDER)
 
 
 def main() -> None:
@@ -55,32 +58,34 @@ def main() -> None:
     if missing_category:
         print(
             f"\nerror: {len(missing_category)} harbor dataset(s) missing required "
-            f"'category' in harbor_overrides.yml:",
+            f"'categories' in harbor_overrides.yml:",
             file=sys.stderr,
         )
         for name in missing_category:
             print(f"  - {name}", file=sys.stderr)
         print(
-            "\nAdd a `category:` entry for each in docs/evals/harbor_overrides.yml "
-            "(one of: Coding, Assistants, Cybersecurity, Safeguards, Mathematics, "
-            "Reasoning, Knowledge, Multimodal, Scheming, Bias, Behavior, Writing, Other).",
+            "\nAdd a `categories: [...]` entry for each in docs/evals/harbor_overrides.yml.",
             file=sys.stderr,
         )
         sys.exit(1)
 
     all_records = evals_records + harbor_records
 
-    unknown = [r for r in all_records if r["category"] not in CATEGORY_VOCAB]
-    if unknown:
+    unknown_cats: list[str] = []
+    for r in all_records:
+        for cat in r["categories"]:
+            if cat not in CATEGORY_VOCAB:
+                unknown_cats.append(f"{r['source']}/{r['id']}: {cat!r}")
+    if unknown_cats:
         print(
-            f"\nerror: {len(unknown)} eval(s) have categories outside the vocabulary:",
+            f"\nerror: {len(unknown_cats)} eval(s) have categories outside the vocabulary:",
             file=sys.stderr,
         )
-        for r in unknown:
-            print(f"  - {r['source']}/{r['id']}: category={r['category']!r}", file=sys.stderr)
+        for msg in unknown_cats:
+            print(f"  - {msg}", file=sys.stderr)
         sys.exit(1)
 
-    all_records.sort(key=lambda r: (_category_index(r["category"]), r["name"].lower()))
+    all_records.sort(key=lambda r: (_category_index(r["categories"][0]), r["name"].lower()))
 
     OUTPUT_FILE.write_text(json.dumps(all_records, indent=2, ensure_ascii=False) + "\n")
 
