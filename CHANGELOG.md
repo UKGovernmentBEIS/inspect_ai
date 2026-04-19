@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.208 (19 April 2026)
 
 - Google: Correct counting for cached input tokens. 
 - Model API: Log model retries at WARNING when backoff >= 60s.
