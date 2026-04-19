@@ -1,0 +1,19 @@
+# Per-dataset overrides for harbor evals synced by sync_harbor.py.
+#
+# Keyed by dataset `name` (unversioned). All fields optional:
+#   arxiv: https://arxiv.org/abs/XXXX.XXXXX
+#   repo:  https://github.com/owner/repo         # canonical upstream repo
+#   group: Coding | Mathematics | Reasoning | ... # defaults to "Harbor"
+#   tags:  [foo, bar]
+#   title: "Nice Display Title"                  # overrides auto-derived title
+#
+# Missing entries are fine — the sync emits sensible defaults.
+#
+# Example:
+#   aime:
+#     group: Mathematics
+#     arxiv: https://arxiv.org/abs/XXXX.XXXXX
+#     repo: https://github.com/owner/repo
+#     tags: [math, reasoning]
+
+{}
