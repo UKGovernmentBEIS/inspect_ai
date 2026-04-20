@@ -646,7 +646,7 @@ class SampleBufferDatabase(SampleBuffer):
             # message pool
             msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
             prev_msg_len = len(msg_pool)
-            [condensed_event], msg_pool = condense_model_event_inputs(
+            [condensed_event], msg_pool, msg_index = condense_model_event_inputs(
                 [event.event], msg_pool, msg_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
@@ -661,7 +661,7 @@ class SampleBufferDatabase(SampleBuffer):
             # call pool
             call_pool, call_index = self._call_pools.get(key, ([], {}))
             prev_call_len = len(call_pool)
-            [condensed_event], call_pool = condense_model_event_calls(
+            [condensed_event], call_pool, call_index = condense_model_event_calls(
                 [event.event], call_pool, call_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)

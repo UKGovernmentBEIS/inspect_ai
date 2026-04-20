@@ -54,7 +54,7 @@ def condense_model_event_inputs(
     events: Sequence[Event],
     message_pool: Sequence[ChatMessage],
     msg_index: Mapping[str, int],
-) -> tuple[list[Event], list[ChatMessage]]:
+) -> tuple[list[Event], list[ChatMessage], dict[str, int]]:
     """Replace ModelEvent.input with message_pool references.
 
     Collects all messages from ModelEvent inputs into a message pool
@@ -63,7 +63,7 @@ def condense_model_event_inputs(
     See module docstring for the hash-based dedup strategy.
 
     Returns:
-        A tuple of (condensed events, message pool).
+        A tuple of (condensed events, message pool, updated index).
     """
     pool = list(message_pool)
     index = dict(msg_index)
@@ -90,7 +90,7 @@ def condense_model_event_inputs(
                     update={"input": [], "input_refs": _compress_refs(raw_indices)}
                 )
         result.append(event)
-    return result, pool
+    return result, pool, index
 
 
 # Known keys for messages array in provider wire formats
@@ -146,11 +146,11 @@ def condense_model_event_calls(
     events: Sequence[Event],
     call_pool: Sequence[JsonValue],
     call_index: Mapping[str, int],
-) -> tuple[list[Event], list[JsonValue]]:
+) -> tuple[list[Event], list[JsonValue], dict[str, int]]:
     """Replace call.request messages with call_pool references.
 
     Returns:
-        A tuple of (condensed events, call pool).
+        A tuple of (condensed events, call pool, updated index).
     """
     pool = list(call_pool)
     index = dict(call_index)
@@ -185,7 +185,7 @@ def condense_model_event_calls(
                 )
                 event = event.model_copy(update={"call": new_call})
         result.append(event)
-    return result, pool
+    return result, pool, index
 
 
 def resolve_model_event_calls(

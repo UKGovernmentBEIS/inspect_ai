@@ -88,8 +88,10 @@ def condense_events(
     Returns:
         Tuple of (condensed events, events data containing message and call pools).
     """
-    condensed_events, message_pool = condense_model_event_inputs(events, [], {})
-    condensed_events, call_pool = condense_model_event_calls(condensed_events, [], {})
+    condensed_events, message_pool, _ = condense_model_event_inputs(events, [], {})
+    condensed_events, call_pool, _ = condense_model_event_calls(
+        condensed_events, [], {}
+    )
     return condensed_events, EventsData(messages=message_pool, calls=call_pool)
 
 
@@ -152,12 +154,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     existing_calls = existing["calls"] if existing else []
 
     msg_index = _build_msg_index(existing_msgs)
-    condensed_events, message_pool = condense_model_event_inputs(
+    condensed_events, message_pool, _ = condense_model_event_inputs(
         condensed_events, existing_msgs, msg_index
     )
 
     call_index = _build_call_index(existing_calls)
-    condensed_events, call_pool = condense_model_event_calls(
+    condensed_events, call_pool, _ = condense_model_event_calls(
         condensed_events, existing_calls, call_index
     )
     events_data = EventsData(messages=message_pool, calls=call_pool)
