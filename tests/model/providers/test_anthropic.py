@@ -137,6 +137,40 @@ def test_anthropic_should_retry():
     ex = APIStatusError("error", response=response, body={"error": "error"})
     model.api.should_retry(ex)
 
+    # truncated request body (TCP interruption) should be retried
+    truncation_response = httpx.Response(
+        status_code=400, request=httpx.Request("POST", "https://example.com")
+    )
+    ex = APIStatusError(
+        "error",
+        response=truncation_response,
+        body={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "The request body is not valid JSON: unexpected end of data: line 1 column 18030593 (char 18030592)",
+            },
+        },
+    )
+    assert model.api.should_retry(ex)
+
+    # genuine 400 errors should NOT be retried
+    genuine_400_response = httpx.Response(
+        status_code=400, request=httpx.Request("POST", "https://example.com")
+    )
+    ex = APIStatusError(
+        "error",
+        response=genuine_400_response,
+        body={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "max_tokens: must be at least 1",
+            },
+        },
+    )
+    assert not model.api.should_retry(ex)
+
 
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_call() -> None:

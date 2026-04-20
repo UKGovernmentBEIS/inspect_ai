@@ -989,6 +989,10 @@ class AnthropicAPI(ModelAPI):
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
                     return True
+                # TCP interruptions can truncate large request bodies in transit,
+                # causing a 400 even though json.dumps() produced valid JSON.
+                if ex.status_code == 400 and "not valid json" in body_str:
+                    return True
 
             # standard http status code checking
             return is_retryable_http_status(ex.status_code)
