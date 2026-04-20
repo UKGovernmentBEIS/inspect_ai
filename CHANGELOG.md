@@ -3,6 +3,7 @@
 - Capture compaction strategy params in eval log.
 - Inspect View: Display results of Scout scanners used as scorers next to transcripts.
 - Inspect View: New columns in task and log view: tags, % completed, sample errors, and error.
+- Inspect View: Fix regression in messages view which causes excessive whitespace between messages.
 - Inspect View: Fix error when attempting to collapse all or expand all events in transcripts.
 - Inspect View: Improvements to expand / collapse behavior in transcripts.
 - Inspect View: Don't show empty entries in messages view when a message is retried.
