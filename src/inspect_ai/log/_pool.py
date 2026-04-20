@@ -2,10 +2,9 @@
 
 Design note — hash-based dedup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Pool dedup keys on a murmur3 hash of the full sorted-keys JSON serialisation
-of each ChatMessage.  This is correct-by-construction: identical content
-always produces the same hash, and mutated content (even with a stale
-``msg.id``) produces a different hash.
+Pool dedup keys on a murmur3 hash of the sorted-keys JSON serialisation
+of each ChatMessage, excluding the ``id`` field so that messages with
+identical content but different UUIDs are treated as duplicates.
 
 The theoretical cost is O(N²) serialisations per sample (each of the N
 model events carries the full conversation history of ~N messages).
@@ -35,8 +34,7 @@ def _msg_hash(msg: ChatMessage) -> str:
     Excludes the ``id`` field so that messages with identical content
     but different UUIDs are treated as duplicates.
     """
-    data = json.loads(msg.model_dump_json())
-    data.pop("id", None)
+    data = json.loads(msg.model_dump_json(exclude={"id"}))
     return mm3_hash(json.dumps(data, sort_keys=True))
 
 
