@@ -1,3 +1,7 @@
+## Unreleased
+
+- Capture compaction strategy params in eval log.
+
 ## 0.3.208 (19 April 2026)
 
 - Google: Correct counting for cached input tokens. 
