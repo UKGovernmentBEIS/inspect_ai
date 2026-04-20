@@ -105,6 +105,26 @@ def test_react_compaction_edit_reduces_input() -> None:
     assert max_count < 15, f"Expected compaction to limit messages, got {max_count}"
 
 
+def test_react_compaction_params_logged() -> None:
+    """Verify compaction parameters are fully serialized in eval log."""
+    log = run_react_with_compaction(
+        compaction=CompactionEdit(threshold=500, keep_tool_uses=1, memory=False),
+    )
+
+    assert log.status == "success"
+
+    # Check plan step params contains compaction as a dict with full params
+    compaction_params = log.plan.steps[0].params["compaction"]
+    assert isinstance(compaction_params, dict)
+    assert compaction_params["type"] == "edit"
+    assert compaction_params["threshold"] == 500
+    assert compaction_params["keep_tool_uses"] == 1
+    assert compaction_params["memory"] is False
+    assert compaction_params["keep_thinking_turns"] == 1
+    assert compaction_params["keep_tool_inputs"] is True
+    assert compaction_params["exclude_tools"] is None
+
+
 def test_react_compaction_trim_reduces_input() -> None:
     """Verify CompactionTrim trims older messages when threshold exceeded."""
     log = run_react_with_compaction(
