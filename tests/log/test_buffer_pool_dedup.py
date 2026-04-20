@@ -265,3 +265,52 @@ def test_buffer_pool_cleanup_on_remove(db: SampleBufferDatabase) -> None:
     assert data_after is None or (
         len(data_after.message_pool) == 0 and len(data_after.call_pool) == 0
     )
+
+
+def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
+    """input_refs resolve to the correct messages across multiple turns."""
+    sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    db.start_sample(sample)
+
+    msg_a = ChatMessageUser(content="Hello")
+    msg_b = ChatMessageAssistant(content="Hi there")
+    msg_c = ChatMessageUser(content="How are you?")
+
+    # Turn 1: [A]
+    db.log_events([SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_a]))])
+    # Turn 2: [A, B]
+    db.log_events(
+        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_a, msg_b]))]
+    )
+    # Turn 3: [A, B, C]
+    db.log_events(
+        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_a, msg_b, msg_c]))]
+    )
+
+    data = db.get_sample_data("s1", 1)
+    assert data is not None
+
+    # Deserialize the pool into a list of ChatMessage objects
+    pool = [json.loads(entry.data) for entry in data.message_pool]
+
+    # Resolve each event's input_refs and verify correct messages
+    expected_contents = [
+        ["Hello"],
+        ["Hello", "Hi there"],
+        ["Hello", "Hi there", "How are you?"],
+    ]
+    for i, ev in enumerate(data.events):
+        event_dict = ev.event
+        assert isinstance(event_dict, dict)
+        input_refs = event_dict.get("input_refs")
+        assert input_refs is not None, f"Event {i} missing input_refs"
+
+        # Expand refs against pool
+        resolved = []
+        for start, end_exclusive in input_refs:
+            resolved.extend(pool[start:end_exclusive])
+
+        actual_contents = [msg["content"] for msg in resolved]
+        assert actual_contents == expected_contents[i], (
+            f"Event {i}: expected {expected_contents[i]}, got {actual_contents}"
+        )
