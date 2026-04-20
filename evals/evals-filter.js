@@ -121,7 +121,14 @@ export function filterEvals(evals, options = {}) {
  */
 export function sortEvals(evals, sort = SORT.ALPHA) {
   const list = [...evals];
-  if (sort === SORT.ALPHA)    list.sort((a, b) => a.name.localeCompare(b.name));
+  if (sort === SORT.ALPHA) {
+    list.sort((a, b) => {
+      const amc = (a.model_cards || []).length;
+      const bmc = (b.model_cards || []).length;
+      if (bmc !== amc) return bmc - amc;
+      return a.name.localeCompare(b.name);
+    });
+  }
   if (sort === SORT.SAMPLES)  list.sort((a, b) => (b.samples || 0) - (a.samples || 0));
   if (sort === SORT.FEATURED) list.sort((a, b) => ((b.featured ? 1 : 0) - (a.featured ? 1 : 0)) || a.name.localeCompare(b.name));
   return list;
