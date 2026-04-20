@@ -303,12 +303,14 @@ def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
         event_dict = ev.event
         assert isinstance(event_dict, dict)
         input_refs = event_dict.get("input_refs")
-        assert input_refs is not None, f"Event {i} missing input_refs"
+        assert isinstance(input_refs, list), f"Event {i} missing input_refs"
 
         # Expand refs against pool
         resolved = []
-        for start, end_exclusive in input_refs:
-            resolved.extend(pool[start:end_exclusive])
+        for ref in input_refs:
+            assert isinstance(ref, list) and len(ref) == 2
+            assert isinstance(ref[0], int) and isinstance(ref[1], int)
+            resolved.extend(pool[ref[0] : ref[1]])
 
         actual_contents = [msg["content"] for msg in resolved]
         assert actual_contents == expected_contents[i], (
