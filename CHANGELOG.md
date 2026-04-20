@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.209 (20 April 2026)
 
 - Capture compaction strategy params in eval log.
 - Inspect View: Display results of Scout scanners used as scorers next to transcripts.
