@@ -98,9 +98,13 @@ def _to_record(
 
     paper = ov.get("arxiv") or ov.get("paper") or data.get("arxiv")
 
+    title = data.get("title", slug)
+    if ": " in title:
+        title = title.split(": ", 1)[0]
+
     return {
         "id": slug,
-        "name": data.get("title", slug),
+        "name": title,
         "source": "evals",
         "categories": categories,
         "tags": list(tags),
