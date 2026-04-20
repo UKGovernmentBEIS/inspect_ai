@@ -1,3 +1,7 @@
+## Unreleased
+
+- Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
+
 ## 0.3.208 (19 April 2026)
 
 - Google: Correct counting for cached input tokens. 
