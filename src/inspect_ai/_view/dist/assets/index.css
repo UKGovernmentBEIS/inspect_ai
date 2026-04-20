@@ -14330,8 +14330,6 @@ pre[class*="language-"] {
   /* Inspect Glass */
   --inspect-glass-color: #000000;
   --inspect-glass-opacity: 0.3;
-
-  --inspect-event-panel-sticky-top: 30px;
 }
 
 body:not([class^="vscode-"]) button {
@@ -14344,15 +14342,15 @@ body:not([class^="vscode-"]) button {
 body {
   --ag-background-color: var(--bs-body-bg);
   --ag-foreground-color: var(--bs-body-color);
-  --ag-header-background-color: var(--bs-light-bg);
+  --ag-header-background-color: var(--bs-light-bg-subtle);
   --ag-header-font-size: var(--inspect-font-size-small);
   --ag-header-font-weight: 500;
   --ag-header-text-color: var(--bs-secondary);
-
   --ag-font-family: var(--bs-body-font-family);
   --ag-wrapper-border: none;
   --ag-row-hover-color: var(--bs-secondary-bg-subtle);
   --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
+  --ag-border-radius: var(--bs-border-radius);
 }
 
 #app {
@@ -14377,15 +14375,6 @@ a:hover {
 
 .modal {
   --bs-modal-margin: 0.25rem;
-}
-
-li > p {
-  margin-bottom: 0;
-}
-
-li > ol,
-li > ul {
-  margin-bottom: 0.5rem;
 }
 
 .modal-backdrop {
@@ -14469,11 +14458,12 @@ body[class^="vscode-"] {
   --bs-border-radius-lg: 0;
   --bs-body-bg: var(--vscode-editor-background);
   --bs-secondary-bg-subtle: var(--vscode-editorHoverWidget-background);
+  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
+  --bs-primary-text-emphasis: var(--vscode-editorLink-activeForeground);
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
   --bs-light-bg-subtle: var(--vscode-sideBar-background);
-  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
-  --bs-light-border-subtle: var(--vscode-editorHoverWidget-border);
+  --bs-light-border-subtle: var(--vscode-sideBarSectionHeader-border);
   --bs-body-color: var(--vscode-editor-foreground);
   --bs-table-color: var(--vscode-editor-foreground);
   --bs-accordion-btn-color: var(--vscode-editor-foreground);
@@ -14484,11 +14474,13 @@ body[class^="vscode-"] {
   --bs-light: var(--vscode-sideBar-background);
   --bs-btn-bg: var(--vscode-peekViewTitle-background);
   --bs-primary: var(--vscode-banner-iconForeground);
+  --bs-primary-bg-subtle: var(--vscode-editor-selectionHighlightBackground);
   --bs-nav-pills-link-active-bg: var(--vscode-banner-iconForeground);
   --bs-link-color: var(--vscode-textLink-foreground);
   --bs-link-hover-color: var(--vscode-textLink-activeForeground);
   --bs-secondary: var(--vscode-breadcrumb-foreground);
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
+  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
   --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
@@ -14503,7 +14495,6 @@ body[class^="vscode-"] {
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
   --inspect-glass-color: var(--vscode-editor-foreground);
   --inspect-glass-opacity: 0.15;
-  --inspect-event-panel-sticky-top: 25px;
 }
 
 html.vscode {
@@ -14583,6 +14574,7 @@ body[class^="vscode-"] .accordion-button::after {
 }
 
 .copy-button i.bi,
+.download-scan-button i.bi,
 body[class^="vscode-"] .navbar-text i.bi {
   color: var(--vscode-editor-foreground);
 }
@@ -15069,25 +15061,6 @@ table.table.table-sm td {
   font-size: 0.8em;
 }
 
-.tab-tools > * {
-  flex: 0 1 auto;
-  height: 1.5rem;
-  margin-left: 0.5rem;
-}
-
-.tab-tools > input {
-  font-size: 0.7rem;
-}
-
-.tab-tools .btn {
-  font-size: 0.7rem;
-  padding: 0.2em 0.8em;
-}
-
-.tab-tools {
-  font-size: 0.7rem;
-}
-
 .do-not-collapse-self {
   display: block;
   height: auto !important;
@@ -15173,12 +15146,14 @@ table.table.table-sm td {
   overflow: unset;
 }
 
+pre[class*="language-"],
 .markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
 }
 
+.vscode-dark pre[class*="language-"],
 .vscode-dark .model-call pre[class*="language-"],
 .vscode-dark .markdown-content pre[class*="language-"],
 .vscode-dark pre[class*="language-"].tool-output,
@@ -15419,33 +15394,6 @@ pre[class*="language-"] {
   .vscode-dark pre[class*="language-"] {
     text-shadow: none;
   }
-
-  html {
-    font-size: 9pt;
-  }
-
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  body {
-    orphans: 3;
-    widows: 3;
-  }
-
-  #app,
-  .app-main-grid {
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  pre,
-  code {
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-    break-inside: auto;
-  }
 }
 .vscode-dark :not(pre) > code[class*="language-"],
 .vscode-dark pre[class*="language-"] {
@@ -15526,9 +15474,243 @@ pre[class*="language-"] {
 }
 /* END PrismJS */
 
+/* Note: SVG-icon mask rules (.ii::before, .inspect-icon-* etc.) are kept in
+   each app's local App.css because the `mask: url("../img/…")` references
+   are resolved relative to the CSS file, and the SVG assets live inside
+   each app's `src/img/` directory. Sharing those rules from this package
+   would require co-locating the assets here, which is out of scope. */
+
+/* Use this very carefully, find relies upon checking the
+document selection to determine if it should skip a find match
+so disabling selection can break that functionality */
+.hideSelection {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+/* VS Code Light Modern theme defaults (for non-VS Code context) */
+/* Complete set of variables used by @vscode-elements/elements */
+/* These are overridden by actual VS Code theme variables when running in VS Code */
+
+:root {
+  /* Core colors */
+  --vscode-foreground: #3b3b3b;
+  --vscode-descriptionForeground: #717171;
+  --vscode-errorForeground: #f14c4c;
+  --vscode-icon-foreground: #424242;
+  --vscode-focusBorder: #0090f1;
+  --vscode-contrastBorder: transparent;
+
+  /* Font settings */
+  --vscode-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-font-weight: normal;
+  --vscode-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+  --vscode-editor-font-size: 12px;
+  --vscode-editor-font-weight: normal;
+
+  /* Editor colors */
+  --vscode-editor-background: #ffffff;
+  --vscode-editor-foreground: #3b3b3b;
+  --vscode-editor-inlineValuesForeground: rgba(0, 0, 0, 0.5);
+  --vscode-editorGroup-border: #e7e7e7;
+  --vscode-editorWidget-border: #d4d4d4;
+
+  /* Input colors */
+  --vscode-input-background: #ffffff;
+  --vscode-input-foreground: #3b3b3b;
+  --vscode-input-border: #cecece;
+  --vscode-input-placeholderForeground: #767676;
+  --vscode-inputOption-activeBackground: rgba(0, 144, 241, 0.2);
+  --vscode-inputOption-activeBorder: #0090f1;
+  --vscode-inputOption-activeForeground: #000000;
+
+  /* Input validation */
+  --vscode-inputValidation-warningBackground: #f2dede;
+  --vscode-inputValidation-warningBorder: #be8800;
+  --vscode-inputValidation-errorBackground: #f2dede;
+  --vscode-inputValidation-errorBorder: #be1100;
+
+  /* Settings controls (used by vscode-elements textfield, checkbox, dropdown) */
+  --vscode-settings-textInputBackground: #ffffff;
+  --vscode-settings-textInputForeground: #3b3b3b;
+  --vscode-settings-textInputBorder: #cecece;
+  --vscode-settings-checkboxBackground: #ffffff;
+  --vscode-settings-checkboxForeground: #3b3b3b;
+  --vscode-settings-checkboxBorder: #919191;
+  --vscode-settings-dropdownBackground: #ffffff;
+  --vscode-settings-dropdownForeground: #3b3b3b;
+  --vscode-settings-dropdownBorder: #cecece;
+  --vscode-settings-dropdownListBorder: #c8c8c8;
+  --vscode-settings-headerBorder: rgba(128, 128, 128, 0.35);
+
+  /* Checkbox colors */
+  --vscode-checkbox-background: #ffffff;
+  --vscode-checkbox-foreground: #3b3b3b;
+  --vscode-checkbox-border: #919191;
+
+  /* Button colors */
+  --vscode-button-background: #007acc;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #0062a3;
+  --vscode-button-border: transparent;
+  --vscode-button-separator: rgba(255, 255, 255, 0.4);
+  --vscode-button-secondaryBackground: #5f6a79;
+  --vscode-button-secondaryForeground: #ffffff;
+  --vscode-button-secondaryHoverBackground: #4c5561;
+
+  /* Widget/shadow colors */
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.16);
+  --vscode-widget-border: #d4d4d4;
+
+  /* Toolbar */
+  --vscode-toolbar-hoverBackground: rgba(184, 184, 184, 0.31);
+  --vscode-toolbar-activeBackground: rgba(166, 166, 166, 0.31);
+  --vscode-toolbar-hoverOutline: transparent;
+
+  /* List colors (used by select/dropdown components) */
+  --vscode-list-hoverBackground: #e8e8e8;
+  --vscode-list-hoverForeground: #3b3b3b;
+  --vscode-list-activeSelectionBackground: #0060c0;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-activeSelectionIconForeground: #ffffff;
+  --vscode-list-inactiveSelectionBackground: #e4e6f1;
+  --vscode-list-focusOutline: #0090f1;
+  --vscode-list-focusAndSelectionOutline: #0090f1;
+  --vscode-list-focusHighlightForeground: #0066bf;
+  --vscode-list-highlightForeground: #0066bf;
+
+  /* Menu colors */
+  --vscode-menu-background: #ffffff;
+  --vscode-menu-foreground: #3b3b3b;
+  --vscode-menu-border: #d4d4d4;
+  --vscode-menu-selectionBackground: #0060c0;
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-selectionBorder: transparent;
+  --vscode-menu-separatorBackground: #d4d4d4;
+
+  /* Badge colors */
+  --vscode-badge-background: #007acc;
+  --vscode-badge-foreground: #ffffff;
+  --vscode-activityBarBadge-background: #007acc;
+  --vscode-activityBarBadge-foreground: #ffffff;
+
+  /* Panel colors */
+  --vscode-panel-background: #ffffff;
+  --vscode-panelTitle-activeBorder: #007acc;
+  --vscode-panelTitle-activeForeground: #3b3b3b;
+  --vscode-panelTitle-inactiveForeground: #717171;
+
+  /* Sidebar colors */
+  --vscode-sideBar-background: #f3f3f3;
+  --vscode-sideBarSectionHeader-background: #f3f3f3;
+  --vscode-sideBarTitle-foreground: #3b3b3b;
+
+  /* Progress bar */
+  --vscode-progressBar-background: #007acc;
+
+  /* Scrollbar colors */
+  --vscode-scrollbar-shadow: rgba(0, 0, 0, 0.16);
+  --vscode-scrollbarSlider-background: rgba(100, 100, 100, 0.4);
+  --vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+  --vscode-scrollbarSlider-activeBackground: rgba(0, 0, 0, 0.6);
+
+  /* Sash (resizable borders) */
+  --vscode-sash-hoverBorder: #0090f1;
+
+  /* Tree colors */
+  --vscode-tree-indentGuidesStroke: #d4d4d4;
+  --vscode-tree-inactiveIndentGuidesStroke: rgba(212, 212, 212, 0.5);
+
+  /* Keybinding table */
+  --vscode-keybindingTable-headerBackground: rgba(128, 128, 128, 0.1);
+  --vscode-keybindingTable-rowsBackground: rgba(128, 128, 128, 0.04);
+}
+
+/* vscode-elements form component adjustments */
+vscode-label {
+  margin-bottom: 0;
+}
+
+vscode-form-helper {
+  font-size: 12px;
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+/* Inspect-specific overlay on top of @tsmono/theme/base + @tsmono/theme/vscode.
+   Rules here are either unique to inspect or reference assets that live under
+   apps/inspect/src/img/. Shared rules live in the theme package. */
+
+:root {
+  --inspect-event-panel-sticky-top: 30px;
+}
+
+body[class^="vscode-"] {
+  --inspect-event-panel-sticky-top: 25px;
+}
+
+li > p {
+  margin-bottom: 0;
+}
+
+li > ol,
+li > ul {
+  margin-bottom: 0.5rem;
+}
+
+.tab-tools > * {
+  flex: 0 1 auto;
+  height: 1.5rem;
+  margin-left: 0.5rem;
+}
+
+.tab-tools > input {
+  font-size: 0.7rem;
+}
+
+.tab-tools .btn {
+  font-size: 0.7rem;
+  padding: 0.2em 0.8em;
+}
+
+.tab-tools {
+  font-size: 0.7rem;
+}
+
+/* Extra print rules (the minimal @media print inside the Prism block lives
+   in theme/base.css). */
+@media print {
+  html {
+    font-size: 9pt;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    orphans: 3;
+    widows: 3;
+  }
+
+  #app,
+  .app-main-grid {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  pre,
+  code {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    break-inside: auto;
+  }
+}
+
 /* SVG Icon styles - following Bootstrap Icons pattern */
-.ii:before {
-  background-color: var(--bs-body-color);
+.ii::before {
+  background-color: currentColor;
 }
 
 .inspect-icon-16::before {
@@ -15601,16 +15783,6 @@ pre[class*="language-"] {
   vertical-align: middle;
   mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
   -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
-}
-
-/* Use this very carefully, find relies upon checking the 
-document selection to determine if it should skip a find match
-so disabling selection can break that functionality */
-.hideSelection {
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 ._ansiDisplayContainer_1749m_1 {
   position: relative;
@@ -16764,39 +16936,29 @@ button._segment_19z32_10 {
 ._hidden_1linb_42 {
   opacity: 0 !important;
 }
-._dropdownContainer_1fize_1 {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.btn._toolButton_1fize_7 {
+.btn._toolButton_1q996_1 {
   background-color: var(--bs-light-border-subtle);
 }
 
-.btn._toolButton_1fize_7._bodyColor_1fize_11 {
+.btn._toolButton_1q996_1._bodyColor_1q996_5 {
   background-color: var(--bs-body-bg);
 }
 
-.btn-tools._toolButton_1fize_7 {
-  border: solid 1px var(--bs-border-color);
-}
-
-._toolButton_1fize_7 {
+._toolButton_1q996_1 {
   white-space: nowrap;
 }
 
-._toolButton_1fize_7 i {
+._toolButton_1q996_1 i {
   margin-right: 0.5em;
 }
 
-._toolButton_1fize_7 ._chevron_1fize_27 {
+._toolButton_1q996_1 ._chevron_1q996_17 {
   margin-left: 0.5em;
   margin-right: 0;
   font-size: 0.75em;
 }
 
-._toolButton_1fize_7:focus {
+._toolButton_1q996_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -16804,35 +16966,28 @@ button._segment_19z32_10 {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._backdrop_1fize_41 {
+._backdrop_1q996_31 {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 998;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1049;
 }
 
-._dropdownMenu_1fize_50 {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 0.25rem;
+._dropdownMenu_1q996_41 {
+  position: fixed;
   background: var(--bs-body-bg);
   border: 1px solid var(--bs-border-color);
   border-radius: 0.25rem;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 999;
-  min-width: 100%;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1050;
   overflow: hidden;
 }
 
-._dropdownMenu_1fize_50._alignRight_1fize_64 {
-  right: 0;
-  left: auto;
-}
-
-._dropdownItem_1fize_69 {
+._dropdownItem_1q996_52 {
   display: block;
   width: 100%;
   padding: 0.25rem 0.75rem;
@@ -16845,11 +17000,11 @@ button._segment_19z32_10 {
   transition: background-color 0.15s ease-in-out;
 }
 
-._dropdownItem_1fize_69:hover {
+._dropdownItem_1q996_52:hover {
   background-color: var(--bs-tertiary-bg);
 }
 
-._dropdownItem_1fize_69:active {
+._dropdownItem_1q996_52:active {
   background-color: var(--bs-secondary-bg);
 }
 ._tabs_13md5_1 {
@@ -17166,22 +17321,26 @@ button._segment_19z32_10 {
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
 }
-._container_1ramc_1 {
+._container_kmi4b_1 {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-auto-rows: auto;
   column-gap: 1rem;
 }
 
-._padded_1ramc_8 {
+._padded_kmi4b_8 {
   padding-bottom: 1em;
 }
 
-._key_1ramc_12 {
+._key_kmi4b_12 {
   font-weight: 300;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-._value_1ramc_16 {
+._value_kmi4b_20 {
   font-weight: 600;
 }
 ._grid_1bdxe_1 {
@@ -19228,7 +19387,7 @@ a._citationLink_1ggvf_9:hover {
   -webkit-user-select: none;
   user-select: none;
 }
-._root_4pe3a_1 {
+._root_1atfx_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -19236,28 +19395,56 @@ a._citationLink_1ggvf_9:hover {
   min-height: 0;
 }
 
-._container_4pe3a_9 {
+._container_1atfx_9 {
   display: grid;
   width: 100%;
-  grid-template-columns: var(--outline-width, 180px) 1px 1fr;
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px var(
+      --right-pane-width,
+      360px
+    );
   min-height: 100vh;
 }
 
-._container_4pe3a_9 > * {
+._container_1atfx_9 > * {
   min-width: 0;
+  padding-bottom: 1rem;
 }
 
-._container_4pe3a_9._outlineCollapsed_4pe3a_20 {
-  grid-template-columns: 28px 1px 1fr;
+._container_1atfx_9._outlineCollapsed_1atfx_24 {
+  grid-template-columns: 22px 1px 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_4pe3a_9._noOutline_4pe3a_24 {
+._container_1atfx_9._noOutline_1atfx_28 {
+  grid-template-columns: 1fr 1px var(--right-pane-width, 360px);
+}
+
+._container_1atfx_9._rightPaneCollapsed_1atfx_32 {
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px 22px;
+}
+
+._container_1atfx_9._outlineCollapsed_1atfx_24._rightPaneCollapsed_1atfx_32 {
+  grid-template-columns: 22px 1px 1fr 1px 22px;
+}
+
+._container_1atfx_9._noOutline_1atfx_28._rightPaneCollapsed_1atfx_32 {
+  grid-template-columns: 1fr 1px 22px;
+}
+
+._container_1atfx_9._noRightPane_1atfx_44 {
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr;
+}
+
+._container_1atfx_9._outlineCollapsed_1atfx_24._noRightPane_1atfx_44 {
+  grid-template-columns: 22px 1px 1fr;
+}
+
+._container_1atfx_9._noOutline_1atfx_28._noRightPane_1atfx_44 {
   grid-template-columns: 1fr;
 }
 
-._outline_4pe3a_20 {
-  padding-left: 0.5rem;
-  padding-top: 0.4rem;
+._outline_1atfx_24 {
+  padding-left: 0.6rem;
+  padding-top: 0.2rem;
   /* Prevent stretching to the full grid-row height so that
      position:sticky has room to travel within the cell. */
   align-self: start;
@@ -19266,31 +19453,118 @@ a._citationLink_1ggvf_9:hover {
 /* Cap height to the visible area below the sticky offset and
    scroll internally when the outline is taller.
    Only when expanded — overflow clips the toggle button when collapsed. */
-._container_4pe3a_9:not(._outlineCollapsed_4pe3a_20) > ._outline_4pe3a_20 {
-  max-height: calc(100vh - var(--outline-top, 0px));
+._container_1atfx_9:not(._outlineCollapsed_1atfx_24) > ._outline_1atfx_24 {
+  max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-._outlineToggle_4pe3a_44 {
+._outlineToggle_1atfx_73 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
   position: absolute;
-  top: 0.5em;
-  right: 0.5em;
+  top: 0.2rem;
+  right: 0.2rem;
 }
 
-._outlineToggle_4pe3a_44[aria-disabled="true"] {
+._outlineToggle_1atfx_73[aria-disabled="true"] {
   cursor: default;
   opacity: 0.4;
 }
 
-._separator_4pe3a_58 {
+._separator_1atfx_87 {
   background-color: var(--bs-border-color);
 }
 
-._eventsList_4pe3a_62 {
+._rightSeparator_1atfx_91 {
+  background-color: var(--bs-border-color);
+}
+
+._rightPane_1atfx_32 {
+  padding-top: 0.2rem;
+  padding-right: 0.2rem;
+  align-self: start;
+}
+
+._container_1atfx_9:not(._rightPaneCollapsed_1atfx_32) > ._rightPane_1atfx_32 {
+  padding-left: 0.2rem;
+  /* Leave room on the right for the absolutely-positioned close button. */
+  padding-right: 1.2rem;
+  max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+._rightPaneResizer_1atfx_110 {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 1;
+  background-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+._rightPaneResizer_1atfx_110:hover,
+._rightPaneResizer_1atfx_110:active {
+  background-color: var(--bs-primary-border-subtle);
+}
+
+._rightPaneToggle_1atfx_129 {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.8em;
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+}
+
+._eventsList_1atfx_138 {
   padding-bottom: 1rem;
+}
+
+._sidebarHeader_1atfx_142 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4em;
+  margin-bottom: 0.3rem;
+}
+
+._sidebarHeaderIcon_1atfx_150 {
+  font-size: 0.9em;
+  flex-shrink: 0;
+}
+
+._sidebarHeaderTitle_1atfx_155 {
+  flex: 1;
+  min-width: 0;
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  top: 1px;
+}
+
+._sidebarHeaderClose_1atfx_166 {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 0 0.2em;
+  position: absolute;
+  top: 0.2rem;
+  right: 0.1rem;
+  z-index: 1;
+}
+
+._sidebarHeaderClose_1atfx_166:hover {
+  opacity: 0.7;
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
@@ -19647,11 +19921,7 @@ a._citationLink_1ggvf_9:hover {
     break-inside: avoid;
   }
 }
-._tabPanel_9o62g_1 {
-  padding-bottom: 1em;
-}
-
-._tabControls_9o62g_5 {
+._tabControls_1si8b_1 {
   position: sticky;
   z-index: 1001;
   top: 0;
@@ -19660,34 +19930,34 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._fullWidth_9o62g_14 {
+._fullWidth_1si8b_10 {
   width: 100%;
 }
 
-._metadataPanel_9o62g_18 {
+._metadataPanel_1si8b_14 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._padded_9o62g_24 {
+._padded_1si8b_20 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._error_9o62g_29 {
+._error_1si8b_25 {
   padding-top: 0.5em;
 }
 
-._ansi_9o62g_33 {
+._ansi_1si8b_29 {
   margin: 1em 0;
 }
 
-._noTop_9o62g_37 {
+._noTop_1si8b_33 {
   margin-top: 0;
 }
 
-._timePanel_9o62g_41 {
+._timePanel_1si8b_37 {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-template-rows: auto;
@@ -19695,23 +19965,19 @@ a._citationLink_1ggvf_9:hover {
   min-width: 200px;
 }
 
-._chat_9o62g_49 {
+._chat_1si8b_45 {
   padding: 1em;
 }
 
-._padded_9o62g_24 {
+._padded_1si8b_20 {
   padding: 1em;
 }
 
-._transcriptContainer_9o62g_57 {
-  padding-bottom: 1em;
-}
-
-._overflowVisible_9o62g_61 {
+._overflowVisible_1si8b_53 {
   overflow-y: visible;
 }
 
-._retriedErrors_9o62g_65 {
+._retriedErrors_1si8b_57 {
   margin: 0.5rem;
   min-width: 0;
   overflow: hidden;
@@ -19864,41 +20130,43 @@ a._citationLink_1ggvf_9:hover {
 ._cancelled_hunte_15 {
   color: var(--bs-secondary);
 }
-._container_kwhbh_1 {
+._container_1rxdt_1 {
   display: grid;
   grid-template-columns:
     minmax(0, max-content) minmax(0, auto) minmax(0, max-content)
-    auto;
+    minmax(0, 1fr);
   column-gap: 0.75em;
 }
 
-._container_kwhbh_1 ._cell_kwhbh_9 {
+._container_1rxdt_1 ._cell_1rxdt_9 {
   margin-bottom: 0.5em;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
-._fullWidth_kwhbh_13 {
+._fullWidth_1rxdt_15 {
   grid-column: 1 / -1;
 }
 
-._heading_kwhbh_17 {
+._heading_1rxdt_19 {
   font-weight: 600;
 }
 
-._padded_kwhbh_21 {
+._padded_1rxdt_23 {
   padding-bottom: 3em;
 }
 
-._separator_kwhbh_25 {
+._separator_1rxdt_27 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
 
-._separatorPadded_kwhbh_30 {
+._separatorPadded_1rxdt_32 {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
-._headerSep_kwhbh_35 {
+._headerSep_1rxdt_37 {
   margin-top: 0.1em;
   margin-bottom: 0.2em;
 }
@@ -19999,6 +20267,166 @@ a._citationLink_1ggvf_9:hover {
 
 ._selected_1ml4j_40 {
   font-weight: 600;
+}
+._entry_an9co_1 {
+  margin-top: 1em;
+}
+
+/* Match the other section labels in ScannerResultDetailView: body color
+   (override LabeledValue's default `text-style-secondary`) and bold weight.
+   A bottom border separates the key from its rendered value. */
+._entry_an9co_1 > .text-style-label {
+  color: var(--bs-body-color) !important;
+  text-transform: none !important;
+  font-size: var(--inspect-font-size-base);
+  font-weight: 600;
+  border-bottom: 1px solid var(--bs-border-color);
+  padding-bottom: 0.25em;
+  margin-bottom: 0.5em;
+}
+._container_2pqnu_1 {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-self: start;
+  gap: 0.5rem;
+}
+
+._colspan_2pqnu_8 {
+  grid-column: span 2;
+}
+
+._label_2pqnu_12 {
+  font-size: var(--inspect-font-size-base);
+  font-weight: 600;
+  border-bottom: 1px solid var(--bs-border-color);
+  padding-bottom: 0.25em;
+  margin-bottom: 0.5em;
+}
+
+._header_2pqnu_20 {
+  grid-column: span 2;
+}
+
+._values_2pqnu_24 {
+  display: flex;
+}
+
+._validation_2pqnu_28 {
+  margin-left: 1rem;
+  display: grid;
+  grid-template-columns: max-content max-content;
+}
+
+._validationLabel_2pqnu_34 {
+  padding-right: 0.5rem;
+  margin-top: 2px;
+}
+._result_415jo_1 {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 5px;
+  padding: 8px 4px;
+  height: 1rem;
+  font-size: 0.7rem;
+}
+
+._true_415jo_11 {
+  border: solid var(--bs-success) 1px;
+  color: var(--bs-success);
+}
+
+._false_415jo_16 {
+  border: solid var(--bs-danger) 1px;
+  color: var(--bs-danger);
+}
+
+._resultContainer_415jo_21 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  column-gap: 0.2rem;
+}
+
+._targetValue_415jo_28 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none;
+  margin-left: 0.4rem;
+}
+
+._validationTable_415jo_36 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+._boolean_8citi_1 {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 5px;
+  padding: 8px;
+  margin-bottom: 1px;
+  width: 2.5rem;
+  height: 1rem;
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._true_8citi_13 {
+  background-color: var(--bs-success);
+  border: solid var(--bs-success) 1px;
+  color: var(--bs-body-bg);
+}
+
+._false_8citi_19 {
+  background-color: var(--bs-danger);
+  border: solid var(--bs-danger) 1px;
+  color: var(--bs-body-bg);
+}
+
+._valueTable_8citi_25 {
+  display: grid;
+  grid-template-columns: minmax(auto, max-content) auto;
+  column-gap: 1rem;
+  row-gap: 0rem;
+}
+
+._valueKey_8citi_32 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._inline_8citi_38 ._valueValue_8citi_38 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: end;
+}
+
+._inline_8citi_38 ._valueValue_8citi_38 p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+pre._value_8citi_25 {
+  margin: 0;
+}
+._picker_9870e_1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+._picker_9870e_1 > vscode-single-select {
+  flex: 1;
+  min-width: 0;
+}
+._sidebar_yd264_1 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 ._detail_14cqz_1 {
   display: grid;
@@ -20540,7 +20968,7 @@ a._citationLink_1ggvf_9:hover {
 ._label_12472_14 {
   margin-left: 0.4em;
 }
-._modal_o64lp_1 {
+._modal_1tj8p_1 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -20553,21 +20981,21 @@ a._citationLink_1ggvf_9:hover {
   z-index: 1050;
 }
 
-._header_o64lp_14 {
+._header_1tj8p_14 {
   height: 2em;
 }
 
-._modalTitle_o64lp_18 {
+._modalTitle_1tj8p_18 {
   font-weight: 600;
 }
 
-._btnClose_o64lp_22 {
+._btnClose_1tj8p_22 {
   height: 0.8em;
   width: 0.8em;
 }
 
 /* Backdrop styling for the glass effect */
-._backdrop_o64lp_28 {
+._backdrop_1tj8p_28 {
   position: fixed;
   top: 0;
   left: 0;
@@ -20579,22 +21007,26 @@ a._citationLink_1ggvf_9:hover {
   z-index: 1040;
 }
 
-._overflowVisible_o64lp_40 {
+._overflowVisible_1tj8p_40 {
   overflow: visible;
 }
 
-._overflowHidden_o64lp_44 {
+._overflowHidden_1tj8p_44 {
   overflow: hidden;
 }
 
-._overflowScroll_o64lp_48 {
+._overflowScroll_1tj8p_48 {
   overflow: scroll;
 }
 
-._overflowAuto_o64lp_52 {
+._overflowAuto_1tj8p_52 {
   overflow: auto;
 }
-._simpleMetricsRows_1itqo_1 {
+
+._noPadding_1tj8p_56 {
+  padding: 0;
+}
+._simpleMetricsRows_1jkr3_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -20605,7 +21037,7 @@ a._citationLink_1ggvf_9:hover {
   overflow: scroll;
 }
 
-._multiMetricsRows_1itqo_12 {
+._multiMetricsRows_1jkr3_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -20619,14 +21051,14 @@ a._citationLink_1ggvf_9:hover {
   align-items: baseline;
 }
 
-._verticalMetricReducer_1itqo_26 {
+._verticalMetricReducer_1jkr3_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_1itqo_33 {
+._verticalMetricName_1jkr3_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -20634,35 +21066,35 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_1itqo_41 {
+._verticalMetricValue_1jkr3_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_1itqo_46 {
+._multiScorer_1jkr3_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_1itqo_53 {
+._multiScorerIndent_1jkr3_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_1itqo_57 {
+._multiScorerReducer_1jkr3_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_1itqo_63 {
+._multiScorerLabel_1jkr3_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_1itqo_69 {
+._multiScorerValue_1jkr3_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -20671,12 +21103,12 @@ a._citationLink_1ggvf_9:hover {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_1itqo_78 {
+._multiScorerValueContent_1jkr3_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_1itqo_83 {
+._multiScoreMetricGrid_1jkr3_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -20684,21 +21116,27 @@ a._citationLink_1ggvf_9:hover {
   justify-content: center;
 }
 
-._moreButton_1itqo_91 {
+._moreButton_1jkr3_91 {
   margin-top: 0.25em;
   padding-right: 0;
   padding-bottom: 0;
 }
 
-._metricsSummary_1itqo_97 {
+._metricsSummary_1jkr3_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   margin-bottom: 0.35em;
 }
-
-._modalScores_1itqo_104 {
-  padding-bottom: 4em;
+._gridContainer_1bz7o_1 {
+  width: 100%;
+  max-height: 60vh;
+  overflow: auto;
+}
+._unscoredSamples_1h85z_1 {
+  margin-left: 0.2rem;
+  margin-right: 0.2rem;
+  cursor: pointer;
 }
 ._table_12koy_1 {
   margin-bottom: 0;
@@ -20749,11 +21187,6 @@ thead th {
 ._tableSeparator_12koy_45 td,
 ._tableSeparator_12koy_45 th {
   border: none !important;
-}
-._unscoredSamples_1h85z_1 {
-  margin-left: 0.2rem;
-  margin-right: 0.2rem;
-  cursor: pointer;
 }
 ._statusContainer_1sckj_1 {
   display: inline-block;
