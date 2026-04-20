@@ -652,7 +652,7 @@ class SampleBufferDatabase(SampleBuffer):
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for i in range(prev_msg_len, len(msg_pool)):
                 msg = msg_pool[i]
-                msg_id = msg.id if msg.id is not None else _msg_hash(msg)
+                msg_id = _msg_hash(msg)
                 self._insert_message_pool_entry(
                     conn, event.id, event.epoch, msg_id, msg
                 )

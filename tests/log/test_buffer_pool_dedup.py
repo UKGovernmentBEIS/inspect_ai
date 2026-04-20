@@ -314,3 +314,26 @@ def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
         assert actual_contents == expected_contents[i], (
             f"Event {i}: expected {expected_contents[i]}, got {actual_contents}"
         )
+
+
+def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
+    db: SampleBufferDatabase,
+) -> None:
+    """Messages with same content but different .id fields dedup to one pool entry."""
+    sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    db.start_sample(sample)
+
+    # Two distinct ChatMessage objects with identical content but different .id
+    msg_1 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-aaa"})
+    msg_2 = ChatMessageUser(content="Hello").model_copy(update={"id": "uuid-bbb"})
+
+    db.log_events([SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_1]))])
+    db.log_events([SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_2]))])
+
+    data = db.get_sample_data("s1", 1)
+    assert data is not None
+
+    # Same content -> should be 1 pool entry, not 2
+    assert len(data.message_pool) == 1, (
+        f"Expected 1 pool entry for identical content, got {len(data.message_pool)}"
+    )

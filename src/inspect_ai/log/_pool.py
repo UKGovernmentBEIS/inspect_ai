@@ -30,8 +30,14 @@ from ._log import EvalSample
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    """Compute a content hash for dedup keying."""
-    return mm3_hash(json.dumps(json.loads(msg.model_dump_json()), sort_keys=True))
+    """Compute a content hash for dedup keying.
+
+    Excludes the ``id`` field so that messages with identical content
+    but different UUIDs are treated as duplicates.
+    """
+    data = json.loads(msg.model_dump_json())
+    data.pop("id", None)
+    return mm3_hash(json.dumps(data, sort_keys=True))
 
 
 def _build_msg_index(pool: list[ChatMessage]) -> dict[str, int]:
