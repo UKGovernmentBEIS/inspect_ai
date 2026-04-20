@@ -19,7 +19,6 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
@@ -35,7 +34,6 @@ from ..._condense import (
 )
 from ..._log import EvalSampleSummary
 from ..._pool import (
-    _msg_hash,
     condense_model_event_calls,
     condense_model_event_inputs,
 )
@@ -645,29 +643,21 @@ class SampleBufferDatabase(SampleBuffer):
 
             # message pool
             msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
-            prev_msg_len = len(msg_pool)
-            [condensed_event], msg_pool, msg_index = condense_model_event_inputs(
-                [event.event], msg_pool, msg_index
+            [condensed_event], msg_pool, msg_index, new_msgs = (
+                condense_model_event_inputs([event.event], msg_pool, msg_index)
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for i in range(prev_msg_len, len(msg_pool)):
-                msg = msg_pool[i]
-                msg_id = _msg_hash(msg)
-                self._insert_message_pool_entry(
-                    conn, event.id, event.epoch, msg_id, msg
-                )
+            for h, msg in new_msgs:
+                self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
             self._msg_pools[key] = (msg_pool, msg_index)
 
             # call pool
             call_pool, call_index = self._call_pools.get(key, ([], {}))
-            prev_call_len = len(call_pool)
-            [condensed_event], call_pool, call_index = condense_model_event_calls(
-                [event.event], call_pool, call_index
+            [condensed_event], call_pool, call_index, new_calls = (
+                condense_model_event_calls([event.event], call_pool, call_index)
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for i in range(prev_call_len, len(call_pool)):
-                call_msg = call_pool[i]
-                h = mm3_hash(json.dumps(call_msg, sort_keys=True))
+            for h, call_msg in new_calls:
                 self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
             self._call_pools[key] = (call_pool, call_index)
 
