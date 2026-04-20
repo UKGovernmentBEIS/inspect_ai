@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
-from typing import Callable, Iterator, Literal
+from typing import Callable, Iterator, Literal, cast
 
 import psutil
 from pydantic import BaseModel, JsonValue
@@ -22,6 +22,7 @@ from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import ChatMessage
 
@@ -169,10 +170,10 @@ class SampleBufferDatabase(SampleBuffer):
 
         # Per-sample pool indices for message/call dedup
         self._msg_pools: dict[
-            tuple[str | int, int], tuple[list[ChatMessage], dict[str, int]]
+            tuple[str | int, int], tuple[list[ChatMessage | None], dict[str, int]]
         ] = {}
         self._call_pools: dict[
-            tuple[str | int, int], tuple[list[JsonValue], dict[str, int]]
+            tuple[str | int, int], tuple[list[JsonValue | None], dict[str, int]]
         ] = {}
 
         # create sync filestore if log_shared
@@ -639,6 +640,18 @@ class SampleBufferDatabase(SampleBuffer):
         # insert attachments
         self._insert_attachments(conn, event.id, event.epoch, attachments)
 
+        # evict pool entries on compaction to free memory
+        if isinstance(event.event, CompactionEvent):
+            key = (event.id, event.epoch)
+            if key in self._msg_pools:
+                msg_evict_pool, _msg_evict_index = self._msg_pools[key]
+                for i in range(len(msg_evict_pool)):
+                    msg_evict_pool[i] = None
+            if key in self._call_pools:
+                call_evict_pool, _call_evict_index = self._call_pools[key]
+                for i in range(len(call_evict_pool)):
+                    call_evict_pool[i] = None
+
         # message/call pool dedup for ModelEvents
         if isinstance(event.event, ModelEvent):
             key = (event.id, event.epoch)
@@ -646,30 +659,33 @@ class SampleBufferDatabase(SampleBuffer):
             # message pool
             msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
             prev_msg_len = len(msg_pool)
-            [condensed_event], msg_pool = condense_model_event_inputs(
-                [event.event], msg_pool, msg_index
+            [condensed_event], new_msg_pool = condense_model_event_inputs(
+                [event.event], cast(list[ChatMessage], msg_pool), msg_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for i in range(prev_msg_len, len(msg_pool)):
-                msg = msg_pool[i]
+            for i in range(prev_msg_len, len(new_msg_pool)):
+                msg = new_msg_pool[i]
                 msg_id = msg.id if msg.id is not None else _msg_hash(msg)
                 self._insert_message_pool_entry(
                     conn, event.id, event.epoch, msg_id, msg
                 )
-            self._msg_pools[key] = (msg_pool, msg_index)
+            self._msg_pools[key] = (
+                cast(list[ChatMessage | None], new_msg_pool),
+                msg_index,
+            )
 
             # call pool
             call_pool, call_index = self._call_pools.get(key, ([], {}))
             prev_call_len = len(call_pool)
-            [condensed_event], call_pool = condense_model_event_calls(
+            [condensed_event], new_call_pool = condense_model_event_calls(
                 [event.event], call_pool, call_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for i in range(prev_call_len, len(call_pool)):
-                call_msg = call_pool[i]
+            for i in range(prev_call_len, len(new_call_pool)):
+                call_msg = new_call_pool[i]
                 h = mm3_hash(json.dumps(call_msg, sort_keys=True))
                 self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
-            self._call_pools[key] = (call_pool, call_index)
+            self._call_pools[key] = (new_call_pool, call_index)
 
         return event
 
