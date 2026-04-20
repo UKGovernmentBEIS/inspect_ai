@@ -171,6 +171,22 @@ def test_anthropic_should_retry():
     )
     assert not model.api.should_retry(ex)
 
+    # deterministic encoding errors (e.g. surrogate pairs) should NOT be retried
+    ex = APIStatusError(
+        "error",
+        response=httpx.Response(
+            status_code=400, request=httpx.Request("POST", "https://example.com")
+        ),
+        body={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "The request body is not valid JSON: invalid high surrogate in string: line 1 column 73900 (char 73899)",
+            },
+        },
+    )
+    assert not model.api.should_retry(ex)
+
 
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_call() -> None:

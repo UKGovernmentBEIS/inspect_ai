@@ -991,7 +991,11 @@ class AnthropicAPI(ModelAPI):
                     return True
                 # TCP interruptions can truncate large request bodies in transit,
                 # causing a 400 even though json.dumps() produced valid JSON.
-                if ex.status_code == 400 and "not valid json" in body_str:
+                if (
+                    ex.status_code == 400
+                    and "not valid json" in body_str
+                    and "unexpected end of data" in body_str
+                ):
                     return True
 
             # standard http status code checking
