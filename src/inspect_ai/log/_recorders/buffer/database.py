@@ -289,6 +289,30 @@ class SampleBufferDatabase(SampleBuffer):
             finally:
                 cursor.close()
 
+        self._vacuum()
+
+    def _vacuum(self) -> None:
+        """Compact the database file to reclaim disk space."""
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=30)
+            try:
+                conn.execute("VACUUM")
+            finally:
+                conn.close()
+        except sqlite3.OperationalError as ex:
+            logger.warning(f"VACUUM failed (non-fatal): {ex}")
+
+    def _shrink_memory(self) -> None:
+        """Release unused SQLite page cache memory."""
+        try:
+            conn = sqlite3.connect(self.db_path, timeout=30)
+            try:
+                conn.execute("PRAGMA shrink_memory")
+            finally:
+                conn.close()
+        except sqlite3.OperationalError as ex:
+            logger.warning(f"PRAGMA shrink_memory failed (non-fatal): {ex}")
+
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
@@ -447,6 +471,7 @@ class SampleBufferDatabase(SampleBuffer):
                     sync_to_filestore(self, self._sync_filestore)
 
                 self._sync_time = time.monotonic()
+                self._shrink_memory()
 
     def _increment_version(self, conn: Connection) -> None:
         conn.execute("""
