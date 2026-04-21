@@ -1,5 +1,5 @@
 import abc
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
@@ -33,6 +33,13 @@ class CompactionStrategy(abc.ABC):
     def memory(self) -> bool:
         """Whether to warn the model to save content to memory before compaction."""
         return self._memory
+
+    def _repr_params_(self) -> dict[str, Any]:
+        return {
+            "type": self.type,
+            "threshold": self.threshold,
+            "memory": self.memory,
+        }
 
     @property
     def preserve_prefix(self) -> bool:
