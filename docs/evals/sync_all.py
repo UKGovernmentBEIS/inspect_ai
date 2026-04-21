@@ -13,11 +13,14 @@ import json
 import sys
 from pathlib import Path
 
+import yaml
+
 from sync import CATEGORY_VOCAB, load_evals
 from sync_harbor import load_harbor
 
 HERE = Path(__file__).parent
 OUTPUT_FILE = HERE / "evals.json"
+MODEL_CARDS_FILE = HERE / "model_cards.yml"
 
 CATEGORY_ORDER = [
     "Coding", "Assistants", "Reasoning", "Knowledge",
@@ -84,6 +87,17 @@ def main() -> None:
         for msg in unknown_cats:
             print(f"  - {msg}", file=sys.stderr)
         sys.exit(1)
+
+    # Merge model card data
+    model_card_map: dict[str, list[str]] = {}
+    if MODEL_CARDS_FILE.exists():
+        mc_data = yaml.safe_load(MODEL_CARDS_FILE.read_text()) or {}
+        for provider, eval_ids in mc_data.items():
+            for eid in eval_ids or []:
+                model_card_map.setdefault(eid, []).append(provider)
+
+    for r in all_records:
+        r["model_cards"] = sorted(model_card_map.get(r["id"], []))
 
     all_records.sort(key=lambda r: (_category_index(r["categories"][0]), r["name"].lower()))
 

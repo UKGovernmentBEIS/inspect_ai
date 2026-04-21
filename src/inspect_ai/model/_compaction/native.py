@@ -5,6 +5,7 @@ compaction endpoints (e.g., OpenAI Codex's responses.compact API).
 """
 
 from logging import getLogger
+from typing import Any
 
 from typing_extensions import override
 
@@ -60,6 +61,12 @@ class CompactionNative(CompactionStrategy):
         encoded in the compaction block (Anthropic).
         """
         return False
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params["instructions"] = self._instructions
+        return params
 
     @override
     async def compact(

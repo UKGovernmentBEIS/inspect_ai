@@ -12,17 +12,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Analytics Data Engineer Bench: tasks evaluating AI agents on dbt/SQL data analytics engineering bugs. Original benchmark: https://github.com/dbt-labs/ade-bench.",
+    "desc": "Analytics Data Engineer Bench: tasks evaluating AI agents on dbt/SQL data analytics engineering bugs.",
     "paper": "https://github.com/dbt-labs/ade-bench",
     "code": "inspect_harbor/ade_bench_1_0",
     "contributors": [],
     "samples": 48,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/ade-bench/ade-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/ade-bench/ade-bench/latest",
+    "model_cards": []
   },
   {
     "id": "agent_bench",
-    "name": "AgentBench: Evaluate LLMs as Agents",
+    "name": "AgentBench",
     "source": "evals",
     "categories": [
       "Coding"
@@ -41,7 +42,9 @@
       "shaheenahmedc"
     ],
     "samples": 26,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/agent_bench/",
+    "model_cards": []
   },
   {
     "id": "aider_polyglot_1_0",
@@ -62,7 +65,8 @@
     "contributors": [],
     "samples": 225,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/aider-polyglot/aider-polyglot/latest"
+    "url": "https://registry.harborframework.com/datasets/aider-polyglot/aider-polyglot/latest",
+    "model_cards": []
   },
   {
     "id": "algotune_1_0",
@@ -83,11 +87,12 @@
     "contributors": [],
     "samples": 154,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/algotune/algotune/latest"
+    "url": "https://registry.harborframework.com/datasets/algotune/algotune/latest",
+    "model_cards": []
   },
   {
     "id": "apps",
-    "name": "APPS: Automated Programming Progress Standard",
+    "name": "APPS",
     "source": "evals",
     "categories": [
       "Coding"
@@ -104,11 +109,13 @@
       "camtice"
     ],
     "samples": 5000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/apps/",
+    "model_cards": []
   },
   {
     "id": "autocodebench_lite200",
-    "name": "Autocodebench",
+    "name": "AutoCodeBench",
     "source": "harbor",
     "categories": [
       "Coding"
@@ -119,38 +126,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Adapter for AutoCodeBench (https://github.com/Tencent-Hunyuan/AutoCodeBenchmark).",
+    "desc": "Multilingual automated code generation benchmark evaluating LLMs across diverse programming tasks and languages.",
     "paper": "https://arxiv.org/abs/2508.09101",
     "code": "inspect_harbor/autocodebench_lite200",
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/autocodebench/autocodebench/latest"
-  },
-  {
-    "id": "bigcodebench_hard_complete_1_0_0",
-    "name": "Bigcodebench Hard Complete",
-    "source": "harbor",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "BigCodeBench-Hard complete benchmark adapter for Harbor - challenging Python programming tasks with reward-based verification",
-    "paper": "https://arxiv.org/abs/2406.15877",
-    "code": "inspect_harbor/bigcodebench_hard_complete_1_0_0",
-    "contributors": [],
-    "samples": 145,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bigcodebench-hard-complete/bigcodebench-hard-complete/latest"
+    "url": "https://registry.harborframework.com/datasets/autocodebench/autocodebench/latest",
+    "model_cards": []
   },
   {
     "id": "bigcodebench",
-    "name": "BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and Complex Instructions",
+    "name": "BigCodeBench",
     "source": "evals",
     "categories": [
       "Coding"
@@ -167,7 +154,31 @@
       "tim-hua-01"
     ],
     "samples": 1140,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/bigcodebench/",
+    "model_cards": []
+  },
+  {
+    "id": "bigcodebench_hard_complete_1_0_0",
+    "name": "Bigcodebench Hard Complete",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "BigCodeBench-Hard complete benchmark adapter for Harbor - challenging Python programming tasks with reward-based verification.",
+    "paper": "https://arxiv.org/abs/2406.15877",
+    "code": "inspect_harbor/bigcodebench_hard_complete_1_0_0",
+    "contributors": [],
+    "samples": 145,
+    "featured": false,
+    "url": "https://registry.harborframework.com/datasets/bigcodebench-hard-complete/bigcodebench-hard-complete/latest",
+    "model_cards": []
   },
   {
     "id": "bird_bench_parity",
@@ -182,17 +193,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "BIRD SQL parity subset (150 tasks, seed 42). Original benchmark: https://huggingface.co/datasets/birdsql/bird_sql_dev_20251106. Adapter: https://github.com/laude-institute/harbor/tree/main/adapters/bird-bench.",
+    "desc": "BIRD SQL parity subset (150 tasks, seed 42).",
     "paper": "https://arxiv.org/abs/2305.03111",
     "code": "inspect_harbor/bird_bench_parity",
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bird-bench/bird-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/bird-bench/bird-bench/latest",
+    "model_cards": []
   },
   {
     "id": "class_eval",
-    "name": "ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation",
+    "name": "ClassEval",
     "source": "evals",
     "categories": [
       "Coding"
@@ -209,7 +221,9 @@
       "zhenningdavidliu"
     ],
     "samples": 100,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/class_eval/",
+    "model_cards": []
   },
   {
     "id": "code_contests_1_0",
@@ -230,7 +244,8 @@
     "contributors": [],
     "samples": 9644,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/code-contests/code-contests/latest"
+    "url": "https://registry.harborframework.com/datasets/code-contests/code-contests/latest",
+    "model_cards": []
   },
   {
     "id": "compilebench_1_0",
@@ -251,11 +266,12 @@
     "contributors": [],
     "samples": 15,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/compilebench/compilebench/latest"
+    "url": "https://registry.harborframework.com/datasets/compilebench/compilebench/latest",
+    "model_cards": []
   },
   {
     "id": "compute_eval",
-    "name": "ComputeEval: CUDA Code Generation Benchmark",
+    "name": "ComputeEval",
     "source": "evals",
     "categories": [
       "Coding"
@@ -272,7 +288,9 @@
       "Vitamoon"
     ],
     "samples": 406,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/compute_eval/",
+    "model_cards": []
   },
   {
     "id": "crustbench_1_0",
@@ -293,7 +311,8 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/crustbench/crustbench/latest"
+    "url": "https://registry.harborframework.com/datasets/crustbench/crustbench/latest",
+    "model_cards": []
   },
   {
     "id": "deveval_1_0",
@@ -308,13 +327,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "DevEval benchmark: comprehensive evaluation of LLMs across software development lifecycle (implementation, unit testing, acceptance testing) for 21 real-world repositories across Python, C++, Java, and JavaScript",
+    "desc": "DevEval benchmark: comprehensive evaluation of LLMs across software development lifecycle (implementation, unit testing, acceptance testing) for 21 real-world repositories across Python, C++, Java, and JavaScript.",
     "paper": "https://arxiv.org/abs/2403.08604",
     "code": "inspect_harbor/deveval_1_0",
     "contributors": [],
     "samples": 63,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/deveval/deveval/latest"
+    "url": "https://registry.harborframework.com/datasets/deveval/deveval/latest",
+    "model_cards": []
   },
   {
     "id": "ds_1000_head",
@@ -335,11 +355,12 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/ds-1000/ds-1000/latest"
+    "url": "https://registry.harborframework.com/datasets/ds-1000/ds-1000/latest",
+    "model_cards": []
   },
   {
     "id": "ds1000",
-    "name": "DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation",
+    "name": "DS-1000",
     "source": "evals",
     "categories": [
       "Coding"
@@ -356,7 +377,9 @@
       "bienehito"
     ],
     "samples": 1000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ds1000/",
+    "model_cards": []
   },
   {
     "id": "evoeval_1_0",
@@ -377,7 +400,8 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/evoeval/evoeval/latest"
+    "url": "https://registry.harborframework.com/datasets/evoeval/evoeval/latest",
+    "model_cards": []
   },
   {
     "id": "featurebench_1_0",
@@ -392,13 +416,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "FeatureBench full split: 200 feature-implementation tasks across 24 Python repos. 7 tasks require Ampere+ GPU. Original benchmark: https://github.com/LiberCoders/FeatureBench. Adapter: https://github.com/harbor-framework/harbor/pull/875.",
+    "desc": "FeatureBench full split: 200 feature-implementation tasks across 24 Python repos. 7 tasks require Ampere+ GPU.",
     "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_1_0",
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench/featurebench/latest"
+    "url": "https://registry.harborframework.com/datasets/featurebench/featurebench/latest",
+    "model_cards": []
   },
   {
     "id": "featurebench_lite_1_0",
@@ -413,13 +438,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "FeatureBench lite split: 30 feature-implementation tasks (26 lv1 + 4 lv2) across Python repos. Original benchmark: https://github.com/LiberCoders/FeatureBench. Adapter: https://github.com/harbor-framework/harbor/pull/875.",
+    "desc": "FeatureBench lite split: 30 feature-implementation tasks (26 lv1 + 4 lv2) across Python repos.",
     "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_lite_1_0",
     "contributors": [],
     "samples": 30,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench-lite/featurebench-lite/latest"
+    "url": "https://registry.harborframework.com/datasets/featurebench-lite/featurebench-lite/latest",
+    "model_cards": []
   },
   {
     "id": "featurebench_lite_modal_1_0",
@@ -434,13 +460,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "FeatureBench lite split for Modal: 30 feature-implementation tasks with gpus=1 for GPU tasks (7/30). Use with -e modal. Original benchmark: https://github.com/LiberCoders/FeatureBench.",
+    "desc": "FeatureBench lite split for Modal: 30 feature-implementation tasks with gpus=1 for GPU tasks (7/30). Use with -e modal.",
     "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_lite_modal_1_0",
     "contributors": [],
     "samples": 30,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench-lite-modal/featurebench-lite-modal/latest"
+    "url": "https://registry.harborframework.com/datasets/featurebench-lite-modal/featurebench-lite-modal/latest",
+    "model_cards": []
   },
   {
     "id": "featurebench_modal_1_0",
@@ -455,17 +482,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "FeatureBench full split for Modal: 200 feature-implementation tasks with gpus=1 for GPU tasks (44/200). Use with -e modal. Original benchmark: https://github.com/LiberCoders/FeatureBench.",
+    "desc": "FeatureBench full split for Modal: 200 feature-implementation tasks with gpus=1 for GPU tasks (44/200). Use with -e modal.",
     "paper": "https://arxiv.org/abs/2602.10975",
     "code": "inspect_harbor/featurebench_modal_1_0",
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench-modal/featurebench-modal/latest"
+    "url": "https://registry.harborframework.com/datasets/featurebench-modal/featurebench-modal/latest",
+    "model_cards": []
   },
   {
     "id": "frontier_cs",
-    "name": "Frontier-CS: Benchmarking LLMs on Computer Science Problems",
+    "name": "Frontier-CS",
     "source": "evals",
     "categories": [
       "Coding"
@@ -485,7 +513,9 @@
       "JayBaileyCS"
     ],
     "samples": 238,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/frontier_cs/",
+    "model_cards": []
   },
   {
     "id": "gso_1_0",
@@ -506,7 +536,8 @@
     "contributors": [],
     "samples": 102,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gso/gso/latest"
+    "url": "https://registry.harborframework.com/datasets/gso/gso/latest",
+    "model_cards": []
   },
   {
     "id": "hello_world_1_0",
@@ -527,11 +558,12 @@
     "contributors": [],
     "samples": 1,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/hello-world/hello-world/latest"
+    "url": "https://registry.harborframework.com/datasets/hello-world/hello-world/latest",
+    "model_cards": []
   },
   {
     "id": "humaneval",
-    "name": "HumanEval: Python Function Generation from Instructions",
+    "name": "HumanEval",
     "source": "evals",
     "categories": [
       "Coding"
@@ -548,7 +580,9 @@
       "adil-a"
     ],
     "samples": 164,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/humaneval/",
+    "model_cards": []
   },
   {
     "id": "humanevalfix_1_0",
@@ -569,11 +603,12 @@
     "contributors": [],
     "samples": 164,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/humanevalfix/humanevalfix/latest"
+    "url": "https://registry.harborframework.com/datasets/humanevalfix/humanevalfix/latest",
+    "model_cards": []
   },
   {
     "id": "ifevalcode",
-    "name": "IFEvalCode: Controlled Code Generation",
+    "name": "IFEvalCode",
     "source": "evals",
     "categories": [
       "Coding"
@@ -590,11 +625,13 @@
       "PranshuSrivastava"
     ],
     "samples": 810,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ifevalcode/",
+    "model_cards": []
   },
   {
     "id": "kernelbench",
-    "name": "KernelBench: Can LLMs Write Efficient GPU Kernels?",
+    "name": "KernelBench",
     "source": "evals",
     "categories": [
       "Coding"
@@ -611,7 +648,9 @@
       "jiito"
     ],
     "samples": 250,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/kernelbench/",
+    "model_cards": []
   },
   {
     "id": "legacy_bench_1_0",
@@ -632,7 +671,8 @@
     "contributors": [],
     "samples": 10,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/legacy-bench/legacy-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/legacy-bench/legacy-bench/latest",
+    "model_cards": []
   },
   {
     "id": "livecodebench_6_0",
@@ -653,11 +693,12 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/livecodebench/livecodebench/latest"
+    "url": "https://registry.harborframework.com/datasets/livecodebench/livecodebench/latest",
+    "model_cards": []
   },
   {
     "id": "livecodebench_pro",
-    "name": "LiveCodeBench-Pro: Competitive Programming Benchmark",
+    "name": "LiveCodeBench-Pro",
     "source": "evals",
     "categories": [
       "Coding"
@@ -674,11 +715,13 @@
       "gjoshi2424"
     ],
     "samples": 1404,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/livecodebench_pro/",
+    "model_cards": []
   },
   {
     "id": "mbpp",
-    "name": "MBPP: Basic Python Coding Challenges",
+    "name": "MBPP",
     "source": "evals",
     "categories": [
       "Coding"
@@ -695,7 +738,9 @@
       "jddantes"
     ],
     "samples": 257,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mbpp/",
+    "model_cards": []
   },
   {
     "id": "ml_dev_bench_1_0",
@@ -716,11 +761,12 @@
     "contributors": [],
     "samples": 33,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/ml-dev-bench/ml-dev-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/ml-dev-bench/ml-dev-bench/latest",
+    "model_cards": []
   },
   {
     "id": "mle_bench",
-    "name": "MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering",
+    "name": "MLE-bench",
     "source": "evals",
     "categories": [
       "Coding"
@@ -740,7 +786,9 @@
       "samm393"
     ],
     "samples": 1,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mle_bench/",
+    "model_cards": []
   },
   {
     "id": "mlgym_bench_1_0",
@@ -761,11 +809,12 @@
     "contributors": [],
     "samples": 12,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/mlgym-bench/mlgym-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/mlgym-bench/mlgym-bench/latest",
+    "model_cards": []
   },
   {
     "id": "mlrc_bench",
-    "name": "MLRC-Bench: Can Language Agents Solve Machine Learning Research Challenges?",
+    "name": "MLRC-Bench",
     "source": "evals",
     "categories": [
       "Coding"
@@ -785,7 +834,9 @@
       "dmn-sjk"
     ],
     "samples": 7,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mlrc_bench/",
+    "model_cards": []
   },
   {
     "id": "otel_bench_1_0",
@@ -806,11 +857,12 @@
     "contributors": [],
     "samples": 26,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/otel-bench/otel-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/otel-bench/otel-bench/latest",
+    "model_cards": []
   },
   {
     "id": "paperbench",
-    "name": "PaperBench: Evaluating AI's Ability to Replicate AI Research (Work In Progress)",
+    "name": "PaperBench",
     "source": "evals",
     "categories": [
       "Coding"
@@ -831,7 +883,9 @@
       "vhong-aisi"
     ],
     "samples": 23,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/paperbench/",
+    "model_cards": []
   },
   {
     "id": "quixbugs_1_0",
@@ -852,7 +906,8 @@
     "contributors": [],
     "samples": 80,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/quixbugs/quixbugs/latest"
+    "url": "https://registry.harborframework.com/datasets/quixbugs/quixbugs/latest",
+    "model_cards": []
   },
   {
     "id": "rexbench_1_0",
@@ -867,13 +922,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A benchmark to evaluate the ability of AI agents to extend existing AI research through research experiment implementation tasks. Original benchmark: https://github.com/tinlaboratory/rexbench. Website: https://rexbench.com/.",
+    "desc": "A benchmark to evaluate the ability of AI agents to extend existing AI research through research experiment implementation tasks.",
     "paper": "https://arxiv.org/abs/2506.22598",
     "code": "inspect_harbor/rexbench_1_0",
     "contributors": [],
     "samples": 2,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/rexbench/rexbench/latest"
+    "url": "https://registry.harborframework.com/datasets/rexbench/rexbench/latest",
+    "model_cards": []
   },
   {
     "id": "spider2_dbt_1_0",
@@ -894,7 +950,8 @@
     "contributors": [],
     "samples": 64,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/spider2-dbt/spider2-dbt/latest"
+    "url": "https://registry.harborframework.com/datasets/spider2-dbt/spider2-dbt/latest",
+    "model_cards": []
   },
   {
     "id": "swe_atlas_qna_1_0",
@@ -915,7 +972,8 @@
     "contributors": [],
     "samples": 124,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/scale-ai/swe-atlas-qna/scale-ai/swe-atlas-qna/latest"
+    "url": "https://registry.harborframework.com/datasets/scale-ai/swe-atlas-qna/scale-ai/swe-atlas-qna/latest",
+    "model_cards": []
   },
   {
     "id": "swe_atlas_tw_1_0",
@@ -936,7 +994,8 @@
     "contributors": [],
     "samples": 90,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/scale-ai/swe-atlas-tw/scale-ai/swe-atlas-tw/latest"
+    "url": "https://registry.harborframework.com/datasets/scale-ai/swe-atlas-tw/scale-ai/swe-atlas-tw/latest",
+    "model_cards": []
   },
   {
     "id": "swe_gen_js_1_0",
@@ -957,7 +1016,8 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swe-gen-js/swe-gen-js/latest"
+    "url": "https://registry.harborframework.com/datasets/swe-gen-js/swe-gen-js/latest",
+    "model_cards": []
   },
   {
     "id": "swe_lancer_diamond_all",
@@ -972,13 +1032,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Adapter for SWE-Lancer (https://github.com/openai/preparedness/blob/main/project/swelancer/README.md). Both manager and individual contributor tasks.",
+    "desc": "Both manager and individual contributor tasks.",
     "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/swe_lancer_diamond_all",
     "contributors": [],
     "samples": 463,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swe-lancer-diamond/swe-lancer-diamond/latest"
+    "url": "https://registry.harborframework.com/datasets/swe-lancer-diamond/swe-lancer-diamond/latest",
+    "model_cards": []
   },
   {
     "id": "swe_lancer_diamond_ic",
@@ -993,13 +1054,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Adapter for SWE-Lancer (https://github.com/openai/preparedness/blob/main/project/swelancer/README.md). Only the individual contributor SWE tasks.",
+    "desc": "Only the individual contributor SWE tasks.",
     "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/swe_lancer_diamond_ic",
     "contributors": [],
     "samples": 198,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swe-lancer-diamond/swe-lancer-diamond/latest"
+    "url": "https://registry.harborframework.com/datasets/swe-lancer-diamond/swe-lancer-diamond/latest",
+    "model_cards": []
   },
   {
     "id": "swe_lancer_diamond_manager",
@@ -1014,17 +1076,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Adapter for SWE-Lancer (https://github.com/openai/preparedness/blob/main/project/swelancer/README.md). Only the manager tasks.",
+    "desc": "Only the manager tasks.",
     "paper": "https://arxiv.org/abs/2502.12115",
     "code": "inspect_harbor/swe_lancer_diamond_manager",
     "contributors": [],
     "samples": 265,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swe-lancer-diamond/swe-lancer-diamond/latest"
+    "url": "https://registry.harborframework.com/datasets/swe-lancer-diamond/swe-lancer-diamond/latest",
+    "model_cards": []
   },
   {
     "id": "swe_bench",
-    "name": "SWE-bench Verified: Resolving Real-World GitHub Issues",
+    "name": "SWE-bench Verified",
     "source": "evals",
     "categories": [
       "Coding"
@@ -1044,11 +1107,16 @@
       "max-kaufmann"
     ],
     "samples": 500,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench/",
+    "model_cards": [
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "swe_lancer",
-    "name": "SWE-Lancer: Can Frontier LLMs Earn $1 Million from Real-World Freelance Software Engineering?",
+    "name": "SWE-Lancer",
     "source": "evals",
     "categories": [
       "Coding"
@@ -1069,7 +1137,9 @@
       "MattFisher"
     ],
     "samples": 460,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_lancer/",
+    "model_cards": []
   },
   {
     "id": "swebench_multilingual_1_0",
@@ -1084,13 +1154,16 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWE-bench Multilingual extends the original Python-focused SWE-bench benchmark to support multiple programming languages. Original benchmark: https://www.swebench.com/multilingual.html.",
+    "desc": "SWE-bench Multilingual extends the original Python-focused SWE-bench benchmark to support multiple programming languages.",
     "paper": "https://arxiv.org/abs/2504.02605",
     "code": "inspect_harbor/swebench_multilingual_1_0",
     "contributors": [],
     "samples": 300,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swebench_multilingual/swebench_multilingual/latest"
+    "url": "https://registry.harborframework.com/datasets/swebench_multilingual/swebench_multilingual/latest",
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "swebench_verified_1_0",
@@ -1105,13 +1178,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "A human-validated subset of 500 SWE-bench tasks",
+    "desc": "A human-validated subset of 500 SWE-bench tasks.",
     "paper": "https://arxiv.org/abs/2310.06770",
     "code": "inspect_harbor/swebench_verified_1_0",
     "contributors": [],
     "samples": 500,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swebench-verified/swebench-verified/latest"
+    "url": "https://registry.harborframework.com/datasets/swebench-verified/swebench-verified/latest",
+    "model_cards": []
   },
   {
     "id": "swebenchpro_1_0",
@@ -1126,13 +1200,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWE-bench Pro: A multi-language software engineering benchmark with 731 instances covering Python, JavaScript/TypeScript, and Go. Evaluates AI systems' ability to resolve real-world bugs and implement features across diverse production codebases. Original benchmark: https://github.com/scaleapi/SWE-bench_Pro-os. Adapter details: https://github.com/laude-institute/harbor/tree/main/adapters/swebenchpro",
+    "desc": "SWE-bench Pro: A multi-language software engineering benchmark with 731 instances covering Python, JavaScript/TypeScript, and Go. Evaluates AI systems' ability to resolve real-world bugs and implement features across diverse production codebases.",
     "paper": "https://arxiv.org/abs/2509.16941",
     "code": "inspect_harbor/swebenchpro_1_0",
     "contributors": [],
     "samples": 731,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swebenchpro/swebenchpro/latest"
+    "url": "https://registry.harborframework.com/datasets/swebenchpro/swebenchpro/latest",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "swesmith_1_0",
@@ -1153,7 +1232,8 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swesmith/swesmith/latest"
+    "url": "https://registry.harborframework.com/datasets/swesmith/swesmith/latest",
+    "model_cards": []
   },
   {
     "id": "swtbench_verified_1_0",
@@ -1168,13 +1248,37 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SWTBench Verified - Software Testing Benchmark for code generation",
+    "desc": "SWTBench Verified - Software Testing Benchmark for code generation.",
     "paper": "https://arxiv.org/abs/2406.12952",
     "code": "inspect_harbor/swtbench_verified_1_0",
     "contributors": [],
     "samples": 433,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/swtbench-verified/swtbench-verified/latest"
+    "url": "https://registry.harborframework.com/datasets/swtbench-verified/swtbench-verified/latest",
+    "model_cards": []
+  },
+  {
+    "id": "usaco",
+    "name": "USACO",
+    "source": "evals",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "sandbox"
+    ],
+    "desc": "Evaluates language model performance on difficult Olympiad programming problems across four difficulty levels.",
+    "paper": "https://arxiv.org/abs/2404.10952",
+    "code": "inspect_evals/usaco",
+    "contributors": [
+      "danwilhelm"
+    ],
+    "samples": 307,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/usaco/",
+    "model_cards": []
   },
   {
     "id": "usaco_2_0",
@@ -1195,28 +1299,8 @@
     "contributors": [],
     "samples": 304,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/usaco/usaco/latest"
-  },
-  {
-    "id": "usaco",
-    "name": "USACO: USA Computing Olympiad",
-    "source": "evals",
-    "categories": [
-      "Coding"
-    ],
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "sandbox"
-    ],
-    "desc": "Evaluates language model performance on difficult Olympiad programming problems across four difficulty levels.",
-    "paper": "https://arxiv.org/abs/2404.10952",
-    "code": "inspect_evals/usaco",
-    "contributors": [
-      "danwilhelm"
-    ],
-    "samples": 307,
-    "featured": false
+    "url": "https://registry.harborframework.com/datasets/usaco/usaco/latest",
+    "model_cards": []
   },
   {
     "id": "vmax_tasks_1_0",
@@ -1237,11 +1321,12 @@
     "contributors": [],
     "samples": 1043,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/vmax-tasks/vmax-tasks/latest"
+    "url": "https://registry.harborframework.com/datasets/vmax-tasks/vmax-tasks/latest",
+    "model_cards": []
   },
   {
     "id": "assistant_bench",
-    "name": "AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?",
+    "name": "AssistantBench",
     "source": "evals",
     "categories": [
       "Assistants"
@@ -1262,7 +1347,32 @@
       "caspardh"
     ],
     "samples": 33,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/assistant_bench/",
+    "model_cards": []
+  },
+  {
+    "id": "bfcl",
+    "name": "BFCL",
+    "source": "evals",
+    "categories": [
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Evaluates LLM function/tool-calling ability on a simplified split of the Berkeley Function-Calling Leaderboard (BFCL).",
+    "paper": null,
+    "code": "inspect_evals/bfcl",
+    "contributors": [
+      "alex-remedios-aisi"
+    ],
+    "samples": 4981,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl/",
+    "model_cards": []
   },
   {
     "id": "bfcl_1_0",
@@ -1283,7 +1393,8 @@
     "contributors": [],
     "samples": 3641,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bfcl/bfcl/latest"
+    "url": "https://registry.harborframework.com/datasets/bfcl/bfcl/latest",
+    "model_cards": []
   },
   {
     "id": "bfcl_parity_1_0",
@@ -1304,32 +1415,12 @@
     "contributors": [],
     "samples": 123,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bfcl_parity/bfcl_parity/latest"
-  },
-  {
-    "id": "bfcl",
-    "name": "BFCL: Berkeley Function-Calling Leaderboard",
-    "source": "evals",
-    "categories": [
-      "Assistants"
-    ],
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Evaluates LLM function/tool-calling ability on a simplified split of the Berkeley Function-Calling Leaderboard (BFCL).",
-    "paper": null,
-    "code": "inspect_evals/bfcl",
-    "contributors": [
-      "alex-remedios-aisi"
-    ],
-    "samples": 4981,
-    "featured": false
+    "url": "https://registry.harborframework.com/datasets/bfcl_parity/bfcl_parity/latest",
+    "model_cards": []
   },
   {
     "id": "browse_comp",
-    "name": "BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents",
+    "name": "BrowseComp",
     "source": "evals",
     "categories": [
       "Assistants"
@@ -1349,7 +1440,39 @@
       "AnselmC"
     ],
     "samples": 1266,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/browse_comp/",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
+  },
+  {
+    "id": "gaia",
+    "name": "GAIA",
+    "source": "evals",
+    "categories": [
+      "Assistants"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Proposes real-world questions that require a set of fundamental abilities such as reasoning, multi-modality handling, web browsing, and generally tool-use proficiency.",
+    "paper": "https://arxiv.org/abs/2311.12983",
+    "code": "inspect_evals/gaia",
+    "contributors": [
+      "max-kaufmann"
+    ],
+    "samples": 165,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gaia/",
+    "model_cards": []
   },
   {
     "id": "gaia_1_0",
@@ -1370,35 +1493,12 @@
     "contributors": [],
     "samples": 165,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gaia/gaia/latest"
-  },
-  {
-    "id": "gaia",
-    "name": "GAIA: A Benchmark for General AI Assistants",
-    "source": "evals",
-    "categories": [
-      "Assistants"
-    ],
-    "tags": [
-      "Agent"
-    ],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Proposes real-world questions that require a set of fundamental abilities such as reasoning, multi-modality handling, web browsing, and generally tool-use proficiency.",
-    "paper": "https://arxiv.org/abs/2311.12983",
-    "code": "inspect_evals/gaia",
-    "contributors": [
-      "max-kaufmann"
-    ],
-    "samples": 165,
-    "featured": false
+    "url": "https://registry.harborframework.com/datasets/gaia/gaia/latest",
+    "model_cards": []
   },
   {
     "id": "mind2web",
-    "name": "Mind2Web: Towards a Generalist Agent for the Web",
+    "name": "Mind2Web",
     "source": "evals",
     "categories": [
       "Assistants"
@@ -1415,7 +1515,9 @@
       "dr3s"
     ],
     "samples": 7775,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web/",
+    "model_cards": []
   },
   {
     "id": "openthoughts_tblite_2_0",
@@ -1436,11 +1538,12 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/openthoughts-tblite/openthoughts-tblite/latest"
+    "url": "https://registry.harborframework.com/datasets/openthoughts-tblite/openthoughts-tblite/latest",
+    "model_cards": []
   },
   {
     "id": "osworld",
-    "name": "OSWorld: Multimodal Computer Interaction Tasks",
+    "name": "OSWorld",
     "source": "evals",
     "categories": [
       "Assistants"
@@ -1460,7 +1563,12 @@
       "epatey"
     ],
     "samples": 369,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/osworld/",
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "sycophancy",
@@ -1481,7 +1589,9 @@
       "alexdzm"
     ],
     "samples": 4888,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/sycophancy/",
+    "model_cards": []
   },
   {
     "id": "tau2",
@@ -1504,7 +1614,12 @@
       "mmulet"
     ],
     "samples": 50,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2/",
+    "model_cards": [
+      "chatgpt",
+      "gemini"
+    ]
   },
   {
     "id": "termigen_environments_1_0",
@@ -1525,7 +1640,8 @@
     "contributors": [],
     "samples": 3566,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/termigen-environments/termigen-environments/latest"
+    "url": "https://registry.harborframework.com/datasets/termigen-environments/termigen-environments/latest",
+    "model_cards": []
   },
   {
     "id": "terminal_bench_2_0",
@@ -1546,7 +1662,12 @@
     "contributors": [],
     "samples": 89,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/terminal-bench/terminal-bench/latest"
+    "url": "https://registry.harborframework.com/datasets/terminal-bench/terminal-bench/latest",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "terminal_bench_pro_1_0",
@@ -1567,7 +1688,8 @@
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/terminal-bench-pro/terminal-bench-pro/latest"
+    "url": "https://registry.harborframework.com/datasets/terminal-bench-pro/terminal-bench-pro/latest",
+    "model_cards": []
   },
   {
     "id": "terminal_bench_sample_2_0",
@@ -1588,11 +1710,12 @@
     "contributors": [],
     "samples": 10,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/terminal-bench-sample/terminal-bench-sample/latest"
+    "url": "https://registry.harborframework.com/datasets/terminal-bench-sample/terminal-bench-sample/latest",
+    "model_cards": []
   },
   {
     "id": "theagentcompany",
-    "name": "The Agent Company: Evaluating multi-tool autonomous agents in a synthetic company",
+    "name": "The Agent Company",
     "source": "evals",
     "categories": [
       "Assistants"
@@ -1614,7 +1737,9 @@
       "bndxn"
     ],
     "samples": 3,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany/",
+    "model_cards": []
   },
   {
     "id": "arc_agi_2_1_0",
@@ -1635,11 +1760,16 @@
     "contributors": [],
     "samples": 167,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/arc_agi_2/arc_agi_2/latest"
+    "url": "https://registry.harborframework.com/datasets/arc_agi_2/arc_agi_2/latest",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "bbh",
-    "name": "BBH: Challenging BIG-Bench Tasks",
+    "name": "BBH",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1656,7 +1786,9 @@
       "JoschkaCBraun"
     ],
     "samples": 250,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbh/",
+    "model_cards": []
   },
   {
     "id": "bbeh",
@@ -1677,11 +1809,13 @@
       "jeqcho"
     ],
     "samples": 4520,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbeh/",
+    "model_cards": []
   },
   {
     "id": "boolq",
-    "name": "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions",
+    "name": "BoolQ",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1698,11 +1832,13 @@
       "seddy-aisi"
     ],
     "samples": 3270,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/boolq/",
+    "model_cards": []
   },
   {
     "id": "drop",
-    "name": "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs",
+    "name": "DROP",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1719,11 +1855,13 @@
       "xeon27"
     ],
     "samples": 9535,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/drop/",
+    "model_cards": []
   },
   {
     "id": "hellaswag",
-    "name": "HellaSwag: Commonsense Event Continuation",
+    "name": "HellaSwag",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1740,11 +1878,13 @@
       "jjallaire"
     ],
     "samples": 10042,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/hellaswag/",
+    "model_cards": []
   },
   {
     "id": "ifeval",
-    "name": "IFEval: Instruction-Following Evaluation",
+    "name": "IFEval",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1761,7 +1901,9 @@
       "adil-a"
     ],
     "samples": 541,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/ifeval/",
+    "model_cards": []
   },
   {
     "id": "kumo_1_0",
@@ -1782,7 +1924,8 @@
     "contributors": [],
     "samples": 5300,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest",
+    "model_cards": []
   },
   {
     "id": "kumo_easy",
@@ -1803,7 +1946,8 @@
     "contributors": [],
     "samples": 5050,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest",
+    "model_cards": []
   },
   {
     "id": "kumo_hard",
@@ -1824,7 +1968,8 @@
     "contributors": [],
     "samples": 250,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest",
+    "model_cards": []
   },
   {
     "id": "kumo_parity",
@@ -1845,7 +1990,8 @@
     "contributors": [],
     "samples": 212,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest"
+    "url": "https://registry.harborframework.com/datasets/kumo/kumo/latest",
+    "model_cards": []
   },
   {
     "id": "lingoly",
@@ -1867,11 +2013,13 @@
       "jkhouja"
     ],
     "samples": 408,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/lingoly/",
+    "model_cards": []
   },
   {
     "id": "mmmu",
-    "name": "MMMU: Multimodal College-Level Understanding and Reasoning",
+    "name": "MMMU",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1890,11 +2038,13 @@
       "shaheenahmedc"
     ],
     "samples": 847,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu/",
+    "model_cards": []
   },
   {
     "id": "musr",
-    "name": "MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning",
+    "name": "MuSR",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1911,11 +2061,13 @@
       "farrelmahaztra"
     ],
     "samples": 250,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/musr/",
+    "model_cards": []
   },
   {
     "id": "niah",
-    "name": "Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context LLMs",
+    "name": "Needle in a Haystack (NIAH)",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1932,11 +2084,13 @@
       "owenparsons"
     ],
     "samples": 225,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/niah/",
+    "model_cards": []
   },
   {
     "id": "novelty_bench",
-    "name": "NoveltyBench: Evaluating Language Models for Humanlike Diversity",
+    "name": "NoveltyBench",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1953,11 +2107,13 @@
       "iphan"
     ],
     "samples": 1100,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/novelty_bench/",
+    "model_cards": []
   },
   {
     "id": "paws",
-    "name": "PAWS: Paraphrase Adversaries from Word Scrambling",
+    "name": "PAWS",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1974,11 +2130,13 @@
       "meltemkenis"
     ],
     "samples": 8000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/paws/",
+    "model_cards": []
   },
   {
     "id": "piqa",
-    "name": "PIQA: Physical Commonsense Reasoning Test",
+    "name": "PIQA",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -1995,11 +2153,13 @@
       "seddy-aisi"
     ],
     "samples": 1838,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/piqa/",
+    "model_cards": []
   },
   {
     "id": "race_h",
-    "name": "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models",
+    "name": "RACE-H",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2016,7 +2176,9 @@
       "mdrpanwar"
     ],
     "samples": 3498,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/race_h/",
+    "model_cards": []
   },
   {
     "id": "reasoning_gym_easy_parity",
@@ -2031,13 +2193,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Reasoning Gym benchmark (easy difficulty). Original benchmark: https://github.com/open-thought/reasoning-gym",
+    "desc": "Reasoning Gym benchmark (easy difficulty).",
     "paper": "https://arxiv.org/abs/2505.24760",
     "code": "inspect_harbor/reasoning_gym_easy_parity",
     "contributors": [],
     "samples": 288,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/reasoning-gym-easy/reasoning-gym-easy/latest"
+    "url": "https://registry.harborframework.com/datasets/reasoning-gym-easy/reasoning-gym-easy/latest",
+    "model_cards": []
   },
   {
     "id": "reasoning_gym_hard_parity",
@@ -2052,13 +2215,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Reasoning Gym benchmark (hard difficulty). Original benchmark: https://github.com/open-thought/reasoning-gym",
+    "desc": "Reasoning Gym benchmark (hard difficulty).",
     "paper": "https://arxiv.org/abs/2505.24760",
     "code": "inspect_harbor/reasoning_gym_hard_parity",
     "contributors": [],
     "samples": 288,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/reasoning-gym-hard/reasoning-gym-hard/latest"
+    "url": "https://registry.harborframework.com/datasets/reasoning-gym-hard/reasoning-gym-hard/latest",
+    "model_cards": []
   },
   {
     "id": "satbench_1_0",
@@ -2079,7 +2243,8 @@
     "contributors": [],
     "samples": 2100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/satbench/satbench/latest"
+    "url": "https://registry.harborframework.com/datasets/satbench/satbench/latest",
+    "model_cards": []
   },
   {
     "id": "seta_env_1_0",
@@ -2094,17 +2259,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "CAMEL SETA Environment for RL training",
+    "desc": "CAMEL SETA Environment for RL training.",
     "paper": null,
     "code": "inspect_harbor/seta_env_1_0",
     "contributors": [],
     "samples": 1376,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/seta-env/seta-env/latest"
+    "url": "https://registry.harborframework.com/datasets/seta-env/seta-env/latest",
+    "model_cards": []
   },
   {
     "id": "squad",
-    "name": "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles",
+    "name": "SQuAD",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2121,11 +2287,13 @@
       "tknasir"
     ],
     "samples": 11873,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/squad/",
+    "model_cards": []
   },
   {
     "id": "vimgolf_challenges",
-    "name": "VimGolf: Evaluating LLMs in Vim Editing Proficiency",
+    "name": "VimGolf",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2146,11 +2314,13 @@
       "james4ever0"
     ],
     "samples": 612,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/vimgolf_challenges/",
+    "model_cards": []
   },
   {
     "id": "winogrande",
-    "name": "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale",
+    "name": "WINOGRANDE",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2167,11 +2337,13 @@
       "xeon27"
     ],
     "samples": 1267,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/winogrande/",
+    "model_cards": []
   },
   {
     "id": "worldsense",
-    "name": "WorldSense: Grounded Reasoning Benchmark",
+    "name": "WorldSense",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2188,11 +2360,13 @@
       "mjbroerman"
     ],
     "samples": 87048,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/worldsense/",
+    "model_cards": []
   },
   {
     "id": "writingbench",
-    "name": "WritingBench: A Comprehensive Benchmark for Generative Writing",
+    "name": "WritingBench",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2209,11 +2383,13 @@
       "jtv199"
     ],
     "samples": 1000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench/",
+    "model_cards": []
   },
   {
     "id": "infinite_bench",
-    "name": "∞Bench: Extending Long Context Evaluation Beyond 100K Tokens",
+    "name": "∞Bench",
     "source": "evals",
     "categories": [
       "Reasoning"
@@ -2230,11 +2406,13 @@
       "celiawaggoner"
     ],
     "samples": 394,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/infinite_bench/",
+    "model_cards": []
   },
   {
     "id": "agieval",
-    "name": "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models",
+    "name": "AGIEval",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2251,11 +2429,13 @@
       "bouromain"
     ],
     "samples": 254,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/agieval/",
+    "model_cards": []
   },
   {
     "id": "bbq",
-    "name": "BBQ: Bias Benchmark for Question Answering",
+    "name": "BBQ",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2273,11 +2453,15 @@
       "shubhobm"
     ],
     "samples": 58492,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bbq/",
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "bold",
-    "name": "BOLD: Bias in Open-ended Language Generation Dataset",
+    "name": "BOLD",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2295,11 +2479,13 @@
       "shubhobm"
     ],
     "samples": 7200,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bold/",
+    "model_cards": []
   },
   {
     "id": "commonsense_qa",
-    "name": "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge",
+    "name": "CommonsenseQA",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2316,7 +2502,9 @@
       "lauritowal"
     ],
     "samples": 1221,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/commonsense_qa/",
+    "model_cards": []
   },
   {
     "id": "hle",
@@ -2337,11 +2525,13 @@
       "SasankYadati"
     ],
     "samples": 3000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle/",
+    "model_cards": []
   },
   {
     "id": "livebench",
-    "name": "LiveBench: A Challenging, Contamination-Free LLM Benchmark",
+    "name": "LiveBench",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2358,32 +2548,13 @@
       "anaoaktree"
     ],
     "samples": 910,
-    "featured": false
-  },
-  {
-    "id": "mmlu_pro",
-    "name": "MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation",
-    "source": "evals",
-    "categories": [
-      "Knowledge"
-    ],
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "An advanced benchmark that tests both broad knowledge and reasoning capabilities across many subjects, featuring challenging questions and multiple-choice answers with increased difficulty and complexity.",
-    "paper": "https://arxiv.org/abs/2406.01574",
-    "code": "inspect_evals/mmlu_pro",
-    "contributors": [
-      "xeon27"
-    ],
-    "samples": 12032,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/livebench/",
+    "model_cards": []
   },
   {
     "id": "mmlu",
-    "name": "MMLU: Measuring Massive Multitask Language Understanding",
+    "name": "MMLU",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2401,7 +2572,32 @@
       "domdomegg"
     ],
     "samples": 14042,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu/",
+    "model_cards": []
+  },
+  {
+    "id": "mmlu_pro",
+    "name": "MMLU-Pro",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "An advanced benchmark that tests both broad knowledge and reasoning capabilities across many subjects, featuring challenging questions and multiple-choice answers with increased difficulty and complexity.",
+    "paper": "https://arxiv.org/abs/2406.01574",
+    "code": "inspect_evals/mmlu_pro",
+    "contributors": [
+      "xeon27"
+    ],
+    "samples": 12032,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu_pro/",
+    "model_cards": []
   },
   {
     "id": "mmmlu_parity",
@@ -2422,11 +2618,12 @@
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/mmmlu/mmmlu/latest"
+    "url": "https://registry.harborframework.com/datasets/mmmlu/mmmlu/latest",
+    "model_cards": []
   },
   {
     "id": "onet",
-    "name": "O-NET: A high-school student knowledge test",
+    "name": "O-NET",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2443,7 +2640,9 @@
       "bact"
     ],
     "samples": 397,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/onet/",
+    "model_cards": []
   },
   {
     "id": "personality",
@@ -2464,7 +2663,9 @@
       "guiem"
     ],
     "samples": 44,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/personality/",
+    "model_cards": []
   },
   {
     "id": "simpleqa_1_0",
@@ -2479,17 +2680,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "SimpleQA: 4,326 short, fact-seeking questions from OpenAI for evaluating language model factuality. Uses LLM-as-a-judge grading. Source: https://openai.com/index/introducing-simpleqa/",
+    "desc": "SimpleQA: 4,326 short, fact-seeking questions from OpenAI for evaluating language model factuality. Uses LLM-as-a-judge grading.",
     "paper": "https://arxiv.org/abs/2411.04368",
     "code": "inspect_harbor/simpleqa_1_0",
     "contributors": [],
     "samples": 4326,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/simpleqa/simpleqa/latest"
+    "url": "https://registry.harborframework.com/datasets/simpleqa/simpleqa/latest",
+    "model_cards": []
   },
   {
     "id": "simpleqa",
-    "name": "SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language models",
+    "name": "SimpleQA/SimpleQA Verified",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2507,11 +2709,13 @@
       "jeqcho"
     ],
     "samples": 4326,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/simpleqa/",
+    "model_cards": []
   },
   {
     "id": "truthfulqa",
-    "name": "TruthfulQA: Measuring How Models Mimic Human Falsehoods",
+    "name": "TruthfulQA",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2528,11 +2732,13 @@
       "seddy-aisi"
     ],
     "samples": 817,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/truthfulqa/",
+    "model_cards": []
   },
   {
     "id": "xstest",
-    "name": "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's",
+    "name": "XSTest",
     "source": "evals",
     "categories": [
       "Knowledge"
@@ -2549,7 +2755,9 @@
       "NelsonG-C"
     ],
     "samples": 250,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/xstest/",
+    "model_cards": []
   },
   {
     "id": "binary_audit_1_0",
@@ -2570,11 +2778,12 @@
     "contributors": [],
     "samples": 46,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/binary-audit/binary-audit/latest"
+    "url": "https://registry.harborframework.com/datasets/binary-audit/binary-audit/latest",
+    "model_cards": []
   },
   {
     "id": "threecb",
-    "name": "Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM Agent Cyber Offense Capabilities",
+    "name": "Catastrophic Cyber Capabilities Benchmark (3CB)",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2596,11 +2805,13 @@
       "Scott-Simmons"
     ],
     "samples": 13,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb/",
+    "model_cards": []
   },
   {
     "id": "cti_realm",
-    "name": "CTI-REALM: Cyber Threat Intelligence Detection Rule Development Benchmark",
+    "name": "CTI-REALM",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2620,11 +2831,13 @@
       "arjun180-new"
     ],
     "samples": 25,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cti_realm/",
+    "model_cards": []
   },
   {
     "id": "cve_bench",
-    "name": "CVEBench:  Benchmark for AI Agents Ability to Exploit Real-World Web Application Vulnerabilities",
+    "name": "CVEBench",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2661,11 +2874,13 @@
       "Scott-Simmons"
     ],
     "samples": 40,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cve_bench/",
+    "model_cards": []
   },
   {
     "id": "cybench",
-    "name": "Cybench: Capture-The-Flag Cybersecurity Challenges",
+    "name": "Cybench",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2688,11 +2903,15 @@
       "pgiav"
     ],
     "samples": 39,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybench/",
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "cybergym",
-    "name": "CyberGym: Evaluating AI Agents' Real-World Cybersecurity Capabilities at Scale",
+    "name": "CyberGym",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2715,11 +2934,15 @@
       "pro-wh"
     ],
     "samples": 6028,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybergym/",
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "cybermetric",
-    "name": "CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge",
+    "name": "CyberMetric",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2739,11 +2962,13 @@
       "neilshaabi"
     ],
     "samples": 80,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybermetric/",
+    "model_cards": []
   },
   {
     "id": "cyberseceval_3",
-    "name": "CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models",
+    "name": "CYBERSECEVAL 3",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2760,11 +2985,13 @@
       "onionymous"
     ],
     "samples": 1000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3/",
+    "model_cards": []
   },
   {
     "id": "cyberseceval_2",
-    "name": "CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation",
+    "name": "CyberSecEval_2",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2781,11 +3008,13 @@
       "its-emile"
     ],
     "samples": 500,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_2/",
+    "model_cards": []
   },
   {
     "id": "gdm_in_house_ctf",
-    "name": "GDM Dangerous Capabilities: Capture the Flag",
+    "name": "GDM Dangerous Capabilities",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2805,11 +3034,13 @@
       "XkunW"
     ],
     "samples": 13,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_in_house_ctf/",
+    "model_cards": []
   },
   {
     "id": "gdm_intercode_ctf",
-    "name": "InterCode: Security and Coding Capture-the-Flag Challenges",
+    "name": "InterCode",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2829,11 +3060,13 @@
       "jjallaire"
     ],
     "samples": 78,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/gdm_intercode_ctf/",
+    "model_cards": []
   },
   {
     "id": "sec_qa",
-    "name": "SecQA: A Concise Question-Answering Dataset for Evaluating Large Language Models in Computer Security",
+    "name": "SecQA",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2850,11 +3083,13 @@
       "matthewreed26"
     ],
     "samples": 110,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sec_qa/",
+    "model_cards": []
   },
   {
     "id": "sevenllm",
-    "name": "SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events.",
+    "name": "SEvenLLM",
     "source": "evals",
     "categories": [
       "Cybersecurity"
@@ -2871,11 +3106,13 @@
       "kingroryg"
     ],
     "samples": 50,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sevenllm/",
+    "model_cards": []
   },
   {
     "id": "abstention_bench",
-    "name": "AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions",
+    "name": "AbstentionBench",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -2892,11 +3129,13 @@
       "jeqcho"
     ],
     "samples": 39558,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/abstention_bench/",
+    "model_cards": []
   },
   {
     "id": "agentdojo",
-    "name": "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents",
+    "name": "AgentDojo",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -2916,11 +3155,13 @@
       "ericwinsor-aisi"
     ],
     "samples": 1014,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentdojo/",
+    "model_cards": []
   },
   {
     "id": "agentharm",
-    "name": "AgentHarm: Harmfulness Potential in AI Agents",
+    "name": "AgentHarm",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -2942,11 +3183,13 @@
       "xanderdavies"
     ],
     "samples": 176,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentharm/",
+    "model_cards": []
   },
   {
     "id": "ahb",
-    "name": "AHB: Animal Harm Benchmark",
+    "name": "AHB",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -2965,11 +3208,13 @@
       "jm355"
     ],
     "samples": 26,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ahb/",
+    "model_cards": []
   },
   {
     "id": "ape",
-    "name": "APE: Attempt to Persuade Eval",
+    "name": "APE",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -2986,11 +3231,13 @@
       "cmv13"
     ],
     "samples": 600,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ape/",
+    "model_cards": []
   },
   {
     "id": "b3",
-    "name": "b3: Backbone Breaker Benchmark",
+    "name": "b3",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3015,11 +3262,13 @@
       "NiklasPfister"
     ],
     "samples": 630,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/b3/",
+    "model_cards": []
   },
   {
     "id": "ipi_coding_agent",
-    "name": "CodeIPI: Indirect Prompt Injection for Coding Agents",
+    "name": "CodeIPI",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3041,7 +3290,9 @@
       "debu-sinha"
     ],
     "samples": 45,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ipi_coding_agent/",
+    "model_cards": []
   },
   {
     "id": "fortress",
@@ -3062,7 +3313,9 @@
       "jeqcho"
     ],
     "samples": 500,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/fortress/",
+    "model_cards": []
   },
   {
     "id": "make_me_pay",
@@ -3083,7 +3336,9 @@
       "PranshuSrivastava"
     ],
     "samples": 20,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/make_me_pay/",
+    "model_cards": []
   },
   {
     "id": "makemesay",
@@ -3104,11 +3359,13 @@
       "bndxn"
     ],
     "samples": 189,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/makemesay/",
+    "model_cards": []
   },
   {
     "id": "mask",
-    "name": "MASK: Disentangling Honesty from Accuracy in AI Systems",
+    "name": "MASK",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3125,7 +3382,9 @@
       "Scott-Simmons"
     ],
     "samples": 1000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mask/",
+    "model_cards": []
   },
   {
     "id": "mind2web_sc",
@@ -3149,11 +3408,13 @@
       "PranshuSrivastava"
     ],
     "samples": 200,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mind2web_sc/",
+    "model_cards": []
   },
   {
     "id": "moru",
-    "name": "MORU: Moral Reasoning under Uncertainty",
+    "name": "MORU",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3171,11 +3432,13 @@
       "darkness8i8"
     ],
     "samples": 201,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/moru/",
+    "model_cards": []
   },
   {
     "id": "persistbench",
-    "name": "PersistBench: When Should Long-Term Memories Be Forgotten by LLMs?",
+    "name": "PersistBench",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3192,11 +3455,13 @@
       "Chen-Oliver"
     ],
     "samples": 200,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/persistbench/",
+    "model_cards": []
   },
   {
     "id": "stereoset",
-    "name": "StereoSet: Measuring stereotypical bias in pretrained language models",
+    "name": "StereoSet",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3213,7 +3478,32 @@
       "Xodarap"
     ],
     "samples": 4299,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/stereoset/",
+    "model_cards": []
+  },
+  {
+    "id": "strong_reject",
+    "name": "StrongREJECT",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A benchmark that evaluates the susceptibility of LLMs to various jailbreak attacks.",
+    "paper": "https://arxiv.org/abs/2402.10260",
+    "code": "inspect_evals/strong_reject",
+    "contributors": [
+      "viknat"
+    ],
+    "samples": 324,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/strong_reject/",
+    "model_cards": []
   },
   {
     "id": "strongreject_parity",
@@ -3234,32 +3524,12 @@
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/strongreject/strongreject/latest"
-  },
-  {
-    "id": "strong_reject",
-    "name": "StrongREJECT: Measuring LLM susceptibility to jailbreak attacks",
-    "source": "evals",
-    "categories": [
-      "Safeguards"
-    ],
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "A benchmark that evaluates the susceptibility of LLMs to various jailbreak attacks.",
-    "paper": "https://arxiv.org/abs/2402.10260",
-    "code": "inspect_evals/strong_reject",
-    "contributors": [
-      "viknat"
-    ],
-    "samples": 324,
-    "featured": false
+    "url": "https://registry.harborframework.com/datasets/strongreject/strongreject/latest",
+    "model_cards": []
   },
   {
     "id": "tac",
-    "name": "TAC: Animal Welfare Awareness in AI Ticket Agents",
+    "name": "TAC",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3279,11 +3549,13 @@
       "joel-christoph"
     ],
     "samples": 48,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/tac/",
+    "model_cards": []
   },
   {
     "id": "coconot",
-    "name": "The Art of Saying No: Contextual Noncompliance in Language Models",
+    "name": "The Art of Saying No",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3300,11 +3572,13 @@
       "ransomr"
     ],
     "samples": 1001,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/coconot/",
+    "model_cards": []
   },
   {
     "id": "wmdp",
-    "name": "WMDP: Measuring and Reducing Malicious Use With Unlearning",
+    "name": "WMDP",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3321,11 +3595,13 @@
       "alexandraabbas"
     ],
     "samples": 1273,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp/",
+    "model_cards": []
   },
   {
     "id": "arc",
-    "name": "ARC: AI2 Reasoning Challenge",
+    "name": "ARC",
     "source": "evals",
     "categories": [
       "Science",
@@ -3343,7 +3619,9 @@
       "jjallaire"
     ],
     "samples": 2376,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/arc/",
+    "model_cards": []
   },
   {
     "id": "bixbench_1_5",
@@ -3366,7 +3644,8 @@
     "contributors": [],
     "samples": 205,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bixbench/bixbench/latest"
+    "url": "https://registry.harborframework.com/datasets/bixbench/bixbench/latest",
+    "model_cards": []
   },
   {
     "id": "bixbench_cli_1_5",
@@ -3383,17 +3662,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "bixbench-cli - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks. (Adapted for CLI execution)",
+    "desc": "bixbench-cli - A benchmark for evaluating AI agents on bioinformatics and computational biology tasks. (Adapted for CLI execution).",
     "paper": "https://arxiv.org/abs/2503.00096",
     "code": "inspect_harbor/bixbench_cli_1_5",
     "contributors": [],
     "samples": 205,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bixbench-cli/bixbench-cli/latest"
+    "url": "https://registry.harborframework.com/datasets/bixbench-cli/bixbench-cli/latest",
+    "model_cards": []
   },
   {
     "id": "chembench",
-    "name": "ChemBench: Are large language models superhuman chemists?",
+    "name": "ChemBench",
     "source": "evals",
     "categories": [
       "Science",
@@ -3414,7 +3694,9 @@
       "r-fedorov"
     ],
     "samples": 2786,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/chembench/",
+    "model_cards": []
   },
   {
     "id": "codepde_1_0",
@@ -3437,7 +3719,8 @@
     "contributors": [],
     "samples": 5,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/codepde/codepde/latest"
+    "url": "https://registry.harborframework.com/datasets/codepde/codepde/latest",
+    "model_cards": []
   },
   {
     "id": "core_bench",
@@ -3462,11 +3745,13 @@
       "enerrio"
     ],
     "samples": 45,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/core_bench/",
+    "model_cards": []
   },
   {
     "id": "frontierscience",
-    "name": "FrontierScience: Expert-Level Scientific Reasoning",
+    "name": "FrontierScience",
     "source": "evals",
     "categories": [
       "Science",
@@ -3488,7 +3773,42 @@
       "mnarayan"
     ],
     "samples": 160,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/frontierscience/",
+    "model_cards": [
+      "chatgpt"
+    ]
+  },
+  {
+    "id": "gpqa",
+    "name": "GPQA",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Chemistry",
+      "Physics",
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches.",
+    "paper": "https://arxiv.org/abs/2311.12022",
+    "code": "inspect_evals/gpqa",
+    "contributors": [
+      "jjallaire"
+    ],
+    "samples": 198,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/gpqa/",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "gpqa_diamond_1_0",
@@ -3513,36 +3833,12 @@
     "contributors": [],
     "samples": 198,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gpqa-diamond/gpqa-diamond/latest"
-  },
-  {
-    "id": "gpqa",
-    "name": "GPQA: Graduate-Level STEM Knowledge Challenge",
-    "source": "evals",
-    "categories": [
-      "Science",
-      "Biology",
-      "Chemistry",
-      "Physics",
-      "Knowledge"
-    ],
-    "tags": [],
-    "kind": "generation",
-    "modalities": [
-      "text"
-    ],
-    "desc": "Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches.",
-    "paper": "https://arxiv.org/abs/2311.12022",
-    "code": "inspect_evals/gpqa",
-    "contributors": [
-      "jjallaire"
-    ],
-    "samples": 198,
-    "featured": false
+    "url": "https://registry.harborframework.com/datasets/gpqa-diamond/gpqa-diamond/latest",
+    "model_cards": []
   },
   {
     "id": "lab_bench",
-    "name": "LAB-Bench: Measuring Capabilities of Language Models for Biology Research",
+    "name": "LAB-Bench",
     "source": "evals",
     "categories": [
       "Science",
@@ -3561,7 +3857,11 @@
       "matthewreed26"
     ],
     "samples": 199,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/lab_bench/",
+    "model_cards": [
+      "claude"
+    ]
   },
   {
     "id": "labbench_1_0",
@@ -3584,11 +3884,12 @@
     "contributors": [],
     "samples": 181,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/labbench/labbench/latest"
+    "url": "https://registry.harborframework.com/datasets/labbench/labbench/latest",
+    "model_cards": []
   },
   {
     "id": "pubmedqa",
-    "name": "PubMedQA: A Dataset for Biomedical Research Question Answering",
+    "name": "PubMedQA",
     "source": "evals",
     "categories": [
       "Science",
@@ -3608,7 +3909,9 @@
       "MattFisher"
     ],
     "samples": 500,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pubmedqa/",
+    "model_cards": []
   },
   {
     "id": "qcircuitbench_1_0",
@@ -3625,13 +3928,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "QCircuitBench evaluates agents on quantum algorithm design using quantum programming languages. Original benchmark: https://github.com/EstelYang/QCircuitBench.",
+    "desc": "QCircuitBench evaluates agents on quantum algorithm design using quantum programming languages.",
     "paper": "https://arxiv.org/abs/2410.07961",
     "code": "inspect_harbor/qcircuitbench_1_0",
     "contributors": [],
     "samples": 28,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/qcircuitbench/qcircuitbench/latest"
+    "url": "https://registry.harborframework.com/datasets/qcircuitbench/qcircuitbench/latest",
+    "model_cards": []
   },
   {
     "id": "replicationbench_1_0",
@@ -3654,11 +3958,12 @@
     "contributors": [],
     "samples": 90,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/replicationbench/replicationbench/latest"
+    "url": "https://registry.harborframework.com/datasets/replicationbench/replicationbench/latest",
+    "model_cards": []
   },
   {
     "id": "scbench",
-    "name": "scBench: A Benchmark for Single-Cell RNA-seq Analysis",
+    "name": "scBench",
     "source": "evals",
     "categories": [
       "Science",
@@ -3680,11 +3985,13 @@
       "retroam"
     ],
     "samples": 30,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scbench/",
+    "model_cards": []
   },
   {
     "id": "scicode",
-    "name": "SciCode: A Research Coding Benchmark Curated by Scientists",
+    "name": "SciCode",
     "source": "evals",
     "categories": [
       "Science",
@@ -3702,11 +4009,15 @@
       "xantheocracy"
     ],
     "samples": 65,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scicode/",
+    "model_cards": [
+      "gemini"
+    ]
   },
   {
     "id": "sciknoweval",
-    "name": "SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models",
+    "name": "SciKnowEval",
     "source": "evals",
     "categories": [
       "Science",
@@ -3724,7 +4035,9 @@
       "Esther-Guo"
     ],
     "samples": 70196,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sciknoweval/",
+    "model_cards": []
   },
   {
     "id": "sldbench_1_0",
@@ -3746,11 +4059,12 @@
     "contributors": [],
     "samples": 8,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/sldbench/sldbench/latest"
+    "url": "https://registry.harborframework.com/datasets/sldbench/sldbench/latest",
+    "model_cards": []
   },
   {
     "id": "sosbench",
-    "name": "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge",
+    "name": "SOS BENCH",
     "source": "evals",
     "categories": [
       "Science",
@@ -3770,7 +4084,9 @@
       "Esther-Guo"
     ],
     "samples": 3000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sosbench/",
+    "model_cards": []
   },
   {
     "id": "aime_1_0",
@@ -3791,11 +4107,12 @@
     "contributors": [],
     "samples": 60,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/aime/aime/latest"
+    "url": "https://registry.harborframework.com/datasets/aime/aime/latest",
+    "model_cards": []
   },
   {
     "id": "aime2024",
-    "name": "AIME 2024: Problems from the American Invitational Mathematics Examination",
+    "name": "AIME 2024",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3812,11 +4129,13 @@
       "tamazgadaev"
     ],
     "samples": 30,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2024/",
+    "model_cards": []
   },
   {
     "id": "aime2025",
-    "name": "AIME 2025: Problems from the American Invitational Mathematics Examination",
+    "name": "AIME 2025",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3833,11 +4152,13 @@
       "jannalulu"
     ],
     "samples": 30,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025/",
+    "model_cards": []
   },
   {
     "id": "aime2026",
-    "name": "AIME 2026: Problems from the American Invitational Mathematics Examination",
+    "name": "AIME 2026",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3854,11 +4175,13 @@
       "joeda"
     ],
     "samples": 30,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2026/",
+    "model_cards": []
   },
   {
     "id": "gsm8k",
-    "name": "GSM8K: Grade School Math Word Problems",
+    "name": "GSM8K",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3875,7 +4198,9 @@
       "jjallaire"
     ],
     "samples": 1319,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/gsm8k/",
+    "model_cards": []
   },
   {
     "id": "ineqmath_1_0",
@@ -3896,11 +4221,12 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/ineqmath/ineqmath/latest"
+    "url": "https://registry.harborframework.com/datasets/ineqmath/ineqmath/latest",
+    "model_cards": []
   },
   {
     "id": "math",
-    "name": "MATH: Measuring Mathematical Problem Solving",
+    "name": "MATH",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3917,11 +4243,13 @@
       "xeon27"
     ],
     "samples": 12500,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/math/",
+    "model_cards": []
   },
   {
     "id": "mathvista",
-    "name": "MathVista: Visual Math Problem-Solving",
+    "name": "MathVista",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3940,11 +4268,13 @@
       "ShivMunagala"
     ],
     "samples": 1000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mathvista/",
+    "model_cards": []
   },
   {
     "id": "mgsm",
-    "name": "MGSM: Multilingual Grade School Math",
+    "name": "MGSM",
     "source": "evals",
     "categories": [
       "Mathematics"
@@ -3961,11 +4291,13 @@
       "manifoldhiker"
     ],
     "samples": 2750,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mgsm/",
+    "model_cards": []
   },
   {
     "id": "air_bench",
-    "name": "AIR Bench: AI Risk Benchmark",
+    "name": "AIR Bench",
     "source": "evals",
     "categories": [
       "Professional",
@@ -3984,7 +4316,9 @@
       "l1990790120"
     ],
     "samples": 5694,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/air_bench/",
+    "model_cards": []
   },
   {
     "id": "dabstep_1_0",
@@ -4007,7 +4341,8 @@
     "contributors": [],
     "samples": 450,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/dabstep/dabstep/latest"
+    "url": "https://registry.harborframework.com/datasets/dabstep/dabstep/latest",
+    "model_cards": []
   },
   {
     "id": "financeagent_public",
@@ -4024,13 +4359,17 @@
       "agent",
       "sandbox"
     ],
-    "desc": "Finance Agent is a tool for financial research and analysis that leverages large language models and specialized financial tools to answer complex queries about companies, financial statements, and SEC filings.Original benchmark: https://github.com/vals-ai/finance-agent",
+    "desc": "Finance Agent is a tool for financial research and analysis that leverages large language models and specialized financial tools to answer complex queries about companies, financial statements, and SEC filings.",
     "paper": "https://arxiv.org/abs/2508.00828",
     "code": "inspect_harbor/financeagent_public",
     "contributors": [],
     "samples": 50,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/financeagent/financeagent/latest"
+    "url": "https://registry.harborframework.com/datasets/financeagent/financeagent/latest",
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "gdpval",
@@ -4056,11 +4395,17 @@
       "jeqcho"
     ],
     "samples": 220,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gdpval/",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
   },
   {
     "id": "healthbench",
-    "name": "HealthBench: Evaluating Large Language Models Towards Improved Human Health",
+    "name": "HealthBench",
     "source": "evals",
     "categories": [
       "Professional",
@@ -4082,7 +4427,9 @@
       "retroam"
     ],
     "samples": 5000,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench/",
+    "model_cards": []
   },
   {
     "id": "lawbench_1_0",
@@ -4099,13 +4446,14 @@
       "agent",
       "sandbox"
     ],
-    "desc": "LawBench: Benchmarking Legal Knowledge of Large Language Models",
+    "desc": "LawBench: Benchmarking Legal Knowledge of Large Language Models.",
     "paper": "https://arxiv.org/abs/2309.16289",
     "code": "inspect_harbor/lawbench_1_0",
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/lawbench/lawbench/latest"
+    "url": "https://registry.harborframework.com/datasets/lawbench/lawbench/latest",
+    "model_cards": []
   },
   {
     "id": "medagentbench_1_0",
@@ -4128,11 +4476,12 @@
     "contributors": [],
     "samples": 300,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/medagentbench/medagentbench/latest"
+    "url": "https://registry.harborframework.com/datasets/medagentbench/medagentbench/latest",
+    "model_cards": []
   },
   {
     "id": "medqa",
-    "name": "MedQA: Medical exam Q&A benchmark",
+    "name": "MedQA",
     "source": "evals",
     "categories": [
       "Professional",
@@ -4152,7 +4501,9 @@
       "JasonBenn"
     ],
     "samples": 1273,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/medqa/",
+    "model_cards": []
   },
   {
     "id": "pixiu_parity",
@@ -4169,17 +4520,18 @@
       "agent",
       "sandbox"
     ],
-    "desc": "PIXIU: A Large Language Model, Instruction Data and Evaluation Benchmark for Finance. Original benchmark: https://github.com/TheFinAI/PIXIU. Adapter details: https://github.com/laude-institute/harbor/tree/main/adapters/pixiu. Total tasks: 435 across 29 financial NLP datasets.",
+    "desc": "PIXIU: A Large Language Model, Instruction Data and Evaluation Benchmark for Finance. Total tasks: 435 across 29 financial NLP datasets.",
     "paper": "https://arxiv.org/abs/2306.05443",
     "code": "inspect_harbor/pixiu_parity",
     "contributors": [],
     "samples": 435,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/pixiu/pixiu/latest"
+    "url": "https://registry.harborframework.com/datasets/pixiu/pixiu/latest",
+    "model_cards": []
   },
   {
     "id": "pre_flight",
-    "name": "Pre-Flight: Aviation Operations Knowledge Evaluation",
+    "name": "Pre-Flight",
     "source": "evals",
     "categories": [
       "Professional",
@@ -4198,7 +4550,9 @@
       "alexbrooker"
     ],
     "samples": 300,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pre_flight/",
+    "model_cards": []
   },
   {
     "id": "spreadsheetbench_verified_1_0",
@@ -4221,7 +4575,8 @@
     "contributors": [],
     "samples": 400,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/spreadsheetbench-verified/spreadsheetbench-verified/latest"
+    "url": "https://registry.harborframework.com/datasets/spreadsheetbench-verified/spreadsheetbench-verified/latest",
+    "model_cards": []
   },
   {
     "id": "uccb",
@@ -4244,11 +4599,13 @@
       "katostevenmubiru"
     ],
     "samples": 1039,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/uccb/",
+    "model_cards": []
   },
   {
     "id": "docvqa",
-    "name": "DocVQA: A Dataset for VQA on Document Images",
+    "name": "DocVQA",
     "source": "evals",
     "categories": [
       "Multimodal"
@@ -4267,7 +4624,9 @@
       "evanmiller-anthropic"
     ],
     "samples": 5349,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/docvqa/",
+    "model_cards": []
   },
   {
     "id": "mmau_1_0",
@@ -4288,11 +4647,12 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/mmau/mmau/latest"
+    "url": "https://registry.harborframework.com/datasets/mmau/mmau/latest",
+    "model_cards": []
   },
   {
     "id": "mmiu",
-    "name": "MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models",
+    "name": "MMIU",
     "source": "evals",
     "categories": [
       "Multimodal"
@@ -4309,11 +4669,13 @@
       "Esther-Guo"
     ],
     "samples": 11698,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/mmiu/",
+    "model_cards": []
   },
   {
     "id": "vstar_bench",
-    "name": "V*Bench: A Visual QA Benchmark with Detailed High-resolution Images",
+    "name": "V*Bench",
     "source": "evals",
     "categories": [
       "Multimodal"
@@ -4332,11 +4694,13 @@
       "bienehito"
     ],
     "samples": 115,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench/",
+    "model_cards": []
   },
   {
     "id": "vqa_rad",
-    "name": "VQA-RAD: Visual Question Answering for Radiology",
+    "name": "VQA-RAD",
     "source": "evals",
     "categories": [
       "Multimodal"
@@ -4355,7 +4719,9 @@
       "MattFisher"
     ],
     "samples": 451,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vqa_rad/",
+    "model_cards": []
   },
   {
     "id": "zerobench",
@@ -4378,11 +4744,13 @@
       "ItsTania"
     ],
     "samples": 100,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/zerobench/",
+    "model_cards": []
   },
   {
     "id": "agentic_misalignment",
-    "name": "Agentic Misalignment: How LLMs could be insider threats",
+    "name": "Agentic Misalignment",
     "source": "evals",
     "categories": [
       "Scheming"
@@ -4399,11 +4767,13 @@
       "bmillwood-aisi"
     ],
     "samples": 1,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/agentic_misalignment/",
+    "model_cards": []
   },
   {
     "id": "gdm_self_proliferation",
-    "name": "GDM Dangerous Capabilities: Self-proliferation",
+    "name": "GDM Dangerous Capabilities",
     "source": "evals",
     "categories": [
       "Scheming"
@@ -4425,11 +4795,13 @@
       "kohankhaki"
     ],
     "samples": 1,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_proliferation/",
+    "model_cards": []
   },
   {
     "id": "gdm_self_reasoning",
-    "name": "GDM Dangerous Capabilities: Self-reasoning",
+    "name": "GDM Dangerous Capabilities",
     "source": "evals",
     "categories": [
       "Scheming"
@@ -4450,11 +4822,13 @@
       "XkunW"
     ],
     "samples": 2,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_self_reasoning/",
+    "model_cards": []
   },
   {
     "id": "gdm_stealth",
-    "name": "GDM Dangerous Capabilities: Stealth",
+    "name": "GDM Dangerous Capabilities",
     "source": "evals",
     "categories": [
       "Scheming"
@@ -4474,11 +4848,13 @@
       "ZiyueWang25"
     ],
     "samples": 9,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/gdm_stealth/",
+    "model_cards": []
   },
   {
     "id": "instrumentaleval",
-    "name": "InstrumentalEval - Evaluating the Paperclip Maximizer: Are RL-Based Language Models More Likely to Pursue Instrumental Goals?",
+    "name": "InstrumentalEval - Evaluating the Paperclip Maximizer",
     "source": "evals",
     "categories": [
       "Scheming"
@@ -4495,11 +4871,13 @@
       "horvgbor"
     ],
     "samples": 76,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/instrumentaleval/",
+    "model_cards": []
   },
   {
     "id": "sad",
-    "name": "SAD: Situational Awareness Dataset",
+    "name": "SAD",
     "source": "evals",
     "categories": [
       "Scheming"
@@ -4516,6 +4894,8 @@
       "HugoSave"
     ],
     "samples": 800,
-    "featured": false
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/sad/",
+    "model_cards": []
   }
 ]

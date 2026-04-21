@@ -39,6 +39,24 @@ GENERIC_IMPLEMENTATION_REPOS = {
 }
 
 
+import re
+
+
+def _clean_desc(desc: str) -> str:
+    """Strip 'Original benchmark: URL', 'Adapter: URL', inline URLs, etc."""
+    desc = re.sub(
+        r"\s*(Original benchmark|Adapter details|Adapter|Source|Website)"
+        r":\s*https?://\S+\.?\s*",
+        " ", desc,
+    )
+    desc = re.sub(r"\(https?://\S+\)", "", desc)
+    desc = re.sub(r"https?://\S+", "", desc)
+    desc = re.sub(r"Adapter for \S+ \.", "", desc)
+    desc = re.sub(r"\s{2,}", " ", desc)
+    result = desc.strip().rstrip(".")
+    return (result + ".") if result else ""
+
+
 def _derive_title(name: str) -> str:
     leaf = name.rsplit("/", 1)[-1]
     return leaf.replace("-", " ").replace("_", " ").strip().title()
@@ -149,7 +167,7 @@ def load_harbor(
             "tags": list(ov.get("tags") or []),
             "kind": ov.get("kind", "agent"),
             "modalities": list(ov.get("modalities") or ["agent", "sandbox"]),
-            "desc": entry.get("description", ""),
+            "desc": ov.get("desc") or _clean_desc(entry.get("description", "")),
             "paper": paper,
             "code": f"inspect_harbor/{function_name}",
             "contributors": list(ov.get("contributors") or []),

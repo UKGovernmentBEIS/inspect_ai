@@ -38,6 +38,8 @@ arc_agi_2:
 autocodebench:
   categories: [Coding]
   arxiv: https://arxiv.org/abs/2508.09101
+  title: AutoCodeBench
+  desc: Multilingual automated code generation benchmark evaluating LLMs across diverse programming tasks and languages.
 
 bfcl:
   categories: [Assistants]
