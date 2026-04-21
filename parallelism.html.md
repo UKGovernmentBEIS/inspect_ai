@@ -126,7 +126,7 @@ Note that you can combine parallel tasks with parallel models as follows:
 ``` python
 eval(
     tasks, # 6 tasks for various temperature values
-    model=["openai/gpt-4", "anthropic/claude-3-haiku-20240307"],
+    model=["openai/gpt-4", "anthropic/claude-haiku-4-5"],
     max_tasks=5,
 )
 ```

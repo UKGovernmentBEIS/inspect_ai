@@ -60,7 +60,10 @@ Python package that streamlines the process of creating agentic cyber evaluation
 [Petri](https://safety-research.github.io/petri/) — [Anthropic](https://www.anthropic.com/research/petri-open-source-auditing)  
 Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
 
-[Control Arena](https://github.com/UKGovernmentBEIS/control-arena) — [UK AISI](https://github.com/UKGovernmentBEIS/control-arena)  
+[Control Arena](https://control-arena.aisi.org.uk) — [UK AISI](https://github.com/UKGovernmentBEIS/control-arena)  
+Framework for running experiments on AI Control and Monitoring.
+
+[Linux Arena](https://www.linuxarena.ai) — [Redwood Research](https://github.com/linuxarena/control-tower)  
 Framework for running experiments on AI Control and Monitoring.
 
 ## Tooling
