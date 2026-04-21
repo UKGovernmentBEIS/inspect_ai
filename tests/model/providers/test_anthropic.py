@@ -583,38 +583,39 @@ def test_anthropic_future_non_opus_keeps_sampling_params(
 
 
 @pytest.fixture
-def _reset_warn_once_cache() -> Any:
-    # warn_once dedupes via a module-level list; clear it so each test sees the emit.
+def _warn_once_messages() -> Any:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted. caplog isn't reliable here because
+    # init_logger sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it.
     from inspect_ai._util import logger as _inspect_logger
 
     _inspect_logger._warned.clear()
-    yield
+    yield _inspect_logger._warned
     _inspect_logger._warned.clear()
 
 
 def test_anthropic_opus_4_7_emits_adaptive_only_warning(
-    caplog: pytest.LogCaptureFixture, _reset_warn_once_cache: Any
+    _warn_once_messages: list[str],
 ) -> None:
     """Opus 4.7 should emit the adaptive-only message, not the extended-thinking one."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
-    with caplog.at_level("WARNING", logger="inspect_ai.model._providers.anthropic"):
-        api.completion_config(_cfg(temperature=0.0))
+    api.completion_config(_cfg(temperature=0.0))
     assert any(
-        "adaptive thinking only" in r.message and "claude-opus-4-7" in r.message
-        for r in caplog.records
+        "adaptive thinking only" in m and "claude-opus-4-7" in m
+        for m in _warn_once_messages
     )
-    assert not any("when using extended thinking" in r.message for r in caplog.records)
+    assert not any("when using extended thinking" in m for m in _warn_once_messages)
 
 
 def test_anthropic_thinking_model_emits_extended_thinking_warning(
-    caplog: pytest.LogCaptureFixture, _reset_warn_once_cache: Any
+    _warn_once_messages: list[str],
 ) -> None:
     """A non-adaptive-only thinking model should emit the extended-thinking message."""
     api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
-    with caplog.at_level("WARNING", logger="inspect_ai.model._providers.anthropic"):
-        api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
-    assert any("when using extended thinking" in r.message for r in caplog.records)
-    assert not any("adaptive thinking only" in r.message for r in caplog.records)
+    api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
+    assert any("when using extended thinking" in m for m in _warn_once_messages)
+    assert not any("adaptive thinking only" in m for m in _warn_once_messages)
 
 
 # ---------------------------------------------------------------------------
