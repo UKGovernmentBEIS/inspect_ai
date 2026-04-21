@@ -1790,7 +1790,7 @@ requires-dist = [
     { name = "mcp-server-git", marker = "extra == 'dev-mcp-tests'" },
     { name = "mistralai", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "mmh3", specifier = ">3.1.0" },
-    { name = "moto", extras = ["server"], marker = "extra == 'dev'" },
+    { name = "moto", extras = ["server"], marker = "extra == 'dev'", specifier = ">=5.1.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
     { name = "nbclient", marker = "extra == 'doc'" },
     { name = "nbformat", marker = "extra == 'dev'" },
@@ -2937,7 +2937,7 @@ wheels = [
 
 [[package]]
 name = "moto"
-version = "5.1.4"
+version = "5.1.18"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -2950,9 +2950,9 @@ dependencies = [
     { name = "werkzeug" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/17/059cd6fa5962fa75575f74bb8d31d0e9cb3e656414cb79b4b3736b2b40eb/moto-5.1.4.tar.gz", hash = "sha256:b339c3514f2986ebefa465671b688bdbf51796705702214b1bad46490b68507a", size = 6796440, upload-time = "2025-04-20T20:16:19.165Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/6a/a73bef67261bfab55714390f07c7df97531d00cea730b7c0ace4d0ad7669/moto-5.1.18.tar.gz", hash = "sha256:45298ef7b88561b839f6fe3e9da2a6e2ecd10283c7bf3daf43a07a97465885f9", size = 8271655, upload-time = "2025-11-30T22:03:59.58Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/98/346e3252767e1fe78a0842804cfffbbbef103b960149d4bb217b4cc31a19/moto-5.1.4-py3-none-any.whl", hash = "sha256:9a19d7a64c3f03824389cfbd478b64c82bd4d8da21b242a34259360d66cd108b", size = 4898363, upload-time = "2025-04-20T20:16:16.849Z" },
+    { url = "https://files.pythonhosted.org/packages/83/d4/6991df072b34741a0c115e8d21dc2fe142e4b497319d762e957f6677f001/moto-5.1.18-py3-none-any.whl", hash = "sha256:b65aa8fc9032c5c574415451e14fd7da4e43fd50b8bdcb5f10289ad382c25bcf", size = 6357278, upload-time = "2025-11-30T22:03:56.831Z" },
 ]
 
 [package.optional-dependencies]
@@ -3980,11 +3980,11 @@ wheels = [
 
 [[package]]
 name = "py-partiql-parser"
-version = "0.6.1"
+version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/58/a1/0a2867e48b232b4f82c4929ef7135f2a5d72c3886b957dccf63c70aa2fcb/py_partiql_parser-0.6.1.tar.gz", hash = "sha256:8583ff2a0e15560ef3bc3df109a7714d17f87d81d33e8c38b7fed4e58a63215d", size = 17120, upload-time = "2024-12-25T22:06:41.327Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/7a/a0f6bda783eb4df8e3dfd55973a1ac6d368a89178c300e1b5b91cd181e5e/py_partiql_parser-0.6.3.tar.gz", hash = "sha256:09cecf916ce6e3da2c050f0cb6106166de42c33d34a078ec2eb19377ea70389a", size = 17456, upload-time = "2025-10-18T13:56:13.441Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/84/0e410c20bbe9a504fc56e97908f13261c2b313d16cbb3b738556166f044a/py_partiql_parser-0.6.1-py2.py3-none-any.whl", hash = "sha256:ff6a48067bff23c37e9044021bf1d949c83e195490c17e020715e927fe5b2456", size = 23520, upload-time = "2024-12-25T22:06:39.106Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/33/a7cbfccc39056a5cf8126b7aab4c8bafbedd4f0ca68ae40ecb627a2d2cd3/py_partiql_parser-0.6.3-py2.py3-none-any.whl", hash = "sha256:deb0769c3346179d2f590dcbde556f708cdb929059fb654bad75f4cf6e07f582", size = 23752, upload-time = "2025-10-18T13:56:12.256Z" },
 ]
 
 [[package]]
