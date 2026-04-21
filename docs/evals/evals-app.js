@@ -1,11 +1,18 @@
 /**
  * evals-app.js
- * Vanilla-JS renderer for the /docs/evals SPA. Mounts into #evals-app,
- * fetches evals.json, uses evals-filter.js for filter/sort/count logic,
- * and implements hash-path routing (#/, #/?category=…, #/eval/<id>) with
- * history.pushState. Markup is Bootstrap 5 (card, list-group, badge,
- * form-control, grid) — the host site ships Bootstrap CSS + JS.
+ * Card-grid listing for the /docs/evals page.
+ * Uses shared listing components; adds eval-specific features:
+ *   - Hash-based routing with detail pages
+ *   - Source/package filter dimension
+ *   - localStorage persistence
+ *   - Detail page with code blocks and usage snippets
  */
+import {
+  h, clear, filterChip, emptyState, sidebarFilterBtn,
+  searchInput, mainHeaderLayout, cardGrid, groupedGrid,
+  sidebarLayout, categoryFilterSection, renderListingPage,
+  initKeyboardShortcut, initApp,
+} from '../listing/listing.js';
 
 import {
   filterEvals,
@@ -33,36 +40,7 @@ const SUB_CATEGORIES = {
   Finance: 'Professional', Medicine: 'Professional', Law: 'Professional',
 };
 
-// ── DOM helpers ────────────────────────────────────────────────────────────
-function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
-    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === 'html') el.innerHTML = v;
-    else el.setAttribute(k, v);
-  }
-  for (const c of children.flat()) {
-    if (c == null || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return el;
-}
-
-const clear = (node) => { while (node.firstChild) node.removeChild(node.firstChild); };
-
-function copyToClipboard(text, button) {
-  navigator.clipboard?.writeText(text);
-  if (!button) return;
-  const orig = button.textContent;
-  button.textContent = 'Copied';
-  button.disabled = true;
-  setTimeout(() => { button.textContent = orig; button.disabled = false; }, 1400);
-}
-
-// ── Hash routing ────────────────────────────────────────────────────────────
+// ── Hash routing ───────────────────────────────────────────────────────────
 function parseHash(hash) {
   const raw = (hash || '').replace(/^#/, '');
   if (!raw || raw === '/') return { route: 'index', filters: {} };
@@ -98,13 +76,7 @@ function pushRoute(route, replace = false) {
   history[replace ? 'replaceState' : 'pushState'](null, '', newHash);
 }
 
-// ── Components ──────────────────────────────────────────────────────────────
-function pill(source) {
-  const cls = source === 'harbor' ? 'evals-pill-harbor' : 'evals-pill-evals';
-  return h('span', { class: `badge rounded-pill fw-medium ${cls}` },
-    source === 'harbor' ? 'inspect_harbor' : 'inspect_evals');
-}
-
+// ── Components ─────────────────────────────────────────────────────────────
 function evalCard(eval_) {
   const pkgLabel = eval_.source === 'harbor' ? 'inspect_harbor' : 'inspect_evals';
   const contrib = (eval_.contributors && eval_.contributors[0]) || '';
@@ -113,7 +85,7 @@ function evalCard(eval_) {
     : '';
 
   return h('a', {
-    class: 'eval-card-link d-block',
+    class: 'listing-card-link d-block',
     href: buildHash({ route: 'detail', id: eval_.id }),
     onclick: (e) => { e.preventDefault(); navigate({ route: 'detail', id: eval_.id }); },
   },
@@ -133,122 +105,27 @@ function evalCard(eval_) {
   );
 }
 
-function sidebarFilterBtn({ active, label, count, onClick, indent }) {
-  return h('button', {
-    type: 'button',
-    class: `list-group-item list-group-item-action d-flex justify-content-between align-items-center${active ? ' active' : ''}`,
-    style: indent ? { paddingLeft: '1.1rem' } : undefined,
-    onclick: onClick,
-  },
-    h('span', {}, label),
-    h('span', { class: 'count small' }, String(count ?? 0)),
-  );
-}
-
-function sidebar({ state, categoryCounts, sourceCounts, onPackage, onCategory }) {
-  return h('aside', { class: 'evals-sidebar border-end' },
-    h('div', { class: 'evals-sidebar-inner px-3 py-3' },
-
-      h('h6', { class: 'text-uppercase text-body-tertiary small fw-semibold mb-2' }, 'Package'),
-      h('div', { class: 'list-group list-group-flush mb-4' },
-        sidebarFilterBtn({
-          active: state.source === 'All', label: 'All Packages',
-          count: sourceCounts.All, onClick: () => onPackage('All'),
-        }),
-        sidebarFilterBtn({
-          active: state.source === 'evals', label: 'inspect_evals',
-          count: sourceCounts.evals, onClick: () => onPackage('evals'),
-        }),
-        sidebarFilterBtn({
-          active: state.source === 'harbor', label: 'inspect_harbor',
-          count: sourceCounts.harbor, onClick: () => onPackage('harbor'),
-        }),
-      ),
-
-      h('h6', { class: 'text-uppercase text-body-tertiary small fw-semibold mb-2' }, 'Category'),
-      h('div', { class: 'list-group list-group-flush' },
-        sidebarFilterBtn({
-          active: state.category === 'All', label: 'All Evals',
-          count: categoryCounts.All || 0, onClick: () => onCategory('All'),
-        }),
-        ...CATEGORIES
-          .filter((c) => categoryCounts[c])
-          .map((c) => sidebarFilterBtn({
-            active: state.category === c, label: c,
-            count: categoryCounts[c], onClick: () => onCategory(c),
-            indent: !!SUB_CATEGORIES[c],
-          })),
-      ),
+function packageFilterSection({ state, sourceCounts, onPackage }) {
+  return [
+    h('h6', { class: 'text-uppercase text-body-tertiary small fw-semibold mb-2' }, 'Package'),
+    h('div', { class: 'list-group list-group-flush mb-4' },
+      sidebarFilterBtn({
+        active: state.source === 'All', label: 'All Packages',
+        count: sourceCounts.All, onClick: () => onPackage('All'),
+      }),
+      sidebarFilterBtn({
+        active: state.source === 'evals', label: 'inspect_evals',
+        count: sourceCounts.evals, onClick: () => onPackage('evals'),
+      }),
+      sidebarFilterBtn({
+        active: state.source === 'harbor', label: 'inspect_harbor',
+        count: sourceCounts.harbor, onClick: () => onPackage('harbor'),
+      }),
     ),
-  );
+  ];
 }
 
-function filterChip(label, onClear) {
-  return h('span', {
-    class: 'badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle d-inline-flex align-items-center fw-normal',
-    style: { gap: '.3rem' },
-  },
-    h('span', {}, label),
-    h('button', {
-      type: 'button',
-      'aria-label': `Remove ${label} filter`,
-      onclick: onClear,
-      style: {
-        background: 'transparent', border: 0, color: 'inherit',
-        fontSize: '1.1em', lineHeight: 1, padding: 0,
-        cursor: 'pointer',
-      },
-    }, '×'),
-  );
-}
-
-function mainHeader({ state, count, onSearchInput, onClearSearch, onClearSource, onClearCategory }) {
-  const searchInput = h('input', {
-    type: 'search',
-    class: 'form-control form-control-sm',
-    value: state.searchQ,
-    placeholder: 'Search evals…',
-    oninput: (e) => onSearchInput(e.target.value),
-    style: { paddingLeft: '2rem' },
-  });
-  searchInput.dataset.role = 'search-input';
-
-  const searchIcon = h('span', {
-    style: {
-      position: 'absolute', left: '.6rem', top: '50%',
-      transform: 'translateY(-50%)', pointerEvents: 'none',
-      color: 'var(--bs-secondary-color, #6c757d)',
-    },
-    html: '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
-  });
-
-  const sourceChip = state.source !== 'All'
-    ? filterChip(
-        state.source === 'evals' ? 'inspect_evals' : 'inspect_harbor',
-        onClearSource,
-      )
-    : null;
-
-  const categoryChip = state.category !== 'All'
-    ? filterChip(state.category, onClearCategory)
-    : null;
-
-  return h('div', { class: 'd-flex align-items-center gap-2 flex-wrap mb-3 evals-main-header' },
-    sourceChip,
-    categoryChip,
-    h('span', { class: 'text-body-tertiary small' }, `${count} evals`),
-    h('div', { class: 'ms-auto position-relative', style: { width: '280px' } }, searchIcon, searchInput),
-  );
-}
-
-function emptyState() {
-  return h('div', { class: 'text-center text-body-tertiary py-5' },
-    h('h5', { class: 'mb-1' }, 'No evals match your filters'),
-    h('p', { class: 'small mb-0' }, 'Try removing some filters or searching instead.'),
-  );
-}
-
-// ── Detail page ────────────────────────────────────────────────────────────
+// ── Detail page ───────────────────────────────────────────────────────────
 function codeBlock(text, lang = '') {
   const langClass = lang ? ` ${lang}` : '';
   return h('div', { class: 'sourceCode' },
@@ -310,9 +187,9 @@ function detailPage(eval_) {
     h('div', { class: 'd-flex flex-wrap gap-4' },
       contribLine ? heroMeta('Contributed by', contribLine) : null,
       heroMeta('Source', h('a', { href: eval_.url || sourceUrl, target: '_blank', rel: 'noopener' },
-        `${eval_.code.split('/').pop()} ↗`)),
+        `${eval_.code.split('/').pop()} \u2197`)),
       eval_.paper ? heroMeta('Paper', h('a', { href: eval_.paper, target: '_blank', rel: 'noopener' },
-        (eval_.paper.includes('arxiv.org') ? 'arXiv' : 'Link') + ' ↗')) : null,
+        (eval_.paper.includes('arxiv.org') ? 'arXiv' : 'Link') + ' \u2197')) : null,
       eval_.samples != null ? heroMeta('Samples', Number(eval_.samples).toLocaleString()) : null,
     ),
   );
@@ -347,7 +224,7 @@ function detailPage(eval_) {
           href: 'https://inspect.aisi.org.uk/options.html',
           target: '_blank', rel: 'noopener',
           class: 'mt-2 d-inline-block',
-        }, 'View all options in the Inspect docs ↗'),
+        }, 'View all options in the Inspect docs \u2197'),
       ),
     ),
   );
@@ -400,24 +277,19 @@ function applyHash() {
   render();
 }
 
-function focusSearch() {
-  const input = document.querySelector('#evals-app input[data-role="search-input"]');
-  if (input) { input.focus(); input.select(); }
-}
-
 function render() {
-  clear(root);
   if (view.route === 'detail') {
+    clear(root);
     const ev = evals.find((e) => e.id === view.id);
     if (!ev) {
       root.append(
         h('div', { class: 'container py-5', style: { maxWidth: '720px' } },
           h('h1', { class: 'h4' }, 'Eval not found'),
-          h('p', {}, `No eval with id “${view.id}” in this listing.`),
+          h('p', {}, `No eval with id "${view.id}" in this listing.`),
           h('a', {
             href: '#/',
             onclick: (e) => { e.preventDefault(); navigate({ route: 'index', filters: {} }); },
-          }, '← All Evals'),
+          }, '\u2190 All Evals'),
         ),
       );
       return;
@@ -431,78 +303,91 @@ function render() {
   const categoryCounts = getCategoryCounts(evals, state.source);
   const sourceCounts   = getSourceCounts(evals);
 
-  const shell = h('div', { class: 'd-flex' },
-    sidebar({
-      state, categoryCounts, sourceCounts,
-      onPackage:  (key) => navigate({ route: 'index', filters: { ...state, source:   key } }),
-      onCategory: (key) => navigate({ route: 'index', filters: { ...state, category: key } }),
-    }),
-    h('main', { class: 'flex-grow-1 px-3 pb-3 px-md-4' },
-      h('h1', { class: 'fw-semibold mt-0 mb-2' }, 'Evals'),
-      mainHeader({
-        state,
-        count: results.length,
-        onSearchInput: (v) => {
+  const isFiltered = state.category !== 'All' || state.source !== 'All' || state.searchQ.trim();
+  const primaryCategory = (e) => (e.categories || [])[0];
+
+  const sourceChip = state.source !== 'All'
+    ? filterChip(
+        state.source === 'evals' ? 'inspect_evals' : 'inspect_harbor',
+        () => navigate({ route: 'index', filters: { ...state, source: 'All' } }),
+      )
+    : null;
+  const categoryChip = state.category !== 'All'
+    ? filterChip(state.category, () => navigate({ route: 'index', filters: { ...state, category: 'All' } }))
+    : null;
+
+  renderListingPage({
+    root,
+    searchQ: state.searchQ,
+    sidebarEl: sidebarLayout(
+      packageFilterSection({
+        state, sourceCounts,
+        onPackage: (key) => navigate({ route: 'index', filters: { ...state, source: key } }),
+      }),
+      categoryFilterSection({
+        categories: CATEGORIES, counts: categoryCounts,
+        activeCategory: state.category, allLabel: 'All Evals',
+        onCategory: (key) => navigate({ route: 'index', filters: { ...state, category: key } }),
+        subCategories: SUB_CATEGORIES,
+      }),
+    ),
+    headerEl: mainHeaderLayout({
+      title: 'Evals',
+      chips: [sourceChip, categoryChip],
+      count: results.length,
+      countNoun: 'evals',
+      searchEl: searchInput({
+        value: state.searchQ, placeholder: 'Search evals\u2026',
+        onInput: (v) => {
           state.searchQ = v;
-          pushRoute({ route: 'index', filters: state }, /*replace*/ true);
+          pushRoute({ route: 'index', filters: state }, true);
           render();
         },
-        onClearSearch: () => navigate({ route: 'index', filters: { ...state, searchQ: '' } }),
-        onClearSource: () => navigate({ route: 'index', filters: { ...state, source: 'All' } }),
-        onClearCategory: () => navigate({ route: 'index', filters: { ...state, category: 'All' } }),
       }),
-      results.length === 0
-        ? emptyState()
-        : h('div', { class: 'evals-grid' },
-            ...results.map((ev) => evalCard(ev))),
-    ),
-  );
-  root.append(shell);
-
-  // Preserve search input focus + caret across re-renders
-  const input = shell.querySelector('input[data-role="search-input"]');
-  if (input && document.activeElement !== input && state.searchQ) {
-    input.focus();
-    input.setSelectionRange(state.searchQ.length, state.searchQ.length);
-  }
-}
-
-async function init() {
-  root = document.getElementById('evals-app');
-  if (!root) return;
-
-  const src = root.dataset.src || './evals.json';
-  const res = await fetch(src);
-  if (!res.ok) {
-    root.append(h('p', { class: 'text-danger p-3' }, `Failed to load ${src}: ${res.status}`));
-    return;
-  }
-  evals = await res.json();
-
-  const parsed = parseHash(location.hash);
-  const persisted = loadPersistedState();
-  if (parsed.route === 'detail' || (location.hash && location.hash !== '#/')) {
-    state = {
-      category: parsed.filters?.category || 'All',
-      source:   parsed.filters?.source   || 'All',
-      searchQ:  parsed.filters?.searchQ  || '',
-    };
-    view = parsed.route === 'detail' ? { route: 'detail', id: parsed.id } : { route: 'index' };
-  } else {
-    state = { category: persisted.category, source: persisted.source, searchQ: '' };
-    pushRoute({ route: 'index', filters: state }, /*replace*/ true);
-  }
-
-  window.addEventListener('popstate', applyHash);
-  window.addEventListener('hashchange', applyHash);
-  window.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-      e.preventDefault();
-      focusSearch();
-    }
+    }),
+    contentEl: results.length === 0
+      ? emptyState('evals')
+      : isFiltered
+        ? cardGrid(results, evalCard)
+        : h('div', {},
+            // Model card evals at top (no heading), then category groups below
+            (() => {
+              const mcEvals = results
+                .filter(e => (e.model_cards || []).length > 0)
+                .sort((a, b) => (b.model_cards || []).length - (a.model_cards || []).length);
+              return mcEvals.length > 0
+                ? h('div', { style: { marginBottom: '1.5rem' } }, cardGrid(mcEvals, evalCard))
+                : null;
+            })(),
+            groupedGrid({ items: results, categories: CATEGORIES, primaryCategory, renderCard: evalCard }),
+          ),
   });
-
-  render();
 }
 
-init();
+initKeyboardShortcut('#evals-app');
+initApp({
+  rootId: 'evals-app',
+  onData: (el, data) => {
+    root = el;
+    evals = data;
+
+    const parsed = parseHash(location.hash);
+    const persisted = loadPersistedState();
+    if (parsed.route === 'detail' || (location.hash && location.hash !== '#/')) {
+      state = {
+        category: parsed.filters?.category || 'All',
+        source:   parsed.filters?.source   || 'All',
+        searchQ:  parsed.filters?.searchQ  || '',
+      };
+      view = parsed.route === 'detail' ? { route: 'detail', id: parsed.id } : { route: 'index' };
+    } else {
+      state = { category: persisted.category, source: persisted.source, searchQ: '' };
+      pushRoute({ route: 'index', filters: state }, true);
+    }
+
+    window.addEventListener('popstate', applyHash);
+    window.addEventListener('hashchange', applyHash);
+
+    render();
+  },
+});
