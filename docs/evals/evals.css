@@ -1,123 +1,23 @@
-/* ─── Quarto host integration ─── */
-/* Break the SPA out of Quarto's page-content column so the sidebar/grid
-   can use the full viewport. Scoped to the evals page. */
-/* Hide Quarto's title block — rendered inside the main column instead. */
-#title-block-header { display: none !important; }
-
-/* Break the SPA out of Quarto's content column. Safe because this CSS
-   is only loaded on the evals page via index.qmd frontmatter. */
-#quarto-content > * { padding-top: 0 !important; }
-#quarto-document-content {
-  max-width: none !important;
-  grid-column: screen-start / screen-end !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* ─── SPA layout ─── */
-#evals-app { display: block; }
-
-
-#evals-app .evals-sidebar {
-  width: 232px;
-  flex-shrink: 0;
-}
-#evals-app .evals-sidebar-inner {
-  position: sticky;
-  top: 0;
-  max-height: 100vh;
-  overflow-y: auto;
-}
+/* Evals-specific overrides (shared styles in ../listing/listing.css) */
 
 /* Detail page — tighten default spacing. */
-#evals-app div.sourceCode pre {
+.listing-app div.sourceCode pre {
   margin-bottom: 0;
 }
-#evals-app section {
+.listing-app section {
   margin-bottom: 1rem;
 }
-#evals-app h2 {
+.listing-app h2 {
   margin-top: 0;
 }
 
-/* ─── Main header (title + chips + count + search on one row) ─── */
-#evals-app .evals-main-header {
-  gap: 1rem !important;
-  margin-bottom: 1.25rem !important;
-}
-#evals-app .evals-title {
-  margin: 0 !important;
-  line-height: 1 !important;
-  transform: translateY(-2px);
-}
-
-/* ─── Category headers within the grid ─── */
-#evals-app .evals-cat-heading {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--bs-emphasis-color, #212529);
-  margin: 1.5rem 0 .65rem;
-  display: flex;
-  align-items: center;
-  gap: .7rem;
-}
-#evals-app .evals-cat-heading::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--bs-border-color, #dee2e6);
-}
-#evals-app .evals-cat-first { margin-top: 0; }
-
-/* ─── Card grid ─── */
-/* Quarto's Bootstrap bundle strips .row/.col/.row-cols-* — use native CSS Grid
-   (unaffected by Quarto) instead. */
-#evals-app .evals-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-}
-
-#evals-app .evals-grid .card {
-  border-radius: .5rem;
-}
-
-/* Card hover — gentle lift with a subtle shadow. */
-#evals-app .eval-card-link {
-  text-decoration: none;
-  color: inherit;
-  transition: transform .12s ease, box-shadow .12s ease;
-}
-#evals-app .eval-card-link:hover {
-  transform: translateY(-1px);
-}
-#evals-app .eval-card-link:hover .card {
-  box-shadow: var(--bs-box-shadow-sm);
-}
-
-/* ─── Sidebar filter items ─── */
-/* No dividers, tight rows, pill-shaped highlight. */
-#evals-app .evals-sidebar .list-group-item {
-  border: none;
-  padding: .1rem .6rem;
-  border-radius: .5rem;
-}
-#evals-app .evals-sidebar .list-group-item.active {
-  background-color: var(--bs-primary-bg-subtle);
-  color: var(--bs-primary-text-emphasis);
-}
-#evals-app .evals-sidebar .list-group-item .count {
-  font-variant-numeric: tabular-nums;
-  opacity: .7;
-}
-
 /* Badges: inspect_evals (outlined blue), inspect_harbor (outlined green) */
-#evals-app .evals-pill-evals {
+.listing-app .evals-pill-evals {
   color: var(--bs-primary);
   border: 1px solid currentColor;
   background: transparent;
 }
-#evals-app .evals-pill-harbor {
+.listing-app .evals-pill-harbor {
   color: var(--bs-success);
   border: 1px solid currentColor;
   background: transparent;

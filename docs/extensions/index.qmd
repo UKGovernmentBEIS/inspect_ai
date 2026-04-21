@@ -3,10 +3,13 @@ title: "Inspect Extensions"
 page-layout: full
 anchor-sections: false
 toc: false
-css: extensions.css
+css:
+  - ../listing/listing.css
+  - extensions.css
 resources:
   - extensions.json
   - extensions-app.js
+  - ../listing/listing.js
 include-after-body:
   - text: |
       <script type="module" src="./extensions-app.js"></script>
@@ -23,5 +26,5 @@ exec(open("generate.py").read())
 ```
 
 ::: {.content-visible when-format="html"}
-<div id="extensions-app" data-src="./extensions.json"></div>
+<div id="extensions-app" class="listing-app" data-src="./extensions.json"></div>
 :::
