@@ -170,7 +170,7 @@ dev = [
   "anthropic>=0.96.0",
   "azure-identity",
   "azure-ai-inference",
-  "fastapi",
+  "fastapi>=0.119.0",
   "google-genai>=1.69.0",
   "griffe>=2",
   "groq>=0.28.0",
