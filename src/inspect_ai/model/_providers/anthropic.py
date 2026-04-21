@@ -179,6 +179,15 @@ logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
+
+_THINKING_WARNING = (
+    "anthropic models do not support the '{parameter}' parameter "
+    "when using extended thinking."
+)
+_ADAPTIVE_ONLY_WARNING = (
+    "anthropic model '{model}' does not support the '{parameter}' parameter "
+    "(adaptive thinking only)."
+)
 AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
 
 # Azure base URL environment variables
@@ -742,23 +751,32 @@ class AnthropicAPI(ModelAPI):
         if anthropic_beta_header:
             betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
-        # temperature not compatible with extended thinking
-        THINKING_WARNING = "anthropic models do not support the '{parameter}' parameter when using extended thinking."
+        # Claude 4.7+ is always in adaptive thinking and rejects these params
+        # regardless of config; other models only reject them under thinking.
+        forbid_sampling_params = (
+            self.is_claude_4_7_or_later() or self.is_using_thinking(config)
+        )
+
+        def sampling_param_warning(parameter: str) -> str:
+            if self.is_claude_4_7_or_later():
+                return _ADAPTIVE_ONLY_WARNING.format(
+                    parameter=parameter, model=self.service_model_name()
+                )
+            return _THINKING_WARNING.format(parameter=parameter)
+
         if config.temperature is not None:
-            if self.is_using_thinking(config):
-                warn_once(logger, THINKING_WARNING.format(parameter="temperature"))
+            if forbid_sampling_params:
+                warn_once(logger, sampling_param_warning("temperature"))
             else:
                 params["temperature"] = config.temperature
-        # top_p not compatible with extended thinking
         if config.top_p is not None:
-            if self.is_using_thinking(config):
-                warn_once(logger, THINKING_WARNING.format(parameter="top_p"))
+            if forbid_sampling_params:
+                warn_once(logger, sampling_param_warning("top_p"))
             else:
                 params["top_p"] = config.top_p
-        # top_k not compatible with extended thinking
         if config.top_k is not None:
-            if self.is_using_thinking(config):
-                warn_once(logger, THINKING_WARNING.format(parameter="top_k"))
+            if forbid_sampling_params:
+                warn_once(logger, sampling_param_warning("top_k"))
             else:
                 params["top_k"] = config.top_k
 

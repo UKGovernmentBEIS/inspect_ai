@@ -506,6 +506,113 @@ def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
 
 
 # ---------------------------------------------------------------------------
+# sampling param stripping for Claude 4.7+ (adaptive-thinking-only)
+# ---------------------------------------------------------------------------
+
+
+_SAMPLING_PARAMS: dict[str, float | int] = {
+    "temperature": 0.0,
+    "top_p": 0.9,
+    "top_k": 40,
+}
+
+
+def _cfg(**kwargs: Any) -> GenerateConfig:
+    return GenerateConfig(max_tokens=64, **kwargs)
+
+
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_claude_4_7_strips_sampling_params(
+    param: str, value: float | int
+) -> None:
+    """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert param not in params
+
+
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
+    param: str, value: float | int
+) -> None:
+    """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(reasoning_effort="none", **{param: value})
+    )
+    assert param not in params
+
+
+@pytest.mark.parametrize(
+    "model_name", ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+)
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
+    model_name: str, param: str, value: float | int
+) -> None:
+    """Pre-4.7 models still accept sampling params when thinking is off."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert params[param] == value
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    ["claude-opus-4-8", "claude-opus-5-0", "claude-sonnet-4-7", "claude-sonnet-5-0"],
+)
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_future_4_7_plus_strips_sampling_params(
+    model_name: str, param: str, value: float | int
+) -> None:
+    """All 4.7+ models inherit the adaptive-thinking restriction."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert param not in params
+
+
+@pytest.fixture
+def _warn_once_messages() -> Any:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted. caplog isn't reliable here because
+    # init_logger sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
+
+
+def test_anthropic_claude_4_7_emits_adaptive_only_warning(
+    _warn_once_messages: list[str],
+) -> None:
+    """Claude 4.7+ should emit the adaptive-only message, not the extended-thinking one."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    api.completion_config(_cfg(temperature=0.0))
+    assert any(
+        "adaptive thinking only" in m and "claude-opus-4-7" in m
+        for m in _warn_once_messages
+    )
+    assert not any("when using extended thinking" in m for m in _warn_once_messages)
+
+
+def test_anthropic_thinking_model_emits_extended_thinking_warning(
+    _warn_once_messages: list[str],
+) -> None:
+    """A non-adaptive-only thinking model should emit the extended-thinking message."""
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
+    assert any("when using extended thinking" in m for m in _warn_once_messages)
+    assert not any("adaptive thinking only" in m for m in _warn_once_messages)
+
+
+# ---------------------------------------------------------------------------
 # live API exercises against claude-opus-4-7 (require --runapi)
 # ---------------------------------------------------------------------------
 
@@ -538,6 +645,36 @@ async def test_anthropic_reasoning_effort_xhigh_max_live(
         ),
     )
     response = await model.generate(input="What is 2 + 2? Briefly.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_4_7_accepts_temperature_config_live() -> None:
+    """Regression for #3721: explicit temperature=0.0 must not 400 on Opus 4.7."""
+    model = get_model(
+        "anthropic/claude-opus-4-7",
+        config=GenerateConfig(temperature=0.0, max_tokens=64),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none_live() -> (
+    None
+):
+    """Regression for #3721: reasoning_effort='none' + temperature must not 400 on Opus 4.7."""
+    model = get_model(
+        "anthropic/claude-opus-4-7",
+        config=GenerateConfig(
+            reasoning_effort="none",
+            temperature=0.0,
+            max_tokens=64,
+        ),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
     assert len(response.completion) >= 1
 
 
