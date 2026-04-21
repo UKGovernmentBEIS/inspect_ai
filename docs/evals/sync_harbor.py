@@ -80,16 +80,10 @@ def _extract_dataset_metadata(
 
     Returns (function_map, url_map):
       - function_map: dataset id (name or name@version) → Python function name
-      - url_map:     dataset id → canonical Harbor registry URL
+      - url_map: dataset id → canonical Harbor registry URL
 
     Both maps are built from the `Dataset:` / `Harbor URL:` lines in each
-    `@task`-decorated function's docstring. Parsing the docstring (rather
-    than mirroring inspect_harbor's naming / URL-resolution logic here)
-    keeps this script a pure consumer of whatever `_tasks.py` publishes.
-
-    `url_map` may omit entries when `_tasks.py` predates the `Harbor URL:`
-    line (older cached copies); the caller falls back to the site's search
-    URL in that case.
+    `@task`-decorated function's docstring.
     """
     tree = ast.parse(tasks_py_source)
     function_map: dict[str, str] = {}
