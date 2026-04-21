@@ -1895,48 +1895,6 @@
     ]
   },
   {
-    "objectID": "extensions/index.html",
-    "href": "extensions/index.html",
-    "title": "Inspect Extensions",
-    "section": "",
-    "text": "k8s Sandbox — UK AISI\n\nPython package that provides a Kubernetes sandbox environment for Inspect.\n\nEC2 Sandbox — UK AISI\n\nPython package that provides a EC2 virtual machine sandbox environment for Inspect.\n\nModal Sandbox — Meridian\n\nServerless container sandbox for Inspect using Modal’s cloud infrastructure.\n\nProxmox Sandbox — UK AISI\n\nUse virtual machines, running within a Proxmox instance, as Inspect sandboxes.\n\nInspect Policy Sandbox — Arnab Mitra\n\nSandbox wrapper that allows fine grained control over command execution and file I/O.\n\nInspect Vagrant Sandbox — Jason Gwartz\n\nUse any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.\n\nDaytona Sandbox — Meridian\n\nSandbox environment for Inspect using Daytona’s cloud infrastructure.\n\nPodman Sandbox — Vector Institute and National Research Council of Canada\n\nPodman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker."
-  },
-  {
-    "objectID": "extensions/index.html#sec-sandboxes",
-    "href": "extensions/index.html#sec-sandboxes",
-    "title": "Inspect Extensions",
-    "section": "",
-    "text": "k8s Sandbox — UK AISI\n\nPython package that provides a Kubernetes sandbox environment for Inspect.\n\nEC2 Sandbox — UK AISI\n\nPython package that provides a EC2 virtual machine sandbox environment for Inspect.\n\nModal Sandbox — Meridian\n\nServerless container sandbox for Inspect using Modal’s cloud infrastructure.\n\nProxmox Sandbox — UK AISI\n\nUse virtual machines, running within a Proxmox instance, as Inspect sandboxes.\n\nInspect Policy Sandbox — Arnab Mitra\n\nSandbox wrapper that allows fine grained control over command execution and file I/O.\n\nInspect Vagrant Sandbox — Jason Gwartz\n\nUse any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.\n\nDaytona Sandbox — Meridian\n\nSandbox environment for Inspect using Daytona’s cloud infrastructure.\n\nPodman Sandbox — Vector Institute and National Research Council of Canada\n\nPodman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker."
-  },
-  {
-    "objectID": "extensions/index.html#sec-analysis",
-    "href": "extensions/index.html#sec-analysis",
-    "title": "Inspect Extensions",
-    "section": "Analysis",
-    "text": "Analysis\n\nInspect Scout — Meridian\n\nTranscript analysis for Inspect evaluations.\n\nInspect Viz — Meridian\n\nInteractive data visualization for Inspect evaluations.\n\nDocent — Transluce\n\nTools to summarize, cluster, and search over agent transcripts.\n\nLunette — Fulcrum Research\n\nPlatform for understanding and improving agents.\n\nInspect WandB — Arcadia\n\nIntegration with Weights and Biases platform.\n\nInspect MLflow — Debu Sinha\n\nExperiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations. Published on PyPI.\n\nCJE — CIMO Labs\n\nCalibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels."
-  },
-  {
-    "objectID": "extensions/index.html#sec-frameworks",
-    "href": "extensions/index.html#sec-frameworks",
-    "title": "Inspect Extensions",
-    "section": "Frameworks",
-    "text": "Frameworks\n\nInspect SWE — Meridian\n\nSoftware engineering agents (Claude Code and Codex CLI) for Inspect.\n\nInspect Cyber — UK AISI\n\nPython package that streamlines the process of creating agentic cyber evaluations in Inspect.\n\nPetri — Anthropic\n\nFramework testing alignment hypotheses end‑to‑end, including automatic scenario generation.\n\nControl Arena — UK AISI\n\nFramework for running experiments on AI Control and Monitoring.\n\nLinux Arena — Redwood Research\n\nFramework for running experiments on AI Control and Monitoring."
-  },
-  {
-    "objectID": "extensions/index.html#sec-tooling",
-    "href": "extensions/index.html#sec-tooling",
-    "title": "Inspect Extensions",
-    "section": "Tooling",
-    "text": "Tooling\n\nInspect Flow — Meridian\n\nWorkflow orchestration for reprocibly running evals at scale.\n\nEvaljobs — Hugging Face\n\nRun evals on Hugging Face GPUs and share results and code on the Hugging Face Hub.\n\nInspect VS Code — Meridian\n\nVS Code extension that assists with developing and debugging Inspect evaluations.\n\nInspect Costs Plugin — Jason Gwartz\n\nAutomatically load pricing data for models under test."
-  },
-  {
-    "objectID": "extensions/index.html#sec-evals",
-    "href": "extensions/index.html#sec-evals",
-    "title": "Inspect Extensions",
-    "section": "Evals",
-    "text": "Evals\n\nInspect Evals — UK AISI\n\nOver 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.\n\nOpenBench — Groq\n\nStandardized, reproducible benchmarking for LLMs across 30+ evals.\n\nInspect Harbor — Meridian\n\nEvals from Harbor framework including terminal-bench, replicationbench, and compilebench."
-  },
-  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "Inspect",
@@ -2601,14 +2559,14 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Anthropic: Warn when sampling parameters (temperature, etc.) are passed to Opus 4.7.\nAnthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.\nComputer Use: Map PRINTSCREEN (OpenAI vocab) to xdotool Print keysym so key combos like ALT+PRINTSCREEN work correctly.\nBugfix: Fix race condition in eval_set with retry_immediate=True that could cause ClosedResourceError when a task entered the retry path while other workers were completing concurrently.\nBugfix: Fix regression in realtime event stream introduced by message condensing."
+    "text": "Anthropic: Warn when sampling parameters (temperature, etc.) are passed to Opus 4.7.\nAnthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.\nComputer Use: Map PRINTSCREEN (OpenAI vocab) to xdotool Print keysym so key combos like ALT+PRINTSCREEN work correctly.\nBugfix: Fix race condition in eval_set with retry_immediate=True that could cause ClosedResourceError when a task entered the retry path while other workers were completing concurrently.\nBugfix: Fix regression in realtime event stream introduced by message condensing.\nInspect View: Metadata with more than 5 children will be collapsed by default."
   },
   {
     "objectID": "CHANGELOG.html#unreleased",
     "href": "CHANGELOG.html#unreleased",
     "title": "Inspect",
     "section": "",
-    "text": "Anthropic: Warn when sampling parameters (temperature, etc.) are passed to Opus 4.7.\nAnthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.\nComputer Use: Map PRINTSCREEN (OpenAI vocab) to xdotool Print keysym so key combos like ALT+PRINTSCREEN work correctly.\nBugfix: Fix race condition in eval_set with retry_immediate=True that could cause ClosedResourceError when a task entered the retry path while other workers were completing concurrently.\nBugfix: Fix regression in realtime event stream introduced by message condensing."
+    "text": "Anthropic: Warn when sampling parameters (temperature, etc.) are passed to Opus 4.7.\nAnthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.\nComputer Use: Map PRINTSCREEN (OpenAI vocab) to xdotool Print keysym so key combos like ALT+PRINTSCREEN work correctly.\nBugfix: Fix race condition in eval_set with retry_immediate=True that could cause ClosedResourceError when a task entered the retry path while other workers were completing concurrently.\nBugfix: Fix regression in realtime event stream introduced by message condensing.\nInspect View: Metadata with more than 5 children will be collapsed by default."
   },
   {
     "objectID": "CHANGELOG.html#april-2026",

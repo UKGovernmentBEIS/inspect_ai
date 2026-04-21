@@ -375,6 +375,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Computer Use: Map <code>PRINTSCREEN</code> (OpenAI vocab) to xdotool <code>Print</code> keysym so key combos like <code>ALT+PRINTSCREEN</code> work correctly.</li>
 <li>Bugfix: Fix race condition in <code>eval_set</code> with <code>retry_immediate=True</code> that could cause <code>ClosedResourceError</code> when a task entered the retry path while other workers were completing concurrently.</li>
 <li>Bugfix: Fix regression in realtime event stream introduced by message condensing.</li>
+<li>Inspect View: Metadata with more than 5 children will be collapsed by default.</li>
 </ul>
 </section>
 <section id="april-2026" class="level2">
