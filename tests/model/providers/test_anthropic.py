@@ -506,6 +506,118 @@ def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
 
 
 # ---------------------------------------------------------------------------
+# sampling param stripping for Opus 4.7 (adaptive-thinking-only)
+# ---------------------------------------------------------------------------
+
+
+_SAMPLING_PARAMS: dict[str, float | int] = {
+    "temperature": 0.0,
+    "top_p": 0.9,
+    "top_k": 40,
+}
+
+
+def _cfg(**kwargs: Any) -> GenerateConfig:
+    return GenerateConfig(max_tokens=64, **kwargs)
+
+
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_opus_4_7_strips_sampling_params(
+    param: str, value: float | int
+) -> None:
+    """Opus 4.7 rejects temperature/top_p/top_k outright; the provider must omit them."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert param not in params
+
+
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_opus_4_7_strips_sampling_params_with_reasoning_effort_none(
+    param: str, value: float | int
+) -> None:
+    """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(reasoning_effort="none", **{param: value})
+    )
+    assert param not in params
+
+
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_opus_4_6_keeps_sampling_params_without_thinking(
+    param: str, value: float | int
+) -> None:
+    """Opus 4.6 still accepts sampling params when thinking is off."""
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert params[param] == value
+
+
+@pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-opus-5-0"])
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_future_opus_strips_sampling_params(
+    model_name: str, param: str, value: float | int
+) -> None:
+    """Future Opus minor and major releases inherit the 4.7 restriction."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert param not in params
+
+
+@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
+def test_anthropic_future_non_opus_keeps_sampling_params(
+    param: str, value: float | int
+) -> None:
+    """The restriction is Opus-specific; non-Opus future models still accept sampling params."""
+    api = AnthropicAPI(model_name="claude-sonnet-5-0", api_key="test-key")
+    params, _extra_body, _headers, _betas = api.completion_config(
+        _cfg(**{param: value})
+    )
+    assert params[param] == value
+
+
+@pytest.fixture
+def _reset_warn_once_cache() -> Any:
+    # warn_once dedupes via a module-level list; clear it so each test sees the emit.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield
+    _inspect_logger._warned.clear()
+
+
+def test_anthropic_opus_4_7_emits_adaptive_only_warning(
+    caplog: pytest.LogCaptureFixture, _reset_warn_once_cache: Any
+) -> None:
+    """Opus 4.7 should emit the adaptive-only message, not the extended-thinking one."""
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    with caplog.at_level("WARNING", logger="inspect_ai.model._providers.anthropic"):
+        api.completion_config(_cfg(temperature=0.0))
+    assert any(
+        "adaptive thinking only" in r.message and "claude-opus-4-7" in r.message
+        for r in caplog.records
+    )
+    assert not any("when using extended thinking" in r.message for r in caplog.records)
+
+
+def test_anthropic_thinking_model_emits_extended_thinking_warning(
+    caplog: pytest.LogCaptureFixture, _reset_warn_once_cache: Any
+) -> None:
+    """A non-adaptive-only thinking model should emit the extended-thinking message."""
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    with caplog.at_level("WARNING", logger="inspect_ai.model._providers.anthropic"):
+        api.completion_config(_cfg(reasoning_effort="low", temperature=0.0))
+    assert any("when using extended thinking" in r.message for r in caplog.records)
+    assert not any("adaptive thinking only" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
 # live API exercises against claude-opus-4-7 (require --runapi)
 # ---------------------------------------------------------------------------
 
@@ -538,6 +650,36 @@ async def test_anthropic_reasoning_effort_xhigh_max_live(
         ),
     )
     response = await model.generate(input="What is 2 + 2? Briefly.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_4_7_accepts_temperature_config_live() -> None:
+    """Regression for #3721: explicit temperature=0.0 must not 400 on Opus 4.7."""
+    model = get_model(
+        "anthropic/claude-opus-4-7",
+        config=GenerateConfig(temperature=0.0, max_tokens=64),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none_live() -> (
+    None
+):
+    """Regression for #3721: reasoning_effort='none' + temperature must not 400 on Opus 4.7."""
+    model = get_model(
+        "anthropic/claude-opus-4-7",
+        config=GenerateConfig(
+            reasoning_effort="none",
+            temperature=0.0,
+            max_tokens=64,
+        ),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
     assert len(response.completion) >= 1
 
 
