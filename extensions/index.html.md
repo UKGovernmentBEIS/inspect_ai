@@ -80,7 +80,7 @@ Automatically load pricing data for models under test.
 ## Evals
 
 [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) — [UK AISI](https://github.com/UKGovernmentBEIS/inspect_evals)  
-Over 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
+Over 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
 
 [OpenBench](https://github.com/groq/openbench) — [Groq](https://github.com/groq)  
 Standardized, reproducible benchmarking for LLMs across 30+ evals.

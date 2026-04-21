@@ -1934,7 +1934,7 @@
     "href": "extensions/index.html#sec-evals",
     "title": "Inspect Extensions",
     "section": "Evals",
-    "text": "Evals\n\nInspect Evals — UK AISI\n\nOver 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.\n\nOpenBench — Groq\n\nStandardized, reproducible benchmarking for LLMs across 30+ evals.\n\nInspect Harbor — Meridian\n\nEvals from Harbor framework including terminal-bench, replicationbench, and compilebench."
+    "text": "Evals\n\nInspect Evals — UK AISI\n\nOver 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.\n\nOpenBench — Groq\n\nStandardized, reproducible benchmarking for LLMs across 30+ evals.\n\nInspect Harbor — Meridian\n\nEvals from Harbor framework including terminal-bench, replicationbench, and compilebench."
   },
   {
     "objectID": "index.html",
@@ -2601,28 +2601,35 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Capture compaction strategy params in eval log.\nInspect View: Display results of Scout scanners used as scorers next to transcripts.\nInspect View: New columns in task and log view: tags, % completed, sample errors, and error.\nInspect View: Fix regression in messages view which causes excessive whitespace between messages.\nInspect View: Fix error when attempting to collapse all or expand all events in transcripts.\nInspect View: Improvements to expand / collapse behavior in transcripts.\nInspect View: Don’t show empty entries in messages view when a message is retried."
+    "text": "Anthropic: Warn when sampling parameters (temperature, etc.) are passed to Opus 4.7.\nAnthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.\nComputer Use: Map PRINTSCREEN (OpenAI vocab) to xdotool Print keysym so key combos like ALT+PRINTSCREEN work correctly.\nBugfix: Fix race condition in eval_set with retry_immediate=True that could cause ClosedResourceError when a task entered the retry path while other workers were completing concurrently.\nBugfix: Fix regression in realtime event stream introduced by message condensing."
+  },
+  {
+    "objectID": "CHANGELOG.html#unreleased",
+    "href": "CHANGELOG.html#unreleased",
+    "title": "Inspect",
+    "section": "",
+    "text": "Anthropic: Warn when sampling parameters (temperature, etc.) are passed to Opus 4.7.\nAnthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.\nComputer Use: Map PRINTSCREEN (OpenAI vocab) to xdotool Print keysym so key combos like ALT+PRINTSCREEN work correctly.\nBugfix: Fix race condition in eval_set with retry_immediate=True that could cause ClosedResourceError when a task entered the retry path while other workers were completing concurrently.\nBugfix: Fix regression in realtime event stream introduced by message condensing."
   },
   {
     "objectID": "CHANGELOG.html#april-2026",
     "href": "CHANGELOG.html#april-2026",
     "title": "Inspect",
-    "section": "",
-    "text": "Capture compaction strategy params in eval log.\nInspect View: Display results of Scout scanners used as scorers next to transcripts.\nInspect View: New columns in task and log view: tags, % completed, sample errors, and error.\nInspect View: Fix regression in messages view which causes excessive whitespace between messages.\nInspect View: Fix error when attempting to collapse all or expand all events in transcripts.\nInspect View: Improvements to expand / collapse behavior in transcripts.\nInspect View: Don’t show empty entries in messages view when a message is retried."
+    "section": "0.3.209 (20 April 2026)",
+    "text": "0.3.209 (20 April 2026)\n\nCapture compaction strategy params in eval log.\nInspect View: Display results of Scout scanners used as scorers next to transcripts.\nInspect View: New columns in task and log view: tags, % completed, sample errors, and error.\nInspect View: Fix regression in messages view which causes excessive whitespace between messages.\nInspect View: Fix error when attempting to collapse all or expand all events in transcripts.\nInspect View: Improvements to expand / collapse behavior in transcripts.\nInspect View: Don’t show empty entries in messages view when a message is retried."
   },
   {
     "objectID": "CHANGELOG.html#april-2026-1",
     "href": "CHANGELOG.html#april-2026-1",
     "title": "Inspect",
     "section": "0.3.208 (19 April 2026)",
-    "text": "0.3.208 (19 April 2026)\n\nGoogle: Correct counting for cached input tokens.\nModel API: Log model retries at WARNING when backoff &gt;= 60s.\nModel API: Enrich retry log messages with task/sample/model context and error summary.\nText Editor: Return OSError from path validation (e.g. ENAMETOOLONG) to the model as a tool error instead of crashing the eval."
+    "text": "0.3.208 (19 April 2026)\n\nGoogle: Correct counting for cached input tokens.\nModel API: Log model retries at WARNING when backoff &gt;= 60s.\nModel API: Enrich retry log messages with task/sample/model context and error summary.\nText Editor: Return OSError from path validation (e.g. ENAMETOOLONG) to the model as a tool error instead of crashing the eval.\nTask Display: Add cancel button to cancel individual tasks during parallel execution."
   },
   {
     "objectID": "CHANGELOG.html#april-2026-2",
     "href": "CHANGELOG.html#april-2026-2",
     "title": "Inspect",
     "section": "0.3.207 (16 April 2026)",
-    "text": "0.3.207 (16 April 2026)\n\nAnthropic: Auto-detect correct context window and max tokens for Opus 4.7.\nAnthropic: Support for new xhigh value for effort.\n\nAnthropic: Support for max value for reasoning_effort.\n\nTask Display: Add cancel button to cancel individual tasks during parallel execution."
+    "text": "0.3.207 (16 April 2026)\n\nAnthropic: Auto-detect correct context window and max tokens for Opus 4.7.\nAnthropic: Support for new xhigh value for effort.\n\nAnthropic: Support for max value for reasoning_effort."
   },
   {
     "objectID": "CHANGELOG.html#april-2026-3",

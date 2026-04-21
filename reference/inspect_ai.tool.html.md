@@ -18,7 +18,7 @@ Internal providers will be prioritized if running on the corresponding model (e.
 
 See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_web_search/_web_search.py#L105)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_web_search/_web_search.py#L105)
 
 ``` python
 def web_search(
@@ -88,7 +88,7 @@ Bash shell command execution tool.
 
 Execute bash shell commands using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_execute.py#L26)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_execute.py#L26)
 
 ``` python
 @tool(viewer=code_viewer("bash", "command"))
@@ -112,7 +112,7 @@ Python code execution tool.
 
 Execute Python code using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_execute.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_execute.py#L66)
 
 ``` python
 @tool(viewer=code_viewer("python", "code"))
@@ -140,7 +140,7 @@ To create a separate bash process for each call to [bash_session()](../reference
 
 See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-bash-session>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_bash_session.py#L78)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_bash_session.py#L78)
 
 ``` python
 @tool()
@@ -173,7 +173,7 @@ Perform text editor operations using a sandbox environment (e.g. “docker”).
 
 IMPORTANT: This tool does not currently support Subtask isolation. This means that a change made to a file by on Subtask will be visible to another Subtask.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_text_editor.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_text_editor.py#L66)
 
 ``` python
 @tool()
@@ -192,7 +192,7 @@ Desktop computer tool.
 
 See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_computer/_computer.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_computer/_computer.py#L74)
 
 ``` python
 @tool
@@ -219,7 +219,7 @@ When falling back to the [python()](../reference/inspect_ai.tool.html.md#python)
 
 See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_code_execution.py#L48)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_code_execution.py#L48)
 
 ``` python
 @tool(viewer=code_viewer("python", "code", title="code_execution"))
@@ -256,7 +256,7 @@ To create a separate web browser process for each call to [web_browser()](../ref
 
 See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L39)
 
 ``` python
 def web_browser(*, interactive: bool = True, instance: str | None = None) -> list[Tool]
@@ -276,7 +276,7 @@ Make skills available to an agent.
 
 See the [Skill](../reference/inspect_ai.tool.html.md#skill) documentation for details on defining skills.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/tool.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/tool.py#L16)
 
 ``` python
 @tool
@@ -307,7 +307,7 @@ Memory tool for managing persistent information.
 
 The description for the memory tool is based on the documentation for the Claude [system prompt](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool#prompting-guidance) associated with the use of the memory tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_memory.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_memory.py#L21)
 
 ``` python
 @tool
@@ -325,7 +325,7 @@ The update_plan tool is based on the update_plan provided by [Codex CLI](https:/
 
 The default tool description is taken from the GPT 5.1 system prompt for Codex. Pass a custom `description` to override this.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_update_plan.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_update_plan.py#L12)
 
 ``` python
 @tool
@@ -343,7 +343,7 @@ Tool that provides models with the ability to include an additional thinking ste
 
 Note that the [think()](../reference/inspect_ai.tool.html.md#think) tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios. Please see the documentation on using the [think tool](https://inspect.aisi.org.uk/tools-standard.html#sec-think) before using it in your evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_think.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_think.py#L6)
 
 ``` python
 @tool
@@ -367,7 +367,7 @@ Context manager for running MCP servers required by tools.
 
 Any [ToolSource](../reference/inspect_ai.tool.html.md#toolsource) passed in tools will be examined to see if it references an MCPServer, and if so, that server will be connected to upon entering the context and disconnected from upon exiting the context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/connection.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/connection.py#L10)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -385,7 +385,7 @@ MCP Server (Stdio).
 
 Stdio interface to MCP server. Use this for MCP servers that run locally.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/server.py#L116)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/server.py#L116)
 
 ``` python
 def mcp_server_stdio(
@@ -419,7 +419,7 @@ MCP Server (SSE).
 
 HTTP interface to MCP server. Use this for MCP servers available via a URL endpoint.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/server.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/server.py#L67)
 
 ``` python
 def mcp_server_http(
@@ -461,7 +461,7 @@ MCP Server (Sandbox).
 
 Interface to MCP server running in an Inspect sandbox.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/server.py#L153)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/server.py#L153)
 
 ``` python
 def mcp_server_sandbox(
@@ -505,7 +505,7 @@ SSE interface to MCP server. Use this for MCP servers available via a URL endpoi
 
 NOTE: The SEE interface has been [deprecated](https://mcp-framework.com/docs/Transports/sse/) in favor of [mcp_server_http()](../reference/inspect_ai.tool.html.md#mcp_server_http) for MCP servers at URL endpoints.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/server.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/server.py#L15)
 
 ``` python
 def mcp_server_sse(
@@ -545,7 +545,7 @@ How long (in seconds) the client will wait for a new event before disconnecting.
 
 Tools from MCP server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/tools.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/tools.py#L10)
 
 ``` python
 def mcp_tools(
@@ -567,7 +567,7 @@ Model Context Protocol server interface.
 
 [MCPServer](../reference/inspect_ai.tool.html.md#mcpserver) can be passed in the `tools` argument as a source of tools (use the [mcp_tools()](../reference/inspect_ai.tool.html.md#mcp_tools) function to filter the list of tools)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/_types.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/_types.py#L10)
 
 ``` python
 class MCPServer(ToolSource, AbstractAsyncContextManager["MCPServer"])
@@ -578,7 +578,7 @@ class MCPServer(ToolSource, AbstractAsyncContextManager["MCPServer"])
 tools  
 List of all tools provided by this server
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/_types.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/_types.py#L17)
 
 ``` python
 @abc.abstractmethod
@@ -589,7 +589,7 @@ async def tools(self) -> list[Tool]
 
 Configuration for MCP server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/_config.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/_config.py#L7)
 
 ``` python
 class MCPServerConfig(BaseModel)
@@ -610,7 +610,7 @@ Tools to make available from server (“all” for all tools).
 
 Configuration for MCP servers with stdio interface.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/_config.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/_config.py#L22)
 
 ``` python
 class MCPServerConfigStdio(MCPServerConfig)
@@ -643,7 +643,7 @@ The environment to use when spawning the process in addition to the platform spe
 
 Conifguration for MCP servers with HTTP interface.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_mcp/_config.py#L41)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_mcp/_config.py#L41)
 
 ``` python
 class MCPServerConfigHTTP(MCPServerConfig)
@@ -674,7 +674,7 @@ Make skills available to an agent.
 
 See the [Skill](../reference/inspect_ai.tool.html.md#skill) documentation for details on defining skills.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/tool.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/tool.py#L16)
 
 ``` python
 @tool
@@ -705,7 +705,7 @@ Read skill specifications.
 
 See the [agent skills specification](https://agentskills.io/specification) for details on defining skills.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/read.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/read.py#L10)
 
 ``` python
 def read_skills(skills: Sequence[str | Path | Skill]) -> list[Skill]
@@ -718,7 +718,7 @@ Directories containing SKILL.md files.
 
 Install skills into a sandbox.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/install.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/install.py#L11)
 
 ``` python
 async def install_skills(
@@ -747,7 +747,7 @@ Agent skill specification.
 
 See <https://agentskills.io/specification> for additional details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/types.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/types.py#L8)
 
 ``` python
 class Skill(BaseModel)
@@ -814,7 +814,7 @@ Space-delimited list of pre-approved tools the skill may use. (Experimental).
 skill_md  
 Render the skill as SKILL.md content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/types.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/types.py#L73)
 
 ``` python
 def skill_md(self) -> str
@@ -824,7 +824,7 @@ def skill_md(self) -> str
 
 Agent skill info.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_skill/types.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_skill/types.py#L99)
 
 ``` python
 class SkillInfo(BaseModel)
@@ -852,7 +852,7 @@ Tool with modifications to various attributes.
 
 This function modifies the passed tool in place and returns it. If you want to create multiple variations of a single tool using [tool_with()](../reference/inspect_ai.tool.html.md#tool_with) you should create the underlying tool multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_with.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_with.py#L14)
 
 ``` python
 def tool_with(
@@ -891,7 +891,7 @@ Optional function that determines how tool call results are played back as model
 
 Tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_def.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_def.py#L36)
 
 ``` python
 class ToolDef
@@ -928,7 +928,7 @@ Optional property bag that can be used by the model provider to customize the im
 \_\_init\_\_  
 Create a tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_def.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_def.py#L39)
 
 ``` python
 def __init__(
@@ -971,7 +971,7 @@ Optional property bag that can be used by the model provider to customize the im
 as_tool  
 Convert a ToolDef to a Tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_def.py#L146)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_def.py#L146)
 
 ``` python
 def as_tool(self) -> Tool
@@ -983,7 +983,7 @@ def as_tool(self) -> Tool
 
 Additional tool that an agent can use to solve a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L82)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L82)
 
 ``` python
 class Tool(Protocol):
@@ -1015,7 +1015,7 @@ def add() -> Tool:
 
 Valid types for results from tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L35)
 
 ``` python
 ToolResult = (
@@ -1038,7 +1038,7 @@ Exception thrown from tool call.
 
 If you throw a [ToolError](../reference/inspect_ai.tool.html.md#toolerror) form within a tool call, the error will be reported to the model for further processing (rather than ending the sample). If you want to raise a fatal error from a tool call use an appropriate standard exception type (e.g. `RuntimeError`, `ValueError`, etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L50)
 
 ``` python
 class ToolError(Exception)
@@ -1049,7 +1049,7 @@ class ToolError(Exception)
 \_\_init\_\_  
 Create a ToolError.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L60)
 
 ``` python
 def __init__(self, message: str) -> None
@@ -1062,7 +1062,7 @@ Error message to report to the model.
 
 Error raised by a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_call.py#L68)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_call.py#L68)
 
 ``` python
 @dataclass
@@ -1083,7 +1083,7 @@ Specify which tool to call.
 
 “auto” means the model decides; “any” means use at least one tool, “none” means never call a tool; ToolFunction instructs the model to call a specific function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_choice.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_choice.py#L13)
 
 ``` python
 ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
@@ -1093,7 +1093,7 @@ ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
 
 Indicate that a specific tool function should be called.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_choice.py#L5)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_choice.py#L5)
 
 ``` python
 @dataclass
@@ -1128,7 +1128,7 @@ ToolParam(
 )
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_info.py#L24)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_info.py#L24)
 
 ``` python
 class ToolInfo(BaseModel)
@@ -1152,7 +1152,7 @@ Optional property bag that can be used by the model provider to customize the im
 
 Description of tool parameters object in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_params.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_params.py#L15)
 
 ``` python
 class ToolParams(BaseModel)
@@ -1176,7 +1176,7 @@ Are additional object properties allowed?
 
 Description of tool parameter in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool_params.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool_params.py#L11)
 
 ``` python
 ToolParam: TypeAlias = JSONSchema
@@ -1186,7 +1186,7 @@ ToolParam: TypeAlias = JSONSchema
 
 Protocol for dynamically providing a set of tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L109)
 
 ``` python
 @runtime_checkable
@@ -1198,7 +1198,7 @@ class ToolSource(Protocol)
 tools  
 Retrieve tools from tool source.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L113)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L113)
 
 ``` python
 async def tools(self) -> list[Tool]
@@ -1218,7 +1218,7 @@ By default, all internal providers are enabled if there are no external provider
 
 Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_web_search/_web_search.py#L41)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_web_search/_web_search.py#L41)
 
 ``` python
 class WebSearchProviders(TypedDict, total=False)
@@ -1236,7 +1236,7 @@ Each model provider has a field that can be used to disable native code executio
 
 When falling back to the [python()](../reference/inspect_ai.tool.html.md#python) provider you should ensure that your [Task](../reference/inspect_ai.html.md#task) has a `sandbox` with support for executing Python code enabled.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tools/_code_execution.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tools/_code_execution.py#L17)
 
 ``` python
 class CodeExecutionProviders(TypedDict, total=False)
@@ -1248,7 +1248,7 @@ class CodeExecutionProviders(TypedDict, total=False)
 
 Decorator for registering tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e8bf9b728becf05c316fb437341a8ade39a9d113/src/inspect_ai/tool/_tool.py#L163)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/fc9b358e5454f7e672b0da3055fd42574c0ccd5d/src/inspect_ai/tool/_tool.py#L163)
 
 ``` python
 def tool(
