@@ -1,5 +1,16 @@
-## Unreleased
+## 0.3.209 (20 April 2026)
 
+- Capture compaction strategy params in eval log.
+- Inspect View: Display results of Scout scanners used as scorers next to transcripts.
+- Inspect View: New columns in task and log view: tags, % completed, sample errors, and error.
+- Inspect View: Fix regression in messages view which causes excessive whitespace between messages.
+- Inspect View: Fix error when attempting to collapse all or expand all events in transcripts.
+- Inspect View: Improvements to expand / collapse behavior in transcripts.
+- Inspect View: Don't show empty entries in messages view when a message is retried.
+
+## 0.3.208 (19 April 2026)
+
+- Google: Correct counting for cached input tokens. 
 - Model API: Log model retries at WARNING when backoff >= 60s.
 - Model API: Enrich retry log messages with task/sample/model context and error summary.
 - Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.

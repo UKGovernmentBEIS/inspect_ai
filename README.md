@@ -6,7 +6,7 @@ Inspect provides many built-in components, including facilities for prompt engin
 
 To get started with Inspect, please see the documentation at <https://inspect.aisi.org.uk/>.
 
-Inspect also includes a collection of over 100 pre-built evaluations ready to run on any model (learn more at [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/))
+Inspect also includes a collection of over 200 pre-built evaluations ready to run on any model (learn more at <https://inspect.aisi.org.uk/evals/>).
 
 ***
 
