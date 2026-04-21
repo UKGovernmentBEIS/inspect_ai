@@ -1,6 +1,6 @@
-from pathlib import Path
-
+import json
 import re
+from pathlib import Path
 
 import yaml
 
@@ -28,6 +28,12 @@ SECTION_IDS = {
 with open(PATH / "extensions.yml", "r") as f:
     records = yaml.safe_load(f)
 
+evals_json = PATH.parent / "evals" / "evals.json"
+inspect_evals_count = sum(
+    1 for r in json.loads(evals_json.read_text()) if r.get("source") == "evals"
+)
+inspect_evals_count_floor = (inspect_evals_count // 10) * 10
+
 groups: dict[str, list] = {cat: [] for cat in CATEGORY_ORDER}
 for record in records:
     cat = record.get("categories", ["Tooling"])[0]
@@ -41,6 +47,7 @@ for cat, items in groups.items():
     for item in items:
         name = item.get("name", "").strip()
         desc = item.get("description", "").strip().replace("\n", " ")
+        desc = desc.replace("{INSPECT_EVALS_COUNT}", str(inspect_evals_count_floor))
         author_raw = item.get("author", "").strip()
         # Convert markdown link to HTML <a> with no underline
         author_match = re.match(r"\[(.+?)\]\((.+?)\)", author_raw)

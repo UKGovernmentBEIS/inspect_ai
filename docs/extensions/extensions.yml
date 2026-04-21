@@ -84,7 +84,7 @@
 
 - name: "[Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/)"
   description: |
-    Over 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
+    Over {INSPECT_EVALS_COUNT} LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_evals)"
   categories: ["Evals"]
 
