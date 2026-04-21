@@ -1,6 +1,19 @@
 ## Unreleased
 
+- Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
+- Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.
 - Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
+- Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
+
+## 0.3.209 (20 April 2026)
+
+- Capture compaction strategy params in eval log.
+- Inspect View: Display results of Scout scanners used as scorers next to transcripts.
+- Inspect View: New columns in task and log view: tags, % completed, sample errors, and error.
+- Inspect View: Fix regression in messages view which causes excessive whitespace between messages.
+- Inspect View: Fix error when attempting to collapse all or expand all events in transcripts.
+- Inspect View: Improvements to expand / collapse behavior in transcripts.
+- Inspect View: Don't show empty entries in messages view when a message is retried.
 
 ## 0.3.208 (19 April 2026)
 
@@ -8,13 +21,13 @@
 - Model API: Log model retries at WARNING when backoff >= 60s.
 - Model API: Enrich retry log messages with task/sample/model context and error summary.
 - Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.
+- Task Display: Add cancel button to cancel individual tasks during parallel execution.
 
 ## 0.3.207 (16 April 2026)
 
 - Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
 - Anthropic: Support for new `xhigh` value for `effort`.                     
 - Anthropic: Support for `max` value for `reasoning_effort`.   
-- Task Display: Add cancel button to cancel individual tasks during parallel execution.
 
 ## 0.3.206 (15 April 2026)
 

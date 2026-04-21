@@ -139,6 +139,9 @@ def extract_named_params(
 
     # callables are not serializable so use their names
     for param in named_params.keys():
+        if hasattr(named_params[param], "_repr_params_"):
+            named_params[param] = named_params[param]._repr_params_()
+
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
         elif callable(named_params[param]) and hasattr(named_params[param], "__name__"):

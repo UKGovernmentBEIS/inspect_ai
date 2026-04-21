@@ -1,4 +1,5 @@
 from textwrap import dedent
+from typing import Any
 
 from typing_extensions import override
 
@@ -45,6 +46,18 @@ class CompactionSummary(CompactionStrategy):
         self.model = get_model(model) if model is not None else model
         self.instructions = instructions
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params.update(
+            {
+                "model": self.model.name if self.model is not None else None,
+                "instructions": self.instructions,
+                "prompt": self.prompt,
+            }
+        )
+        return params
 
     @override
     async def compact(
