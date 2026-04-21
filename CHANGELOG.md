@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
+
 ## 0.3.209 (20 April 2026)
 
 - Capture compaction strategy params in eval log.
@@ -15,7 +19,6 @@
 - Model API: Enrich retry log messages with task/sample/model context and error summary.
 - Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.
 - Task Display: Add cancel button to cancel individual tasks during parallel execution.
-- Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
 
 ## 0.3.207 (16 April 2026)
 
