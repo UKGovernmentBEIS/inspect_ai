@@ -16,7 +16,11 @@ async def generate_with_logprobs(model_name, **model_kwargs) -> ModelOutput:
     model = get_model(
         model_name,
         config=GenerateConfig(
-            logprobs=True, top_logprobs=2, temperature=0.001, max_tokens=50
+            logprobs=True,
+            top_logprobs=2,
+            temperature=0.001,
+            max_tokens=50,
+            max_retries=0,
         ),
         **model_kwargs,
     )
