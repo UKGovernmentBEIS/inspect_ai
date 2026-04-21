@@ -54,7 +54,7 @@ async def test_openai_responses_stop_reason() -> None:
 @skip_if_no_anthropic
 @skip_if_trio
 async def test_anthropic_stop_reason() -> None:
-    await check_stop_reason("anthropic/anthropic/claude-haiku-4-5")
+    await check_stop_reason("anthropic/claude-haiku-4-5")
 
 
 @pytest.mark.flaky
