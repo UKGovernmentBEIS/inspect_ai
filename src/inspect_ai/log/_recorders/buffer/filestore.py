@@ -1,5 +1,6 @@
 import os
 import tempfile
+from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import Iterator, Literal
@@ -44,6 +45,61 @@ class Manifest(BaseModel):
     metrics: list[TaskDisplayMetric] = Field(default_factory=list)
     samples: list[SampleManifest] = Field(default_factory=list)
     segments: list[Segment] = Field(default_factory=list)
+
+
+def segments_for_sample_cursor(
+    manifest: Manifest,
+    sample: SampleManifest,
+    *,
+    after_event_id: int | None,
+    after_attachment_id: int | None,
+    after_message_pool_id: int | None,
+    after_call_pool_id: int | None,
+) -> list[Segment]:
+    """Return segments for `sample` that can contain data newer than the cursors.
+
+    OR-logic across cursor types: a segment qualifies if any of its
+    last_*_id values exceeds the corresponding cursor. `None` is treated
+    as `-1` (no cursor yet). Over-inclusive by design; individual items
+    must be post-filtered by the caller.
+    """
+    after_event = after_event_id if after_event_id is not None else -1
+    after_attachment = after_attachment_id if after_attachment_id is not None else -1
+    after_message_pool = (
+        after_message_pool_id if after_message_pool_id is not None else -1
+    )
+    after_call_pool = after_call_pool_id if after_call_pool_id is not None else -1
+
+    by_id = sorted(
+        (s for s in manifest.segments if s.id in sample.segments),
+        key=lambda s: s.id,
+    )
+    return [
+        s
+        for s in by_id
+        if s.last_event_id > after_event
+        or s.last_attachment_id > after_attachment
+        or s.last_message_pool_id > after_message_pool
+        or s.last_call_pool_id > after_call_pool
+    ]
+
+
+@dataclass(frozen=True)
+class SegmentLocation:
+    """Location of a segment zip and the member to read from it."""
+
+    id: int
+    path: str
+    member_name: str
+
+
+@dataclass(frozen=True)
+class PendingSampleSegments:
+    """Segments + manifest metadata needed to fulfill a pending-sample query."""
+
+    segments: list[SegmentLocation]
+    has_more: bool
+    complete: bool
 
 
 MANIFEST = "manifest.json"
@@ -222,8 +278,16 @@ class SampleBufferFilestore(SampleBuffer):
         if sample is None:
             return None
 
-        # determine which segments we need to return in order to
-        # satisfy the cursor parameters
+        segments = segments_for_sample_cursor(
+            manifest,
+            sample,
+            after_event_id=after_event_id,
+            after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
+        )
+
+        # defaults for the per-item post-filter below
         after_event_id = after_event_id if after_event_id is not None else -1
         after_attachment_id = (
             after_attachment_id if after_attachment_id is not None else -1
@@ -234,17 +298,6 @@ class SampleBufferFilestore(SampleBuffer):
         after_call_pool_id = (
             after_call_pool_id if after_call_pool_id is not None else -1
         )
-        segments = [
-            segment for segment in manifest.segments if segment.id in sample.segments
-        ]
-        segments = [
-            segment
-            for segment in segments
-            if segment.last_event_id > after_event_id
-            or segment.last_attachment_id > after_attachment_id
-            or segment.last_message_pool_id > after_message_pool_id
-            or segment.last_call_pool_id > after_call_pool_id
-        ]
 
         # collect data from the segments
         try:
@@ -277,6 +330,75 @@ class SampleBufferFilestore(SampleBuffer):
         ]
 
         return sample_data
+
+    def get_pending_segments(
+        self,
+        id: str | int,
+        epoch: int,
+        *,
+        after_event_id: int | None = None,
+        after_attachment_id: int | None = None,
+        after_message_pool_id: int | None = None,
+        after_call_pool_id: int | None = None,
+        max_segments: int | None = None,
+        tail: bool = False,
+    ) -> PendingSampleSegments | None:
+        """Return segment locations + metadata for a pending-sample query.
+
+        Returns None when the manifest is missing or the requested sample is
+        not in the manifest. With `max_segments >= 0`, the result is truncated
+        and `has_more` is set; otherwise all eligible segments are returned
+        and `has_more` is False.
+
+        With `tail=True`, the truncation takes the last `max_segments` segments
+        instead of the first; `has_more` is always False so a "show recent then
+        follow" caller can drop in mid-stream without cursor management.
+        """
+        manifest = self.read_manifest()
+        if manifest is None:
+            return None
+
+        sample = next(
+            (
+                s
+                for s in manifest.samples
+                if s.summary.id == id and s.summary.epoch == epoch
+            ),
+            None,
+        )
+        if sample is None:
+            return None
+
+        all_segments = segments_for_sample_cursor(
+            manifest,
+            sample,
+            after_event_id=after_event_id,
+            after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
+        )
+        if max_segments is not None and max_segments >= 0:
+            segments = (
+                all_segments[-max_segments:] if tail else all_segments[:max_segments]
+            )
+        else:
+            segments = all_segments
+        has_more = False if tail else len(segments) < len(all_segments)
+
+        member_name = segment_file_name(sample.summary.id, sample.summary.epoch)
+        locations = [
+            SegmentLocation(
+                id=seg.id,
+                path=f"{self._dir}{segment_name(seg.id)}",
+                member_name=member_name,
+            )
+            for seg in segments
+        ]
+        return PendingSampleSegments(
+            segments=locations,
+            has_more=has_more,
+            complete=sample.summary.completed or False,
+        )
 
     def _manifest_file(self) -> str:
         return f"{self._dir}{MANIFEST}"
