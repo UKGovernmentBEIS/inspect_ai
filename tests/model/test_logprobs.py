@@ -47,7 +47,7 @@ async def test_openai_responses_logprobs() -> None:
 @skip_if_no_google
 @flaky_retry(max_retries=3)
 async def test_google_logprobs() -> None:
-    response = await generate_with_logprobs("google/gemini-2.0-flash")
+    response = await generate_with_logprobs("google/gemini-3.1-flash-lite-preview")
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     # 10/16/25: Google returning only 1 top logprob even when set to to
