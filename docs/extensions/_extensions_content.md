@@ -63,6 +63,9 @@
 [Control Arena](https://github.com/UKGovernmentBEIS/control-arena) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
 :   Framework for running experiments on AI Control and Monitoring.
 
+[Linux Arena](https://www.linuxarena.ai) &mdash; <small><a href="https://github.com/linuxarena/control-tower" style="text-decoration:none">Redwood Research</a></small>
+:   Framework for running experiments on AI Control and Monitoring.
+
 
 ## Tooling {#sec-tooling}
 
