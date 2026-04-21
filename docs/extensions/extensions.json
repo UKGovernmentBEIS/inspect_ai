@@ -223,7 +223,7 @@
     "id": "inspect-flow",
     "name": "Inspect Flow",
     "url": "https://meridianlabs-ai.github.io/inspect_flow/",
-    "desc": "Workflow orchestration for reprocibly running evals at scale.",
+    "desc": "Workflow orchestration for reproducibly running evals at scale.",
     "author": "Meridian",
     "author_url": "https://github.com/meridianlabs-ai/inspect_flow",
     "categories": [
@@ -261,39 +261,6 @@
     "author_url": "https://github.com/jasongwartz",
     "categories": [
       "Tooling"
-    ]
-  },
-  {
-    "id": "inspect-evals",
-    "name": "Inspect Evals",
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/",
-    "desc": "Over 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.",
-    "author": "UK AISI",
-    "author_url": "https://github.com/UKGovernmentBEIS/inspect_evals",
-    "categories": [
-      "Evals"
-    ]
-  },
-  {
-    "id": "openbench",
-    "name": "OpenBench",
-    "url": "https://github.com/groq/openbench",
-    "desc": "Standardized, reproducible benchmarking for LLMs across 30+ evals.",
-    "author": "Groq",
-    "author_url": "https://github.com/groq",
-    "categories": [
-      "Evals"
-    ]
-  },
-  {
-    "id": "inspect-harbor",
-    "name": "Inspect Harbor",
-    "url": "https://github.com/meridianlabs-ai/inspect_harbor",
-    "desc": "Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.",
-    "author": "Meridian",
-    "author_url": "https://github.com/meridianlabs-ai/inspect_harbor",
-    "categories": [
-      "Evals"
     ]
   }
 ]

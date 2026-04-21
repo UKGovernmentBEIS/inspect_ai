@@ -72,7 +72,7 @@
 
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
-    Workflow orchestration for reprocibly running evals at scale.
+    Workflow orchestration for reproducibly running evals at scale.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_flow)"
   categories: ["Tooling"]
 
@@ -87,18 +87,6 @@
     VS Code extension that assists with developing and debugging Inspect evaluations.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
   categories: ["Tooling"]
-
-- name: "[Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/)"
-  description: |
-    Over {INSPECT_EVALS_COUNT} LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_evals)"
-  categories: ["Evals"]
-
-- name: "[OpenBench](https://github.com/groq/openbench)"
-  description: |
-    Standardized, reproducible benchmarking for LLMs across 30+ evals.
-  author: "[Groq](https://github.com/groq)"
-  categories: ["Evals"]
 
 - name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
   description: |
@@ -130,12 +118,6 @@
   description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
   categories: ["Sandboxes"]
-
-- name: "[Inspect Harbor](https://github.com/meridianlabs-ai/inspect_harbor)"
-  description: |
-    Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.
-  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_harbor)"
-  categories: ["Evals"]
 
 - name: "[Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox)"
   description: |
