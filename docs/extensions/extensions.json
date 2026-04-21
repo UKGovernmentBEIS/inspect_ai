@@ -1,0 +1,299 @@
+[
+  {
+    "id": "k8s-sandbox",
+    "name": "k8s Sandbox",
+    "url": "https://k8s-sandbox.aisi.org.uk/",
+    "desc": "Python package that provides a Kubernetes sandbox environment for Inspect.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "modal-sandbox",
+    "name": "Modal Sandbox",
+    "url": "https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal",
+    "desc": "Serverless container sandbox for Inspect using Modal's cloud infrastructure.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_sandboxes",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "daytona-sandbox",
+    "name": "Daytona Sandbox",
+    "url": "https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona",
+    "desc": "Sandbox environment for Inspect using Daytona's cloud infrastructure.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_sandboxes",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "ec2-sandbox",
+    "name": "EC2 Sandbox",
+    "url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
+    "desc": "Python package that provides a EC2 virtual machine sandbox environment for Inspect.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "proxmox-sandbox",
+    "name": "Proxmox Sandbox",
+    "url": "https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox",
+    "desc": "Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "vagrant-sandbox",
+    "name": "Vagrant Sandbox",
+    "url": "https://github.com/jasongwartz/inspect_vagrant_sandbox",
+    "desc": "Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.",
+    "author": "Jason Gwartz",
+    "author_url": "https://github.com/jasongwartz",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "podman-sandbox",
+    "name": "Podman Sandbox",
+    "url": "https://github.com/VectorInstitute/inspect-podman",
+    "desc": "Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.",
+    "author": "Vector Institute",
+    "author_url": "https://github.com/VectorInstitute/inspect-podman",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "policy-sandbox",
+    "name": "Policy Sandbox",
+    "url": "https://github.com/Dedulus/inspect-policy-sandbox",
+    "desc": "Sandbox wrapper that allows fine grained control over command execution and file I/O.",
+    "author": "Arnab Mitra",
+    "author_url": "https://github.com/Dedulus",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "inspect-scout",
+    "name": "Inspect Scout",
+    "url": "https://meridianlabs-ai.github.io/inspect_scout/",
+    "desc": "Transcript analysis for Inspect evaluations.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_scout",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-viz",
+    "name": "Inspect Viz",
+    "url": "https://meridianlabs-ai.github.io/inspect_viz/",
+    "desc": "Interactive data visualization for Inspect evaluations.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_viz",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "docent",
+    "name": "Docent",
+    "url": "https://docs.transluce.org/",
+    "desc": "Tools to summarize, cluster, and search over agent transcripts.",
+    "author": "Transluce",
+    "author_url": "https://transluce.org/introducing-docent",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "lunette",
+    "name": "Lunette",
+    "url": "https://docs.lunette.dev",
+    "desc": "Platform for understanding and improving agents.",
+    "author": "Fulcrum Research",
+    "author_url": "https://fulcrumresearch.ai",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-wandb",
+    "name": "Inspect WandB",
+    "url": "https://github.com/DanielPolatajko/inspect_wandb",
+    "desc": "Integration with Weights and Biases platform.",
+    "author": "Arcadia",
+    "author_url": "https://www.arcadiaimpact.org/",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-mlflow",
+    "name": "Inspect MLflow",
+    "url": "https://github.com/debu-sinha/inspect-mlflow",
+    "desc": "Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations.",
+    "author": "Debu Sinha",
+    "author_url": "https://github.com/debu-sinha",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "cje",
+    "name": "CJE",
+    "url": "https://github.com/cimo-labs/cje",
+    "desc": "Calibrated judge evaluation \u2014 calibrate model-graded scorer accuracy using causal inference with optional oracle labels.",
+    "author": "CIMO Labs",
+    "author_url": "https://cimolabs.com",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-swe",
+    "name": "Inspect SWE",
+    "url": "https://meridianlabs-ai.github.io/inspect_swe/",
+    "desc": "Software engineering agents (Claude Code and Codex CLI) for Inspect.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_swe",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "inspect-cyber",
+    "name": "Inspect Cyber",
+    "url": "https://ukgovernmentbeis.github.io/inspect_cyber/",
+    "desc": "Python package that streamlines the process of creating agentic cyber evaluations in Inspect.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/inspect_cyber",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "inspect-petri",
+    "name": "Inspect Petri",
+    "url": "https://safety-research.github.io/petri/",
+    "desc": "Framework testing alignment hypotheses end\u2011to\u2011end, including automatic scenario generation.",
+    "author": "Meridian",
+    "author_url": "https://meridianlabs-ai.github.io/inspect_petri/",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "control-arena",
+    "name": "Control Arena",
+    "url": "https://control-arena.aisi.org.uk",
+    "desc": "Framework for running experiments on AI Control and Monitoring.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/control-arena",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "linux-arena",
+    "name": "Linux Arena",
+    "url": "https://www.linuxarena.ai",
+    "desc": "Framework for running experiments on AI Control and Monitoring.",
+    "author": "Redwood Research",
+    "author_url": "https://github.com/linuxarena/control-tower",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "inspect-flow",
+    "name": "Inspect Flow",
+    "url": "https://meridianlabs-ai.github.io/inspect_flow/",
+    "desc": "Workflow orchestration for reprocibly running evals at scale.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_flow",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "evaljobs",
+    "name": "Evaljobs",
+    "url": "https://github.com/dvsrepo/evaljobs",
+    "desc": "Run evals on Hugging Face GPUs and share results and code on the Hugging Face Hub.",
+    "author": "Hugging Face",
+    "author_url": "https://github.com/dvsrepo/evaljobs",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-vs-code",
+    "name": "Inspect VS Code",
+    "url": "https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai",
+    "desc": "VS Code extension that assists with developing and debugging Inspect evaluations.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect-vscode",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-costs-plugin",
+    "name": "Inspect Costs Plugin",
+    "url": "https://github.com/jasongwartz/inspect_costs_plugin/",
+    "desc": "Automatically load pricing data for models under test.",
+    "author": "Jason Gwartz",
+    "author_url": "https://github.com/jasongwartz",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "inspect-evals",
+    "name": "Inspect Evals",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/",
+    "desc": "Over 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/inspect_evals",
+    "categories": [
+      "Evals"
+    ]
+  },
+  {
+    "id": "openbench",
+    "name": "OpenBench",
+    "url": "https://github.com/groq/openbench",
+    "desc": "Standardized, reproducible benchmarking for LLMs across 30+ evals.",
+    "author": "Groq",
+    "author_url": "https://github.com/groq",
+    "categories": [
+      "Evals"
+    ]
+  },
+  {
+    "id": "inspect-harbor",
+    "name": "Inspect Harbor",
+    "url": "https://github.com/meridianlabs-ai/inspect_harbor",
+    "desc": "Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_harbor",
+    "categories": [
+      "Evals"
+    ]
+  }
+]

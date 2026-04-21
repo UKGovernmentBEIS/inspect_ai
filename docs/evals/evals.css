@@ -40,6 +40,35 @@
   margin-top: 0;
 }
 
+/* ─── Main header (title + chips + count + search on one row) ─── */
+#evals-app .evals-main-header {
+  gap: 1rem !important;
+  margin-bottom: 1.25rem !important;
+}
+#evals-app .evals-title {
+  margin: 0 !important;
+  line-height: 1 !important;
+  transform: translateY(-2px);
+}
+
+/* ─── Category headers within the grid ─── */
+#evals-app .evals-cat-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--bs-emphasis-color, #212529);
+  margin: 1.5rem 0 .65rem;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+#evals-app .evals-cat-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bs-border-color, #dee2e6);
+}
+#evals-app .evals-cat-first { margin-top: 0; }
+
 /* ─── Card grid ─── */
 /* Quarto's Bootstrap bundle strips .row/.col/.row-cols-* — use native CSS Grid
    (unaffected by Quarto) instead. */

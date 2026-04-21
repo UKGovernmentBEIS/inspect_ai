@@ -234,6 +234,7 @@ function mainHeader({ state, count, onSearchInput, onClearSearch, onClearSource,
     : null;
 
   return h('div', { class: 'd-flex align-items-center gap-2 flex-wrap mb-3 evals-main-header' },
+    h('h1', { class: 'fw-semibold evals-title' }, 'Evals'),
     sourceChip,
     categoryChip,
     h('span', { class: 'text-body-tertiary small' }, `${count} evals`),
@@ -353,6 +354,29 @@ function detailPage(eval_) {
   );
 }
 
+// ── Grouped grid ──────────────────────────────────────────────────────────
+function evalGrid(items) {
+  return h('div', { class: 'evals-grid' }, ...items.map((ev) => evalCard(ev)));
+}
+
+function grouped(results) {
+  // Only show category headers when no filters are active.
+  const isFiltered = state.category !== 'All' || state.source !== 'All' || state.searchQ.trim();
+  if (isFiltered) return evalGrid(results);
+
+  // Group by primary category, respecting CATEGORIES order.
+  // Sub-categories (Biology, Finance, etc.) get their own header.
+  const present = CATEGORIES.filter(cat => results.some(e => (e.categories || [])[0] === cat));
+  return h('div', {},
+    ...present.map((cat, i) =>
+      h('div', {},
+        h('div', { class: `evals-cat-heading${i === 0 ? ' evals-cat-first' : ''}` }, cat),
+        evalGrid(results.filter(e => (e.categories || [])[0] === cat)),
+      ),
+    ),
+  );
+}
+
 // ── App state + rendering ──────────────────────────────────────────────────
 let root;
 let evals = [];
@@ -437,8 +461,7 @@ function render() {
       onPackage:  (key) => navigate({ route: 'index', filters: { ...state, source:   key } }),
       onCategory: (key) => navigate({ route: 'index', filters: { ...state, category: key } }),
     }),
-    h('main', { class: 'flex-grow-1 px-3 pb-3 px-md-4' },
-      h('h1', { class: 'fw-semibold mt-0 mb-2' }, 'Evals'),
+    h('main', { class: 'flex-grow-1 px-3 pt-3 pb-3 px-md-4' },
       mainHeader({
         state,
         count: results.length,
@@ -453,8 +476,7 @@ function render() {
       }),
       results.length === 0
         ? emptyState()
-        : h('div', { class: 'evals-grid' },
-            ...results.map((ev) => evalCard(ev))),
+        : grouped(results),
     ),
   );
   root.append(shell);

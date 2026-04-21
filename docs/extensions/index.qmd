@@ -1,16 +1,27 @@
 ---
 title: "Inspect Extensions"
+page-layout: full
+anchor-sections: false
+toc: false
+css: extensions.css
+resources:
+  - extensions.json
+  - extensions-app.js
+include-after-body:
+  - text: |
+      <script type="module" src="./extensions-app.js"></script>
 aliases:
   - /integrations/index.html
 execute:
   enabled: true
 ---
 
-
-
 ```{python}
-#| output: asis
 #| echo: false
+#| output: false
 exec(open("generate.py").read())
-print(open("_extensions_content.md").read())
 ```
+
+::: {.content-visible when-format="html"}
+<div id="extensions-app" data-src="./extensions.json"></div>
+:::
