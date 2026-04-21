@@ -18,8 +18,8 @@ from inspect_ai.scorer import match
 @pytest.mark.parametrize(
     "model",
     [
-        "google/vertex/gemini-2.0-flash",
-        "google/gemini-2.0-flash",
+        "google/vertex/gemini-3.1-flash-lite-preview",
+        "google/gemini-3.1-flash-lite-preview",
     ],
 )
 @skip_if_no_google
@@ -34,7 +34,7 @@ def test_google_canonical_name_in_eval_log(model):
         model=model,
     )[0]
 
-    assert log.eval.model == "google/gemini-2.0-flash"
+    assert log.eval.model == "google/gemini-3.1-flash-lite-preview"
 
 
 @pytest.mark.parametrize(
