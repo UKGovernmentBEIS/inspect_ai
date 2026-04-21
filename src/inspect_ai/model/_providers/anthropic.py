@@ -751,13 +751,14 @@ class AnthropicAPI(ModelAPI):
         if anthropic_beta_header:
             betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
-        # Opus 4.7+ is always in adaptive thinking and rejects these params
+        # Claude 4.7+ is always in adaptive thinking and rejects these params
         # regardless of config; other models only reject them under thinking.
-        adaptive_only = self._forbids_sampling_params()
-        forbid_sampling_params = adaptive_only or self.is_using_thinking(config)
+        forbid_sampling_params = (
+            self.is_claude_4_7_or_later() or self.is_using_thinking(config)
+        )
 
         def sampling_param_warning(parameter: str) -> str:
-            if adaptive_only:
+            if self.is_claude_4_7_or_later():
                 return _ADAPTIVE_ONLY_WARNING.format(
                     parameter=parameter, model=self.service_model_name()
                 )
@@ -895,13 +896,6 @@ class AnthropicAPI(ModelAPI):
             (config.reasoning_tokens is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
         )
-
-    def _forbids_sampling_params(self) -> bool:
-        # Opus 4.7+ is adaptive-thinking-only and rejects temperature/top_p/top_k.
-        # is_claude_4_7_or_later already covers is_claude_latest so future Opus
-        # minors and majors inherit this by default.
-        # https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#adaptive-thinking
-        return "opus" in self.service_model_name() and self.is_claude_4_7_or_later()
 
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:

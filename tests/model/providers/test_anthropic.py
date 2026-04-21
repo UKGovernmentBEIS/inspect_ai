@@ -506,7 +506,7 @@ def test_anthropic_reasoning_effort_returns_none_for_old_models() -> None:
 
 
 # ---------------------------------------------------------------------------
-# sampling param stripping for Opus 4.7 (adaptive-thinking-only)
+# sampling param stripping for Claude 4.7+ (adaptive-thinking-only)
 # ---------------------------------------------------------------------------
 
 
@@ -522,10 +522,10 @@ def _cfg(**kwargs: Any) -> GenerateConfig:
 
 
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_opus_4_7_strips_sampling_params(
+def test_anthropic_claude_4_7_strips_sampling_params(
     param: str, value: float | int
 ) -> None:
-    """Opus 4.7 rejects temperature/top_p/top_k outright; the provider must omit them."""
+    """Claude 4.7+ rejects temperature/top_p/top_k outright; the provider must omit them."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
     params, _extra_body, _headers, _betas = api.completion_config(
         _cfg(**{param: value})
@@ -534,7 +534,7 @@ def test_anthropic_opus_4_7_strips_sampling_params(
 
 
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_opus_4_7_strips_sampling_params_with_reasoning_effort_none(
+def test_anthropic_claude_4_7_strips_sampling_params_with_reasoning_effort_none(
     param: str, value: float | int
 ) -> None:
     """reasoning_effort='none' must not re-enable sending sampling params on 4.7."""
@@ -545,41 +545,35 @@ def test_anthropic_opus_4_7_strips_sampling_params_with_reasoning_effort_none(
     assert param not in params
 
 
+@pytest.mark.parametrize(
+    "model_name", ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+)
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_opus_4_6_keeps_sampling_params_without_thinking(
-    param: str, value: float | int
+def test_anthropic_pre_4_7_keeps_sampling_params_without_thinking(
+    model_name: str, param: str, value: float | int
 ) -> None:
-    """Opus 4.6 still accepts sampling params when thinking is off."""
-    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    """Pre-4.7 models still accept sampling params when thinking is off."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _extra_body, _headers, _betas = api.completion_config(
         _cfg(**{param: value})
     )
     assert params[param] == value
 
 
-@pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-opus-5-0"])
+@pytest.mark.parametrize(
+    "model_name",
+    ["claude-opus-4-8", "claude-opus-5-0", "claude-sonnet-4-7", "claude-sonnet-5-0"],
+)
 @pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_future_opus_strips_sampling_params(
+def test_anthropic_future_4_7_plus_strips_sampling_params(
     model_name: str, param: str, value: float | int
 ) -> None:
-    """Future Opus minor and major releases inherit the 4.7 restriction."""
+    """All 4.7+ models inherit the adaptive-thinking restriction."""
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     params, _extra_body, _headers, _betas = api.completion_config(
         _cfg(**{param: value})
     )
     assert param not in params
-
-
-@pytest.mark.parametrize("param,value", list(_SAMPLING_PARAMS.items()))
-def test_anthropic_future_non_opus_keeps_sampling_params(
-    param: str, value: float | int
-) -> None:
-    """The restriction is Opus-specific; non-Opus future models still accept sampling params."""
-    api = AnthropicAPI(model_name="claude-sonnet-5-0", api_key="test-key")
-    params, _extra_body, _headers, _betas = api.completion_config(
-        _cfg(**{param: value})
-    )
-    assert params[param] == value
 
 
 @pytest.fixture
@@ -595,10 +589,10 @@ def _warn_once_messages() -> Any:
     _inspect_logger._warned.clear()
 
 
-def test_anthropic_opus_4_7_emits_adaptive_only_warning(
+def test_anthropic_claude_4_7_emits_adaptive_only_warning(
     _warn_once_messages: list[str],
 ) -> None:
-    """Opus 4.7 should emit the adaptive-only message, not the extended-thinking one."""
+    """Claude 4.7+ should emit the adaptive-only message, not the extended-thinking one."""
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
     api.completion_config(_cfg(temperature=0.0))
     assert any(
