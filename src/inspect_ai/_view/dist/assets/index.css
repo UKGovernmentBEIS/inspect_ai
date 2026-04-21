@@ -14485,9 +14485,6 @@ body[class^="vscode-"] {
   --bs-card-border-color: var(--vscode-editorGroup-border);
   --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
   --bs-warning-text-emphasis: var(--vscode-input-foreground);
-  --bs-success-bg-subtle: var(--vscode-diffEditor-insertedTextBackground);
-  --bs-danger-bg-subtle: var(--vscode-diffEditor-removedTextBackground);
-  --bs-info-bg-subtle: var(--vscode-inputValidation-infoBackground);
   --bs-breadcrumb-divider-color: var(--vscode-foreground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
@@ -15860,17 +15857,16 @@ li > ul {
   padding: 0 0.2rem;
   background-color: var(--bs-body-bg);
 }
-.btn._toolButton_13erz_1 {
+.btn._toolButton_dd6ny_1 {
   background-color: var(--bs-light-border-subtle);
-  border: 1px solid var(--bs-border-color);
   white-space: nowrap;
 }
 
-._marginRight_13erz_7 {
+._marginRight_dd6ny_6 {
   margin-right: 0.5em;
 }
 
-._toolButton_13erz_1:focus {
+._toolButton_dd6ny_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -15878,16 +15874,15 @@ li > ul {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.btn._toolButton_13erz_1._subtle_13erz_19 {
-  background-color: var(--bs-light);
-}
-
-.btn._toolButton_13erz_1._latched_13erz_23,
-.btn._toolButton_13erz_1._latched_13erz_23:hover {
-  background-color: var(--bs-secondary-bg);
+._latched_dd6ny_18,
+._latched_dd6ny_18:hover {
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn._toolButton_dd6ny_1._subtle_dd6ny_25 {
+  background-color: var(--bs-light);
 }
 ._headerContainer_gh2j2_1 {
   display: grid;
@@ -17020,23 +17015,23 @@ button._segment_13qph_10._compact_13qph_31 i {
 ._dropdownItem_1swkv_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_85ts4_1 {
+._tabs_1wfac_1 {
   align-items: center;
 }
 
-._tabContents_85ts4_5 {
+._tabContents_1wfac_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_85ts4_5._scrollable_85ts4_11 {
+._tabContents_1wfac_5._scrollable_1wfac_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_85ts4_1 {
+._tab_1wfac_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17046,34 +17041,30 @@ button._segment_13qph_10._compact_13qph_31 i {
   margin-bottom: -1px;
 }
 
-._tabItem_85ts4_27 {
+._tabItem_1wfac_27 {
   align-self: end;
 }
 
-._pillSmallContainer_85ts4_31 {
+._pillSmallContainer_1wfac_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_85ts4_31 {
+._pillSmall_1wfac_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_85ts4_39 {
+._tabIcon_1wfac_39 {
   margin-right: 0.5em;
 }
 
-._tabSpacer_85ts4_43 {
+._tabSpacer_1wfac_43 {
   flex: 1 1 0;
   min-width: 0;
   list-style: none;
 }
 
-._tabTools_85ts4_49 {
-  /* Grow alongside the spacer so flex children inside (e.g. a filter
-     input) can claim leftover horizontal space rather than being
-     content-sized. `justify-content: end` keeps non-growing tools
-     pinned to the right edge as before. */
-  flex: 1 1 auto;
+._tabTools_1wfac_49 {
+  flex-basis: auto;
   display: flex;
   align-items: center;
   justify-content: end;
@@ -17082,20 +17073,20 @@ button._segment_13qph_10._compact_13qph_31 i {
   column-gap: 0.5rem;
 }
 
-._tabStyle_85ts4_63 {
+._tabStyle_1wfac_59 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_85ts4_49 > * {
+._tabTools_1wfac_49 > * {
   flex: 0 1 auto;
 }
 
-._tabTools_85ts4_49 input {
+._tabTools_1wfac_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_85ts4_49 .btn {
+._tabTools_1wfac_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
@@ -17363,22 +17354,24 @@ button._segment_13qph_10._compact_13qph_31 i {
   text-decoration-style: solid;
   background-color: var(--bs-primary-bg-subtle);
 }
-._circle_17gxn_1 {
-  width: 36px;
-  height: 22px;
+._circle_qymy9_1 {
+  font-family: "Consola Regular";
+  width: 40px;
+  height: 30px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  border-radius: 11px;
+  border-radius: 15px;
+  padding-top: 1px;
 }
 
-._green_17gxn_10 {
+._green_qymy9_12 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_17gxn_16 {
+._red_qymy9_18 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
@@ -17481,28 +17474,30 @@ button._segment_13qph_10._compact_13qph_31 i {
 ._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
-._circle_1seo2_1 {
-  width: 18px;
-  height: 18px;
+._circle_1iagp_1 {
+  font-family: "Consola Regular";
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   border-radius: 50%;
+  padding-top: 1px;
 }
 
-._green_1seo2_10 {
+._green_1iagp_12 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_1seo2_16 {
+._red_1iagp_18 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
 }
 
-._orange_1seo2_22 {
+._orange_1iagp_24 {
   background-color: var(--bs-orange);
   border-color: var(--bs-orange);
   color: var(--bs-body-bg);
@@ -17854,49 +17849,35 @@ button._segment_13qph_10._compact_13qph_31 i {
   width: inherit;
   height: inherit;
 }
-._rowLink_37x2s_1 {
-  color: inherit;
-  text-decoration: none;
+._nameCell_90rs9_1 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._rowLink_37x2s_1:hover {
-  color: inherit;
-  text-decoration: none;
-}
-
-._nameCell_37x2s_15 {
+._modelCell_90rs9_8 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_37x2s_22 {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  flex: 1;
-}
-
-._modelCellPrimary_37x2s_29 {
+._modelCellPrimary_90rs9_15 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-._scoreCell_37x2s_36 {
+._scoreCell_90rs9_22 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._multiScorerBadge_37x2s_43 {
+._multiScorerBadge_90rs9_29 {
   margin-left: 0.35rem;
   padding: 2px 0.45rem;
   border-radius: 0.5rem;
@@ -17908,30 +17889,30 @@ button._segment_13qph_10._compact_13qph_31 i {
   white-space: nowrap;
 }
 
-._error_37x2s_55 {
+._error_90rs9_41 {
   color: var(--bs-danger);
 }
 
-._started_37x2s_59 {
+._started_90rs9_45 {
   color: var(--bs-secondary);
 }
 
-._success_37x2s_63 {
+._success_90rs9_49 {
   color: var(--bs-success);
 }
 
-._cancelled_37x2s_67 {
+._cancelled_90rs9_53 {
   color: var(--bs-secondary);
 }
 
-._statusCell_37x2s_71 {
+._statusCell_90rs9_57 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
 
-._dateCell_37x2s_78 {
+._dateCell_90rs9_64 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -17997,13 +17978,13 @@ button._segment_13qph_10._compact_13qph_31 i {
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
 }
-._gridWrapper_yfmzu_1 {
+._gridWrapper_gp0n4_1 {
   height: 100%;
   width: 100%;
   position: relative;
 }
 
-._gridContainer_yfmzu_7 {
+._gridContainer_gp0n4_7 {
   position: absolute;
   top: 0;
   left: 0;
@@ -18014,8 +17995,7 @@ button._segment_13qph_10._compact_13qph_31 i {
 /* Shared chrome — applied to all sample/log grids. Other ag-grids in the
  * app (e.g. the small score-summary table in title-view) intentionally opt
  * out by not adding this class. */
-
-._gridChrome_yfmzu_19 .ag-row {
+._gridChrome_gp0n4_18 .ag-row {
   cursor: pointer;
   border-bottom: 1px solid var(--bs-border-color);
   background-color: var(--bs-body-bg);
@@ -18027,27 +18007,15 @@ button._segment_13qph_10._compact_13qph_31 i {
 
 /* Match container so rows' min-width: 100% has the full viewport to
  * stretch into. Pinned containers are unaffected. */
-._gridChrome_yfmzu_19 .ag-center-cols-container {
+._gridChrome_gp0n4_18 .ag-center-cols-container {
   min-width: 100%;
 }
 
-._gridChrome_yfmzu_19 {
-  --ag-row-selected-color: transparent;
-  --ag-selected-row-background-color: transparent;
-}
-
-/* Pseudo-element overlay so the selection ring sits above per-cell
- * backgrounds set by the colour-scale heatmap. */
-._gridChrome_yfmzu_19 .ag-row.ag-row-selected::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+._gridChrome_gp0n4_18 .ag-row.ag-row-selected {
   box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
-  z-index: 1;
 }
 
-._gridChrome_yfmzu_19 .ag-header-cell {
+._gridChrome_gp0n4_18 .ag-header-cell {
   /* Right gutter gives the active-filter icon (sibling of the header
    * label inside `.ag-cell-label-container`) breathing room from the
    * column boundary. Left padding is handled via the `::before` flex
@@ -18055,160 +18023,58 @@ button._segment_13qph_10._compact_13qph_31 i {
   padding: 0 4px 0 0;
 }
 
-._gridChrome_yfmzu_19 .ag-header-cell-label::before {
+._gridChrome_gp0n4_18 .ag-header-cell-label::before {
   content: "";
   flex: 0 1 var(--ag-cell-horizontal-padding);
 }
 
-._gridChrome_yfmzu_19 .ag-header-cell-text {
+._gridChrome_gp0n4_18 .ag-header-cell-text {
   font-size: var(--inspect-font-size-smallestest);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 400;
 }
 
-/* Rotated header — opt-in via `headerClass: styles.rotatedHeader` +
- * `headerComponent: RotatedHeader` in a ColDef. SamplesGrid auto-bumps
- * `headerHeight` to kRotatedHeaderHeight when any column has this class
- * so the rotated label has room to fan up-and-to-the-right without
- * getting clipped by the header viewport. */
-._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 {
-  /* Default ag-grid `.ag-header-cell` clips overflow; the rotated
-   * parallelogram pivots out of the cell box and would disappear
-   * without this. */
-  overflow: visible;
-  /* Suppress Balham's vertical column separator on rotated cells —
-   * a vertical line through a 45° label clashes. The angled divider
-   * inside `RotatedHeader` takes its place. */
-  --ag-header-column-border: transparent;
-  /* Override the regular-cell right-gutter padding so the rotated
-   * label's `left: 100%` anchor lands on the actual cell boundary
-   * (matching the colour-scale background) instead of the inset
-   * content edge. The gutter exists for the default filter icon,
-   * which rotated cells don't render. */
-  padding-right: 0;
-}
-
-/* Compact-mode trailing spacer column — no header content, no
- * separator. The spacer only exists to extend the scrollable extent
- * so the rightmost rotated label has room past the last data column;
- * a vertical divider on it would visually fence off that breathing
- * room and look like a grid edge. */
-._gridChrome_yfmzu_19 ._spacerHeader_yfmzu_98 {
-  --ag-header-column-border: transparent;
-}
-
-/* Each rotated label extends past its own cell into the next
- * column's space, so the next cell's content wrapper would
- * otherwise intercept clicks on the overflowing label tip. Make the
- * wrapper transparent to pointer events; the label inside opts back
- * in via `pointer-events: auto` (see RotatedHeader.module.css). */
-._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 .ag-header-cell-comp-wrapper {
-  pointer-events: none;
-}
-
-/* When any column has a rotated header, the header row is tall
- * enough that center-aligned labels look adrift. Bottom-align all
- * header content so non-rotated labels line up visually with the
- * rotated labels (which are anchored at the cell's bottom-left).
- * The cell, label-container, and label are each independent flex
- * boxes that all default to center alignment, so all three need
- * the override for the text to actually drop to the bottom. */
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell,
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-cell-label-container,
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
-  align-items: flex-end;
-}
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
-  padding-bottom: 4px;
-}
-
-/* Bottom-anchor the vertical column separator on regular cells when
- * the header row is tall (rotated-mode). Balham's `::after` separator
- * defaults to vertically-centered and 50% height, which floats far
- * above the bottom-aligned text and looks orphaned. Drop it down so
- * it sits next to the text. */
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell::after {
-  top: auto;
-  bottom: 0;
-  height: 22px;
-}
-
-/* Hide ag-grid's default header-filter button (funnel) until the
- * user hovers the column header. Stays visible when the filter is
- * active so users always see *which* columns are filtering. Applies
- * to all sample/log grids — quieter at rest, full affordance on
- * intent. */
-._gridChrome_yfmzu_19 .ag-header-cell-filter-button {
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-._gridChrome_yfmzu_19
-  .ag-header-cell:hover
-  .ag-header-cell-filter-button,
-._gridChrome_yfmzu_19
-  .ag-header-cell.ag-header-cell-filtered
-  .ag-header-cell-filter-button {
-  opacity: 1;
-}
-
-._gridChrome_yfmzu_19 .ag-sort-order {
+._gridChrome_gp0n4_18 .ag-sort-order {
   font-size: var(--inspect-font-size-smallestest);
   align-self: center;
   margin-right: -10px;
 }
 
-/* List mode — multi-line wrapping cells, top-aligned. ag-grid Balham
- * stretches line-height to match row-height (so single-line text
- * visually centers in inline-block cells); reset to a normal
- * line-height so all cells (plain text, MarkdownCellDiv, ScoreCellDiv)
- * sit at the top together. */
-._listMode_yfmzu_167 .ag-cell {
-  line-height: var(--bs-body-line-height);
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
+/* List mode — multi-line wrapping cells with vertical padding. */
+._listMode_gp0n4_65 .ag-cell {
+  align-items: flex-start;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
   white-space: normal;
 }
 
-/* Grid mode — let ag-grid's default row-height line-height vertically
- * center single-line plain text. Custom renderers (ScoreCellDiv) need
- * explicit centering — see the `.gridMode .score` rule below. */
-._gridMode_yfmzu_176 .ag-cell {
+/* Grid mode — vertically centered cells; column renderers handle ellipsis. */
+._gridMode_gp0n4_73 .ag-cell {
   align-items: center;
 }
 
 /* Cell helpers exposed for column renderers. */
-._cell_yfmzu_182 {
+._cell_gp0n4_78 {
   line-height: var(--bs-body-line-height);
 }
 
-._wrapAnywhere_yfmzu_186 {
+._wrapAnywhere_gp0n4_82 {
   overflow-wrap: break-word;
 }
 
-._noLeft_yfmzu_190 {
+._noLeft_gp0n4_86 {
   padding-left: 0;
 }
 
-._score_yfmzu_176 {
+._score_gp0n4_90 {
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Compact mode: fill the cell so the inner content centers vertically
- * regardless of the cell's natural inline-block layout. `.ag-cell` is
- * `position: absolute` in ag-grid's base CSS, so `inset: 0` resolves. */
-._gridMode_yfmzu_176 ._score_yfmzu_176 {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-._centered_yfmzu_212 {
+._centered_gp0n4_97 {
   display: flex;
   justify-content: center;
 }
@@ -19284,7 +19150,7 @@ a._citationLink_1ggvf_9:hover {
 ._dropdownItemActive_djjmp_74 {
   font-weight: 600;
 }
-._swimlane_1itnu_1 {
+._swimlane_16dh6_1 {
   --swimlane-row-height: 18px;
   --swimlane-minimap-height: 24px;
   --swimlane-grid-columns: auto 1fr auto;
@@ -19300,7 +19166,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Pinned section: minimap + parent row — always visible */
-._pinnedSection_1itnu_17 {
+._pinnedSection_16dh6_17 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19308,7 +19174,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Scrollable section: child rows */
-._scrollSection_1itnu_25 {
+._scrollSection_16dh6_25 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19317,13 +19183,13 @@ a._citationLink_1ggvf_9:hover {
   overflow-y: auto;
 }
 
-._swimlane_1itnu_1:focus-visible {
+._swimlane_16dh6_1:focus-visible {
   box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
 /* Collapsible rows — fade + slide animation */
 
-._collapsibleSection_1itnu_40 {
+._collapsibleSection_16dh6_40 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19336,7 +19202,7 @@ a._citationLink_1ggvf_9:hover {
   opacity: 1;
 }
 
-._collapsibleCollapsed_1itnu_53 {
+._collapsibleCollapsed_16dh6_53 {
   grid-template-rows: 0fr;
   padding-bottom: 0;
   opacity: 0;
@@ -19346,11 +19212,11 @@ a._citationLink_1ggvf_9:hover {
    Note: avoid margin-top:-1px here — it causes the content to overflow
    the StickyScroll wrapper, inflating stickySwimLaneHeight by 1px and
    leaving a gap between the swimlane and the event card headers. */
-._swimlaneSticky_1itnu_63 {
+._swimlaneSticky_16dh6_63 {
   background-color: var(--bs-body-bg);
 }
 
-._collapsibleInner_1itnu_67 {
+._collapsibleInner_16dh6_67 {
   grid-column: 1 / -1;
   overflow: hidden;
   display: grid;
@@ -19360,7 +19226,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Collapse toggle — hangs below the bottom border, centered */
 
-._collapseToggle_1itnu_77 {
+._collapseToggle_16dh6_77 {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -19381,20 +19247,20 @@ a._citationLink_1ggvf_9:hover {
   line-height: 1;
 }
 
-._collapseToggle_1itnu_77:hover {
+._collapseToggle_16dh6_77:hover {
   color: var(--vscode-foreground);
   background-color: var(--bs-secondary-bg);
 }
 
 /* Row — display:contents so all rows share the parent grid columns */
 
-._row_1itnu_105 {
+._row_16dh6_105 {
   display: contents;
 }
 
 /* Label cell */
 
-._label_1itnu_111 {
+._label_16dh6_111 {
   padding: 0 0.5rem 0 1.45rem;
   white-space: nowrap;
   font-size: var(--inspect-font-size-smallest);
@@ -19408,23 +19274,23 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._label_1itnu_111:hover {
+._label_16dh6_111:hover {
   color: var(--vscode-textLink-foreground);
 }
 
-._labelSelected_1itnu_129 {
+._labelSelected_16dh6_129 {
   color: var(--vscode-textLink-foreground);
 }
 
 /* Ancestor rows of the selected branch — subtler than selected */
-._labelHighlighted_1itnu_134 {
+._labelHighlighted_16dh6_134 {
   color: var(--vscode-textLink-foreground);
   opacity: 0.6;
 }
 
 /* Expand/collapse chevron in label */
 
-._chevron_1itnu_141 {
+._chevron_16dh6_141 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -19435,70 +19301,31 @@ a._citationLink_1ggvf_9:hover {
   font-size: 8px;
 }
 
-._chevron_1itnu_141:hover {
+._chevron_16dh6_141:hover {
   color: var(--vscode-foreground);
 }
 
-._chevronSpacer_1itnu_156 {
+._chevronSpacer_16dh6_156 {
   display: inline-block;
   width: 12px;
   flex-shrink: 0;
 }
 
-._punchDownBtn_1itnu_162 {
-  margin-left: auto;
-  padding: 0 4px;
-  display: inline-flex;
-  align-items: center;
-  border: none;
-  background: none;
-  font-size: 9px;
-  cursor: pointer;
-  color: var(--vscode-descriptionForeground, #717171);
-  opacity: 0;
-}
-
-._label_1itnu_111:hover ._punchDownBtn_1itnu_162,
-._labelSelected_1itnu_129 ._punchDownBtn_1itnu_162 {
-  opacity: 1;
-}
-
-._punchDownBtn_1itnu_162:hover {
-  color: var(--vscode-foreground);
-}
-
-._viewStackBack_1itnu_184 {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 3px;
-  background: transparent;
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--vscode-foreground);
-  cursor: pointer;
-}
-
-._viewStackBack_1itnu_184:hover {
-  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.05));
-}
-
 /* Bar area */
 
-._barArea_1itnu_203 {
+._barArea_16dh6_164 {
   height: var(--swimlane-row-height);
   border-left: 1px solid var(--bs-border-color);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._barInner_1itnu_209 {
+._barInner_16dh6_170 {
   position: relative;
   height: 100%;
   margin: 0 4px;
 }
 
-._fill_1itnu_215 {
+._fill_16dh6_176 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19512,15 +19339,15 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._fill_1itnu_215:hover {
+._fill_16dh6_176:hover {
   opacity: 0.5;
 }
 
-._fillParent_1itnu_233 {
+._fillParent_16dh6_194 {
   opacity: 0.2;
 }
 
-._fillSelected_1itnu_237 {
+._fillSelected_16dh6_198 {
   opacity: 0.7;
   box-shadow: inset 0 0 0 1px var(--bs-primary);
 }
@@ -19528,7 +19355,7 @@ a._citationLink_1ggvf_9:hover {
 /* Partial highlight overlay — sibling of .fill in barInner.
    Shows the "active" portion of a bar (e.g. parent bar up to fork point
    when a branch is selected). Independent opacity, not stacked with .fill. */
-._fillHighlight_1itnu_245 {
+._fillHighlight_16dh6_206 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19539,14 +19366,14 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Row is selected but a different span within the row is focused */
-._fillDimmed_1itnu_256 {
+._fillDimmed_16dh6_217 {
   opacity: 0.15;
 }
 
 /* Region segment — same as .fill but without :hover (hover is managed via JS).
    Does NOT set opacity here — opacity comes from .fill-style state classes
    (.fillParent, .fillSelected, .fillDimmed) or from .regionHover/.regionDefault. */
-._regionSegment_1itnu_263 {
+._regionSegment_16dh6_224 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19556,36 +19383,36 @@ a._citationLink_1ggvf_9:hover {
 
 /* Default opacity for region segments — slightly dimmed vs hover
    to give a subtle highlight without making unhovered segments look faded. */
-._regionDefault_1itnu_262 {
+._regionDefault_16dh6_223 {
   opacity: 0.25;
 }
 
 /* Applied via React state when the segment (or whole bar) should show hover */
-._regionHover_1itnu_262 {
+._regionHover_16dh6_223 {
   opacity: 0.45;
 }
 
 /* Region segments — partial border-radius for segmented bars */
-._regionFirst_1itnu_283 {
+._regionFirst_16dh6_244 {
   border-radius: 2px 0 0 2px;
 }
 
-._regionLast_1itnu_287 {
+._regionLast_16dh6_248 {
   border-radius: 0 2px 2px 0;
 }
 
-._regionMiddle_1itnu_291 {
+._regionMiddle_16dh6_252 {
   border-radius: 0;
 }
 
-._parallelBadge_1itnu_295 {
+._parallelBadge_16dh6_256 {
   font-size: var(--inspect-font-size-smallest);
   color: var(--vscode-descriptionForeground, #717171);
 }
 
 /* Markers */
 
-._marker_1itnu_302 {
+._marker_16dh6_263 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -19599,7 +19426,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* White disc behind branch icon so transparent cutouts don't bleed bar color */
-._markerBranch_1itnu_316::before {
+._markerBranch_16dh6_277::before {
   content: "";
   position: absolute;
   width: 6px;
@@ -19609,11 +19436,11 @@ a._citationLink_1ggvf_9:hover {
   z-index: -1;
 }
 
-._marker_1itnu_302 > * {
+._marker_16dh6_263 > * {
   pointer-events: none;
 }
 
-._markerError_1itnu_330 {
+._markerError_16dh6_291 {
   top: 1px;
   bottom: 1px;
   height: auto;
@@ -19624,7 +19451,7 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerError_1itnu_330::after {
+._markerError_16dh6_291::after {
   content: "";
   position: absolute;
   top: 0;
@@ -19634,7 +19461,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--vscode-errorForeground, #f44747);
 }
 
-._markerCompaction_1itnu_351 {
+._markerCompaction_16dh6_312 {
   color: var(--bs-body-bg);
   rotate: none;
   font-size: 16px;
@@ -19648,13 +19475,13 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerBranch_1itnu_316 {
+._markerBranch_16dh6_277 {
   color: var(--vscode-foreground);
   cursor: pointer;
 }
 
 /* Branch connector line from parent marker to branch bar */
-._branchConnector_1itnu_371 {
+._branchConnector_16dh6_332 {
   position: absolute;
   top: 0;
   left: 0;
@@ -19665,7 +19492,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Right-pointing arrowhead for branch connectors (CSS border triangle) */
-._connectorArrow_1itnu_382 {
+._connectorArrow_16dh6_343 {
   position: absolute;
   top: 50%;
   transform: translate(-1px, -50%);
@@ -19678,7 +19505,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Horizontal line extending back from arrowhead to the SVG horizontal endpoint */
-._connectorArrow_1itnu_382::before {
+._connectorArrow_16dh6_343::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -19693,7 +19520,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Breadcrumb row */
 
-._breadcrumbRow_1itnu_410 {
+._breadcrumbRow_16dh6_371 {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
@@ -19702,7 +19529,7 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._optionsButton_1itnu_419 {
+._optionsButton_16dh6_380 {
   background: none;
   border: 1px solid var(--vscode-widget-border, var(--bs-border-color));
   border-radius: 50%;
@@ -19720,13 +19547,13 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0.6;
 }
 
-._optionsButton_1itnu_419:hover {
+._optionsButton_16dh6_380:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);
   opacity: 1;
 }
 
-._breadcrumbTrail_1itnu_443 {
+._breadcrumbTrail_16dh6_404 {
   display: flex;
   align-items: center;
   gap: 0;
@@ -19734,13 +19561,13 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._breadcrumbSegment_1itnu_451 {
+._breadcrumbSegment_16dh6_412 {
   display: flex;
   align-items: center;
   white-space: nowrap;
 }
 
-._breadcrumbDivider_1itnu_457 {
+._breadcrumbDivider_16dh6_418 {
   color: var(--vscode-descriptionForeground, #717171);
   font-size: var(--inspect-font-size-smallest);
   padding: 0 2px;
@@ -19748,7 +19575,7 @@ a._citationLink_1ggvf_9:hover {
   user-select: none;
 }
 
-._breadcrumbLink_1itnu_465 {
+._breadcrumbLink_16dh6_426 {
   background: none;
   border: none;
   cursor: pointer;
@@ -19757,12 +19584,12 @@ a._citationLink_1ggvf_9:hover {
   padding: 0 2px;
 }
 
-._breadcrumbLink_1itnu_465:hover {
+._breadcrumbLink_16dh6_426:hover {
   color: var(--vscode-foreground);
   text-decoration: underline;
 }
 
-._breadcrumbCurrent_1itnu_479 {
+._breadcrumbCurrent_16dh6_440 {
   background: none;
   border: none;
   color: var(--vscode-foreground);
@@ -19773,7 +19600,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Token cell */
 
-._tokens_1itnu_490 {
+._tokens_16dh6_451 {
   padding: 0 0.75rem 0 0.5rem;
   font-size: var(--inspect-font-size-smallest);
   line-height: var(--swimlane-row-height);
@@ -19997,49 +19824,6 @@ a._citationLink_1ggvf_9:hover {
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
-}
-._nav_1tozt_1 {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
-  margin: 4px 0;
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--vscode-descriptionForeground, #717171);
-}
-
-._icon_1tozt_12 {
-  font-size: 11px;
-  margin-right: 2px;
-  opacity: 0.7;
-}
-
-._pill_1tozt_18 {
-  border: 1px solid transparent;
-  background: none;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: inherit;
-  color: var(--vscode-descriptionForeground, #717171);
-  cursor: pointer;
-}
-
-._pill_1tozt_18:hover {
-  border-color: var(--bs-border-color);
-  color: var(--vscode-foreground);
-}
-
-._selected_1tozt_33 {
-  border-color: var(--bs-border-color);
-  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04));
-  color: var(--vscode-foreground);
-  font-weight: 500;
-  cursor: default;
-}
-
-._selected_1tozt_33:hover {
-  border-color: var(--bs-border-color);
 }
 ._panel_vz394_1 {
   margin: 0.2em 0;
@@ -21583,50 +21367,17 @@ pre._value_8citi_25 {
   display: flex;
   justify-content: center;
 }
-._container_1tduz_1 {
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.25rem;
-  min-width: 10rem;
-}
-
-._row_1tduz_8 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  margin-bottom: 0;
-}
-
-._checkbox_1tduz_15 {
-  margin-right: 0.5rem;
-  cursor: pointer;
-}
-._root_1dunz_1 {
-  display: flex;
-  /* Pin the inherited font-size so the CodeMirror editor (which uses
-     `font-size: inherit`) matches the navbar's 0.7rem instead of
-     picking up whatever the surrounding container computes to. */
-  font-size: var(--inspect-font-size-smallest);
-  /* Claim leftover horizontal space (basis 0) but keep enough room for
-     the editor to be usable. min-width covers label + ~100px input +
-     help + their margins; below that the tab-tools row wraps. */
-  flex: 1 1 0;
-  min-width: 170px;
-  max-width: 500px;
-}
-
-._label_1dunz_15 {
+._label_jbrqc_1 {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
 
-._input_1dunz_21 {
-  flex: 1 1 0;
-  min-width: 0;
+._input_jbrqc_7 {
+  width: 300px;
 }
 
-._help_1dunz_26 {
+._help_jbrqc_11 {
   position: relative;
   margin-left: 0.5em;
   cursor: help;
@@ -21687,126 +21438,6 @@ pre._value_8citi_25 {
 
 ._bodyColorButton_uvlpz_54 {
   background-color: var(--bs-body-bg);
-}
-/* Rotated parallelogram label, anchored to the cell's bottom-left
- * corner so the column can be much narrower than the label. The
- * containing `.ag-header-cell` must allow overflow:visible — see the
- * `.rotatedHeader` rule in SamplesGrid.module.css. */
-._label_1w6d0_5 {
-  position: absolute;
-  bottom: 0;
-  /* Anchor flush with the column's right edge so the rotated label
-   * — and the diagonal divider drawn as its bottom border — sits
-   * exactly on the column boundary, acting as the column's right
-   * separator. */
-  left: 100%;
-  height: 18px;
-  /* Bottom border doubles as the column-divider line: after rotation
-   * it lies along the diagonal lower edge of the label parallelogram,
-   * forming a clean separator between adjacent rotated headers in the
-   * same `--ag-border-color` Balham uses for vertical separators. */
-  border-bottom: 1px solid var(--ag-border-color, var(--bs-border-color));
-  /* Fixed width so every rotated label has the same parallelogram
-   * length. The text inside stretches via `flex: 1` and ellipses if
-   * it overflows. */
-  width: 130px;
-  padding: 0 0.25rem;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
-  background: transparent;
-  /* Opt back into pointer events — parent wrapper sets
-   * pointer-events:none so adjacent rotated labels don't shadow ours. */
-  pointer-events: auto;
-  /* Rotate from the column's bottom-left corner so the label fans
-   * up-and-to-the-right. */
-  transform: rotate(-45deg);
-  transform-origin: bottom left;
-}
-
-._label_1w6d0_5:hover {
-  /* Subtle highlight on hover — and lift above neighboring rotated
-   * labels so the hovered text is fully readable. */
-  background: var(--bs-tertiary-bg);
-  z-index: 2;
-}
-
-._text_1w6d0_46 {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--inspect-font-size-smallestest);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 400;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._sortIcon_1w6d0_57 {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-/* Filter button lives at the end of the rotated label (after the
- * text + sort icon), so it sits at the upper-right tip of the
- * parallelogram — the natural reading-order spot for an action.
- * The column-menu popup is anchored to a separate hidden element
- * (`.menuAnchor`) so it appears under the real column. */
-._filterBtn_1w6d0_67 {
-  background: transparent;
-  border: none;
-  padding: 0 2px;
-  margin: 0;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  position: relative;
-  color: inherit;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-/* Show the filter button only when the user is over this rotated
- * label specifically. Hovering the cell's narrow vertical strip is
- * misleading because the rotated label (and the filter button at its
- * end) is offset 3-ish columns up-and-right of that strip — keying
- * off the label keeps the affordance under the cursor instead of
- * flashing several columns away. */
-._label_1w6d0_5:hover ._filterBtn_1w6d0_67 {
-  opacity: 1;
-}
-
-._filterBtn_1w6d0_67._filterBtnActive_1w6d0_91 {
-  opacity: 1;
-}
-
-/* Active-filter dot — small affordance at the upper-right of the
- * funnel, matching ag-grid's convention of indicating active filters. */
-._filterBtn_1w6d0_67._filterBtnActive_1w6d0_91::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--bs-primary);
-}
-
-/* Invisible anchor for the column-menu popup. ag-grid positions the
- * menu relative to whatever element you hand `showColumnMenu` — by
- * pointing it at this un-rotated bottom-right anchor (rather than the
- * visible filter button on the rotated parallelogram) the popup lands
- * directly under the column instead of offset diagonally up-and-right. */
-._menuAnchor_1w6d0_66 {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
-  pointer-events: none;
 }
 ._panel_1yknn_1 {
   width: 100%;

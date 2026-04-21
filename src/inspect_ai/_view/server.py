@@ -31,6 +31,7 @@ from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from ._dist import resolve_dist_directory
 from .common import (
     async_connection,
+    build_pending_sample_urls,
     delete_log,
     get_log_bytes,
     get_log_dir,
@@ -381,6 +382,33 @@ def view_server_app(
             return web.Response(status=404)
         else:
             return web.Response(body=sample_data.model_dump_json())
+
+    @routes.get("/api/pending-sample-data-urls")
+    async def api_pending_sample_data_urls(request: web.Request) -> web.Response:
+        file = query_param_required("log", request, str)
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        body = await build_pending_sample_urls(
+            file=file,
+            id=query_param_required("id", request, str),
+            epoch=query_param_required("epoch", request, int),
+            after_event_id=query_param_optional("last-event-id", request, int),
+            after_attachment_id=query_param_optional(
+                "after-attachment-id", request, int
+            ),
+            after_message_pool_id=query_param_optional(
+                "after-message-pool-id", request, int
+            ),
+            after_call_pool_id=query_param_optional("after-call-pool-id", request, int),
+            max_segments=query_param_optional("max-segments", request, int),
+            tail=query_param_optional("tail", request, str) == "true",
+        )
+        if body is None:
+            return web.Response(status=404)
+        return web.Response(
+            body=body.model_dump_json(), content_type="application/json"
+        )
 
     if dist_dir is not None:
 
