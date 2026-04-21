@@ -2,6 +2,7 @@
 
 - Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
 - Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.
+- Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
 - Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
 
 ## 0.3.209 (20 April 2026)
