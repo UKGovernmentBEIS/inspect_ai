@@ -73,16 +73,27 @@ def _fetch_to_cache(url: str, dest: Path, use_cache: bool) -> str:
     return text
 
 
-def _extract_dataset_function_map(tasks_py_source: str) -> dict[str, str]:
-    """Map dataset id (name or name@version) → Python function name.
+def _extract_dataset_metadata(
+    tasks_py_source: str,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Parse `_tasks.py` docstrings for per-dataset metadata.
 
-    Built by parsing `_tasks.py` for `@task`-decorated functions and reading
-    the `Dataset: <id>` line in each docstring — more robust than mirroring
-    inspect_harbor's naming transform, which has exceptions
-    (e.g. `scale-ai/swe-atlas-qna@1.0` → `swe_atlas_qna_1_0`).
+    Returns (function_map, url_map):
+      - function_map: dataset id (name or name@version) → Python function name
+      - url_map:     dataset id → canonical Harbor registry URL
+
+    Both maps are built from the `Dataset:` / `Harbor URL:` lines in each
+    `@task`-decorated function's docstring. Parsing the docstring (rather
+    than mirroring inspect_harbor's naming / URL-resolution logic here)
+    keeps this script a pure consumer of whatever `_tasks.py` publishes.
+
+    `url_map` may omit entries when `_tasks.py` predates the `Harbor URL:`
+    line (older cached copies); the caller falls back to the site's search
+    URL in that case.
     """
     tree = ast.parse(tasks_py_source)
-    mapping: dict[str, str] = {}
+    function_map: dict[str, str] = {}
+    url_map: dict[str, str] = {}
     for node in tree.body:
         if not isinstance(node, ast.FunctionDef):
             continue
@@ -94,14 +105,20 @@ def _extract_dataset_function_map(tasks_py_source: str) -> dict[str, str]:
         if not has_task_decorator:
             continue
         doc = ast.get_docstring(node) or ""
+        dataset_id: str | None = None
+        harbor_url: str | None = None
         for line in doc.splitlines():
             line = line.strip()
             if line.startswith("Dataset:"):
-                dataset_id = line.split(":", 1)[1].strip()
-                if dataset_id:
-                    mapping[dataset_id] = node.name
-                break
-    return mapping
+                dataset_id = line.split(":", 1)[1].strip() or None
+            elif line.startswith("Harbor URL:"):
+                harbor_url = line.split(":", 1)[1].strip() or None
+        if dataset_id is None:
+            continue
+        function_map[dataset_id] = node.name
+        if harbor_url is not None:
+            url_map[dataset_id] = harbor_url
+    return function_map, url_map
 
 
 def _load_overlay() -> dict[str, dict[str, Any]]:
@@ -124,7 +141,7 @@ def load_harbor(
     tasks_text = _fetch_to_cache(TASKS_URL, CACHE_DIR / "_tasks.py", use_cache)
 
     registry = json.loads(registry_text)
-    function_map = _extract_dataset_function_map(tasks_text)
+    function_map, url_map = _extract_dataset_metadata(tasks_text)
     overlay = _load_overlay()
 
     sorted_registry = sorted(
@@ -173,7 +190,8 @@ def load_harbor(
             "contributors": list(ov.get("contributors") or []),
             "samples": len(tasks),
             "featured": bool(ov.get("featured", False)),
-            "url": f"https://registry.harborframework.com/datasets/{name}/{name}/latest",
+            "url": url_map.get(name_version)
+            or f"https://registry.harborframework.com/datasets?q={name}",
         })
 
     if skipped:
