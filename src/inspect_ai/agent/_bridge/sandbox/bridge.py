@@ -44,6 +44,7 @@ async def sandbox_agent_bridge(
     compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
+    user: str | None = None,
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
@@ -73,6 +74,12 @@ async def sandbox_agent_bridge(
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
+        user: User to run the model proxy process as within the sandbox.
+            This also determines the user of the persistent sandbox-tools
+            server that hosts subsequent `exec_remote` calls, so pass the
+            same user the agent will run as (e.g. `"ubuntu"`) to avoid
+            a root-owned server spawning child processes with the wrong
+            HOME/identity.
         web_search: Configuration for mapping model internal
             web_search tools to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
@@ -145,6 +152,7 @@ async def sandbox_agent_bridge(
                 bridge,
                 instance,
                 started,
+                user,
             )
 
             # wait for model service to start
@@ -159,6 +167,7 @@ async def sandbox_agent_bridge(
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
                     },
+                    user=user,
                     poll_timeout=600,
                 ),
             )

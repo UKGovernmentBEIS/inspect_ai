@@ -28,6 +28,7 @@ async def run_model_service(
     bridge: SandboxAgentBridge,
     instance: str,
     started: anyio.Event,
+    user: str | None = None,
 ) -> None:
     await sandbox_service(
         name=MODEL_SERVICE,
@@ -45,6 +46,7 @@ async def run_model_service(
         },
         until=lambda: False,
         sandbox=sandbox,
+        user=user,
         instance=instance,
         polling_interval=2,
         started=started,
