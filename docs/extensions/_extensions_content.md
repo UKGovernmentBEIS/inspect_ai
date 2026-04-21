@@ -82,7 +82,7 @@
 ## Evals {#sec-evals}
 
 [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_evals" style="text-decoration:none">UK AISI</a></small>
-:   Over 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
+:   Over 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
 
 [OpenBench](https://github.com/groq/openbench) &mdash; <small><a href="https://github.com/groq" style="text-decoration:none">Groq</a></small>
 :   Standardized, reproducible benchmarking for LLMs across 30+ evals.
