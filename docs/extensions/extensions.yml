@@ -10,10 +10,16 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
   categories: ["Frameworks"]
 
-- name: "[Inspect Petri](https://safety-research.github.io/petri/)"
+- name: "[Inspect Petri](https://meridianlabs-ai.github.io/inspect_petri/)"
   description: |
-    Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
-  author: "[Meridian](https://meridianlabs-ai.github.io/inspect_petri/)"
+    Framework for testing alignment hypotheses end‑to‑end, including automatic scenario generation.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_petri)"
+  categories: ["Frameworks"]
+
+- name: "[Petri Bloom](https://meridianlabs-ai.github.io/petri_bloom/)"
+  description: |
+    Framework for generating multi-turn behavioral evaluations of frontier AI models.
+  author: "[Meridian](https://github.com/meridianlabs-ai/petri_bloom)"
   categories: ["Frameworks"]
 
 - name: "[Control Arena](https://control-arena.aisi.org.uk)"
