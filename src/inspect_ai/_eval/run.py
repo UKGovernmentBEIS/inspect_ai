@@ -240,6 +240,7 @@ async def eval_run(
                     model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
                     metadata=((metadata or {}) | (task.metadata or {})) or None,
+                    viewer=task.viewer,
                     recorder=recorder,
                     header_only=header_only,
                 )

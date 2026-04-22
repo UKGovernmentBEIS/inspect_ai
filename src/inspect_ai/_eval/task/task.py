@@ -43,6 +43,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentType,
     resolve_sandbox_environment,
 )
+from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
 
@@ -91,6 +92,7 @@ class Task:
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
+        viewer: ViewerConfig | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -134,6 +136,9 @@ class Task:
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
             tags: Tags to associate with the task.
+            viewer: Log viewer configuration for this task (controls how
+                scanner results are rendered in the sidebar). Persisted in
+                the eval log via `EvalSpec.viewer`.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -187,6 +192,7 @@ class Task:
         self._name = name
         self.metadata = metadata
         self.tags = tags
+        self.viewer = viewer
 
     @property
     def name(self) -> str:

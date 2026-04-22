@@ -38,6 +38,7 @@ from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
+from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
@@ -912,6 +913,10 @@ class EvalSpec(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
+
+    viewer: ViewerConfig | None = Field(default=None)
+    """Log viewer configuration — controls how scanner results are rendered
+    in the sidebar. Authored via `Task(viewer=...)`."""
 
     scorers: list[EvalScorer] | None = Field(default=None)
     """Scorers and args for this eval"""
