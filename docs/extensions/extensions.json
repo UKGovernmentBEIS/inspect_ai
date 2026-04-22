@@ -189,10 +189,21 @@
   {
     "id": "inspect-petri",
     "name": "Inspect Petri",
-    "url": "https://safety-research.github.io/petri/",
-    "desc": "Framework testing alignment hypotheses end\u2011to\u2011end, including automatic scenario generation.",
+    "url": "https://meridianlabs-ai.github.io/inspect_petri/",
+    "desc": "Framework for testing alignment hypotheses end\u2011to\u2011end, including automatic scenario generation.",
     "author": "Meridian",
-    "author_url": "https://meridianlabs-ai.github.io/inspect_petri/",
+    "author_url": "https://github.com/meridianlabs-ai/inspect_petri",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
+    "id": "petri-bloom",
+    "name": "Petri Bloom",
+    "url": "https://meridianlabs-ai.github.io/petri_bloom/",
+    "desc": "Framework for generating multi-turn behavioral evaluations of frontier AI models.",
+    "author": "Meridian",
+    "author_url": "https://github.com/meridianlabs-ai/petri_bloom",
     "categories": [
       "Frameworks"
     ]
