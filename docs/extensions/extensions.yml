@@ -10,16 +10,28 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
   categories: ["Frameworks"]
 
-- name: "[Petri](https://safety-research.github.io/petri/)"
+- name: "[Inspect Petri](https://meridianlabs-ai.github.io/inspect_petri/)"
   description: |
-    Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
-  author: "[Anthropic](https://www.anthropic.com/research/petri-open-source-auditing)"
+    Framework for testing alignment hypotheses end‑to‑end, including automatic scenario generation.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_petri)"
   categories: ["Frameworks"]
 
-- name: "[Control Arena](https://github.com/UKGovernmentBEIS/control-arena)"
+- name: "[Petri Bloom](https://meridianlabs-ai.github.io/petri_bloom/)"
+  description: |
+    Framework for generating multi-turn behavioral evaluations of frontier AI models.
+  author: "[Meridian](https://github.com/meridianlabs-ai/petri_bloom)"
+  categories: ["Frameworks"]
+
+- name: "[Control Arena](https://control-arena.aisi.org.uk)"
   description: |
     Framework for running experiments on AI Control and Monitoring.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/control-arena)"
+  categories: ["Frameworks"]
+
+- name: "[Linux Arena](https://www.linuxarena.ai)"
+  description: |
+    Framework for running experiments on AI Control and Monitoring.
+  author: "[Redwood Research](https://github.com/linuxarena/control-tower)"
   categories: ["Frameworks"]
 
 - name: "[Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/)"
@@ -54,7 +66,7 @@
 
 - name: "[Inspect MLflow](https://github.com/debu-sinha/inspect-mlflow)"
   description: |
-    Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations. Published on [PyPI](https://pypi.org/project/inspect-mlflow/).
+    Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations.
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
@@ -66,8 +78,14 @@
 
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
-    Workflow orchestration for reprocibly running evals at scale.
+    Workflow orchestration for reproducibly running evals at scale.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_flow)"
+  categories: ["Tooling"]
+
+- name: "[Inspect Hawk](https://hawk.metr.org)"
+  description: |
+    Platform for running Inspect AI evaluations on cloud infrastructure. 
+  author: "[METR](https://github.com/METR/hawk)"
   categories: ["Tooling"]
 
 - name: "[Evaljobs](https://github.com/dvsrepo/evaljobs)"
@@ -82,28 +100,10 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect-vscode)"
   categories: ["Tooling"]
 
-- name: "[Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/)"
-  description: |
-    Over {INSPECT_EVALS_COUNT} LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_evals)"
-  categories: ["Evals"]
-
-- name: "[OpenBench](https://github.com/groq/openbench)"
-  description: |
-    Standardized, reproducible benchmarking for LLMs across 30+ evals.
-  author: "[Groq](https://github.com/groq)"
-  categories: ["Evals"]
-
 - name: "[k8s Sandbox](https://k8s-sandbox.aisi.org.uk/)"
   description: |
     Python package that provides a Kubernetes sandbox environment for Inspect.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
-  categories: ["Sandboxes"]
-
-- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  description: |
-    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
   categories: ["Sandboxes"]
 
 - name: "[Modal Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal)"
@@ -112,41 +112,45 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
   categories: ["Sandboxes"]
 
-- name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
-  description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
-  categories: ["Sandboxes"]
-
-- name: "[Inspect Policy Sandbox](https://github.com/Dedulus/inspect-policy-sandbox)"
-  description: |
-    Sandbox wrapper that allows fine grained control
-    over command execution and file I/O.
-  author: "[Arnab Mitra](https://github.com/Dedulus)"
-  categories: ["Sandboxes"]
-
-- name: "[Inspect Harbor](https://github.com/meridianlabs-ai/inspect_harbor)"
-  description: |
-    Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.
-  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_harbor)"
-  categories: ["Evals"]
-
-- name: "[Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox)"
-  description: |
-    Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
-  author: "[Jason Gwartz](https://github.com/jasongwartz)"
-  categories: ["Sandboxes"]
-
 - name: "[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona)"
   description: |
     Sandbox environment for Inspect using Daytona's cloud infrastructure.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
   categories: ["Sandboxes"]
 
+
+- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
+  description: |
+    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
+  categories: ["Sandboxes"]
+
+
+- name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
+  categories: ["Sandboxes"]
+
+- name: "[Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox)"
+  description: |
+    Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
+  author: "[Jason Gwartz](https://github.com/jasongwartz)"
+  categories: ["Sandboxes"]
+
 - name: "[Podman Sandbox](https://github.com/VectorInstitute/inspect-podman)"
   description: |
     Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
-  author: "[Vector Institute and National Research Council of Canada](https://github.com/VectorInstitute/inspect-podman)"
+  author: "[Vector Institute](https://github.com/VectorInstitute/inspect-podman)"
   categories: ["Sandboxes"]
+
+
+- name: "[Policy Sandbox](https://github.com/Dedulus/inspect-policy-sandbox)"
+  description: |
+    Sandbox wrapper that allows fine grained control
+    over command execution and file I/O.
+  author: "[Arnab Mitra](https://github.com/Dedulus)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |

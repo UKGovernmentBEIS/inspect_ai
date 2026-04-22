@@ -1,8 +1,15 @@
 ## Unreleased
 
+- Model API: Log the first 5 API calls per-model by default. 
+- Avoid deep copy of messages when applying custom tool model input handler.
+
+## 0.3.210 (22 April 2026)
+
 - Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
 - Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.
+- SageMaker: Add `inference_component_name` model argument for routing requests to specific inference components on multi-model endpoints.
 - Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
+- Inspect View: Metadata with more than 5 children will be collapsed by default.
 - Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
 - Bugfix: Fix regression in realtime event stream introduced by message condensing.
 

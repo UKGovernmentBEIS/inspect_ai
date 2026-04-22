@@ -19383,7 +19383,7 @@ a._citationLink_1ggvf_9:hover {
   -webkit-user-select: none;
   user-select: none;
 }
-._root_1atfx_1 {
+._root_130zy_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -19391,7 +19391,7 @@ a._citationLink_1ggvf_9:hover {
   min-height: 0;
 }
 
-._container_1atfx_9 {
+._container_130zy_9 {
   display: grid;
   width: 100%;
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px var(
@@ -19401,44 +19401,44 @@ a._citationLink_1ggvf_9:hover {
   min-height: 100vh;
 }
 
-._container_1atfx_9 > * {
+._container_130zy_9 > * {
   min-width: 0;
   padding-bottom: 1rem;
 }
 
-._container_1atfx_9._outlineCollapsed_1atfx_24 {
+._container_130zy_9._outlineCollapsed_130zy_24 {
   grid-template-columns: 22px 1px 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_1atfx_9._noOutline_1atfx_28 {
+._container_130zy_9._noOutline_130zy_28 {
   grid-template-columns: 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_1atfx_9._rightPaneCollapsed_1atfx_32 {
+._container_130zy_9._rightPaneCollapsed_130zy_32 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px 22px;
 }
 
-._container_1atfx_9._outlineCollapsed_1atfx_24._rightPaneCollapsed_1atfx_32 {
+._container_130zy_9._outlineCollapsed_130zy_24._rightPaneCollapsed_130zy_32 {
   grid-template-columns: 22px 1px 1fr 1px 22px;
 }
 
-._container_1atfx_9._noOutline_1atfx_28._rightPaneCollapsed_1atfx_32 {
+._container_130zy_9._noOutline_130zy_28._rightPaneCollapsed_130zy_32 {
   grid-template-columns: 1fr 1px 22px;
 }
 
-._container_1atfx_9._noRightPane_1atfx_44 {
+._container_130zy_9._noRightPane_130zy_44 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr;
 }
 
-._container_1atfx_9._outlineCollapsed_1atfx_24._noRightPane_1atfx_44 {
+._container_130zy_9._outlineCollapsed_130zy_24._noRightPane_130zy_44 {
   grid-template-columns: 22px 1px 1fr;
 }
 
-._container_1atfx_9._noOutline_1atfx_28._noRightPane_1atfx_44 {
+._container_130zy_9._noOutline_130zy_28._noRightPane_130zy_44 {
   grid-template-columns: 1fr;
 }
 
-._outline_1atfx_24 {
+._outline_130zy_24 {
   padding-left: 0.6rem;
   padding-top: 0.2rem;
   /* Prevent stretching to the full grid-row height so that
@@ -19449,13 +19449,13 @@ a._citationLink_1ggvf_9:hover {
 /* Cap height to the visible area below the sticky offset and
    scroll internally when the outline is taller.
    Only when expanded — overflow clips the toggle button when collapsed. */
-._container_1atfx_9:not(._outlineCollapsed_1atfx_24) > ._outline_1atfx_24 {
+._container_130zy_9:not(._outlineCollapsed_130zy_24) > ._outline_130zy_24 {
   max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
-._outlineToggle_1atfx_73 {
+._outlineToggle_130zy_73 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -19464,26 +19464,26 @@ a._citationLink_1ggvf_9:hover {
   right: 0.2rem;
 }
 
-._outlineToggle_1atfx_73[aria-disabled="true"] {
+._outlineToggle_130zy_73[aria-disabled="true"] {
   cursor: default;
   opacity: 0.4;
 }
 
-._separator_1atfx_87 {
+._separator_130zy_87 {
   background-color: var(--bs-border-color);
 }
 
-._rightSeparator_1atfx_91 {
+._rightSeparator_130zy_91 {
   background-color: var(--bs-border-color);
 }
 
-._rightPane_1atfx_32 {
-  padding-top: 0.2rem;
+._rightPane_130zy_32 {
+  padding-top: 0rem;
   padding-right: 0.2rem;
   align-self: start;
 }
 
-._container_1atfx_9:not(._rightPaneCollapsed_1atfx_32) > ._rightPane_1atfx_32 {
+._container_130zy_9:not(._rightPaneCollapsed_130zy_32) > ._rightPane_130zy_32 {
   padding-left: 0.2rem;
   /* Leave room on the right for the absolutely-positioned close button. */
   padding-right: 1.2rem;
@@ -19492,7 +19492,7 @@ a._citationLink_1ggvf_9:hover {
   scrollbar-width: thin;
 }
 
-._rightPaneResizer_1atfx_110 {
+._rightPaneResizer_130zy_110 {
   position: absolute;
   left: -3px;
   top: 0;
@@ -19506,12 +19506,12 @@ a._citationLink_1ggvf_9:hover {
   transition: background-color 120ms ease;
 }
 
-._rightPaneResizer_1atfx_110:hover,
-._rightPaneResizer_1atfx_110:active {
+._rightPaneResizer_130zy_110:hover,
+._rightPaneResizer_130zy_110:active {
   background-color: var(--bs-primary-border-subtle);
 }
 
-._rightPaneToggle_1atfx_129 {
+._rightPaneToggle_130zy_129 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -19520,11 +19520,11 @@ a._citationLink_1ggvf_9:hover {
   left: 0.2rem;
 }
 
-._eventsList_1atfx_138 {
+._eventsList_130zy_138 {
   padding-bottom: 1rem;
 }
 
-._sidebarHeader_1atfx_142 {
+._sidebarHeader_130zy_142 {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -19532,12 +19532,12 @@ a._citationLink_1ggvf_9:hover {
   margin-bottom: 0.3rem;
 }
 
-._sidebarHeaderIcon_1atfx_150 {
+._sidebarHeaderIcon_130zy_150 {
   font-size: 0.9em;
   flex-shrink: 0;
 }
 
-._sidebarHeaderTitle_1atfx_155 {
+._sidebarHeaderTitle_130zy_155 {
   flex: 1;
   min-width: 0;
   font-weight: normal;
@@ -19548,7 +19548,7 @@ a._citationLink_1ggvf_9:hover {
   top: 1px;
 }
 
-._sidebarHeaderClose_1atfx_166 {
+._sidebarHeaderClose_130zy_166 {
   all: unset;
   cursor: pointer;
   font-size: 0.9em;
@@ -19559,7 +19559,7 @@ a._citationLink_1ggvf_9:hover {
   z-index: 1;
 }
 
-._sidebarHeaderClose_1atfx_166:hover {
+._sidebarHeaderClose_130zy_166:hover {
   opacity: 0.7;
 }
 ._panel_8zdtn_1 {
@@ -20280,42 +20280,32 @@ a._citationLink_1ggvf_9:hover {
   padding-bottom: 0.25em;
   margin-bottom: 0.5em;
 }
-._container_2pqnu_1 {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-self: start;
-  gap: 0.5rem;
-}
-
-._colspan_2pqnu_8 {
-  grid-column: span 2;
-}
-
-._label_2pqnu_12 {
-  font-size: var(--inspect-font-size-base);
-  font-weight: 600;
-  border-bottom: 1px solid var(--bs-border-color);
-  padding-bottom: 0.25em;
-  margin-bottom: 0.5em;
-}
-
-._header_2pqnu_20 {
-  grid-column: span 2;
-}
-
-._values_2pqnu_24 {
+._container_15g5f_1 {
   display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: 0.25rem;
 }
 
-._validation_2pqnu_28 {
-  margin-left: 1rem;
-  display: grid;
-  grid-template-columns: max-content max-content;
+._header_15g5f_8 {
+  margin-bottom: 0.25rem;
 }
 
-._validationLabel_2pqnu_34 {
-  padding-right: 0.5rem;
-  margin-top: 2px;
+._section_15g5f_12 {
+  --vscode-sideBar-background: var(--bs-body-bg);
+  --vscode-sideBarSectionHeader-background: var(--bs-tertiary-bg);
+  --vscode-sideBarTitle-foreground: var(--bs-body-color);
+  --vscode-icon-foreground: var(--bs-body-color);
+}
+
+._section_15g5f_12::part(body) {
+  padding: 0.5rem;
+}
+
+._values_15g5f_23 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 ._result_415jo_1 {
   display: inline-flex;
@@ -20410,19 +20400,45 @@ a._citationLink_1ggvf_9:hover {
 pre._value_8citi_25 {
   margin: 0;
 }
-._picker_9870e_1 {
+._picker_vehgx_1 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-._picker_9870e_1 > vscode-single-select {
-  flex: 1;
+._picker_vehgx_1 > ._select_vehgx_7 {
+  /* Fit content rather than filling the flex container. */
+  width: auto;
   min-width: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  /* Bootstrap's default 2.25rem leaves a lot of dead space after the chevron;
+     tighten it and pull the chevron background closer to the edge. */
+  padding-right: 1.5rem;
+  background-position:
+    right 0.3rem center,
+    center right 0.3rem;
 }
-._sidebar_yd264_1 {
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
+._sidebar_ei072_1 {
+  /* Escape the .rightPane scroll-container's horizontal padding so collapsible
+     section bands reach both edges. The sticky header opts out (see below) so
+     the absolutely-positioned close button (right) and resizer (left) remain
+     clickable. */
+  margin-left: -0.2rem;
+  margin-right: -1.2rem;
+}
+
+._header_ei072_10 {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--bs-body-bg);
+  margin-right: 1.2rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.3rem;
+}
+
+._singleScanner_ei072_19 {
+  color: var(--bs-secondary);
 }
 ._detail_14cqz_1 {
   display: grid;

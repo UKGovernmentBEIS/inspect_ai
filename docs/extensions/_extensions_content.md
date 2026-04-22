@@ -60,7 +60,10 @@
 [Petri](https://safety-research.github.io/petri/) &mdash; <small><a href="https://www.anthropic.com/research/petri-open-source-auditing" style="text-decoration:none">Anthropic</a></small>
 :   Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
 
-[Control Arena](https://github.com/UKGovernmentBEIS/control-arena) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
+[Control Arena](https://control-arena.aisi.org.uk) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
+:   Framework for running experiments on AI Control and Monitoring.
+
+[Linux Arena](https://www.linuxarena.ai) &mdash; <small><a href="https://github.com/linuxarena/control-tower" style="text-decoration:none">Redwood Research</a></small>
 :   Framework for running experiments on AI Control and Monitoring.
 
 
