@@ -11,7 +11,6 @@ from inspect_ai._util.error import EvalError
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._timeline import Timeline, TimelineEvent, timeline_build
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import SampleData
 from inspect_ai.model._chat_message import ChatMessage
@@ -23,6 +22,7 @@ def reconstruct_eval_sample(
     sample_data: SampleData,
     *,
     cancelled: bool = False,
+    include_events: bool = True,
 ) -> EvalSample:
     """Reconstruct an EvalSample from buffer DB data.
 
@@ -31,6 +31,9 @@ def reconstruct_eval_sample(
         sample_data: Events and attachments from buffer.get_sample_data().
         cancelled: If True, synthesize a cancellation EvalError
             (for in-progress samples interrupted by a crash).
+        include_events: If False, return an empty events list and no
+            timelines. Events are still deserialized internally to
+            extract messages and output.
 
     Returns:
         A fully resolved EvalSample (not condensed — condensing happens
@@ -41,24 +44,13 @@ def reconstruct_eval_sample(
         [event_data.event for event_data in sample_data.events]
     )
 
-    # Build timeline once (used for both message extraction and the timelines field)
-    timeline: Timeline | None = None
-    if events:
-        try:
-            timeline = timeline_build(events)
-        except Exception:
-            # timeline_build can fail on partial/malformed event streams
-            pass
-
-    # Extract messages using the timeline (or flat fallback)
-    messages, output = _extract_messages_and_output(events, timeline)
+    # Extract messages and output from events
+    messages, output = _extract_messages_from_events(events)
 
     # Build attachments dict from buffer DB attachment data
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
-
-    timelines: list[Timeline] | None = [timeline] if timeline is not None else None
 
     # Set error: synthesize cancellation for in-progress samples,
     # or preserve existing error from completed-but-errored samples
@@ -86,8 +78,8 @@ def reconstruct_eval_sample(
         messages=messages,
         output=output,
         scores=summary.scores,
-        events=events,
-        timelines=timelines,
+        events=events if include_events else [],
+        timelines=None,
         attachments=attachments,
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
@@ -108,97 +100,61 @@ def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:
     return adapter.validate_python(event_dicts, context=get_deserializing_context())
 
 
-def _extract_messages_and_output(
-    events: list[Event],
-    timeline: Timeline | None = None,
-) -> tuple[list[ChatMessage], ModelOutput]:
-    """Extract messages and output from events using a pre-built timeline.
+class MessageAccumulator:
+    """Incrementally accumulates messages from events across segment batches.
 
-    Uses the span_messages pattern: walk the timeline's main trajectory
-    to extract messages, handling compaction boundaries.
-
-    Args:
-        events: Full event list.
-        timeline: Pre-built timeline (if available). Falls back to flat
-            event walk if None.
-
-    Returns:
-        Tuple of (messages, output). Messages is the full conversation
-        history. Output is the last ModelEvent's output, or a default
-        ModelOutput if no ModelEvents exist.
+    Extracted from _extract_messages_from_events so that segments can be
+    processed one at a time with bounded memory.
     """
-    if not events:
-        return [], ModelOutput()
 
-    if timeline is None:
-        # Fall back to flat event walk if no timeline available
-        return _extract_messages_flat(events)
+    def __init__(self) -> None:
+        self._merged: list[ChatMessage] = []
+        self._last_model_event: ModelEvent | None = None
+        self._pending_trim_pre_input: list[ChatMessage] | None = None
+        self._output: ModelOutput = ModelOutput()
 
-    # Extract events from the timeline's root span
-    span_events = [
-        item.event for item in timeline.root.content if isinstance(item, TimelineEvent)
-    ]
+    def process_events(self, events: list[Event]) -> None:
+        """Feed a batch of deserialized events (typically one segment)."""
+        for event in events:
+            if isinstance(event, ModelEvent):
+                if self._pending_trim_pre_input is not None:
+                    prefix = _trim_prefix(
+                        self._pending_trim_pre_input, list(event.input)
+                    )
+                    self._merged.extend(prefix)
+                    self._pending_trim_pre_input = None
 
-    return _extract_messages_from_events(span_events)
+                self._last_model_event = event
+                self._output = event.output
 
+            elif isinstance(event, CompactionEvent):
+                if event.type == "summary":
+                    if self._last_model_event is not None:
+                        self._merged.extend(_segment_messages(self._last_model_event))
+                    self._last_model_event = None
 
-def _extract_messages_flat(
-    events: list[Event],
-) -> tuple[list[ChatMessage], ModelOutput]:
-    """Fallback: extract messages from a flat event list."""
-    return _extract_messages_from_events(events)
+                elif event.type == "trim":
+                    if self._last_model_event is not None:
+                        self._pending_trim_pre_input = list(
+                            self._last_model_event.input
+                        )
+                    self._last_model_event = None
+
+    def result(self) -> tuple[list[ChatMessage], ModelOutput]:
+        """Return accumulated (messages, output)."""
+        merged = list(self._merged)
+        if self._last_model_event is not None:
+            merged.extend(_segment_messages(self._last_model_event))
+        return merged, self._output
 
 
 def _extract_messages_from_events(
     events: list[Event],
 ) -> tuple[list[ChatMessage], ModelOutput]:
-    """Extract messages from an event list, handling compaction boundaries.
-
-    Follows the span_messages pattern from inspect_scout with
-    compaction="all" — merges across all compaction boundaries for
-    full message history reconstruction.
-    """
-    # Collect ModelEvents
-    model_events: list[ModelEvent] = [e for e in events if isinstance(e, ModelEvent)]
-
-    if not model_events:
-        return [], ModelOutput()
-
-    # The last ModelEvent's output is the sample output
-    output = model_events[-1].output
-
-    # Merge messages across compaction boundaries
-    merged: list[ChatMessage] = []
-    current_model_events: list[ModelEvent] = []
-    pending_trim_pre_input: list[ChatMessage] | None = None
-
-    for event in events:
-        if isinstance(event, ModelEvent):
-            if pending_trim_pre_input is not None:
-                prefix = _trim_prefix(pending_trim_pre_input, list(event.input))
-                merged.extend(prefix)
-                pending_trim_pre_input = None
-
-            current_model_events.append(event)
-
-        elif isinstance(event, CompactionEvent):
-            if event.type == "summary":
-                if current_model_events:
-                    merged.extend(_segment_messages(current_model_events[-1]))
-                current_model_events = []
-
-            elif event.type == "trim":
-                if current_model_events:
-                    pending_trim_pre_input = list(current_model_events[-1].input)
-                current_model_events = []
-
-            # Edit: transparent, continue accumulating
-
-    # Append final segment
-    if current_model_events:
-        merged.extend(_segment_messages(current_model_events[-1]))
-
-    return merged, output
+    """Extract messages from an event list, handling compaction boundaries."""
+    acc = MessageAccumulator()
+    acc.process_events(events)
+    return acc.result()
 
 
 def _segment_messages(model_event: ModelEvent) -> list[ChatMessage]:

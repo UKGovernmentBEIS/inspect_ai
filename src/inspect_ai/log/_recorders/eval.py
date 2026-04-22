@@ -4,6 +4,8 @@ import logging
 import math
 import os
 import tempfile
+from collections.abc import Generator
+from contextlib import contextmanager
 from logging import getLogger
 from typing import (
     IO,
@@ -698,6 +700,18 @@ class ZipLogFile:
             filename,
             to_json_safe(data, indent=None),
         )
+
+    @contextmanager
+    def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
+        """Open a ZIP entry for streaming writes.
+
+        Returns a writable binary stream. The caller writes raw bytes
+        (typically JSON) directly. The entry is finalized when the
+        context manager exits.
+        """
+        assert self._zip
+        with self._zip.open(filename, "w", force_zip64=True) as stream:
+            yield stream
 
 
 async def _read_log(
