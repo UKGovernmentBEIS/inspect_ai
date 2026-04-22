@@ -231,6 +231,17 @@
     ]
   },
   {
+    "id": "inspect-hawk",
+    "name": "Inspect Hawk",
+    "url": "https://hawk.metr.org",
+    "desc": "Platform for running Inspect AI evaluations on cloud infrastructure.",
+    "author": "METR",
+    "author_url": "https://github.com/METR/hawk",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
     "id": "evaljobs",
     "name": "Evaljobs",
     "url": "https://github.com/dvsrepo/evaljobs",

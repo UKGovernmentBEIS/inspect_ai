@@ -76,6 +76,12 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_flow)"
   categories: ["Tooling"]
 
+- name: "[Inspect Hawk](https://hawk.metr.org)"
+  description: |
+    Platform for running Inspect AI evaluations on cloud infrastructure. 
+  author: "[METR](https://github.com/METR/hawk)"
+  categories: ["Tooling"]
+
 - name: "[Evaljobs](https://github.com/dvsrepo/evaljobs)"
   description: |
     Run evals on Hugging Face GPUs and share results and code on the Hugging Face Hub.
