@@ -114,17 +114,25 @@ def pytest_collection_modifyitems(config, items):
             if "flaky" in item.keywords:
                 item.add_marker(skip_flaky)
 
-    # Auto-apply flaky_retry(max_retries=3) to tests that hit external services
-    # (model providers or Docker). Decorators opt in via func._needs_flaky_retry.
-    from test_helpers.utils import flaky_retry
+    # Auto-apply a 5-minute per-attempt timeout to every async test, then
+    # flaky_retry(max_retries=3) for tests that hit external services (model
+    # providers or Docker). The timeout is wrapped first so it sits inside the
+    # retry — each attempt gets its own fresh budget.
+    from test_helpers.utils import flaky_retry, with_timeout
 
+    _timeout = with_timeout(300)
     _retry = flaky_retry(max_retries=3)
     for item in items:
         fn = item.obj
+        if inspect.iscoroutinefunction(fn) and not getattr(
+            fn, "_has_default_timeout", False
+        ):
+            fn = _timeout(fn)
         if getattr(fn, "_needs_flaky_retry", False) and not getattr(
             fn, "_flaky_retry", False
         ):
-            item.obj = _retry(fn)
+            fn = _retry(fn)
+        item.obj = fn
 
 
 @pytest.fixture(scope="module")
