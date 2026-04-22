@@ -1,5 +1,6 @@
 ---
 title: Inspect
+llms-description: Welcome and overview of Inspect AI.
 subtitle: An open-source framework for large language model evaluations
 citation:
   id: "UK_AI_Security_Institute_Inspect_AI_Framework_2024"
@@ -18,7 +19,7 @@ Inspect can be used for a broad range of evaluations that measure coding, agenti
 
 ::: welcome-bullets
 -   A set of straightforward interfaces for implementing evaluations and re-using components across evaluations.
--   A collection of over 100 pre-built evaluations ready to run on any model.
+-   A collection of over 200 pre-built evaluations ready to run on any model.
 -   Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
 -   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
 -   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
@@ -27,7 +28,7 @@ Inspect can be used for a broad range of evaluations that measure coding, agenti
 
 We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Datasets](datasets.qmd), [Solvers](solvers.qmd), [Scorers](scorers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) to learn how to create more advanced evaluations.
 
-If you are primarily interested in running evaluations rather than developing new evaluations, [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) provides implementations for a large collection of popular benchmarks.
+If you are primarily interested in running evaluations rather than developing new ones, see the [Evals](evals/index.qmd) listing where you'll find implementations for over 200 popular benchmarks.
 
 ## Getting Started
 
@@ -262,7 +263,9 @@ These sections discuss more advanced features and workflows. You don't need to r
 
 -   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
--   [Errors and Limits](errors-and-limits.qmd) covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
+-   [Handling Errors](handling-errors.qmd) covers techniques for dealing with runtime errors and recovering from crashes during evaluation.
+
+-   [Setting Limits](setting-limits.qmd) covers setting time, message, token, and cost limits on evaluation tasks and samples.
 
 -   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 

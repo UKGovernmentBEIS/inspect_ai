@@ -240,7 +240,9 @@ def schema_command() -> None:
 
 
 def schema() -> None:
-    print(view_resource("log-schema.json"))
+    resource = PKG_PATH / "_view" / "inspect-openapi.json"
+    with open(resource, "r", encoding="utf-8") as f:
+        print(f.read())
 
 
 @log_command.command("types", hidden=True)
@@ -250,7 +252,135 @@ def types_command() -> None:
 
 
 def types() -> None:
-    print(view_type_resource("log.d.ts"))
+    print(view_type_resource("generated.ts"))
+
+
+@log_command.command("recover")
+@click.argument("log_file", required=False)
+@click.option(
+    "--output",
+    type=str,
+    default=None,
+    help="Output path for the recovered log file.",
+)
+@click.option(
+    "--overwrite",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Overwrite the crashed log file in-place instead of creating a new file.",
+)
+@click.option(
+    "--no-cleanup",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Don't remove the sample buffer database after recovery.",
+)
+@click.option(
+    "--list",
+    "list_mode",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="List recoverable logs instead of recovering.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Output listing as JSON (only with --list).",
+)
+@common_options
+def recover_command(
+    log_file: str | None,
+    output: str | None,
+    overwrite: bool,
+    no_cleanup: bool,
+    list_mode: bool,
+    json_output: bool,
+    **common: Unpack[CommonOptions],
+) -> None:
+    """Recover crashed eval logs from sample buffer databases."""
+    from json import dumps as json_dumps
+
+    from inspect_ai._util.platform import platform_init
+    from inspect_ai.log._recover import (
+        recover_eval_log,
+        recoverable_eval_logs,
+    )
+
+    process_common_options(common)
+    platform_init()
+
+    if list_mode:
+        logs = recoverable_eval_logs(log_dir=common["log_dir"])
+
+        if not logs:
+            print("No recoverable logs found.")
+            return
+
+        if json_output:
+            print(
+                json_dumps(
+                    [
+                        {
+                            "name": r.log.name,
+                            "task": r.log.task,
+                            "total_samples": r.total_samples,
+                            "flushed_samples": r.flushed_samples,
+                            "completed_samples": r.completed_samples,
+                            "in_progress_samples": r.in_progress_samples,
+                        }
+                        for r in logs
+                    ],
+                    indent=2,
+                )
+            )
+        else:
+            import rich
+
+            from inspect_ai._util.path import pretty_path
+
+            console = rich.get_console()
+            for r in logs:
+                print()
+                console.print(
+                    f"[bold]log:[/bold] {pretty_path(r.log.name)}", highlight=False
+                )
+                print(
+                    f"  ({r.total_samples} total, "
+                    f"{r.flushed_samples} flushed, "
+                    f"{r.completed_samples} completed, "
+                    f"{r.in_progress_samples} in-progress)"
+                )
+            print()
+
+    else:
+        if log_file is None:
+            raise click.UsageError("LOG_FILE is required when not using --list.")
+
+        from inspect_ai.log._recover import RecoveryNotAvailable
+
+        try:
+            log = recover_eval_log(
+                log_file,
+                output=output,
+                overwrite=overwrite,
+                cleanup=not no_cleanup,
+            )
+        except RecoveryNotAvailable as e:
+            raise click.UsageError(str(e))
+        sample_count = len(log.samples) if log.samples else 0
+        output_path = log.location or output
+        print(f"Recovered {sample_count} samples to {output_path}")
+
+        failed_count = sum(1 for s in (log.samples or []) if s.error is not None)
+        if failed_count > 0:
+            print(f"\nTo re-run the {failed_count} failed/cancelled samples:")
+            print(f"  inspect eval-retry {output_path}")
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
@@ -272,8 +402,11 @@ def view_resource(file: str) -> str:
         return f.read()
 
 
+_TS_MONO_INSPECT_COMMON = PKG_PATH / "_view" / "ts-mono" / "packages" / "inspect-common"
+
+
 def view_type_resource(file: str) -> str:
     _require_submodule()
-    resource = _TS_MONO_APP / "src" / "@types" / file
+    resource = _TS_MONO_INSPECT_COMMON / "src" / "types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()

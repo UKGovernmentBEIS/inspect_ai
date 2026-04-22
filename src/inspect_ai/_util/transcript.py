@@ -11,6 +11,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from inspect_ai._util.content import ContentReasoning
+from inspect_ai._util.text import truncate_lines
 
 from .format import format_function_call
 
@@ -116,6 +117,20 @@ def transcript_panel(
     )
 
 
+def content_display(text: str, max_lines: int = 50) -> list[RenderableType]:
+    """Truncate text content and render as markdown."""
+    truncated_text, additional = truncate_lines(text, max_lines)
+    content: list[RenderableType] = [transcript_markdown(truncated_text, escape=True)]
+    if additional is not None:
+        content.append(Text())
+        content.append(
+            Text.from_markup(
+                f"[italic]Content truncated ({additional} additional lines)...[/italic]"
+            )
+        )
+    return content
+
+
 def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
     content: list[RenderableType] = []
     text = (
@@ -125,9 +140,14 @@ def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
     ).strip()
 
     if len(text) > 0:
+        truncated_text, additional = truncate_lines(text, 50)
+        if additional is not None:
+            truncated_text += (
+                f"\n\n_Content truncated ({additional} additional lines)..._"
+            )
         content.append(
             transcript_markdown(
-                f"**<think>**  \n{text}  \n**</think>**\n\n", escape=True
+                f"**<think>**  \n{truncated_text}  \n**</think>**\n\n", escape=True
             )
         )
         content.append(Text())

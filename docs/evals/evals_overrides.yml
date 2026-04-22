@@ -1,0 +1,79 @@
+# Per-eval overrides for inspect_evals.
+# When `categories` is set, it REPLACES the eval.yaml `group` field entirely.
+# Keyed by eval slug (directory name under src/inspect_evals/).
+#
+# Fields (all optional):
+#   categories: [Science, Finance, ...]   # replaces eval.yaml group
+#   arxiv:      https://arxiv.org/...     # overrides eval.yaml arxiv
+#   paper:      https://...              # fallback if no arxiv
+
+# Consolidate thin categories
+bbq:
+  categories: [Knowledge]
+
+bold:
+  categories: [Knowledge]
+
+personality:
+  categories: [Knowledge]
+
+writingbench:
+  categories: [Reasoning]
+
+# Science — Biology
+lab_bench:
+  categories: [Science, Biology, Safeguards]
+
+scbench:
+  categories: [Science, Biology, Coding]
+
+pubmedqa:
+  categories: [Science, Biology, Medicine, Knowledge]
+
+# Science — Chemistry
+chembench:
+  categories: [Science, Chemistry, Knowledge]
+
+# Science — mixed / multi-discipline
+scicode:
+  categories: [Science, Coding]
+
+core_bench:
+  categories: [Science, Coding]
+
+frontierscience:
+  categories: [Science, Biology, Chemistry, Physics, Knowledge]
+
+gpqa:
+  categories: [Science, Biology, Chemistry, Physics, Knowledge]
+
+sciknoweval:
+  categories: [Science, Knowledge]
+
+arc:
+  categories: [Science, Reasoning]
+
+sosbench:
+  categories: [Science, Chemistry, Biology, Knowledge]
+
+# Medicine
+# Professional — Medicine
+healthbench:
+  categories: [Professional, Medicine, Knowledge]
+
+medqa:
+  categories: [Professional, Medicine, Knowledge]
+
+uccb:
+  categories: [Professional, Medicine, Knowledge]
+
+# Professional — Finance
+gdpval:
+  categories: [Professional, Finance, Assistants]
+
+# Professional — Law
+air_bench:
+  categories: [Professional, Law, Knowledge]
+
+pre_flight:
+  categories: [Professional, Law, Knowledge]

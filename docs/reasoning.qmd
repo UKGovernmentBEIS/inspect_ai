@@ -1,5 +1,6 @@
 ---
 title: Reasoning
+llms-description: Additional options and data available for reasoning models.
 ---
 
 ## Overview

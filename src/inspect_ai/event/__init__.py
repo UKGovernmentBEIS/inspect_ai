@@ -1,6 +1,7 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._approval import ApprovalEvent
+from ._branch import BranchEvent
 from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._event import Event
@@ -22,9 +23,9 @@ from ._timeline import (
     Outline,
     OutlineNode,
     Timeline,
-    TimelineBranch,
     TimelineEvent,
     TimelineSpan,
+    timeline_branch,
     timeline_build,
     timeline_dump,
     timeline_filter,
@@ -43,6 +44,7 @@ from ._tree import (
 __all__ = [
     "Event",
     "ApprovalEvent",
+    "BranchEvent",
     "ErrorEvent",
     "InfoEvent",
     "InputEvent",
@@ -70,7 +72,6 @@ __all__ = [
     "EventTreeSpan",
     "EventTreeNode",
     "Timeline",
-    "TimelineBranch",
     "TimelineEvent",
     "TimelineSpan",
     "Outline",
@@ -79,6 +80,7 @@ __all__ = [
     "timeline_dump",
     "timeline_filter",
     "timeline_load",
+    "timeline_branch",
 ]
 
 _EVENT_TREE_VERSION_0_3_180 = "0.3.180"

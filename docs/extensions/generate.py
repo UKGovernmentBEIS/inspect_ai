@@ -1,6 +1,6 @@
-from pathlib import Path
-
+import json
 import re
+from pathlib import Path
 
 import yaml
 
@@ -14,43 +14,58 @@ CATEGORY_ORDER = [
     "Analysis",
     "Frameworks",
     "Tooling",
-    "Evals",
 ]
-
-SECTION_IDS = {
-    "Sandboxes": "sec-sandboxes",
-    "Analysis": "sec-analysis",
-    "Frameworks": "sec-frameworks",
-    "Tooling": "sec-tooling",
-    "Evals": "sec-evals",
-}
 
 with open(PATH / "extensions.yml", "r") as f:
     records = yaml.safe_load(f)
 
-groups: dict[str, list] = {cat: [] for cat in CATEGORY_ORDER}
+# Compute count of inspect_evals (rounded down to nearest 10) to substitute
+# into the Inspect Evals description.
+evals_json = PATH.parent / "evals" / "evals.json"
+inspect_evals_count = sum(
+    1 for r in json.loads(evals_json.read_text()) if r.get("source") == "evals"
+)
+inspect_evals_count_floor = (inspect_evals_count // 10) * 10
+
+
+def parse_md_link(s: str) -> tuple[str, str | None]:
+    """Parse a [label](url) markdown link. Returns (label, url) or (s, None)."""
+    m = re.match(r"\[(.+?)\]\((.+?)\)", (s or "").strip())
+    if m:
+        return m.group(1), m.group(2)
+    return (s or "").strip(), None
+
+
+def slugify(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+items: list[dict] = []
 for record in records:
-    cat = record.get("categories", ["Tooling"])[0]
-    if cat in groups:
-        groups[cat].append(record)
+    name, url = parse_md_link(record.get("name", ""))
+    author, author_url = parse_md_link(record.get("author", ""))
+    desc = (record.get("description") or "").strip().replace("\n", " ")
+    desc = desc.replace("{INSPECT_EVALS_COUNT}", str(inspect_evals_count_floor))
+    categories = record.get("categories") or ["Tooling"]
+    items.append(
+        {
+            "id": slugify(name),
+            "name": name,
+            "url": url or "",
+            "desc": desc,
+            "author": author,
+            "author_url": author_url or "",
+            "categories": categories,
+        }
+    )
 
-lines = []
-for cat, items in groups.items():
-    lines.append(f"## {cat} {{#{SECTION_IDS[cat]}}}")
-    lines.append("")
-    for item in items:
-        name = item.get("name", "").strip()
-        desc = item.get("description", "").strip().replace("\n", " ")
-        author_raw = item.get("author", "").strip()
-        # Convert markdown link to HTML <a> with no underline
-        author_match = re.match(r"\[(.+?)\]\((.+?)\)", author_raw)
-        if author_match:
-            author = f'<a href="{author_match.group(2)}" style="text-decoration:none">{author_match.group(1)}</a>'
-        else:
-            author = author_raw
-        lines.append(f'{name} &mdash; <small>{author}</small>\n:   {desc}')
-        lines.append("")
-    lines.append("")
+# Sort items by category order
+cat_rank = {c: i for i, c in enumerate(CATEGORY_ORDER)}
+items.sort(
+    key=lambda x: (
+        cat_rank.get((x["categories"] or ["Tooling"])[0], 99)
+    )
+)
 
-with open(PATH / "extensions_content.md", "w") as f:
-    f.write("\n".join(lines))
+with open(PATH / "extensions.json", "w") as f:
+    json.dump(items, f, indent=2)

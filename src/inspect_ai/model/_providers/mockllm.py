@@ -3,6 +3,7 @@ from collections.abc import Callable, Generator, Iterable, Iterator
 from typing import Any
 
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -112,7 +113,7 @@ class MockLLM(ModelAPI):
                         "function": {
                             "name": t.name,
                             "description": t.description,
-                            "parameters": t.parameters.model_dump(exclude_none=True),
+                            "parameters": json_schema_dump(t.parameters),
                         },
                     }
                 )

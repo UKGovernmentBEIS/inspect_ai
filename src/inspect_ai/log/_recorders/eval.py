@@ -30,12 +30,13 @@ from inspect_ai._util.constants import (
     get_deserializing_context,
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
-from inspect_ai._util.file import FileSystem, dirname, filesystem
+from inspect_ai._util.file import FileSystem, dirname, filesystem, local_path
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
+from .._condense import condense_sample
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -93,8 +94,8 @@ class EvalRecorder(FileRecorder):
     @override
     def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int:
         if high_throughput:
-            # High-throughput: flush ~10 times over the run
-            return max(10, sample_count // 10)
+            # High-throughput: flush ~20 times over the run
+            return max(10, sample_count // 20)
         else:
             # .eval files are 5-8x smaller than .json files so we
             # are much less worried about flushing frequently
@@ -315,10 +316,13 @@ class EvalRecorder(FileRecorder):
                 epoch = sample.epoch
 
             if exclude_fields:
-                # Use streaming JSON parser to skip large fields
-                # This significantly reduces memory usage for large samples
+                # Stream the sample JSON using low-level parse events.
+                # An ObjectBuilder accumulates events only for included fields;
+                # excluded fields are read as raw events and never allocated
+                # as Python objects, keeping peak memory proportional to the
+                # data we actually keep.
                 import ijson  # type: ignore
-                from ijson import IncompleteJSONError
+                from ijson import IncompleteJSONError, ObjectBuilder
                 from ijson.backends.python import (  # type: ignore[import-untyped]
                     UnexpectedSymbol,
                 )
@@ -328,11 +332,34 @@ class EvalRecorder(FileRecorder):
                     async with await reader.open_member(
                         _sample_filename(id, epoch)
                     ) as f:
-                        async for key, value in ijson.kvitems_async(
-                            adapt_to_reader(f), "", use_float=True
+                        depth = 0
+                        current_key: str = ""
+                        builder: ObjectBuilder | None = None
+                        async for prefix, event, value in ijson.parse_async(
+                            adapt_to_reader(f), use_float=True
                         ):
-                            if key not in exclude_fields:
-                                data[key] = value
+                            # Depth must be updated before the completion check
+                            # so that a closing bracket that returns depth to 1
+                            # is recognised as completing the current value.
+                            if event in ("start_map", "start_array"):
+                                depth += 1
+                            elif event in ("end_map", "end_array"):
+                                depth -= 1
+
+                            if depth == 1 and event == "map_key":
+                                current_key = value
+                                builder = (
+                                    None
+                                    if current_key in exclude_fields
+                                    else ObjectBuilder()
+                                )
+                            elif builder is not None:
+                                builder.event(event, value)
+                                # Depth 1 means we have returned to the top-level
+                                # object, so the current field's value is complete.
+                                if depth == 1:
+                                    data[current_key] = builder.value
+                                    builder = None
                 except (
                     ValueError,
                     IncompleteJSONError,
@@ -370,14 +397,20 @@ class EvalRecorder(FileRecorder):
     @classmethod
     @override
     async def write_log(
-        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
     ) -> None:
         if filesystem(location).is_s3() and if_match_etag:
             # Use S3 conditional write
             await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write using the recorder (so we get all of the extra streams)
-            await _write_eval_log_with_recorder(log, dirname(location), location)
+            await _write_eval_log_with_recorder(
+                log, dirname(location), location, header_only=header_only
+            )
 
     @classmethod
     async def _write_log_s3_conditional(
@@ -415,13 +448,37 @@ class EvalRecorder(FileRecorder):
 
 
 async def _write_eval_log_with_recorder(
-    log: EvalLog, recorder_dir: str, output_file: str
+    log: EvalLog, recorder_dir: str, output_file: str, header_only: bool = False
 ) -> None:
     """Helper function to write EvalLog using EvalRecorder pattern."""
+    if header_only and filesystem(output_file).is_local():
+        # Replace the header entry in the existing zip without rewriting
+        # sample data. Opens in append mode, removes the old header.json
+        # from the central directory, then writes the new one. The old
+        # header bytes become unreferenced but sample entries are untouched.
+        eval_header = EvalLog(
+            version=log.version,
+            invalidated=log.invalidated,
+            log_updates=log.log_updates,
+            eval=log.eval,
+            plan=log.plan,
+            results=log.results,
+            stats=log.stats,
+            status=log.status,
+            error=log.error,
+        )
+        with ZipFile(local_path(output_file), "a", **zipfile_compress_kwargs) as zf:
+            # Remove old header entry from the central directory
+            zf.filelist = [i for i in zf.filelist if i.filename != HEADER_JSON]
+            zf.NameToInfo.pop(HEADER_JSON, None)
+            zf.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
+        return
+
     recorder = EvalRecorder(recorder_dir)
     await recorder.log_init(log.eval, output_file, clean=True)
     await recorder.log_start(log.eval, log.plan)
     for sample in log.samples or []:
+        sample = condense_sample(sample)
         await recorder.log_sample(log.eval, sample)
     await recorder.log_finish(
         log.eval,

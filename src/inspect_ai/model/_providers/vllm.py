@@ -138,13 +138,13 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise ValueError("base_url and port cannot both be provided.")
 
         self.api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
-        self.model_name = self.base_model
+        self.model_name = model_name
         self.base_url: str | None = None
 
         # Store for deferred OpenAICompatibleAPI.__init__()
         self._init_config = config
         self._init_base_url = f"http://localhost:{port}/v1" if port else base_url
-        self._server_resolved = False
+        self._resolved_epoch = -1
 
         self.is_mistral = is_mistral
         self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
@@ -170,7 +170,7 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     def _resolve_server(self) -> None:
         """Resolve or start the vLLM server, then call ``super().__init__``."""
-        if self._server_resolved:
+        if self._resolved_epoch == self._server._epoch:
             return
 
         server = self._server
@@ -197,14 +197,14 @@ class VLLMAPI(OpenAICompatibleAPI):
             service_base_url=server.base_url,
             client_timeout=self._client_timeout,
         )
-        self._server_resolved = True
+        self._resolved_epoch = self._server._epoch
 
         if self.adapter_path and self.adapter_name:
             ensure_adapter_loaded(self._server, self.adapter_path, self.adapter_name)
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
-        if self._server_resolved:
+        if self._resolved_epoch == self._server._epoch:
             return
         async with self._server._init_lock:
             await anyio.to_thread.run_sync(self._resolve_server)
@@ -228,22 +228,26 @@ class VLLMAPI(OpenAICompatibleAPI):
         except ImportError:
             raise pip_dependency_error("vLLM Server", ["vllm"])
 
+        # Work on a copy — the pops below are destructive and the original
+        # must survive intact for restarts after close().
+        server_args = dict(self.server_args)
+
         server = self._server
         if server.enable_lora:
-            self.server_args.setdefault("enable_lora", True)
+            server_args.setdefault("enable_lora", True)
             if server.max_lora_rank is not None:
-                self.server_args.setdefault("max_lora_rank", server.max_lora_rank)
+                server_args.setdefault("max_lora_rank", server.max_lora_rank)
             os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
 
-        configure_logging = self.server_args.pop("configure_logging", False)
+        configure_logging = server_args.pop("configure_logging", False)
         os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
 
-        self.server_args, env_vars = configure_devices(
-            self.server_args, parallel_size_param="tensor_parallel_size"
+        server_args, env_vars = configure_devices(
+            server_args, parallel_size_param="tensor_parallel_size"
         )
 
-        timeout = self.server_args.pop("timeout", None)
-        host = self.server_args.pop("host", "0.0.0.0")
+        timeout = server_args.pop("timeout", None)
+        host = server_args.pop("host", "0.0.0.0")
 
         cmd = [
             "vllm",
@@ -262,7 +266,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             api_key=self.api_key,
             server_type="vLLM",
             timeout=timeout,
-            server_args=self.server_args,
+            server_args=server_args,
             env=env_vars,
         )
         return base_url, process, found_port
@@ -276,19 +280,34 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     async def aclose(self) -> None:
         """Close the OpenAI client and terminate the server if we started it."""
-        if self._server_resolved:
+        if self._resolved_epoch == self._server._epoch:
             await super().aclose()
         self.close()
 
     def close(self) -> None:
         """Terminate the server if we spawned it.
 
+        Resets internal state so the provider can be restarted by a
+        subsequent ``generate()`` call.
+
         Does not close the OpenAI client (use ``aclose`` for that).
         """
         if self._server.process is not None and self._server.process.poll() is None:
             logger.info("Cleaning up vLLM server")
             terminate_process(self._server.process)
-            self._server.process = None
+
+        # Reset runtime state and bump epoch so all instances re-resolve.
+        # Preserves LoRA capability metadata (enable_lora, max_lora_rank).
+        # NOTE: close() does not hold _init_lock (it is an anyio.Lock and
+        # this method is sync).  Concurrent close + resolve on different
+        # threads could race; callers should not close while another thread
+        # is actively resolving or generating.
+        self._server.base_url = None
+        self._server.api_key = None
+        self._server.port = None
+        self._server.process = None
+        self._server.loaded_adapters.clear()
+        self._server._epoch += 1
 
     # -- ModelAPI overrides --------------------------------------------------
 

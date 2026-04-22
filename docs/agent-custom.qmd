@@ -1,5 +1,6 @@
 ---
 title: Custom Agents
+llms-description: APIs for creating custom agents.
 aliases: 
   - agents-api.html
   - agent-protocol.html
@@ -280,7 +281,7 @@ blue_team_activity = store_as(Activity, instance="blue_team")
 
 ## Agent Limits
 
-The Inspect [limits system](errors-and-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
+The Inspect [limits system](setting-limits.qmd#scoped-limits) enables you to set a variety of limits on execution including tokens consumed, messages used in converations, clock time, and working time (clock time minus time taken retrying in response to rate limits or waiting on other shared resources).
 
 Limits are often applied at the sample level or using a context manager. It is also possible to specify limits when executing an agent using any of the techniques described above.
 

@@ -133,10 +133,13 @@ def python_type_to_json_type(python_type: str | None) -> JSONType:
             )
 
 
+JsonChangeOp = Literal["remove", "add", "replace", "move", "test", "copy"]
+
+
 class JsonChange(BaseModel):
     """Describes a change to data using JSON Patch format."""
 
-    op: Literal["remove", "add", "replace", "move", "test", "copy"]
+    op: JsonChangeOp
     """Change operation."""
 
     path: str

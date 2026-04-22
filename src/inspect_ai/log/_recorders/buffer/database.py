@@ -11,7 +11,7 @@ from sqlite3 import Connection, OperationalError
 from typing import Callable, Iterator, Literal
 
 import psutil
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 from shortuuid import uuid
 from typing_extensions import override
 
@@ -21,6 +21,7 @@ from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import ChatMessage
 
 from ..._condense import (
@@ -32,6 +33,10 @@ from ..._condense import (
     walk_json_dict,
 )
 from ..._log import EvalSampleSummary
+from ..._pool import (
+    condense_model_event_calls,
+    condense_model_event_inputs,
+)
 from ..types import SampleEvent
 from .filestore import (
     Manifest,
@@ -42,8 +47,10 @@ from .filestore import (
 )
 from .types import (
     AttachmentData,
+    CallPoolData,
     EventData,
     JsonData,
+    MessagePoolData,
     SampleBuffer,
     SampleData,
     Samples,
@@ -87,6 +94,24 @@ class SampleBufferDatabase(SampleBuffer):
         sample_epoch INTEGER,
         hash TEXT,
         content TEXT,
+        UNIQUE(sample_id, sample_epoch, hash)
+    );
+
+    CREATE TABLE message_pool (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_id TEXT,
+        sample_epoch INTEGER,
+        msg_id TEXT,
+        data TEXT,
+        UNIQUE(sample_id, sample_epoch, msg_id)
+    );
+
+    CREATE TABLE call_pool (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_id TEXT,
+        sample_epoch INTEGER,
+        hash TEXT,
+        data TEXT,
         UNIQUE(sample_id, sample_epoch, hash)
     );
 
@@ -139,6 +164,14 @@ class SampleBufferDatabase(SampleBuffer):
                 self.db_path = logs[0]
             else:
                 raise FileNotFoundError("Log database for '{location}' not found.")
+
+        # Per-sample pool indices for message/call dedup
+        self._msg_pools: dict[
+            tuple[str | int, int], tuple[list[ChatMessage], dict[str, int]]
+        ] = {}
+        self._call_pools: dict[
+            tuple[str | int, int], tuple[list[JsonValue], dict[str, int]]
+        ] = {}
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -210,6 +243,11 @@ class SampleBufferDatabase(SampleBuffer):
         if len(samples) == 0:
             return
 
+        # clear in-memory pool state
+        for key in samples:
+            self._msg_pools.pop(key, None)
+            self._call_pools.pop(key, None)
+
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
@@ -226,12 +264,15 @@ class SampleBufferDatabase(SampleBuffer):
                     # Flatten parameters for binding
                     parameters = [item for tup in batch for item in tup]
 
-                    # Delete associated events first
-                    events_query = f"""
-                        DELETE FROM events
-                        WHERE {placeholders}
-                    """
-                    cursor.execute(events_query, parameters)
+                    # Delete associated data
+                    for table in ("events", "attachments", "message_pool", "call_pool"):
+                        try:
+                            cursor.execute(
+                                f"DELETE FROM {table} WHERE {placeholders}",
+                                parameters,
+                            )
+                        except OperationalError:
+                            pass  # table may not exist in old DBs
 
                     # Then delete the samples using the same approach
                     placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in batch])
@@ -296,6 +337,8 @@ class SampleBufferDatabase(SampleBuffer):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
+        after_message_pool_id: int | None = None,
+        after_call_pool_id: int | None = None,
     ) -> SampleData | None:
         if not self.db_path.exists():
             return None
@@ -317,6 +360,12 @@ class SampleBufferDatabase(SampleBuffer):
                     events=list(self._get_events(conn, id, epoch, after_event_id)),
                     attachments=list(
                         self._get_attachments(conn, id, epoch, after_attachment_id)
+                    ),
+                    message_pool=list(
+                        self._get_message_pool(conn, id, epoch, after_message_pool_id)
+                    ),
+                    call_pool=list(
+                        self._get_call_pool(conn, id, epoch, after_call_pool_id)
                     ),
                 )
         except FileNotFoundError:
@@ -492,6 +541,56 @@ class SampleBufferDatabase(SampleBuffer):
                 content=row["content"],
             )
 
+    def _get_message_pool(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_id: int | None = None,
+    ) -> Iterator[MessagePoolData]:
+        query = """
+            SELECT id, msg_id, data FROM message_pool
+            WHERE sample_id = ? AND sample_epoch = ?
+        """
+        params: list[str | int] = [str(id), epoch]
+        if after_id is not None:
+            query += " AND id > ?"
+            params.append(after_id)
+        query += " ORDER BY id"
+        for row in conn.execute(query, params):
+            yield MessagePoolData(
+                id=row["id"],
+                sample_id=str(id),
+                epoch=epoch,
+                msg_id=row["msg_id"],
+                data=row["data"],
+            )
+
+    def _get_call_pool(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_id: int | None = None,
+    ) -> Iterator[CallPoolData]:
+        query = """
+            SELECT id, hash, data FROM call_pool
+            WHERE sample_id = ? AND sample_epoch = ?
+        """
+        params: list[str | int] = [str(id), epoch]
+        if after_id is not None:
+            query += " AND id > ?"
+            params.append(after_id)
+        query += " ORDER BY id"
+        for row in conn.execute(query, params):
+            yield CallPoolData(
+                id=row["id"],
+                sample_id=str(id),
+                epoch=epoch,
+                hash=row["hash"],
+                data=row["data"],
+            )
+
     def _condense_sample(
         self, conn: Connection, sample: EvalSampleSummary
     ) -> EvalSampleSummary:
@@ -538,7 +637,30 @@ class SampleBufferDatabase(SampleBuffer):
         # insert attachments
         self._insert_attachments(conn, event.id, event.epoch, attachments)
 
-        # return events with aliases
+        # message/call pool dedup for ModelEvents
+        if isinstance(event.event, ModelEvent):
+            key = (event.id, event.epoch)
+
+            # message pool
+            msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
+            [condensed_event], msg_pool, msg_index, new_msgs = (
+                condense_model_event_inputs([event.event], msg_pool, msg_index)
+            )
+            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
+            for h, msg in new_msgs:
+                self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
+            self._msg_pools[key] = (msg_pool, msg_index)
+
+            # call pool
+            call_pool, call_index = self._call_pools.get(key, ([], {}))
+            [condensed_event], call_pool, call_index, new_calls = (
+                condense_model_event_calls([event.event], call_pool, call_index)
+            )
+            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
+            for h, call_msg in new_calls:
+                self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
+            self._call_pools[key] = (call_pool, call_index)
+
         return event
 
     def _resolve_event_attachments(
@@ -583,6 +705,32 @@ class SampleBufferDatabase(SampleBuffer):
             VALUES (?, ?, ?, ?)
             """,
             parameters,
+        )
+
+    def _insert_message_pool_entry(
+        self,
+        conn: Connection,
+        sample_id: str | int,
+        epoch: int,
+        msg_id: str,
+        msg: ChatMessage,
+    ) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO message_pool (sample_id, sample_epoch, msg_id, data) VALUES (?, ?, ?, ?)",
+            (str(sample_id), epoch, msg_id, msg.model_dump_json()),
+        )
+
+    def _insert_call_pool_entry(
+        self,
+        conn: Connection,
+        sample_id: str | int,
+        epoch: int,
+        hash: str,
+        call_msg: JsonValue,
+    ) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO call_pool (sample_id, sample_epoch, hash, data) VALUES (?, ?, ?, ?)",
+            (str(sample_id), epoch, hash, json.dumps(call_msg)),
         )
 
     def _get_attachments_content(
@@ -657,6 +805,8 @@ def sync_to_filestore(
     segment_id = last_segment_id + 1
     last_event_id = 0
     last_attachment_id = 0
+    last_message_pool_id = 0
+    last_call_pool_id = 0
     segment_files: list[SegmentFile] = []
     for manifest_sample in manifest.samples:
         # get last ids we've seen for this sample
@@ -674,8 +824,11 @@ def sync_to_filestore(
         if sample_last_segment is not None:
             after_event_id = sample_last_segment.last_event_id
             after_attachment_id = sample_last_segment.last_attachment_id
+            after_message_pool_id = sample_last_segment.last_message_pool_id
+            after_call_pool_id = sample_last_segment.last_call_pool_id
         else:
             after_event_id, after_attachment_id = (0, 0)
+            after_message_pool_id, after_call_pool_id = (0, 0)
 
         # get sample data
         sample_data = db.get_sample_data(
@@ -683,10 +836,15 @@ def sync_to_filestore(
             epoch=manifest_sample.summary.epoch,
             after_event_id=after_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
         # if we got sample data....
         if sample_data is not None and (
-            len(sample_data.events) > 0 or len(sample_data.attachments) > 0
+            len(sample_data.events) > 0
+            or len(sample_data.attachments) > 0
+            or len(sample_data.message_pool) > 0
+            or len(sample_data.call_pool) > 0
         ):
             # add to segment file
             segment_files.append(
@@ -700,8 +858,17 @@ def sync_to_filestore(
             manifest_sample.segments.append(segment_id)
 
             # update maximums
-            last_event_id, last_attachment_id = maximum_ids(
-                last_event_id, last_attachment_id, sample_data
+            (
+                last_event_id,
+                last_attachment_id,
+                last_message_pool_id,
+                last_call_pool_id,
+            ) = maximum_ids(
+                last_event_id,
+                last_attachment_id,
+                last_message_pool_id,
+                last_call_pool_id,
+                sample_data,
             )
 
     # write the segment file and update the manifest
@@ -712,6 +879,8 @@ def sync_to_filestore(
                 id=segment_id,
                 last_event_id=last_event_id,
                 last_attachment_id=last_attachment_id,
+                last_message_pool_id=last_message_pool_id,
+                last_call_pool_id=last_call_pool_id,
             )
         )
 
@@ -720,13 +889,21 @@ def sync_to_filestore(
 
 
 def maximum_ids(
-    event_id: int, attachment_id: int, sample_data: SampleData
-) -> tuple[int, int]:
+    event_id: int,
+    attachment_id: int,
+    message_pool_id: int,
+    call_pool_id: int,
+    sample_data: SampleData,
+) -> tuple[int, int, int, int]:
     if sample_data.events:
         event_id = max(event_id, sample_data.events[-1].id)
     if sample_data.attachments:
         attachment_id = max(attachment_id, sample_data.attachments[-1].id)
-    return event_id, attachment_id
+    if sample_data.message_pool:
+        message_pool_id = max(message_pool_id, sample_data.message_pool[-1].id)
+    if sample_data.call_pool:
+        call_pool_id = max(call_pool_id, sample_data.call_pool[-1].id)
+    return event_id, attachment_id, message_pool_id, call_pool_id
 
 
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:

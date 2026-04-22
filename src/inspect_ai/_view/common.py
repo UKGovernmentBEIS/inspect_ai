@@ -12,6 +12,7 @@ import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
+from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
@@ -56,11 +57,29 @@ def normalize_uri(uri: str) -> str:
         return f"file://{path}"
 
 
-def get_log_dir(log_dir: str) -> dict[str, Any]:
-    response = dict(
-        log_dir=aliased_path(log_dir),
-    )
-    return response
+class LogDirResponse(BaseModel):
+    log_dir: str
+
+
+class LogHandle(BaseModel):
+    name: str
+    mtime: float | None = None
+    task: str | None = None
+    task_id: str | None = None
+
+
+class LogFilesResponse(BaseModel):
+    response_type: Literal["incremental", "full"]
+    files: list[LogHandle]
+
+
+class LogListingResponse(BaseModel):
+    log_dir: str
+    files: list[LogHandle]
+
+
+def get_log_dir(log_dir: str) -> LogDirResponse:
+    return LogDirResponse(log_dir=aliased_path(log_dir))
 
 
 async def get_log_files(
@@ -69,7 +88,7 @@ async def get_log_files(
     fs_options: dict[str, Any],
     mtime: float,
     file_count: int,
-) -> dict[str, Any]:
+) -> LogFilesResponse:
     # list logs
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
@@ -106,13 +125,12 @@ def log_files_response(
     logs: list[EvalLogInfo],
     response_type: Literal["incremental", "full"],
     base_log_dir: str | None = None,
-) -> dict[str, Any]:
-    response = dict(
+) -> LogFilesResponse:
+    return LogFilesResponse(
         response_type=response_type,
         files=[
-            dict(
+            LogHandle(
                 name=_normalize_listing_name(base_log_dir, log.name),
-                size=log.size,
                 mtime=log.mtime,
                 task=log.task,
                 task_id=log.task_id,
@@ -120,7 +138,6 @@ def log_files_response(
             for log in logs
         ],
     )
-    return response
 
 
 async def get_log_file(file: str, header_only_param: str | None) -> bytes:
@@ -155,22 +172,24 @@ async def get_log_size(log_file: str) -> int:
     return info.size
 
 
+class LogInfo(BaseModel):
+    size: int
+    direct_url: str | None = None
+
+
 async def get_log_info(
     log_file: str,
     generate_direct_url: bool = False,
-) -> dict[str, Any]:
+) -> LogInfo:
     """Return file size and optionally a direct URL for the log file.
 
     Args:
         log_file: Path to the log file.
         generate_direct_url: If True and the file is on S3, include a
             presigned URL in the response.
-
-    Returns:
-        Dict with "size" (int) and optionally "direct_url" (str).
     """
     size = await get_log_size(log_file)
-    result: dict[str, Any] = {"size": size}
+    direct_url: str | None = None
 
     if generate_direct_url:
         fs = filesystem(log_file)
@@ -179,14 +198,14 @@ async def get_log_info(
                 connection = async_connection(log_file)
                 # _url is the async variant of url() (fsspec convention)
                 url: str = await connection._url(log_file, expires=3600)
-                result["direct_url"] = url
+                direct_url = url
             except Exception:
                 logger.warning(
                     f"Failed to generate presigned URL for {log_file}",
                     exc_info=True,
                 )
 
-    return result
+    return LogInfo(size=size, direct_url=direct_url)
 
 
 async def delete_log(log_file: str) -> None:
@@ -274,7 +293,7 @@ async def stream_log_bytes(
 
 async def get_logs(
     request_log_dir: str, recursive: bool, fs_options: dict[str, Any]
-) -> dict[str, Any] | None:
+) -> LogListingResponse | None:
     # if the log_dir contains the path to a specific file
     # then just return that file
     if is_log_file(request_log_dir, [".json"]):
@@ -291,13 +310,12 @@ async def get_logs(
     return get_log_listing(logs, request_log_dir)
 
 
-def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> dict[str, Any]:
-    listing = dict(
+def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> LogListingResponse:
+    return LogListingResponse(
         log_dir=aliased_path(log_dir),
         files=[
-            dict(
+            LogHandle(
                 name=normalize_azure_listing_name(log_dir, log.name),
-                size=log.size,
                 mtime=log.mtime,
                 task=log.task,
                 task_id=log.task_id,
@@ -305,7 +323,6 @@ def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> dict[str, Any]:
             for log in logs
         ],
     )
-    return listing
 
 
 def _normalize_listing_name(log_dir: str | None, name: str) -> str:

@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Coroutine,
     Iterator,
+    Literal,
     Protocol,
     Type,
     TypeVar,
@@ -37,6 +38,16 @@ class TaskSpec:
     model: ModelName
 
 
+CancelType = Literal["abort", "retry"] | None
+
+
+@dataclass
+class TaskCancel:
+    can_retry: bool
+    cancel_task: Callable[[CancelType], None]
+    cancel_type: CancelType = None
+
+
 @dataclass
 class TaskProfile:
     name: str
@@ -51,6 +62,8 @@ class TaskProfile:
     generate_config: GenerateConfig
     tags: list[str] | None
     log_location: str
+    task_id: str
+    task_cancel: TaskCancel | None
 
 
 @dataclass

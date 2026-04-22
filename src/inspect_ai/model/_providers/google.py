@@ -112,6 +112,7 @@ from inspect_ai.tool import (
     ToolFunction,
     ToolInfo,
 )
+from inspect_ai.util._json import json_schema_dump
 
 from .util import model_base_url
 from .util.hooks import HttpHooks, HttpxHooks
@@ -351,8 +352,8 @@ class GoogleGenAIAPI(ModelAPI):
             )
             if config.response_schema is not None:
                 parameters.response_mime_type = "application/json"
-                parameters.response_json_schema = (
-                    config.response_schema.json_schema.model_dump(exclude_none=True)
+                parameters.response_json_schema = json_schema_dump(
+                    config.response_schema.json_schema
                 )
 
             model_call = start_model_call(
@@ -778,7 +779,7 @@ class GoogleGenAIAPI(ModelAPI):
                         thinking_level = (
                             ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
                         )
-                    case "high" | "xhigh":
+                    case "high" | "xhigh" | "max":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
                         thinking_level = None  # can't happen, keep mypy happy
@@ -843,9 +844,7 @@ class GoogleGenAIAPI(ModelAPI):
                         FunctionDeclaration(
                             name=tool.name,
                             description=tool.description,
-                            parameters_json_schema=tool.parameters.model_dump(
-                                exclude_none=True
-                            )
+                            parameters_json_schema=json_schema_dump(tool.parameters)
                             if len(tool.parameters.properties) > 0
                             else None,
                         )
@@ -1590,10 +1589,18 @@ def usage_metadata_to_model_usage(
 ) -> ModelUsage | None:
     if metadata is None:
         return None
+    # Gemini reports `prompt_token_count` as the full prompt size including
+    # any cached portion. To match the convention used by the OpenAI and
+    # Anthropic providers — where `input_tokens` is fresh (uncached) input
+    # and `input_tokens_cache_read` is the cache hit — subtract out the
+    # cached count from `input_tokens` and surface it separately.
+    cached = metadata.cached_content_token_count or 0
+    prompt = metadata.prompt_token_count or 0
     return ModelUsage(
-        input_tokens=metadata.prompt_token_count or 0,
+        input_tokens=max(prompt - cached, 0),
         output_tokens=metadata.candidates_token_count or 0,
         total_tokens=metadata.total_token_count or 0,
+        input_tokens_cache_read=cached or None,
         reasoning_tokens=metadata.thoughts_token_count or 0,
     )
 

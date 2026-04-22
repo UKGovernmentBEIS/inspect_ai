@@ -202,12 +202,15 @@ class EvalConfig(BaseModel):
         return values
 
 
+EvalSampleLimitType = Literal[
+    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+]
+
+
 class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
-    type: Literal[
-        "context", "time", "working", "message", "token", "cost", "operator", "custom"
-    ]
+    type: EvalSampleLimitType
     """The type of limit"""
 
     limit: float
@@ -306,6 +309,22 @@ class EvalSampleSummary(BaseModel):
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
+
+
+class EvalRetryError(BaseModel):
+    """Error from a retried sample attempt."""
+
+    message: str
+    """Error message."""
+
+    traceback: str
+    """Error traceback."""
+
+    traceback_ansi: str
+    """Error traceback with ANSI color codes."""
+
+    events: list[Event] | None = Field(default=None)
+    """Events prior to error (goes back to last ModelEvent)."""
 
 
 class EvalSample(BaseModel):
@@ -420,7 +439,7 @@ class EvalSample(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
-    error_retries: list[EvalError] | None = Field(default=None)
+    error_retries: list[EvalRetryError] | None = Field(default=None)
     """Errors that were retried for this sample."""
 
     attachments: dict[str, str] = Field(default_factory=dict)
@@ -1062,10 +1081,12 @@ class EvalLog(BaseModel):
 
         return self
 
-    @field_serializer("samples", "reductions")
+    @field_serializer("samples")
     @classmethod
-    def _serialize_lazy_lists(cls, value: Any) -> Any:
-        """Ensure LazyList instances are materialized before Pydantic serializes.
+    def _serialize_samples(
+        cls, value: list[EvalSample] | None
+    ) -> list[EvalSample] | None:
+        """Ensure LazyList is materialized before Pydantic serializes.
 
         Pydantic v2's Rust serializer accesses the C-level list array directly,
         bypassing Python __len__/__iter__ overrides. For empty LazyList instances
@@ -1073,6 +1094,20 @@ class EvalLog(BaseModel):
         triggers the lazy load. Calling _ensure_loaded() here populates the
         underlying C array in-place — no copy needed.
         """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
+
+    @field_serializer("reductions")
+    @classmethod
+    def _serialize_reductions(
+        cls, value: list[EvalSampleReductions] | None
+    ) -> list[EvalSampleReductions] | None:
+        """Ensure LazyList is materialized before Pydantic serializes."""
         if value is None:
             return value
         from ._recorders.eval import LazyList

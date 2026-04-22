@@ -30,6 +30,7 @@ from inspect_ai.model._providers.util.chatapi import (
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
@@ -38,6 +39,7 @@ from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    OpenAIResponseError,
     messages_to_openai,
     model_output_from_openai,
     needs_max_completion_tokens,
@@ -231,6 +233,17 @@ class OpenAICompatibleAPI(ModelAPI):
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
+
+                # guard against the openai SDK returning a non-ChatCompletion
+                # (this can occur when the server returns a 200 with a body
+                # that parses as JSON but is not a JSON object — e.g. a bare
+                # string — which openai's construct_type passes through as-is)
+                if not isinstance(completion, ChatCompletion):
+                    raise OpenAIResponseError(
+                        "server_error",
+                        f"Unexpected non-ChatCompletion response: {completion!r}",
+                    )
+
                 response = completion.model_dump()
                 model_call.set_response(
                     response, self._http_hooks.end_request(request_id)
@@ -306,11 +319,22 @@ class OpenAICompatibleAPI(ModelAPI):
             return ex.status_code == 401
         return False
 
+    @property
+    def schema_exclude_fields(self) -> set[str] | None:
+        """Fields to exclude when dumping JSON schemas for this provider.
+
+        Defaults to excluding extended validation fields (pattern, minLength,
+        etc.) since not all OpenAI-compatible providers support them.
+        Subclasses can override to return None (allow all) or a custom set.
+        """
+        return JSON_SCHEMA_EXTENDED_FIELDS
+
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
+            schema_exclude=self.schema_exclude_fields,
         )
 
         if (
@@ -330,7 +354,7 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True
-        openai_tools = openai_chat_tools(tools)
+        openai_tools = openai_chat_tools(tools, exclude=self.schema_exclude_fields)
         for tool in openai_tools:
             tool["function"]["strict"] = self.strict_tools
         return openai_tools
@@ -393,6 +417,9 @@ def _resolve_chat_choice(
 
 class ModelInfo(ResponsesModelInfo):
     def has_reasoning_options(self) -> bool:
+        return True
+
+    def reasoning_only_fallback(self) -> bool:
         return True
 
     def is_gpt(self) -> bool:

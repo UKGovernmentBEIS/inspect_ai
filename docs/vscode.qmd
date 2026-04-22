@@ -1,5 +1,6 @@
 ---
 title: VS Code Extension
+llms-description: Using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
 lightbox: true
 ---
 

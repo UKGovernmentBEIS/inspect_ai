@@ -21,7 +21,7 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -32,7 +32,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
@@ -66,6 +66,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_async,
 )
 from inspect_ai.log._log import (
+    EvalRetryError,
     EvalSampleLimit,
     EvalSampleReductions,
     EvalSampleSummary,
@@ -118,6 +119,7 @@ from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._sandbox.limits import reset_sandbox_limits, set_sandbox_limits
 from inspect_ai.util._span import span
 from inspect_ai.util._store import init_subtask_store
 
@@ -164,6 +166,7 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
+    display_name: str | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -184,7 +187,7 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
     return plan
 
 
-async def task_run(options: TaskRunOptions) -> EvalLog:
+async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
         emit_task_start,
@@ -216,9 +219,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         options.task.approval,
     )
 
-    # track stats and error
+    # track stats, results, and log
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
+    eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
     # handle sample errors (raise as required)
@@ -255,6 +259,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # resolve the scorer
     score = score and task.scorer is not None
     scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
+
+    # resolve unique scorer names once so sample scoring
+    # and aggregation use the same names
+    scorer_names: list[str] | None = None
+    if scorers:
+        scorer_names = []
+        for s in scorers:
+            scorer_names.append(unique_scorer_name(s, scorer_names))
+
     scorer_profiles = (
         [registry_log_name(scorer) for scorer in scorers if is_registry_object(scorer)]
         if scorers is not None
@@ -269,7 +282,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     # create task profile for display
     profile = TaskProfile(
-        name=task.name,
+        name=options.display_name or task.name,
         file=logger.eval.task_file,
         model=model_name,
         dataset=task.dataset.name or "(samples)",
@@ -281,7 +294,12 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         generate_config=generate_config,
         tags=tags,
         log_location=log_location,
+        task_id=logger.eval.task_id,
+        task_cancel=task_cancel,
     )
+
+    # set custom sandbox limits
+    limit_tokens = set_sandbox_limits()
 
     with display().task(
         profile,
@@ -366,6 +384,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         len(progress_results),
                         progress_results,
                         scorers,
+                        scorer_names,
                         task.epochs_reducer,
                         task.metrics,
                     )
@@ -384,6 +403,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     len(progress_results),
                     progress_results,
                     scorers,
+                    scorer_names,
                     task.epochs_reducer,
                     task.metrics,
                 )
@@ -453,6 +473,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
+                        scorer_names=scorer_names,
                         cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
@@ -514,6 +535,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     reducers=task.epochs_reducer,
                     scorers=scorers,
                     metrics=task.metrics,
+                    scorer_names=scorer_names,
                     early_stopping=stopping_summary,
                 )
 
@@ -546,13 +568,30 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 # collect eval data
                 collect_eval_data(stats)
 
-                # finish w/ cancelled status
-                eval_log = await logger.log_finish(
-                    "cancelled", stats, results, reductions
-                )
-
-                # display task cancelled
-                td.complete(TaskCancelled(logger.samples_completed, stats))
+                if task_cancel and task_cancel.cancel_type is not None:
+                    # User-initiated cancel (abort/retry) — log as error so
+                    # eval_set doesn't interpret it as external cancellation
+                    cancel_ex = TerminateTaskError(
+                        f"Task cancelled by user ({task_cancel.cancel_type})"
+                    )
+                    error = eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
+                    eval_log = await logger.log_finish(
+                        "error", stats, results, reductions, error
+                    )
+                    td.complete(
+                        TaskError(
+                            logger.samples_completed,
+                            TerminateTaskError,
+                            cancel_ex,
+                            None,
+                        )
+                    )
+                else:
+                    # External cancellation (ctrl+c)
+                    eval_log = await logger.log_finish(
+                        "cancelled", stats, results, reductions
+                    )
+                    td.complete(TaskCancelled(logger.samples_completed, stats))
 
         except BaseException as ex:
             if options.debug_errors:
@@ -585,6 +624,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
 
+    assert eval_log is not None
+
     try:
         # Log file locations are emitted to the "new" hooks via the "task end" event,
         if (
@@ -596,6 +637,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             await send_telemetry_legacy("eval_log", eval_log_json_str(eval_log))
     except Exception as ex:
         py_logger.warning(f"Error occurred sending telemetry: {exception_message(ex)}")
+
+    # restore sandbox limits
+    reset_sandbox_limits(limit_tokens)
 
     # return eval log
     return eval_log
@@ -611,6 +655,7 @@ def update_metrics_display_fn(
         int,
         list[dict[str, SampleScore]],
         list[Scorer] | None,
+        list[str] | None,
         ScoreReducer | list[ScoreReducer] | None,
         list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
     ],
@@ -622,6 +667,7 @@ def update_metrics_display_fn(
         sample_count: int,
         sample_scores: list[dict[str, SampleScore]],
         scorers: list[Scorer] | None,
+        scorer_names: list[str] | None,
         reducers: ScoreReducer | list[ScoreReducer] | None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
@@ -641,6 +687,7 @@ def update_metrics_display_fn(
                 reducers=reducers,
                 scorers=scorers,
                 metrics=metrics,
+                scorer_names=scorer_names,
             )
 
             # Name, reducer, value
@@ -678,6 +725,7 @@ async def task_run_sample(
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
+    scorer_names: list[str] | None,
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -691,7 +739,7 @@ async def task_run_sample(
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     retry_on_error: int,
-    error_retries: list[EvalError],
+    error_retries: list[EvalRetryError],
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore,
@@ -1064,10 +1112,18 @@ async def task_run_sample(
                             with create_time_limit(scoring_time_limit):
                                 if error is None:
                                     async with span(name="scorers"):
-                                        for scorer in scorers or []:
-                                            scorer_name = unique_scorer_name(
-                                                scorer,
-                                                list({*solver_score_names, *results}),
+                                        for scorer_idx, scorer in enumerate(
+                                            scorers or []
+                                        ):
+                                            scorer_name = (
+                                                scorer_names[scorer_idx]
+                                                if scorer_names
+                                                else unique_scorer_name(
+                                                    scorer,
+                                                    list(
+                                                        {*solver_score_names, *results}
+                                                    ),
+                                                )
                                             )
                                             async with span(
                                                 name=scorer_name, type="scorer"
@@ -1219,6 +1275,7 @@ async def task_run_sample(
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             scorers=scorers,
+            scorer_names=scorer_names,
             cleanup=cleanup,
             generate=generate,
             progress=progress,
@@ -1232,7 +1289,7 @@ async def task_run_sample(
             # tick retry count down
             retry_on_error=retry_on_error - 1,
             # forward on error that caused retry
-            error_retries=copy(error_retries) + [error],
+            error_retries=copy(error_retries) + [_eval_retry_error(error)],
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -1269,7 +1326,7 @@ def create_eval_sample(
     scores: dict[str, SampleScore],
     error: EvalError | None,
     limit: EvalSampleLimit | None,
-    error_retries: list[EvalError],
+    error_retries: list[EvalRetryError],
     started_at: datetime | None = None,
 ) -> EvalSample:
     # sample must have id to be logged
@@ -1443,3 +1500,21 @@ def init_sample_assistant_internal() -> None:
             init_sample_anthropic_assistant_internal()
         except ImportError:
             pass
+
+
+def _eval_retry_error(error: EvalError) -> EvalRetryError:
+    """Create retry error with events from the most recent ModelEvent onward."""
+    from inspect_ai.event._model import ModelEvent
+
+    events = transcript().events
+    recent_events = list(events)
+    for i in range(len(events) - 1, -1, -1):
+        if isinstance(events[i], ModelEvent):
+            recent_events = list(events[i:])
+            break
+    return EvalRetryError(
+        message=error.message,
+        traceback=error.traceback,
+        traceback_ansi=error.traceback_ansi,
+        events=recent_events,
+    )

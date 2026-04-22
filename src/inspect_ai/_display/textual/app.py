@@ -265,12 +265,18 @@ class TaskScreenApp(App[TR]):
 
     # update dynamic parts of display
     def update_display(self) -> None:
-        self.update_title()
-        self.update_tasks()
-        self.update_samples()
-        self.update_footer()
-        for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
-            cast(InputPanel, input_panel).update()
+        try:
+            self.update_title()
+            self.update_tasks()
+            self.update_samples()
+            self.update_footer()
+            for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
+                cast(InputPanel, input_panel).update()
+        except NoMatches:
+            # In Textual <8.x, query_one searches the active screen's DOM.
+            # When a modal (e.g. CancelDialog) is active, main app widgets
+            # like AppTitlebar and TasksView are not found.
+            pass
 
     # update the header title
     def update_title(self) -> None:
@@ -279,7 +285,14 @@ class TaskScreenApp(App[TR]):
             title = "eval interrupted (cancelling running samples...)"
         elif len(self._tasks) > 0:
             if self._parallel:
-                completed = sum(1 for task in self._tasks if task.result is not None)
+                # Only count the last task per task_id (retries
+                # supersede earlier attempts)
+                last_by_id: dict[str, TaskWithResult] = {}
+                for task in self._tasks:
+                    last_by_id[task.profile.task_id] = task
+                completed = sum(
+                    1 for task in last_by_id.values() if task.result is not None
+                )
                 title = f"{tasks_title(completed, self._total_tasks)}"
             else:
                 title = f"{task_title(self._tasks[0].profile, show_model=len(self._tasks) == 1)}"

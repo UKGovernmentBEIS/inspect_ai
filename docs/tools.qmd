@@ -1,5 +1,6 @@
 ---
 title: Tool Basics
+llms-description: Tools extend the capabilities of models by registering Python functions for them to call. How to create custom tools.
 ---
 
 ## Overview

@@ -1,19 +1,119 @@
-## Unreleased
+## 0.3.210 (22 April 2026)
+
+- Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
+- Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.
+- SageMaker: Add `inference_component_name` model argument for routing requests to specific inference components on multi-model endpoints.
+- Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
+- Inspect View: Metadata with more than 5 children will be collapsed by default.
+- Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
+- Bugfix: Fix regression in realtime event stream introduced by message condensing.
+
+## 0.3.209 (20 April 2026)
+
+- Capture compaction strategy params in eval log.
+- Inspect View: Display results of Scout scanners used as scorers next to transcripts.
+- Inspect View: New columns in task and log view: tags, % completed, sample errors, and error.
+- Inspect View: Fix regression in messages view which causes excessive whitespace between messages.
+- Inspect View: Fix error when attempting to collapse all or expand all events in transcripts.
+- Inspect View: Improvements to expand / collapse behavior in transcripts.
+- Inspect View: Don't show empty entries in messages view when a message is retried.
+
+## 0.3.208 (19 April 2026)
+
+- Google: Correct counting for cached input tokens. 
+- Model API: Log model retries at WARNING when backoff >= 60s.
+- Model API: Enrich retry log messages with task/sample/model context and error summary.
+- Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.
+- Task Display: Add cancel button to cancel individual tasks during parallel execution.
+
+## 0.3.207 (16 April 2026)
+
+- Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
+- Anthropic: Support for new `xhigh` value for `effort`.                     
+- Anthropic: Support for `max` value for `reasoning_effort`.   
+
+## 0.3.206 (15 April 2026)
+
+- Eval Set: Display explicit `--id` in task panel headers when provided.
+- Eval Set: Add `--retry-immediate` option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.
+- Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.
+- Eval Logs: Condense sample events when writing logs.
+- Eval Logs: Enable zstd compression by default for writing logs.
+- Eval Logs: New `inspect log recover` command for recovering crashed eval logs from the sample buffer database. Recovers both completed (unflushed) and in-progress samples. Automatic recovery is integrated into `eval_set()` and `eval_retry()`.
+- Eval Logs: Save recent events (up to last `ModelEvent`) when retrying samples.
+- Bash tool: Change name of argument from `cmd` to `command`.
+- Sandboxes: Pass sample_id to sandbox providers via metadata.
+- Sandboxes: `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` and `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variables for overriding limits.
+- Docker Sandbox: Implement in-sandbox timeout enforcement using `timeout` command.
+- Hooks: Add `on_before_model_generate()` hook.
+- Model API: Support extended json schema fields (validation and examples).
+- Model API: Handle special token strings in tiktoken encoding.
+- Task Display: Truncate all content to a maximum of 50 lines.
+- Scoring: Convert score value of `None` to `NaN` during deserialization.
+- Computer Use: Map comma character to xdotool `comma` keysym so key combos like `CTRL+,` work correctly.
+- Computer Use: Restore `sudo` package to computer tool Docker image.
+- OpenAI Compatible: Pad response with content block when only content is reasoning.
+- OpenAI Compatible: Return `server_error` when server returns non-ChatCompletion (which can occur in some cases for OpenRouter).
+- Anthropic: Pass `display="summarized"` in thinking configuration.
+- Anthropic: Use request level "auto" caching mode for improved prompt caching.
+- vLLM: Allow vLLM provider to restart after close().
+- Schemas: Remove old json-schema-to-typescript codegen in favor of new pipeline.
+- Schemas: Fix OpenAPI schema genreation for samples/reductions (give them independent field serializers to preserve types).
+- Schemas: Fix OpenAPI schema generation for samples/reductions (give them independent field serializers to preserve types).
+- Inspect View: Use FastAPI server when `fastapi` and `uvicorn` packages are available.
+- Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)
+- Inspect View: Introduce new 'Tasks' view of log directory which shows tasks recursively as a flat list.
+- Inspect View: Fix error when viewing the API information for a running Model Event.
+- Bugfix: Fix `eval_results()` producing identical aggregate scores   
+  for multiple instances of the same scorer due to incorrect name
+  resolution using dimension names instead of scorer names.           
+- Bugfix: Fix `eval_results()` mutating the reducers parameter inside
+  a loop, causing inconsistent reducer assignment across scorer       
+  instances.
+- Bugfix: Fix `JSONRecorder` returning condensed `ModelEvent.input` (empty list) when `eval()` uses `log_format="json"`.
+- Bugfix: Include LoRA adapter in logged vLLM model name.
+- Bugfix: Remove unused docker-sandbox unhealthy_services computation.
+- Bugfix: Fix `to_uri()` encoding `@` as `%40` in local file paths, breaking round-trip through `filesystem()`/`local_path()`.
+- Bugfix: Fix `answer("word")` scorer failing to match Unicode symbol characters (e.g. ☆, ○, ◎).
+- Bugfix: Eliminate spurious logging when bridge model proxy server is terminated.
+
+## 0.3.205 (04 April 2026)
+
+- Eval Logs: Ensure that `condense_events()` is called when re-writing eval logs.
+- Eval Logs: Correct import ordering for patching use of zstd compressions.
+- Scorers: Return `NOANSWER` instead of `INCORRECT` when the `pattern` scorer fails to match.
+
+## 0.3.204 (02 April 2026)
+
+- Timelines: Improved detection of `forked_at` for branches from user or system messages.
+- Timelines: Provide option to include or exclude branches when computing span time and token usage.
+- Inspect View: Inline application assets.
+
+## 0.3.203 (01 April 2026)
+
+- OpenAI: Add `cyber_policy` to "content_filter" stop reason
+- Timelines: `BranchEvent` and `timeline_branch()` to delineate timeline branches.
+- Timelines: Consolidate `TimelineBranch` into `TimelineSpan` via `forked_at` property.
+
+## 0.3.202 (31 March 2026)
 
 - Google: Update to `google-genai` v1.69.0 to address type changes (async_http_client can now be `None` for Vertex with Google Auth).
 - Approval: New `read_approval_policies()` function for reading approval policies from a config file.
 - Approval: Add `metadata` field to `Approval` which is in turn forwarded to `ApprovalEvent`.
 - Cache results of `parse_tool_info()` to improve performance when there are many tools defined.
 - Cache Pydantic TypeAdapters in condense_events for performance.
-- Sandbox Tools: Support running `exec_remote()` commands as different users via the `user` option.
 - Model API: Add `required` field to `get_model()` for ensuring that model roles are specified.
 - Model API: Export `model_roles()` function to get model roles for the active task.
+- Timelines: Improved `forked_at` detection for forking on non-assistant messages.
+- Installation: Ensure that all required static assets are included in bundle.
 - Inspect View: Fix printing for samples with large transcripts or many messages.
 - Inspect View: Fix issues that would cause a running sample display to wait for the task to complete before showing final score.
 - Inspect View: Fix regression that could hide assistant messages with only tool calls.
 - Inspect View: Move log viewer frontend from `src/inspect_ai/_view/www/` into `ts-mono/apps/inspect/` monorepo (pnpm + Vite + Jest). Built assets are copied to `src/inspect_ai/_view/dist/` via a Vite plugin. No user-facing changes.
 - Inspect View: Built TypeScript code is now minified and committed via git lfs.
 - Bugfix: Handle recursive references when resolving $ref targets in JSON schema.
+- Bugfix: Accept numeric cpus in compose deploy resources.
+
 
 ## 0.3.201 (25 March 2026)
 
@@ -184,6 +284,7 @@
 - Inspect View: Fix regression displaying running samples when switching samples.
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
 - Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
+- Eval logs: Stream deduplicated message pools to the viewer during in-progress evaluations.
 
 ## 0.3.185 (01 March 2026)
 
@@ -217,6 +318,7 @@
 - Testing: Run `--runtrio` as trio-only in a separate process to prevent cross-backend global state contamination; convert batch tests from asyncio to anyio.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
 - Inspect View: Presigned URL support for S3 log files, enabling direct browser-to-S3 byte-range fetches with parallel chunk downloads and a determinate progress bar for large samples.
+- Eval Logs: Batch log-headers validation and file mapping concurrently.
 
 ## 0.3.183 (24 February 2026)
 

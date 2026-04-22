@@ -18,6 +18,9 @@
 [Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
 :   Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
 
+[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
+:   Sandbox environment for Inspect using Daytona's cloud infrastructure.
+
 [Podman Sandbox](https://github.com/VectorInstitute/inspect-podman) &mdash; <small><a href="https://github.com/VectorInstitute/inspect-podman" style="text-decoration:none">Vector Institute and National Research Council of Canada</a></small>
 :   Podman-backed sandbox environment for Inspect, enabling containerized tool calls without Docker.
 
@@ -39,8 +42,8 @@
 [Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb) &mdash; <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small>
 :   Integration with Weights and Biases platform.
 
-[Inspct MLFlow](https://github.com/debu-sinha/inspect-mlflow) &mdash; <small><a href="https://github.com/debu-sinha" style="text-decoration:none">Debu Sinha</a></small>
-:   Experiment tracking, execution tracing, and artifact logging for Inspect AI evaluations.
+[Inspect MLflow](https://github.com/debu-sinha/inspect-mlflow) &mdash; <small><a href="https://github.com/debu-sinha" style="text-decoration:none">Debu Sinha</a></small>
+:   Experiment tracking, execution tracing, LLM provider autolog, and artifact logging for Inspect AI evaluations. Published on [PyPI](https://pypi.org/project/inspect-mlflow/).
 
 [CJE](https://github.com/cimo-labs/cje) &mdash; <small><a href="https://cimolabs.com" style="text-decoration:none">CIMO Labs</a></small>
 :   Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
@@ -57,7 +60,10 @@
 [Petri](https://safety-research.github.io/petri/) &mdash; <small><a href="https://www.anthropic.com/research/petri-open-source-auditing" style="text-decoration:none">Anthropic</a></small>
 :   Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
 
-[Control Arena](https://github.com/UKGovernmentBEIS/control-arena) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
+[Control Arena](https://control-arena.aisi.org.uk) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
+:   Framework for running experiments on AI Control and Monitoring.
+
+[Linux Arena](https://www.linuxarena.ai) &mdash; <small><a href="https://github.com/linuxarena/control-tower" style="text-decoration:none">Redwood Research</a></small>
 :   Framework for running experiments on AI Control and Monitoring.
 
 
@@ -79,7 +85,7 @@
 ## Evals {#sec-evals}
 
 [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_evals" style="text-decoration:none">UK AISI</a></small>
-:   Over 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
+:   Over 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
 
 [OpenBench](https://github.com/groq/openbench) &mdash; <small><a href="https://github.com/groq" style="text-decoration:none">Groq</a></small>
 :   Standardized, reproducible benchmarking for LLMs across 30+ evals.

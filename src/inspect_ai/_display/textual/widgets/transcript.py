@@ -13,6 +13,7 @@ from textual.widgets import Static
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import (
+    content_display,
     set_transcript_markdown_options,
     transcript_function,
     transcript_markdown,
@@ -20,6 +21,7 @@ from inspect_ai._util.transcript import (
     transcript_separator,
 )
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._branch import BranchEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import (
@@ -326,6 +328,19 @@ def render_info_event(event: InfoEvent) -> EventDisplay:
     return EventDisplay("info", content)
 
 
+def render_branch_event(event: BranchEvent) -> EventDisplay:
+    branch: dict[str, JsonValue] = {}
+    if event.from_span is not None:
+        branch["from_span"] = event.from_span
+    if event.from_message is not None:
+        branch["from_message"] = event.from_message
+    if event.metadata:
+        branch["metadata"] = event.metadata
+
+    content = render_as_json(branch)
+    return EventDisplay("branch", content)
+
+
 def render_compaction_event(event: CompactionEvent) -> EventDisplay:
     compaction: dict[str, JsonValue] = {}
     if event.source is not None:
@@ -392,13 +407,13 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
 
         # deal with plain text or with content blocks
         if isinstance(message.content, str):
-            content.extend([transcript_markdown(message.text.strip(), escape=True)])
+            content.extend(content_display(message.text.strip()))
         else:
             for c in message.content:
                 if isinstance(c, ContentReasoning):
                     content.extend(transcript_reasoning(c))
                 elif isinstance(c, ContentText):
-                    content.extend([transcript_markdown(c.text.strip(), escape=True)])
+                    content.extend(content_display(c.text.strip()))
 
     return content
 
@@ -418,6 +433,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
     (InfoEvent, render_info_event),
+    (BranchEvent, render_branch_event),
     (CompactionEvent, render_compaction_event),
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),

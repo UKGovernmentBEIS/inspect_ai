@@ -5,7 +5,7 @@ and falls back to summary-based compaction for unsupported providers.
 """
 
 from logging import getLogger
-from typing import Literal
+from typing import Any, Literal
 
 from typing_extensions import override
 
@@ -41,10 +41,9 @@ class CompactionAuto(CompactionStrategy):
         Args:
             threshold: Token count or percent of context window to trigger compaction.
             instructions: Additional instructions to give the model about compaction
-               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
             memory: Whether to warn the model to save critical content to memory
-                prior to compaction. Use "auto" (the default) to disable memory for
-                native compaction and enable it for summary compaction.
+                prior to compaction. Use "auto" (the default) to disable memory for native compaction and enable it for summary compaction.
         """
         # Don't pass memory to base - we'll handle it via property
         super().__init__(type="summary", threshold=threshold, memory=False)
@@ -82,6 +81,13 @@ class CompactionAuto(CompactionStrategy):
             # Return True only after we've fallen back to summary
             return self._use_fallback
         return self._memory_setting
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params["instructions"] = self._instructions
+        params["memory"] = self._memory_setting
+        return params
 
     @override
     async def compact(

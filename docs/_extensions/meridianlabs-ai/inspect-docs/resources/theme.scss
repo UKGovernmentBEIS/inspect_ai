@@ -1,0 +1,232 @@
+/*-- scss:rules --*/
+
+#TOC {
+    margin-top: 18px;
+}
+
+img.navbar-logo {
+    height: 1.2em;
+    width: auto;
+    vertical-align: middle;
+    padding-right: 15px;
+}
+
+.level1 h1 {
+    margin-top: 0;
+}
+
+.sidebar>.sidebar-menu-container>.list-unstyled>.sidebar-item {
+    margin-bottom: 0.7em;
+}
+
+.sidebar-header {
+    margin-top: 0 !important;
+}
+
+.sidebar-menu-container {
+    padding-top: 10px !important;
+}
+
+#quarto-sidebar div:nth-of-type(3) {
+    padding-top: 5px !important;
+}
+
+.sidebar-item-section {
+    margin-bottom: 0.6em !important;
+}
+
+.sidebar-header-item>p {
+    margin-bottom: 0;
+}
+
+.sidebar-item-section .sidebar-item-section {
+    margin-bottom: 0 !important;
+}
+
+
+.sidebar-tools-main .quarto-navigation-tool[title="Source Code"] {
+    padding-top: 2.5px;
+}
+
+.code-tabset {
+    margin-bottom: 1em;
+}
+
+.code-tabset .tab-content {
+    padding: 0;
+    margin-bottom: 0;
+}
+
+.code-tabset div.sourceCode {
+    border: none;
+    margin: 0;
+}
+
+.code-tabset .nav-tabs .nav-link.active,
+.nav-tabs .nav-item.show .nav-link {
+    border-bottom-color: $border-color;
+}
+
+.quarto-layout-panel .sourceCode {
+    margin-top: 0;
+    margin-bottom: 0.5em;
+}
+
+.splash ul {
+    padding-inline-start: 1rem;
+}
+
+@media(max-width: 991.98px) {
+    .sidebar-header-item .img-fluid {
+        max-width: 195px;
+    }
+}
+
+.blockquote {
+    color: #505a62;
+}
+
+.source-link {
+    position: relative;
+}
+
+.source-link>a {
+    color: $btn-code-copy-color;
+    position: absolute;
+    right: 5px;
+    top: 0;
+    font-size: 0.8em;
+    z-index: 1001;
+}
+
+.source-link a:hover {
+    color: $btn-code-copy-color-active;
+}
+
+.element-type {
+    font-size: 0.8em;
+    font-weight: 400;
+}
+
+.element-type-name>a {
+    border-bottom: 1px dotted currentcolor !important;
+    color: currentColor;
+    text-decoration: none;
+}
+
+.element-type-name>a:hover {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.ref-interlink {
+    color: $code-color;
+    background-color: $code-bg;
+    font-family: $font-family-monospace;
+    font-size: 0.875em;
+}
+
+.doc-declaration .code-copy-button {
+    display: none;
+}
+
+.class-methods>dl>dt {
+    font-size: 1.3em;
+}
+
+.ref-definition {
+    font-weight: normal;
+}
+
+.welcome-bullets li {
+    margin-bottom: 0.5em;
+}
+
+.svg-spacing>svg {
+    margin-top: 10px;
+}
+
+table>caption {
+    display: none;
+}
+
+table {
+    margin-bottom: 1.2em !important;
+}
+
+.jinja2 .ot {
+    font-weight: 700;
+    color: var(--quarto-hl-fu-color);
+}
+
+// Diff code block highlighting (GitHub-style green/red).
+.sourceCode .va {
+    color: #22863a; // additions (+)
+}
+
+.sourceCode .st {
+    color: #b31d28; // deletions (-)
+}
+
+.quarto-title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+
+// When a page has a subtitle, force it onto its own row below the
+// title + copy-page button so the button stays in the top-right of
+// the title row regardless of subtitle length.
+.quarto-title > .subtitle {
+    flex-basis: 100%;
+    order: 2;
+}
+
+#copy-page-btn {
+    flex-shrink: 0;
+    margin-left: auto;
+    // The .quarto-title container uses align-items: baseline so the title
+    // and button share a text baseline. Since the button has a smaller
+    // font-size, that pushes its top edge a few pixels below the title's
+    // top. Override to align tops instead.
+    align-self: flex-start;
+    font-size: 0.8rem;
+    border: 1px solid $border-color;
+    border-radius: 0.25rem;
+}
+
+#copy-page-btn .btn {
+    color: $btn-code-copy-color;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+
+    &:hover {
+        color: $btn-code-copy-color-active;
+        background-color: rgba(0, 0, 0, 0.04);
+    }
+}
+
+#copy-page-btn .dropdown-toggle-split {
+    border-left: 1px solid $border-color;
+}
+
+#copy-page-btn .dropdown-menu {
+    font-size: 0.8rem;
+}
+
+// When the Copy page button is present on a page with a description,
+// give the description extra bottom margin so it isn't visually crammed
+// against the page content.
+.quarto-title-block:has(#copy-page-btn) #copy-page-btn {
+    margin-bottom: 0.5rem;
+}
+
+// Tighten row padding on borderless tables (used by the auto-generated
+// reference/index.qmd). Quarto's default cell padding makes the rows feel
+// over-spaced when there are no borders to occupy the gap. Quarto applies
+// Bootstrap's `.table-borderless` class for `: {.borderless}` captions.
+table.table-borderless > :where(thead, tbody) > tr > :where(th, td) {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}

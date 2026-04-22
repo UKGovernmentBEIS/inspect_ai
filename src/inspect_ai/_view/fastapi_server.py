@@ -11,7 +11,6 @@ import anyio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic_core import to_jsonable_python
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 from starlette.staticfiles import StaticFiles
@@ -25,13 +24,17 @@ from starlette.types import Scope
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
-from inspect_ai._eval.evalset import read_eval_set_info
+from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view._dist import resolve_dist_directory
 from inspect_ai._view.common import (
+    LogDirResponse,
+    LogFilesResponse,
+    LogInfo,
+    LogListingResponse,
     delete_log,
     get_log_dir,
     get_log_file,
@@ -43,8 +46,10 @@ from inspect_ai._view.common import (
     parse_log_token,
     stream_log_bytes,
 )
+from inspect_ai.log import EvalLog
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.types import SampleData, Samples
 
 logger = getLogger(__name__)
 
@@ -112,7 +117,7 @@ def view_server_app(
             if not await access_policy.can_list(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
-    @app.get("/logs/{log:path}")
+    @app.get("/logs/{log:path}", response_model=EvalLog)
     async def api_log(
         request: Request,
         log: str,
@@ -120,26 +125,33 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        body = await get_log_file(await _map_file(request, file), header_only)
+        try:
+            body = await get_log_file(await _map_file(request, file), header_only)
+        except FileNotFoundError:
+            return Response(status_code=HTTP_404_NOT_FOUND)
         return Response(content=body, media_type="application/json")
 
-    @app.get("/log-info/{log:path}")
-    async def api_log_info(request: Request, log: str) -> Response:
+    @app.get("/log-size/{log:path}")
+    async def api_log_size(request: Request, log: str) -> int:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        info = await get_log_info(
+        return await get_log_size(await _map_file(request, file))
+
+    @app.get("/log-info/{log:path}", response_model_exclude_none=True)
+    async def api_log_info(request: Request, log: str) -> LogInfo:
+        file = normalize_uri(log)
+        await _validate_read(request, file)
+        return await get_log_info(
             await _map_file(request, file),
             generate_direct_url=generate_direct_urls,
         )
-        return InspectJsonResponse(content=info)
 
     @app.get("/log-delete/{log:path}")
-    async def api_log_delete(request: Request, log: str) -> Response:
+    async def api_log_delete(request: Request, log: str) -> bool:
         file = normalize_uri(log)
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
-
-        return InspectJsonResponse(content=True)
+        return True
 
     @app.get("/log-bytes/{log:path}")
     async def api_log_bytes(
@@ -223,20 +235,17 @@ def view_server_app(
     async def api_log_dir(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
-    ) -> Response:
+    ) -> LogDirResponse:
         if log_dir is None:
             log_dir = default_dir
         await _validate_list(request, log_dir)
-        log_dir_response = get_log_dir(log_dir)
-        if log_dir_response is None:
-            return Response(status_code=HTTP_404_NOT_FOUND)
-        return InspectJsonResponse(content=log_dir_response)
+        return get_log_dir(log_dir)
 
-    @app.get("/log-files")
+    @app.get("/log-files", response_class=InspectJsonResponse)
     async def api_log_files(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
-    ) -> Response:
+    ) -> LogFilesResponse:
         if log_dir is None:
             log_dir = default_dir
         await _validate_list(request, log_dir)
@@ -246,24 +255,24 @@ def view_server_app(
         file_count = 0
         if client_etag is not None:
             mtime, file_count = parse_log_token(client_etag)
-        log_files_response: dict[str, Any] = await get_log_files(
+        result = await get_log_files(
             await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
         )
-        log_files_response["files"] = [
-            {**file, "name": await _unmap_file(request, file["name"])}
-            for file in log_files_response["files"]
-        ]
-        return InspectJsonResponse(content=log_files_response)
+        for entry in result.files:
+            entry.name = await _unmap_file(request, entry.name)
+        return result
 
-    @app.get("/logs")
+    @app.get(
+        "/logs", response_model=LogListingResponse, response_class=InspectJsonResponse
+    )
     async def api_logs(
         request: Request,
         log_dir: str | None = Query(None, alias="log_dir"),
-    ) -> Response:
+    ) -> LogListingResponse | Response:
         if log_dir is None:
             log_dir = default_dir
         await _validate_list(request, log_dir)
@@ -274,17 +283,21 @@ def view_server_app(
         )
         if listing is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
-        for file in listing["files"]:
-            file["name"] = await _unmap_file(request, file["name"])
-        listing["log_dir"] = await _unmap_file(request, listing["log_dir"])
-        return InspectJsonResponse(content=listing)
+        for entry in listing.files:
+            entry.name = await _unmap_file(request, entry.name)
+        listing.log_dir = await _unmap_file(request, listing.log_dir)
+        return listing
 
-    @app.get("/eval-set")
+    @app.get(
+        "/eval-set",
+        response_class=InspectJsonResponse,
+        response_model_exclude_none=True,
+    )
     async def eval_set(
         request: Request,
         log_dir: str = Query(None, alias="log_dir"),
         sub_dir: str = Query(None, alias="dir"),
-    ) -> Response:
+    ) -> EvalSet | None:
         # resolve the eval-set directory (using the log_dir and dir params)
         base_dir = log_dir if log_dir else default_dir
         if sub_dir and base_dir:
@@ -298,11 +311,8 @@ def view_server_app(
         await _validate_list(request, eval_set_dir)
 
         # return the eval set info for this directory
-        eval_set = read_eval_set_info(
+        return read_eval_set_info(
             await _map_file(request, eval_set_dir), fs_options=fs_options
-        )
-        return InspectJsonResponse(
-            content=eval_set.model_dump(exclude_none=True) if eval_set else None
         )
 
     @app.get("/flow")
@@ -323,8 +333,9 @@ def view_server_app(
         # validate that the directory can be listed
         await _validate_list(request, flow_dir)
 
-        fs = filesystem(flow_dir)
-        flow_file = f"{flow_dir}{fs.sep}flow.yaml"
+        mapped_dir = await _map_file(request, flow_dir)
+        fs = filesystem(mapped_dir)
+        flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
         if fs.exists(flow_file):
             bytes = fs.read_bytes(flow_file)
 
@@ -334,32 +345,43 @@ def view_server_app(
         else:
             return Response(status_code=HTTP_404_NOT_FOUND)
 
-    @app.get("/log-headers")
+    @app.get(
+        "/log-headers",
+        response_class=InspectJsonResponse,
+        response_model_exclude_none=True,
+    )
     async def api_log_headers(
         request: Request, file: list[str] = Query([])
-    ) -> Response:
+    ) -> list[EvalLog]:
         files = [normalize_uri(f) for f in file]
+        mapped_files: list[str] = [""] * len(files)
+
+        async def _validate_and_map(idx: int, f: str) -> None:
+            await _validate_read(request, f)
+            mapped_files[idx] = await _map_file(request, f)
+
         async with anyio.create_task_group() as tg:
-            for f in files:
-                tg.start_soon(_validate_read, request, f)
-        headers = await read_eval_log_headers_async(
-            [await _map_file(request, file) for file in files]
-        )
-        return InspectJsonResponse(to_jsonable_python(headers, exclude_none=True))
+            for i, f in enumerate(files):
+                tg.start_soon(_validate_and_map, i, f)
+
+        return await read_eval_log_headers_async(mapped_files)
 
     @app.get("/events")
     async def api_events(
         last_eval_time: str | None = None,
-    ) -> Response:
-        actions = (
+    ) -> list[str]:
+        return (
             ["refresh-evals"]
             if last_eval_time and notify.view_last_eval_time() > int(last_eval_time)
             else []
         )
-        return InspectJsonResponse(actions)
 
-    @app.get("/pending-samples")
-    async def api_pending_samples(request: Request, log: str = Query(...)) -> Response:
+    @app.get(
+        "/pending-samples", response_model=Samples, response_class=InspectJsonResponse
+    )
+    async def api_pending_samples(
+        request: Request, response: Response, log: str = Query(...)
+    ) -> Samples | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
 
@@ -372,10 +394,8 @@ def view_server_app(
         elif samples is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
-            return InspectJsonResponse(
-                content=samples.model_dump(),
-                headers={"ETag": samples.etag},
-            )
+            response.headers["ETag"] = samples.etag
+            return samples
 
     @app.get("/log-message")
     async def api_log_message(
@@ -389,7 +409,11 @@ def view_server_app(
 
         return Response(status_code=HTTP_204_NO_CONTENT)
 
-    @app.get("/pending-sample-data")
+    @app.get(
+        "/pending-sample-data",
+        response_model=SampleData,
+        response_class=InspectJsonResponse,
+    )
     async def api_sample_events(
         request: Request,
         log: str,
@@ -397,7 +421,9 @@ def view_server_app(
         epoch: int,
         last_event_id: int | None = Query(None, alias="last-event-id"),
         after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
-    ) -> Response:
+        after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
+        after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
+    ) -> SampleData | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
 
@@ -407,12 +433,14 @@ def view_server_app(
             epoch=epoch,
             after_event_id=last_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
 
         if sample_data is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
-            return InspectJsonResponse(content=sample_data.model_dump())
+            return sample_data
 
     return app
 
@@ -446,11 +474,8 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
-_IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
-
-
 class _InspectStaticFiles(StaticFiles):
-    """StaticFiles with cache headers for hashed assets."""
+    """StaticFiles with no-cache headers to avoid stale assets."""
 
     def file_response(
         self,
@@ -460,10 +485,11 @@ class _InspectStaticFiles(StaticFiles):
         status_code: int = 200,
     ) -> Response:
         response = super().file_response(full_path, stat_result, scope, status_code)
-        if "/assets/" in str(full_path):
-            response.headers["cache-control"] = _IMMUTABLE_CACHE
-        else:
-            response.headers["cache-control"] = "no-cache"
+        response.headers["expires"] = "Fri, 01 Jan 1990 00:00:00 GMT"
+        response.headers["pragma"] = "no-cache"
+        response.headers["cache-control"] = (
+            "no-cache, no-store, max-age=0, must-revalidate"
+        )
         return response
 
 
@@ -492,6 +518,7 @@ def view_server(
     port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
 ) -> None:
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
@@ -506,6 +533,7 @@ def view_server(
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
     )
 
     dist_dir = resolve_dist_directory()

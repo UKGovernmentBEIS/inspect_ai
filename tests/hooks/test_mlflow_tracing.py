@@ -531,7 +531,7 @@ async def test_tool_event_with_error(tracing_env):
         tool_event = ToolEvent(
             id="call-err",
             function="bash",
-            arguments={"cmd": "rm -rf /"},
+            arguments={"command": "rm -rf /"},
             error=ToolCallError(message="Permission denied", type="PermissionError"),
             failed=True,
         )

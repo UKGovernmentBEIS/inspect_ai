@@ -32,6 +32,7 @@ from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -286,8 +287,6 @@ def completion_params_responses(
         params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if model_info.has_reasoning_options():
-        params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
     # (e.g. by a client talking to us through the agent bridge)
@@ -387,7 +386,7 @@ def completion_params_responses(
             format=ResponseFormatTextJSONSchemaConfigParam(
                 type="json_schema",
                 name=config.response_schema.name,
-                schema=config.response_schema.json_schema.model_dump(exclude_none=True),
+                schema=json_schema_dump(config.response_schema.json_schema),
                 description=config.response_schema.description
                 or config.response_schema.name,
                 strict=config.response_schema.strict,

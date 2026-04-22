@@ -21,6 +21,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
@@ -103,6 +104,7 @@ def eval_set(
     retry_wait: float | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    retry_immediate: bool | None = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
@@ -169,6 +171,7 @@ def eval_set(
             (defaults to 1.0, which results in no reduction).
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
+        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -262,6 +265,15 @@ def eval_set(
     """
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
+    num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    task_retry_attempts = num_retry_attempts if retry_immediate else 0
+
+    if retry_immediate and num_retry_attempts == 0:
+        logger.warning(
+            "retry_immediate=True has no effect when retry_attempts=0; "
+            "no task-level retries will be performed."
+        )
+
     # helper function to run a set of evals
     def run_eval(
         eval_set_id: str,
@@ -318,6 +330,7 @@ def eval_set(
             log_header_only=True,
             score=score,
             eval_set_id=eval_set_id,
+            task_retry_attempts=task_retry_attempts,
             **kwargs,
         )
 
@@ -350,7 +363,8 @@ def eval_set(
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
 
-    # get eval set id
+    # get eval set id (set display name from user-provided value before resolution)
+    set_eval_set_id_display(eval_set_id)
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
     # resolve some parameters
@@ -503,7 +517,7 @@ def eval_set(
         retry=retry_if_not_result(all_evals_succeeded),
         retry_error_callback=return_last_value,
         reraise=True,
-        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
+        stop=stop_after_attempt(num_retry_attempts),
         wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
@@ -513,8 +527,12 @@ def eval_set(
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-        # execute w/ retry
-        results = retry(try_eval)
+        if retry_immediate:
+            # retry handled by eval
+            results = try_eval()
+        else:
+            # execute w/ retry
+            results = retry(try_eval)
 
         # final sweep to remove failed log files
         if retry_cleanup:
@@ -608,15 +626,35 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+        eval_log = log.header
+        log_info = log.info
+
+        # opportunistically recover crashed logs before retrying
+        if eval_log.status == "started" and eval_log.location:
+            from inspect_ai.log._recover import (
+                RecoveryNotAvailable,
+                recover_eval_log,
+            )
+
+            try:
+                recovered = recover_eval_log(eval_log.location, cleanup=False)
+                eval_log = recovered
+                if recovered.location:
+                    log_info = log_info.model_copy(update={"name": recovered.location})
+            except RecoveryNotAvailable:
+                pass  # no recovery data available
+            except Exception as ex:
+                logger.warning(f"Recovery failed for {eval_log.location}: {ex}")
+
         previous_tasks.append(
             PreviousTask(
-                id=log.header.eval.task_id,
+                id=eval_log.eval.task_id,
                 task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
-                log=log.header,
-                log_info=log.info,
+                log=eval_log,
+                log_info=log_info,
             )
         )
 
