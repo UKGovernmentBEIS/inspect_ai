@@ -440,6 +440,7 @@ The following model args are supported:
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
 | `stream` | Enable streaming responses (default: `false`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
+| `inference_component_name` | Name of the inference component for multi-model endpoints. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -450,6 +451,16 @@ inspect eval arc.py --model sagemaker/my-endpoint \
   -M region_name=us-west-2 \
   -M read_timeout=300 \
   -M stream=true
+```
+
+### Inference Components
+
+For [multi-model endpoints](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html) that use inference components, specify the `inference_component_name` to route requests to a specific component:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M inference_component_name=my-inference-component
 ```
 
 ### Completion Mode

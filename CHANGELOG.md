@@ -1,5 +1,6 @@
 ## Unreleased
 
+- SageMaker: Add `inference_component_name` model argument for routing requests to specific inference components on multi-model endpoints.
 - Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
 - Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.
 - Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
