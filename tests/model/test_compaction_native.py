@@ -168,7 +168,7 @@ async def test_anthropic_unsupported_model_raises_not_implemented() -> None:
     # Use an older model that doesn't support compaction
     # This test verifies the BadRequestError -> NotImplementedError conversion
     config = GenerateConfig(max_tokens=4096)
-    model = get_model("anthropic/claude-3-haiku-20240307", config=config)
+    model = get_model("anthropic/claude-haiku-4-5", config=config)
     messages = _long_messages()  # Need enough tokens to pass minimum threshold
 
     # Direct call to the provider's compact method should raise NotImplementedError

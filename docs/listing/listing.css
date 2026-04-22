@@ -1,0 +1,98 @@
+/* ─── Quarto host integration ─── */
+#title-block-header { display: none !important; }
+
+#quarto-content > * { padding-top: 0 !important; }
+#quarto-document-content {
+  max-width: none !important;
+  grid-column: screen-start / screen-end !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* ─── SPA layout ─── */
+.listing-app { display: block; }
+
+.listing-app .listing-sidebar {
+  width: 232px;
+  flex-shrink: 0;
+}
+.listing-app .listing-sidebar-inner {
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+/* ─── Main header (title + chips + count + search on one row) ─── */
+.listing-app .listing-main-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.listing-app .listing-main-header h1 {
+  font-weight: 600;
+  margin: 0;
+  line-height: 1;
+  transform: translateY(-2px);
+}
+.listing-app .listing-main-header .result-count {
+  font-size: .875rem;
+  color: var(--bs-secondary-color, rgba(52,58,64,.55));
+  white-space: nowrap;
+}
+.listing-app .listing-main-header .search-wrap {
+  margin-left: auto;
+  width: 280px;
+}
+
+/* ─── Category headers within the grid ─── */
+.listing-app .listing-cat-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--bs-emphasis-color, #212529);
+  margin: 1.5rem 0 .65rem;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+.listing-app .listing-cat-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bs-border-color, #dee2e6);
+}
+.listing-app .listing-cat-first { margin-top: 0; }
+
+/* ─── Card grid ─── */
+.listing-app .listing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.listing-app .listing-grid .card { border-radius: .5rem; }
+
+/* Card hover */
+.listing-app .listing-card-link {
+  text-decoration: none;
+  color: inherit;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.listing-app .listing-card-link:hover { transform: translateY(-1px); }
+.listing-app .listing-card-link:hover .card { box-shadow: var(--bs-box-shadow-sm); }
+
+/* ─── Sidebar filter items ─── */
+.listing-app .listing-sidebar .list-group-item {
+  border: none;
+  padding: .1rem .6rem;
+  border-radius: .5rem;
+}
+.listing-app .listing-sidebar .list-group-item.active {
+  background-color: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-text-emphasis);
+}
+.listing-app .listing-sidebar .list-group-item .count {
+  font-variant-numeric: tabular-nums;
+  opacity: .7;
+}

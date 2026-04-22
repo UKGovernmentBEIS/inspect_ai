@@ -84,12 +84,12 @@ async def test_context_manager_async_required():
 @skip_if_no_google
 async def test_context_manager_no_close():
     # use with sync context mananger
-    with get_model("google/gemini-2.0-flash") as model:
+    with get_model("google/gemini-3.1-flash-lite-preview") as model:
         output = await model.generate("Say hello")
         assert "hello" in output.completion.lower()
 
     # use with async context manager
-    async with get_model("google/gemini-2.0-flash") as model:
+    async with get_model("google/gemini-3.1-flash-lite-preview") as model:
         output = await model.generate("Say hello")
         assert "hello" in output.completion.lower()
 

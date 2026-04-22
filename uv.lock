@@ -200,6 +200,15 @@ wheels = [
 ]
 
 [[package]]
+name = "annotated-doc"
+version = "0.0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/ba/046ceea27344560984e26a590f90bc7f4a75b06701f653222458922b558c/annotated_doc-0.0.4.tar.gz", hash = "sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4", size = 7288, upload-time = "2025-11-10T22:07:42.062Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/d3/26bf1008eb3d2daa8ef4cacc7f3bfdc11818d111f7e2d0201bc6e3b49d45/annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320", size = 5303, upload-time = "2025-11-10T22:07:40.673Z" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1024,16 +1033,18 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.118.0"
+version = "0.136.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "annotated-doc" },
     { name = "pydantic" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/3c/2b9345a6504e4055eaa490e0b41c10e338ad61d9aeaae41d97807873cdf2/fastapi-0.118.0.tar.gz", hash = "sha256:5e81654d98c4d2f53790a7d32d25a7353b30c81441be7d0958a26b5d761fa1c8", size = 310536, upload-time = "2025-09-29T03:37:23.126Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/d9/e66315807e41e69e7f6a1b42a162dada2f249c5f06ad3f1a95f84ab336ef/fastapi-0.136.0.tar.gz", hash = "sha256:cf08e067cc66e106e102d9ba659463abfac245200752f8a5b7b1e813de4ff73e", size = 396607, upload-time = "2026-04-16T11:47:13.623Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/54/20/54e2bdaad22ca91a59455251998d43094d5c3d3567c52c7c04774b3f43f2/fastapi-0.118.0-py3-none-any.whl", hash = "sha256:705137a61e2ef71019d2445b123aa8845bd97273c395b744d5a7dfe559056855", size = 97694, upload-time = "2025-09-29T03:37:21.338Z" },
+    { url = "https://files.pythonhosted.org/packages/26/a3/0bd5f0cdb0bbc92650e8dc457e9250358411ee5d1b65e42b6632387daf81/fastapi-0.136.0-py3-none-any.whl", hash = "sha256:8793d44ec7378e2be07f8a013cf7f7aa47d6327d0dfe9804862688ec4541a6b4", size = 117556, upload-time = "2026-04-16T11:47:11.922Z" },
 ]
 
 [[package]]
@@ -1765,7 +1776,7 @@ requires-dist = [
     { name = "debugpy" },
     { name = "docstring-parser", specifier = ">=0.16" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'", specifier = ">=1.0.2" },
-    { name = "fastapi", marker = "extra == 'dev'" },
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.119.0" },
     { name = "fsspec", specifier = ">=2023.1.0,<=2025.9.0" },
     { name = "google-genai", marker = "extra == 'dev'", specifier = ">=1.69.0" },
     { name = "griffe", marker = "extra == 'dev'", specifier = ">=2" },
@@ -1790,7 +1801,7 @@ requires-dist = [
     { name = "mcp-server-git", marker = "extra == 'dev-mcp-tests'" },
     { name = "mistralai", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "mmh3", specifier = ">3.1.0" },
-    { name = "moto", extras = ["server"], marker = "extra == 'dev'" },
+    { name = "moto", extras = ["server"], marker = "extra == 'dev'", specifier = ">=5.1.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
     { name = "nbclient", marker = "extra == 'doc'" },
     { name = "nbformat", marker = "extra == 'dev'" },
@@ -2937,7 +2948,7 @@ wheels = [
 
 [[package]]
 name = "moto"
-version = "5.1.4"
+version = "5.1.18"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -2950,9 +2961,9 @@ dependencies = [
     { name = "werkzeug" },
     { name = "xmltodict" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4e/17/059cd6fa5962fa75575f74bb8d31d0e9cb3e656414cb79b4b3736b2b40eb/moto-5.1.4.tar.gz", hash = "sha256:b339c3514f2986ebefa465671b688bdbf51796705702214b1bad46490b68507a", size = 6796440, upload-time = "2025-04-20T20:16:19.165Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/6a/a73bef67261bfab55714390f07c7df97531d00cea730b7c0ace4d0ad7669/moto-5.1.18.tar.gz", hash = "sha256:45298ef7b88561b839f6fe3e9da2a6e2ecd10283c7bf3daf43a07a97465885f9", size = 8271655, upload-time = "2025-11-30T22:03:59.58Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/98/346e3252767e1fe78a0842804cfffbbbef103b960149d4bb217b4cc31a19/moto-5.1.4-py3-none-any.whl", hash = "sha256:9a19d7a64c3f03824389cfbd478b64c82bd4d8da21b242a34259360d66cd108b", size = 4898363, upload-time = "2025-04-20T20:16:16.849Z" },
+    { url = "https://files.pythonhosted.org/packages/83/d4/6991df072b34741a0c115e8d21dc2fe142e4b497319d762e957f6677f001/moto-5.1.18-py3-none-any.whl", hash = "sha256:b65aa8fc9032c5c574415451e14fd7da4e43fd50b8bdcb5f10289ad382c25bcf", size = 6357278, upload-time = "2025-11-30T22:03:56.831Z" },
 ]
 
 [package.optional-dependencies]
@@ -3980,11 +3991,11 @@ wheels = [
 
 [[package]]
 name = "py-partiql-parser"
-version = "0.6.1"
+version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/58/a1/0a2867e48b232b4f82c4929ef7135f2a5d72c3886b957dccf63c70aa2fcb/py_partiql_parser-0.6.1.tar.gz", hash = "sha256:8583ff2a0e15560ef3bc3df109a7714d17f87d81d33e8c38b7fed4e58a63215d", size = 17120, upload-time = "2024-12-25T22:06:41.327Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/7a/a0f6bda783eb4df8e3dfd55973a1ac6d368a89178c300e1b5b91cd181e5e/py_partiql_parser-0.6.3.tar.gz", hash = "sha256:09cecf916ce6e3da2c050f0cb6106166de42c33d34a078ec2eb19377ea70389a", size = 17456, upload-time = "2025-10-18T13:56:13.441Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/84/0e410c20bbe9a504fc56e97908f13261c2b313d16cbb3b738556166f044a/py_partiql_parser-0.6.1-py2.py3-none-any.whl", hash = "sha256:ff6a48067bff23c37e9044021bf1d949c83e195490c17e020715e927fe5b2456", size = 23520, upload-time = "2024-12-25T22:06:39.106Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/33/a7cbfccc39056a5cf8126b7aab4c8bafbedd4f0ca68ae40ecb627a2d2cd3/py_partiql_parser-0.6.3-py2.py3-none-any.whl", hash = "sha256:deb0769c3346179d2f590dcbde556f708cdb929059fb654bad75f4cf6e07f582", size = 23752, upload-time = "2025-10-18T13:56:12.256Z" },
 ]
 
 [[package]]
