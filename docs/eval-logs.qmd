@@ -156,13 +156,15 @@ Note that in all cases a counter of refusals during the eval or eval set is prov
 
 ## Model API Logging
 
-If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the `ModelEvent`). For example:
+By default, Inspect logs the raw model API request and response for the first few calls per model (as well as all error calls). This provides enough data to verify that the expected payload is being sent and received without the storage cost of logging every call.
+
+To log all model API calls, use the `--log-model-api` flag:
 
 ``` bash
 inspect eval ctf.py --log-model-api
 ```
 
-Note that model api requests that result in an error are always logged.
+To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
 ## Log File API {#sec-log-file-api}
 

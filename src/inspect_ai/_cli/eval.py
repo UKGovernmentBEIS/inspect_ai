@@ -373,7 +373,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-model-api/--no-log-model-api",
         type=bool,
-        default=False,
+        default=None,
         is_flag=True,
         help=LOG_MODEL_API_HELP,
         envvar="INSPECT_EVAL_LOG_MODEL_API",
@@ -1424,7 +1424,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--log-model-api/--no-log-model-api",
     type=bool,
-    default=False,
+    default=None,
     is_flag=True,
     help=LOG_MODEL_API_HELP,
     envvar="INSPECT_EVAL_LOG_MODEL_API",
@@ -1527,7 +1527,6 @@ def eval_retry_command(
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
-    log_model_api = True if log_model_api is True else None
     log_refusals = True if log_refusals is True else None
     score = False if no_score else True
     score_display = False if no_score_display else None
