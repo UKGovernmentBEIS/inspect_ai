@@ -1,3 +1,7 @@
+## Unreleased
+
+- Avoid deep copy of messages when applying custom tool model input handler.
+
 ## 0.3.210 (22 April 2026)
 
 - Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
