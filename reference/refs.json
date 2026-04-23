@@ -417,5 +417,9 @@
   "ComposeConfig": "inspect_ai.util.qmd#composeconfig",
   "ComposeService": "inspect_ai.util.qmd#composeservice",
   "ComposeBuild": "inspect_ai.util.qmd#composebuild",
-  "ComposeHealthcheck": "inspect_ai.util.qmd#composehealthcheck"
+  "ComposeHealthcheck": "inspect_ai.util.qmd#composehealthcheck",
+  "ViewerConfig": "inspect_ai.viewer.qmd#viewerconfig",
+  "ScannerResultView": "inspect_ai.viewer.qmd#scannerresultview",
+  "MetadataField": "inspect_ai.viewer.qmd#metadatafield",
+  "ScannerResultField": "inspect_ai.viewer.qmd#scannerresultfield"
 }

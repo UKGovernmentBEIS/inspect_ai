@@ -151,15 +151,15 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#april-2026" id="toc-april-2026" class="nav-link" data-scroll-target="#april-2026">0.3.210 (22 April 2026)</a></li>
-  <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.209 (20 April 2026)</a></li>
-  <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.208 (19 April 2026)</a></li>
-  <li><a href="#april-2026-3" id="toc-april-2026-3" class="nav-link" data-scroll-target="#april-2026-3">0.3.207 (16 April 2026)</a></li>
-  <li><a href="#april-2026-4" id="toc-april-2026-4" class="nav-link" data-scroll-target="#april-2026-4">0.3.206 (15 April 2026)</a></li>
-  <li><a href="#april-2026-5" id="toc-april-2026-5" class="nav-link" data-scroll-target="#april-2026-5">0.3.205 (04 April 2026)</a></li>
-  <li><a href="#april-2026-6" id="toc-april-2026-6" class="nav-link" data-scroll-target="#april-2026-6">0.3.204 (02 April 2026)</a></li>
-  <li><a href="#april-2026-7" id="toc-april-2026-7" class="nav-link" data-scroll-target="#april-2026-7">0.3.203 (01 April 2026)</a></li>
+  <li><a href="#april-2026" id="toc-april-2026" class="nav-link active" data-scroll-target="#april-2026">0.3.211 (23 April 2026)</a></li>
+  <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.210 (22 April 2026)</a></li>
+  <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.209 (20 April 2026)</a></li>
+  <li><a href="#april-2026-3" id="toc-april-2026-3" class="nav-link" data-scroll-target="#april-2026-3">0.3.208 (19 April 2026)</a></li>
+  <li><a href="#april-2026-4" id="toc-april-2026-4" class="nav-link" data-scroll-target="#april-2026-4">0.3.207 (16 April 2026)</a></li>
+  <li><a href="#april-2026-5" id="toc-april-2026-5" class="nav-link" data-scroll-target="#april-2026-5">0.3.206 (15 April 2026)</a></li>
+  <li><a href="#april-2026-6" id="toc-april-2026-6" class="nav-link" data-scroll-target="#april-2026-6">0.3.205 (04 April 2026)</a></li>
+  <li><a href="#april-2026-7" id="toc-april-2026-7" class="nav-link" data-scroll-target="#april-2026-7">0.3.204 (02 April 2026)</a></li>
+  <li><a href="#april-2026-8" id="toc-april-2026-8" class="nav-link" data-scroll-target="#april-2026-8">0.3.203 (01 April 2026)</a></li>
   <li><a href="#march-2026" id="toc-march-2026" class="nav-link" data-scroll-target="#march-2026">0.3.202 (31 March 2026)</a></li>
   <li><a href="#march-2026-1" id="toc-march-2026-1" class="nav-link" data-scroll-target="#march-2026-1">0.3.201 (25 March 2026)</a></li>
   <li><a href="#march-2026-2" id="toc-march-2026-2" class="nav-link" data-scroll-target="#march-2026-2">0.3.200 (20 March 2026)</a></li>
@@ -368,16 +368,19 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="april-2026" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026">0.3.211 (23 April 2026)</h2>
 <ul>
+<li>OpenAI: Gracefully catch when response.tools is null and normalize it to []</li>
 <li>Model API: Log the first 5 API calls per-model by default.</li>
 <li>Avoid deep copy of messages when applying custom tool model input handler.</li>
 <li>Inspect View: Metadata with more than 5 children will be collapsed by default (for real).</li>
+<li>Inspect View: Improve column selection with fine-grained metrics selection in Folder and Tasks view.</li>
+<li>Inspect View: Minor UX improvements.</li>
 </ul>
 </section>
-<section id="april-2026" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026">0.3.210 (22 April 2026)</h2>
+<section id="april-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-1">0.3.210 (22 April 2026)</h2>
 <ul>
 <li>Anthropic: Warn when sampling parameters (<code>temperature</code>, etc.) are passed to Opus 4.7.</li>
 <li>Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.</li>
@@ -388,8 +391,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix regression in realtime event stream introduced by message condensing.</li>
 </ul>
 </section>
-<section id="april-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-1">0.3.209 (20 April 2026)</h2>
+<section id="april-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-2">0.3.209 (20 April 2026)</h2>
 <ul>
 <li>Capture compaction strategy params in eval log.</li>
 <li>Inspect View: Display results of Scout scanners used as scorers next to transcripts.</li>
@@ -400,8 +403,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Don’t show empty entries in messages view when a message is retried.</li>
 </ul>
 </section>
-<section id="april-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-2">0.3.208 (19 April 2026)</h2>
+<section id="april-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-3">0.3.208 (19 April 2026)</h2>
 <ul>
 <li>Google: Correct counting for cached input tokens.</li>
 <li>Model API: Log model retries at WARNING when backoff &gt;= 60s.</li>
@@ -410,8 +413,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Task Display: Add cancel button to cancel individual tasks during parallel execution.</li>
 </ul>
 </section>
-<section id="april-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-3">0.3.207 (16 April 2026)</h2>
+<section id="april-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-4">0.3.207 (16 April 2026)</h2>
 <ul>
 <li>Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.</li>
 <li>Anthropic: Support for new <code>xhigh</code> value for <code>effort</code>.<br>
@@ -419,8 +422,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Anthropic: Support for <code>max</code> value for <code>reasoning_effort</code>.</li>
 </ul>
 </section>
-<section id="april-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-4">0.3.206 (15 April 2026)</h2>
+<section id="april-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-5">0.3.206 (15 April 2026)</h2>
 <ul>
 <li>Eval Set: Display explicit <code>--id</code> in task panel headers when provided.</li>
 <li>Eval Set: Add <code>--retry-immediate</code> option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.</li>
@@ -465,24 +468,24 @@ instances.</li>
 <li>Bugfix: Eliminate spurious logging when bridge model proxy server is terminated.</li>
 </ul>
 </section>
-<section id="april-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-5">0.3.205 (04 April 2026)</h2>
+<section id="april-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-6">0.3.205 (04 April 2026)</h2>
 <ul>
 <li>Eval Logs: Ensure that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#condense_events">condense_events()</a></span> is called when re-writing eval logs.</li>
 <li>Eval Logs: Correct import ordering for patching use of zstd compressions.</li>
 <li>Scorers: Return <code>NOANSWER</code> instead of <code>INCORRECT</code> when the <code>pattern</code> scorer fails to match.</li>
 </ul>
 </section>
-<section id="april-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-6">0.3.204 (02 April 2026)</h2>
+<section id="april-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-7">0.3.204 (02 April 2026)</h2>
 <ul>
 <li>Timelines: Improved detection of <code>forked_at</code> for branches from user or system messages.</li>
 <li>Timelines: Provide option to include or exclude branches when computing span time and token usage.</li>
 <li>Inspect View: Inline application assets.</li>
 </ul>
 </section>
-<section id="april-2026-7" class="level2">
-<h2 class="anchored" data-anchor-id="april-2026-7">0.3.203 (01 April 2026)</h2>
+<section id="april-2026-8" class="level2">
+<h2 class="anchored" data-anchor-id="april-2026-8">0.3.203 (01 April 2026)</h2>
 <ul>
 <li>OpenAI: Add <code>cyber_policy</code> to “content_filter” stop reason</li>
 <li>Timelines: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#branchevent">BranchEvent</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#timeline_branch">timeline_branch()</a></span> to delineate timeline branches.</li>
