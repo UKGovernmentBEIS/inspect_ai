@@ -18,83 +18,40 @@ state, resume), and likely other long-horizon-oriented capabilities.
 We're starting with checkpointing because it is an obvious, self-contained,
 and independently valuable first step.
 
-## Artifacts to produce
-
-Three distinct artifacts, three audiences, three lifespans:
-
-1. **Customer-facing design doc.** Fresh narrative pass (not a cleanup
-   of this working doc — cleanup leaks internal framing). Audience:
-   potential customers and broader team, for validation that the plan
-   addresses real needs and is practical. Shape:
-   - Problem & motivation
-   - UX walkthrough (enable → run → crash → resume)
-   - Scope + explicit non-goals (consolidated, not scattered)
-   - Operational model (where data lives, retention defaults,
-     destination options)
-   - Customer-visible constraints / requirements imposed on them
-     (tool idempotency expectation, restic injected into sandbox
-     image, home-dir scope, inspect-version pinning implications for
-     resume)
-   - Known limitations / gotchas (cold-start window, external
-     side-effect replay, etc.)
-   - Explicit validation asks — the questions we most want customer
-     input on
-   - Heavily summarize the engine discussion (customers care it works
-     on their sandbox + storage, not which backup tool we picked).
-   - Be honest about decided vs. being-validated.
-   - Likely lives at `design/checkpointing.md`.
-2. **Internal working/design doc.** *This document.* Decision history,
-   unresolved questions, parked notes, appendices, contradictions.
-   Audience: us + implementers. Preserves the trail. Stays at
-   `design/plans/checkpointing-working.md`.
-3. **Implementation plan.** *Deferred until after customer validation*,
-   because validation outcomes will move the ground. Writing an impl
-   plan now encodes decisions that may change.
-
-Suggested sequencing:
-
-1. Finish a couple more interview rounds to firm up items that would
-   otherwise be noisy TBDs in the customer doc (or accept them as
-   validation asks).
-2. Draft the customer doc as a new file, iterate on shape.
-3. After customer feedback, write the implementation plan.
 
 ## 0. Principal requirements / invariants
 
-- **Resume is `inspect eval retry`.** *(Reversed.)* Following JJ's
-  design conversation, checkpoint resume builds on Inspect's existing
-  retry infrastructure rather than a new `--resume` flag. The command
-  is `inspect eval retry <log-file>`; the `.eval` log is the
+- **Resume is `inspect eval retry`.** Checkpoint resume builds on
+  Inspect's existing retry infrastructure. The command is
+  `inspect eval retry <log-file>`; the `.eval` log is the
   authoritative entry point, and the log records where the sibling
   checkpoints directory lives. **Both the log and the checkpoints
-  directory are required** to resume. This is the inverse of the
-  previous (now-abandoned) "checkpoint folder alone is sufficient"
-  invariant — a log file already carries completed-sample records
-  natively, so trying to make the checkpoints dir stand alone was
-  solving a problem we don't have.
+  directory are required** to resume. Completed-sample records live
+  in the log; checkpoints hold only partial-sample state.
   Consequences:
-  - `manifest.json` records identity and the canonical checkpoints
-    directory location (path or URL); it no longer needs to fully
-    reconstruct the eval in isolation, because the `.eval` log holds
-    the authoritative eval spec.
-  - The context-window portion of each checkpoint stores messages and
-    events in full (not as offsets into the `.eval` log) so that a
-    partially-completed sample can be fully rehydrated. Completed
-    samples live in the `.eval` log and do *not* require checkpoint
-    entries.
-  - Each sample's checkpoint subtree carries its sample input so a
-    resume's sample-source extension can deliver the partial sample
-    without re-reading the dataset.
-  - "Reuse `.eval` log serialization" means: **same on-disk schemas
-    (Pydantic/JSON), different container** — messages and events are
-    written as separate files inside the checkpoint dir (likely
-    `messages.jsonl` and `events.jsonl`) using the same schemas used
-    inside a `.eval` log. No zip coupling.
-  - Task/agent/tool code bundling is **not required**. The customer's
-    invocation environment (cwd + Python env + inspect install)
-    provides it, as with any retry. The log records inspect version
-    and task identity; existing retry code handles mismatch detection.
-  - Inspect runtime itself is *not* bundled.
+  - **Immutable eval/sample metadata is not duplicated** into the
+    checkpoints directory. Task identity, task/config snapshot, model
+    config, dataset pointer, sample inputs, and inspect version all
+    live in the `.eval` log and are consumed from there on retry.
+  - The checkpoints directory stores **only what the log cannot or
+    does not already hold** for an in-flight sample:
+    - Correlation identity (e.g., `eval_id`) to pair the checkpoints
+      dir with its log.
+    - Per-sample, per-checkpoint mutable state: messages and events
+      accumulated so far, `Store` contents, and sandbox-snapshot
+      references.
+    - Checkpoint-specific metadata: sequence number, trigger reason,
+      timestamps, turn index, status.
+  - Messages and events use the same **condensed representation** as
+    inside a `.eval` log, to avoid the same O(N²) serialization cost
+    the condensing work recently eliminated there. Each checkpoint
+    writes a single `context.json` containing events (in condensed
+    form, with `input_refs` / `call_refs`) alongside the
+    deduplication pools (`events_data` with `messages` and `calls`).
+    Reuses `condense_sample()` / `resolve_sample_events_data()`
+    (`src/inspect_ai/log/_pool.py`, `_condense.py`). No zip coupling.
+  - Task/agent/tool code bundling is **not required**. Retry assumes
+    the user's code/env is present.
 
 - **Checkpoint-attempt failures are non-fatal.** If a checkpoint attempt
   fails (egress error, disk full, sandbox exec error, restic error, …),
@@ -199,16 +156,11 @@ Assumes restic as backup engine; adjust if engine changes.
 logs/
   foo.eval                                   # existing eval log (unchanged)
   foo.eval.checkpoints/                      # sibling dir (default location)
-    manifest.json                            # eval-level header:
-                                             #   eval id, task id, config hash,
-                                             #   inspect version, engine = "restic",
-                                             #   layout version, created-at
+    manifest.json                            # minimal header:
+                                             #   eval_id (to pair with log),
+                                             #   layout version, engine = "restic"
     samples/
       <sample-id>__<epoch>/                  # one dir per (sample, epoch)
-        sample.json                          # sample-level metadata +
-                                             #   checkpoint index: ordered list
-                                             #   of checkpoint ids w/ triggers,
-                                             #   timestamps, statuses
         sandboxes/                           # out-of-band sandbox state
           <sandbox-name-1>/                  # restic repo for sandbox 1
             config data/ index/ snapshots/ keys/ locks/
@@ -218,7 +170,9 @@ logs/
           <checkpoint-id>/                   # one subdir per checkpoint
             metadata.json                    # seq, trigger (time/turn/manual),
                                              #   turn #, created-at, status
-            messages.jsonl                   # context window / events
+            context.json                     # condensed events + events_data
+                                             #   (messages/calls pools); reuses
+                                             #   .eval log condensing pipeline
             store.json                       # Store key/values
             sandbox-refs.json                # { <sandbox-name>: <restic-snap-id> }
           <checkpoint-id>/
@@ -227,10 +181,13 @@ logs/
 
 Shape notes:
 
-- `manifest.json` is the canonical discovery/resumption entrypoint: a
-  resume operation loads it first, verifies compatibility with the eval
-  being rerun, then walks `samples/<id>__<epoch>/sample.json` to find
-  the latest completed checkpoint per sample.
+- `manifest.json` holds the minimum needed to pair the checkpoints
+  directory with its log and version the layout. All eval/sample
+  identity and configuration comes from the `.eval` log on retry.
+- No `sample.json`. The set and order of checkpoints for a sample is
+  derivable by listing `checkpoints/<checkpoint-id>/` and reading
+  each `metadata.json`; sample identity comes from the directory
+  name plus the log.
 - **Sandbox state is out-of-band.** `sandboxes/<name>/` is a restic repo;
   `checkpoints/<id>/sandbox-refs.json` carries the snapshot id(s) that
   are "the sandbox state for *this* checkpoint." This decouples restic's
@@ -257,8 +214,11 @@ Shape notes:
   don't clobber each other.
 - `<checkpoint-id>` naming: open — monotonic seq (`0001`, `0002`), UUID,
   or timestamp-based. Monotonic seq reads most naturally for humans.
-- `messages.jsonl` vs. reusing the existing `.eval` event serialization
-  is still unresolved (see Unresolved Questions).
+- `context.json` uses the condensed event representation from the
+  `.eval` log pipeline (events with `input_refs`/`call_refs` plus an
+  `events_data` pool of deduplicated messages and calls). This is
+  what avoids the O(N²) serialization cost the main log recently
+  fixed.
 
 ### 1c. Retention
 
@@ -356,36 +316,33 @@ performing the full restoration before the agent is called:
 1. Restore the sandbox(es) from the corresponding restic snapshot(s).
 2. Rehydrate the context window (messages + events) from the checkpoint.
 3. Rehydrate the `Store`.
-4. Invoke the agent with an input object that already contains the
-   restored messages/events/store, **plus a new `is_resuming=True`
-   signal**.
+4. Invoke the agent with the restored state and `resume=True`
+   (a new `resume: Literal[True] | None` parameter on the agent
+   protocol).
 
 The **agent** does not re-open the checkpoint, does not re-materialize
 the sandbox, and does not re-parse stored state. It simply runs — but
 with enough information to know it was restored rather than started
-fresh. Agents that don't care can ignore `is_resuming`; agents (like
+fresh. Agents that don't care can ignore `resume`; agents (like
 the built-in React agent) that *do* care use it to skip one-shot setup
 that has already happened (e.g., system-prompt assembly, initial tool
 probing), avoid double-recording state, choose different resume-aware
 branches, etc.
 
-**Protocol implication (narrowed).** On reflection, we likely do **not**
-need to broaden the agent input with new data-carrying fields:
+**Agent input shape.** No new data-carrying fields are added to the
+agent input:
 
-- **Messages** are already passed to the agent today.
-- **Events** are inspect-internal bookkeeping (they roll up into the
-  final `.eval` log). The harness restores them into ambient inspect
-  state on resume; they don't need to flow through the agent input.
-- **Store** is accessed via ambient/global context (`store_as`, etc.),
-  not via the agent input parameter. The harness restores the store
-  into that ambient context; agents read from it normally.
-- **Sandbox** is restored in-place by the harness before the agent
-  runs; agents use it via the normal sandbox API.
+- **Messages** are already passed to the agent.
+- **Events** are inspect-internal bookkeeping that rolls into the
+  final `.eval` log. The harness restores them into ambient inspect
+  state; they do not flow through the agent input.
+- **Store** is accessed via ambient/global context (`store_as`, etc.).
+  The harness restores it into that ambient context.
+- **Sandbox** is restored in-place by the harness; agents use it via
+  the normal sandbox API.
 
-**Therefore:** the only *new* addition to the agent protocol strictly
-required for resume is a **single `is_resuming` boolean**. Any broader
-"agent protocol broadening" conversation is orthogonal to checkpointing
-and can be pursued (or not) on its own merits.
+The only new addition to the agent protocol is a single
+`resume: Literal[True] | None` parameter.
 
 ### 3b. User-facing
 
@@ -395,12 +352,11 @@ inspect eval retry <log-file>
 
 No new command or flag. Checkpoint-aware resume layers onto the
 existing `inspect eval retry` pathway. Eval-set retries receive the
-same integration (not "much later" — both are v1 commitments).
+same integration; both are v1 commitments.
 
 ### 3c. How resume plugs into inspect's retry machinery
 
-Inspect already has two complementary retry pathways (per JJ's
-design note):
+Inspect has two complementary retry pathways:
 
 - **`inspect eval retry <log-file>`** — reads the log, reifies the
   eval config from it, re-runs. Works well for standard cases.
@@ -443,17 +399,14 @@ doc.)
 
 ### Agent vs. solver protocol
 
-- Today: a solver receives full `TaskState` (including `Store`); an
-  **agent** has a narrower protocol so it can be used as tool OR solver.
-- Initially assumed this feature would force broadening the agent input
-  to carry `{messages, events, store, …}`. On reflection it does not:
-  events and store are restored by the harness into ambient inspect
-  state, and messages already flow to agents today. See §3a.
-- The only new addition strictly required by checkpointing is an
-  `is_resuming` boolean on the agent call.
-- Broader "agent protocol ↔ solver `TaskState`" alignment remains a
-  valid separate discussion, but is **not on the critical path** for
-  checkpointing.
+- A solver receives full `TaskState` (including `Store`); an **agent**
+  has a narrower protocol so it can be used as tool OR solver.
+- Checkpointing adds a single `resume: Literal[True] | None` parameter
+  to the agent protocol. It does not otherwise broaden the agent
+  input: events and store are restored by the harness into ambient
+  inspect state, and messages already flow to agents. See §3a.
+- Broader "agent protocol ↔ solver `TaskState`" alignment is a
+  separate discussion, not on the critical path for checkpointing.
 
 ## Appendix A — Restic egress protocol (design sketch)
 
@@ -687,14 +640,12 @@ that correspond to it, across all sandboxes it needed to capture.
   inspect copies the data out via the sandbox exec/copy API to the
   configured checkpoint destination (local or remote). No credentials
   plumbed into sandboxes. See §1a.
-- **First-checkpoint latency** — resolved (reversed): **no forced
-  sample-start snapshot.** The user's configured policy interval
-  already expresses the loss window they can afford; taking an extra
-  zero-point snapshot doesn't narrow that window, it just adds cost.
-  The first policy-driven checkpoint is the first snapshot (fatter
-  than subsequent deltas, which is expected and acceptable). No
-  decaying-interval or separate initial sub-policy.
-(hermetic task-code bundling — resolved, see below)
+- **First-checkpoint latency** — resolved: **no forced sample-start
+  snapshot.** The configured policy interval expresses the loss
+  window the user can afford; a zero-point snapshot doesn't narrow
+  that window, only adds cost. The first policy-driven checkpoint
+  is the first snapshot (larger than subsequent deltas, which is
+  expected). No decaying-interval or separate initial sub-policy.
 - **Firing checkpoints mid-tool-call.** §2c baseline fires only between
   turns. Open whether to also support firing during long tool
   executions (e.g. a 10-minute subprocess). Instinct: no. Needs own
@@ -711,11 +662,14 @@ that correspond to it, across all sandboxes it needed to capture.
 
 ### Resolved / set aside
 
-- **Serialization reuse** — resolved: **same on-disk schemas, different
-  container.** Messages and events use the same Pydantic/JSON schemas
-  as inside a `.eval` log but are written as separate files (likely
-  `messages.jsonl`, `events.jsonl`) in each checkpoint dir. No zip
-  coupling; checkpoints are not `.eval` files.
+- **Serialization reuse** — resolved: each checkpoint writes a single
+  `context.json` containing events in the condensed representation
+  plus the deduplication pools (`events_data` with `messages` and
+  `calls`). Reuses `condense_sample()` /
+  `resolve_sample_events_data()` from the `.eval` log pipeline
+  (`src/inspect_ai/log/_pool.py`, `_condense.py`) to avoid the
+  O(N²) serialization cost the main log recently fixed. Not a
+  `.eval` file; no zip coupling.
 - **Restic repo password management** — resolved: inspect
   auto-generates a random password per repo at checkpoint-creation
   time and stores it in `manifest.json` alongside the repo reference.
@@ -733,10 +687,9 @@ that correspond to it, across all sandboxes it needed to capture.
 - **Configuration surface** — resolved: parameter on the agent
   constructor (e.g. `react(checkpoint=...)`). Not on `Task(...)`.
   CLI/global overrides deferred.
-- **User-facing resume UX** — resolved (reversed): `inspect eval retry
-  <log-file>`. Layers onto existing retry infrastructure rather than
-  adding a new command/flag. Eval-set retries receive the same
-  integration. See §3.
+- **User-facing resume UX** — resolved: `inspect eval retry
+  <log-file>`. Layers onto existing retry infrastructure. Eval-set
+  retries receive the same integration. See §3.
 - **Completed samples on resume** — resolved by the retry-based
   model: completed-sample records live in the `.eval` log as today;
   the retry path already handles them (fully-complete → skipped).
@@ -744,10 +697,8 @@ that correspond to it, across all sandboxes it needed to capture.
 - **Sample source extension** — v1 work item, not an open question:
   extend inspect's existing sample-source abstraction to return
   *partial* samples (in addition to complete / none). See §3c.
-- **Hermetic task-code bundling** — resolved: **not required.** This
-  was never load-bearing and is fully subsumed by using existing retry
-  infrastructure — retry already assumes the user's code/env is
-  present, as with any retry today.
+- **Hermetic task-code bundling** — resolved: **not required.**
+  Retry assumes the user's code/env is present, as with any retry.
 - **Sandbox provider coverage** — resolved: the home-dir + injected
   backup tool approach is **provider-agnostic by design**. All providers
   are covered with no per-provider implementation work. This is a core
@@ -758,11 +709,10 @@ that correspond to it, across all sandboxes it needed to capture.
   per-sandbox (and therefore per-sample), because restic runs *inside*
   the sandbox and sandboxes are per-sample. Cross-sample dedup via a
   shared repo is not viable without cross-sandbox coordination.
-- **Initial/baseline sandbox checkpoint (baseline-for-diffs framing)** —
-  resolved: restic's content-addressing means no explicit baseline
-  artifact is required; every snapshot is standalone. (See also
-  "First-checkpoint latency" above — also resolved: no forced
-  sample-start snapshot.)
+- **Initial/baseline sandbox checkpoint** — resolved: restic's
+  content-addressing means no explicit baseline artifact is required;
+  every snapshot is standalone. No forced sample-start snapshot
+  either (see First-checkpoint latency).
 - **Non-sandbox checkpoint contents layout** — resolved by §1b sketch:
   lives in `samples/<id>__<epoch>/checkpoints/<checkpoint-id>/`
   alongside `sandbox-refs.json`.

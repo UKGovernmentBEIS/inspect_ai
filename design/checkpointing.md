@@ -195,21 +195,29 @@ handling is part of the implementation.
 You don't need to know this to use the feature. Included here for
 technical reviewers.
 
-### The four things we checkpoint
+### What a checkpoint contains
+
+A checkpoint stores only the in-flight state of a partially-completed
+sample. Immutable eval/sample metadata — task identity, config, model,
+dataset, sample inputs, inspect version — is not duplicated; it lives
+in the `.eval` log and is read from there on retry.
 
 Each checkpoint contains:
 
-1. **Sample metadata** — identifying information, checkpoint sequence,
-   what triggered it, timestamps.
-2. **Conversation + events** — the messages and structured events that
+1. **Conversation + events** — the messages and structured events that
    have accumulated in the sample's trajectory so far, stored using the
-   same schemas Inspect already uses inside `.eval` logs.
-3. **Sandbox home-directory state** — a filesystem snapshot of
+   same **condensed representation** Inspect uses inside `.eval` logs.
+   This avoids the O(N²) serialization cost that condensing recently
+   eliminated for main logs.
+2. **Sandbox home-directory state** — a filesystem snapshot of
    `$HOME` inside each of the sample's sandboxes. (Samples may have
    one or many sandboxes; the mechanism applies independently to each.
    For brevity, the rest of this document uses *the sandbox* in the
    singular.)
-4. **Store** — the sample's `Store` key/value state.
+3. **Store** — the sample's `Store` key/value state.
+4. **Checkpoint-specific metadata** — sequence number, trigger reason
+   (time/turn/manual), turn index, timestamp, status, and references
+   to the corresponding sandbox snapshot(s).
 
 We intentionally do **not** checkpoint in-memory process state
 (running processes, open sockets, RAM). See non-goals below.
