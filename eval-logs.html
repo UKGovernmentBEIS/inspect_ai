@@ -737,9 +737,10 @@ Important
 </section>
 <section id="model-api-logging" class="level2">
 <h2 class="anchored" data-anchor-id="model-api-logging">Model API Logging</h2>
-<p>If you are debugging a model API issue at the provider level, you can add the <code>--log-model-api</code> flag to log the full request and response payload for each generation (the model api data will be attached to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#modelevent">ModelEvent</a></span>). For example:</p>
+<p>By default, Inspect logs the raw model API request and response for the first few calls per model (as well as all error calls). This provides enough data to verify that the expected payload is being sent and received without the storage cost of logging every call.</p>
+<p>To log all model API calls, use the <code>--log-model-api</code> flag:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--log-model-api</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that model api requests that result in an error are always logged.</p>
+<p>To disable model API logging entirely (errors only), use <code>--no-log-model-api</code>.</p>
 </section>
 <section id="sec-log-file-api" class="level2">
 <h2 class="anchored" data-anchor-id="sec-log-file-api">Log File API</h2>

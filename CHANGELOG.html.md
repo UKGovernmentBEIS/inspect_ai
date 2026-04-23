@@ -1,5 +1,11 @@
 # changelog – Inspect
 
+## Unreleased
+
+- Model API: Log the first 5 API calls per-model by default.
+- Avoid deep copy of messages when applying custom tool model input handler.
+- Inspect View: Metadata with more than 5 children will be collapsed by default (for real).
+
 ## 0.3.210 (22 April 2026)
 
 - Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
