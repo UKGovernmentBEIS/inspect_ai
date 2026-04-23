@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import warnings
@@ -5,7 +6,7 @@ from contextlib import asynccontextmanager
 from importlib import resources
 from logging import getLogger
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Literal
+from typing import AsyncIterator, BinaryIO, Literal, get_args
 from urllib.parse import unquote, urlparse
 
 import httpx
@@ -264,8 +265,32 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
     print(f"Successfully built {dev_executable_name}")
 
 
+_INSTALL_STATE_OVERRIDE_ENV = "INSPECT_SANDBOX_TOOLS_INSTALL_STATE"
+
+
+def _install_state_override() -> InstallState | None:
+    """Read the CI escape-hatch env var; None if unset.
+
+    Release-gate jobs force "clean" so the non-dev binary name is resolved
+    even when version.txt has diverged from main on a release PR. See #3704.
+    """
+    match os.environ.get(_INSTALL_STATE_OVERRIDE_ENV):
+        case None:
+            return None
+        case "pypi" | "clean" | "edited" as s:
+            return s
+        case other:
+            raise ValueError(
+                f"{_INSTALL_STATE_OVERRIDE_ENV}={other!r} invalid; "
+                f"must be one of {get_args(InstallState)}"
+            )
+
+
 def _get_install_state() -> InstallState:
     """Detect the state of the inspect-ai installation."""
+    if (override := _install_state_override()) is not None:
+        return override
+
     if (direct_url := get_package_direct_url("inspect-ai")) is None:
         return "pypi"
 

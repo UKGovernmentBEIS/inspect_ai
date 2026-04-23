@@ -1678,7 +1678,7 @@ def resolve_tool_model_input(
         return messages
 
     # don't mutate the original messages
-    messages = deepcopy(messages)
+    messages = [m.model_copy() for m in messages]
 
     # extract tool messages
     tool_messages = [
@@ -1693,11 +1693,11 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
-            original_content = message.content
-            message.content = tdef.model_input(
+            model_input_content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
-            if message.content is not original_content:
+            if model_input_content is not message.content:
+                message.content = model_input_content
                 message.id = uuid()
 
     # return modified messages

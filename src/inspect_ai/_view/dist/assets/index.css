@@ -17644,64 +17644,91 @@ button._segment_19z32_10 {
 ._pathContainer_1u3sd_58 {
   overflow-x: hidden;
 }
-._navbarButton_1gksz_1 {
+._navbarButton_7hxb6_1 {
   font-size: 0.6rem;
   padding: 1px 5px;
 }
-._checkboxWrapper_vtlwq_1 {
+
+._dropdownChevron_7hxb6_6 {
+  margin-left: 0.35rem;
+  /* Inherit the button's font-size so the chevron never creates a taller
+     line-box than the button's text. Hard-coding a smaller font-size token
+     can easily exceed the button's own 0.6rem and stretch button height. */
+  font-size: inherit;
+  line-height: 1;
+}
+._checkboxWrapper_97vbj_1 {
   margin-bottom: 0.1rem;
 }
 
-._label_vtlwq_5 {
+._label_97vbj_5 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-._checkbox_vtlwq_1 {
+._checkbox_97vbj_1 {
   margin-right: 0.5rem;
   cursor: pointer;
 }
 
-._filterIcon_vtlwq_16 {
+._filterIcon_97vbj_16 {
   margin-left: 0.5rem;
   color: var(--bs-primary);
 }
 
-._scrollableContainer_vtlwq_21 {
-  max-height: calc(100vh - 4rem);
+._scrollableContainer_97vbj_21 {
+  /* The popper is positioned below the trigger, so its actual visible room
+     is less than full viewport height. Cap conservatively so the scrollbar
+     kicks in before the popover extends past the viewport. */
+  max-height: min(70vh, calc(100vh - 10rem));
   overflow-y: auto;
+  /* Reserve scrollbar space up-front so switching between view modes doesn't
+     reflow content width when a scrollbar appears/disappears — that reflow
+     would otherwise chain through ResizeObserver → popper.update(). */
+  scrollbar-gutter: stable;
 }
 
-._section_vtlwq_26 {
+._section_97vbj_33 {
   margin-bottom: 0.75rem;
 }
 
-._headerRow_vtlwq_30 {
+._headerRow_97vbj_37 {
   display: flex;
   column-gap: 2rem;
   row-gap: 1rem;
   border-bottom: solid 1px var(--bs-border-color);
   margin-bottom: 0.5rem;
   justify-content: space-between;
+  align-items: center;
 }
 
-._buttonContainer_vtlwq_39 {
+._scoresHeadingGroup_97vbj_47 {
+  display: flex;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+._scoresViewModeControl_97vbj_53 {
+  margin-bottom: 2px;
+}
+
+._buttonContainer_97vbj_57 {
   display: flex;
   gap: 0.5rem;
 }
 
-._button_vtlwq_39 {
+._button_97vbj_57 {
   padding: 0;
   text-decoration: none;
 }
 
-._button_vtlwq_39:hover {
+._button_97vbj_57:hover {
   text-decoration: underline;
   cursor: pointer;
 }
 
-._columnsLayout_vtlwq_54 {
+._columnsLayout_97vbj_72 {
   columns: 2;
   column-gap: 2rem;
 }
@@ -17764,51 +17791,70 @@ button._segment_19z32_10 {
   width: inherit;
   height: inherit;
 }
-._nameCell_1jtud_1 {
+._nameCell_90rs9_1 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_1jtud_8 {
+._modelCell_90rs9_8 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._scoreCell_1jtud_15 {
+._modelCellPrimary_90rs9_15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+._scoreCell_90rs9_22 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._error_1jtud_22 {
+._multiScorerBadge_90rs9_29 {
+  margin-left: 0.35rem;
+  padding: 2px 0.45rem;
+  border-radius: 0.5rem;
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+  font-size: var(--inspect-font-size-smallest);
+  line-height: 1;
+  cursor: help;
+  white-space: nowrap;
+}
+
+._error_90rs9_41 {
   color: var(--bs-danger);
 }
 
-._started_1jtud_26 {
+._started_90rs9_45 {
   color: var(--bs-secondary);
 }
 
-._success_1jtud_30 {
+._success_90rs9_49 {
   color: var(--bs-success);
 }
 
-._cancelled_1jtud_34 {
+._cancelled_90rs9_53 {
   color: var(--bs-secondary);
 }
 
-._statusCell_1jtud_38 {
+._statusCell_90rs9_57 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
 
-._dateCell_1jtud_45 {
+._dateCell_90rs9_64 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -20264,21 +20310,8 @@ a._citationLink_1ggvf_9:hover {
 ._selected_1ml4j_40 {
   font-weight: 600;
 }
-._entry_an9co_1 {
-  margin-top: 1em;
-}
-
-/* Match the other section labels in ScannerResultDetailView: body color
-   (override LabeledValue's default `text-style-secondary`) and bold weight.
-   A bottom border separates the key from its rendered value. */
-._entry_an9co_1 > .text-style-label {
-  color: var(--bs-body-color) !important;
-  text-transform: none !important;
-  font-size: var(--inspect-font-size-base);
-  font-weight: 600;
-  border-bottom: 1px solid var(--bs-border-color);
-  padding-bottom: 0.25em;
-  margin-bottom: 0.5em;
+._entry_a2fxh_1 {
+  margin-bottom: 1rem;
 }
 ._container_15g5f_1 {
   display: flex;
@@ -21038,7 +21071,7 @@ pre._value_8citi_25 {
 ._noPadding_1tj8p_56 {
   padding: 0;
 }
-._simpleMetricsRows_1jkr3_1 {
+._simpleMetricsRows_13tuz_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -21049,7 +21082,7 @@ pre._value_8citi_25 {
   overflow: scroll;
 }
 
-._multiMetricsRows_1jkr3_12 {
+._multiMetricsRows_13tuz_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -21063,14 +21096,14 @@ pre._value_8citi_25 {
   align-items: baseline;
 }
 
-._verticalMetricReducer_1jkr3_26 {
+._verticalMetricReducer_13tuz_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_1jkr3_33 {
+._verticalMetricName_13tuz_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -21078,35 +21111,35 @@ pre._value_8citi_25 {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_1jkr3_41 {
+._verticalMetricValue_13tuz_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_1jkr3_46 {
+._multiScorer_13tuz_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_1jkr3_53 {
+._multiScorerIndent_13tuz_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_1jkr3_57 {
+._multiScorerReducer_13tuz_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_1jkr3_63 {
+._multiScorerLabel_13tuz_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_1jkr3_69 {
+._multiScorerValue_13tuz_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -21115,12 +21148,12 @@ pre._value_8citi_25 {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_1jkr3_78 {
+._multiScorerValueContent_13tuz_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_1jkr3_83 {
+._multiScoreMetricGrid_13tuz_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -21128,22 +21161,49 @@ pre._value_8citi_25 {
   justify-content: center;
 }
 
-._moreButton_1jkr3_91 {
+._moreButton_13tuz_91 {
   margin-top: 0.25em;
   padding-right: 0;
   padding-bottom: 0;
 }
 
-._metricsSummary_1jkr3_97 {
+._metricsSummary_13tuz_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   margin-bottom: 0.35em;
 }
-._gridContainer_1bz7o_1 {
-  width: 100%;
+
+._scoringDetailModal_13tuz_104 .modal-dialog {
+  max-width: min(1000px, 90vw);
+}
+
+/* Let the dialog shrink to the grid's natural width instead of always
+   stretching to the max-width. The grid container sizes itself from the
+   sum of column widths; modal-content honours that. */
+._scoringDetailModal_13tuz_104 .modal-content {
+  width: fit-content;
+  max-width: 100%;
+}
+._gridContainer_2wkq3_1 {
+  max-width: 100%;
   max-height: 60vh;
   overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Breathing room at the edges so values don't sit flush with the modal border
+   (and so the last column doesn't get overlapped by the vertical scroll bar).
+   The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
+   is needed to win against ag-grid's built-in theme padding. */
+.ag-cell._firstCell_2wkq3_12,
+.ag-header-cell._firstHeader_2wkq3_13 {
+  padding-left: 1rem;
+}
+
+.ag-cell._lastCell_2wkq3_17,
+.ag-header-cell._lastHeader_2wkq3_18 {
+  padding-right: 0.5rem;
 }
 ._unscoredSamples_1h85z_1 {
   margin-left: 0.2rem;

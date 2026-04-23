@@ -213,7 +213,7 @@ def eval(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
@@ -419,7 +419,7 @@ async def eval_async(
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model requests and responses. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
@@ -882,7 +882,7 @@ def eval_retry(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
@@ -1003,7 +1003,7 @@ async def eval_retry_async(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model api request and response. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is

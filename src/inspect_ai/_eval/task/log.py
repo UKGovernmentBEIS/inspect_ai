@@ -58,6 +58,7 @@ from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.viewer import ViewerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ class TaskLogger:
         model_args: dict[str, Any],
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
+        viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
     ) -> None:
@@ -218,6 +220,7 @@ class TaskLogger:
             revision=revision,
             packages=packages,
             metadata=metadata,
+            viewer=viewer,
         )
 
         # stack recorder and location

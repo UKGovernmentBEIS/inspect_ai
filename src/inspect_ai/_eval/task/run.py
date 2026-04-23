@@ -236,7 +236,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
     sandbox_cleanup = config.sandbox_cleanup is not False
     log_images = config.log_images is not False
-    log_model_api = config.log_model_api is True
+    log_model_api = config.log_model_api
     log_samples = config.log_samples is not False
 
     # slice dataset (but don't materialize all sample+state pairs upfront --
@@ -731,7 +731,7 @@ async def task_run_sample(
     progress: Callable[[int], None],
     logger: TaskLogger | None,
     log_images: bool,
-    log_model_api: bool,
+    log_model_api: bool | None,
     sample_error: SampleErrorHandler,
     sample_complete: Callable[
         [int | str, int, dict[str, SampleScore]], Awaitable[None]
