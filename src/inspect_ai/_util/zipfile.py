@@ -13,7 +13,6 @@ frame well under that threshold.
 
 from __future__ import annotations
 
-import functools
 import logging
 import sys
 import zipfile
@@ -52,19 +51,22 @@ class _MultiFrameZstdCompressObj:
         self._input_bytes = 0
 
     def compress(self, data: bytes) -> bytes:
-        out = b""
+        view = memoryview(data)
+        pieces: list[bytes] = []
         offset = 0
-        while offset < len(data):
+        n = len(view)
+        while offset < n:
             remaining_cap = _MAX_INPUT_PER_FRAME - self._input_bytes
-            chunk = data[offset : offset + remaining_cap]
-            out += self._obj.compress(chunk)
-            self._input_bytes += len(chunk)
-            offset += len(chunk)
+            end = min(offset + remaining_cap, n)
+            chunk = view[offset:end]
+            pieces.append(self._obj.compress(chunk))
+            self._input_bytes += end - offset
+            offset = end
             if self._input_bytes >= _MAX_INPUT_PER_FRAME:
-                out += self._obj.flush()
+                pieces.append(self._obj.flush())
                 self._obj = self._factory()
                 self._input_bytes = 0
-        return out
+        return b"".join(pieces)
 
     def flush(self) -> bytes:
         return self._obj.flush()
@@ -137,10 +139,16 @@ def _install_multiframe_patches() -> None:
 
     def patched_compressor(compress_type: int, compresslevel: int | None = None) -> Any:
         if compress_type == zipfile.ZIP_ZSTANDARD:  # type: ignore[attr-defined]
-            factory = functools.partial(
-                original_compressor, compress_type, compresslevel
-            )
-            return _MultiFrameZstdCompressObj(factory)
+            # Share one ``ZstdCompressor`` across all frames of the entry.
+            # Delegating to ``original_compressor`` would instead create a
+            # fresh ``ZstdCompressor(threads=12)`` per frame, re-initialising
+            # its thread pool every 200 MiB. Matches zipfile_zstd's defaults
+            # (level=3, threads=12).
+            import zstandard
+
+            level = 3 if compresslevel is None else compresslevel
+            compressor = zstandard.ZstdCompressor(level=level, threads=12)
+            return _MultiFrameZstdCompressObj(compressor.compressobj)
         return original_compressor(compress_type, compresslevel)
 
     def patched_decompressor(compress_type: int) -> Any:
