@@ -46,7 +46,7 @@ Three distinct artifacts, three audiences, three lifespans:
 2. **Internal working/design doc.** *This document.* Decision history,
    unresolved questions, parked notes, appendices, contradictions.
    Audience: us + implementers. Preserves the trail. Stays at
-   `design/plans/checkpointing.md`.
+   `design/plans/checkpointing-working.md`.
 3. **Implementation plan.** *Deferred until after customer validation*,
    because validation outcomes will move the ground. Writing an impl
    plan now encodes decisions that may change.
@@ -61,39 +61,40 @@ Suggested sequencing:
 
 ## 0. Principal requirements / invariants
 
-- **Self-sufficient resume.** An eval must be resumable given **only
-  the checkpoint folder** — *no* dependency on the original `foo.eval`
-  log file. The resume command is pointer-only
-  (`inspect eval --resume <checkpoints-path>`, §3c); all eval
-  parameters are read from the checkpoint manifest. Source/env/inspect
-  must still be available in the invocation environment (same cwd
-  layout and Python env as when the eval was started); the checkpoint
-  records inspect version + task identity for mismatch detection but
-  does not bundle code. Consequences throughout:
-  - `manifest.json` carries everything needed to identify and
-    reconstruct the eval (task id, task source/version, eval config
-    snapshot, model config, dataset pointer and/or embedded sample
-    inputs, inspect version, etc.).
+- **Resume is `inspect eval retry`.** *(Reversed.)* Following JJ's
+  design conversation, checkpoint resume builds on Inspect's existing
+  retry infrastructure rather than a new `--resume` flag. The command
+  is `inspect eval retry <log-file>`; the `.eval` log is the
+  authoritative entry point, and the log records where the sibling
+  checkpoints directory lives. **Both the log and the checkpoints
+  directory are required** to resume. This is the inverse of the
+  previous (now-abandoned) "checkpoint folder alone is sufficient"
+  invariant — a log file already carries completed-sample records
+  natively, so trying to make the checkpoints dir stand alone was
+  solving a problem we don't have.
+  Consequences:
+  - `manifest.json` records identity and the canonical checkpoints
+    directory location (path or URL); it no longer needs to fully
+    reconstruct the eval in isolation, because the `.eval` log holds
+    the authoritative eval spec.
   - The context-window portion of each checkpoint stores messages and
-    events in full, not as offsets/pointers into the `.eval` log.
-  - The per-sample dir must carry the **sample input** (question,
-    target, metadata) so a resume doesn't require re-loading the
-    original dataset.
+    events in full (not as offsets into the `.eval` log) so that a
+    partially-completed sample can be fully rehydrated. Completed
+    samples live in the `.eval` log and do *not* require checkpoint
+    entries.
+  - Each sample's checkpoint subtree carries its sample input so a
+    resume's sample-source extension can deliver the partial sample
+    without re-reading the dataset.
   - "Reuse `.eval` log serialization" means: **same on-disk schemas
     (Pydantic/JSON), different container** — messages and events are
     written as separate files inside the checkpoint dir (likely
     `messages.jsonl` and `events.jsonl`) using the same schemas used
-    inside a `.eval` log. No zip coupling; checkpoints are not
-    `.eval` files.
-  - **Task/agent/tool code bundling — not required for v1** under the
-    "same command re-run" resume model. The customer's invocation
-    environment (cwd + Python env + inspect install) provides it. The
-    manifest records enough identity (inspect version, task ref,
-    config hash) to **detect mismatch** at resume time and warn/fail,
-    but does not itself carry the code.
-  - Inspect runtime itself is *not* bundled. Inspect version is
-    recorded in the manifest and validated at resume against the
-    running install.
+    inside a `.eval` log. No zip coupling.
+  - Task/agent/tool code bundling is **not required**. The customer's
+    invocation environment (cwd + Python env + inspect install)
+    provides it, as with any retry. The log records inspect version
+    and task identity; existing retry code handles mismatch detection.
+  - Inspect runtime itself is *not* bundled.
 
 - **Checkpoint-attempt failures are non-fatal.** If a checkpoint attempt
   fails (egress error, disk full, sandbox exec error, restic error, …),
@@ -388,52 +389,55 @@ and can be pursued (or not) on its own merits.
 
 ### 3b. User-facing
 
-- Explicit `--resume` flag on `inspect eval`; see §3c for the
-  invocation model.
-
-### 3c. Resume invocation model
-
-**Background on current inspect behavior:**
-
-- Log filename format:
-  `{iso_timestamp}_{task}_{task_id}.eval`
-  (`src/inspect_ai/log/_recorders/file.py:98-116`).
-- `task_id` is a fresh random UUID per run; two same-command runs
-  produce distinct log files (no overwrite, no append).
-- Identity fields already present on the log header: `eval_id`,
-  `run_id`, `task_id`, `eval_set_id`, `task_version`, `created`, and
-  `status` (`"started"` while in-progress).
-- `.eval` is written incrementally; `log_init()`
-  (`src/inspect_ai/_eval/task/log.py:242`) already has scaffolding
-  to detect an existing log file and resume/append samples.
-
-**Decision: explicit pointer, pointer-only command.** The customer
-resumes by pointing inspect at the checkpoint directory and nothing
-else:
-
 ```
-inspect eval --resume path/to/foo.eval.checkpoints/
+inspect eval retry <log-file>
 ```
 
-All eval parameters — task, model, dataset, config — are read from
-the checkpoint manifest. Passing a positional task or any
-configuration flag alongside `--resume` is an **error** in v1
-(prevents drift between the restated command and the recorded
-state). A future relaxation (e.g., `--override-model`) can be
-added without breaking the default.
+No new command or flag. Checkpoint-aware resume layers onto the
+existing `inspect eval retry` pathway. Eval-set retries receive the
+same integration (not "much later" — both are v1 commitments).
 
-No changes to `task_id` generation or default naming. Same-command
-re-runs without `--resume` continue to behave as today (fresh run,
-new log file).
+### 3c. How resume plugs into inspect's retry machinery
 
-**Reuse, not reinvent:** lean on the existing `log_init()` resume
-logic, the `status="started"` sentinel, and existing identity fields
-(`eval_id`, `run_id`, `task_id`) for correlation. Checkpoint manifest
-records these so resume can verify the pointer-target is coherent.
+Inspect already has two complementary retry pathways (per JJ's
+design note):
 
-More ergonomic discovery (auto-detect on rerun, named runs, hashed
-deterministic identity) can be layered on later without breaking the
-explicit-pointer contract.
+- **`inspect eval retry <log-file>`** — reads the log, reifies the
+  eval config from it, re-runs. Works well for standard cases.
+  Struggles with dynamic tasks ("fever-dream" scenarios) that
+  reify poorly from a log.
+- **Eval-set retry** — re-loads tasks fully in-memory, computes
+  task identifiers as a hash of task parameters, matches in-memory
+  tasks against log-directory entries. Handles dynamic tasks.
+
+Both paths resolve into the same core concept — a **sample source**
+that provides fully resolved samples so the harness avoids
+recomputation. The harness consults the sample source when a sample
+starts; if the source returns a sample, the harness acts as if that
+sample had completed normally.
+
+Three task states already handled by the retry code:
+
+1. Fully complete task → skipped.
+2. Partially complete task → married with sample source.
+3. New task → run normally.
+
+**Checkpoint integration is an extension of sample source.** Today
+sample source returns *complete* samples or nothing. We extend it to
+return *partial* samples when a checkpoint exists for a sample that
+didn't complete. The harness's existing three-state handling then
+covers checkpointed samples without reinventing retry logic.
+
+Identity and completion discovery come from the log + existing retry
+infrastructure. The checkpoints directory is a sidecar the sample
+source consults — its location is recorded in the log's manifest
+(sibling by default).
+
+**Note on dynamic tasks.** For evals with dynamic task generation,
+the eval-set retry path is the correct fit; `inspect eval retry` is
+weaker there. Checkpoint integration goes on both paths in v1.
+(Internal note, not exposed to customers in the customer-facing
+doc.)
 
 ## Design notes (parked)
 
@@ -657,33 +661,6 @@ that correspond to it, across all sandboxes it needed to capture.
   investigate how sandbox startup is currently triggered and whether
   a restore-on-first-use hook fits cleanly. Likely the right v1
   answer, but confirm.
-- **Completed samples on resume — where do they come from?**
-  *(Tension with §0 self-sufficiency.)* The pointer-only resume
-  command reads from `foo.eval.checkpoints/`. But checkpoints are
-  only written for samples that are *in-flight*; a sample that
-  completed successfully during the original run has its record in
-  the `.eval` log, not in the checkpoint dir. On resume, those
-  completed samples need to end up in the resumed eval's final log
-  somehow. Options:
-  1. **Require the `.eval` log at resume.** Weakens §0's
-     "checkpoint folder alone is sufficient" invariant. Most
-     natural semantically — inspect already writes incrementally,
-     so completed-sample records exist by the time of crash.
-  2. **Duplicate completed-sample records into the checkpoint
-     dir** as samples complete. Preserves §0 but wastes space and
-     adds a new write path.
-  3. **Re-run completed samples on resume.** Defeats the whole
-     feature for multi-sample evals.
-  4. **Resume produces a new, partial `.eval` log** containing only
-     the remaining samples; user/tooling merges with the original
-     after the fact. Shifts burden to customer.
-  Initial lean: option 1 is the least surprising — but that means
-  §0 needs to be softened from "checkpoint folder only" to "checkpoint
-  folder + the in-progress `.eval` log." The `.eval` log is already
-  co-located with the checkpoints dir (sibling), so in practice this
-  is only a small relaxation of the pointer-only UX (inspect can find
-  the `.eval` log from the manifest or by sibling-dir convention).
-
 
 
 (user-facing resumption UX — resolved, see below)
@@ -756,18 +733,21 @@ that correspond to it, across all sandboxes it needed to capture.
 - **Configuration surface** — resolved: parameter on the agent
   constructor (e.g. `react(checkpoint=...)`). Not on `Task(...)`.
   CLI/global overrides deferred.
-- **User-facing resume UX** — resolved: pointer-only command
-  `inspect eval --resume path/to/foo.eval.checkpoints/`. No other
-  args permitted alongside `--resume` in v1; all parameters come
-  from the manifest. No changes to default naming or `task_id`
-  generation. Auto-detect / named-runs / deterministic identity /
-  selective overrides can be layered on later without breaking this
-  contract. See §3c.
-- **Hermetic task-code bundling** — resolved: **not required** under
-  the explicit-pointer resume model. Source tree, Python env, and
-  inspect install come from the user's re-invocation at resume time.
-  Manifest records inspect version + task identity for mismatch
-  detection/warning; it does not carry user code.
+- **User-facing resume UX** — resolved (reversed): `inspect eval retry
+  <log-file>`. Layers onto existing retry infrastructure rather than
+  adding a new command/flag. Eval-set retries receive the same
+  integration. See §3.
+- **Completed samples on resume** — resolved by the retry-based
+  model: completed-sample records live in the `.eval` log as today;
+  the retry path already handles them (fully-complete → skipped).
+  Checkpoints only hold partial-sample state.
+- **Sample source extension** — v1 work item, not an open question:
+  extend inspect's existing sample-source abstraction to return
+  *partial* samples (in addition to complete / none). See §3c.
+- **Hermetic task-code bundling** — resolved: **not required.** This
+  was never load-bearing and is fully subsumed by using existing retry
+  infrastructure — retry already assumes the user's code/env is
+  present, as with any retry today.
 - **Sandbox provider coverage** — resolved: the home-dir + injected
   backup tool approach is **provider-agnostic by design**. All providers
   are covered with no per-provider implementation work. This is a core

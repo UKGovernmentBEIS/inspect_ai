@@ -18,10 +18,12 @@ without losing all of their prior work.
 - Checkpoints are stored in a sibling directory to the `.eval` log (default
   `foo.eval.checkpoints/`), overridable to `s3://` or any
   fsspec-supported URL.
-- On failure, the customer re-runs the eval with
-  `--resume <checkpoints-path>`.
-  Inspect restores each incomplete sample from its latest checkpoint and
-  the agent continues from where it left off.
+- On failure, the customer runs `inspect eval retry <log-file>`
+  against the run's existing `.eval` log. Inspect restores each
+  incomplete sample from its latest checkpoint and the agent
+  continues from where it left off. Checkpoint resume builds on
+  Inspect's existing retry machinery — no new command or flag. The
+  same integration covers eval-set retries.
 - Checkpointing is **opt-in** and configured on the agent
   (`react(checkpoint=...)` for the built-in React agent). We will also
   expose the underlying primitives so teams writing their own agent loops
@@ -113,16 +115,19 @@ that attempt. The next policy fire will try again.
 
 ### Resuming after a crash
 
-After a crash or cancellation, the customer resumes with:
+After a crash or cancellation, the customer resumes with Inspect's
+existing retry command, pointing at the run's `.eval` log:
 
 ```
-inspect eval --resume logs/2026-04-22T14-30-45_my-task_abc123.eval.checkpoints/
+inspect eval retry logs/2026-04-22T14-30-45_my-task_abc123.eval
 ```
 
-The `--resume` argument is the **only** input needed. All eval
-parameters — task, model, dataset, config — are read from the
-checkpoint manifest. Passing additional flags (task path, `--model`,
-etc.) alongside `--resume` is an error in v1.
+Checkpoint resume is built on top of Inspect's existing retry
+machinery — no new command or flag. When the retry runs, Inspect
+reads the log, discovers the sibling checkpoints directory (the log
+records its location), and picks up each incomplete sample from its
+latest checkpoint. Eval-set retries work the same way and will
+receive the same checkpoint integration.
 
 For each sample that had not completed:
 
@@ -253,13 +258,15 @@ so that a single, well-understood mechanism covers every deployment.
 
 ### Resume semantics
 
-Resume is keyed on an **explicit pointer** — the path passed to
-`--resume`. Inspect does not attempt to auto-detect that "this is the
-same eval as last time"; each `inspect eval` invocation still produces
-a new, independent log file unless you resume explicitly. This keeps
-the resume contract simple and predictable, and avoids surprising
-side-effects on unrelated re-runs. More ergonomic discovery flows can
-be layered on later without breaking this.
+Resume layers onto Inspect's existing retry machinery
+(`inspect eval retry <log-file>` and eval-set retry). The `.eval`
+log is the entry point; it records where the sibling checkpoints
+directory lives. When a retry runs, Inspect's existing completion
+detection handles fully-completed samples (they're skipped);
+checkpoint integration extends the same pathway to also handle
+*partially*-completed samples by restoring them from their latest
+checkpoint. Both eval-retry and eval-set retry receive this
+integration.
 
 ## Scope and non-goals
 
