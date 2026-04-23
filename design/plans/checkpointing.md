@@ -44,7 +44,7 @@ Three distinct artifacts, three audiences, three lifespans:
    - Be honest about decided vs. being-validated.
    - Likely lives at `design/checkpointing.md`.
 2. **Internal working/design doc.** *This document.* Decision history,
-   unresolved questions, parked notes, Appendix A, contradictions.
+   unresolved questions, parked notes, appendices, contradictions.
    Audience: us + implementers. Preserves the trail. Stays at
    `design/plans/checkpointing.md`.
 3. **Implementation plan.** *Deferred until after customer validation*,
@@ -61,17 +61,15 @@ Suggested sequencing:
 
 ## 0. Principal requirements / invariants
 
-- **Self-sufficient resume (scope reopened).** An eval must be resumable
-  given **only the checkpoint folder** — *no* dependency on the
-  original `foo.eval` log file. The *strength* of this invariant w.r.t.
-  task source, Python env, and inspect runtime depends on the resume
-  invocation model (§3c, newly reopened). Working hypothesis: the
-  customer re-runs the same `inspect eval` command from the same
-  working directory with a `--resume`-style flag. In that model,
-  source/env/inspect are provided by the re-invocation — the checkpoint
-  only needs to carry in-flight state + enough identity to correlate.
-  Hermetic bundling (source archive, lockfile, inspect wheel) is *not*
-  required for v1 under this model. Consequences retained regardless:
+- **Self-sufficient resume.** An eval must be resumable given **only
+  the checkpoint folder** — *no* dependency on the original `foo.eval`
+  log file. The resume command is pointer-only
+  (`inspect eval --resume <checkpoints-path>`, §3c); all eval
+  parameters are read from the checkpoint manifest. Source/env/inspect
+  must still be available in the invocation environment (same cwd
+  layout and Python env as when the eval was started); the checkpoint
+  records inspect version + task identity for mismatch detection but
+  does not bundle code. Consequences throughout:
   - `manifest.json` carries everything needed to identify and
     reconstruct the eval (task id, task source/version, eval config
     snapshot, model config, dataset pointer and/or embedded sample
@@ -117,6 +115,17 @@ Suggested sequencing:
 - Contents are organized per-sample, with non-sandbox checkpoint data in a
   per-checkpoint subdir, and sandbox-state data stored out-of-band as one
   restic repository per named sandbox (see §1b below for the sketch).
+- **Per-sample containment is a first-class principle.** Every sample (×
+  epoch) gets its own isolated subtree under `samples/<sample-id>__<epoch>/`,
+  containing that sample's `sample.json`, its sandbox repo(s), and its
+  checkpoint subdirs. No sample's data is commingled with another's.
+  Consequences:
+  - Concurrent samples write to disjoint paths — no coordination required.
+  - A sample that completes successfully before others can have its
+    subtree cleaned up (or retained) independently.
+  - Resume/discovery walks `samples/*/sample.json` and treats each as
+    independent; per-sample failures don't block other samples from
+    resuming.
 
 ### Per-checkpoint contents
 
@@ -270,10 +279,15 @@ Shape notes:
 
 ## 2. Configuration — checkpoint granularity
 
-Inspect will offer multiple affordances, selectable per eval:
+Inspect will offer multiple affordances, selectable per eval.
+**All policies fire at turn boundaries only** (see §2c); an agent is
+never interrupted mid-turn, and in-flight tool calls are never
+paused to checkpoint:
 
 - **None** — checkpointing disabled.
-- **Time-based** — every N seconds/minutes.
+- **Time-based** — approximately every N seconds/minutes; fires at
+  the next turn boundary after the interval elapses (so the effective
+  interval is ≥ N, not exactly N).
 - **Turn-based** — every N agent turns.
 - **Manual** — agent-triggered explicitly from within its own logic, via
   an **inspect-provided Python function** (e.g.
@@ -310,9 +324,11 @@ Inspect will offer multiple affordances, selectable per eval:
   Gives simple atomicity, no in-flight tool calls to reason about.
   A "every N minutes" time policy effectively means "at the next turn
   boundary after N minutes have elapsed since the last checkpoint."
-- Interaction with forced-at-sample-start (§"First-checkpoint latency"
-  resolution): the forced initial snapshot is taken *before* the agent
-  runs its first turn.
+- No forced snapshot at sample start. The first policy-driven
+  checkpoint *is* the first snapshot; it will be a fuller backup than
+  subsequent deltas, which is expected. (Rationale: the customer's
+  policy interval already expresses the acceptable loss window; a
+  zero-point snapshot doesn't narrow that window — it just adds cost.)
 - Open question (deferred, tracked in Unresolved Questions): should
   we *also* support firing mid-tool-call for agents running very long
   tool executions? Current instinct: no.
@@ -391,14 +407,20 @@ and can be pursued (or not) on its own merits.
   (`src/inspect_ai/_eval/task/log.py:242`) already has scaffolding
   to detect an existing log file and resume/append samples.
 
-**Decision: explicit pointer.** The customer resumes by pointing
-inspect at what to resume:
+**Decision: explicit pointer, pointer-only command.** The customer
+resumes by pointing inspect at the checkpoint directory and nothing
+else:
 
 ```
 inspect eval --resume path/to/foo.eval.checkpoints/
-# or
-inspect eval --resume path/to/foo.eval
 ```
+
+All eval parameters — task, model, dataset, config — are read from
+the checkpoint manifest. Passing a positional task or any
+configuration flag alongside `--resume` is an **error** in v1
+(prevents drift between the restated command and the recorded
+state). A future relaxation (e.g., `--override-model`) can be
+added without breaking the default.
 
 No changes to `task_id` generation or default naming. Same-command
 re-runs without `--resume` continue to behave as today (fresh run,
@@ -429,7 +451,85 @@ explicit-pointer contract.
   valid separate discussion, but is **not on the critical path** for
   checkpointing.
 
-## Appendix A — Restic characteristics relevant to this design
+## Appendix A — Restic egress protocol (design sketch)
+
+
+Concrete design for the host-mediated egress path chosen in §1a.
+Written against Docker specifically (using `docker cp` as the
+copy-out primitive); generalizes to any sandbox provider by
+substituting inspect's standard sandbox exec/copy API for
+`docker cp`. Included here verbatim as a starting point for the
+implementation plan — not yet validated end-to-end.
+
+### Overview
+
+A network-isolated Docker container maintains a local restic repository
+for checkpoint snapshots. After each snapshot, incremental changes are
+egressed to a host-side mirror repository via `docker cp`. The
+host-side repo is a valid restic repository usable for restore, check,
+and prune operations.
+
+### Key property: append-only repository
+
+With normal `restic backup` operations (no `prune`, `forget`, or
+`rebuild-index` inside the container), the repo is effectively
+append-only:
+
+- `data/` pack files — immutable, content-addressed
+- `snapshots/` — immutable, content-addressed
+- `index/` — new files added; occasional consolidation may delete
+  superseded index files (harmless, mirror accumulates a superset)
+- `config`, `keys/` — written at init, never modified
+- `locks/` — transient, excluded from egress
+
+Because filenames are content hashes, filename-level presence checks
+suffice to identify new files — no content comparison needed.
+
+### Egress protocol
+
+The host drives snapshots via commands into the container. Each cycle:
+
+1. **Host → Container:** "Take snapshot, egress sequence N."
+2. **Container:** Runs `restic backup`, waits for lock release.
+3. **Container:** Diffs current repo contents against an egress
+   manifest (list of filenames previously egressed) to find new files.
+4. **Container:** Creates `/tmp/egress-N.tar` containing new files in
+   order: `data/` first, then `index/`, then `snapshots/`. Returns
+   tarball path and file list.
+5. **Host:** `docker cp`s the tarball out, extracts into the host
+   repo.
+6. **Host:** Verifies integrity (minimum:
+   `restic -r /host/repo snapshots` succeeds).
+7. **Host → Container:** "Commit N."
+8. **Container:** Updates manifest, deletes tarball.
+
+### Design decisions
+
+- **Manifest-based diff, not mtime-based.** Container maintains a
+  sorted list of already-egressed filenames. Robust to clock skew,
+  container restarts, partial failures.
+- **Two-phase commit on the manifest.** Container does not advance
+  its manifest until the host confirms successful extraction.
+  Prevents state divergence if egress fails between tar creation and
+  host extraction.
+- **Ordered tar contents.** `data/` → `index/` → `snapshots/`
+  ordering means the host repo is valid at every intermediate state.
+  A crashed extraction leaves the mirror missing the newest snapshot,
+  never with a dangling snapshot referencing missing data.
+- **Tarball lives outside the repo.** Written to `/tmp/` to keep
+  the repo directory clean.
+- **No `prune`/`forget` inside the container.** These break the
+  append-only property. Run them on the host-side mirror instead,
+  accepting that the container repo grows monotonically until the
+  container is torn down.
+
+### Open question (scoped to this appendix)
+
+Container lifecycle — if ephemeral across snapshots, the manifest must
+live in the repo or be passed in by the host each cycle. If
+long-lived, it can be container-local state.
+
+## Appendix B — Restic characteristics relevant to this design
 
 Notes from a scan of restic's docs (`restic.net`, GitHub README, design doc).
 Captured to inform — not commit to — the engine decision.
@@ -543,6 +643,49 @@ that correspond to it, across all sandboxes it needed to capture.
 
 ### Open
 
+- **Sandbox startup sequencing on resume.** Sandboxes today are spun
+  up on demand (first use within a sample, not at sample start). On
+  resume, if we eagerly restore every sandbox home dir before the
+  agent runs, we force every sandbox to exist before its natural
+  first-demand point — which changes lifecycle semantics and may spin
+  up sandboxes a resumed agent never uses (wasteful) or spin them up
+  in a different order than the original run (semantically subtle).
+  Alternative: **defer home-dir restoration until the sandbox is
+  demanded**, matching current lifecycle. That means the agent's
+  `resume=True` contract needs to say "sandboxes *will be* restored
+  on-demand" rather than "sandboxes *are* restored." Need to
+  investigate how sandbox startup is currently triggered and whether
+  a restore-on-first-use hook fits cleanly. Likely the right v1
+  answer, but confirm.
+- **Completed samples on resume — where do they come from?**
+  *(Tension with §0 self-sufficiency.)* The pointer-only resume
+  command reads from `foo.eval.checkpoints/`. But checkpoints are
+  only written for samples that are *in-flight*; a sample that
+  completed successfully during the original run has its record in
+  the `.eval` log, not in the checkpoint dir. On resume, those
+  completed samples need to end up in the resumed eval's final log
+  somehow. Options:
+  1. **Require the `.eval` log at resume.** Weakens §0's
+     "checkpoint folder alone is sufficient" invariant. Most
+     natural semantically — inspect already writes incrementally,
+     so completed-sample records exist by the time of crash.
+  2. **Duplicate completed-sample records into the checkpoint
+     dir** as samples complete. Preserves §0 but wastes space and
+     adds a new write path.
+  3. **Re-run completed samples on resume.** Defeats the whole
+     feature for multi-sample evals.
+  4. **Resume produces a new, partial `.eval` log** containing only
+     the remaining samples; user/tooling merges with the original
+     after the fact. Shifts burden to customer.
+  Initial lean: option 1 is the least surprising — but that means
+  §0 needs to be softened from "checkpoint folder only" to "checkpoint
+  folder + the in-progress `.eval` log." The `.eval` log is already
+  co-located with the checkpoints dir (sibling), so in practice this
+  is only a small relaxation of the pointer-only UX (inspect can find
+  the `.eval` log from the manifest or by sibling-dir convention).
+
+
+
 (user-facing resumption UX — resolved, see below)
 - **Checkpoint retention (intermediate policies).** Baseline resolved in
   §1c: default = delete on successful eval completion, opt-in retain-
@@ -550,7 +693,7 @@ that correspond to it, across all sandboxes it needed to capture.
   open questions: do we want intermediate policies (keep last N, keep on
   failure only, time-based expiry)? Per-eval vs. global configuration?
 - **Diff/backup engine.** Restic is the current front-runner (see §1a and
-  Appendix A). Alternatives still open (borg, kopia, rsync-based, custom).
+  Appendix B). Alternatives still open (borg, kopia, rsync-based, custom).
   Decision criteria: S3 backend support, dedup efficiency, static-binary
   injectability into sandbox, licensing.
 - **Checkpoint atomicity.** How do we guarantee a checkpoint is either
@@ -567,13 +710,13 @@ that correspond to it, across all sandboxes it needed to capture.
   inspect copies the data out via the sandbox exec/copy API to the
   configured checkpoint destination (local or remote). No credentials
   plumbed into sandboxes. See §1a.
-- **First-checkpoint latency** — resolved: **force a checkpoint at sample
-  start whenever sandbox home-dir checkpointing is enabled.** This bounds
-  the cold-start loss window to "work done before the agent's first
-  action" (essentially zero for sandbox state, since the initial snapshot
-  captures pre-agent state). If sandbox checkpointing is disabled, the
-  forced initial snapshot is skipped. (No decaying-interval or separate
-  initial sub-policy for now.)
+- **First-checkpoint latency** — resolved (reversed): **no forced
+  sample-start snapshot.** The user's configured policy interval
+  already expresses the loss window they can afford; taking an extra
+  zero-point snapshot doesn't narrow that window, it just adds cost.
+  The first policy-driven checkpoint is the first snapshot (fatter
+  than subsequent deltas, which is expected and acceptable). No
+  decaying-interval or separate initial sub-policy.
 (hermetic task-code bundling — resolved, see below)
 - **Firing checkpoints mid-tool-call.** §2c baseline fires only between
   turns. Open whether to also support firing during long tool
@@ -613,12 +756,13 @@ that correspond to it, across all sandboxes it needed to capture.
 - **Configuration surface** — resolved: parameter on the agent
   constructor (e.g. `react(checkpoint=...)`). Not on `Task(...)`.
   CLI/global overrides deferred.
-- **User-facing resume UX** — resolved: explicit pointer via
-  `inspect eval --resume path/to/foo.eval.checkpoints/` (or
-  `--resume path/to/foo.eval`). No changes to default naming or
-  `task_id` generation. Auto-detect / named-runs / deterministic
-  identity can be layered on later without breaking this contract.
-  See §3c.
+- **User-facing resume UX** — resolved: pointer-only command
+  `inspect eval --resume path/to/foo.eval.checkpoints/`. No other
+  args permitted alongside `--resume` in v1; all parameters come
+  from the manifest. No changes to default naming or `task_id`
+  generation. Auto-detect / named-runs / deterministic identity /
+  selective overrides can be layered on later without breaking this
+  contract. See §3c.
 - **Hermetic task-code bundling** — resolved: **not required** under
   the explicit-pointer resume model. Source tree, Python env, and
   inspect install come from the user's re-invocation at resume time.
@@ -636,9 +780,9 @@ that correspond to it, across all sandboxes it needed to capture.
   shared repo is not viable without cross-sandbox coordination.
 - **Initial/baseline sandbox checkpoint (baseline-for-diffs framing)** —
   resolved: restic's content-addressing means no explicit baseline
-  artifact is required; every snapshot is standalone. (Note: the
-  "first-checkpoint latency" concern above is a separate, still-open
-  issue.)
+  artifact is required; every snapshot is standalone. (See also
+  "First-checkpoint latency" above — also resolved: no forced
+  sample-start snapshot.)
 - **Non-sandbox checkpoint contents layout** — resolved by §1b sketch:
   lives in `samples/<id>__<epoch>/checkpoints/<checkpoint-id>/`
   alongside `sandbox-refs.json`.
