@@ -137,8 +137,7 @@ class Task:
             metadata:  Additional metadata to associate with the task.
             tags: Tags to associate with the task.
             viewer: Log viewer configuration for this task (controls how
-                scanner results are rendered in the sidebar). Persisted in
-                the eval log via `EvalSpec.viewer`.
+                scanner results are rendered in the sidebar).
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -263,6 +262,7 @@ def task_with(
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
     tags: list[str] | None | NotGiven = NOT_GIVEN,
+    viewer: ViewerConfig | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -311,6 +311,8 @@ def task_with(
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
         tags: Tags to associate with the task.
+        viewer: Log viewer configuration for this task (controls how
+            scanner results are rendered in the sidebar).
 
     Returns:
         Task: Passed `task` with modifications.
@@ -365,6 +367,8 @@ def task_with(
         task.metadata = metadata
     if not isinstance(tags, NotGiven):
         task.tags = tags
+    if not isinstance(viewer, NotGiven):
+        task.viewer = viewer
 
     # return modified task
     return task
