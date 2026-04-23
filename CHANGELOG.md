@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Log recovery: Stream segment-at-a-time to bound memory on large evals.
+- Scoring: Neutralize structural delimiters in model graded scorer inputs.
 
 ## 0.3.211 (23 April 2026)
 
