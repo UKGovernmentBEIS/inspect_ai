@@ -20,6 +20,11 @@ import inspect_ai._util.zipfile  # noqa: F401
 MAX_INPUT_PER_FRAME = 200 * 1024 * 1024  # must match the value in _util/zipfile.py
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
+# zipfile_zstd adds ZIP_ZSTANDARD (93) to zipfile at import time; use getattr
+# so type checkers on Python < 3.14 (where stdlib zipfile doesn't declare it)
+# stay happy.
+ZIP_ZSTANDARD: int = getattr(zipfile, "ZIP_ZSTANDARD", 93)
+
 
 def _moderately_compressible_payload(total_bytes: int) -> bytes:
     """Build a deterministic payload that compresses at a realistic ratio.
@@ -83,7 +88,7 @@ def test_large_entry_emits_multiple_capped_frames(
 ) -> None:
     """A ~450 MiB payload should produce ≥3 zstd frames, each ≤ 200 MiB uncompressed."""
     zip_path = tmp_path / "large.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_ZSTANDARD) as zf:
+    with zipfile.ZipFile(zip_path, "w", compression=ZIP_ZSTANDARD) as zf:
         zf.writestr("big.json", large_payload)
 
     raw = _read_raw_compressed_entry(zip_path, "big.json")
@@ -107,7 +112,7 @@ def test_small_entry_emits_single_frame(tmp_path: Path) -> None:
     """A 1 MiB entry should still be exactly one zstd frame."""
     zip_path = tmp_path / "small.zip"
     payload = _moderately_compressible_payload(1 * 1024 * 1024)
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_ZSTANDARD) as zf:
+    with zipfile.ZipFile(zip_path, "w", compression=ZIP_ZSTANDARD) as zf:
         zf.writestr("small.json", payload)
 
     raw = _read_raw_compressed_entry(zip_path, "small.json")
@@ -119,7 +124,7 @@ def test_small_entry_emits_single_frame(tmp_path: Path) -> None:
 def test_large_entry_round_trip(tmp_path: Path, large_payload: bytes) -> None:
     """Writing and reading back a multi-frame entry must preserve bytes exactly."""
     zip_path = tmp_path / "rt.zip"
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_ZSTANDARD) as zf:
+    with zipfile.ZipFile(zip_path, "w", compression=ZIP_ZSTANDARD) as zf:
         zf.writestr("big.json", large_payload)
 
     with zipfile.ZipFile(zip_path) as zf:

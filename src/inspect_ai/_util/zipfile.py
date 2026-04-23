@@ -17,7 +17,10 @@ import logging
 import sys
 import zipfile
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import zstandard
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +57,7 @@ class _MultiFrameZstdCompressObj:
     valid per spec -- any compliant decoder reads them transparently.
     """
 
-    def __init__(self, factory: Callable[[], Any]) -> None:
+    def __init__(self, factory: Callable[[], zstandard.ZstdCompressionObj]) -> None:
         self._factory = factory
         self._obj = factory()
         self._input_bytes = 0
@@ -107,10 +110,10 @@ class _MultiFrameZstdDecompressObj:
     """
 
     def __init__(self) -> None:
-        import zstandard  # local import — already a hard dep via zipfile_zstd
+        import zstandard as zstd  # local import -- already a hard dep
 
-        self._dctx = zstandard.ZstdDecompressor()
-        self._obj = self._dctx.decompressobj()
+        self._dctx: zstandard.ZstdDecompressor = zstd.ZstdDecompressor()
+        self._obj: zstandard.ZstdDecompressionObj = self._dctx.decompressobj()
         self._pending: bytes = b""
 
     def decompress(self, data: bytes) -> bytes:
