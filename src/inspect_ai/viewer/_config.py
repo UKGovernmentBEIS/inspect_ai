@@ -59,7 +59,7 @@ class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
 
     `scanner_result_view` keys are fnmatch-style glob patterns (`"*"`,
-    `"audit_*"`, exact names). Pass a ScannerResultView to apply a single
+    ``"audit_*"``, exact names). Pass a ScannerResultView to apply a single
     configuration to every scanner.
     """
 

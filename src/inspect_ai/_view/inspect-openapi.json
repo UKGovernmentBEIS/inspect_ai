@@ -8857,7 +8857,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n`\"audit_*\"`, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
+        "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
         "properties": {
           "scanner_result_view": {
             "anyOf": [
