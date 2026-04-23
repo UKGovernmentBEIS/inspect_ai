@@ -1,0 +1,14 @@
+---
+reference: inspect_ai.viewer
+description: Customize Inspect view behavior.
+---
+
+## Viewer
+### ViewerConfig
+
+## Scanner Results
+### ScannerResultView
+
+## Fields
+### MetadataField
+### ScannerResultField

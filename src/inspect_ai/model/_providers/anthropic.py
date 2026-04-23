@@ -179,6 +179,15 @@ logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
+
+_THINKING_WARNING = (
+    "anthropic models do not support the '{parameter}' parameter "
+    "when using extended thinking."
+)
+_ADAPTIVE_ONLY_WARNING = (
+    "anthropic model '{model}' does not support the '{parameter}' parameter "
+    "(adaptive thinking only)."
+)
 AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
 
 # Azure base URL environment variables
@@ -444,7 +453,7 @@ class AnthropicAPI(ModelAPI):
                 _add_edit_compaction(
                     request=request,
                     betas=betas,
-                    has_1mm_context=self.is_claude_4_6(),
+                    has_1mm_context=self.is_claude_frontier(),
                 )
 
             # add compaction beta header if required
@@ -545,7 +554,10 @@ class AnthropicAPI(ModelAPI):
         # thinking or redacted_thinking blocks, even for token counting.
         thinking_config: dict[str, Any] = {}
         if self.is_thinking_model() and _messages_contain_thinking(messages):
-            thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+            if self.is_claude_frontier():
+                thinking_config["thinking"] = {"type": "adaptive"}
+            else:
+                thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
         if has_compaction:
             # Use beta header with context_management for compaction support
@@ -739,23 +751,32 @@ class AnthropicAPI(ModelAPI):
         if anthropic_beta_header:
             betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
-        # temperature not compatible with extended thinking
-        THINKING_WARNING = "anthropic models do not support the '{parameter}' parameter when using extended thinking."
+        # Claude 4.7+ is always in adaptive thinking and rejects these params
+        # regardless of config; other models only reject them under thinking.
+        forbid_sampling_params = (
+            self.is_claude_4_7_or_later() or self.is_using_thinking(config)
+        )
+
+        def sampling_param_warning(parameter: str) -> str:
+            if self.is_claude_4_7_or_later():
+                return _ADAPTIVE_ONLY_WARNING.format(
+                    parameter=parameter, model=self.service_model_name()
+                )
+            return _THINKING_WARNING.format(parameter=parameter)
+
         if config.temperature is not None:
-            if self.is_using_thinking(config):
-                warn_once(logger, THINKING_WARNING.format(parameter="temperature"))
+            if forbid_sampling_params:
+                warn_once(logger, sampling_param_warning("temperature"))
             else:
                 params["temperature"] = config.temperature
-        # top_p not compatible with extended thinking
         if config.top_p is not None:
-            if self.is_using_thinking(config):
-                warn_once(logger, THINKING_WARNING.format(parameter="top_p"))
+            if forbid_sampling_params:
+                warn_once(logger, sampling_param_warning("top_p"))
             else:
                 params["top_p"] = config.top_p
-        # top_k not compatible with extended thinking
         if config.top_k is not None:
-            if self.is_using_thinking(config):
-                warn_once(logger, THINKING_WARNING.format(parameter="top_k"))
+            if forbid_sampling_params:
+                warn_once(logger, sampling_param_warning("top_k"))
             else:
                 params["top_k"] = config.top_k
 
@@ -763,12 +784,11 @@ class AnthropicAPI(ModelAPI):
         if config.effort is not None:
             betas.append("effort-2025-11-24")
             effort = config.effort
-            # max is claude 4.6 only
-            if effort == "max" and not (
-                self.is_claude_4_6() or self.is_claude_latest()
-            ):
+            if effort == "max" and not (self.is_claude_frontier()):
                 effort = "high"
-            params["output_config"] = OutputConfigParam(effort=effort)
+            if effort == "xhigh" and not self.is_claude_4_7_or_later():
+                effort = "high"
+            params["output_config"] = OutputConfigParam(effort=effort)  # type: ignore[typeddict-item] # (no support for 'xhigh' in sdk yet)
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
@@ -776,7 +796,7 @@ class AnthropicAPI(ModelAPI):
             if reasoning_effort is not None:
                 params["thinking"] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
-                params["output_config"] = OutputConfigParam(effort=reasoning_effort)
+                params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
                 params["thinking"] = dict(
                     type="enabled",
@@ -834,24 +854,33 @@ class AnthropicAPI(ModelAPI):
         if self.is_thinking_model():
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
+                # xhigh/max sized to reach the migration-guide floor of 64k
+                # on top of the 32k base for thinking models.
                 effort_tokens = {
                     "low": 4096,
                     "medium": 10000,
                     "high": 16000,
-                    "max": 24000,
+                    "xhigh": 32000,
+                    "max": 32000,
                 }
                 max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
             elif config.reasoning_tokens is not None:
                 max_tokens = max_tokens + config.reasoning_tokens
 
+        # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
+        # (model caps below will still clamp on older models)
+        if config.effort in ("xhigh", "max") and max_tokens < 64000:
+            max_tokens = 64000
+
         # apply caps after bumping for reasoning
-        if (
-            self.is_claude_4_6() and self.is_claude_4_opus()
-        ) or self.is_claude_latest():
-            # Opus 4.6 only
+        if self.is_claude_frontier() and self.is_claude_4_opus():
+            # Opus 4.6+ (and future 4.x minor opus versions)
             max_tokens = min(max_tokens, 128000)
-        elif self.is_claude_4_5() or self.is_claude_4_6():
-            # All other 4.5 and 4.6 models
+        elif self.is_claude_latest() and not self.is_claude_4():
+            # Future major versions (claude 5+): assume opus-class limits
+            max_tokens = min(max_tokens, 128000)
+        elif self.is_claude_4_5() or self.is_claude_frontier():
+            # All other 4.5 / 4.6+ non-opus models (incl. future 4.x minor versions)
             max_tokens = min(max_tokens, 64000)
         elif self.is_claude_4_opus():
             max_tokens = min(max_tokens, 32000)
@@ -904,6 +933,9 @@ class AnthropicAPI(ModelAPI):
     def is_claude_4_6(self) -> bool:
         return self._is_claude_4_x(6)
 
+    def is_claude_4_7(self) -> bool:
+        return self._is_claude_4_x(7)
+
     def is_claude_4_opus(self) -> bool:
         return self.is_claude_4() and "opus" in self.service_model_name()
 
@@ -923,6 +955,7 @@ class AnthropicAPI(ModelAPI):
             or self.is_claude_4_1()
             or self.is_claude_4_5()
             or self.is_claude_4_6()
+            or self.is_claude_4_7()
         ):
             return True
         # future major version
@@ -935,6 +968,14 @@ class AnthropicAPI(ModelAPI):
             return True
         else:
             return False
+
+    # many feature are 4.6+ which we call "frontier"
+    def is_claude_frontier(self) -> bool:
+        return self.is_claude_4_6() or self.is_claude_4_7() or self.is_claude_latest()
+
+    # some features (e.g. xhigh effort) require 4.7 or any future minor version
+    def is_claude_4_7_or_later(self) -> bool:
+        return self.is_claude_4_7() or self.is_claude_latest()
 
     @override
     def connection_key(self) -> str:
@@ -965,6 +1006,14 @@ class AnthropicAPI(ModelAPI):
             if isinstance(ex.body, dict):
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
+                    return True
+                # TCP interruptions can truncate large request bodies in transit,
+                # causing a 400 even though json.dumps() produced valid JSON.
+                if (
+                    ex.status_code == 400
+                    and "not valid json" in body_str
+                    and "unexpected end of data" in body_str
+                ):
                     return True
 
             # standard http status code checking
@@ -1238,10 +1287,8 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is supported by Claude 4.6 and Claude Opus 4.5
-            if (
-                self.is_claude_4_6()
-                or self.is_claude_latest()
-                or (self.is_claude_4_5() and self.is_claude_4_opus())
+            if self.is_claude_frontier() or (
+                self.is_claude_4_5() and self.is_claude_4_opus()
             ):
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
@@ -1369,12 +1416,12 @@ class AnthropicAPI(ModelAPI):
 
     def effort_from_reasoning_effort(
         self, config: GenerateConfig
-    ) -> Literal["max", "high", "medium", "low"] | None:
+    ) -> Literal["max", "high", "medium", "low", "xhigh"] | None:
         # claude 4.6 supports reasoning effort via type: "adaptive"
         if (
             config.reasoning_effort is not None
             and config.reasoning_effort != "none"
-            and (self.is_claude_4_6() or self.is_claude_latest())
+            and (self.is_claude_frontier())
         ):
             match config.reasoning_effort:
                 case "low" | "minimal":
@@ -1384,7 +1431,10 @@ class AnthropicAPI(ModelAPI):
                 case "high":
                     return "high"
                 case "xhigh":
+                    return "xhigh" if self.is_claude_4_7_or_later() else "high"
+                case "max":
                     return "max"
+
         else:
             return None
 

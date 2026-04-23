@@ -14330,8 +14330,6 @@ pre[class*="language-"] {
   /* Inspect Glass */
   --inspect-glass-color: #000000;
   --inspect-glass-opacity: 0.3;
-
-  --inspect-event-panel-sticky-top: 30px;
 }
 
 body:not([class^="vscode-"]) button {
@@ -14344,15 +14342,15 @@ body:not([class^="vscode-"]) button {
 body {
   --ag-background-color: var(--bs-body-bg);
   --ag-foreground-color: var(--bs-body-color);
-  --ag-header-background-color: var(--bs-light-bg);
+  --ag-header-background-color: var(--bs-light-bg-subtle);
   --ag-header-font-size: var(--inspect-font-size-small);
   --ag-header-font-weight: 500;
   --ag-header-text-color: var(--bs-secondary);
-
   --ag-font-family: var(--bs-body-font-family);
   --ag-wrapper-border: none;
   --ag-row-hover-color: var(--bs-secondary-bg-subtle);
   --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
+  --ag-border-radius: var(--bs-border-radius);
 }
 
 #app {
@@ -14377,15 +14375,6 @@ a:hover {
 
 .modal {
   --bs-modal-margin: 0.25rem;
-}
-
-li > p {
-  margin-bottom: 0;
-}
-
-li > ol,
-li > ul {
-  margin-bottom: 0.5rem;
 }
 
 .modal-backdrop {
@@ -14469,11 +14458,12 @@ body[class^="vscode-"] {
   --bs-border-radius-lg: 0;
   --bs-body-bg: var(--vscode-editor-background);
   --bs-secondary-bg-subtle: var(--vscode-editorHoverWidget-background);
+  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
+  --bs-primary-text-emphasis: var(--vscode-editorLink-activeForeground);
   --bs-card-bg: var(--vscode-editor-background);
   --bs-table-bg: var(--vscode-editor-background);
   --bs-light-bg-subtle: var(--vscode-sideBar-background);
-  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
-  --bs-light-border-subtle: var(--vscode-editorHoverWidget-border);
+  --bs-light-border-subtle: var(--vscode-sideBarSectionHeader-border);
   --bs-body-color: var(--vscode-editor-foreground);
   --bs-table-color: var(--vscode-editor-foreground);
   --bs-accordion-btn-color: var(--vscode-editor-foreground);
@@ -14484,11 +14474,13 @@ body[class^="vscode-"] {
   --bs-light: var(--vscode-sideBar-background);
   --bs-btn-bg: var(--vscode-peekViewTitle-background);
   --bs-primary: var(--vscode-banner-iconForeground);
+  --bs-primary-bg-subtle: var(--vscode-editor-selectionHighlightBackground);
   --bs-nav-pills-link-active-bg: var(--vscode-banner-iconForeground);
   --bs-link-color: var(--vscode-textLink-foreground);
   --bs-link-hover-color: var(--vscode-textLink-activeForeground);
   --bs-secondary: var(--vscode-breadcrumb-foreground);
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
+  --bs-tertiary-bg: var(--vscode-list-hoverBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
   --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
@@ -14503,7 +14495,6 @@ body[class^="vscode-"] {
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
   --inspect-glass-color: var(--vscode-editor-foreground);
   --inspect-glass-opacity: 0.15;
-  --inspect-event-panel-sticky-top: 25px;
 }
 
 html.vscode {
@@ -14583,6 +14574,7 @@ body[class^="vscode-"] .accordion-button::after {
 }
 
 .copy-button i.bi,
+.download-scan-button i.bi,
 body[class^="vscode-"] .navbar-text i.bi {
   color: var(--vscode-editor-foreground);
 }
@@ -15069,25 +15061,6 @@ table.table.table-sm td {
   font-size: 0.8em;
 }
 
-.tab-tools > * {
-  flex: 0 1 auto;
-  height: 1.5rem;
-  margin-left: 0.5rem;
-}
-
-.tab-tools > input {
-  font-size: 0.7rem;
-}
-
-.tab-tools .btn {
-  font-size: 0.7rem;
-  padding: 0.2em 0.8em;
-}
-
-.tab-tools {
-  font-size: 0.7rem;
-}
-
 .do-not-collapse-self {
   display: block;
   height: auto !important;
@@ -15173,12 +15146,14 @@ table.table.table-sm td {
   overflow: unset;
 }
 
+pre[class*="language-"],
 .markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
 }
 
+.vscode-dark pre[class*="language-"],
 .vscode-dark .model-call pre[class*="language-"],
 .vscode-dark .markdown-content pre[class*="language-"],
 .vscode-dark pre[class*="language-"].tool-output,
@@ -15419,33 +15394,6 @@ pre[class*="language-"] {
   .vscode-dark pre[class*="language-"] {
     text-shadow: none;
   }
-
-  html {
-    font-size: 9pt;
-  }
-
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  body {
-    orphans: 3;
-    widows: 3;
-  }
-
-  #app,
-  .app-main-grid {
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  pre,
-  code {
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-    break-inside: auto;
-  }
 }
 .vscode-dark :not(pre) > code[class*="language-"],
 .vscode-dark pre[class*="language-"] {
@@ -15526,9 +15474,243 @@ pre[class*="language-"] {
 }
 /* END PrismJS */
 
+/* Note: SVG-icon mask rules (.ii::before, .inspect-icon-* etc.) are kept in
+   each app's local App.css because the `mask: url("../img/…")` references
+   are resolved relative to the CSS file, and the SVG assets live inside
+   each app's `src/img/` directory. Sharing those rules from this package
+   would require co-locating the assets here, which is out of scope. */
+
+/* Use this very carefully, find relies upon checking the
+document selection to determine if it should skip a find match
+so disabling selection can break that functionality */
+.hideSelection {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+/* VS Code Light Modern theme defaults (for non-VS Code context) */
+/* Complete set of variables used by @vscode-elements/elements */
+/* These are overridden by actual VS Code theme variables when running in VS Code */
+
+:root {
+  /* Core colors */
+  --vscode-foreground: #3b3b3b;
+  --vscode-descriptionForeground: #717171;
+  --vscode-errorForeground: #f14c4c;
+  --vscode-icon-foreground: #424242;
+  --vscode-focusBorder: #0090f1;
+  --vscode-contrastBorder: transparent;
+
+  /* Font settings */
+  --vscode-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-font-weight: normal;
+  --vscode-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+  --vscode-editor-font-size: 12px;
+  --vscode-editor-font-weight: normal;
+
+  /* Editor colors */
+  --vscode-editor-background: #ffffff;
+  --vscode-editor-foreground: #3b3b3b;
+  --vscode-editor-inlineValuesForeground: rgba(0, 0, 0, 0.5);
+  --vscode-editorGroup-border: #e7e7e7;
+  --vscode-editorWidget-border: #d4d4d4;
+
+  /* Input colors */
+  --vscode-input-background: #ffffff;
+  --vscode-input-foreground: #3b3b3b;
+  --vscode-input-border: #cecece;
+  --vscode-input-placeholderForeground: #767676;
+  --vscode-inputOption-activeBackground: rgba(0, 144, 241, 0.2);
+  --vscode-inputOption-activeBorder: #0090f1;
+  --vscode-inputOption-activeForeground: #000000;
+
+  /* Input validation */
+  --vscode-inputValidation-warningBackground: #f2dede;
+  --vscode-inputValidation-warningBorder: #be8800;
+  --vscode-inputValidation-errorBackground: #f2dede;
+  --vscode-inputValidation-errorBorder: #be1100;
+
+  /* Settings controls (used by vscode-elements textfield, checkbox, dropdown) */
+  --vscode-settings-textInputBackground: #ffffff;
+  --vscode-settings-textInputForeground: #3b3b3b;
+  --vscode-settings-textInputBorder: #cecece;
+  --vscode-settings-checkboxBackground: #ffffff;
+  --vscode-settings-checkboxForeground: #3b3b3b;
+  --vscode-settings-checkboxBorder: #919191;
+  --vscode-settings-dropdownBackground: #ffffff;
+  --vscode-settings-dropdownForeground: #3b3b3b;
+  --vscode-settings-dropdownBorder: #cecece;
+  --vscode-settings-dropdownListBorder: #c8c8c8;
+  --vscode-settings-headerBorder: rgba(128, 128, 128, 0.35);
+
+  /* Checkbox colors */
+  --vscode-checkbox-background: #ffffff;
+  --vscode-checkbox-foreground: #3b3b3b;
+  --vscode-checkbox-border: #919191;
+
+  /* Button colors */
+  --vscode-button-background: #007acc;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #0062a3;
+  --vscode-button-border: transparent;
+  --vscode-button-separator: rgba(255, 255, 255, 0.4);
+  --vscode-button-secondaryBackground: #5f6a79;
+  --vscode-button-secondaryForeground: #ffffff;
+  --vscode-button-secondaryHoverBackground: #4c5561;
+
+  /* Widget/shadow colors */
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.16);
+  --vscode-widget-border: #d4d4d4;
+
+  /* Toolbar */
+  --vscode-toolbar-hoverBackground: rgba(184, 184, 184, 0.31);
+  --vscode-toolbar-activeBackground: rgba(166, 166, 166, 0.31);
+  --vscode-toolbar-hoverOutline: transparent;
+
+  /* List colors (used by select/dropdown components) */
+  --vscode-list-hoverBackground: #e8e8e8;
+  --vscode-list-hoverForeground: #3b3b3b;
+  --vscode-list-activeSelectionBackground: #0060c0;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-activeSelectionIconForeground: #ffffff;
+  --vscode-list-inactiveSelectionBackground: #e4e6f1;
+  --vscode-list-focusOutline: #0090f1;
+  --vscode-list-focusAndSelectionOutline: #0090f1;
+  --vscode-list-focusHighlightForeground: #0066bf;
+  --vscode-list-highlightForeground: #0066bf;
+
+  /* Menu colors */
+  --vscode-menu-background: #ffffff;
+  --vscode-menu-foreground: #3b3b3b;
+  --vscode-menu-border: #d4d4d4;
+  --vscode-menu-selectionBackground: #0060c0;
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-selectionBorder: transparent;
+  --vscode-menu-separatorBackground: #d4d4d4;
+
+  /* Badge colors */
+  --vscode-badge-background: #007acc;
+  --vscode-badge-foreground: #ffffff;
+  --vscode-activityBarBadge-background: #007acc;
+  --vscode-activityBarBadge-foreground: #ffffff;
+
+  /* Panel colors */
+  --vscode-panel-background: #ffffff;
+  --vscode-panelTitle-activeBorder: #007acc;
+  --vscode-panelTitle-activeForeground: #3b3b3b;
+  --vscode-panelTitle-inactiveForeground: #717171;
+
+  /* Sidebar colors */
+  --vscode-sideBar-background: #f3f3f3;
+  --vscode-sideBarSectionHeader-background: #f3f3f3;
+  --vscode-sideBarTitle-foreground: #3b3b3b;
+
+  /* Progress bar */
+  --vscode-progressBar-background: #007acc;
+
+  /* Scrollbar colors */
+  --vscode-scrollbar-shadow: rgba(0, 0, 0, 0.16);
+  --vscode-scrollbarSlider-background: rgba(100, 100, 100, 0.4);
+  --vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+  --vscode-scrollbarSlider-activeBackground: rgba(0, 0, 0, 0.6);
+
+  /* Sash (resizable borders) */
+  --vscode-sash-hoverBorder: #0090f1;
+
+  /* Tree colors */
+  --vscode-tree-indentGuidesStroke: #d4d4d4;
+  --vscode-tree-inactiveIndentGuidesStroke: rgba(212, 212, 212, 0.5);
+
+  /* Keybinding table */
+  --vscode-keybindingTable-headerBackground: rgba(128, 128, 128, 0.1);
+  --vscode-keybindingTable-rowsBackground: rgba(128, 128, 128, 0.04);
+}
+
+/* vscode-elements form component adjustments */
+vscode-label {
+  margin-bottom: 0;
+}
+
+vscode-form-helper {
+  font-size: 12px;
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+/* Inspect-specific overlay on top of @tsmono/theme/base + @tsmono/theme/vscode.
+   Rules here are either unique to inspect or reference assets that live under
+   apps/inspect/src/img/. Shared rules live in the theme package. */
+
+:root {
+  --inspect-event-panel-sticky-top: 30px;
+}
+
+body[class^="vscode-"] {
+  --inspect-event-panel-sticky-top: 25px;
+}
+
+li > p {
+  margin-bottom: 0;
+}
+
+li > ol,
+li > ul {
+  margin-bottom: 0.5rem;
+}
+
+.tab-tools > * {
+  flex: 0 1 auto;
+  height: 1.5rem;
+  margin-left: 0.5rem;
+}
+
+.tab-tools > input {
+  font-size: 0.7rem;
+}
+
+.tab-tools .btn {
+  font-size: 0.7rem;
+  padding: 0.2em 0.8em;
+}
+
+.tab-tools {
+  font-size: 0.7rem;
+}
+
+/* Extra print rules (the minimal @media print inside the Prism block lives
+   in theme/base.css). */
+@media print {
+  html {
+    font-size: 9pt;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    orphans: 3;
+    widows: 3;
+  }
+
+  #app,
+  .app-main-grid {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  pre,
+  code {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    break-inside: auto;
+  }
+}
+
 /* SVG Icon styles - following Bootstrap Icons pattern */
-.ii:before {
-  background-color: var(--bs-body-color);
+.ii::before {
+  background-color: currentColor;
 }
 
 .inspect-icon-16::before {
@@ -15601,16 +15783,6 @@ pre[class*="language-"] {
   vertical-align: middle;
   mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
   -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
-}
-
-/* Use this very carefully, find relies upon checking the 
-document selection to determine if it should skip a find match
-so disabling selection can break that functionality */
-.hideSelection {
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 ._ansiDisplayContainer_1749m_1 {
   position: relative;
@@ -16764,39 +16936,29 @@ button._segment_19z32_10 {
 ._hidden_1linb_42 {
   opacity: 0 !important;
 }
-._dropdownContainer_1fize_1 {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.btn._toolButton_1fize_7 {
+.btn._toolButton_1q996_1 {
   background-color: var(--bs-light-border-subtle);
 }
 
-.btn._toolButton_1fize_7._bodyColor_1fize_11 {
+.btn._toolButton_1q996_1._bodyColor_1q996_5 {
   background-color: var(--bs-body-bg);
 }
 
-.btn-tools._toolButton_1fize_7 {
-  border: solid 1px var(--bs-border-color);
-}
-
-._toolButton_1fize_7 {
+._toolButton_1q996_1 {
   white-space: nowrap;
 }
 
-._toolButton_1fize_7 i {
+._toolButton_1q996_1 i {
   margin-right: 0.5em;
 }
 
-._toolButton_1fize_7 ._chevron_1fize_27 {
+._toolButton_1q996_1 ._chevron_1q996_17 {
   margin-left: 0.5em;
   margin-right: 0;
   font-size: 0.75em;
 }
 
-._toolButton_1fize_7:focus {
+._toolButton_1q996_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -16804,35 +16966,28 @@ button._segment_19z32_10 {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._backdrop_1fize_41 {
+._backdrop_1q996_31 {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 998;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1049;
 }
 
-._dropdownMenu_1fize_50 {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 0.25rem;
+._dropdownMenu_1q996_41 {
+  position: fixed;
   background: var(--bs-body-bg);
   border: 1px solid var(--bs-border-color);
   border-radius: 0.25rem;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 999;
-  min-width: 100%;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1050;
   overflow: hidden;
 }
 
-._dropdownMenu_1fize_50._alignRight_1fize_64 {
-  right: 0;
-  left: auto;
-}
-
-._dropdownItem_1fize_69 {
+._dropdownItem_1q996_52 {
   display: block;
   width: 100%;
   padding: 0.25rem 0.75rem;
@@ -16845,11 +17000,11 @@ button._segment_19z32_10 {
   transition: background-color 0.15s ease-in-out;
 }
 
-._dropdownItem_1fize_69:hover {
+._dropdownItem_1q996_52:hover {
   background-color: var(--bs-tertiary-bg);
 }
 
-._dropdownItem_1fize_69:active {
+._dropdownItem_1q996_52:active {
   background-color: var(--bs-secondary-bg);
 }
 ._tabs_13md5_1 {
@@ -17166,22 +17321,26 @@ button._segment_19z32_10 {
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
 }
-._container_1ramc_1 {
+._container_kmi4b_1 {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-auto-rows: auto;
   column-gap: 1rem;
 }
 
-._padded_1ramc_8 {
+._padded_kmi4b_8 {
   padding-bottom: 1em;
 }
 
-._key_1ramc_12 {
+._key_kmi4b_12 {
   font-weight: 300;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-._value_1ramc_16 {
+._value_kmi4b_20 {
   font-weight: 600;
 }
 ._grid_1bdxe_1 {
@@ -17485,64 +17644,91 @@ button._segment_19z32_10 {
 ._pathContainer_1u3sd_58 {
   overflow-x: hidden;
 }
-._navbarButton_1gksz_1 {
+._navbarButton_7hxb6_1 {
   font-size: 0.6rem;
   padding: 1px 5px;
 }
-._checkboxWrapper_vtlwq_1 {
+
+._dropdownChevron_7hxb6_6 {
+  margin-left: 0.35rem;
+  /* Inherit the button's font-size so the chevron never creates a taller
+     line-box than the button's text. Hard-coding a smaller font-size token
+     can easily exceed the button's own 0.6rem and stretch button height. */
+  font-size: inherit;
+  line-height: 1;
+}
+._checkboxWrapper_97vbj_1 {
   margin-bottom: 0.1rem;
 }
 
-._label_vtlwq_5 {
+._label_97vbj_5 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-._checkbox_vtlwq_1 {
+._checkbox_97vbj_1 {
   margin-right: 0.5rem;
   cursor: pointer;
 }
 
-._filterIcon_vtlwq_16 {
+._filterIcon_97vbj_16 {
   margin-left: 0.5rem;
   color: var(--bs-primary);
 }
 
-._scrollableContainer_vtlwq_21 {
-  max-height: calc(100vh - 4rem);
+._scrollableContainer_97vbj_21 {
+  /* The popper is positioned below the trigger, so its actual visible room
+     is less than full viewport height. Cap conservatively so the scrollbar
+     kicks in before the popover extends past the viewport. */
+  max-height: min(70vh, calc(100vh - 10rem));
   overflow-y: auto;
+  /* Reserve scrollbar space up-front so switching between view modes doesn't
+     reflow content width when a scrollbar appears/disappears — that reflow
+     would otherwise chain through ResizeObserver → popper.update(). */
+  scrollbar-gutter: stable;
 }
 
-._section_vtlwq_26 {
+._section_97vbj_33 {
   margin-bottom: 0.75rem;
 }
 
-._headerRow_vtlwq_30 {
+._headerRow_97vbj_37 {
   display: flex;
   column-gap: 2rem;
   row-gap: 1rem;
   border-bottom: solid 1px var(--bs-border-color);
   margin-bottom: 0.5rem;
   justify-content: space-between;
+  align-items: center;
 }
 
-._buttonContainer_vtlwq_39 {
+._scoresHeadingGroup_97vbj_47 {
+  display: flex;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+._scoresViewModeControl_97vbj_53 {
+  margin-bottom: 2px;
+}
+
+._buttonContainer_97vbj_57 {
   display: flex;
   gap: 0.5rem;
 }
 
-._button_vtlwq_39 {
+._button_97vbj_57 {
   padding: 0;
   text-decoration: none;
 }
 
-._button_vtlwq_39:hover {
+._button_97vbj_57:hover {
   text-decoration: underline;
   cursor: pointer;
 }
 
-._columnsLayout_vtlwq_54 {
+._columnsLayout_97vbj_72 {
   columns: 2;
   column-gap: 2rem;
 }
@@ -17605,51 +17791,70 @@ button._segment_19z32_10 {
   width: inherit;
   height: inherit;
 }
-._nameCell_1jtud_1 {
+._nameCell_90rs9_1 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_1jtud_8 {
+._modelCell_90rs9_8 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._scoreCell_1jtud_15 {
+._modelCellPrimary_90rs9_15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+._scoreCell_90rs9_22 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._error_1jtud_22 {
+._multiScorerBadge_90rs9_29 {
+  margin-left: 0.35rem;
+  padding: 2px 0.45rem;
+  border-radius: 0.5rem;
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+  font-size: var(--inspect-font-size-smallest);
+  line-height: 1;
+  cursor: help;
+  white-space: nowrap;
+}
+
+._error_90rs9_41 {
   color: var(--bs-danger);
 }
 
-._started_1jtud_26 {
+._started_90rs9_45 {
   color: var(--bs-secondary);
 }
 
-._success_1jtud_30 {
+._success_90rs9_49 {
   color: var(--bs-success);
 }
 
-._cancelled_1jtud_34 {
+._cancelled_90rs9_53 {
   color: var(--bs-secondary);
 }
 
-._statusCell_1jtud_38 {
+._statusCell_90rs9_57 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
 
-._dateCell_1jtud_45 {
+._dateCell_90rs9_64 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -18168,13 +18373,9 @@ a._citationLink_1ggvf_9:hover {
 ._simple_1tam7_57 {
   /* styles for simple display mode */
 }
-._list_5fj0m_1 {
+._list_1emnm_1 {
   width: 100%;
   margin-top: 1em;
-}
-
-._item_5fj0m_6 {
-  padding-bottom: 1em;
 }
 ._tab_1je38_1 {
   min-width: 4rem;
@@ -18768,7 +18969,7 @@ a._citationLink_1ggvf_9:hover {
 ._dropdownItemActive_djjmp_74 {
   font-weight: 600;
 }
-._swimlane_1u7je_1 {
+._swimlane_16dh6_1 {
   --swimlane-row-height: 18px;
   --swimlane-minimap-height: 24px;
   --swimlane-grid-columns: auto 1fr auto;
@@ -18784,7 +18985,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Pinned section: minimap + parent row — always visible */
-._pinnedSection_1u7je_17 {
+._pinnedSection_16dh6_17 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -18792,7 +18993,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Scrollable section: child rows */
-._scrollSection_1u7je_25 {
+._scrollSection_16dh6_25 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -18801,13 +19002,13 @@ a._citationLink_1ggvf_9:hover {
   overflow-y: auto;
 }
 
-._swimlane_1u7je_1:focus-visible {
+._swimlane_16dh6_1:focus-visible {
   box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
 /* Collapsible rows — fade + slide animation */
 
-._collapsibleSection_1u7je_40 {
+._collapsibleSection_16dh6_40 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -18820,7 +19021,7 @@ a._citationLink_1ggvf_9:hover {
   opacity: 1;
 }
 
-._collapsibleCollapsed_1u7je_53 {
+._collapsibleCollapsed_16dh6_53 {
   grid-template-rows: 0fr;
   padding-bottom: 0;
   opacity: 0;
@@ -18830,11 +19031,11 @@ a._citationLink_1ggvf_9:hover {
    Note: avoid margin-top:-1px here — it causes the content to overflow
    the StickyScroll wrapper, inflating stickySwimLaneHeight by 1px and
    leaving a gap between the swimlane and the event card headers. */
-._swimlaneSticky_1u7je_63 {
+._swimlaneSticky_16dh6_63 {
   background-color: var(--bs-body-bg);
 }
 
-._collapsibleInner_1u7je_67 {
+._collapsibleInner_16dh6_67 {
   grid-column: 1 / -1;
   overflow: hidden;
   display: grid;
@@ -18844,7 +19045,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Collapse toggle — hangs below the bottom border, centered */
 
-._collapseToggle_1u7je_77 {
+._collapseToggle_16dh6_77 {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -18865,20 +19066,20 @@ a._citationLink_1ggvf_9:hover {
   line-height: 1;
 }
 
-._collapseToggle_1u7je_77:hover {
+._collapseToggle_16dh6_77:hover {
   color: var(--vscode-foreground);
   background-color: var(--bs-secondary-bg);
 }
 
 /* Row — display:contents so all rows share the parent grid columns */
 
-._row_1u7je_105 {
+._row_16dh6_105 {
   display: contents;
 }
 
 /* Label cell */
 
-._label_1u7je_111 {
+._label_16dh6_111 {
   padding: 0 0.5rem 0 1.45rem;
   white-space: nowrap;
   font-size: var(--inspect-font-size-smallest);
@@ -18892,23 +19093,23 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._label_1u7je_111:hover {
+._label_16dh6_111:hover {
   color: var(--vscode-textLink-foreground);
 }
 
-._labelSelected_1u7je_129 {
+._labelSelected_16dh6_129 {
   color: var(--vscode-textLink-foreground);
 }
 
 /* Ancestor rows of the selected branch — subtler than selected */
-._labelHighlighted_1u7je_134 {
+._labelHighlighted_16dh6_134 {
   color: var(--vscode-textLink-foreground);
   opacity: 0.6;
 }
 
 /* Expand/collapse chevron in label */
 
-._chevron_1u7je_141 {
+._chevron_16dh6_141 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18919,11 +19120,11 @@ a._citationLink_1ggvf_9:hover {
   font-size: 8px;
 }
 
-._chevron_1u7je_141:hover {
+._chevron_16dh6_141:hover {
   color: var(--vscode-foreground);
 }
 
-._chevronSpacer_1u7je_156 {
+._chevronSpacer_16dh6_156 {
   display: inline-block;
   width: 12px;
   flex-shrink: 0;
@@ -18931,19 +19132,19 @@ a._citationLink_1ggvf_9:hover {
 
 /* Bar area */
 
-._barArea_1u7je_164 {
+._barArea_16dh6_164 {
   height: var(--swimlane-row-height);
   border-left: 1px solid var(--bs-border-color);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._barInner_1u7je_170 {
+._barInner_16dh6_170 {
   position: relative;
   height: 100%;
   margin: 0 4px;
 }
 
-._fill_1u7je_176 {
+._fill_16dh6_176 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -18957,15 +19158,15 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._fill_1u7je_176:hover {
+._fill_16dh6_176:hover {
   opacity: 0.5;
 }
 
-._fillParent_1u7je_194 {
+._fillParent_16dh6_194 {
   opacity: 0.2;
 }
 
-._fillSelected_1u7je_198 {
+._fillSelected_16dh6_198 {
   opacity: 0.7;
   box-shadow: inset 0 0 0 1px var(--bs-primary);
 }
@@ -18973,7 +19174,7 @@ a._citationLink_1ggvf_9:hover {
 /* Partial highlight overlay — sibling of .fill in barInner.
    Shows the "active" portion of a bar (e.g. parent bar up to fork point
    when a branch is selected). Independent opacity, not stacked with .fill. */
-._fillHighlight_1u7je_206 {
+._fillHighlight_16dh6_206 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -18984,14 +19185,14 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Row is selected but a different span within the row is focused */
-._fillDimmed_1u7je_217 {
+._fillDimmed_16dh6_217 {
   opacity: 0.15;
 }
 
 /* Region segment — same as .fill but without :hover (hover is managed via JS).
    Does NOT set opacity here — opacity comes from .fill-style state classes
    (.fillParent, .fillSelected, .fillDimmed) or from .regionHover/.regionDefault. */
-._regionSegment_1u7je_224 {
+._regionSegment_16dh6_224 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19001,36 +19202,36 @@ a._citationLink_1ggvf_9:hover {
 
 /* Default opacity for region segments — slightly dimmed vs hover
    to give a subtle highlight without making unhovered segments look faded. */
-._regionDefault_1u7je_223 {
+._regionDefault_16dh6_223 {
   opacity: 0.25;
 }
 
 /* Applied via React state when the segment (or whole bar) should show hover */
-._regionHover_1u7je_223 {
+._regionHover_16dh6_223 {
   opacity: 0.45;
 }
 
 /* Region segments — partial border-radius for segmented bars */
-._regionFirst_1u7je_244 {
+._regionFirst_16dh6_244 {
   border-radius: 2px 0 0 2px;
 }
 
-._regionLast_1u7je_248 {
+._regionLast_16dh6_248 {
   border-radius: 0 2px 2px 0;
 }
 
-._regionMiddle_1u7je_252 {
+._regionMiddle_16dh6_252 {
   border-radius: 0;
 }
 
-._parallelBadge_1u7je_256 {
+._parallelBadge_16dh6_256 {
   font-size: var(--inspect-font-size-smallest);
   color: var(--vscode-descriptionForeground, #717171);
 }
 
 /* Markers */
 
-._marker_1u7je_263 {
+._marker_16dh6_263 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -19044,7 +19245,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* White disc behind branch icon so transparent cutouts don't bleed bar color */
-._markerBranch_1u7je_277::before {
+._markerBranch_16dh6_277::before {
   content: "";
   position: absolute;
   width: 6px;
@@ -19054,11 +19255,11 @@ a._citationLink_1ggvf_9:hover {
   z-index: -1;
 }
 
-._marker_1u7je_263 > * {
+._marker_16dh6_263 > * {
   pointer-events: none;
 }
 
-._markerError_1u7je_291 {
+._markerError_16dh6_291 {
   top: 1px;
   bottom: 1px;
   height: auto;
@@ -19069,7 +19270,7 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerError_1u7je_291::after {
+._markerError_16dh6_291::after {
   content: "";
   position: absolute;
   top: 0;
@@ -19079,7 +19280,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--vscode-errorForeground, #f44747);
 }
 
-._markerCompaction_1u7je_312 {
+._markerCompaction_16dh6_312 {
   color: var(--bs-body-bg);
   rotate: none;
   font-size: 16px;
@@ -19093,13 +19294,13 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerBranch_1u7je_277 {
+._markerBranch_16dh6_277 {
   color: var(--vscode-foreground);
   cursor: pointer;
 }
 
 /* Branch connector line from parent marker to branch bar */
-._branchConnector_1u7je_332 {
+._branchConnector_16dh6_332 {
   position: absolute;
   top: 0;
   left: 0;
@@ -19110,10 +19311,10 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Right-pointing arrowhead for branch connectors (CSS border triangle) */
-._connectorArrow_1u7je_343 {
+._connectorArrow_16dh6_343 {
   position: absolute;
   top: 50%;
-  transform: translate(-1px, calc(-50% + 0.5px));
+  transform: translate(-1px, -50%);
   width: 0;
   height: 0;
   border-top: 3px solid transparent;
@@ -19123,7 +19324,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Horizontal line extending back from arrowhead to the SVG horizontal endpoint */
-._connectorArrow_1u7je_343::before {
+._connectorArrow_16dh6_343::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -19138,7 +19339,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Breadcrumb row */
 
-._breadcrumbRow_1u7je_371 {
+._breadcrumbRow_16dh6_371 {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
@@ -19147,7 +19348,7 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._optionsButton_1u7je_380 {
+._optionsButton_16dh6_380 {
   background: none;
   border: 1px solid var(--vscode-widget-border, var(--bs-border-color));
   border-radius: 50%;
@@ -19165,13 +19366,13 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0.6;
 }
 
-._optionsButton_1u7je_380:hover {
+._optionsButton_16dh6_380:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);
   opacity: 1;
 }
 
-._breadcrumbTrail_1u7je_404 {
+._breadcrumbTrail_16dh6_404 {
   display: flex;
   align-items: center;
   gap: 0;
@@ -19179,13 +19380,13 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._breadcrumbSegment_1u7je_412 {
+._breadcrumbSegment_16dh6_412 {
   display: flex;
   align-items: center;
   white-space: nowrap;
 }
 
-._breadcrumbDivider_1u7je_418 {
+._breadcrumbDivider_16dh6_418 {
   color: var(--vscode-descriptionForeground, #717171);
   font-size: var(--inspect-font-size-smallest);
   padding: 0 2px;
@@ -19193,7 +19394,7 @@ a._citationLink_1ggvf_9:hover {
   user-select: none;
 }
 
-._breadcrumbLink_1u7je_426 {
+._breadcrumbLink_16dh6_426 {
   background: none;
   border: none;
   cursor: pointer;
@@ -19202,12 +19403,12 @@ a._citationLink_1ggvf_9:hover {
   padding: 0 2px;
 }
 
-._breadcrumbLink_1u7je_426:hover {
+._breadcrumbLink_16dh6_426:hover {
   color: var(--vscode-foreground);
   text-decoration: underline;
 }
 
-._breadcrumbCurrent_1u7je_440 {
+._breadcrumbCurrent_16dh6_440 {
   background: none;
   border: none;
   color: var(--vscode-foreground);
@@ -19218,7 +19419,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Token cell */
 
-._tokens_1u7je_451 {
+._tokens_16dh6_451 {
   padding: 0 0.75rem 0 0.5rem;
   font-size: var(--inspect-font-size-smallest);
   line-height: var(--swimlane-row-height);
@@ -19228,7 +19429,7 @@ a._citationLink_1ggvf_9:hover {
   -webkit-user-select: none;
   user-select: none;
 }
-._root_4pe3a_1 {
+._root_130zy_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -19236,28 +19437,56 @@ a._citationLink_1ggvf_9:hover {
   min-height: 0;
 }
 
-._container_4pe3a_9 {
+._container_130zy_9 {
   display: grid;
   width: 100%;
-  grid-template-columns: var(--outline-width, 180px) 1px 1fr;
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px var(
+      --right-pane-width,
+      360px
+    );
   min-height: 100vh;
 }
 
-._container_4pe3a_9 > * {
+._container_130zy_9 > * {
   min-width: 0;
+  padding-bottom: 1rem;
 }
 
-._container_4pe3a_9._outlineCollapsed_4pe3a_20 {
-  grid-template-columns: 28px 1px 1fr;
+._container_130zy_9._outlineCollapsed_130zy_24 {
+  grid-template-columns: 22px 1px 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_4pe3a_9._noOutline_4pe3a_24 {
+._container_130zy_9._noOutline_130zy_28 {
+  grid-template-columns: 1fr 1px var(--right-pane-width, 360px);
+}
+
+._container_130zy_9._rightPaneCollapsed_130zy_32 {
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px 22px;
+}
+
+._container_130zy_9._outlineCollapsed_130zy_24._rightPaneCollapsed_130zy_32 {
+  grid-template-columns: 22px 1px 1fr 1px 22px;
+}
+
+._container_130zy_9._noOutline_130zy_28._rightPaneCollapsed_130zy_32 {
+  grid-template-columns: 1fr 1px 22px;
+}
+
+._container_130zy_9._noRightPane_130zy_44 {
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr;
+}
+
+._container_130zy_9._outlineCollapsed_130zy_24._noRightPane_130zy_44 {
+  grid-template-columns: 22px 1px 1fr;
+}
+
+._container_130zy_9._noOutline_130zy_28._noRightPane_130zy_44 {
   grid-template-columns: 1fr;
 }
 
-._outline_4pe3a_20 {
-  padding-left: 0.5rem;
-  padding-top: 0.4rem;
+._outline_130zy_24 {
+  padding-left: 0.6rem;
+  padding-top: 0.2rem;
   /* Prevent stretching to the full grid-row height so that
      position:sticky has room to travel within the cell. */
   align-self: start;
@@ -19266,31 +19495,118 @@ a._citationLink_1ggvf_9:hover {
 /* Cap height to the visible area below the sticky offset and
    scroll internally when the outline is taller.
    Only when expanded — overflow clips the toggle button when collapsed. */
-._container_4pe3a_9:not(._outlineCollapsed_4pe3a_20) > ._outline_4pe3a_20 {
-  max-height: calc(100vh - var(--outline-top, 0px));
+._container_130zy_9:not(._outlineCollapsed_130zy_24) > ._outline_130zy_24 {
+  max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-._outlineToggle_4pe3a_44 {
+._outlineToggle_130zy_73 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
   position: absolute;
-  top: 0.5em;
-  right: 0.5em;
+  top: 0.2rem;
+  right: 0.2rem;
 }
 
-._outlineToggle_4pe3a_44[aria-disabled="true"] {
+._outlineToggle_130zy_73[aria-disabled="true"] {
   cursor: default;
   opacity: 0.4;
 }
 
-._separator_4pe3a_58 {
+._separator_130zy_87 {
   background-color: var(--bs-border-color);
 }
 
-._eventsList_4pe3a_62 {
+._rightSeparator_130zy_91 {
+  background-color: var(--bs-border-color);
+}
+
+._rightPane_130zy_32 {
+  padding-top: 0rem;
+  padding-right: 0.2rem;
+  align-self: start;
+}
+
+._container_130zy_9:not(._rightPaneCollapsed_130zy_32) > ._rightPane_130zy_32 {
+  padding-left: 0.2rem;
+  /* Leave room on the right for the absolutely-positioned close button. */
+  padding-right: 1.2rem;
+  max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+._rightPaneResizer_130zy_110 {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 1;
+  background-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+._rightPaneResizer_130zy_110:hover,
+._rightPaneResizer_130zy_110:active {
+  background-color: var(--bs-primary-border-subtle);
+}
+
+._rightPaneToggle_130zy_129 {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.8em;
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+}
+
+._eventsList_130zy_138 {
   padding-bottom: 1rem;
+}
+
+._sidebarHeader_130zy_142 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4em;
+  margin-bottom: 0.3rem;
+}
+
+._sidebarHeaderIcon_130zy_150 {
+  font-size: 0.9em;
+  flex-shrink: 0;
+}
+
+._sidebarHeaderTitle_130zy_155 {
+  flex: 1;
+  min-width: 0;
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  top: 1px;
+}
+
+._sidebarHeaderClose_130zy_166 {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 0 0.2em;
+  position: absolute;
+  top: 0.2rem;
+  right: 0.1rem;
+  z-index: 1;
+}
+
+._sidebarHeaderClose_130zy_166:hover {
+  opacity: 0.7;
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
@@ -19647,11 +19963,7 @@ a._citationLink_1ggvf_9:hover {
     break-inside: avoid;
   }
 }
-._tabPanel_9o62g_1 {
-  padding-bottom: 1em;
-}
-
-._tabControls_9o62g_5 {
+._tabControls_1si8b_1 {
   position: sticky;
   z-index: 1001;
   top: 0;
@@ -19660,34 +19972,34 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._fullWidth_9o62g_14 {
+._fullWidth_1si8b_10 {
   width: 100%;
 }
 
-._metadataPanel_9o62g_18 {
+._metadataPanel_1si8b_14 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._padded_9o62g_24 {
+._padded_1si8b_20 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._error_9o62g_29 {
+._error_1si8b_25 {
   padding-top: 0.5em;
 }
 
-._ansi_9o62g_33 {
+._ansi_1si8b_29 {
   margin: 1em 0;
 }
 
-._noTop_9o62g_37 {
+._noTop_1si8b_33 {
   margin-top: 0;
 }
 
-._timePanel_9o62g_41 {
+._timePanel_1si8b_37 {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-template-rows: auto;
@@ -19695,23 +20007,19 @@ a._citationLink_1ggvf_9:hover {
   min-width: 200px;
 }
 
-._chat_9o62g_49 {
+._chat_1si8b_45 {
   padding: 1em;
 }
 
-._padded_9o62g_24 {
+._padded_1si8b_20 {
   padding: 1em;
 }
 
-._transcriptContainer_9o62g_57 {
-  padding-bottom: 1em;
-}
-
-._overflowVisible_9o62g_61 {
+._overflowVisible_1si8b_53 {
   overflow-y: visible;
 }
 
-._retriedErrors_9o62g_65 {
+._retriedErrors_1si8b_57 {
   margin: 0.5rem;
   min-width: 0;
   overflow: hidden;
@@ -19864,41 +20172,43 @@ a._citationLink_1ggvf_9:hover {
 ._cancelled_hunte_15 {
   color: var(--bs-secondary);
 }
-._container_kwhbh_1 {
+._container_1rxdt_1 {
   display: grid;
   grid-template-columns:
     minmax(0, max-content) minmax(0, auto) minmax(0, max-content)
-    auto;
+    minmax(0, 1fr);
   column-gap: 0.75em;
 }
 
-._container_kwhbh_1 ._cell_kwhbh_9 {
+._container_1rxdt_1 ._cell_1rxdt_9 {
   margin-bottom: 0.5em;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
-._fullWidth_kwhbh_13 {
+._fullWidth_1rxdt_15 {
   grid-column: 1 / -1;
 }
 
-._heading_kwhbh_17 {
+._heading_1rxdt_19 {
   font-weight: 600;
 }
 
-._padded_kwhbh_21 {
+._padded_1rxdt_23 {
   padding-bottom: 3em;
 }
 
-._separator_kwhbh_25 {
+._separator_1rxdt_27 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
 
-._separatorPadded_kwhbh_30 {
+._separatorPadded_1rxdt_32 {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
-._headerSep_kwhbh_35 {
+._headerSep_1rxdt_37 {
   margin-top: 0.1em;
   margin-bottom: 0.2em;
 }
@@ -19999,6 +20309,169 @@ a._citationLink_1ggvf_9:hover {
 
 ._selected_1ml4j_40 {
   font-weight: 600;
+}
+._entry_a2fxh_1 {
+  margin-bottom: 1rem;
+}
+._container_15g5f_1 {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: 0.25rem;
+}
+
+._header_15g5f_8 {
+  margin-bottom: 0.25rem;
+}
+
+._section_15g5f_12 {
+  --vscode-sideBar-background: var(--bs-body-bg);
+  --vscode-sideBarSectionHeader-background: var(--bs-tertiary-bg);
+  --vscode-sideBarTitle-foreground: var(--bs-body-color);
+  --vscode-icon-foreground: var(--bs-body-color);
+}
+
+._section_15g5f_12::part(body) {
+  padding: 0.5rem;
+}
+
+._values_15g5f_23 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+._result_415jo_1 {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 5px;
+  padding: 8px 4px;
+  height: 1rem;
+  font-size: 0.7rem;
+}
+
+._true_415jo_11 {
+  border: solid var(--bs-success) 1px;
+  color: var(--bs-success);
+}
+
+._false_415jo_16 {
+  border: solid var(--bs-danger) 1px;
+  color: var(--bs-danger);
+}
+
+._resultContainer_415jo_21 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  column-gap: 0.2rem;
+}
+
+._targetValue_415jo_28 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none;
+  margin-left: 0.4rem;
+}
+
+._validationTable_415jo_36 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+._boolean_8citi_1 {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 5px;
+  padding: 8px;
+  margin-bottom: 1px;
+  width: 2.5rem;
+  height: 1rem;
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._true_8citi_13 {
+  background-color: var(--bs-success);
+  border: solid var(--bs-success) 1px;
+  color: var(--bs-body-bg);
+}
+
+._false_8citi_19 {
+  background-color: var(--bs-danger);
+  border: solid var(--bs-danger) 1px;
+  color: var(--bs-body-bg);
+}
+
+._valueTable_8citi_25 {
+  display: grid;
+  grid-template-columns: minmax(auto, max-content) auto;
+  column-gap: 1rem;
+  row-gap: 0rem;
+}
+
+._valueKey_8citi_32 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._inline_8citi_38 ._valueValue_8citi_38 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: end;
+}
+
+._inline_8citi_38 ._valueValue_8citi_38 p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+pre._value_8citi_25 {
+  margin: 0;
+}
+._picker_vehgx_1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+._picker_vehgx_1 > ._select_vehgx_7 {
+  /* Fit content rather than filling the flex container. */
+  width: auto;
+  min-width: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  /* Bootstrap's default 2.25rem leaves a lot of dead space after the chevron;
+     tighten it and pull the chevron background closer to the edge. */
+  padding-right: 1.5rem;
+  background-position:
+    right 0.3rem center,
+    center right 0.3rem;
+}
+._sidebar_ei072_1 {
+  /* Escape the .rightPane scroll-container's horizontal padding so collapsible
+     section bands reach both edges. The sticky header opts out (see below) so
+     the absolutely-positioned close button (right) and resizer (left) remain
+     clickable. */
+  margin-left: -0.2rem;
+  margin-right: -1.2rem;
+}
+
+._header_ei072_10 {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--bs-body-bg);
+  margin-right: 1.2rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.3rem;
+}
+
+._singleScanner_ei072_19 {
+  color: var(--bs-secondary);
 }
 ._detail_14cqz_1 {
   display: grid;
@@ -20540,7 +21013,7 @@ a._citationLink_1ggvf_9:hover {
 ._label_12472_14 {
   margin-left: 0.4em;
 }
-._modal_o64lp_1 {
+._modal_1tj8p_1 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -20553,21 +21026,21 @@ a._citationLink_1ggvf_9:hover {
   z-index: 1050;
 }
 
-._header_o64lp_14 {
+._header_1tj8p_14 {
   height: 2em;
 }
 
-._modalTitle_o64lp_18 {
+._modalTitle_1tj8p_18 {
   font-weight: 600;
 }
 
-._btnClose_o64lp_22 {
+._btnClose_1tj8p_22 {
   height: 0.8em;
   width: 0.8em;
 }
 
 /* Backdrop styling for the glass effect */
-._backdrop_o64lp_28 {
+._backdrop_1tj8p_28 {
   position: fixed;
   top: 0;
   left: 0;
@@ -20579,22 +21052,26 @@ a._citationLink_1ggvf_9:hover {
   z-index: 1040;
 }
 
-._overflowVisible_o64lp_40 {
+._overflowVisible_1tj8p_40 {
   overflow: visible;
 }
 
-._overflowHidden_o64lp_44 {
+._overflowHidden_1tj8p_44 {
   overflow: hidden;
 }
 
-._overflowScroll_o64lp_48 {
+._overflowScroll_1tj8p_48 {
   overflow: scroll;
 }
 
-._overflowAuto_o64lp_52 {
+._overflowAuto_1tj8p_52 {
   overflow: auto;
 }
-._simpleMetricsRows_1itqo_1 {
+
+._noPadding_1tj8p_56 {
+  padding: 0;
+}
+._simpleMetricsRows_13tuz_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -20605,7 +21082,7 @@ a._citationLink_1ggvf_9:hover {
   overflow: scroll;
 }
 
-._multiMetricsRows_1itqo_12 {
+._multiMetricsRows_13tuz_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -20619,14 +21096,14 @@ a._citationLink_1ggvf_9:hover {
   align-items: baseline;
 }
 
-._verticalMetricReducer_1itqo_26 {
+._verticalMetricReducer_13tuz_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_1itqo_33 {
+._verticalMetricName_13tuz_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -20634,35 +21111,35 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_1itqo_41 {
+._verticalMetricValue_13tuz_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_1itqo_46 {
+._multiScorer_13tuz_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_1itqo_53 {
+._multiScorerIndent_13tuz_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_1itqo_57 {
+._multiScorerReducer_13tuz_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_1itqo_63 {
+._multiScorerLabel_13tuz_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_1itqo_69 {
+._multiScorerValue_13tuz_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -20671,12 +21148,12 @@ a._citationLink_1ggvf_9:hover {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_1itqo_78 {
+._multiScorerValueContent_13tuz_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_1itqo_83 {
+._multiScoreMetricGrid_13tuz_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -20684,21 +21161,54 @@ a._citationLink_1ggvf_9:hover {
   justify-content: center;
 }
 
-._moreButton_1itqo_91 {
+._moreButton_13tuz_91 {
   margin-top: 0.25em;
   padding-right: 0;
   padding-bottom: 0;
 }
 
-._metricsSummary_1itqo_97 {
+._metricsSummary_13tuz_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   margin-bottom: 0.35em;
 }
 
-._modalScores_1itqo_104 {
-  padding-bottom: 4em;
+._scoringDetailModal_13tuz_104 .modal-dialog {
+  max-width: min(1000px, 90vw);
+}
+
+/* Let the dialog shrink to the grid's natural width instead of always
+   stretching to the max-width. The grid container sizes itself from the
+   sum of column widths; modal-content honours that. */
+._scoringDetailModal_13tuz_104 .modal-content {
+  width: fit-content;
+  max-width: 100%;
+}
+._gridContainer_2wkq3_1 {
+  max-width: 100%;
+  max-height: 60vh;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Breathing room at the edges so values don't sit flush with the modal border
+   (and so the last column doesn't get overlapped by the vertical scroll bar).
+   The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
+   is needed to win against ag-grid's built-in theme padding. */
+.ag-cell._firstCell_2wkq3_12,
+.ag-header-cell._firstHeader_2wkq3_13 {
+  padding-left: 1rem;
+}
+
+.ag-cell._lastCell_2wkq3_17,
+.ag-header-cell._lastHeader_2wkq3_18 {
+  padding-right: 0.5rem;
+}
+._unscoredSamples_1h85z_1 {
+  margin-left: 0.2rem;
+  margin-right: 0.2rem;
+  cursor: pointer;
 }
 ._table_12koy_1 {
   margin-bottom: 0;
@@ -20749,11 +21259,6 @@ thead th {
 ._tableSeparator_12koy_45 td,
 ._tableSeparator_12koy_45 th {
   border: none !important;
-}
-._unscoredSamples_1h85z_1 {
-  margin-left: 0.2rem;
-  margin-right: 0.2rem;
-  cursor: pointer;
 }
 ._statusContainer_1sckj_1 {
   display: inline-block;

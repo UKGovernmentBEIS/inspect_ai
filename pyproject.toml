@@ -167,10 +167,10 @@ inspect = "inspect_ai._cli.main:main"
 [project.optional-dependencies]
 dev = [
   "adlfs>=2025.8.0",
-  "anthropic>=0.80.0",
+  "anthropic>=0.96.0",
   "azure-identity",
   "azure-ai-inference",
-  "fastapi",
+  "fastapi>=0.119.0",
   "google-genai>=1.69.0",
   "griffe>=2",
   "groq>=0.28.0",
@@ -181,7 +181,7 @@ dev = [
   "markdown",
   "mcp>=1.10.0",
   "mistralai>=2.0.0",
-  "moto[server]",
+  "moto[server]>=5.1.5",
   "mypy>=1.17.0",
   "nbformat",
   "openai>=2.26.0",

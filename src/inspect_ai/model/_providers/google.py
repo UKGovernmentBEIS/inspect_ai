@@ -779,7 +779,7 @@ class GoogleGenAIAPI(ModelAPI):
                         thinking_level = (
                             ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
                         )
-                    case "high" | "xhigh":
+                    case "high" | "xhigh" | "max":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
                         thinking_level = None  # can't happen, keep mypy happy
@@ -1589,10 +1589,18 @@ def usage_metadata_to_model_usage(
 ) -> ModelUsage | None:
     if metadata is None:
         return None
+    # Gemini reports `prompt_token_count` as the full prompt size including
+    # any cached portion. To match the convention used by the OpenAI and
+    # Anthropic providers — where `input_tokens` is fresh (uncached) input
+    # and `input_tokens_cache_read` is the cache hit — subtract out the
+    # cached count from `input_tokens` and surface it separately.
+    cached = metadata.cached_content_token_count or 0
+    prompt = metadata.prompt_token_count or 0
     return ModelUsage(
-        input_tokens=metadata.prompt_token_count or 0,
+        input_tokens=max(prompt - cached, 0),
         output_tokens=metadata.candidates_token_count or 0,
         total_tokens=metadata.total_token_count or 0,
+        input_tokens_cache_read=cached or None,
         reasoning_tokens=metadata.thoughts_token_count or 0,
     )
 

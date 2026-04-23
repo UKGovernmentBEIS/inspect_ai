@@ -835,3 +835,156 @@ class TestStreamingMetadataTracking:
 
         assert model_output.completion == "World"
         assert model_output.stop_reason == "max_tokens"
+
+
+# -- InferenceComponentName tests --------------------------------------------
+
+
+class TestInferenceComponentName:
+    def test_default_none(self):
+        api = _make_api()
+        assert api.inference_component_name is None
+
+    def test_set_from_model_args(self):
+        api = _make_api(inference_component_name="my-ic")
+        assert api.inference_component_name == "my-ic"
+
+    @pytest.mark.anyio
+    async def test_non_streaming_passes_inference_component_name(self):
+        api = _make_api(inference_component_name="my-ic")
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        assert call_args.kwargs["InferenceComponentName"] == "my-ic"
+
+    @pytest.mark.anyio
+    async def test_non_streaming_omits_when_none(self):
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        assert "InferenceComponentName" not in call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_streaming_passes_inference_component_name(self):
+        api = _make_api(stream=True, inference_component_name="my-ic")
+
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [
+                    {"index": 0, "delta": {"content": "Hi"}, "finish_reason": "stop"}
+                ],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 1,
+                    "total_tokens": 6,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint_with_response_stream.call_args
+        assert call_args.kwargs["InferenceComponentName"] == "my-ic"
+
+    @pytest.mark.anyio
+    async def test_streaming_omits_when_none(self):
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [
+                    {"index": 0, "delta": {"content": "Hi"}, "finish_reason": "stop"}
+                ],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 1,
+                    "total_tokens": 6,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint_with_response_stream.call_args
+        assert "InferenceComponentName" not in call_args.kwargs

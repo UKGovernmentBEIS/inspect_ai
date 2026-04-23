@@ -1,5 +1,52 @@
 ## Unreleased
 
+- Log recovery: Stream segment-at-a-time to bound memory on large evals.
+
+## 0.3.211 (23 April 2026)
+
+- OpenAI: Gracefully catch when response.tools is null and normalize it to []
+- Model API: Log the first 5 API calls per-model by default. 
+- Avoid deep copy of messages when applying custom tool model input handler.
+- Inspect View: Metadata with more than 5 children will be collapsed by default (for real).
+- Inspect View: Improve column selection with fine-grained metrics selection in Folder and Tasks view.
+- Inspect View: Minor UX improvements.
+
+## 0.3.210 (22 April 2026)
+
+- Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.
+- Anthropic: Retry Anthropic 400 errors caused by truncated JSON request bodies.
+- SageMaker: Add `inference_component_name` model argument for routing requests to specific inference components on multi-model endpoints.
+- Computer Use: Map `PRINTSCREEN` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRINTSCREEN` work correctly.
+- Inspect View: Metadata with more than 5 children will be collapsed by default.
+- Bugfix: Fix race condition in `eval_set` with `retry_immediate=True` that could cause `ClosedResourceError` when a task entered the retry path while other workers were completing concurrently.
+- Bugfix: Fix regression in realtime event stream introduced by message condensing.
+
+## 0.3.209 (20 April 2026)
+
+- Capture compaction strategy params in eval log.
+- Inspect View: Display results of Scout scanners used as scorers next to transcripts.
+- Inspect View: New columns in task and log view: tags, % completed, sample errors, and error.
+- Inspect View: Fix regression in messages view which causes excessive whitespace between messages.
+- Inspect View: Fix error when attempting to collapse all or expand all events in transcripts.
+- Inspect View: Improvements to expand / collapse behavior in transcripts.
+- Inspect View: Don't show empty entries in messages view when a message is retried.
+
+## 0.3.208 (19 April 2026)
+
+- Google: Correct counting for cached input tokens. 
+- Model API: Log model retries at WARNING when backoff >= 60s.
+- Model API: Enrich retry log messages with task/sample/model context and error summary.
+- Text Editor: Return `OSError` from path validation (e.g. `ENAMETOOLONG`) to the model as a tool error instead of crashing the eval.
+- Task Display: Add cancel button to cancel individual tasks during parallel execution.
+
+## 0.3.207 (16 April 2026)
+
+- Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.
+- Anthropic: Support for new `xhigh` value for `effort`.                     
+- Anthropic: Support for `max` value for `reasoning_effort`.   
+
+## 0.3.206 (15 April 2026)
+
 - Eval Set: Display explicit `--id` in task panel headers when provided.
 - Eval Set: Add `--retry-immediate` option to retry failed tasks immediately without waiting for all tasks to complete, reusing completed samples from the failed run.
 - Eval Logs: Add `header_only` parameter to `write_eval_log()` for writing only the header to `.eval` files without rewriting samples.

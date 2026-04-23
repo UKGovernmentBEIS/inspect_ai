@@ -43,6 +43,7 @@ NO_CONTENT = "(no content)"
 MODEL_NONE = "none/none"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_CACHE_DAYS = 7
+DEFAULT_LOG_MODEL_API_CALLS = 5
 
 DESERIALIZING = "deserializing"
 MESSAGE_CACHE = "message_cache"

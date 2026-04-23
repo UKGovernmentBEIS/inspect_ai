@@ -107,6 +107,9 @@ class SagemakerAPI(ModelAPI):
             else str(completion_mode_val).lower() == "true"
         )
 
+        # Inference component name for multi-model endpoints
+        self.inference_component_name = model_args.get("inference_component_name")
+
         # prompt_logprobs for CPT models (vLLM-specific, not part of standard GenerateConfig)
         prompt_logprobs_val = model_args.get("prompt_logprobs")
         try:
@@ -424,15 +427,24 @@ class SagemakerAPI(ModelAPI):
         else:  # "auto" or any other value defaults to auto
             request_body["tool_choice"] = "auto"
 
+    def _build_invoke_kwargs(self, request_body: dict[str, Any]) -> dict[str, Any]:
+        """Build common kwargs for SageMaker endpoint invocation."""
+        kwargs: dict[str, Any] = {
+            "EndpointName": self.endpoint_name,
+            "ContentType": self.request_content_type,
+            "Accept": self.request_accept_type,
+            "Body": json.dumps(request_body),
+        }
+        if self.inference_component_name:
+            kwargs["InferenceComponentName"] = self.inference_component_name
+        return kwargs
+
     async def _invoke_endpoint(
         self, client: Any, request_body: dict[str, Any]
     ) -> bytes:
         """Invoke SageMaker endpoint and return response body bytes."""
         response = await client.invoke_endpoint(
-            EndpointName=self.endpoint_name,
-            ContentType=self.request_content_type,
-            Accept=self.request_accept_type,
-            Body=json.dumps(request_body),
+            **self._build_invoke_kwargs(request_body)
         )
         body: bytes = await response["Body"].read()
         return body
@@ -445,10 +457,7 @@ class SagemakerAPI(ModelAPI):
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint_with_response_stream.html
         """
         response = await client.invoke_endpoint_with_response_stream(
-            EndpointName=self.endpoint_name,
-            ContentType=self.request_content_type,
-            Accept=self.request_accept_type,
-            Body=json.dumps(request_body),
+            **self._build_invoke_kwargs(request_body)
         )
 
         # Process streaming response

@@ -25,7 +25,7 @@ GPT_4O = "openai/gpt-4o"
 GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
 CLAUDE_4_6_SONNET = "anthropic/claude-sonnet-4-6"
 CLAUDE_4_6_OPUS = "anthropic/claude-opus-4-6"
-GEMINI_2_0_FLASH = "google/gemini-2.0-flash"
+GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_3_MINI = "grok/grok-3-mini"
 GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
@@ -38,7 +38,7 @@ MODELS = {
     GPT_4O_MINI_AZURE: 128000,
     CLAUDE_4_6_SONNET: 1000000,
     CLAUDE_4_6_OPUS: 1000000,
-    GEMINI_2_0_FLASH: 1000000,
+    GEMINI_3_FLASH_PREVIEW: 1048576,
     MISTRAL_LARGE_2411: 131000,
     GROK_3_MINI: 131072,
     GROQ_LLAMA_3_3_70B_VERSATILE: 128000,
@@ -101,7 +101,7 @@ async def test_model_length_anthropic():
 # TODO: Anthropic Bedrock
 @skip_if_no_google
 async def test_model_length_google():
-    await check_model_length(GEMINI_2_0_FLASH)
+    await check_model_length(GEMINI_3_FLASH_PREVIEW)
 
 
 @skip_if_no_mistral
