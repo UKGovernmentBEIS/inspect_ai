@@ -65,7 +65,7 @@ def _fix_function_tool_parameters(response: Response) -> None:
     """
     from openai.types.responses import FunctionTool
 
-    for tool in response.tools:
+    for tool in response.tools if response.tools is not None else []:
         if isinstance(tool, FunctionTool) and isinstance(tool.parameters, str):
             try:
                 tool.parameters = json.loads(tool.parameters)
