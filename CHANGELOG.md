@@ -1,3 +1,7 @@
+## Unreleased
+
+- Log recovery: stream segment-at-a-time to bound memory on large evals.
+
 ## 0.3.211 (23 April 2026)
 
 - OpenAI: Gracefully catch when response.tools is null and normalize it to []
