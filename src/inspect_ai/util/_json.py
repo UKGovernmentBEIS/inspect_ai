@@ -20,11 +20,19 @@ from typing import (
     get_type_hints,
 )
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field, create_model, model_validator
 from typing_extensions import is_typeddict
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
+
+
+def _normalize_json_schema_type(v: Any) -> Any:
+    if isinstance(v, str):
+        return v.lower()
+    if isinstance(v, list):
+        return [x.lower() if isinstance(x, str) else x for x in v]
+    return v
 
 
 class JSONSchema(BaseModel):
@@ -32,6 +40,18 @@ class JSONSchema(BaseModel):
 
     type: JSONType | list[JSONType] | None = Field(default=None)
     """JSON type of tool parameter."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_types(cls, data: Any) -> Any:
+        """Lowercase ``type`` strings before Literal validation.
+
+        Some providers (notably Google Gemini) return uppercase type names
+        (``"OBJECT"``, ``"STRING"``) per Google's Schema proto convention.
+        """
+        if isinstance(data, dict) and "type" in data:
+            data = {**data, "type": _normalize_json_schema_type(data["type"])}
+        return data
 
     format: str | None = Field(default=None)
     """Format of the parameter (e.g. date-time)."""

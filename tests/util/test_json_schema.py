@@ -524,6 +524,43 @@ def test_dict_type_without_properties():
     assert instance.config["key2"] == 42
 
 
+# -- case-insensitive type normalization tests --------------------------------
+
+
+def test_uppercase_type_normalized():
+    """Gemini returns uppercase type names; JSONSchema should accept them."""
+    schema = JSONSchema(type="STRING")
+    assert schema.type == "string"
+
+
+def test_uppercase_type_list_normalized():
+    """Uppercase types in a list should be lowercased."""
+    schema = JSONSchema(type=["STRING", "NULL"])
+    assert schema.type == ["string", "null"]
+
+
+def test_uppercase_nested_properties():
+    """Uppercase types in nested properties should be normalized recursively."""
+    schema = JSONSchema(
+        type="OBJECT",
+        properties={
+            "path": JSONSchema(type="STRING", description="file path"),
+            "count": JSONSchema(type="INTEGER"),
+        },
+        required=["path"],
+    )
+    assert schema.type == "object"
+    assert schema.properties is not None
+    assert schema.properties["path"].type == "string"
+    assert schema.properties["count"].type == "integer"
+
+
+def test_uppercase_tool_params():
+    """ToolParams should accept uppercase 'OBJECT' type."""
+    params = ToolParams(type="OBJECT")
+    assert params.type == "object"
+
+
 # -- json_schema_dump tests ---------------------------------------------------
 
 

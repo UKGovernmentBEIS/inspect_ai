@@ -1,10 +1,11 @@
 from typing import (
+    Any,
     Literal,
     Optional,
     TypeAlias,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai.util._json import JSONSchema
 
@@ -17,6 +18,15 @@ class ToolParams(BaseModel):
 
     type: Literal["object"] = Field(default="object")
     """Params type (always 'object')"""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_types(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "type" in data:
+            v = data["type"]
+            if isinstance(v, str):
+                data = {**data, "type": v.lower()}
+        return data
 
     properties: dict[str, ToolParam] = Field(default_factory=dict)
     """Tool function parameters."""
