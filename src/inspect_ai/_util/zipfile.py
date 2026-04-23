@@ -25,8 +25,12 @@ logger = logging.getLogger(__name__)
 if sys.version_info < (3, 14):
     import zipfile_zstd  # type: ignore[import-not-found, import-untyped]  # noqa: F401
 
+# Resolve once so the rest of the module can use a plain int; also fails loudly
+# at import time rather than at first call if the attribute is ever missing.
+_ZIP_ZSTANDARD: int = zipfile.ZIP_ZSTANDARD  # type: ignore[attr-defined]
+
 zipfile_compress_kwargs: dict[str, Any] = {
-    "compression": zipfile.ZIP_ZSTANDARD,  # type: ignore[attr-defined]
+    "compression": _ZIP_ZSTANDARD,
     "compresslevel": None,
 }
 
@@ -34,6 +38,11 @@ zipfile_compress_kwargs: dict[str, Any] = {
 # 200 MiB. Well under fzstd's 256 MiB (2^28) compressed-frame overflow
 # threshold, applied to *input* bytes which compress smaller.
 _MAX_INPUT_PER_FRAME = 200 * 1024 * 1024
+
+# Matches zipfile_zstd's hardcoded default so multi-frame and single-frame zip
+# writes use the same thread count. If zipfile_zstd ever changes its default,
+# update here too.
+_ZSTD_THREADS = 12
 
 
 class _MultiFrameZstdCompressObj:
@@ -69,6 +78,11 @@ class _MultiFrameZstdCompressObj:
         return b"".join(pieces)
 
     def flush(self) -> bytes:
+        # If the last ``compress()`` call landed exactly on the frame boundary,
+        # ``self._obj`` was replaced with a fresh compressobj that has received
+        # no bytes. Flushing it would append an empty 9-byte trailing frame.
+        if self._input_bytes == 0:
+            return b""
         return self._obj.flush()
 
 
@@ -138,21 +152,20 @@ def _install_multiframe_patches() -> None:
     original_decompressor = zipfile._get_decompressor  # type: ignore[attr-defined]
 
     def patched_compressor(compress_type: int, compresslevel: int | None = None) -> Any:
-        if compress_type == zipfile.ZIP_ZSTANDARD:  # type: ignore[attr-defined]
+        if compress_type == _ZIP_ZSTANDARD:
             # Share one ``ZstdCompressor`` across all frames of the entry.
             # Delegating to ``original_compressor`` would instead create a
-            # fresh ``ZstdCompressor(threads=12)`` per frame, re-initialising
-            # its thread pool every 200 MiB. Matches zipfile_zstd's defaults
-            # (level=3, threads=12).
+            # fresh ``ZstdCompressor(threads=N)`` per frame, re-initialising
+            # its thread pool every 200 MiB.
             import zstandard
 
             level = 3 if compresslevel is None else compresslevel
-            compressor = zstandard.ZstdCompressor(level=level, threads=12)
+            compressor = zstandard.ZstdCompressor(level=level, threads=_ZSTD_THREADS)
             return _MultiFrameZstdCompressObj(compressor.compressobj)
         return original_compressor(compress_type, compresslevel)
 
     def patched_decompressor(compress_type: int) -> Any:
-        if compress_type == zipfile.ZIP_ZSTANDARD:  # type: ignore[attr-defined]
+        if compress_type == _ZIP_ZSTANDARD:
             return _MultiFrameZstdDecompressObj()
         return original_decompressor(compress_type)
 
