@@ -3,11 +3,13 @@
 from datetime import datetime, timezone
 
 from inspect_ai.event._compaction import CompactionEvent
+from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._step import StepEvent
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import AttachmentData, EventData, SampleData
 from inspect_ai.log._recover import reconstruct_eval_sample
+from inspect_ai.log._recover._reconstruct import MessageAccumulator
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -391,3 +393,85 @@ def test_reconstruct_multi_epoch() -> None:
     assert sample.id == 1
     assert sample.epoch == 3
     assert sample.scores is not None
+
+
+def test_message_accumulator_single_batch() -> None:
+    """MessageAccumulator produces same result as _extract_messages_from_events."""
+    user_msg = ChatMessageUser(content="Hello")
+    event1 = _make_model_event([user_msg], "Hi!")
+    assistant1 = ChatMessageAssistant(content="Hi!")
+    user2 = ChatMessageUser(content="What is 2+2?")
+    event2 = _make_model_event([user_msg, assistant1, user2], "4")
+
+    events: list[Event] = [event1, event2]
+
+    acc = MessageAccumulator()
+    acc.process_events(events)
+    messages, output = acc.result()
+
+    assert len(messages) == 4
+    assert messages[0].text == "Hello"
+    assert messages[-1].text == "4"
+    assert output.choices[0].message.content == "4"
+
+
+def test_message_accumulator_chunked() -> None:
+    """Chunked feeding produces same result as single batch."""
+    user_msg = ChatMessageUser(content="Hello")
+    event1 = _make_model_event([user_msg], "Hi!")
+    assistant1 = ChatMessageAssistant(content="Hi!")
+    user2 = ChatMessageUser(content="What is 2+2?")
+    event2 = _make_model_event([user_msg, assistant1, user2], "4")
+
+    acc = MessageAccumulator()
+    acc.process_events([event1])
+    acc.process_events([event2])
+    messages, output = acc.result()
+
+    assert len(messages) == 4
+    assert messages[0].text == "Hello"
+    assert messages[-1].text == "4"
+    assert output.choices[0].message.content == "4"
+
+
+def test_message_accumulator_bounded_state_across_many_events() -> None:
+    """Accumulator state must not grow with the number of ModelEvents.
+
+    Regression test for a prior bug where every ModelEvent was retained
+    in an internal list (even though only the most recent one was ever
+    read), causing O(N) memory growth on samples with no compaction
+    events. The fix was to keep only the last ModelEvent.
+    """
+    user_msg = ChatMessageUser(content="q")
+
+    acc = MessageAccumulator()
+    for i in range(1000):
+        acc.process_events([_make_model_event([user_msg], f"r{i}")])
+
+    messages, output = acc.result()
+    assert output.choices[0].message.content == "r999"
+    assert len(messages) == 2
+
+
+def test_message_accumulator_compaction_across_chunks() -> None:
+    """Compaction boundary split across chunks works correctly."""
+    user1 = ChatMessageUser(content="Hello")
+    event1 = _make_model_event([user1], "Hi there!")
+    assistant1 = ChatMessageAssistant(content="Hi there!")
+    user2 = ChatMessageUser(content="What is 2+2?")
+    event2 = _make_model_event([user1, assistant1, user2], "4")
+    compaction = CompactionEvent(type="summary")
+    summary_msg = ChatMessageUser(content="[Summary]")
+    user3 = ChatMessageUser(content="And 3+3?")
+    event3 = _make_model_event([summary_msg, user3], "6")
+
+    acc = MessageAccumulator()
+    acc.process_events([event1, event2])
+    acc.process_events([compaction, event3])
+    messages, output = acc.result()
+
+    assert len(messages) == 7
+    assert messages[0].text == "Hello"
+    assert messages[4].text == "[Summary]"
+    assert messages[6].text == "6"
+    assert output.choices[0].message.content == "6"

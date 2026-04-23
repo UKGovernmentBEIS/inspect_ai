@@ -9,12 +9,17 @@ from typing import Iterator
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import dirname, filesystem
 from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log_async
-from inspect_ai.log._log import EvalLog, EvalSample
+from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
+from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 
 from ._buffer import read_buffer_recovery_data
 from ._read import read_crashed_eval_log
 from ._reconstruct import reconstruct_eval_sample
-from ._write import default_output_path, write_recovered_eval_log
+from ._write import (
+    RecoveryStats,
+    default_output_path,
+    write_recovered_eval_log,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +52,17 @@ class RecoverableEvalLog:
     total_samples: int
     """Total expected samples (dataset samples * epochs)."""
 
+    source: str = "database"
+    """Recovery data source: "database" or "filestore"."""
+
 
 def recover_eval_log(
     log: str,
     output: str | None = None,
     overwrite: bool = False,
     cleanup: bool = True,
+    no_events: bool = False,
+    _stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Recover a crashed eval log.
 
@@ -65,12 +75,20 @@ def recover_eval_log(
         overwrite: Write the recovered log to the same path as the input,
             replacing the crashed log in-place.
         cleanup: Remove the buffer DB after recovery.
+        no_events: Exclude event transcript from recovered samples.
 
     Returns:
         The recovered EvalLog.
     """
     return run_coroutine(
-        recover_eval_log_async(log, output=output, overwrite=overwrite, cleanup=cleanup)
+        recover_eval_log_async(
+            log,
+            output=output,
+            overwrite=overwrite,
+            cleanup=cleanup,
+            no_events=no_events,
+            _stats=_stats,
+        )
     )
 
 
@@ -80,6 +98,8 @@ async def recover_eval_log_async(
     overwrite: bool = False,
     cleanup: bool = True,
     _db_dir: str | Path | None = None,
+    no_events: bool = False,
+    _stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Async implementation of recover_eval_log."""
     # Step 1: Read the crashed .eval file metadata
@@ -127,36 +147,56 @@ async def recover_eval_log_async(
     # Derive flushed sample keys for deduplication against buffer DB
     flushed_keys = set(crashed.sample_entries)
 
-    # Step 3: Create a lazy generator for buffer DB samples
+    # Step 3: Determine recovery path and write
+    buffer = recovery_data.buffer if recovery_data else None
+    streaming_buffer: SampleBufferFilestore | None = None
+    streaming_summaries: list[tuple[EvalSampleSummary, bool]] | None = None
+
+    if isinstance(buffer, SampleBufferFilestore):
+        # Streaming path: pass buffer handle to writer for segment-at-a-time
+        streaming_buffer = buffer
+        streaming_summaries = [
+            (summary, False) for summary in recovery_data.completed
+        ] + [(summary, True) for summary in recovery_data.in_progress]
+
+    # Lazy generator for non-filestore (database) buffers
     def _buffer_samples() -> Iterator[EvalSample]:
-        if recovery_data is None or recovery_data.buffer is None:
+        if buffer is None or isinstance(buffer, SampleBufferFilestore):
             return
 
-        for summary in recovery_data.completed:
-            entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
-            if entry in flushed_keys:
-                continue
-            sample_data = recovery_data.buffer.get_sample_data(
-                summary.id, summary.epoch
-            )
-            if sample_data is not None:
-                yield reconstruct_eval_sample(summary, sample_data)
+        all_summaries = [
+            (summary, False)
+            for summary in recovery_data.completed  # type: ignore[union-attr]
+        ] + [
+            (summary, True)
+            for summary in recovery_data.in_progress  # type: ignore[union-attr]
+        ]
 
-        for summary in recovery_data.in_progress:
+        for summary, is_in_progress in all_summaries:
             entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
             if entry in flushed_keys:
                 continue
-            sample_data = recovery_data.buffer.get_sample_data(
-                summary.id, summary.epoch
-            )
+
+            sample_data = buffer.get_sample_data(summary.id, summary.epoch)
+
             if sample_data is not None:
-                yield reconstruct_eval_sample(summary, sample_data, cancelled=True)
+                yield reconstruct_eval_sample(
+                    summary,
+                    sample_data,
+                    cancelled=is_in_progress,
+                    include_events=not no_events,
+                )
 
     # Step 4: Stream all samples into the recovered file.
-    # write_recovered_eval_log handles flushed sample reading internally
-    # (async via AsyncZipReader) and consumes buffer_samples lazily.
     recovered_log = await write_recovered_eval_log(
-        crashed, _buffer_samples(), write_output
+        crashed,
+        _buffer_samples(),
+        write_output,
+        streaming_buffer=streaming_buffer,
+        streaming_summaries=streaming_summaries,
+        flushed_keys=flushed_keys,
+        no_events=no_events,
+        stats=_stats,
     )
 
     # For overwrite mode, move the temp file over the original and
@@ -240,6 +280,7 @@ async def _recoverable_eval_logs_async(
                 completed_samples=completed,
                 in_progress_samples=in_progress,
                 total_samples=total,
+                source=recovery_data.source,
             )
         )
 
