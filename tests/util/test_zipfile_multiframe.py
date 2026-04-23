@@ -101,3 +101,16 @@ def test_large_entry_emits_multiple_capped_frames(
         assert size <= MAX_INPUT_PER_FRAME, (
             f"frame {i} decompressed to {size} bytes, exceeds cap {MAX_INPUT_PER_FRAME}"
         )
+
+
+def test_small_entry_emits_single_frame(tmp_path: Path) -> None:
+    """A 1 MiB entry should still be exactly one zstd frame."""
+    zip_path = tmp_path / "small.zip"
+    payload = _moderately_compressible_payload(1 * 1024 * 1024)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_ZSTANDARD) as zf:
+        zf.writestr("small.json", payload)
+
+    raw = _read_raw_compressed_entry(zip_path, "small.json")
+    assert raw.count(ZSTD_MAGIC) == 1, (
+        f"expected exactly 1 frame for small entry, got {raw.count(ZSTD_MAGIC)}"
+    )
