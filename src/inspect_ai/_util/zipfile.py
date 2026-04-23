@@ -70,29 +70,90 @@ class _MultiFrameZstdCompressObj:
         return self._obj.flush()
 
 
-def _install_multiframe_compressor() -> None:
-    """Install the multi-frame zstd wrapper on ``zipfile._get_compressor``.
+class _MultiFrameZstdDecompressObj:
+    """A zstd decompressobj that transparently spans multiple frames.
 
-    Idempotent. Delegates to whatever ``_get_compressor`` was installed before
-    us (stdlib on Py >= 3.14; ``zipfile_zstd``'s patched version on Py < 3.14),
-    so compression level and thread count are preserved.
+    ``zstandard.ZstdDecompressor().decompressobj()`` stops at the first frame
+    boundary and marks ``eof=True``.  When the compressor splits large entries
+    into multiple frames (see ``_MultiFrameZstdCompressObj``), the reader must
+    recognise the frame boundary, start a fresh inner decompressobj, and
+    continue until all compressed bytes have been consumed.
+
+    The stdlib ``zipfile._read1`` path for non-deflate compression does:
+
+        data = self._decompressor.decompress(data)
+        self._eof = self._decompressor.eof or self._compress_left <= 0
+
+    We return ``eof=False`` always so that ``self._eof`` is driven purely by
+    ``self._compress_left <= 0`` (all compressed bytes fed).  Meanwhile,
+    ``decompress`` buffers leftover bytes from a completed frame and feeds them
+    into the next inner decompressobj.
+    """
+
+    def __init__(self) -> None:
+        import zstandard  # local import — already a hard dep via zipfile_zstd
+
+        self._dctx = zstandard.ZstdDecompressor()
+        self._obj = self._dctx.decompressobj()
+        self._pending: bytes = b""
+
+    def decompress(self, data: bytes) -> bytes:
+        self._pending += data
+        out = b""
+        while self._pending:
+            result = self._obj.decompress(self._pending)
+            out += result
+            if self._obj.eof:
+                # Inner frame complete; unused_data holds the start of the next.
+                self._pending = self._obj.unused_data
+                self._obj = self._dctx.decompressobj()
+            else:
+                # All pending input consumed; wait for more.
+                self._pending = b""
+                break
+        return out
+
+    def flush(self) -> bytes:
+        return b""
+
+    @property
+    def eof(self) -> bool:
+        # Always False: let compress_left drive the outer EOF check.
+        return False
+
+
+def _install_multiframe_patches() -> None:
+    """Install multi-frame zstd compressor and decompressor patches.
+
+    Idempotent. Wraps whatever ``_get_compressor`` / ``_get_decompressor`` were
+    installed before us (stdlib on Py >= 3.14; ``zipfile_zstd``'s versions on
+    Py < 3.14), so compression level and thread count are preserved.
     """
     if getattr(zipfile, "_inspect_ai_multiframe_installed", False):
         return
 
-    original = zipfile._get_compressor  # type: ignore[attr-defined]
+    original_compressor = zipfile._get_compressor  # type: ignore[attr-defined]
+    original_decompressor = zipfile._get_decompressor  # type: ignore[attr-defined]
 
-    def patched(compress_type: int, compresslevel: int | None = None) -> Any:
+    def patched_compressor(compress_type: int, compresslevel: int | None = None) -> Any:
         if compress_type == zipfile.ZIP_ZSTANDARD:  # type: ignore[attr-defined]
-            factory = functools.partial(original, compress_type, compresslevel)
+            factory = functools.partial(
+                original_compressor, compress_type, compresslevel
+            )
             return _MultiFrameZstdCompressObj(factory)
-        return original(compress_type, compresslevel)
+        return original_compressor(compress_type, compresslevel)
 
-    zipfile._get_compressor = patched  # type: ignore[attr-defined]
+    def patched_decompressor(compress_type: int) -> Any:
+        if compress_type == zipfile.ZIP_ZSTANDARD:  # type: ignore[attr-defined]
+            return _MultiFrameZstdDecompressObj()
+        return original_decompressor(compress_type)
+
+    zipfile._get_compressor = patched_compressor  # type: ignore[attr-defined]
+    zipfile._get_decompressor = patched_decompressor  # type: ignore[attr-defined]
     zipfile._inspect_ai_multiframe_installed = True  # type: ignore[attr-defined]
 
 
-_install_multiframe_compressor()
+_install_multiframe_patches()
 
 
 __all__ = ["zipfile_compress_kwargs"]

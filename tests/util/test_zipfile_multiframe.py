@@ -114,3 +114,17 @@ def test_small_entry_emits_single_frame(tmp_path: Path) -> None:
     assert raw.count(ZSTD_MAGIC) == 1, (
         f"expected exactly 1 frame for small entry, got {raw.count(ZSTD_MAGIC)}"
     )
+
+
+def test_large_entry_round_trip(tmp_path: Path, large_payload: bytes) -> None:
+    """Writing and reading back a multi-frame entry must preserve bytes exactly."""
+    zip_path = tmp_path / "rt.zip"
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_ZSTANDARD) as zf:
+        zf.writestr("big.json", large_payload)
+
+    with zipfile.ZipFile(zip_path) as zf:
+        got = zf.read("big.json")
+
+    assert got == large_payload, (
+        f"round-trip mismatch: input {len(large_payload)} bytes, got {len(got)} bytes"
+    )
