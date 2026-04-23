@@ -109,9 +109,12 @@ inspect TUI shows a small indicator while a checkpoint is running and
 when the last successful checkpoint happened.
 
 If a checkpoint attempt fails (disk full, sandbox exec error, S3 hiccup),
-inspect **logs a warning and continues the eval**. A failed checkpoint
-is not a failed eval — it just means durability was not advanced for
-that attempt. The next policy fire will try again.
+inspect logs a warning and continues the eval. The checkpoint config
+takes a **consecutive-failure tolerance** — omitted means unlimited
+(the default); a non-negative integer N means the eval fails after N
+consecutive failed attempts. A successful checkpoint resets the count.
+Callers who want strict durability can set a low tolerance (0 makes
+any failure fatal).
 
 ### Resuming after a crash
 
@@ -156,11 +159,18 @@ agents that don't care can ignore it entirely.
 
 What `resume=True` *guarantees to the agent*:
 
-- The sandbox home directory has been restored from the latest
-  checkpoint.
-- Messages and events have been rehydrated into the ambient inspect
-  state.
-- The sample's `Store` has been rehydrated.
+- **Sandbox.** The home directory has been restored from the latest
+  checkpoint. Agents continue to use it via the normal sandbox API.
+- **Messages.** The `AgentState` passed to this first call already
+  contains the restored message history. (Messages always flow to
+  agents via `AgentState`; `resume=True` just means the history is
+  a restored one rather than a fresh conversation.)
+- **Events.** The sample's event history has been restored into
+  Inspect's internal state. Events are inspect-internal bookkeeping
+  that rolls into the final `.eval` log; they do not flow through
+  the agent input.
+- **Store.** The sample's `Store` has been restored into the
+  ambient context (`store_as`, etc.). Agents read from it normally.
 
 What the agent uses it for:
 
@@ -171,11 +181,10 @@ What the agent uses it for:
 - Avoid double-recording state that is already present in the
   rehydrated messages/events.
 
-Agents that do not implement `resume` awareness will still work —
-they just won't take any resume-specific behavior and will re-run
-their normal entry flow against the restored state. For most agents
-this is acceptable; for the built-in React agent, `resume=True`
-handling is part of the implementation.
+Handling `resume=True` is not strictly required — an agent that
+ignores the parameter will still run against the restored state.
+In practice, though, most agents will want to handle it, for the
+reasons listed above. The built-in React agent does.
 
 ### Retention
 
@@ -295,10 +304,12 @@ integration.
 These are deliberate. We would like your confirmation that they are the
 right tradeoffs for your use cases.
 
-1. **No in-memory state checkpointing.** We checkpoint the sandbox filesystem,
-   not running processes, open sockets, or RAM. Agents that rely on
-   long-lived in-memory state inside the sandbox (rather than
-   persisting it to disk) will not restore that state on resume.
+1. **No in-memory state checkpointing; home-directory only.** We
+   checkpoint the agent's home directory inside the sandbox, not
+   running processes, open sockets, RAM, or files outside the home
+   dir (`/tmp`, `/workspace`, `/opt/...`, system-level state). This
+   is a deliberate v1 scoping choice and is one of the things we
+   most want your input on — see Validation Ask §3.
 2. **No provider-specific checkpointing.** We use a single
    filesystem-based mechanism across all sandbox providers. We will
    not, in Phase 1, use Modal memory snapshots, Docker commit, or
@@ -311,18 +322,6 @@ right tradeoffs for your use cases.
    double-executed, or appear inconsistent with the restored state.
    *Reality doesn't have a fork command.* Tool authors are responsible
    for tolerating this — typically via idempotent tools.
-4. **No hermetic bundling of task/agent/tool source code.** The
-   checkpoint does not carry your Python code, your dependency tree,
-   or the Inspect runtime. Resume assumes you are running from the
-   same code and environment (or a compatible one); the manifest
-   records identity and version information so mismatches can be
-   detected.
-5. **No special handling of the first-checkpoint loss window.** If
-   your policy is "every 30 minutes" and you crash 28 minutes in, you
-   lose those 28 minutes of progress since sample start. This is
-   consistent with the loss-window contract the policy already
-   expresses; we don't take an extra zero-point snapshot to try to
-   narrow it.
 
 ## Known limitations and gotchas
 
@@ -332,12 +331,15 @@ Things we want you to be aware of that follow from the design:
   external systems, charge money, create irreversible artifacts, etc.,
   will not be "unwound" by resume. Make them idempotent or
   resume-aware.
-- **Silent checkpoint failures in theory.** Checkpoint attempt failures
-  are non-fatal by design (we don't want a full-disk condition to kill
-  a week-long eval). A customer not monitoring the event stream could
-  believe they have recent checkpoints when they don't. The TUI
-  indicator and event-stream visibility should make this visible in
-  practice.
+- **Silent checkpoint failures under the default tolerance.** The
+  default tolerance for consecutive checkpoint failures is unlimited,
+  so a pathological condition (e.g., a full disk) can cause every
+  checkpoint attempt to fail for the rest of the run without stopping
+  the eval. A customer not monitoring the event stream could believe
+  they have recent checkpoints when they don't. The TUI indicator
+  and event-stream visibility should make this visible in practice;
+  setting a finite tolerance on the checkpoint config gives a hard
+  signal instead.
 - **Checkpoint size and egress cost.** Each checkpoint incurs a
   restic-backup invocation inside the sandbox plus a copy-out of the
   changed-data delta. For sandboxes with very large home directories
@@ -388,13 +390,10 @@ team's setup. We'd like to confirm:
 Please specifically confirm that the explicit non-goals in the
 *Scope and non-goals* section above are acceptable for your use cases:
 
-- In-memory process state **out** of scope.
+- In-memory process state **out** of scope; home-directory only.
 - Provider-native snapshot mechanisms **out** of scope for Phase 1.
 - External side-effect tracking/replay **out** of scope; tool
   idempotency is on you.
-- Hermetic code bundling **out** of scope; resume assumes a compatible
-  code/env.
-- First-checkpoint loss window bounded only by your policy interval.
 
 If any of these are dealbreakers, we want to know before we build.
 
