@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.211 (23 April 2026)
 
 - OpenAI: Gracefully catch when response.tools is null and normalize it to []
 - Model API: Log the first 5 API calls per-model by default. 
