@@ -3,6 +3,7 @@
 - Log recovery: Stream segment-at-a-time to bound memory on large evals.
 - Scoring: Neutralize structural delimiters in model graded scorer inputs.
 - Bugfix: Ensure that model role defaulting doesn't affect other configured roles.
+- Tool calls: Record a `ToolEvent` when an approver rejects or terminates a call so the attempt is visible in the transcript.
 
 ## 0.3.211 (23 April 2026)
 
