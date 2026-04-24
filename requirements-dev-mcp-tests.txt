@@ -1,2 +1,0 @@
-mcp-server-fetch
-mcp_server_git
