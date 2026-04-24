@@ -3,6 +3,10 @@
 - Log recovery: Stream segment-at-a-time to bound memory on large evals.
 - Scoring: Neutralize structural delimiters in model graded scorer inputs.
 - Bugfix: Ensure that model role defaulting doesn't affect other configured roles.
+- Inspect View: Improve wrapping behavior in message and events.
+- Inspect View: Fix issues positioning chat messages within model events.
+- Inspect View: Improve tool call error rendering.
+- Inspect View: Improve model event tool configuration rendering.
 
 ## 0.3.211 (23 April 2026)
 
