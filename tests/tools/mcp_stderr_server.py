@@ -28,7 +28,7 @@ async def list_tools() -> list[Tool]:
 
 
 @server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:  # type: ignore
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "echo":
         sys.stderr.write(
             f"[TOOL_STDERR] echo called with: {arguments.get('message', '')}\n"
