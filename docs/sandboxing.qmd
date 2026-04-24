@@ -95,8 +95,8 @@ There are two sandbox environments built in to Inspect and five available as ext
 |------------------|------------------|------------------|------------------|
 | `docker` | Built-in | Yes | [Docker](#sec-docker-configuration) local installation. |
 | `k8s` | [inspect-k8s-sandbox](https://pypi.org/project/inspect-k8s-sandbox/) | Yes | [Kubernetes](https://k8s-sandbox.aisi.org.uk/) cluster. |
-| `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) cloud sandbox. |
-| `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) cloud sandbox. |
+| `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) cloud sandbox. |
+| `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandbox. |
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `local` | Built-in | No | Local file system (no sandbox). |

@@ -13,7 +13,7 @@
   {
     "id": "modal-sandbox",
     "name": "Modal Sandbox",
-    "url": "https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal",
+    "url": "https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html",
     "desc": "Serverless container sandbox for Inspect using Modal's cloud infrastructure.",
     "author": "Meridian",
     "author_url": "https://github.com/meridianlabs-ai/inspect_sandboxes",
@@ -24,7 +24,7 @@
   {
     "id": "daytona-sandbox",
     "name": "Daytona Sandbox",
-    "url": "https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona",
+    "url": "https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html",
     "desc": "Sandbox environment for Inspect using Daytona's cloud infrastructure.",
     "author": "Meridian",
     "author_url": "https://github.com/meridianlabs-ai/inspect_sandboxes",
