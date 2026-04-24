@@ -504,6 +504,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
+        "--prompt-logprobs",
+        type=int,
+        help="Number of log probabilities to return per prompt token (1-20). vLLM only.",
+        envvar="INSPECT_EVAL_PROMPT_LOGPROBS",
+    )
+    @click.option(
         "--parallel-tool-calls/--no-parallel-tool-calls",
         type=bool,
         is_flag=True,
@@ -667,6 +673,7 @@ def eval_command(
     num_choices: int | None,
     logprobs: bool | None,
     top_logprobs: int | None,
+    prompt_logprobs: int | None,
     parallel_tool_calls: bool | None,
     internal_tools: bool | None,
     max_tool_output: int | None,
@@ -893,6 +900,7 @@ def eval_set_command(
     num_choices: int | None,
     logprobs: bool | None,
     top_logprobs: int | None,
+    prompt_logprobs: int | None,
     parallel_tool_calls: bool | None,
     internal_tools: bool | None,
     max_tool_output: int | None,

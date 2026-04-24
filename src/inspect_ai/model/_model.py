@@ -295,6 +295,24 @@ class ModelAPI(abc.ABC):
         """
         return count_media_tokens(media)
 
+    async def tokenize(self, text: str) -> list[int]:
+        """Tokenize text into token IDs using the model's tokenizer.
+
+        Override in providers that support server-side tokenization
+        (e.g. vLLM's ``/tokenize`` endpoint).
+
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            List of token IDs.
+
+        Raises:
+            NotImplementedError: If the provider does not support
+                tokenization.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tokenize().")
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
