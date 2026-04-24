@@ -1424,6 +1424,9 @@ def get_model(
     if model is None:
         if isinstance(default, Model):
             if role is not None:
+                # shallow-copy so we don't mutate the caller's Model
+                # (e.g. a shared instance held in model_roles())
+                default = copy(default)
                 default._set_role(role)
             return default
         else:
