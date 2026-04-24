@@ -1,4 +1,5 @@
 import contextlib
+import os
 import sys
 from contextlib import AsyncExitStack
 from logging import getLogger
@@ -305,6 +306,35 @@ def create_server_streamablehttp(
     )
 
 
+@contextlib.asynccontextmanager
+async def _stdio_client_forwarding_stderr(
+    server_params: StdioServerParameters,
+    name: str,
+) -> AsyncIterator[Any]:
+    r_fd, w_fd = os.pipe()
+    w_file = os.fdopen(w_fd, "w", buffering=1, encoding="utf-8", errors="replace")
+    r_file = os.fdopen(r_fd, "r", encoding="utf-8", errors="replace")
+    mcp_logger = getLogger(f"inspect_ai.tool._mcp.{name}")
+
+    async def _drain() -> None:
+        try:
+            async_r = anyio.wrap_file(r_file)
+            async for line in async_r:
+                stripped = line.rstrip("\r\n")
+                if stripped:
+                    mcp_logger.info(stripped)
+        finally:
+            r_file.close()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_drain)
+        try:
+            async with stdio_client(server_params, errlog=w_file) as streams:
+                yield streams
+        finally:
+            w_file.close()
+
+
 def create_server_stdio(
     *,
     name: str,
@@ -313,15 +343,14 @@ def create_server_stdio(
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> MCPServer:
+    server_params = StdioServerParameters(
+        command=command,
+        args=args if args is not None else [],
+        cwd=cwd,
+        env=env,
+    )
     return MCPServerLocal(
-        lambda: stdio_client(
-            StdioServerParameters(
-                command=command,
-                args=args if args is not None else [],
-                cwd=cwd,
-                env=env,
-            )
-        ),
+        lambda: _stdio_client_forwarding_stderr(server_params, name),
         name=name,
         events=True,
     )

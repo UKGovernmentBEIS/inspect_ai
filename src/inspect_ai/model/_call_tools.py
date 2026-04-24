@@ -399,9 +399,12 @@ async def call_tool(
     # this function is responsible for transcript events so that it can
     # put them in the right enclosure (e.g. handoff/agent/tool). This
     # means that if we throw early we need to do the enclosure when raising.
-    async def record_tool_parsing_error(error: str) -> Exception:
+    async def record_pending_tool_event() -> None:
         async with span(name=call.function, type="tool"):
             transcript()._event(event)
+
+    async def record_tool_parsing_error(error: str) -> Exception:
+        await record_pending_tool_event()
         return ToolParsingError(error)
 
     # if there was an error parsing the ToolCall, raise that
@@ -420,6 +423,7 @@ async def call_tool(
         message, call, tool_def.viewer, conversation
     )
     if not approved:
+        await record_pending_tool_event()
         if approval and approval.decision == "terminate":
             message = "Tool call approver requested termination."
             raise TerminateSampleError(message)
