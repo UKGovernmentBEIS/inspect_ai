@@ -4730,9 +4730,6 @@
             "title": "Verbosity"
           }
         },
-        "required": [
-          "prompt_logprobs"
-        ],
         "title": "GenerateConfig",
         "type": "object"
       },
@@ -8060,8 +8057,7 @@
         },
         "required": [
           "scorer",
-          "name",
-          "value"
+          "name"
         ],
         "title": "TaskDisplayMetric",
         "type": "object"
