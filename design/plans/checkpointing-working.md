@@ -15,7 +15,6 @@ Checkpoint + resume is **phase 1 of a broader long-horizon eval feature stream**
 -   **Cooperative with the agent.** Checkpoint/resume only works when the agent participates. Inspect cannot determine on its own whether a given agent's logic will behave correctly after restoration — the agent is the one that knows whether its state is in the messages, the store, and the sandbox (resumable) vs. in in-memory Python state that won't survive a crash (not resumable). For this reason, checkpointing is enabled **by the agent**, configured on the agent's constructor (not on `Task(...)`), and resume-safe behavior is the agent's responsibility.
 -   **The `.eval` log is the source of truth** for eval identity, config, sample inputs, and completed-sample records. The checkpoints directory holds only in-flight state.
 -   **Resumption is accomplished through `inspect eval retry`,** layering on existing retry infrastructure. No new command or flag.
--   **Checkpoint failures tolerate a configurable number of consecutive failures.** A failed checkpoint attempt logs a warning; the eval continues and retries on the next policy fire. Callers can set a non-negative integer ceiling on *consecutive* failed attempts — when omitted, the tolerance is unlimited (default); when set to N, the eval fails after N consecutive failures. A successful checkpoint resets the counter. (Setting 0 makes any checkpoint failure fatal.) Rationale: durability is a nicety; defaulting to unlimited avoids losing long-horizon work over transient hiccups, while the ceiling lets strict callers bound it.
 -   **Resumption inherits retry's rehydration.** Whatever retry can reconstruct — eval config from the log, task identity, sample inputs, dynamic tasks via eval-set — resumption gets for free. Checkpointing adds no new bundling or reification machinery; it extends retry's sample source to also deliver *partial* samples.
 
 ## Non-goals
@@ -23,6 +22,7 @@ Checkpoint + resume is **phase 1 of a broader long-horizon eval feature stream**
 -   **In-memory sandbox/process state.** We checkpoint the agent's **home directory** inside the sandbox — not running processes, open sockets, RAM, or anything outside the home dir (`/tmp`, `/workspace`, `/opt/...`, system-level state). Home-directory- only is a deliberate scoping choice for v1; see §4a.
 -   **Provider-native snapshot mechanisms** (Modal memory/VM snapshots, Docker commit, VM image snapshots). Not in Phase 1.
 -   **Tracking or replaying external side-effects across resume.** If an agent made external API calls between the last checkpoint and the crash, those side-effects may re-execute on resume. Tool authors are responsible for tolerating this (typically via idempotent tools). *Reality doesn't have a fork command.*
+-   **Mid-tool-call checkpointing.** Checkpoints fire only at turn boundaries. A long-running tool call (e.g., a 10-minute subprocess) blocks the next checkpoint until the call returns. We do not interrupt tools to snapshot.
 
 ## 1. Data layout
 
@@ -73,7 +73,7 @@ one attempt are not shared with or consulted by another.
 
 ## 2. Configuration surface
 
-A checkpointing-aware agent accepts a policy on its constructor — for example, `react(checkpoint=TimeCheckpoint(minutes=30))`.
+A checkpointing-aware agent accepts an optional **`CheckpointConfig`** on its constructor — for example, `react(checkpoint=CheckpointConfig(...))`. When `None` (or omitted), checkpointing is disabled. The policy is selected on the config; the options are listed below.
 
 All policies fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
 
@@ -86,8 +86,8 @@ All policies fire at turn boundaries only; an agent is never interrupted mid-tur
 
 Inspect provides checkpointing support at two layers:
 
--   **Built-in React agent.** The built-in React agent supports checkpointing out of the box (at minimum time-based and turn-based). It serves as the reference consumer of the underlying primitives.
--   **Primitives for custom agents.** The underlying building blocks — capture state, write checkpoint, restore from checkpoint, policy hooks — are exposed as reusable primitives so authors of custom agent loops can wire checkpointing into their own agents without reimplementing the machinery.
+-   **Built-in React agent.** The React agent accepts an optional `CheckpointConfig` and supports all policies out of the box. It serves as the reference consumer of the underlying primitives.
+-   **Primitives for custom agents.** Custom agents follow the same pattern: accept a `CheckpointConfig` parameter and delegate to inspect-provided primitives — capture state, write checkpoint, restore from checkpoint, policy hooks — rather than reimplementing the machinery. The agent author does **not** track policy state (time elapsed, turns since last checkpoint); inspect's helpers consume the `CheckpointConfig` and fire a checkpoint when the policy says to. The boilerplate to add checkpoint support to a custom agent is minimal.
 
 ## 4. Sandbox snapshotting
 
@@ -214,7 +214,11 @@ The inspect TUI shows a small indicator while a checkpoint is running and the la
 
 ### 8c. Checkpoint-attempt failures
 
-A failed checkpoint attempt (disk full, sandbox exec error, restic error, etc.) logs a warning. The eval continues until the configured tolerance for *consecutive* failures is exceeded; on the next policy fire it retries. Tolerance is set on the checkpoint config: omitted means unlimited (default); a non-negative integer N means the eval fails after N consecutive failed attempts. A successful checkpoint resets the counter. Known risk under the unlimited default: a customer not monitoring the event stream could believe they have recent checkpoints when they don't. The TUI indicator and event-stream visibility make this visible in practice; setting a finite tolerance gives a hard signal.
+A failed checkpoint attempt (disk full, sandbox exec error, restic error, etc.) logs a warning. The eval continues until the configured tolerance for *consecutive* failures is exceeded; on the next policy fire it retries. Tolerance is set on the checkpoint config as a non-negative integer N — the eval fails after N consecutive failed attempts. (Setting 0 makes any checkpoint failure fatal.) When the tolerance is omitted, it is unlimited (the default). A successful checkpoint resets the counter.
+
+Rationale for unlimited as the default: durability is a nicety, not a correctness requirement; failing a long-horizon eval over transient hiccups would be worse than the loss it's meant to prevent. The ceiling lets strict callers bound that tradeoff.
+
+Known risk under the unlimited default: a customer not monitoring the event stream could believe they have recent checkpoints when they don't. The TUI indicator and event-stream visibility make this visible in practice; setting a finite tolerance gives a hard signal instead.
 
 ### 8d. Retention
 
@@ -224,7 +228,7 @@ A failed checkpoint attempt (disk full, sandbox exec error, restic error, etc.) 
 
 ## 9. Open questions
 
--   **Firing checkpoints mid-tool-call.** Current decision: only between turns. Should long tool calls (e.g., 10-minute subprocesses) also trigger a checkpoint? Instinct: no.
+-   **Retention granularity: eval-complete vs. sample-complete.** §8d says checkpoints are deleted "on successful eval completion." Open: should a sample's checkpoint subtree instead be deleted (or at least eligible for deletion) as soon as *that sample* completes successfully, rather than waiting for the whole eval to finish? Eval-complete is simpler and keeps everything available until the run is done; sample-complete reclaims space sooner and scales better for evals with many long-running samples. Interacts with retain-forever (which would presumably still hold things until eval end).
 -   **Checkpoint atomicity.** How do we guarantee a checkpoint is either fully written or ignored on resume after a mid-write crash? Deferred.
 -   **Checkpoint-id naming.** Monotonic seq, UUID, or timestamp? Monotonic reads most naturally for humans.
 -   **Engine commitment.** Restic is strongly preferred but not formally committed. Alternatives (borg, kopia, rsync-based, custom) remain theoretically on the table.
