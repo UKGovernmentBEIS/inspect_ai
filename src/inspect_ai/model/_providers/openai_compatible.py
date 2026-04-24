@@ -18,6 +18,7 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
@@ -283,6 +284,13 @@ class OpenAICompatibleAPI(ModelAPI):
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
         if self.stream or self.should_stream(config):
+            if config.prompt_logprobs is not None:
+                warn_once(
+                    logger,
+                    "prompt_logprobs is not supported with streaming and will "
+                    "be ignored. Disable streaming to receive prompt log "
+                    "probabilities.",
+                )
             async with self.client.chat.completions.stream(**request) as stream:
                 return await stream.get_final_completion()
         else:
