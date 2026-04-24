@@ -18,7 +18,7 @@
     "contributors": [],
     "samples": 48,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/dbt-labs/ade-bench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ade_bench_1_0.html",
     "model_cards": []
   },
   {
@@ -31,7 +31,7 @@
     "tags": [],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "A benchmark designed to evaluate LLMs as Agents",
     "paper": "https://arxiv.org/abs/2308.03688",
@@ -65,8 +65,11 @@
     "contributors": [],
     "samples": 225,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/aider/aider-polyglot/latest",
-    "model_cards": []
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aider_polyglot_1_0.html",
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "algotune_1_0",
@@ -87,7 +90,7 @@
     "contributors": [],
     "samples": 154,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/algotune/algotune/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/algotune_1_0.html",
     "model_cards": []
   },
   {
@@ -132,7 +135,7 @@
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/tencent/autocodebench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/autocodebench_lite200.html",
     "model_cards": []
   },
   {
@@ -177,7 +180,7 @@
     "contributors": [],
     "samples": 145,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bigcode/bigcodebench-hard-complete/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bigcodebench_hard_complete_1_0_0.html",
     "model_cards": []
   },
   {
@@ -199,7 +202,7 @@
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=bird-bench",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bird_bench_parity.html",
     "model_cards": []
   },
   {
@@ -244,7 +247,7 @@
     "contributors": [],
     "samples": 9644,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=code-contests",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/code_contests_1_0.html",
     "model_cards": []
   },
   {
@@ -266,7 +269,7 @@
     "contributors": [],
     "samples": 15,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/quesma/compilebench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/compilebench_1_0.html",
     "model_cards": []
   },
   {
@@ -279,7 +282,7 @@
     "tags": [],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "Evaluates LLM capability to generate correct CUDA code for kernel implementation, memory management, and parallel algorithm optimization tasks.",
     "paper": null,
@@ -311,7 +314,7 @@
     "contributors": [],
     "samples": 652,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=cooperbench",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/cooperbench_1_0.html",
     "model_cards": []
   },
   {
@@ -333,7 +336,7 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/crustbench/crustbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/crustbench_1_0.html",
     "model_cards": []
   },
   {
@@ -355,7 +358,7 @@
     "contributors": [],
     "samples": 63,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/deveval/deveval/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/deveval_1_0.html",
     "model_cards": []
   },
   {
@@ -377,7 +380,7 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/xlang/ds-1000/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ds_1000_head.html",
     "model_cards": []
   },
   {
@@ -422,7 +425,7 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/evoeval/evoeval/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/evoeval_1_0.html",
     "model_cards": []
   },
   {
@@ -444,7 +447,7 @@
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench/featurebench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_1_0.html",
     "model_cards": []
   },
   {
@@ -466,7 +469,7 @@
     "contributors": [],
     "samples": 30,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench/featurebench-lite/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_lite_1_0.html",
     "model_cards": []
   },
   {
@@ -488,7 +491,7 @@
     "contributors": [],
     "samples": 30,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench/featurebench-lite-modal/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_lite_modal_1_0.html",
     "model_cards": []
   },
   {
@@ -510,7 +513,7 @@
     "contributors": [],
     "samples": 200,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/featurebench/featurebench-modal/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/featurebench_modal_1_0.html",
     "model_cards": []
   },
   {
@@ -558,7 +561,7 @@
     "contributors": [],
     "samples": 102,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=gso",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gso_1_0.html",
     "model_cards": []
   },
   {
@@ -580,7 +583,7 @@
     "contributors": [],
     "samples": 1,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/harbor/hello-world/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/hello_world_1_0.html",
     "model_cards": []
   },
   {
@@ -625,7 +628,7 @@
     "contributors": [],
     "samples": 164,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/bigcode/humanevalfix/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/humanevalfix_1_0.html",
     "model_cards": []
   },
   {
@@ -661,7 +664,7 @@
     "tags": [],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "A benchmark for evaluating the ability of LLMs to write efficient GPU kernels.",
     "paper": "https://arxiv.org/html/2502.10517v1",
@@ -693,7 +696,7 @@
     "contributors": [],
     "samples": 10,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/factory-ai/legacy-bench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/legacy_bench_1_0.html",
     "model_cards": []
   },
   {
@@ -715,7 +718,7 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/livecodebench/livecodebench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/livecodebench_6_0.html",
     "model_cards": []
   },
   {
@@ -783,7 +786,7 @@
     "contributors": [],
     "samples": 33,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=ml-dev-bench",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ml_dev_bench_1_0.html",
     "model_cards": []
   },
   {
@@ -817,7 +820,8 @@
     "name": "Mlgym Bench",
     "source": "harbor",
     "categories": [
-      "Coding"
+      "Coding",
+      "Science"
     ],
     "tags": [],
     "kind": "agent",
@@ -831,7 +835,7 @@
     "contributors": [],
     "samples": 12,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/meta/mlgym-bench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mlgym_bench_1_0.html",
     "model_cards": []
   },
   {
@@ -861,6 +865,28 @@
     "model_cards": []
   },
   {
+    "id": "openthoughts_tblite_2_0",
+    "name": "Openthoughts Tblite",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "OpenThoughts-TBLite: A difficulty-calibrated benchmark of 100 tasks for building terminal agents. By OpenThoughts Agent team, Snorkel AI, Bespoke Labs.",
+    "paper": "https://github.com/open-thoughts/OpenThoughts-TBLite",
+    "code": "inspect_harbor/openthoughts_tblite_2_0",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/openthoughts_tblite_2_0.html",
+    "model_cards": []
+  },
+  {
     "id": "otel_bench_1_0",
     "name": "Otel Bench",
     "source": "harbor",
@@ -879,7 +905,7 @@
     "contributors": [],
     "samples": 26,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/quesma/otel-bench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/otel_bench_1_0.html",
     "model_cards": []
   },
   {
@@ -928,7 +954,7 @@
     "contributors": [],
     "samples": 80,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/quixbugs/quixbugs/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/quixbugs_1_0.html",
     "model_cards": []
   },
   {
@@ -950,7 +976,7 @@
     "contributors": [],
     "samples": 212,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=researchcodebench",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/researchcodebench_1_0.html",
     "model_cards": []
   },
   {
@@ -972,7 +998,29 @@
     "contributors": [],
     "samples": 2,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=rexbench",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/rexbench_1_0.html",
+    "model_cards": []
+  },
+  {
+    "id": "seta_env_1_0",
+    "name": "Seta Env",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "CAMEL SETA Environment for RL training.",
+    "paper": null,
+    "code": "inspect_harbor/seta_env_1_0",
+    "contributors": [],
+    "samples": 1376,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/seta_env_1_0.html",
     "model_cards": []
   },
   {
@@ -994,7 +1042,7 @@
     "contributors": [],
     "samples": 64,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=spider2-dbt",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/spider2_dbt_1_0.html",
     "model_cards": []
   },
   {
@@ -1016,7 +1064,7 @@
     "contributors": [],
     "samples": 124,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/scale-ai/swe-atlas-qna/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_qna_1_0.html",
     "model_cards": []
   },
   {
@@ -1038,7 +1086,7 @@
     "contributors": [],
     "samples": 90,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/scale-ai/swe-atlas-tw/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_tw_1_0.html",
     "model_cards": []
   },
   {
@@ -1060,7 +1108,7 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/abundant/swe-gen-js/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_gen_js_1_0.html",
     "model_cards": []
   },
   {
@@ -1082,7 +1130,7 @@
     "contributors": [],
     "samples": 463,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swe-lancer-diamond",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_lancer_diamond_all.html",
     "model_cards": []
   },
   {
@@ -1104,8 +1152,10 @@
     "contributors": [],
     "samples": 198,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swe-lancer-diamond",
-    "model_cards": []
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_lancer_diamond_ic.html",
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "swe_lancer_diamond_manager",
@@ -1126,7 +1176,7 @@
     "contributors": [],
     "samples": 265,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swe-lancer-diamond",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swe_lancer_diamond_manager.html",
     "model_cards": []
   },
   {
@@ -1154,6 +1204,7 @@
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench/",
     "model_cards": [
+      "chatgpt",
       "claude",
       "gemini"
     ]
@@ -1204,7 +1255,7 @@
     "contributors": [],
     "samples": 300,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swebench_multilingual",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swebench_multilingual_1_0.html",
     "model_cards": [
       "claude"
     ]
@@ -1228,7 +1279,7 @@
     "contributors": [],
     "samples": 500,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swebench-verified",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swebench_verified_1_0.html",
     "model_cards": []
   },
   {
@@ -1250,7 +1301,7 @@
     "contributors": [],
     "samples": 731,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/cais/swebenchpro/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swebenchpro_1_0.html",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -1276,7 +1327,7 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swesmith",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swesmith_1_0.html",
     "model_cards": []
   },
   {
@@ -1298,7 +1349,99 @@
     "contributors": [],
     "samples": 433,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=swtbench-verified",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/swtbench_verified_1_0.html",
+    "model_cards": []
+  },
+  {
+    "id": "termigen_environments_1_0",
+    "name": "Termigen Environments",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "3,500+ verified Docker environments for training and evaluating terminal agents, spanning 11 task categories across infrastructure, data/algorithm applications, and specialized domains including software build, system administration, security, data processing, ML/MLOps, algorithms, scientific computing, and more.",
+    "paper": null,
+    "code": "inspect_harbor/termigen_environments_1_0",
+    "contributors": [],
+    "samples": 3566,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/termigen_environments_1_0.html",
+    "model_cards": []
+  },
+  {
+    "id": "terminal_bench_2_0",
+    "name": "Terminal Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Version 2.0 of Terminal-Bench, a benchmark for testing agents in terminal environments. More tasks, harder, and higher quality than 1.0.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/terminal_bench_2_0",
+    "contributors": [],
+    "samples": 89,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_2_0.html",
+    "model_cards": [
+      "chatgpt",
+      "claude",
+      "gemini"
+    ]
+  },
+  {
+    "id": "terminal_bench_pro_1_0",
+    "name": "Terminal Bench Pro",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Terminal-Bench Pro (Public Set) is an extended benchmark dataset for testing AI agents in real terminal environments. From compiling code to training models and setting up servers, Terminal-Bench Pro evaluates how well agents can handle real-world, end-to-end tasks autonomously.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/terminal_bench_pro_1_0",
+    "contributors": [],
+    "samples": 200,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_pro_1_0.html",
+    "model_cards": []
+  },
+  {
+    "id": "terminal_bench_sample_2_0",
+    "name": "Terminal Bench Sample",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "A sample of tasks from Terminal-Bench 2.0.",
+    "paper": "https://arxiv.org/abs/2601.11868",
+    "code": "inspect_harbor/terminal_bench_sample_2_0",
+    "contributors": [],
+    "samples": 10,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/terminal_bench_sample_2_0.html",
     "model_cards": []
   },
   {
@@ -1343,7 +1486,7 @@
     "contributors": [],
     "samples": 304,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/usaco/usaco/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/usaco_2_0.html",
     "model_cards": []
   },
   {
@@ -1365,7 +1508,7 @@
     "contributors": [],
     "samples": 1043,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/vmax/vmax-tasks/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vmax_tasks_1_0.html",
     "model_cards": []
   },
   {
@@ -1413,7 +1556,7 @@
     "contributors": [
       "alex-remedios-aisi"
     ],
-    "samples": 3981,
+    "samples": 4981,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl/",
     "model_cards": []
@@ -1437,7 +1580,7 @@
     "contributors": [],
     "samples": 3641,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gorilla/bfcl/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bfcl_1_0.html",
     "model_cards": []
   },
   {
@@ -1459,7 +1602,7 @@
     "contributors": [],
     "samples": 123,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=bfcl_parity",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bfcl_parity_1_0.html",
     "model_cards": []
   },
   {
@@ -1523,7 +1666,8 @@
     "name": "Gaia",
     "source": "harbor",
     "categories": [
-      "Assistants"
+      "Assistants",
+      "Multimodal"
     ],
     "tags": [],
     "kind": "agent",
@@ -1537,7 +1681,7 @@
     "contributors": [],
     "samples": 165,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gaia/gaia/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gaia_1_0.html",
     "model_cards": []
   },
   {
@@ -1561,28 +1705,6 @@
     "samples": 7775,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web/",
-    "model_cards": []
-  },
-  {
-    "id": "openthoughts_tblite_2_0",
-    "name": "Openthoughts Tblite",
-    "source": "harbor",
-    "categories": [
-      "Assistants"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "OpenThoughts-TBLite: A difficulty-calibrated benchmark of 100 tasks for building terminal agents. By OpenThoughts Agent team, Snorkel AI, Bespoke Labs.",
-    "paper": "https://github.com/open-thoughts/OpenThoughts-TBLite",
-    "code": "inspect_harbor/openthoughts_tblite_2_0",
-    "contributors": [],
-    "samples": 100,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/openthoughts/openthoughts-tblite/latest",
     "model_cards": []
   },
   {
@@ -1662,99 +1784,36 @@
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2/",
     "model_cards": [
       "chatgpt",
-      "gemini"
-    ]
-  },
-  {
-    "id": "termigen_environments_1_0",
-    "name": "Termigen Environments",
-    "source": "harbor",
-    "categories": [
-      "Assistants"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "3,500+ verified Docker environments for training and evaluating terminal agents, spanning 11 task categories across infrastructure, data/algorithm applications, and specialized domains including software build, system administration, security, data processing, ML/MLOps, algorithms, scientific computing, and more.",
-    "paper": null,
-    "code": "inspect_harbor/termigen_environments_1_0",
-    "contributors": [],
-    "samples": 3566,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/termigen/termigen-environments/latest",
-    "model_cards": []
-  },
-  {
-    "id": "terminal_bench_2_0",
-    "name": "Terminal Bench",
-    "source": "harbor",
-    "categories": [
-      "Assistants"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "Version 2.0 of Terminal-Bench, a benchmark for testing agents in terminal environments. More tasks, harder, and higher quality than 1.0.",
-    "paper": "https://arxiv.org/abs/2601.11868",
-    "code": "inspect_harbor/terminal_bench_2_0",
-    "contributors": [],
-    "samples": 89,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=terminal-bench",
-    "model_cards": [
-      "chatgpt",
       "claude",
       "gemini"
     ]
   },
   {
-    "id": "terminal_bench_pro_1_0",
-    "name": "Terminal Bench Pro",
-    "source": "harbor",
+    "id": "theagentcompany",
+    "name": "The Agent Company",
+    "source": "evals",
     "categories": [
       "Assistants"
     ],
-    "tags": [],
+    "tags": [
+      "Agent",
+      "Tools"
+    ],
     "kind": "agent",
     "modalities": [
       "agent",
+      "tool-use",
       "sandbox"
     ],
-    "desc": "Terminal-Bench Pro (Public Set) is an extended benchmark dataset for testing AI agents in real terminal environments. From compiling code to training models and setting up servers, Terminal-Bench Pro evaluates how well agents can handle real-world, end-to-end tasks autonomously.",
-    "paper": "https://arxiv.org/abs/2601.11868",
-    "code": "inspect_harbor/terminal_bench_pro_1_0",
-    "contributors": [],
-    "samples": 200,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/terminal-bench-pro/terminal-bench-pro/latest",
-    "model_cards": []
-  },
-  {
-    "id": "terminal_bench_sample_2_0",
-    "name": "Terminal Bench Sample",
-    "source": "harbor",
-    "categories": [
-      "Assistants"
+    "desc": "The Agent Company benchmark evaluates autonomous agents in a realistic, self-contained company environment.",
+    "paper": "https://arxiv.org/abs/2412.14161",
+    "code": "inspect_evals/theagentcompany",
+    "contributors": [
+      "bndxn"
     ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "A sample of tasks from Terminal-Bench 2.0.",
-    "paper": "https://arxiv.org/abs/2601.11868",
-    "code": "inspect_harbor/terminal_bench_sample_2_0",
-    "contributors": [],
-    "samples": 10,
+    "samples": 3,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=terminal-bench-sample",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany/",
     "model_cards": []
   },
   {
@@ -1762,7 +1821,8 @@
     "name": "Arc Agi 2",
     "source": "harbor",
     "categories": [
-      "Reasoning"
+      "Reasoning",
+      "Multimodal"
     ],
     "tags": [],
     "kind": "agent",
@@ -1776,7 +1836,7 @@
     "contributors": [],
     "samples": 167,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/arcprize/arc-agi-2/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/arc_agi_2_1_0.html",
     "model_cards": [
       "chatgpt",
       "claude",
@@ -1940,7 +2000,7 @@
     "contributors": [],
     "samples": 5300,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=kumo",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_1_0.html",
     "model_cards": []
   },
   {
@@ -1962,7 +2022,7 @@
     "contributors": [],
     "samples": 5050,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=kumo",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_easy.html",
     "model_cards": []
   },
   {
@@ -1984,7 +2044,7 @@
     "contributors": [],
     "samples": 250,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=kumo",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_hard.html",
     "model_cards": []
   },
   {
@@ -2006,7 +2066,7 @@
     "contributors": [],
     "samples": 212,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=kumo",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/kumo_parity.html",
     "model_cards": []
   },
   {
@@ -2056,7 +2116,10 @@
     "samples": 847,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "musr",
@@ -2215,7 +2278,7 @@
     "contributors": [],
     "samples": 288,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/reasoning-gym/reasoning-gym-easy/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reasoning_gym_easy_parity.html",
     "model_cards": []
   },
   {
@@ -2237,7 +2300,7 @@
     "contributors": [],
     "samples": 288,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/reasoning-gym/reasoning-gym-hard/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/reasoning_gym_hard_parity.html",
     "model_cards": []
   },
   {
@@ -2259,29 +2322,7 @@
     "contributors": [],
     "samples": 2100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/satbench/satbench/latest",
-    "model_cards": []
-  },
-  {
-    "id": "seta_env_1_0",
-    "name": "Seta Env",
-    "source": "harbor",
-    "categories": [
-      "Reasoning"
-    ],
-    "tags": [],
-    "kind": "agent",
-    "modalities": [
-      "agent",
-      "sandbox"
-    ],
-    "desc": "CAMEL SETA Environment for RL training.",
-    "paper": null,
-    "code": "inspect_harbor/seta_env_1_0",
-    "contributors": [],
-    "samples": 1376,
-    "featured": false,
-    "url": "https://registry.harborframework.com/datasets/camel-ai/seta-env/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/satbench_1_0.html",
     "model_cards": []
   },
   {
@@ -2543,7 +2584,10 @@
     "samples": 3000,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt",
+      "claude"
+    ]
   },
   {
     "id": "livebench",
@@ -2620,7 +2664,8 @@
     "name": "Mmmlu",
     "source": "harbor",
     "categories": [
-      "Knowledge"
+      "Knowledge",
+      "Reasoning"
     ],
     "tags": [],
     "kind": "agent",
@@ -2634,7 +2679,7 @@
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/openai/mmmlu/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mmmlu_parity.html",
     "model_cards": []
   },
   {
@@ -2702,7 +2747,7 @@
     "contributors": [],
     "samples": 4326,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/openai/simpleqa/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/simpleqa_1_0.html",
     "model_cards": []
   },
   {
@@ -2794,7 +2839,7 @@
     "contributors": [],
     "samples": 46,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/binary-audit/binary-audit/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/binary_audit_1_0.html",
     "model_cards": []
   },
   {
@@ -2809,7 +2854,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "A benchmark for evaluating the capabilities of LLM agents in cyber offense.",
     "paper": "https://arxiv.org/abs/2410.09114",
@@ -2822,6 +2868,32 @@
     "samples": 13,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb/",
+    "model_cards": []
+  },
+  {
+    "id": "cti_realm",
+    "name": "CTI-REALM",
+    "source": "evals",
+    "categories": [
+      "Cybersecurity"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Evaluates AI systems' ability to analyze cyber threat intelligence and develop comprehensive detection capabilities through a realistic 5-subtask workflow: MITRE technique mapping, data source discovery, Sigma rule generation, KQL development and testing against real telemetry data, and results analysis.",
+    "paper": "https://arxiv.org/abs/2603.13517",
+    "code": "inspect_evals/cti_realm",
+    "contributors": [
+      "arjun180-new"
+    ],
+    "samples": 25,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cti_realm/",
     "model_cards": []
   },
   {
@@ -3256,6 +3328,34 @@
     "model_cards": []
   },
   {
+    "id": "ipi_coding_agent",
+    "name": "CodeIPI",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [
+      "safety",
+      "agents",
+      "prompt-injection",
+      "coding"
+    ],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "Measures coding agent vulnerability to indirect prompt injection attacks embedded in software engineering artifacts (issue descriptions, code comments, README files).",
+    "paper": null,
+    "code": "inspect_evals/ipi_coding_agent",
+    "contributors": [
+      "debu-sinha"
+    ],
+    "samples": 45,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ipi_coding_agent/",
+    "model_cards": []
+  },
+  {
     "id": "fortress",
     "name": "FORTRESS",
     "source": "evals",
@@ -3359,7 +3459,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "Tests whether an AI system can act as a safety guardrail by generating and executing code to protect web navigation agents from unsafe actions based on user constraints.",
     "paper": "https://arxiv.org/abs/2406.09187",
@@ -3484,7 +3585,33 @@
     "contributors": [],
     "samples": 150,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/strongreject/strongreject/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/strongreject_parity.html",
+    "model_cards": []
+  },
+  {
+    "id": "tac",
+    "name": "TAC",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent"
+    ],
+    "desc": "Tests whether AI agents show implicit animal welfare awareness when purchasing tickets and experiences on behalf of users.",
+    "paper": null,
+    "code": "inspect_evals/tac",
+    "contributors": [
+      "darkness8i8",
+      "joel-christoph"
+    ],
+    "samples": 48,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/tac/",
     "model_cards": []
   },
   {
@@ -3578,7 +3705,7 @@
     "contributors": [],
     "samples": 205,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/futurehouse/bixbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bixbench_1_5.html",
     "model_cards": []
   },
   {
@@ -3602,7 +3729,7 @@
     "contributors": [],
     "samples": 205,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/futurehouse/bixbench-cli/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/bixbench_cli_1_5.html",
     "model_cards": []
   },
   {
@@ -3623,7 +3750,9 @@
     "paper": "https://arxiv.org/pdf/2404.01475v2",
     "code": "inspect_evals/chembench",
     "contributors": [
-      "Esther-Guo"
+      "Esther-Guo",
+      "MrtinoRG",
+      "r-fedorov"
     ],
     "samples": 2786,
     "featured": false,
@@ -3651,7 +3780,7 @@
     "contributors": [],
     "samples": 5,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/codepde/codepde/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/codepde_1_0.html",
     "model_cards": []
   },
   {
@@ -3765,7 +3894,7 @@
     "contributors": [],
     "samples": 198,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/gpqa-diamond/gpqa-diamond/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gpqa_diamond_1_0.html",
     "model_cards": []
   },
   {
@@ -3816,7 +3945,7 @@
     "contributors": [],
     "samples": 181,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/futurehouse/labbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/labbench_1_0.html",
     "model_cards": []
   },
   {
@@ -3866,7 +3995,7 @@
     "contributors": [],
     "samples": 28,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/qcircuitbench/qcircuitbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/qcircuitbench_1_0.html",
     "model_cards": []
   },
   {
@@ -3890,7 +4019,35 @@
     "contributors": [],
     "samples": 90,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/replicationbench/replicationbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/replicationbench_1_0.html",
+    "model_cards": []
+  },
+  {
+    "id": "scbench",
+    "name": "scBench",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Coding"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Evaluates whether models can solve practical single-cell RNA-seq analysis tasks with deterministic grading.",
+    "paper": "https://arxiv.org/abs/2602.09063",
+    "code": "inspect_evals/scbench",
+    "contributors": [
+      "retroam"
+    ],
+    "samples": 30,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scbench/",
     "model_cards": []
   },
   {
@@ -3949,7 +4106,8 @@
     "source": "harbor",
     "categories": [
       "Science",
-      "Reasoning"
+      "Reasoning",
+      "Mathematics"
     ],
     "tags": [],
     "kind": "agent",
@@ -3963,7 +4121,7 @@
     "contributors": [],
     "samples": 8,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/sldbench/sldbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/sldbench_1_0.html",
     "model_cards": []
   },
   {
@@ -4011,7 +4169,7 @@
     "contributors": [],
     "samples": 60,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/aime/aime/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/aime_1_0.html",
     "model_cards": []
   },
   {
@@ -4058,7 +4216,9 @@
     "samples": 30,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "aime2026",
@@ -4111,7 +4271,8 @@
     "name": "Ineqmath",
     "source": "harbor",
     "categories": [
-      "Mathematics"
+      "Mathematics",
+      "Reasoning"
     ],
     "tags": [],
     "kind": "agent",
@@ -4125,7 +4286,7 @@
     "contributors": [],
     "samples": 100,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/ineqmath/ineqmath/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/ineqmath_1_0.html",
     "model_cards": []
   },
   {
@@ -4231,7 +4392,8 @@
     "categories": [
       "Professional",
       "Finance",
-      "Assistants"
+      "Assistants",
+      "Coding"
     ],
     "tags": [],
     "kind": "agent",
@@ -4245,7 +4407,7 @@
     "contributors": [],
     "samples": 450,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/adyen/dabstep/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/dabstep_1_0.html",
     "model_cards": []
   },
   {
@@ -4269,7 +4431,7 @@
     "contributors": [],
     "samples": 50,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/vals/financeagent/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/financeagent_public.html",
     "model_cards": [
       "chatgpt",
       "claude"
@@ -4333,7 +4495,9 @@
     "samples": 5000,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench/",
-    "model_cards": []
+    "model_cards": [
+      "chatgpt"
+    ]
   },
   {
     "id": "lawbench_1_0",
@@ -4356,7 +4520,7 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/lawbench/lawbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/lawbench_1_0.html",
     "model_cards": []
   },
   {
@@ -4380,7 +4544,7 @@
     "contributors": [],
     "samples": 300,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/stanford/medagentbench/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/medagentbench_1_0.html",
     "model_cards": []
   },
   {
@@ -4430,7 +4594,7 @@
     "contributors": [],
     "samples": 435,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=pixiu",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/pixiu_parity.html",
     "model_cards": []
   },
   {
@@ -4464,7 +4628,6 @@
     "source": "harbor",
     "categories": [
       "Professional",
-      "Finance",
       "Assistants"
     ],
     "tags": [],
@@ -4479,7 +4642,7 @@
     "contributors": [],
     "samples": 400,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets?q=spreadsheetbench-verified",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/spreadsheetbench_verified_1_0.html",
     "model_cards": []
   },
   {
@@ -4551,7 +4714,7 @@
     "contributors": [],
     "samples": 1000,
     "featured": false,
-    "url": "https://registry.harborframework.com/datasets/apple/mmau/latest",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/mmau_1_0.html",
     "model_cards": []
   },
   {
@@ -4600,6 +4763,31 @@
     "samples": 115,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench/",
+    "model_cards": []
+  },
+  {
+    "id": "vqa_rad",
+    "name": "VQA-RAD",
+    "source": "evals",
+    "categories": [
+      "Multimodal"
+    ],
+    "tags": [
+      "Multimodal"
+    ],
+    "kind": "multimodal",
+    "modalities": [
+      "vision"
+    ],
+    "desc": "VQA-RAD is the first manually constructed VQA dataset in radiology, where clinicians asked naturally occurring questions about radiology images and provided reference answers.",
+    "paper": "https://doi.org/10.1038/sdata.2018.251",
+    "code": "inspect_evals/vqa_rad",
+    "contributors": [
+      "MattFisher"
+    ],
+    "samples": 451,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vqa_rad/",
     "model_cards": []
   },
   {
@@ -4690,7 +4878,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "Test AI's ability to reason about its environment.",
     "paper": "https://arxiv.org/abs/2505.01420",
@@ -4716,7 +4905,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "Test AI's ability to reason about and circumvent oversight.",
     "paper": "https://arxiv.org/abs/2505.01420",
