@@ -104,3 +104,8 @@ class SampleBuffer(abc.ABC):
           - None if the database no longer exists
         """
         ...
+
+    @abc.abstractmethod
+    def cleanup(self) -> None:
+        """Remove this buffer's backing storage."""
+        ...
