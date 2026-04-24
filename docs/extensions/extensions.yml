@@ -106,13 +106,13 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
   categories: ["Sandboxes"]
 
-- name: "[Modal Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal)"
+- name: "[Modal Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html)"
   description: |
     Serverless container sandbox for Inspect using Modal's cloud infrastructure.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"
   categories: ["Sandboxes"]
 
-- name: "[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona)"
+- name: "[Daytona Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html)"
   description: |
     Sandbox environment for Inspect using Daytona's cloud infrastructure.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_sandboxes)"

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- vLLM: Support `use_chat_template=false` for base model evaluation (complements existing HF provider support).
 - Log recovery: Stream segment-at-a-time to bound memory on large evals.
 - Scoring: Neutralize structural delimiters in model graded scorer inputs.
 - Scoring: Add `perplexity()` and `target_perplexity()` scorers with `perplexity_per_token` and `perplexity_per_seq` metrics for evaluating model prediction quality via prompt log probabilities.
