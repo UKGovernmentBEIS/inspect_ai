@@ -4,7 +4,7 @@
 # When a benchmark exists in both inspect_evals and harbor, prefer the
 # inspect_evals ID (don't list the harbor duplicate).
 
-# Claude Opus 4.6 + 4.7 model card & announcements
+# Claude 4 series model cards & announcements
 claude:
   - swe_bench              # SWE-bench Verified
   - swebenchpro_1_0        # SWE-bench Pro
@@ -21,8 +21,12 @@ claude:
   - cybergym               # CyberGym
   - cybench                # Cybench
   - bbq                    # Bias Benchmark for QA
+  - hle                    # Humanity's Last Exam
+  - tau2                   # Tau2-bench
+  - aider_polyglot_1_0     # Aider Polyglot
+  - mmmu                   # MMMU
 
-# GPT 5.4 announcement
+# GPT 5 series announcements
 chatgpt:
   - gdpval                 # GDPval
   - financeagent_public    # FinanceAgent v1.1
@@ -34,6 +38,14 @@ chatgpt:
   - frontierscience        # Frontier Science Research
   - gpqa                   # GPQA Diamond
   - arc_agi_2_1_0          # ARC-AGI-2
+  - hle                    # Humanity's Last Exam
+  - swe_bench              # SWE-bench Verified
+  - mmmlu_1_0              # MMMLU
+  - mmmu                   # MMMU
+  - healthbench            # HealthBench
+  - aider_polyglot_1_0     # Aider Polyglot
+  - swe_lancer_diamond_ic  # SWE-Lancer IC Diamond
+  - aime2025               # AIME 2025
 
 # Gemini 3.1 Pro
 gemini:

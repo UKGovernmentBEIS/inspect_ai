@@ -1,4 +1,5 @@
 import json
+from collections.abc import MutableMapping
 from functools import lru_cache
 from logging import getLogger
 from typing import (
@@ -177,7 +178,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
 def condense_event(
     event: Event,
-    attachments: dict[str, str],
+    attachments: MutableMapping[str, str],
     log_images: bool = True,
     context: WalkContext | None = None,
 ) -> Event:
@@ -188,7 +189,7 @@ def condense_event(
 
 
 def events_attachment_fn(
-    attachments: dict[str, str], log_images: bool = True
+    attachments: MutableMapping[str, str], log_images: bool = True
 ) -> Callable[[str], str]:
     create_attachment = attachment_fn(attachments)
 
@@ -206,7 +207,7 @@ def events_attachment_fn(
 
 
 def messages_attachment_fn(
-    attachments: dict[str, str], log_images: bool = True
+    attachments: MutableMapping[str, str], log_images: bool = True
 ) -> Callable[[str], str]:
     create_attachment = attachment_fn(attachments)
 
@@ -224,7 +225,7 @@ def messages_attachment_fn(
     return fn
 
 
-def attachment_fn(attachments: dict[str, str]) -> Callable[[str], str]:
+def attachment_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]:
     def create_attachment(text: str) -> str:
         hash = mm3_hash(text)
         attachments[hash] = text
@@ -299,7 +300,7 @@ def resolve_sample_attachments(
 
 
 def attachments_content_fn(
-    log_images: bool, max_length: int, attachments: dict[str, str]
+    log_images: bool, max_length: int, attachments: MutableMapping[str, str]
 ) -> Callable[[str], str]:
     def create_attachment(text: str) -> str:
         hash = mm3_hash(text)
