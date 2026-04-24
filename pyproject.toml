@@ -5,7 +5,6 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 optional-dependencies.dev = { file = ["requirements-dev.txt"] }
-optional-dependencies.dev-mcp-tests = { file = ["requirements-dev-mcp-tests.txt"] }
 optional-dependencies.doc = { file = ["requirements-doc.txt"] }
 optional-dependencies.dist = { file = ["requirements-dist.txt"] }
 
