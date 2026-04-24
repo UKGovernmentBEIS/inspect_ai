@@ -78,8 +78,9 @@ async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
     return await json_rpc_unix_call(str(SOCKET_PATH), request_json_str)
 
 
-_SERVER_STDOUT_LOG = "/tmp/sandbox-tools-server-stdout.log"
-_SERVER_STDERR_LOG = "/tmp/sandbox-tools-server-stderr.log"
+def _server_log_path(stream: str) -> str:
+    """Derive server log path from the socket path so multiple servers don't clobber logs."""
+    return str(SOCKET_PATH.with_suffix(f".{stream}.log"))
 
 
 def _ensure_server_is_running() -> None:
@@ -105,8 +106,8 @@ def _ensure_server_is_running() -> None:
             # Dev/test mode: use Python interpreter with module invocation
             else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
         ),
-        stdout=open(_SERVER_STDOUT_LOG, "a"),
-        stderr=open(_SERVER_STDERR_LOG, "a"),
+        stdout=open(_server_log_path("stdout"), "a"),
+        stderr=open(_server_log_path("stderr"), "a"),
     )
 
     # Wait for socket to become available
@@ -131,7 +132,10 @@ def _ensure_server_is_running() -> None:
 def _read_server_logs() -> str:
     """Read the last 2000 chars of server stdout and stderr logs."""
     parts = []
-    for label, path in [("stdout", _SERVER_STDOUT_LOG), ("stderr", _SERVER_STDERR_LOG)]:
+    for label, path in [
+        ("stdout", _server_log_path("stdout")),
+        ("stderr", _server_log_path("stderr")),
+    ]:
         try:
             content = open(path).read()[-2000:]
             if content.strip():
