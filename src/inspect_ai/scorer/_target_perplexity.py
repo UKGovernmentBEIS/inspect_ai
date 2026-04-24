@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import math
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._task_state import TaskState
 
@@ -94,8 +95,12 @@ def target_perplexity(
                 token_ids = await get_model().api.tokenize(target_text)
                 n = len(token_ids)
             else:
-                # No token-count info provided; default for single-token
-                # targets (e.g. multiple-choice " A").
+                warn_once(
+                    logger,
+                    f"target_perplexity: neither 'num_target_tokens' nor "
+                    f"'{target_text_key}' found in sample metadata; "
+                    f"defaulting to num_target_tokens=1.",
+                )
                 n = 1
 
         if n <= 0:

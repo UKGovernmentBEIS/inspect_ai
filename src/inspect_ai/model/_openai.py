@@ -1,5 +1,6 @@
 import functools
 import json
+import logging
 import re
 from copy import copy
 from dataclasses import dataclass
@@ -84,6 +85,8 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIResponseError(OpenAIError):
@@ -868,7 +871,12 @@ def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
         items = list(entry.items())
         if not items:
             continue
-        # First item is the actual prompt token (vLLM insertion-order contract)
+        # vLLM's Sampler places the actual prompt token as the first dict
+        # entry (by insertion order), followed by top-N alternatives sorted
+        # by logprob.  This contract holds in all vLLM versions through
+        # v0.8.x.  With prompt_logprobs=1 (the common case for perplexity
+        # evals), there is only one entry per position, so ordering is
+        # irrelevant.
         first_id, first_info = items[0]
         if not isinstance(first_info, dict):
             continue
@@ -879,6 +887,13 @@ def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
         # silently poisons the perplexity metrics.
         top_lps: list[TopLogprob] | None = None
         if len(items) > 1:
+            logger.debug(
+                "prompt_logprobs: position has %d entries; treating first "
+                "entry (token=%r, logprob=%s) as actual prompt token",
+                len(items),
+                first_info.get("decoded_token", str(first_id)),
+                first_info.get("logprob"),
+            )
             top_lps = [
                 TopLogprob(
                     token=alt_info.get("decoded_token", str(alt_id)),
