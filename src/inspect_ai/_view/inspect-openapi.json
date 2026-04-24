@@ -452,6 +452,16 @@
           "message": {
             "$ref": "#/components/schemas/ChatMessageAssistant"
           },
+          "prompt_logprobs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stop_reason": {
             "default": "unknown",
             "enum": [
@@ -4526,6 +4536,17 @@
             ],
             "title": "Presence Penalty"
           },
+          "prompt_logprobs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Logprobs"
+          },
           "reasoning_effort": {
             "anyOf": [
               {
@@ -4709,6 +4730,9 @@
             "title": "Verbosity"
           }
         },
+        "required": [
+          "prompt_logprobs"
+        ],
         "title": "GenerateConfig",
         "type": "object"
       },
