@@ -1,6 +1,9 @@
 import contextlib
+import logging
+import os
 import sys
-from contextlib import AsyncExitStack
+import threading
+from contextlib import AsyncExitStack, asynccontextmanager
 from logging import getLogger
 from pathlib import Path
 from types import TracebackType
@@ -305,6 +308,55 @@ def create_server_streamablehttp(
     )
 
 
+@asynccontextmanager
+async def _stdio_client_forwarding_stderr(
+    server_params: StdioServerParameters, logger_name: str
+) -> AsyncIterator[MCPServerContext]:
+    """Run ``stdio_client`` with the child's stderr forwarded into Python logging.
+
+    The MCP SDK's ``stdio_client`` passes its ``errlog`` straight through to
+    ``anyio.open_process(stderr=...)``, which dup's the file descriptor onto the
+    child's fd 2. The default, ``sys.stderr``, is bound at the SDK's
+    function-definition time to the original terminal, so any later
+    ``sys.stderr`` replacement (as installed by the Textual TUI) is bypassed and
+    the server's stderr paints directly over the TUI.
+
+    We hand the child the write end of an OS pipe instead, and drain the read
+    end into ``logging.getLogger(logger_name)``. That routes the messages
+    through the normal ``RichHandler`` path the TUI already captures, and
+    leaves them in ``trace.log`` even when the TUI is disabled.
+    """
+    r_fd, w_fd = os.pipe()
+    errlog = os.fdopen(w_fd, "w", buffering=1, encoding="utf-8", errors="replace")
+    mcp_logger = logging.getLogger(logger_name)
+
+    def _drain() -> None:
+        try:
+            with os.fdopen(r_fd, "r", encoding="utf-8", errors="replace") as r:
+                for line in r:
+                    line = line.rstrip("\r\n")
+                    if line:
+                        mcp_logger.info(line)
+        except Exception:
+            pass
+
+    reader = threading.Thread(
+        target=_drain, name=f"mcp-stderr-{logger_name}", daemon=True
+    )
+    reader.start()
+
+    try:
+        async with stdio_client(server_params, errlog=errlog) as ctx:
+            yield ctx
+    finally:
+        # Closing the write end lets the reader see EOF and exit.
+        try:
+            errlog.close()
+        except Exception:
+            pass
+        reader.join(timeout=5)
+
+
 def create_server_stdio(
     *,
     name: str,
@@ -313,15 +365,15 @@ def create_server_stdio(
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> MCPServer:
+    server_params = StdioServerParameters(
+        command=command,
+        args=args if args is not None else [],
+        cwd=cwd,
+        env=env,
+    )
+    logger_name = f"inspect_ai.tool._mcp.{name}"
     return MCPServerLocal(
-        lambda: stdio_client(
-            StdioServerParameters(
-                command=command,
-                args=args if args is not None else [],
-                cwd=cwd,
-                env=env,
-            )
-        ),
+        lambda: _stdio_client_forwarding_stderr(server_params, logger_name),
         name=name,
         events=True,
     )
