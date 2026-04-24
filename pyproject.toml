@@ -4,6 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+optional-dependencies.dev-mcp-tests = { file = ["requirements-dev-mcp-tests.txt"] }
+optional-dependencies.doc = { file = ["requirements-doc.txt"] }
+optional-dependencies.dist = { file = ["requirements-dist.txt"] }
 
 [tool.setuptools_scm]
 git_describe_command = [
@@ -142,7 +146,7 @@ authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT License" }
-dynamic = ["version", "dependencies"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -164,79 +168,13 @@ Documentation = "https://inspect.aisi.org.uk/"
 [project.scripts]
 inspect = "inspect_ai._cli.main:main"
 
-[project.optional-dependencies]
-dev = [
-  "adlfs>=2025.8.0",
-  "anthropic>=0.96.0",
-  "azure-identity",
-  "azure-ai-inference",
-  "fastapi>=0.119.0",
-  "google-genai>=1.69.0",
-  "griffe>=2",
-  "groq>=0.28.0",
-  "huggingface_hub>=1.0.0",
-  "inspect_scout",
-  "ipython",
-  "jsonpath-ng",
-  "markdown",
-  "mcp>=1.10.0",
-  "mistralai>=2.0.0",
-  "moto[server]>=5.1.5",
-  "mypy>=1.17.0",
-  "nbformat",
-  "openai>=2.26.0",
-  "pandas>=2.0.0",
-  "panflute",
-  "pip",
-  "pre-commit",
-  "pyarrow>=10.0.1",
-  "pytest",
-  "pytest-cov",
-  "pytest-dotenv",
-  "pytest-mock",
-  "pytest-watcher",
-  "pytest-xdist",
-  "ruff==0.9.6",            # match version specified in .pre-commit-config.yaml
-  "together>=2.0.0",
-  "textual-dev>=0.86.2",
-  "trio",
-  "pandas-stubs",
-  "pyarrow-stubs",
-  "types-grpcio",
-  "types-Markdown",
-  "types-PyYAML",
-  "types-regex",
-  "types-beautifulsoup4",
-  "types-aioboto3",
-  "types-boto3",
-  "types-botocore",
-  "types-jsonpatch",
-  "types-jsonschema",
-  "types-protobuf",
-  "types-psutil",
-  "types-python-dateutil",
-  "xai_sdk>=1.7.0",
-  "uvicorn",
-  # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
-  "zipfile-zstd>=0.0.4; python_version < '3.14'",
-]
-dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = [
-  "quarto-cli>=1.9.36",
-  "jupyter",
-  "nbclient",
-  "panflute",
-  "markdown",
-  "griffe>=2",
-  "click>=8.2.0",
-  "pyyaml",
-  "types-PyYAML",
-]
-dist = ["twine", "build"]
-
 [tool.typos.default.extend-words]
 ba = "ba"
 lsat = "lsat"
 
+[dependency-groups]
+dev = ["inspect_ai[dev]"]
+
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
+default-groups = ["dev"]
