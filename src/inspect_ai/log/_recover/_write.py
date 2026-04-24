@@ -1,5 +1,8 @@
 """Write recovered .eval files."""
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging import getLogger
 from typing import Iterator
@@ -16,10 +19,12 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalStats,
 )
+from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.model._model_output import ModelUsage
 
 from ._read import CrashedEvalLog, read_flushed_sample
+from ._stream import _write_sample_streaming
 
 logger = getLogger(__name__)
 
@@ -27,22 +32,47 @@ logger = getLogger(__name__)
 _FLUSH_INTERVAL = 10
 
 
+@dataclass
+class RecoveryStats:
+    """Counts tracked during streaming recovery, without re-reading samples."""
+
+    sample_count: int = 0
+    failed_count: int = 0
+
+
 async def write_recovered_eval_log(
     crashed: CrashedEvalLog,
     buffer_samples: Iterator[EvalSample],
     output: str,
+    *,
+    streaming_buffer: SampleBufferFilestore | None = None,
+    streaming_summaries: list[tuple[EvalSampleSummary, bool]] | None = None,
+    flushed_keys: set[str] | None = None,
+    no_events: bool = False,
+    stats: RecoveryStats | None = None,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
 
     Flushed samples are read from the crashed .eval file one at a time
     via AsyncZipReader. Buffer DB samples are consumed from the provided
     iterator one at a time. Each sample is condensed and flushed to disk
-    incrementally — memory usage is bounded to a small batch of samples.
+    incrementally -- memory usage is bounded to a small batch of samples.
+
+    When ``streaming_buffer`` is provided (filestore recovery), segments
+    are processed one at a time via ``_write_sample_streaming`` and the
+    ``buffer_samples`` iterator is ignored.
 
     Args:
         crashed: Start data from the crashed .eval file.
         buffer_samples: Iterator of reconstructed buffer DB samples.
         output: Output file path.
+        streaming_buffer: If set, use streaming segment-at-a-time path.
+        streaming_summaries: (summary, is_in_progress) tuples for streaming.
+        flushed_keys: Sample entry keys already flushed (for dedup).
+        no_events: Exclude event transcript from recovered samples.
+        stats: If provided, populated with sample and failed counts so
+            callers can report progress without re-reading the just-written
+            file (which would trigger lazy loading of all samples).
 
     Returns:
         The written EvalLog (header only, samples on disk).
@@ -63,11 +93,12 @@ async def write_recovered_eval_log(
     await recorder.log_start(crashed.eval, crashed.plan)
 
     sample_count = 0
+    failed_count = 0
     stats_acc = _StatsAccumulator(crashed)
     scores_acc: list[dict[str, SampleScore]] = []
 
     async def _write_sample(sample: EvalSample) -> None:
-        nonlocal sample_count
+        nonlocal sample_count, failed_count
         stats_acc.add_sample(sample)
         if sample.scores:
             scores_acc.append(
@@ -80,6 +111,8 @@ async def write_recovered_eval_log(
                     for name, score in sample.scores.items()
                 }
             )
+        if sample.error is not None:
+            failed_count += 1
         sample = condense_sample(sample)
         await recorder.log_sample(crashed.eval, sample)
         sample_count += 1
@@ -94,9 +127,68 @@ async def write_recovered_eval_log(
                 sample = await read_flushed_sample(reader, entry_name)
                 await _write_sample(sample)
 
-    # Stream buffer DB samples from the iterator
-    for sample in buffer_samples:
-        await _write_sample(sample)
+    # Stream buffer samples
+    if streaming_buffer is not None and streaming_summaries is not None:
+        # Streaming path: process segments one at a time with bounded memory
+        manifest = streaming_buffer.read_manifest()
+        if manifest is not None:
+            zip_log = recorder.data[recorder._log_file_key(crashed.eval)]
+            effective_flushed = flushed_keys or set()
+            total_streaming = len(streaming_summaries)
+            processed = 0
+            for summary, is_in_progress in streaming_summaries:
+                entry = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+                if entry in effective_flushed:
+                    continue
+                processed += 1
+                seg_count = next(
+                    (
+                        len(sm.segments)
+                        for sm in manifest.samples
+                        if sm.summary.id == summary.id
+                        and sm.summary.epoch == summary.epoch
+                    ),
+                    0,
+                )
+                logger.info(
+                    f"Recovering sample {processed}/{total_streaming} "
+                    f"id={summary.id} epoch={summary.epoch} segments={seg_count}"
+                )
+                written_summary = _write_sample_streaming(
+                    zip_log,
+                    streaming_buffer,
+                    summary,
+                    manifest,
+                    eval_spec=crashed.eval,
+                    is_in_progress=is_in_progress,
+                    include_events=not no_events,
+                )
+                stats_acc.add_summary(written_summary)
+                if is_in_progress or written_summary.error is not None:
+                    failed_count += 1
+                zip_log._summaries.append(written_summary)
+                if written_summary.scores:
+                    scores_acc.append(
+                        {
+                            name: SampleScore(
+                                score=score,
+                                sample_id=written_summary.id,
+                                sample_metadata=written_summary.metadata,
+                            )
+                            for name, score in written_summary.scores.items()
+                        }
+                    )
+                sample_count += 1
+                logger.info(
+                    f"Recovered sample {processed}/{total_streaming} "
+                    f"id={summary.id} epoch={summary.epoch}"
+                )
+                if sample_count % _FLUSH_INTERVAL == 0:
+                    await recorder.flush(crashed.eval)
+    else:
+        # Non-streaming path: consume buffer_samples iterator
+        for sample in buffer_samples:
+            await _write_sample(sample)
 
     # Compute results from collected scores
     results: EvalResults | None = None
@@ -128,6 +220,10 @@ async def write_recovered_eval_log(
         traceback="Eval process crashed; log recovered from sample buffer database.\n",
         traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
     )
+
+    if stats is not None:
+        stats.sample_count = sample_count
+        stats.failed_count = failed_count
 
     return await recorder.log_finish(
         crashed.eval,

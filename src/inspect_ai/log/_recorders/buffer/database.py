@@ -287,6 +287,7 @@ class SampleBufferDatabase(SampleBuffer):
             finally:
                 cursor.close()
 
+    @override
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:

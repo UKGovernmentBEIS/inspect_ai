@@ -1,7 +1,23 @@
 ## Unreleased
 
+- Log recovery: Stream segment-at-a-time to bound memory on large evals.
+- Scoring: Neutralize structural delimiters in model graded scorer inputs.
+- MCP: Forward MCP stdio server stderr to logging instead of the tty.
+- Tool calls: Record a `ToolEvent` when an approver rejects or terminates a call so the attempt is visible in the transcript.
+- Inspect View: Improve wrapping behavior in message and events.
+- Inspect View: Fix issues positioning chat messages within model events.
+- Inspect View: Improve tool call error rendering.
+- Inspect View: Improve model event tool configuration rendering.
+- Bugfix: Ensure that model role defaulting doesn't affect other configured roles.
+
+## 0.3.211 (23 April 2026)
+
+- OpenAI: Gracefully catch when response.tools is null and normalize it to []
 - Model API: Log the first 5 API calls per-model by default. 
 - Avoid deep copy of messages when applying custom tool model input handler.
+- Inspect View: Metadata with more than 5 children will be collapsed by default (for real).
+- Inspect View: Improve column selection with fine-grained metrics selection in Folder and Tasks view.
+- Inspect View: Minor UX improvements.
 
 ## 0.3.210 (22 April 2026)
 

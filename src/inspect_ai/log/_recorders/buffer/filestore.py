@@ -2,7 +2,7 @@ import os
 import tempfile
 from logging import getLogger
 from pathlib import Path
-from typing import Literal
+from typing import Iterator, Literal
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -110,6 +110,47 @@ class SampleBufferFilestore(SampleBuffer):
                 with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
                     return SampleData.model_validate_json(sf.read())
 
+    def iter_sample_segments(
+        self,
+        id: str | int,
+        epoch: int,
+        manifest: Manifest,
+    ) -> Iterator[tuple[int, SampleData]]:
+        """Yield (segment_id, data) for each segment of a sample.
+
+        Segments that fail to read (missing, corrupt) are logged as
+        warnings and skipped.
+
+        Args:
+            id: Sample id.
+            epoch: Sample epoch.
+            manifest: The parsed manifest (avoids re-reading it per call).
+
+        Yields:
+            Tuples of (segment_id, SampleData) for each successfully read
+            segment, in segment-id order.
+        """
+        sample = next(
+            (
+                s
+                for s in manifest.samples
+                if s.summary.id == id and s.summary.epoch == epoch
+            ),
+            None,
+        )
+        if sample is None:
+            return
+
+        for segment in sorted(manifest.segments, key=lambda s: s.id):
+            if segment.id not in sample.segments:
+                continue
+            try:
+                data = self.read_segment_data(segment.id, id, epoch)
+                yield (segment.id, data)
+            except Exception as ex:
+                logger.warning(f"Skipping segment {segment.id}: {ex}")
+
+    @override
     def cleanup(self) -> None:
         cleanup_sample_buffer_filestore(self._dir, self._fs)
 
