@@ -2,6 +2,7 @@
 
 - Log recovery: Stream segment-at-a-time to bound memory on large evals.
 - Scoring: Neutralize structural delimiters in model graded scorer inputs.
+- MCP: Forward MCP stdio server stderr to logging instead of the tty.
 - Bugfix: Ensure that model role defaulting doesn't affect other configured roles.
 - Tool calls: Record a `ToolEvent` when an approver rejects or terminates a call so the attempt is visible in the transcript.
 
