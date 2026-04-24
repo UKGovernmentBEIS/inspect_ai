@@ -295,6 +295,24 @@ class ModelAPI(abc.ABC):
         """
         return count_media_tokens(media)
 
+    async def tokenize(self, text: str) -> list[int]:
+        """Tokenize text into token IDs using the model's tokenizer.
+
+        Override in providers that support server-side tokenization
+        (e.g. vLLM's ``/tokenize`` endpoint).
+
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            List of token IDs.
+
+        Raises:
+            NotImplementedError: If the provider does not support
+                tokenization.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tokenize().")
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -1424,6 +1442,9 @@ def get_model(
     if model is None:
         if isinstance(default, Model):
             if role is not None:
+                # shallow-copy so we don't mutate the caller's Model
+                # (e.g. a shared instance held in model_roles())
+                default = copy(default)
                 default._set_role(role)
             return default
         else:
@@ -1678,7 +1699,7 @@ def resolve_tool_model_input(
         return messages
 
     # don't mutate the original messages
-    messages = deepcopy(messages)
+    messages = [m.model_copy() for m in messages]
 
     # extract tool messages
     tool_messages = [
@@ -1693,11 +1714,11 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
-            original_content = message.content
-            message.content = tdef.model_input(
+            model_input_content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
-            if message.content is not original_content:
+            if model_input_content is not message.content:
+                message.content = model_input_content
                 message.id = uuid()
 
     # return modified messages

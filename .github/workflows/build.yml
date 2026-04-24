@@ -26,9 +26,12 @@ jobs:
           fetch-tags: true
       - name: Lint with Ruff
         uses: astral-sh/ruff-action@v3
+        with:
+          version-file: requirements-dev.txt
       - name: Format with Ruff
         uses: astral-sh/ruff-action@v3
         with:
+          version-file: requirements-dev.txt
           args: "format --check"
 
   mypy:
@@ -120,11 +123,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
+  # See design/sandbox-tools-ci-gates.md for the full gate matrix.
+
   check-tool-paths:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       tools_changed: ${{ steps.filter.outputs.tools }}
+      injectable_src_changed: ${{ steps.filter.outputs.injectable_src }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -135,9 +141,57 @@ jobs:
               - "src/inspect_ai/tool/**"
               - "src/inspect_sandbox_tools/**"
               - "tests/tools/**"
+            injectable_src:
+              - "src/inspect_sandbox_tools/**"
 
-  slow-tool-tests:
+  # Fast gate: confirm sandbox_tools_version.txt is bumped to exactly N+1
+  # when the injectable source changed. Blocks downstream slow jobs on
+  # failure so PR contributors don't wait on a Docker build to learn they
+  # forgot the bump.
+  check-version-bump:
     needs: check-tool-paths
+    if: needs.check-tool-paths.outputs.tools_changed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version_correctly_bumped: ${{ steps.bump.outputs.correctly_bumped }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check version bump
+        id: bump
+        env:
+          INJECTABLE_SRC_CHANGED: ${{ needs.check-tool-paths.outputs.injectable_src_changed }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          VERSION_PATH="src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt"
+          BASE_VERSION=$(git show "origin/${BASE_REF}:${VERSION_PATH}" | tr -d '[:space:]')
+          PR_VERSION=$(tr -d '[:space:]' < "${VERSION_PATH}")
+          EXPECTED=$((BASE_VERSION + 1))
+          echo "Base (${BASE_REF}): v${BASE_VERSION}; PR: v${PR_VERSION}; expected on bump: v${EXPECTED}; injectable_src_changed=${INJECTABLE_SRC_CHANGED}"
+          if [ "$INJECTABLE_SRC_CHANGED" = "true" ]; then
+            if [ "$PR_VERSION" = "$EXPECTED" ]; then
+              echo "correctly_bumped=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::src/inspect_sandbox_tools/ changed but ${VERSION_PATH} is v${PR_VERSION}; bump it to v${EXPECTED}."
+              exit 1
+            fi
+          else
+            if [ "$PR_VERSION" = "$BASE_VERSION" ]; then
+              echo "correctly_bumped=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::${VERSION_PATH} changed to v${PR_VERSION} but src/inspect_sandbox_tools/ is unchanged. Either revert the version change or include the injectable source change."
+              exit 1
+            fi
+          fi
+
+  # Developer gate: run the sandbox slow-test suite. When the injectable
+  # source or version changed, build a -dev binary first; otherwise let
+  # pytest resolve the published v{N} via the runtime's S3 download path.
+  slow-tool-tests-dev:
+    needs: [check-tool-paths, check-version-bump]
     if: needs.check-tool-paths.outputs.tools_changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -173,25 +227,83 @@ jobs:
           uv venv
           uv pip install .[dev]
 
-      - name: Pre-seed sandbox tools -dev binary (CI stopgap)
-        # The `edited` install-state triggers a `-dev`-suffixed binary lookup
-        # that isn't published to S3 by design. Download the published non-dev
-        # v{N} and save it under the `-dev` name so the local-binary check in
-        # `_open_executable_for_arch` short-circuits before the interactive
-        # build prompt. Remove once the install-state logic is fixed.
-        run: |
-          VERSION=$(cat src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
-          ARCH=amd64  # ubuntu-latest runner
-          mkdir -p src/inspect_ai/binaries
-          curl -fSL \
-            -o "src/inspect_ai/binaries/inspect-sandbox-tools-${ARCH}-v${VERSION}-dev" \
-            "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-${ARCH}-v${VERSION}"
-          chmod +x "src/inspect_ai/binaries/inspect-sandbox-tools-${ARCH}-v${VERSION}-dev"
+      - name: Build sandbox-tools -dev binary
+        if: needs.check-tool-paths.outputs.injectable_src_changed == 'true' || needs.check-version-bump.outputs.version_correctly_bumped == 'true'
+        env:
+          DOCKER_BUILDKIT: 1
+          BUILDKIT_PROGRESS: plain
+        run: uv run python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch amd64
 
       - name: Run slow tool tests
         env:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
+        run: uv run pytest --runslow -m slow tests/tools/ -x
+
+      - name: Minimize uv cache
+        if: ${{ !cancelled() }}
+        run: uv cache prune --ci
+
+  # Release gate: runs only when the version bumped to N+1. Verifies the
+  # new v{N+1} artifact is published to S3 (fails fast with upload_to_s3.py
+  # hint if not), then re-runs the slow tests against it. Maintainer reruns
+  # from the Actions UI after uploading.
+  slow-tool-tests-release:
+    needs: [check-tool-paths, check-version-bump, slow-tool-tests-dev]
+    if: needs.check-tool-paths.outputs.tools_changed == 'true' && needs.check-version-bump.outputs.version_correctly_bumped == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: true
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+          driver-opts: |
+            network=host
+          buildkitd-flags: |
+            --allow-insecure-entitlement security.insecure
+            --allow-insecure-entitlement network.host
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |-
+          uv venv
+          uv pip install .[dev]
+
+      - name: Fetch published non-dev sandbox-tools binary
+        run: |
+          VERSION=$(tr -d '[:space:]' < src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt)
+          ARCH=amd64
+          FILENAME="inspect-sandbox-tools-${ARCH}-v${VERSION}"
+          URL="https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/${FILENAME}"
+          if ! curl -fsI "$URL" >/dev/null; then
+            echo "::error::Non-dev binary v${VERSION} not found at ${URL}. Run: python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py ${VERSION} then rerun this job."
+            exit 1
+          fi
+          mkdir -p src/inspect_ai/binaries
+          curl -fSL -o "src/inspect_ai/binaries/${FILENAME}" "$URL"
+          chmod +x "src/inspect_ai/binaries/${FILENAME}"
+
+      - name: Run slow tool tests against published artifact
+        env:
+          DOCKER_BUILDKIT: 1
+          BUILDKIT_PROGRESS: plain
+          # Force install-state=clean so _open_executable_for_arch resolves
+          # the non-dev name; _check_main_divergence would otherwise return
+          # "edited" on this PR (version.txt differs from main).
+          INSPECT_SANDBOX_TOOLS_INSTALL_STATE: clean
         run: uv run pytest --runslow -m slow tests/tools/ -x
 
       - name: Minimize uv cache

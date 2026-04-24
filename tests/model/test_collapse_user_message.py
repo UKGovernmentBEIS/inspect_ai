@@ -106,7 +106,7 @@ async def test_anthropic_user_tool_messages() -> None:
     # call response, this results in an error unless the user messages are
     # correctly combined into a single one w/ tool and text content.
     try:
-        model = get_model("anthropic/claude-3-haiku-20240307")
+        model = get_model("anthropic/claude-haiku-4-5")
         await model.generate(
             input=[
                 ChatMessageUser(content="What is 1 + 1?"),

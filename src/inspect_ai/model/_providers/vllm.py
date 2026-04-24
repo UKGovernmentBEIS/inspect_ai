@@ -351,6 +351,38 @@ class VLLMAPI(OpenAICompatibleAPI):
         return self.base_model
 
     @override
+    async def tokenize(self, text: str) -> list[int]:
+        """Tokenize text via the vLLM ``/tokenize`` endpoint.
+
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            List of token IDs.
+        """
+        await self._ensure_server_started()
+        base = str(self.base_url).rstrip("/").removesuffix("/v1")
+        headers: dict[str, str] = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        resp = await self.http_client.post(
+            f"{base}/tokenize",
+            json={
+                "model": self.service_model_name(),
+                "prompt": text,
+                "add_special_tokens": False,
+            },
+            headers=headers,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        tokens = data.get("tokens")
+        if tokens is None:
+            raise ValueError(f"vLLM /tokenize response missing 'tokens' key: {data}")
+        return list(tokens)
+
+    @override
     def should_retry(self, ex: BaseException) -> bool:
         if _is_fatal_vllm_error(ex):
             logger.error(

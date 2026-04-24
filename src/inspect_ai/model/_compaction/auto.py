@@ -5,7 +5,7 @@ and falls back to summary-based compaction for unsupported providers.
 """
 
 from logging import getLogger
-from typing import Literal
+from typing import Any, Literal
 
 from typing_extensions import override
 
@@ -81,6 +81,13 @@ class CompactionAuto(CompactionStrategy):
             # Return True only after we've fallen back to summary
             return self._use_fallback
         return self._memory_setting
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params["instructions"] = self._instructions
+        params["memory"] = self._memory_setting
+        return params
 
     @override
     async def compact(

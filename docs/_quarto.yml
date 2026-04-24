@@ -2,6 +2,7 @@ project:
   type: meridianlabs-ai/inspect-docs
   resources:
     - CNAME
+    - listing/
 
 website:
   navbar:
