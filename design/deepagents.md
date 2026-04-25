@@ -1,0 +1,344 @@
+# Deep Agent Harness for Inspect
+
+## RFC
+
+We're planning on adding a `deepagent()` to Inspect as a peer to `react()`. This would be an alternate top-level agent that bundles the patterns popularized by Claude Code, OpenAI Codex CLI, LangChain deepagents, and Pydantic AI deepagents into a single batteries-included entry point. This RFC describes the proposed design and asks for community feedback before we commit to an API.
+
+### Background
+
+The `react()` loop — model + tools + scaffolding — handles short-horizon tasks well, but tends to flatten under longer horizons: agents lose the plot, exhaust their context window with intermediate tool output, and don't reliably plan or decompose work. The "deep agent" pattern, which emerged from Claude Code and was generalized by LangChain and others, addresses this with four ingredients:
+
+1. **A planner / todo tool:** Explicit, model-managed task decomposition.
+
+2. **A persistent scratchpad:** Place to offload large intermediate results out of the message history (a virtual filesystem in LangChain/Pydantic, real files in CC and Codex).
+
+3. **Subagent delegation:** Spawn isolated workers with their own context windows; only their summary returns to the parent.
+
+4. **A detailed system prompt:** Opinionated instructions that teach the model when to use each of the above.
+
+Inspect already has the underlying machinery for most of this: `react()` provides the agent loop, the `memory()` tool plus skills handle context engineering, sandboxes provide a real filesystem, `as_tool(agent)` turns any agent into a tool, `update_plan()` is a todo-style planner, and limits/spans/compaction are wired through. What's missing is the opinionated assembly: a single entry point, the canonical subagent set, the default system prompt, and a couple of naming alignments with the broader deep-agent vocabulary.
+
+### Proposed API
+
+``` python
+from inspect_ai.agent import deepagent, research, plan, general
+
+agent = deepagent(
+    tools=[...],                      # additional tools beyond defaults
+    subagents=[                       # default subagents
+        research(), plan(), general()
+    ],  
+    todo_write=True,                  # planner tool
+    memory=True,                      # context-engineering tool
+    skills=[...],                     # additional skills
+    instructions="...",               # additional sysprompt instructions
+)
+```
+
+`deepagent()` is a factory that returns an agent — usable anywhere `react()` is usable, including as a solver, as a subagent inside another `deepagent()`, or as a tool via `as_tool()`.
+
+### Key Design Decisions
+
+#### Three built-in subagents: `research()`, `plan()`, `general()`
+
+``` python
+subagents=[
+    research(),   # read-only information gathering
+    plan(),       # structured planning, no execution
+    general(),    # full tools, isolated context for noisy work
+]
+```
+
+Each is a factory function that returns a `subagent()` configured with appropriate tools, prompt, and permissions. All three accept additive customization (`instructions=`, `extra_tools=`, `model=`).
+
+**Comparison to prior art:**
+
+| Framework              | Built-in subagents                        |
+|------------------------|-------------------------------------------|
+| Claude Code            | `Explore`, `Plan`, `general-purpose`      |
+| LangChain `deepagents` | `general-purpose` only                    |
+| Pydantic `deepagents`  | `research` only                           |
+| Codex CLI              | None — user defines via `[agents]` config |
+| **Inspect (proposed)** | `research`, `plan`, `general`             |
+
+**Naming notes:**
+
+- `research()` over `explore()`: we expect a meaningful share of evals built on `deepagent()` to be AI-Scientist-flavored (literature synthesis, web research) rather than codebase-flavored. `explore` reads awkwardly there. Pydantic-deep also blesses `research` as its single default. The underlying behavior — read-only delegation for information gathering — is the same as CC's Explore.
+- `plan()` matches CC directly.
+- `general()` is the shorter form of CC/LangChain's `general_purpose`. No semantic loss; consistent with the other one-word factories. The string `"general_purpose"` will be aliased on the tool side to absorb model habits trained on CC's vocabulary.
+
+#### The `subagent()` primitive
+
+For fully custom subagents:
+
+``` python
+from inspect_ai.agent import subagent
+
+reviewer = subagent(
+    name="reviewer",
+    description="Reviews code for security and correctness.",
+    prompt="...",
+    tools=[grep(), read_file()],
+    model="anthropic/claude-sonnet-4",  # optional, inherits parent by default
+)
+
+agent = deepagent(subagents=[research(), plan(), general(), reviewer()])
+```
+
+Internally, `subagent()` is a thin wrapper around `react()` that captures name/description metadata for `task()` multiplexing, enforces the recursion guard, and provides additive customization fields. No new abstraction layer.
+
+#### Subagent dispatch: isolated vs forked
+
+Subagents support two dispatch modes, corresponding to Inspect's existing `as_tool()` and `handoff()` primitives:
+
+- **Isolated** (default) — the subagent runs with a fresh message history. The parent sends a prompt; only the subagent's summary returns. This is the standard CC/LangChain pattern and is what `as_tool()` provides.
+
+- **Forked** — the subagent inherits the parent's full message history (filtered through `content_only` so tool calls, reasoning traces, and system messages don't confound a potentially different model). The subagent works with the accumulated context and its output is filtered back to the parent. This maps directly to Inspect's `handoff()` with `output_filter=content_only`.
+
+Claude Code recently added fork semantics to its general-purpose agent. We expose the same choice on `subagent()`:
+
+``` python
+reviewer = subagent(
+    name="reviewer",
+    description="Reviews code for security and correctness.",
+    prompt="...",
+    tools=[grep(), read_file()],
+    fork=False,  # default: isolated context
+)
+```
+
+The `fork` parameter controls which dispatch primitive is used under the hood. When `fork=False` (the default), the subagent behaves like `as_tool()` — isolated context, only the summary returns. When `fork=True`, it behaves like `handoff()` with `content_only` filters — the subagent sees the parent's conversation and its filtered output is appended to the parent's history.
+
+The built-in subagents default as follows:
+
+| Subagent       | Default `fork` | Rationale |
+|----------------|----------------|-----------|
+| `research()`   | `False`        | Information gathering is self-contained; isolated context keeps the parent lean. |
+| `plan()`       | `False`        | Planning from a clean slate avoids anchoring on noisy intermediate output. |
+| `general()`    | `False`        | Matches CC's original default. `general(fork=True)` opts into CC's newer fork behavior. |
+
+All three accept `fork=True` as an override.
+
+#### The `task()` tool
+
+`deepagent()` exposes subagents to the model via a single multiplexer tool (`task`), matching CC and Pydantic-deep convention. The tool takes `(description, subagent_type, prompt)` and dispatches to the named subagent. This keeps the model's tool list small as more subagents are added — the enumeration grows in the `subagent_type` parameter description, not the tool list itself.
+
+`as_tool(agent)` remains available as a primitive for users who prefer per-subagent tool exposure (better when there are 1–2 specialized subagents and you want maximum descriptive room).
+
+#### State inheritance
+
+Default behavior matches the convergent pattern across CC, LangChain, and Pydantic-deep:
+
+- **Sandbox** — shared (already true per-sample in Inspect).
+- **Memory** — shared, read by default, write opt-in per subagent. `research()` is read-only by default; `general()` can write; custom subagents declare explicitly.
+- **Skills** — shared.
+- **Message history** — isolated (this is what subagents are *for*).
+- **Tools** — subset declared by the subagent's definition.
+
+#### Subagent excursions
+
+Inspect's `span(type="agent")` already renders subagent work as swimlanes in the log viewer. The `task()` tool dispatch will open a span automatically — no new viewer work needed. Limits (`token_limit`, `message_limit`, `time_limit`, `cost_limit`) apply globally across the parent and all subagent excursions.
+
+#### System prompt
+
+The system prompt is the spine of the deep-agent pattern. We will treat it as a separately versioned text asset (not a Python string literal) so it can be reviewed, diffed, and tuned independently. Users can extend additively with `instructions=` (90% case) or fully replace with `prompt=` (escape hatch).
+
+The subsections below analyze the system prompts shipped by Claude Code, Codex CLI, LangChain deepagents, and Pydantic AI deepagents — what they share, where they diverge, and implications for Inspect.
+
+##### Scale and structure
+
+The four frameworks span a wide range of prompt size and modularity:
+
+| Framework   | Approx. size | Structure |
+|-------------|-------------|-----------|
+| Claude Code | Very large (~160 component files) | Modular: assembled at runtime from categorized markdown fragments (core behavior, tool descriptions, agent dispatch, memory, git safety, formatting). Subagent prompts are separate files. |
+| Codex CLI   | ~200 lines | Single monolithic markdown file. Focused and concise. |
+| LangChain   | ~60 lines (base) + ~80 lines (task dispatch) | Two constants: `BASE_AGENT_PROMPT` for core behavior, `TASK_SYSTEM_PROMPT` for subagent dispatch instructions. |
+| Pydantic AI | ~100 lines | Single `BASE_PROMPT` constant. Comprehensive but self-contained. |
+
+##### What they all share
+
+Despite significant differences in scope, all four converge on a core set of behavioral instructions:
+
+1. **Action bias.** All four tell the model to act rather than narrate intent. "Don't say 'I'll now do X' — just do it" appears nearly verbatim in LangChain, Pydantic, and CC. Codex expresses this through its "just do it" task execution style.
+
+2. **Verify-iterate loops.** All four include some form of "your first attempt is rarely correct — iterate." The loop structure varies (CC: implicit in tool usage; Codex: implicit; LangChain: understand→act→verify; Pydantic: research→understand→implement→verify→retry) but the principle is universal.
+
+3. **Conciseness.** Every prompt instructs the model to be direct and avoid preamble. CC and Codex add specific formatting rules; LangChain and Pydantic keep it to a general directive.
+
+4. **Parallel tool use.** All four instruct the model to batch independent tool calls into a single response rather than making sequential round-trips.
+
+5. **Don't over-ask.** All four tell the model to use reasonable defaults rather than asking clarifying questions for every detail. Only ask when genuinely blocked.
+
+##### Where they diverge
+
+| Concern | Claude Code | Codex CLI | LangChain | Pydantic AI |
+|---------|------------|-----------|-----------|-------------|
+| **Workflow prescription** | Implicit — behavior emerges from many small rules | Minimal — "understand, act, verify" is implied but not codified | Explicit 3-step: understand → act → verify | Explicit 5-step: research → understand → implement → verify → retry |
+| **Domain specificity** | Heavily code/git oriented (git safety protocol, commit conventions, PR creation) | Code-oriented (editing constraints, dirty worktree handling, `rg` preference) | Domain-agnostic | Code-oriented but less so than CC/Codex (file reading pagination, code quality rules) |
+| **Tool-specific rules** | Extensive — dedicated instructions per tool (Read vs cat, Edit vs sed, Bash constraints) | Moderate — `apply_patch` guidance, `rg` preference | Minimal — "use tools" | Moderate — prefer specialized tools over shell equivalents, file reading pagination |
+| **Formatting/presentation** | Detailed rules (markdown, code references, line numbers) | Very detailed (plain text, bullet structure, monospace rules, file reference format, final answer structure) | Minimal | Minimal — "be concise, include file:line references" |
+| **Safety guardrails** | Extensive (git safety, destructive operation warnings, security vulnerability awareness, OWASP top 10) | Moderate (never revert uncommitted changes, no destructive git commands) | None | Minimal (security vulnerability awareness) |
+| **Subagent dispatch** | Detailed per-agent-type instructions in the `task()` tool description | N/A (no built-in subagents) | Separate `TASK_SYSTEM_PROMPT` with lifecycle rules, when-to/when-not-to guidance, and worked examples | Brief "delegate specialized subtasks to subagents" |
+| **Memory/context** | Elaborate file-based memory system with types, lifecycle rules, and anti-patterns | None | None | None |
+| **Planning** | Dedicated plan mode with structured workflow | "Skip for easy tasks; don't make single-step plans; update after each step" | None (planning is a subagent concern) | None |
+
+##### Model-adaptive prompting: lessons from Codex CLI
+
+Codex CLI maintains separate system prompts per model generation, and the differences are instructive. The repository contains five prompt files:
+
+| File | Model | Lines | Content |
+|------|-------|-------|---------|
+| `gpt_5_codex_prompt.md` | GPT-5 (Codex-tuned) | ~80 | Concise: editing constraints, plan tool (3 rules), formatting guidelines. |
+| `gpt-5.1-codex-max_prompt.md` | GPT-5 (Codex Max) | ~90 | Same as above + frontend design section. |
+| `gpt_5_1_prompt.md` | GPT-5.1 (generic) | ~500 | Expansive: personality, AGENTS.md spec, autonomy/persistence, user update spec with examples, detailed planning with good/bad plan examples, task execution, validation, ambition vs precision, progress updates, full formatting rules, tool documentation. |
+| `gpt_5_2_prompt.md` | GPT-5.2 (generic) | ~480 | Similar to 5.1, slightly trimmed (responsiveness section emptied). |
+| `gpt-5.2-codex_prompt.md` | GPT-5.2 (Codex-tuned) | ~80 | Same concise format as GPT-5 base. Adds frontend tasks. |
+
+The pattern is stark: **models post-trained for agentic coding (the `-codex` variants) get ~80-line prompts. Generic models of the same generation get ~500-line prompts.** The Codex-tuned models have already internalized planning behavior, task execution workflow, progress updates, and tool usage patterns during post-training — the system prompt only needs to provide tool-specific constraints and domain rules. Generic models need the full behavioral scaffolding taught in-context.
+
+Specific sections that appear only in the generic-model prompts:
+
+- **Autonomy and persistence** — "Persist until the task is fully handled end-to-end."
+- **User update spec** — detailed rules for progress updates with 8 worked examples.
+- **Planning guidance** — when to plan, high-quality vs low-quality plan examples, status management rules.
+- **Task execution** — "keep going until the query is completely resolved."
+- **Ambition vs precision** — "be ambitious for new tasks, surgical for existing codebases."
+- **Validation** — when to run tests proactively vs wait for approval.
+- **Tool documentation** — `apply_patch` format specification, `update_plan` usage.
+
+The Codex-tuned prompts assume the model already knows all of this. They only teach what the model *can't* know from training: the specific tool names available in this session, editing constraints for this environment, and presentation formatting rules.
+
+##### Implications for Inspect
+
+Inspect's `deepagent()` prompt must navigate two tensions the coding assistants don't face:
+
+1. **Task-agnostic.** CC and Codex can hard-code git workflows and file-editing conventions because they know they're coding tools. Inspect agents run evals that might involve coding, research, math, web browsing, or domain-specific tool use. The prompt cannot assume the task domain.
+
+2. **Model-agnostic.** Inspect must work well with models at very different levels of agentic post-training — from frontier models that have been heavily tuned for agentic tool use to models with minimal agentic post-training that need guidance. The prompt cannot assume a specific level of model capability.
+
+The Codex evidence shows that what harms capable models is **prescriptive workflow** — rigid step-by-step procedures ("1. Research, 2. Understand, 3. Implement...") that constrain the model's natural decision-making and can override better-trained instincts. What *doesn't* harm them is goal-oriented framing, environmental descriptions, and tool-level documentation. This suggests a single prompt can serve both populations if written in the right style.
+
+Key design principles for Inspect's system prompt:
+
+1. **Layer the prompt.** Follow CC's modular approach — not its scale. Separate the prompt into composable layers:
+   - **Core behavior** (action bias, verify-iterate, conciseness, parallel tool use) — always included.
+   - **Tool dispatch** (when to use `task()`, how to delegate, when not to) — included when subagents are configured.
+   - **Domain-specific instructions** — provided by the user via `instructions=`, not baked in.
+
+2. **Write goals, not procedures.** The scaffolding that weaker models need (planning, persistence, verification) can be included without harming capable models if framed as expectations rather than prescribed steps. Compare:
+
+   - *Prescriptive (harms capable models):* "Follow these steps: 1. Research the environment. 2. Read relevant files. 3. Understand patterns. 4. Implement changes. 5. Verify. 6. Retry on failure."
+   - *Goal-oriented (safe for all):* "Complete tasks autonomously. Plan when the task is complex or multi-step. Verify your work before finishing. If verification fails, diagnose and retry rather than declaring done."
+
+   The first constrains a well-trained model into a rigid loop it doesn't need. The second gives weaker models the right signals (plan, verify, retry) while letting capable models apply their own judgment about when and how.
+
+3. **Push detail into tool descriptions.** Even Codex-tuned models — which need almost no behavioral scaffolding — still get tool-specific instructions. Tool descriptions are read by every model regardless of training. This is the right place for worked examples, usage heuristics, and dispatch guidance. In particular, the `task()` tool description should carry the subagent dispatch logic: when to delegate (complex, independent, context-heavy work), when not to (trivial lookups, dependent steps), and examples of good vs. unnecessary delegation. This follows LangChain's `TASK_SYSTEM_PROMPT` pattern but places it where models naturally look.
+
+4. **Keep the core small.** The shared patterns (action bias, verify-iterate, conciseness, parallel tools, don't over-ask) are ~20-30 lines in goal-oriented style. That's the floor. Everything above it should earn its place.
+
+5. **Don't embed domain knowledge.** CC's git safety rules and Codex's editing constraints are valuable for coding — but they belong in the user's `instructions=` parameter or in tool-level descriptions, not in the base prompt. Inspect's prompt should teach the *pattern* (plan, delegate, verify) without assuming what the tools do.
+
+6. **Provide the escape hatch.** The `prompt=` parameter allows full replacement for users who need complete control — researchers running novel agent architectures, or teams with heavily customized system prompts from prior work. Custom prompts can include named placeholders that `deepagent()` will inject at assembly time. Placeholders are optional — if omitted, the corresponding content is simply not included. This lets users control both *what* is included and *where* it appears in their prompt. Placeholder names and the content they expand to will be documented; likely candidates include:
+
+   - `{tool_descriptions}` — formatted descriptions of all configured tools.
+   - `{subagent_dispatch}` — the `task()` tool dispatch guidance (available subagent types, when to delegate, worked examples).
+   - `{memory_instructions}` — memory tool usage guidance.
+   - `{plan_instructions}` — planning/todo tool usage guidance.
+   - `{instructions}` — the user's `instructions=` text.
+
+7. **Tools communicate through descriptions, not prompt injection.** When users pass tools to `deepagent()` — including custom subagents created with `handoff()` or `as_tool()` — we won't always know their capabilities (e.g., whether fork is enabled). Rather than adding an API for tools to inject content into the system prompt, we rely on the tool's own `description` field. The person who creates the tool controls its description and can communicate relevant behavior ("this agent sees your full conversation history" vs "this agent starts with a fresh context"). This is consistent with principle #3 above and avoids prompt bloat from many tools each injecting content. Cross-tool coordination guidance (e.g., "use memory to offload large findings, use the plan to track high-level progress") belongs in the core prompt layer, which `deepagent()` assembles.
+
+### Additional Capabilities
+
+The following capabilities emerged from a survey of LangChain deepagents, Pydantic AI deepagents, Codex CLI, and the broader multi-agent research literature. Some are already present in Inspect's existing primitives; others represent gaps in the current RFC. We assess each for relevance to `deepagent()` and recommend whether to include, defer, or exclude.
+
+#### Context management and compaction
+
+All three major frameworks implement multi-tier context management to keep long-running agents within their context window:
+
+1. **Tool output eviction.** LangChain and Pydantic AI both evict large tool outputs (>20K tokens) to the filesystem, replacing them with a short preview and a reference path. The agent can retrieve the full content later via filesystem tools if needed. This prevents a single large tool response from consuming the context budget.
+
+2. **Summarization / compaction.** When the context window approaches capacity (~85-90% in LangChain/Pydantic), the frameworks trigger an LLM-generated summary that compresses the conversation while preserving key facts, then continues from the summary.
+
+3. **Mid-turn compaction.** Codex CLI supports compaction during a streaming model response — injecting a summary mid-turn when the context limit is hit during generation.
+
+**Inspect status:** Inspect already has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`. The `deepagent()` RFC should clarify how it exposes compaction configuration — likely through existing `react()` parameters that `deepagent()` passes through. Tool output eviction is a separate concern not currently in Inspect and may be worth adding as a standalone capability that `deepagent()` enables by default.
+
+#### Parallel subagent execution
+
+LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents in parallel: "Whenever you have independent steps to complete — kick off tasks in parallel to accomplish them faster." Claude Code does the same — models can invoke the `task()` tool multiple times in a single response.
+
+**Inspect status:** This works automatically if the `task()` tool allows parallel invocation. The model emits multiple `task()` tool calls in one response, and Inspect's tool execution machinery runs them concurrently. No new infrastructure needed — but the `task()` tool description and system prompt should explicitly encourage this pattern, and the tool definition should not set `parallel=False`.
+
+#### Cost-aware model routing
+
+The RFC mentions `model=` per subagent but doesn't frame it as cost-aware routing. In practice, this is one of the highest-leverage features: route simple subtasks (file reading, grep, summarization) to cheaper/faster models and reserve expensive models for complex reasoning. Research reports 85% cost reduction while maintaining 95% quality.
+
+**Inspect status:** Already supported — `subagent(model=...)` and `research(model=...)` etc. allow per-subagent model selection. The system prompt should teach this pattern to users through documentation rather than adding new API surface. The `deepagent()` constructor could accept a `subagent_model=` default that built-in subagents inherit unless overridden.
+
+#### Stuck loop detection
+
+Pydantic AI ships a built-in `StuckLoopDetection` capability that detects when an agent is repeating the same tool calls. This is important for eval reliability — a stuck agent burns tokens and time without progress.
+
+**Inspect status:** Not currently in the RFC. This is worth including as a default behavior in `deepagent()`. Implementation could be a lightweight check in the agent loop that detects N consecutive identical (or near-identical) tool call sequences and injects a "you appear to be repeating the same actions" nudge, or terminates with a diagnostic message. This is a natural fit for `deepagent()`'s opinionated defaults.
+
+#### Tool call repair
+
+Pydantic AI's `PatchToolCallsCapability` detects orphaned tool calls (calls with no matching result) and orphaned tool results (results with no matching call), injecting synthetic responses to keep the conversation well-formed. This matters when models produce malformed tool-use sequences or when errors interrupt tool execution.
+
+**Inspect status:** Inspect's `react()` loop already handles tool execution errors, but orphaned-call repair is a resilience feature worth considering. If models occasionally produce tool calls that fail silently, the conversation history becomes inconsistent. This is lower priority than stuck loop detection but worth noting for robustness.
+
+#### Checkpointing integration
+
+The separate [Inspect Checkpointing design](../design/checkpointing.md) proposes mid-sample durability for long-running evals. `deepagent()` is a primary consumer of this capability — deep agent evals are exactly the ones that run for hours or days and need crash recovery.
+
+**Inspect status:** The checkpointing design is proceeding in parallel. `deepagent()` should accept a `checkpoint=CheckpointConfig(...)` parameter, consistent with `react()`. The integration is straightforward — checkpoints fire at turn boundaries in the agent loop, which `deepagent()` inherits from `react()`.
+
+#### Reflection and self-critique
+
+Recent research (Multi-Agent Reflexion, dual-loop reflection) shows that having agents critique their own output before returning it to the parent can improve quality. The pattern: agent produces a result, a critic (possibly the same model, possibly a cheaper one) evaluates it, and if the critique identifies issues, the agent revises.
+
+**Inspect status:** Not in the RFC. This is an interesting pattern but may be better left to users who can implement it as a custom subagent (e.g., a `reviewer()` subagent) rather than baked into `deepagent()` defaults. The `subagent()` primitive is flexible enough to support this. We should mention it as a documented pattern rather than a built-in feature.
+
+#### Hooks and middleware
+
+LangChain implements a composable middleware pipeline (PlanningMiddleware, FilesystemMiddleware, SubAgentMiddleware, SummarizationMiddleware, etc.). Pydantic AI has 8 lifecycle hook events (PRE_TOOL_USE, POST_TOOL_USE, BEFORE_RUN, AFTER_RUN, etc.). Codex CLI has a hook system that can inject context back into the prompt.
+
+**Inspect status:** Inspect does not have a middleware system for agents, and adding one would be a significant new abstraction. However, many of the use cases that middleware serves in other frameworks are already covered by Inspect's existing primitives: compaction handles context management, spans handle observability, limits handle resource control, and tool-level logic handles approval. We should not add middleware to `deepagent()` — it would add complexity without clear benefit given Inspect's existing architecture.
+
+#### Human-in-the-loop
+
+LangChain provides granular `interrupt_on` configuration per tool, allowing agents to pause for human approval before destructive actions. Codex CLI has a Guardian approval system with 7 approval types.
+
+**Inspect status:** Less relevant for eval workloads, where the goal is typically autonomous execution. Inspect's sandbox isolation provides the safety boundary. If needed, users can implement approval logic at the tool level. Not recommended for `deepagent()` defaults.
+
+### Open Questions
+
+We'd particularly value input on:
+
+1. **Built-in subagent set.** Are `research`, `plan`, `general` the right three? Should we ship more (e.g., `reviewer`, `tester`)? Fewer? Different names?
+
+2. **`research()` vs `explore()`.** Our reasoning is above — does this match the use cases you'd build on `deepagent()`?
+
+3. **Memory write defaults.** Is read-by-default / write-opt-in the right posture for built-in subagents, or should `general()` get write access by default?
+
+4. **Recursion depth.** Hard cap at 1 level (matching Claude Code and Codex), or expose an opt-in for deeper delegation?
+
+5. **`task()` vs `as_tool()` as the default exposure.** Multiplexer (CC/Pydantic-deep style) or per-subagent tools (more granular description text)?
+
+6. **What's missing.** Are there deep-agent patterns you've found valuable in other frameworks that aren't covered above?
+
+7. **Naming.** `deepagent` vs `deep_agent` vs something else.
+
+### Prior Art
+
+- [Claude Code subagents documentation](https://code.claude.com/docs/en/sub-agents)
+- [LangChain `deepagents`](https://github.com/langchain-ai/deepagents) and [docs](https://docs.langchain.com/oss/python/deepagents/overview)
+- [Pydantic `deepagents`](https://github.com/vstorm-co/pydantic-deepagents)
+- [OpenAI Codex CLI subagents](https://developers.openai.com/codex/subagents)
+- ["Deep Agents" — LangChain blog post](https://blog.langchain.com/deep-agents/)
+
+## Implementation Blueprint
+
+*To be written after the open design questions above are resolved.*
