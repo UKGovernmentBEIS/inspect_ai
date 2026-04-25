@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.212 (24 April 2026)
 
 - Google: Honor the `press_enter` default on Gemini's `type_text_at` action so typed text commits with Enter as the spec specifies.
 - vLLM: Support `use_chat_template=false` for base model evaluation (complements existing HF provider support).
