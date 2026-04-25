@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.212 (24 April 2026)
 
 - vLLM: Support `use_chat_template=false` for base model evaluation (complements existing HF provider support).
 - Log recovery: Stream segment-at-a-time to bound memory on large evals.
