@@ -654,15 +654,34 @@ Built the multiplexer tool that dispatches to subagents.
 - Tool named `"task"` internally — no conflict with `@task` decorator (separate registries). Not publicly exported to avoid API confusion.
 - `task_description` parameter name (not `description`) to avoid shadowing.
 
-### Phase 6: Built-in subagent factories (`research`, `plan`, `general`)
+### Phase 6: Built-in subagent factories (`research`, `plan`, `general`) (630a40397)
 
-Implement the three opinionated factories.
+Implemented the three opinionated subagent factories plus related improvements.
 
-- Each calls `subagent()` with appropriate defaults (tools, memory mode, prompt, fork).
-- `research()` and `plan()`: read-only tools + `memory="readonly"`.
-- `general()`: inherits parent tools + `memory="readwrite"`.
-- Additive customization via `instructions=`, `extra_tools=`, `model=`, `fork=`.
-- Test: default configurations, customization overrides, tool inheritance behavior.
+**Files created:**
+- `src/inspect_ai/agent/_deepagent/research.py` — `research()` factory with task-agnostic prompt, `tools="default"` → `None` (resolved at dispatch time to read-only tools if sandbox available).
+- `src/inspect_ai/agent/_deepagent/plan.py` — `plan()` factory, same pattern.
+- `src/inspect_ai/agent/_deepagent/general.py` — `general()` factory, `memory="readwrite"`, inherits parent tools.
+- `tests/agent/deepagent/test_factories.py` — 27 tests covering defaults, instructions merge, custom/empty/extra tools, overrides, and task-agnostic prompt verification.
+
+**Files modified:**
+- `src/inspect_ai/agent/_deepagent/__init__.py` — added `research`, `plan`, `general` exports.
+- `src/inspect_ai/agent/__init__.py` — added public exports.
+- `docs/reference/inspect_ai.agent.qmd` — added Deep Agent section with `subagent`, `Subagent`, `research`, `plan`, `general`.
+- `src/inspect_ai/agent/_deepagent/task_tool.py` — forked dispatch now uses `timeline_branch()` for proper log viewer rendering; removed `content_only` filtering on forked input to preserve prompt cache and avoid incompatible format errors.
+- `src/inspect_ai/agent/_deepagent/subagent.py` — removed fork+model validation (documented guidance instead); updated fork docstrings across all factories to recommend same model/family for cache and compatibility.
+
+**Additional test coverage added:**
+- `tests/tools/test_read_file.py` — offset, limit, offset+limit, file-not-found error (Docker/slow).
+- `tests/tools/test_list_files.py` — depth parameter (Docker/slow).
+- `tests/tools/test_grep.py` — glob, fixed_strings, no matches, files_with_matches mode, count mode (Docker/slow).
+- `tests/agent/deepagent/test_task_tool.py` — forked dispatch via mockllm.
+
+**Design decisions:**
+- All factories accept `tools: Sequence[...] | Literal["default"] = "default"` — allows replacing defaults entirely or passing empty list.
+- Prompts are task-agnostic — no references to "codebase", "code review", etc. Works for coding, cyber, AI scientist, literature synthesis, and other domains.
+- Forked dispatch passes messages through as-is (no `content_only` filter) to preserve prompt cache. Documentation recommends same model/family when forking.
+- Forked dispatch wrapped in `timeline_branch()` with `BranchEvent` for proper log viewer swimlane rendering.
 
 ### Phase 7: System prompt assembly
 
