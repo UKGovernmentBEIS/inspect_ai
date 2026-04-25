@@ -560,13 +560,23 @@ New documentation file: `docs/deep-agent.qmd` — a standalone guide covering:
 3. **Full tests at each step.** Every phase produces both implementation and tests.
 4. **Update this document.** After completing a phase but before committing, replace the phase's overview section below with a summary of what was actually built and tested — files created/modified, key design decisions made during implementation, and test coverage.
 
-### Phase 1: `Subagent` type and `subagent()` factory
+### Phase 1: `Subagent` type and `subagent()` factory (063553f62)
 
-Create the `Subagent` dataclass and `subagent()` factory function. This is the foundation everything else builds on.
+Created the `Subagent` dataclass and `subagent()` factory function.
 
-- Define `Subagent` with fields: name, description, prompt, tools, model, fork, output_filter, memory, limits.
-- `subagent()` validates inputs and returns a `Subagent` instance.
-- Test: construction, field defaults, validation errors for invalid inputs.
+**Files created:**
+- `src/inspect_ai/agent/_deepagent/__init__.py` — package exports.
+- `src/inspect_ai/agent/_deepagent/subagent.py` — `Subagent` dataclass (`@dataclass(kw_only=True)`) and `subagent()` factory with input validation.
+- `tests/agent/deepagent/test_subagent.py` — 15 unit tests covering construction, defaults, field validation (name, description, prompt, memory).
+
+**Files modified:**
+- `src/inspect_ai/agent/__init__.py` — added `Subagent` and `subagent` to public API.
+
+**Design decisions:**
+- Used `@dataclass(kw_only=True)` (not Pydantic) to match agent module conventions and allow required fields after fields with defaults.
+- Dropped `output_filter` parameter — forked subagents always use `last_message`. Simplifies the API; can be added later if needed.
+- Dropped `instructions` from `Subagent` — only `prompt` is stored. Built-in factories (`research()`, `plan()`, `general()`) accept `instructions=` and merge it with their default prompt before constructing the `Subagent`.
+- Field order: `name`, `description`, `prompt` (identity), then `tools`, `extra_tools` (adjacent), `model`, `fork`, `skills`, `memory`, `limits`.
 
 ### Phase 2: `todo_write()` tool
 
