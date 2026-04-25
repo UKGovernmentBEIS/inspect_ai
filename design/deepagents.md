@@ -86,7 +86,7 @@ def reviewer(model="anthropic/claude-sonnet-4"):
 agent = deepagent(subagents=[research(), plan(), general(), reviewer()])
 ```
 
-Internally, `subagent()` is a thin wrapper around `react()` that captures name/description metadata for `task()` multiplexing, enforces the recursion guard, and provides additive customization fields. No new abstraction layer.
+Internally, `subagent()` returns a `Subagent` configuration object — a typed blueprint analogous to how `ToolDef` relates to `Tool`. The actual `Agent` is constructed fresh by the `task()` multiplexer at dispatch time via `react()`. The `Subagent` type captures name/description metadata for `task()` multiplexing, fork mode, tool subset, and other dispatch configuration.
 
 #### Subagent dispatch: isolated vs forked
 
@@ -132,7 +132,7 @@ All three accept `fork=True` as an override.
 Default behavior matches the convergent pattern across CC, LangChain, and Pydantic-deep:
 
 - **Sandbox** — shared (already true per-sample in Inspect).
-- **Memory** — shared, read by default, write opt-in per subagent. `research()` is read-only by default; `general()` can write; custom subagents declare explicitly.
+- **Memory** — shared, read by default, write opt-in per subagent. `research()` and `plan()` get `memory(readonly=True)`; `general()` gets full read-write `memory()`. Custom subagents declare explicitly. Note: `memory(readonly=True)` is a new mode that must be implemented — the current `memory()` tool supports all CRUD operations.
 - **Skills** — shared.
 - **Message history** — isolated (this is what subagents are *for*).
 - **Tools** — subset declared by the subagent's definition.
@@ -168,7 +168,7 @@ Despite significant differences in scope, all four converge on a core set of beh
 
 3. **Conciseness.** Every prompt instructs the model to be direct and avoid preamble. CC and Codex add specific formatting rules; LangChain and Pydantic keep it to a general directive.
 
-4. **Parallel tool use.** All four instruct the model to batch independent tool calls into a single response rather than making sequential round-trips.
+4. **Batched tool calls.** All four instruct the model to batch independent tool calls into a single response rather than making sequential round-trips.
 
 5. **Don't over-ask.** All four tell the model to use reasonable defaults rather than asking clarifying questions for every detail. Only ask when genuinely blocked.
 
@@ -224,7 +224,7 @@ The Codex evidence shows that what harms capable models is **prescriptive workfl
 Key design principles for Inspect's system prompt:
 
 1. **Layer the prompt.** Follow CC's modular approach — not its scale. Separate the prompt into composable layers:
-   - **Core behavior** (action bias, verify-iterate, conciseness, parallel tool use) — always included.
+   - **Core behavior** (action bias, verify-iterate, conciseness, batched tool calls) — always included.
    - **Tool dispatch** (when to use `task()`, how to delegate, when not to) — included when subagents are configured.
    - **Domain-specific instructions** — provided by the user via `instructions=`, not baked in.
 
@@ -237,16 +237,15 @@ Key design principles for Inspect's system prompt:
 
 3. **Push detail into tool descriptions.** Even Codex-tuned models — which need almost no behavioral scaffolding — still get tool-specific instructions. Tool descriptions are read by every model regardless of training. This is the right place for worked examples, usage heuristics, and dispatch guidance. In particular, the `task()` tool description should carry the subagent dispatch logic: when to delegate (complex, independent, context-heavy work), when not to (trivial lookups, dependent steps), and examples of good vs. unnecessary delegation. This follows LangChain's `TASK_SYSTEM_PROMPT` pattern but places it where models naturally look.
 
-4. **Keep the core small.** The shared patterns (action bias, verify-iterate, conciseness, parallel tools, don't over-ask) are ~20-30 lines in goal-oriented style. That's the floor. Everything above it should earn its place.
+4. **Keep the core small.** The shared patterns (action bias, verify-iterate, conciseness, batched tool calls, don't over-ask) are ~20-30 lines in goal-oriented style. That's the floor. Everything above it should earn its place.
 
 5. **Don't embed domain knowledge.** CC's git safety rules and Codex's editing constraints are valuable for coding — but they belong in the user's `instructions=` parameter or in tool-level descriptions, not in the base prompt. Inspect's prompt should teach the *pattern* (plan, delegate, verify) without assuming what the tools do.
 
 6. **Provide the escape hatch.** The `prompt=` parameter allows full replacement for users who need complete control — researchers running novel agent architectures, or teams with heavily customized system prompts from prior work. Custom prompts can include named placeholders that `deepagent()` will inject at assembly time. Placeholders are optional — if omitted, the corresponding content is simply not included. This lets users control both *what* is included and *where* it appears in their prompt. Placeholder names and the content they expand to will be documented; likely candidates include:
 
-   - `{tool_descriptions}` — formatted descriptions of all configured tools.
-   - `{subagent_dispatch}` — the `task()` tool dispatch guidance (available subagent types, when to delegate, worked examples).
-   - `{memory_instructions}` — memory tool usage guidance.
-   - `{plan_instructions}` — planning/todo tool usage guidance.
+   - `{core_behavior}` — the core behavior layer.
+   - `{subagent_dispatch}` — subagent names, roles, and delegation guidance (generated from the `Subagent` list).
+   - `{memory_instructions}` — memory/plan coordination guidance.
    - `{instructions}` — the user's `instructions=` text.
 
 7. **Tools communicate through descriptions, not prompt injection.** When users pass tools to `deepagent()` — including custom subagents created with `handoff()` or `as_tool()` — we won't always know their capabilities (e.g., whether fork is enabled). Rather than adding an API for tools to inject content into the system prompt, we rely on the tool's own `description` field. The person who creates the tool controls its description and can communicate relevant behavior ("this agent sees your full conversation history" vs "this agent starts with a fresh context"). This is consistent with principle #3 above and avoids prompt bloat from many tools each injecting content. Cross-tool coordination guidance (e.g., "use memory to offload large findings, use the plan to track high-level progress") belongs in the core prompt layer, which `deepagent()` assembles.
@@ -271,7 +270,7 @@ All three major frameworks implement multi-tier context management to keep long-
 
 LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents in parallel: "Whenever you have independent steps to complete — kick off tasks in parallel to accomplish them faster." Claude Code does the same — models can invoke the `task()` tool multiple times in a single response.
 
-**Inspect status:** This works automatically if the `task()` tool allows parallel invocation. The model emits multiple `task()` tool calls in one response, and Inspect's tool execution machinery runs them concurrently. No new infrastructure needed — but the `task()` tool description and system prompt should explicitly encourage this pattern, and the tool definition should not set `parallel=False`.
+**Inspect status:** Inspect's current `execute_tools` processes tool calls sequentially, and `handoff()` explicitly disables parallel tool calls. In v1, subagent dispatch is sequential — multiple `task()` calls in one response execute one at a time. The system prompt should not encourage multiple subagent calls in a single response, as this adds latency and cost with no execution-time benefit in v1. Guidance should be: delegate when helpful; focus on one delegation at a time. Parallel subagent execution is a future enhancement (see Implementation Blueprint section 8).
 
 #### Cost-aware model routing
 
@@ -353,13 +352,14 @@ reviewer = subagent(
     prompt="...",
     tools=[grep(), read_file()],
     model="anthropic/claude-sonnet-4",
+    memory="readonly",  # "readwrite", "readonly", or False
     fork=False,
 )
 ```
 
-`Subagent` holds: name, description, prompt, tools, model, fork, output_filter, limits, memory write access. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
+`Subagent` holds: name, description, prompt, tools, model, fork, output_filter, limits, and memory mode. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
 
-**Recursion guard.** Depth is tracked per-sample (e.g., via `Store`) and incremented on each `task()` dispatch. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
+**Recursion guard.** Depth is tracked via closure — the current depth is closed over when constructing the child agent's tool set, so each dispatch path carries its own depth counter. This is parallel-safe: sibling subagents dispatched concurrently (in a future parallel v2) won't interfere with each other's depth tracking. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
 
 #### 2. `task()` tool
 
@@ -378,9 +378,9 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 - Look up the `Subagent` by `subagent_type` (with alias handling: `"general_purpose"` → `"general"`).
 - Construct a `react()` agent from the `Subagent` config.
 - If `fork=False`: invoke via `as_tool()` semantics — isolated context, summary returns as tool result.
-- If `fork=True`: invoke via `handoff()` with `input_filter=content_only` and `output_filter=last_message` — parent history inherited, only the subagent's final message returns. This matches CC's fork pattern: the subagent gets full context but keeps the parent lean. The `output_filter` is configurable on `subagent()` (defaults to `last_message`); `output_filter` is only valid when `fork=True`.
-- `as_tool()` and `handoff()` already create `span(type="agent")` automatically — no additional span logic needed in `task()`.
-- `parallel=True` on the tool definition so the model can launch multiple subagents concurrently.
+- If `fork=True`: the `task()` tool implements custom dispatch logic inspired by `handoff()` but adapted for the multiplexer context. It filters the parent's messages via `content_only` on input, runs the child `react()` agent, and applies `output_filter` (default `last_message`) to the result. This cannot be a trivial `handoff()` wrapper because `task()` has a different tool schema, needs to construct the child agent from `Subagent` config, and must control exactly what returns to the parent. The `output_filter` is configurable on `subagent()` (defaults to `last_message`); only valid when `fork=True`.
+- The `task()` tool creates `span(type="agent")` for each dispatch explicitly. (Unlike `as_tool()`/`handoff()` which create spans automatically, `task()` manages its own dispatch lifecycle.)
+- V1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe for future parallel execution — forked subagents receive a copy of the parent's messages and only their filtered result returns. See section 8 for the deferred parallel execution plan.
 
 #### 3. Built-in subagent factories: `research()`, `plan()`, `general()`
 
@@ -404,9 +404,9 @@ Each returns a `Subagent` with opinionated defaults. All accept additive customi
 - Memory: read-write.
 - Prompt: goal-oriented, emphasizes autonomous task completion.
 
-**Default tool sets.** `research()` and `plan()` share the same read-only tool defaults. When a sandbox is present, they get `grep()`, `read_file()`, and `list_files()` — new standalone read-only tools to be added to Inspect's toolset. (These are useful beyond `deepagent()` — any eval that wants read-only filesystem access currently requires `bash()` or `text_editor()`, both of which are read-write.)
+**Default tool sets.** `research()` and `plan()` share the same read-only tool defaults: `grep()`, `read_file()`, and `list_files()` — new standalone read-only tools to be added to Inspect's toolset. These tools are always constructible regardless of whether a sandbox is configured; they fail clearly at runtime if no sandbox is available. (These are useful beyond `deepagent()` — any eval that wants read-only filesystem access currently requires `bash()` or `text_editor()`, both of which are read-write.)
 
-Tools the user passes to `deepagent(tools=[...])` are available to the top-level agent and also flow down to `research()` and `plan()`. For example, if the user includes `web_search()`, it's available at all levels; if they don't, nobody gets it. We don't auto-enable tools that require external configuration. All built-in subagents also accept `extra_tools=` for additive customization.
+User tools passed to `deepagent(tools=[...])` are available to the top-level agent and flow down to `general()`, but do **not** automatically flow to `research()` or `plan()`. This preserves their read-only-by-default posture — if the user passes `bash()` or `text_editor()`, those mutating tools must not reach read-only subagents. Users can explicitly extend `research()` or `plan()` with additional tools via `extra_tools=`, but doing so overrides the read-only default at the user's discretion. All built-in subagents accept `extra_tools=` for additive customization.
 
 `general()` inherits the `deepagent()`'s assembled tool list (user tools + memory + todo_write + skills), minus the `task()` tool itself at max depth per the recursion guard.
 
@@ -423,7 +423,7 @@ def deepagent(
     tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     subagents: list[Subagent] | None = None,       # default: [research(), plan(), general()]
     todo_write: bool = True,
-    memory: bool = True,
+    memory: bool = True,                             # top-level kill switch; False disables memory everywhere
     skills: list[Skill] | None = None,
     instructions: str | None = None,
     prompt: str | None = None,                      # full replacement with placeholders
@@ -448,7 +448,7 @@ def deepagent(
 Stored as string constants in `prompt.py`, with assembly logic that composes the layers based on `deepagent()` configuration.
 
 **Layers assembled by `deepagent()`:**
-- **Core behavior** (~20-30 lines). Goal-oriented: action bias, verify-iterate, conciseness, parallel tool use, don't over-ask. Written as expectations, not procedures.
+- **Core behavior** (~20-30 lines). Goal-oriented: action bias, verify-iterate, conciseness, batched tool calls, don't over-ask. Written as expectations, not procedures.
 - **Subagent dispatch** (included when subagents are configured). Generated from the `Subagent` list — names each available subagent, its role, and provides high-level guidance on when to delegate vs. do the work directly. This gives subagent awareness more weight than the tool description alone. The detailed dispatch mechanics (parameter usage, worked examples, alias handling) remain in the `task()` tool description.
 - **Memory/plan coordination** (included when memory and/or todo_write are enabled). Cross-tool guidance: "Use memory to offload large intermediate results. Use the plan to track high-level task decomposition."
 - **User instructions** (`instructions=` text appended at the end).
@@ -468,6 +468,8 @@ New exports from `inspect_ai.agent`:
 - `subagent` — the custom subagent factory.
 - `Subagent` — the typed configuration object.
 - `research`, `plan`, `general` — built-in subagent factories.
+
+The `task()` tool factory is **not** exported — it is internal to `_deepagent/task_tool.py` and constructed by `deepagent()`. This avoids a naming collision with Inspect's existing `@task` decorator. The model-facing tool is still named `"task"` in its tool definition.
 
 No changes to existing `react()`, `as_tool()`, `handoff()`, or `Agent` APIs.
 
@@ -493,13 +495,29 @@ Modified files:
 - `src/inspect_ai/agent/__init__.py` — add new exports.
 - `src/inspect_ai/tool/_tools/__init__.py` — add new tool exports.
 - `src/inspect_ai/tool/_tools/_update_plan.py` — deprecate with alias to `todo_write()`.
+- `src/inspect_ai/tool/_tools/_memory.py` — add `readonly=True` mode that exposes only read operations.
 
-#### 8. Testing strategy
+#### 8. Parallel tool execution (deferred)
 
-- **Unit tests:** `Subagent` construction, `task()` parameter schema generation, system prompt assembly and placeholder expansion.
+The current `_execute_tools_impl` in `src/inspect_ai/model/_call_tools.py:300` processes tool calls sequentially. Parallel tool execution would benefit all agents — including `react()` — and would unblock concurrent subagent dispatch for `deepagent()`.
+
+However, this is a significant infrastructure change with nontrivial risks:
+
+- **Breaking change.** `@tool` defaults `parallel=True` and `ToolDef` defaults unspecified tools to parallel-capable, but current execution is sequential. Flipping to concurrent would silently change behavior for existing tools whose authors never had to consider races.
+- **Output conflicts.** Current execution tracks a single `result_output`. Parallel batches with multiple tools returning `ExecuteToolsResult.output` need conflict resolution semantics.
+- **Approval flows.** Approval policies and interactive tools may not be safe to run concurrently even if the underlying tool is marked `parallel=True`.
+
+**Decision.** Defer parallel tool execution to a separate project. `deepagent()` v1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe to parallelize (forked subagents receive a copy of the parent's messages), so when parallel execution lands, `task()` can opt in without design changes.
+
+#### 9. Testing strategy
+
+- **Unit tests:** `Subagent` construction, `task()` parameter schema generation, system prompt assembly and placeholder expansion, recursion depth tracking (verify closure-based depth is parallel-safe).
 - **Integration tests:** `deepagent()` end-to-end with `mockllm` — verify tool wiring, subagent dispatch (both isolated and forked), system prompt content, alias handling.
+- **Tool inheritance tests:** verify `research()`/`plan()` do not receive user-provided mutating tools; verify `general()` inherits the full parent tool set; verify `extra_tools=` works on all subagents.
+- **Memory ACL tests:** verify `research()`/`plan()` get `memory(readonly=True)` and cannot write; verify `general()` gets full read-write memory.
+- **Sandbox/no-sandbox tests:** verify read-only tools are constructible without a sandbox and fail clearly at runtime; verify they work correctly with a sandbox.
 
-#### 9. Documentation
+#### 10. Documentation
 
 New documentation file: `docs/deep-agent.qmd` — a standalone guide covering:
 
