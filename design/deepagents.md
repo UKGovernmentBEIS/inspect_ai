@@ -635,15 +635,24 @@ Added read-only mode to the existing `memory()` tool.
 - Readonly memory naturally sidesteps Anthropic native tool auto-binding because the parameter set doesn't match the 10-parameter signature check.
 - Initial data seeding still works in readonly mode (it's setup, not a model action).
 
-### Phase 5: `task()` tool
+### Phase 5: `task()` tool (8c2bb0315)
 
-Build the multiplexer tool that dispatches to subagents.
+Built the multiplexer tool that dispatches to subagents.
 
-- Implement `task_tool.py` — takes `list[Subagent]`, generates dynamic tool description via `subagent_dispatch_description()`.
-- Implement dispatch: construct `react()` from `Subagent` config, invoke with isolated or forked semantics.
-- Implement closure-based recursion depth tracking.
-- Handle alias mapping (`"general_purpose"` → `"general"`).
-- Test: schema generation, dispatch (both fork modes), recursion guard (task tool omitted at max depth), alias handling, span creation.
+**Files created:**
+- `src/inspect_ai/agent/_deepagent/task_tool.py` — `task_tool()` factory creating a `@tool`-decorated `task` function. Dispatches via `run()` for both modes: isolated (string prompt) and forked (`content_only` filtered parent messages + prompt). Includes `_build_task_description()` for dynamic tool description, `_resolve_tools()` for child tool assembly with recursion guard, `_dispatch()` for unified limit handling, and `_extract_result()` for output extraction.
+- `tests/agent/deepagent/test_task_tool.py` — 9 tests: description generation (2), alias mapping (1), constructibility (1), mockllm dispatch (1), invalid subagent_type error (1), alias dispatch end-to-end (1), recursion guard included/excluded (2).
+
+**Files modified:**
+- `src/inspect_ai/agent/_deepagent/__init__.py` — added `task_tool` export (internal only).
+
+**Design decisions:**
+- Used `run()` for both isolated and forked dispatch — handles string→messages, limit application with `catch_errors=True`, span creation with `name=sa.name`, and returns `AgentState` + optional `LimitExceededError`.
+- For forked dispatch, `content_only` filters parent messages (strips system messages, reasoning, converts tool calls to text) so the child agent works safely with potentially different models. Parent messages accessed via `get_messages` callback (wired by `deepagent()` in Phase 8).
+- Recursion guard: `_resolve_tools()` includes a recursive `task_tool` at `depth < max_depth`, omits it at `depth >= max_depth`. Depth tracked via closure.
+- Alias handling: `"general_purpose"` → `"general"` to absorb CC vocabulary habits.
+- Tool named `"task"` internally — no conflict with `@task` decorator (separate registries). Not publicly exported to avoid API confusion.
+- `task_description` parameter name (not `description`) to avoid shadowing.
 
 ### Phase 6: Built-in subagent factories (`research`, `plan`, `general`)
 
