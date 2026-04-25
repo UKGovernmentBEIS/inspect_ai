@@ -31,7 +31,10 @@ class Subagent:
     """Model override for this subagent."""
 
     fork: bool = False
-    """Dispatch mode (False = isolated, True = forked)."""
+    """Dispatch mode (False = isolated, True = forked). Use same model
+    or model family as parent when forking to preserve the prompt cache
+    and avoid errors from incompatible tool call formats or reasoning
+    content in the inherited message history."""
 
     skills: list[Skill] | None = None
     """Skills available to this subagent."""
@@ -78,10 +81,12 @@ def subagent(
         model: Model override for this subagent. None inherits the
             parent agent's model.
         fork: Dispatch mode. False (default) runs the subagent with
-            isolated context (as_tool semantics — only the summary
-            returns). True runs with forked context (inherits parent
-            messages via content_only filter; only last_message
-            returns).
+            isolated context (only the summary returns). True runs
+            with forked context (inherits the parent's full message
+            history). Use the same model or model family as the
+            parent when forking to preserve the prompt cache and
+            avoid errors from incompatible tool call formats or
+            reasoning content.
         skills: Skills available to this subagent. None means no
             skills (general() overrides this to inherit parent
             skills).

@@ -8,6 +8,15 @@ description: Agent scaffolds and protocol.
 ### react
 ### human_cli
 
+## Deep Agent
+
+### subagent
+### Subagent
+### research
+### plan
+### general
+
+
 ## Execution
 
 ### handoff

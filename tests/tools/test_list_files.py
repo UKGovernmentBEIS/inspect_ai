@@ -1,13 +1,21 @@
 """Tests for list_files tool."""
 
 import pytest
-from test_helpers.tasks import minimal_task_for_tool_use
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
 from test_helpers.utils import skip_if_no_docker
 
-from inspect_ai import eval
+from inspect_ai import Task, eval
+from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import list_files
+
+TEST_FILES = {
+    "/tmp/testdir/a.txt": "a",
+    "/tmp/testdir/b.txt": "b",
+    "/tmp/testdir/sub/c.txt": "c",
+}
 
 
 def test_list_files_constructible() -> None:
@@ -16,10 +24,20 @@ def test_list_files_constructible() -> None:
     assert tool is not None
 
 
-@skip_if_no_docker
-@pytest.mark.slow
-def test_list_files_basic() -> None:
-    task = minimal_task_for_tool_use(list_files())
+def _run_list_files(tool_arguments: dict) -> str:
+    task = Task(
+        dataset=[
+            Sample(
+                input="Please use the tool",
+                target="n/a",
+                files=TEST_FILES,
+            )
+        ],
+        solver=[use_tools(list_files()), generate()],
+        scorer=includes(),
+        message_limit=3,
+        sandbox="docker",
+    )
     result = eval(
         task,
         model=get_model(
@@ -28,7 +46,7 @@ def test_list_files_basic() -> None:
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="list_files",
-                    tool_arguments={"path": "/etc", "depth": 1},
+                    tool_arguments=tool_arguments,
                 ),
             ],
         ),
@@ -39,4 +57,24 @@ def test_list_files_basic() -> None:
     assert tool_call is not None
     response = get_tool_response(messages, tool_call)
     assert response is not None
-    assert response.content  # should list files
+    return str(response.content)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_list_files_basic() -> None:
+    content = _run_list_files({"path": "/tmp/testdir"})
+    assert "a.txt" in content
+    assert "b.txt" in content
+    assert "c.txt" in content
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_list_files_with_depth() -> None:
+    content = _run_list_files({"path": "/tmp/testdir", "depth": 1})
+    assert "a.txt" in content
+    assert "b.txt" in content
+    assert "sub" in content
+    # c.txt is at depth 2, should not appear with depth=1
+    assert "c.txt" not in content

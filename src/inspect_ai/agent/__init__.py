@@ -7,7 +7,7 @@ from ._bridge.bridge import agent_bridge, bridge
 from ._bridge.sandbox.bridge import sandbox_agent_bridge
 from ._bridge.sandbox.types import SandboxAgentBridge
 from ._bridge.types import AgentBridge
-from ._deepagent import Subagent, subagent
+from ._deepagent import Subagent, general, plan, research, subagent
 from ._filter import MessageFilter, content_only, last_message, remove_tools
 from ._handoff import handoff
 from ._human.agent import human_cli
@@ -48,4 +48,7 @@ __all__ = [
     "AgentSubmit",
     "Subagent",
     "subagent",
+    "research",
+    "plan",
+    "general",
 ]

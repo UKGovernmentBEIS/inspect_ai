@@ -681,7 +681,9 @@ Wire everything together.
 - Assembly: resolve subagents, construct task tool, collect tools (user tools + task + memory + todo_write + skills), build system prompt, delegate to `react()`.
 - Tool inheritance: user tools flow to top-level and `general()` only, not to `research()`/`plan()`.
 - `memory=False` disables memory everywhere.
-- Test: end-to-end with `mockllm`, tool wiring, system prompt content, memory kill switch, subagent model routing.
+- `web_search=` parameter adds `web_search()` to all subagents' `extra_tools`.
+- Validation: after resolving tools for each subagent, raise an error if any subagent has no tools (e.g. no sandbox, `web_search=False`, and no `extra_tools`). A subagent with no tools can't do useful work.
+- Test: end-to-end with `mockllm`, tool wiring, system prompt content, memory kill switch, subagent model routing, no-tools validation error.
 
 ### Phase 9: Public API and exports
 

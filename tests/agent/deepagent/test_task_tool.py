@@ -181,3 +181,54 @@ class TestRecursionGuard:
         sas = [sa]
         tools = _resolve_tools(sa, sas, None, depth=1, max_depth=1, get_messages=None)
         assert "task" not in self._tool_registry_names(tools)
+
+
+class TestForkedDispatch:
+    def test_forked_via_mockllm(self) -> None:
+        from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+
+        sa = subagent(
+            name="forked_agent",
+            description="A forked agent.",
+            prompt="You are a forked helper.",
+            fork=True,
+        )
+        parent_messages: list[ChatMessage] = [
+            ChatMessageUser(content="Original context.", id="msg-1")
+        ]
+        tt = task_tool(
+            subagents=[sa],
+            get_messages=lambda: parent_messages,
+        )
+
+        task = Task(
+            dataset=[Sample(input="Do work with fork")],
+            solver=[use_tools(tt), generate()],
+            message_limit=10,
+        )
+
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="task",
+                    tool_arguments={
+                        "subagent_type": "forked_agent",
+                        "prompt": "Continue the work.",
+                    },
+                ),
+                # Inner forked agent generates a response
+                ModelOutput.from_content("mockllm/model", "Completed forked work."),
+                # Outer agent finishes
+                ModelOutput.from_content("mockllm/model", "Done"),
+            ],
+        )
+
+        log = eval(task, model=model)[0]
+        assert log.status == "success"
+
+        tool_event = get_tool_event(log)
+        assert tool_event is not None
+        assert tool_event.function == "task"
+        assert tool_event.error is None

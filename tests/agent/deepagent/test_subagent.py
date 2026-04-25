@@ -102,3 +102,16 @@ class TestSubagentMemoryValidation:
     def test_invalid_string_rejected(self) -> None:
         with pytest.raises(ValueError, match="memory"):
             subagent(name="test", description="desc", prompt="p", memory="write")  # type: ignore[arg-type]
+
+
+class TestSubagentForkModel:
+    def test_fork_with_model_accepted(self) -> None:
+        s = subagent(
+            name="test",
+            description="desc",
+            prompt="p",
+            fork=True,
+            model="anthropic/claude-sonnet-4",
+        )
+        assert s.fork is True
+        assert s.model == "anthropic/claude-sonnet-4"

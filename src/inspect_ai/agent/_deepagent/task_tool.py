@@ -1,7 +1,6 @@
 from typing import Callable, Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState
-from inspect_ai.agent._filter import content_only
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
 from inspect_ai.model._chat_message import (
@@ -77,8 +76,8 @@ def task_tool(
             )
 
             if sa.fork:
-                input = await _prepare_forked_input(prompt, sa, get_messages)
-                return await _dispatch(child_agent, sa, input)
+                input = _prepare_forked_input(prompt, sa, get_messages)
+                return await _dispatch_forked(child_agent, sa, input)
             else:
                 return await _dispatch(child_agent, sa, prompt)
 
@@ -127,7 +126,24 @@ async def _dispatch(
     return _extract_result(state)
 
 
-async def _prepare_forked_input(
+async def _dispatch_forked(
+    agent: Agent,
+    sa: Subagent,
+    input: list[ChatMessage],
+) -> str:
+    from inspect_ai.event._timeline import timeline_branch
+    from inspect_ai.util._span import current_span_id
+
+    from_span = current_span_id() or ""
+    from_message = _last_message_id(input)
+
+    async with timeline_branch(
+        name=sa.name, from_span=from_span, from_message=from_message
+    ):
+        return await _dispatch(agent, sa, input)
+
+
+def _prepare_forked_input(
     prompt: str,
     sa: Subagent,
     get_messages: Callable[[], list[ChatMessage]] | None,
@@ -137,10 +153,9 @@ async def _prepare_forked_input(
             f"Forked dispatch for '{sa.name}' requires parent messages, "
             "but no get_messages callback was provided."
         )
-    parent_messages = get_messages()
-    filtered = await content_only(parent_messages)
-    filtered.append(ChatMessageUser(content=prompt, source="input"))
-    return filtered
+    messages = list(get_messages())
+    messages.append(ChatMessageUser(content=prompt, source="input"))
+    return messages
 
 
 def _extract_result(state: AgentState) -> str:
@@ -174,6 +189,13 @@ def _resolve_tools(
             task_tool(subagents, parent_tools, depth + 1, max_depth, get_messages)
         )
     return tools
+
+
+def _last_message_id(messages: list[ChatMessage]) -> str:
+    for msg in reversed(messages):
+        if msg.id:
+            return msg.id
+    return ""
 
 
 SUBAGENT_ALIASES: dict[str, str] = {
