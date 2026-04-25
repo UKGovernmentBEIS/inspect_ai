@@ -598,14 +598,27 @@ Created `todo_write()` as a new tool alongside `update_plan()`.
 - `TodoStep` not exported in public API — it's internal; models and tests pass dicts.
 - Used standard `@tool` pattern (not `ToolDef().as_tool()`).
 
-### Phase 3: Read-only tools (`grep`, `read_file`, `list_files`)
+### Phase 3: Read-only tools (`grep`, `read_file`, `list_files`) (40da3105f)
 
-Create standalone read-only sandbox tools.
+Created three standalone read-only sandbox tools for `research()` and `plan()` subagents.
 
-- Implement each tool in `src/inspect_ai/tool/_tools/`.
-- Tools are always constructible; fail clearly at runtime if no sandbox is available.
-- Test: each tool with and without sandbox, error messages, output formatting.
-- Add documentation to the standard tools document and update inspect_ai.tool.qmd with the new tools.
+**Files created:**
+- `src/inspect_ai/tool/_tools/_read_file.py` — `read_file()` tool using `SandboxEnvironment.read_file()` with line numbers and `offset`/`limit` pagination.
+- `src/inspect_ai/tool/_tools/_list_files.py` — `list_files()` tool using `find` with optional `depth` control.
+- `src/inspect_ai/tool/_tools/_grep.py` — `grep()` tool using `grep -rn` with `glob` filter, `fixed_strings`, and `output_mode` ("content" / "files_with_matches" / "count").
+- `tests/tools/test_read_file.py`, `test_list_files.py`, `test_grep.py` — constructibility + Docker integration tests.
+
+**Files modified:**
+- `src/inspect_ai/tool/__init__.py` — added `read_file`, `list_files`, `grep` exports.
+- `docs/tools-standard.qmd` — added Read-Only Tools section with examples.
+- `docs/reference/inspect_ai.tool.qmd` — added reference entries.
+- `CHANGELOG.md` — added Unreleased section with entries for read-only tools and `todo_write()`.
+
+**Design decisions:**
+- Surveyed Claude Code and LangChain deep agents for parameter naming conventions. Aligned: `file_path` (not `file`), `offset`/`limit` (not `start_line`/`end_line`), `glob` (not `include`), `output_mode` with three enum values.
+- All three tools accept `timeout`, `user`, and `sandbox` parameters matching `bash()`.
+- Tools are always constructible without a sandbox; `sandbox()` raises `ProcessLookupError` at runtime if none is available.
+- No additional output limiting needed — existing `max_tool_output` (16 KiB default) handles large results; models can use `offset`/`limit` to paginate.
 
 ### Phase 4: `memory(readonly=True)` mode
 
