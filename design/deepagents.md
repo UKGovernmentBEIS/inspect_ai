@@ -683,14 +683,21 @@ Implemented the three opinionated subagent factories plus related improvements.
 - Forked dispatch passes messages through as-is (no `content_only` filter) to preserve prompt cache. Documentation recommends same model/family when forking.
 - Forked dispatch wrapped in `timeline_branch()` with `BranchEvent` for proper log viewer swimlane rendering.
 
-### Phase 7: System prompt assembly
+### Phase 7: System prompt assembly (07e8d96d2)
 
-Build the prompt composition logic.
+Built the prompt composition logic.
 
-- Implement `prompt.py` with string constants for each layer (core behavior, subagent dispatch, memory/plan coordination).
-- Implement assembly logic: layer composition for default path, placeholder expansion for `prompt=` path.
-- `subagent_dispatch_description()` generates both system prompt content and task tool description from `Subagent` list.
-- Test: layer assembly with various configurations (with/without memory, with/without subagents), placeholder expansion, missing placeholder handling.
+**Files created:**
+- `src/inspect_ai/agent/_deepagent/prompt.py` — String constants (`CORE_BEHAVIOR`, `MEMORY_INSTRUCTIONS`, `MEMORY_ONLY_INSTRUCTIONS`, `PLAN_ONLY_INSTRUCTIONS`) plus `build_system_prompt()` for layered assembly, `build_subagent_dispatch()` for dynamic subagent listing, and `expand_prompt_placeholders()` for the `prompt=` escape hatch using `str.replace()`.
+- `tests/agent/deepagent/test_prompt.py` — 19 tests covering default assembly, subagent inclusion/exclusion, memory/todo_write combinations, user instructions ordering, placeholder expansion (all/partial/missing/cleared), and task-agnostic verification.
+
+**Design decisions:**
+- Surveyed CC (~160 component files), Codex (~500 lines for generic models, ~80 for tuned), LangChain (~60 lines), Pydantic (~100 lines). Our approach: ~30 lines of goal-oriented core behavior (not prescriptive procedures) that works across capability levels.
+- `CORE_BEHAVIOR` covers: action bias, persistence ("keep going until fully resolved"), error recovery ("diagnose what went wrong"), conciseness, batched tool calls, planning/verification, don't over-ask.
+- Memory instructions include recovery prompt: "Check your memory at the start of your work to recover any earlier progress" — complements the compaction system's pre-compaction memory warning with post-compaction recovery guidance.
+- Subagent dispatch section includes delegation prompt guidance: "Include all necessary context — the subagent cannot see your conversation history."
+- Placeholder expansion uses `str.replace()` (not `.format()`) to avoid conflicts with other braces in custom prompts.
+- Also beefed up subagent factory prompts (`research.py`, `plan.py`, `general.py`) with persistence, error recovery, and verification guidance (~12-15 lines each, up from ~8).
 
 ### Phase 8: `deepagent()` function
 
