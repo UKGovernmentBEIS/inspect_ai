@@ -73,6 +73,7 @@ def task_tool(
                 tools=child_tools,
                 model=sa.model,
                 submit=False,
+                compaction=sa.compaction,
             )
 
             if sa.fork:
@@ -182,13 +183,35 @@ def _resolve_tools(
     tools: list[Tool | ToolDef | ToolSource] = []
     if sa.tools is not None:
         tools.extend(sa.tools)
+    else:
+        tools.extend(_default_readonly_tools())
     if sa.extra_tools is not None:
         tools.extend(sa.extra_tools)
+    if sa.memory == "readwrite":
+        from inspect_ai.tool._tools._memory import memory
+
+        tools.append(memory())
+    elif sa.memory == "readonly":
+        from inspect_ai.tool._tools._memory import memory
+
+        tools.append(memory(readonly=True))
     if depth < max_depth:
         tools.append(
             task_tool(subagents, parent_tools, depth + 1, max_depth, get_messages)
         )
     return tools
+
+
+def _default_readonly_tools() -> list[Tool | ToolDef | ToolSource]:
+    from inspect_ai.util._sandbox.context import sandbox_environments_context_var
+
+    if sandbox_environments_context_var.get(None) is None:
+        return []
+    from inspect_ai.tool._tools._grep import grep
+    from inspect_ai.tool._tools._list_files import list_files
+    from inspect_ai.tool._tools._read_file import read_file
+
+    return [read_file(), list_files(), grep()]
 
 
 def _last_message_id(messages: list[ChatMessage]) -> str:

@@ -18,8 +18,7 @@ def todo_write() -> Tool:
 
     The todo_write tool helps agents organize complex, multi-step work by
     maintaining a structured task list with status tracking. The tool
-    description synthesizes best practices from Claude Code, LangChain
-    deep agents, and Codex CLI.
+    description synthesizes best practices from Claude Code and Codex CLI.
     """
 
     async def execute(todos: list[TodoStep], explanation: str | None = None) -> str:

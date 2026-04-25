@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal, Sequence
 
+from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
@@ -45,6 +46,10 @@ class Subagent:
     limits: list[Limit] | None = None
     """Scoped limits applied to each invocation of this subagent."""
 
+    compaction: CompactionStrategy | None = None
+    """Compaction strategy for context management. None inherits
+    the parent agent's compaction strategy."""
+
 
 def subagent(
     *,
@@ -58,6 +63,7 @@ def subagent(
     skills: list[Skill] | None = None,
     memory: Literal["readwrite", "readonly"] | bool = "readonly",
     limits: list[Limit] | None = None,
+    compaction: CompactionStrategy | None = None,
 ) -> Subagent:
     """Create a subagent configuration for use within a deep agent system.
 
@@ -97,6 +103,8 @@ def subagent(
         limits: Scoped limits applied to each invocation of this
             subagent (e.g. token_limit, message_limit, time_limit,
             cost_limit).
+        compaction: Compaction strategy for context management. None
+            inherits the parent agent's compaction strategy.
 
     Returns:
         A Subagent configuration object.
@@ -125,4 +133,5 @@ def subagent(
         skills=skills,
         memory=memory,
         limits=limits,
+        compaction=compaction,
     )
