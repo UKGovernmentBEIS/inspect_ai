@@ -606,7 +606,7 @@ The `skill()` tool takes a list of paths that contain standard skill specificati
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, skill, update_plan
+from inspect_ai.tool import bash, skill, todo_write
 
 SKILLS_DIR = Path(__file__).parent / "skills"
 
@@ -631,33 +631,32 @@ def intercode_ctf():
 
 Note that use of the `skill()` tool requires a that a [sandbox](sandboxing.qmd) be defined for the task so there is a filesystem to publish the skills within.
 
-## Update Plan {#sec-update-plan}
+## Todo Write {#sec-todo-write}
 
-The `update_plan()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
+The `todo_write()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
 
 Note though that for simpler tasks, plan maintenance is just overhead, and some models may fixate on updating the plan rather than actually executing it.
 
 ### Task Setup
 
-A task configured to use the update_plan tool might look like this:
+A task configured to use the todo_write tool might look like this:
 
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, update_plan
+from inspect_ai.tool import bash, todo_write
 
 @task
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        solver=react(tools=[bash(timeout=180), update_plan()]),
+        solver=react(tools=[bash(timeout=180), todo_write()]),
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
     )
 ```
 
-The update_plan tool is based on the update_plan tool used by [Codex CLI](https://github.com/openai/codex). The default tool description is taken from the GPT 5.1 system prompt for Codex. Pass a custom `description` to override this.
 
 ## Memory {#sec-memory}
 
