@@ -620,13 +620,20 @@ Created three standalone read-only sandbox tools for `research()` and `plan()` s
 - Tools are always constructible without a sandbox; `sandbox()` raises `ProcessLookupError` at runtime if none is available.
 - No additional output limiting needed — existing `max_tool_output` (16 KiB default) handles large results; models can use `offset`/`limit` to paginate.
 
-### Phase 4: `memory(readonly=True)` mode
+### Phase 4: `memory(readonly=True)` mode (ccf86a82a)
 
-Add read-only mode to the existing `memory()` tool.
+Added read-only mode to the existing `memory()` tool.
 
-- Modify `src/inspect_ai/tool/_tools/_memory.py` to support `readonly=True`.
-- Read-only mode exposes only read/search operations; write operations return an error.
-- Test: readonly mode rejects writes, allows reads; readwrite mode unchanged.
+**Files modified:**
+- `src/inspect_ai/tool/_tools/_memory.py` — added `readonly: bool = False` parameter. When `True`, returns a separate `execute_readonly` function with `command: Literal["view"]` and only `path`/`view_range` parameters, so the model's tool schema only advertises read operations. Also fixed `/memories` root to always be treated as existing in `_path_exists`/`_is_dir`.
+- `tests/tools/test_memory.py` — added 3 readonly tests (view file, view directory, no write params accepted).
+- `docs/tools-standard.qmd` — added Read-Only Mode section to memory documentation.
+- `CHANGELOG.md` — added entry.
+
+**Design decisions:**
+- Used a separate inner function (not a runtime guard) so the model sees only `command: Literal["view"]` in the tool schema — write commands are never advertised.
+- Readonly memory naturally sidesteps Anthropic native tool auto-binding because the parameter set doesn't match the 10-parameter signature check.
+- Initial data seeding still works in readonly mode (it's setup, not a model action).
 
 ### Phase 5: `task()` tool
 
