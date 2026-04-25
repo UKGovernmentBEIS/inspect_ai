@@ -578,13 +578,25 @@ Created the `Subagent` dataclass and `subagent()` factory function.
 - Dropped `instructions` from `Subagent` — only `prompt` is stored. Built-in factories (`research()`, `plan()`, `general()`) accept `instructions=` and merge it with their default prompt before constructing the `Subagent`.
 - Field order: `name`, `description`, `prompt` (identity), then `tools`, `extra_tools` (adjacent), `model`, `fork`, `skills`, `memory`, `limits`.
 
-### Phase 2: `todo_write()` tool
+### Phase 2: `todo_write()` tool (713c8ea0c)
 
-Create `todo_write()` as a replacement for `update_plan()`. Deprecate `update_plan()` with an alias.
+Created `todo_write()` as a new tool alongside `update_plan()`.
 
-- Implement `todo_write()` in `src/inspect_ai/tool/_tools/_todo_write.py`.
-- Add deprecation alias in `_update_plan.py`.
-- Test: tool creation, plan step tracking, deprecation warning on `update_plan()`.
+**Files created:**
+- `src/inspect_ai/tool/_tools/_todo_write.py` — `TodoStep` model (with `content`/`status` fields, status as `Literal` enum) and `todo_write()` tool using standard `@tool` pattern.
+- `tests/tools/test_todo_write.py` — basic + mockllm integration tests.
+
+**Files modified:**
+- `src/inspect_ai/tool/__init__.py` — added `todo_write` export.
+- `docs/tools-standard.qmd` — renamed section to "Todo Write", updated examples.
+
+**Design decisions:**
+- Surveyed tool descriptions from Claude Code (`TodoWrite`), LangChain (`write_todos`), and Codex CLI (`update_plan`). Synthesized best practices: when-to/when-not-to guidance from CC/LangChain, quality examples from Codex, real-time status rules from LangChain.
+- Renamed `step` field to `content` and `plan` param to `todos` to match CC/LangChain vocabulary.
+- `status` typed as `Literal["pending", "in_progress", "completed"]` (validated, not free-form string).
+- `update_plan()` left completely unchanged — no deprecation, no warnings. Removed from docs but existing harnesses continue to work silently.
+- `TodoStep` not exported in public API — it's internal; models and tests pass dicts.
+- Used standard `@tool` pattern (not `ToolDef().as_tool()`).
 
 ### Phase 3: Read-only tools (`grep`, `read_file`, `list_files`)
 

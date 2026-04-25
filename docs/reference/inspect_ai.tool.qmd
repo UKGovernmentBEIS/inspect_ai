@@ -18,7 +18,7 @@ description: Built-in and custom tool functions.
 
 ### skill
 ### memory
-### update_plan
+### todo_write
 ### think
 
 ## MCP
