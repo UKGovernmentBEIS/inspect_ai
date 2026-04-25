@@ -20,7 +20,7 @@ def _eval_deepagent(
     da = deepagent(**agent_kwargs)
     task = Task(
         dataset=[Sample(input=input, target=target)],
-        solver=[da],
+        solver=da,
         scorer=includes(),
         message_limit=message_limit,
     )
@@ -223,7 +223,7 @@ class TestInstructionsInPrompt:
         da = deepagent(instructions="Always respond in French.")
         task = Task(
             dataset=[Sample(input="Test", target="n/a")],
-            solver=[da],
+            solver=da,
             scorer=includes(),
             message_limit=5,
         )
@@ -524,7 +524,7 @@ class TestCustomPromptPlaceholders:
         )
         task = Task(
             dataset=[Sample(input="Test", target="n/a")],
-            solver=[da],
+            solver=da,
             scorer=includes(),
             message_limit=5,
         )

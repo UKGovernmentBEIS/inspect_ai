@@ -7,7 +7,6 @@ from inspect_ai.agent import deepagent
 from inspect_ai.agent._deepagent.prompt import CORE_BEHAVIOR
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
-from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import think
 
 
@@ -21,7 +20,7 @@ def test_deepagent_end_to_end() -> None:
     """End-to-end: model calls task tool, subagent runs, returns result."""
     task = Task(
         dataset=[Sample(input="Research something")],
-        solver=[use_tools(deepagent()), generate()],
+        solver=deepagent(submit=True),
         message_limit=10,
     )
 
@@ -39,8 +38,12 @@ def test_deepagent_end_to_end() -> None:
             ),
             # 2. Inner research subagent responds
             ModelOutput.from_content("mockllm/model", "Found the info."),
-            # 3. Outer agent finishes
-            ModelOutput.from_content("mockllm/model", "Done"),
+            # 3. Outer agent submits
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
         ],
     )
 

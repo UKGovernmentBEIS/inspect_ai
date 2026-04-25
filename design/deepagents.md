@@ -699,18 +699,30 @@ Built the prompt composition logic.
 - Placeholder expansion uses `str.replace()` (not `.format()`) to avoid conflicts with other braces in custom prompts.
 - Also beefed up subagent factory prompts (`research.py`, `plan.py`, `general.py`) with persistence, error recovery, and verification guidance (~12-15 lines each, up from ~8).
 
-### Phase 8: `deepagent()` function
+### Phase 8: `deepagent()` function (a94c56eba)
 
-Wire everything together.
+Wired everything together.
 
-- Implement `deepagent.py` — the top-level assembly function.
-- Assembly: resolve subagents, construct task tool, collect tools (user tools + task + memory + todo_write + skills), build system prompt, delegate to `react()`.
-- Tool inheritance: user tools flow to top-level and `general()` only, not to `research()`/`plan()`.
-- `memory=False` disables memory everywhere.
-- `web_search=` parameter adds `web_search()` to all subagents' `extra_tools`.
-- Validation: after resolving tools for each subagent, raise an error if any subagent has no tools (e.g. no sandbox, `web_search=False`, and no `extra_tools`). A subagent with no tools can't do useful work.
-- Prompt layering: pass `AgentPrompt(instructions=prompt, assistant_prompt=None, submit_prompt=None, handoff_prompt=None)` to `react()` to suppress its defaults — `CORE_BEHAVIOR` already covers what `DEFAULT_ASSISTANT_PROMPT` covers. Same for subagent prompts in `task_tool.py`.
-- Test: end-to-end with `mockllm`, tool wiring, system prompt content, memory kill switch, subagent model routing, no-tools validation error.
+**Files created:**
+- `src/inspect_ai/agent/_deepagent/deepagent.py` — `deepagent()` top-level assembly function decorated with `@agent`. Assembly sequence: resolve subagents (defaults to research/plan/general), inject web_search, apply memory kill switch, propagate compaction, set general's tools to parent tools, construct task_tool with get_messages callback, collect top-level tools, build system prompt (or expand placeholders), suppress react() defaults via `AgentPrompt`, delegate to `react()`.
+- `tests/agent/deepagent/test_deepagent.py` — 7 unit tests: constructibility, basic e2e, memory kill switch, instructions, custom prompt, extra tools, default subagents.
+- `tests/agent/deepagent/test_deepagent_e2e.py` — 15 comprehensive e2e tests using mockllm: multi-step delegation, memory write + subagent read, todo_write plan tracking, submit tool, custom subagents, instructions in system message, memory kill switch, full workflow (memory → plan → delegate → submit), plan subagent dispatch, general inherits parent tools, todo_write disabled, multiple calls to same subagent, interleaved tool use and delegation, custom prompt with placeholders, unknown tool graceful error.
+
+**Files modified:**
+- `src/inspect_ai/agent/_deepagent/task_tool.py` — `_resolve_tools` now provides sandbox-aware default read-only tools when `sa.tools is None`, injects `memory()`/`memory(readonly=True)` based on `sa.memory`, and passes `compaction=sa.compaction` to child `react()`.
+- `src/inspect_ai/agent/_deepagent/subagent.py` — added `compaction: CompactionStrategy | None = None` field.
+- `src/inspect_ai/agent/_deepagent/__init__.py` — added `deepagent` export.
+- `src/inspect_ai/agent/__init__.py` — added `deepagent` to public API.
+- `docs/reference/inspect_ai.agent.qmd` — added `### deepagent` to Deep Agent section.
+
+**Design decisions:**
+- `web_search: Tool | bool = False` — accepts `True` for defaults or a pre-configured `web_search()` instance. Off by default (evals value reproducibility and controlled environments).
+- Default subagents: `None` → `[research(), plan(), general()]`. The whole point of `deepagent()` is the opinionated assembly; users who don't want subagents use `react()`.
+- Suppressed react() default prompts via `AgentPrompt(instructions=prompt, assistant_prompt=None, submit_prompt=None, handoff_prompt=None)` — `CORE_BEHAVIOR` already covers what react's defaults provide.
+- Forked dispatch `get_messages` callback uses a mutable `_state_ref` that points to `state.messages` once the agent starts executing. Since react modifies messages in-place, the reference stays current.
+- Compaction propagation: parent's `CompactionStrategy` propagates to subagents that don't set their own. Safe because each `react()` creates its own `Compact` instance from the strategy.
+- `general()` subagent inherits parent tools via name-based check in `_apply_parent_tools_to_general`.
+- All e2e tests use `submit=True` and terminate via `_submit()` helper to avoid mockllm output exhaustion from react's continue prompts.
 
 ### Phase 9: Public API and exports
 
