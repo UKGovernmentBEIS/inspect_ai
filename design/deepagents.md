@@ -74,13 +74,14 @@ For fully custom subagents:
 ``` python
 from inspect_ai.agent import subagent
 
-reviewer = subagent(
-    name="reviewer",
-    description="Reviews code for security and correctness.",
-    prompt="...",
-    tools=[grep(), read_file()],
-    model="anthropic/claude-sonnet-4",  # optional, inherits parent by default
-)
+def reviewer(model="anthropic/claude-sonnet-4"):
+    return subagent(
+        name="reviewer",
+        description="Reviews code for security and correctness.",
+        prompt="...",
+        tools=[grep(), read_file()],
+        model=model,
+    )
 
 agent = deepagent(subagents=[research(), plan(), general(), reviewer()])
 ```
@@ -98,13 +99,14 @@ Subagents support two dispatch modes, corresponding to Inspect's existing `as_to
 Claude Code recently added fork semantics to its general-purpose agent. We expose the same choice on `subagent()`:
 
 ``` python
-reviewer = subagent(
-    name="reviewer",
-    description="Reviews code for security and correctness.",
-    prompt="...",
-    tools=[grep(), read_file()],
-    fork=False,  # default: isolated context
-)
+def reviewer():
+    return subagent(
+        name="reviewer",
+        description="Reviews code for security and correctness.",
+        prompt="...",
+        tools=[grep(), read_file()],
+        fork=False,  # default: isolated context
+    )
 ```
 
 The `fork` parameter controls which dispatch primitive is used under the hood. When `fork=False` (the default), the subagent behaves like `as_tool()` — isolated context, only the summary returns. When `fork=True`, it behaves like `handoff()` with `input_filter=content_only` and `output_filter=last_message` — the subagent sees the parent's conversation but only its final message returns, keeping the parent context lean. An optional `output_filter` parameter (only valid when `fork=True`) allows overriding the default `last_message` filter.
@@ -141,7 +143,7 @@ Inspect's `span(type="agent")` already renders subagent work as swimlanes in the
 
 #### System prompt
 
-The system prompt is the spine of the deep-agent pattern. We will treat it as a separately versioned text asset (not a Python string literal) so it can be reviewed, diffed, and tuned independently. Users can extend additively with `instructions=` (90% case) or fully replace with `prompt=` (escape hatch).
+The system prompt is the spine of the deep-agent pattern. It lives as string constants in a dedicated module (`prompt.py`) with assembly logic that composes layers based on configuration. Users can extend additively with `instructions=` (90% case) or fully replace with `prompt=` (escape hatch).
 
 The subsections below analyze the system prompts shipped by Claude Code, Codex CLI, LangChain deepagents, and Pydantic AI deepagents — what they share, where they diverge, and implications for Inspect.
 
@@ -263,7 +265,7 @@ All three major frameworks implement multi-tier context management to keep long-
 
 3. **Mid-turn compaction.** Codex CLI supports compaction during a streaming model response — injecting a summary mid-turn when the context limit is hit during generation.
 
-**Inspect status:** Inspect already has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`. The `deepagent()` RFC should clarify how it exposes compaction configuration — likely through existing `react()` parameters that `deepagent()` passes through. Tool output eviction is a separate concern not currently in Inspect and may be worth adding as a standalone capability that `deepagent()` enables by default.
+**Inspect status:** Inspect already has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`. `deepagent()` exposes compaction configuration via the existing `compaction=` parameter, passed through to `react()`.
 
 #### Parallel subagent execution
 
@@ -315,15 +317,14 @@ We'd particularly value input on:
 
 2. **`research()` vs `explore()`.** Our reasoning is above — does this match the use cases you'd build on `deepagent()`?
 
-3. **Memory write defaults.** Is read-by-default / write-opt-in the right posture for built-in subagents, or should `general()` get write access by default?
+3. **What's missing.** Are there deep-agent patterns you've found valuable in other frameworks that aren't covered above?
 
-4. **Recursion depth.** Hard cap at 1 level (matching Claude Code and Codex), or expose an opt-in for deeper delegation?
+#### Resolved
 
-5. **`task()` vs `as_tool()` as the default exposure.** Multiplexer (CC/Pydantic-deep style) or per-subagent tools (more granular description text)?
-
-6. **What's missing.** Are there deep-agent patterns you've found valuable in other frameworks that aren't covered above?
-
-7. **Naming.** `deepagent` vs `deep_agent` vs something else.
+- **Memory write defaults.** `research()` and `plan()` are read-only; `general()` gets read-write. Custom subagents declare explicitly.
+- **Recursion depth.** Default cap at 1 level (matching CC and Codex), configurable via `max_depth=`.
+- **`task()` vs `as_tool()`.** `task()` multiplexer is the default. `as_tool()` remains available for users who prefer per-subagent tool exposure.
+- **Naming.** `deepagent()`.
 
 ### Prior Art
 
@@ -358,7 +359,7 @@ reviewer = subagent(
 
 `Subagent` holds: name, description, prompt, tools, model, fork, output_filter, limits, memory write access. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
 
-**Recursion guard.** Depth is tracked per-sample (e.g., via `Store`) and incremented on each `task()` dispatch. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_subagent_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
+**Recursion guard.** Depth is tracked per-sample (e.g., via `Store`) and incremented on each `task()` dispatch. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
 
 #### 2. `task()` tool
 
@@ -366,7 +367,7 @@ The multiplexer. Takes a list of `Subagent` objects at construction time and exp
 
 ``` python
 # Constructed internally by deepagent():
-task_tool = task(subagents=[research(), plan(), general(), reviewer])
+task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 ```
 
 **Parameters exposed to the model:** `(description: str, subagent_type: str, prompt: str)`. The `subagent_type` enum is generated dynamically from the `Subagent` names and descriptions.
@@ -427,6 +428,7 @@ def deepagent(
     instructions: str | None = None,
     prompt: str | None = None,                      # full replacement with placeholders
     compaction: CompactionStrategy | None = None,
+    max_depth: int = 1,                             # max subagent recursion depth
     model: str | Model | None = None,
     submit: AgentSubmit | bool | None = None,
     attempts: int | AgentAttempts = 1,
@@ -472,6 +474,7 @@ No changes to existing `react()`, `as_tool()`, `handoff()`, or `Agent` APIs.
 #### 7. File layout
 
 New directory `src/inspect_ai/agent/_deepagent/`:
+- `__init__.py` — package init.
 - `deepagent.py` — `deepagent()` function.
 - `subagent.py` — `Subagent` type and `subagent()` factory.
 - `research.py` — `research()` built-in subagent factory.
@@ -480,8 +483,16 @@ New directory `src/inspect_ai/agent/_deepagent/`:
 - `task_tool.py` — `task()` multiplexer tool.
 - `prompt.py` — system prompt text constants and assembly logic.
 
+New tools in `src/inspect_ai/tool/_tools/`:
+- `_grep.py` — `grep()` read-only search tool.
+- `_read_file.py` — `read_file()` read-only file reading tool.
+- `_list_files.py` — `list_files()` read-only directory listing tool.
+- `_todo_write.py` — `todo_write()` planning tool (replaces `update_plan()`).
+
 Modified files:
 - `src/inspect_ai/agent/__init__.py` — add new exports.
+- `src/inspect_ai/tool/_tools/__init__.py` — add new tool exports.
+- `src/inspect_ai/tool/_tools/_update_plan.py` — deprecate with alias to `todo_write()`.
 
 #### 8. Testing strategy
 
