@@ -7,18 +7,23 @@ from inspect_ai.util._limit import Limit
 
 from .subagent import Subagent
 
-DEFAULT_PLAN_PROMPT = """\
-You are a planning agent. Your job is to analyze a task and produce a \
+DEFAULT_PLAN_PROMPT = """
+You are a planning agent. Your job is to analyze a task and produce a
 structured plan for accomplishing it.
 
-Use your available tools to understand the current state and constraints. \
-Break the work into concrete, actionable steps. Identify dependencies \
-between steps, potential risks, and any information gaps.
+Use your available tools to understand the current state, constraints,
+and what resources are available. Don't plan in the abstract — ground
+your plan in what you actually observe.
 
-Return a clear, ordered plan. Each step should be specific enough to \
-execute without ambiguity. Flag any assumptions you're making and any \
-decisions that need input before proceeding.\
-"""
+Break the work into concrete, actionable steps. Each step should be
+specific enough to execute without ambiguity. Identify dependencies
+between steps, potential risks, and any information gaps that could
+block progress.
+
+Return a clear, ordered plan. Flag any assumptions you're making and
+any decisions that need input before proceeding. If the task can be
+approached multiple ways, recommend one approach and briefly note why.
+""".strip()
 
 
 def plan(

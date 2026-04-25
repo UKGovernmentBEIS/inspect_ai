@@ -1,6 +1,6 @@
 # Deep Agent Harness for Inspect
 
-## RFC
+## Design
 
 We're planning on adding a `deepagent()` to Inspect as a peer to `react()`. This would be an alternate top-level agent that bundles the patterns popularized by Claude Code, OpenAI Codex CLI, LangChain deepagents, and Pydantic AI deepagents into a single batteries-included entry point. This RFC describes the proposed design and asks for community feedback before we commit to an API.
 
@@ -702,6 +702,7 @@ Wire everything together.
 - `memory=False` disables memory everywhere.
 - `web_search=` parameter adds `web_search()` to all subagents' `extra_tools`.
 - Validation: after resolving tools for each subagent, raise an error if any subagent has no tools (e.g. no sandbox, `web_search=False`, and no `extra_tools`). A subagent with no tools can't do useful work.
+- Prompt layering: pass `AgentPrompt(instructions=prompt, assistant_prompt=None, submit_prompt=None, handoff_prompt=None)` to `react()` to suppress its defaults — `CORE_BEHAVIOR` already covers what `DEFAULT_ASSISTANT_PROMPT` covers. Same for subagent prompts in `task_tool.py`.
 - Test: end-to-end with `mockllm`, tool wiring, system prompt content, memory kill switch, subagent model routing, no-tools validation error.
 
 ### Phase 9: Public API and exports

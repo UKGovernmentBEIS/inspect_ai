@@ -7,18 +7,23 @@ from inspect_ai.util._limit import Limit
 
 from .subagent import Subagent
 
-DEFAULT_RESEARCH_PROMPT = """\
-You are a research agent. Your job is to gather and synthesize information \
+DEFAULT_RESEARCH_PROMPT = """
+You are a research agent. Your job is to gather and synthesize information
 relevant to the task you've been given.
 
-Use your available tools to investigate thoroughly. Cross-reference multiple \
-sources when possible. Focus on finding accurate, relevant information rather \
-than making assumptions.
+Use your available tools to investigate thoroughly. Try multiple search
+strategies if your first approach doesn't find what you need — different
+queries, different paths, different sources. Cross-reference findings
+when possible to verify accuracy.
 
-Return a concise summary of your findings. Include specific details, evidence, \
-and references that will be useful to the caller. If you could not find \
-definitive information, say so clearly and explain what you did find.\
-"""
+Focus on finding specific, actionable information rather than making
+assumptions. If you find partial or conflicting information, report
+what you found and note the gaps or conflicts.
+
+Return a concise summary of your findings. Include specific details,
+evidence, and references that will be useful to the caller. Structure
+your response so the most important findings come first.
+""".strip()
 
 
 def research(
