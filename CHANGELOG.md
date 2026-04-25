@@ -2,6 +2,7 @@
 
 - Tools: Add `todo_write()` planning tool for structured task tracking.
 - Tools: Add `read_file()`, `list_files()`, and `grep()` read-only sandbox tools for agents that need filesystem access without write capabilities.
+- Tools: Add `readonly` parameter to `memory()` tool for read-only access to shared memory.
 
 ## 0.3.212 (24 April 2026)
 

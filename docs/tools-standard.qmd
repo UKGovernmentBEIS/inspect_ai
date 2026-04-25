@@ -776,9 +776,21 @@ memory(
 
 Keys should be valid `/memories` paths (e.g. "/memories/notes.md"). Values are resolved via `resource()`, supporting inline strings, file paths, or remote resources (s3://, https://). Seeding happens once on first tool execution. The model is prompted to read any pre-seeded memories before beginning work.
 
+### Read-Only Mode
+
+Use `memory(readonly=True)` to provide read-only access to the memory directory. In readonly mode, only the `view` command is available — write operations (`create`, `str_replace`, `insert`, `delete`, `rename`) are not exposed to the model. This is used by `research()` and `plan()` subagents in the [deep agent](deep-agent.qmd) system to share context without allowing mutation.
+
+``` python
+# read-only memory with pre-seeded data
+memory(
+    initial_data={"/memories/context.md": "shared context"},
+    readonly=True,
+)
+```
+
 ### Tool Binding
 
-The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
+The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the memory tool will automatically bind to the native Claude tool definition.
 
 ## Think {#sec-think}
 

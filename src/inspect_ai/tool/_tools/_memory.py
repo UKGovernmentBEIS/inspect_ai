@@ -1,7 +1,7 @@
 """Memory tool for managing persistent information in /memories directory."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Callable, Literal
 
 from pydantic import Field
 
@@ -19,7 +19,9 @@ class MemoryStore(StoreModel):
 
 
 @tool
-def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
+def memory(
+    *, initial_data: dict[str, str] | None = None, readonly: bool = False
+) -> Tool:
     """Memory tool for managing persistent information.
 
     The description for the memory tool is based on the documentation for the Claude
@@ -31,10 +33,22 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
             "/memories/file.txt"). Values are resolved via resource(), supporting
             inline strings, file paths, or remote resources (s3://, https://).
             Seeding happens once on first tool execution.
+        readonly: If True, only the view command is available. Write operations
+            (create, str_replace, insert, delete, rename) are not exposed.
 
     Returns:
         Memory tool for file operations in /memories directory.
     """
+
+    def _seed(store: MemoryStore) -> None:
+        if not store.seeding_complete:
+            if initial_data:
+                for seed_path, value in initial_data.items():
+                    _create(store, seed_path, resource(value))
+            store.seeding_complete = True
+
+    if readonly:
+        return _readonly_execute(_seed)
 
     async def execute(
         command: Literal["view", "create", "str_replace", "insert", "delete", "rename"],
@@ -90,11 +104,7 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
             Result message string
         """
         store = store_as(MemoryStore)
-        if not store.seeding_complete:
-            if initial_data:
-                for seed_path, value in initial_data.items():
-                    _create(store, seed_path, resource(value))
-            store.seeding_complete = True
+        _seed(store)
 
         match command:
             case "view":
@@ -113,6 +123,38 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
                 raise ToolError(f"Unknown command: {command}")
 
     return execute
+
+
+def _readonly_execute(
+    _seed: "Callable[[MemoryStore], None]",
+) -> "Callable[..., Any]":
+    async def execute_readonly(
+        command: Literal["view"],
+        path: str | None = None,
+        view_range: list[int] | None = None,
+    ) -> str:
+        """Read-only memory tool for viewing persistent information.
+
+        This is a read-only view of the memory directory. Use the
+        `view` command to browse files and directories.
+
+        Args:
+            command: Command to execute (view only).
+            path: Path to file or directory in /memories, e.g.
+                `/memories/file.txt` or `/memories/dir`.
+            view_range: Optional line range when viewing a file,
+                e.g. [11, 12] shows lines 11 and 12. Indexing
+                starts at 1. Use [start_line, -1] to show from
+                start_line to end of file.
+
+        Returns:
+            Result message string
+        """
+        store = store_as(MemoryStore)
+        _seed(store)
+        return _view(store, path, view_range)
+
+    return execute_readonly
 
 
 def _validate_path(path: str) -> str:
@@ -147,11 +189,11 @@ def _validate_path(path: str) -> str:
 
 
 def _path_exists(store: MemoryStore, path: str) -> bool:
-    return path in store.files or path in store.dirs
+    return path == "/memories" or path in store.files or path in store.dirs
 
 
 def _is_dir(store: MemoryStore, path: str) -> bool:
-    return path in store.dirs
+    return path == "/memories" or path in store.dirs
 
 
 def _read_file(store: MemoryStore, path: str) -> str:
