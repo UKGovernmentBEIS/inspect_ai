@@ -726,12 +726,13 @@ Wired everything together.
 
 ### Phase 9: Public API and exports
 
-Finalize the public surface.
+Already complete — exports were added incrementally in each preceding phase. Verified:
 
-- Update `src/inspect_ai/agent/__init__.py` with new exports.
-- Update `src/inspect_ai/tool/_tools/__init__.py` with new tool exports.
-- Verify no naming collisions (task tool is internal, not exported).
-- Test: import paths, backward compatibility of existing APIs.
+- `inspect_ai.agent`: `deepagent`, `subagent`, `Subagent`, `research`, `plan`, `general` all exported.
+- `inspect_ai.tool`: `read_file`, `list_files`, `grep`, `todo_write` all exported. `update_plan` still exported (undocumented backward compat).
+- `task_tool` is internal only (not in public API, no naming collision with `@task` decorator — separate registries).
+- `docs/reference/inspect_ai.agent.qmd`: Deep Agent section with all entries.
+- `docs/reference/inspect_ai.tool.qmd`: read_file, list_files, grep entries added.
 
 ### Phase 10: Documentation
 
