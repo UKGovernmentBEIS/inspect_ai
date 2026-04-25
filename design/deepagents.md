@@ -550,3 +550,101 @@ New documentation file: `docs/deep-agent.qmd` — a standalone guide covering:
 - System prompt customization: `instructions=` for the common case, `prompt=` with placeholders for full control.
 - Tool configuration: default tool sets, adding `web_search()`, `extra_tools=`.
 - Examples: basic usage, custom subagents, cost-aware model routing, fork mode.
+
+## Implementation
+
+### Guidelines
+
+1. **One phase at a time.** Create a dedicated plan for the phase. Do not proceed with implementation or exit plan mode until the user has approved the plan. Implement, test, and verify each phase before moving to the next.
+2. **Review before commit.** After tests pass, pause and review the code together before committing. Do not auto-commit.
+3. **Full tests at each step.** Every phase produces both implementation and tests.
+4. **Update this document.** After completing a phase but before committing, replace the phase's overview section below with a summary of what was actually built and tested — files created/modified, key design decisions made during implementation, and test coverage.
+
+### Phase 1: `Subagent` type and `subagent()` factory
+
+Create the `Subagent` dataclass and `subagent()` factory function. This is the foundation everything else builds on.
+
+- Define `Subagent` with fields: name, description, prompt, tools, model, fork, output_filter, memory, limits.
+- `subagent()` validates inputs and returns a `Subagent` instance.
+- Test: construction, field defaults, validation errors for invalid inputs.
+
+### Phase 2: `todo_write()` tool
+
+Create `todo_write()` as a replacement for `update_plan()`. Deprecate `update_plan()` with an alias.
+
+- Implement `todo_write()` in `src/inspect_ai/tool/_tools/_todo_write.py`.
+- Add deprecation alias in `_update_plan.py`.
+- Test: tool creation, plan step tracking, deprecation warning on `update_plan()`.
+
+### Phase 3: Read-only tools (`grep`, `read_file`, `list_files`)
+
+Create standalone read-only sandbox tools.
+
+- Implement each tool in `src/inspect_ai/tool/_tools/`.
+- Tools are always constructible; fail clearly at runtime if no sandbox is available.
+- Test: each tool with and without sandbox, error messages, output formatting.
+- Add documentation to the standard tools document and update inspect_ai.tool.qmd with the new tools.
+
+### Phase 4: `memory(readonly=True)` mode
+
+Add read-only mode to the existing `memory()` tool.
+
+- Modify `src/inspect_ai/tool/_tools/_memory.py` to support `readonly=True`.
+- Read-only mode exposes only read/search operations; write operations return an error.
+- Test: readonly mode rejects writes, allows reads; readwrite mode unchanged.
+
+### Phase 5: `task()` tool
+
+Build the multiplexer tool that dispatches to subagents.
+
+- Implement `task_tool.py` — takes `list[Subagent]`, generates dynamic tool description via `subagent_dispatch_description()`.
+- Implement dispatch: construct `react()` from `Subagent` config, invoke with isolated or forked semantics.
+- Implement closure-based recursion depth tracking.
+- Handle alias mapping (`"general_purpose"` → `"general"`).
+- Test: schema generation, dispatch (both fork modes), recursion guard (task tool omitted at max depth), alias handling, span creation.
+
+### Phase 6: Built-in subagent factories (`research`, `plan`, `general`)
+
+Implement the three opinionated factories.
+
+- Each calls `subagent()` with appropriate defaults (tools, memory mode, prompt, fork).
+- `research()` and `plan()`: read-only tools + `memory="readonly"`.
+- `general()`: inherits parent tools + `memory="readwrite"`.
+- Additive customization via `instructions=`, `extra_tools=`, `model=`, `fork=`.
+- Test: default configurations, customization overrides, tool inheritance behavior.
+
+### Phase 7: System prompt assembly
+
+Build the prompt composition logic.
+
+- Implement `prompt.py` with string constants for each layer (core behavior, subagent dispatch, memory/plan coordination).
+- Implement assembly logic: layer composition for default path, placeholder expansion for `prompt=` path.
+- `subagent_dispatch_description()` generates both system prompt content and task tool description from `Subagent` list.
+- Test: layer assembly with various configurations (with/without memory, with/without subagents), placeholder expansion, missing placeholder handling.
+
+### Phase 8: `deepagent()` function
+
+Wire everything together.
+
+- Implement `deepagent.py` — the top-level assembly function.
+- Assembly: resolve subagents, construct task tool, collect tools (user tools + task + memory + todo_write + skills), build system prompt, delegate to `react()`.
+- Tool inheritance: user tools flow to top-level and `general()` only, not to `research()`/`plan()`.
+- `memory=False` disables memory everywhere.
+- Test: end-to-end with `mockllm`, tool wiring, system prompt content, memory kill switch, subagent model routing.
+
+### Phase 9: Public API and exports
+
+Finalize the public surface.
+
+- Update `src/inspect_ai/agent/__init__.py` with new exports.
+- Update `src/inspect_ai/tool/_tools/__init__.py` with new tool exports.
+- Verify no naming collisions (task tool is internal, not exported).
+- Test: import paths, backward compatibility of existing APIs.
+
+### Phase 10: Documentation
+
+Write `docs/deep-agent.qmd`.
+
+- Overview, API reference, configuration guide, examples.
+- System prompt customization guide (`instructions=` vs `prompt=` with placeholders).
+- Update inspect_ai.agent.qmd with reference sections.
