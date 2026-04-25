@@ -133,7 +133,7 @@ Default behavior matches the convergent pattern across CC, LangChain, and Pydant
 
 - **Sandbox** — shared (already true per-sample in Inspect).
 - **Memory** — shared, read by default, write opt-in per subagent. `research()` and `plan()` get `memory(readonly=True)`; `general()` gets full read-write `memory()`. Custom subagents declare explicitly. Note: `memory(readonly=True)` is a new mode that must be implemented — the current `memory()` tool supports all CRUD operations.
-- **Skills** — shared.
+- **Skills** — inherited only by `general()` by default. `research()`, `plan()`, and custom subagents get skills only when explicitly configured. This keeps read-only and specialist subagents focused and avoids silently expanding their context or capabilities.
 - **Message history** — isolated (this is what subagents are *for*).
 - **Tools** — subset declared by the subagent's definition.
 
@@ -256,15 +256,17 @@ The following capabilities emerged from a survey of LangChain deepagents, Pydant
 
 #### Context management and compaction
 
-All three major frameworks implement multi-tier context management to keep long-running agents within their context window:
+The reference frameworks implement a mix of context-management strategies to keep long-running agents within their context window:
 
-1. **Tool output eviction.** LangChain and Pydantic AI both evict large tool outputs (>20K tokens) to the filesystem, replacing them with a short preview and a reference path. The agent can retrieve the full content later via filesystem tools if needed. This prevents a single large tool response from consuming the context budget.
+1. **Tool output caps / truncation.** Claude Code and Codex CLI rely primarily on bounded tool output, truncation, and targeted follow-up reads. This keeps any single command or file read from flooding context, at the cost of sometimes requiring the model to issue narrower follow-up tool calls.
 
-2. **Summarization / compaction.** When the context window approaches capacity (~85-90% in LangChain/Pydantic), the frameworks trigger an LLM-generated summary that compresses the conversation while preserving key facts, then continues from the summary.
+2. **Tool output eviction.** LangChain and Pydantic AI go further by evicting large tool outputs (>20K tokens) to the filesystem, replacing them with a short preview and a reference path. The agent can retrieve the full content later via filesystem tools if needed. This preserves more information but adds artifact lifecycle, security, and retrieval semantics.
 
-3. **Mid-turn compaction.** Codex CLI supports compaction during a streaming model response — injecting a summary mid-turn when the context limit is hit during generation.
+3. **Summarization / compaction.** When the context window approaches capacity (~85-90% in LangChain/Pydantic), the frameworks trigger an LLM-generated summary that compresses the conversation while preserving key facts, then continues from the summary.
 
-**Inspect status:** Inspect already has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`. `deepagent()` exposes compaction configuration via the existing `compaction=` parameter, passed through to `react()`.
+4. **Mid-turn compaction.** Codex CLI supports compaction during a streaming model response — injecting a summary mid-turn when the context limit is hit during generation.
+
+**Inspect status:** Inspect already bounds tool output via `max_tool_output` (default 16 KiB), which prevents runaway tool results from saturating context. `deepagent()` v1 should lean into this existing behavior: read-only filesystem tools should support explicit ranges/limits, `grep()` should be bounded, and truncation messages should make it clear how to retrieve narrower context. Inspect also has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`, and `deepagent()` exposes compaction configuration via the existing `compaction=` parameter. Durable large-output eviction can be considered later if capped outputs prove too lossy, but it is not a v1 requirement.
 
 #### Parallel subagent execution
 
@@ -272,11 +274,23 @@ LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents
 
 **Inspect status:** Inspect's current `execute_tools` processes tool calls sequentially, and `handoff()` explicitly disables parallel tool calls. In v1, subagent dispatch is sequential — multiple `task()` calls in one response execute one at a time. The system prompt should not encourage multiple subagent calls in a single response, as this adds latency and cost with no execution-time benefit in v1. Guidance should be: delegate when helpful; focus on one delegation at a time. Parallel subagent execution is a future enhancement (see Implementation Blueprint section 8).
 
+#### Async / background subagents
+
+Claude Code, Codex CLI, LangChain, and Pydantic Deep Agents all support some form of background or async subagent work: launch a long-running worker, continue in the parent, inspect status, and optionally steer or cancel the child.
+
+**Inspect status:** Out of scope for v1. `deepagent()` dispatch is synchronous: the parent blocks until the child returns its summary. Async/background subagents require new lifecycle concepts (task handles, status, cancellation, UI/log presentation, and possibly durable state) and should be designed as a separate feature.
+
 #### Cost-aware model routing
 
 The RFC mentions `model=` per subagent but doesn't frame it as cost-aware routing. In practice, this is one of the highest-leverage features: route simple subtasks (file reading, grep, summarization) to cheaper/faster models and reserve expensive models for complex reasoning. Research reports 85% cost reduction while maintaining 95% quality.
 
 **Inspect status:** Already supported — `subagent(model=...)` and `research(model=...)` etc. allow per-subagent model selection. Each built-in subagent has different cognitive demands (e.g., `research()` might use a cheaper model, `plan()` a stronger one, `general()` the main agent model), so routing is best configured per-subagent rather than with a blanket default.
+
+#### Limits and budgets
+
+Long-horizon agents need hard resource limits: message counts, tokens, wall-clock time, working time, and cost. LangChain and Pydantic expose these through middleware/capabilities; Inspect already has them as core task and agent primitives.
+
+**Inspect status:** Covered. Sample-level limits apply across the parent and all subagent excursions, and `subagent(limits=[...])` can apply additional scoped limits to a child agent. This gives authors both a global budget for the whole sample and per-subagent budgets for expensive or exploratory workers.
 
 #### Tool call repair
 
@@ -345,6 +359,7 @@ Sections are ordered by dependency — each builds on the ones above it.
 
 ``` python
 from inspect_ai.agent import subagent
+from inspect_ai.util import token_limit
 
 reviewer = subagent(
     name="reviewer",
@@ -352,12 +367,13 @@ reviewer = subagent(
     prompt="...",
     tools=[grep(), read_file()],
     model="anthropic/claude-sonnet-4",
+    limits=[token_limit(50_000)],
     memory="readonly",  # "readwrite", "readonly", or False
     fork=False,
 )
 ```
 
-`Subagent` holds: name, description, prompt, tools, model, fork, output_filter, limits, and memory mode. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
+`Subagent` holds: name, description, prompt, tools, model, fork, output_filter, limits, skills, and memory mode. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The optional `limits` parameter takes scoped Inspect limits (e.g. `token_limit`, `message_limit`, `time_limit`, `cost_limit`) that apply to the child agent invocation. The optional `skills` parameter provides subagent-specific skills; only `general()` inherits parent skills automatically. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
 
 **Recursion guard.** Depth is tracked via closure — the current depth is closed over when constructing the child agent's tool set, so each dispatch path carries its own depth counter. This is parallel-safe: sibling subagents dispatched concurrently (in a future parallel v2) won't interfere with each other's depth tracking. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
 
@@ -384,29 +400,34 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 
 #### 3. Built-in subagent factories: `research()`, `plan()`, `general()`
 
-Each returns a `Subagent` with opinionated defaults. All accept additive customization via `instructions=`, `extra_tools=`, `model=`, `fork=`.
+Each returns a `Subagent` with opinionated defaults. All accept additive customization via `instructions=`, `extra_tools=`, `model=`, `fork=`, `limits=`, and `skills=`.
 
 **`research()`** — Read-only information gathering.
 - Tools: read-only defaults (see below).
 - Fork: `False` (isolated context).
 - Memory: read-only.
+- Skills: none by default.
 - Prompt: goal-oriented, emphasizes gathering and synthesizing information.
 
 **`plan()`** — Structured planning, no execution.
 - Tools: same read-only defaults as `research()`.
 - Fork: `False`.
 - Memory: read-only.
+- Skills: none by default.
 - Prompt: goal-oriented, emphasizes decomposing work and producing a structured plan.
 
 **`general()`** — Full tools, isolated context for noisy work.
 - Tools: inherits all parent tools.
 - Fork: `False` (user can opt into `True` for CC-style fork behavior).
 - Memory: read-write.
+- Skills: inherits parent skills by default.
 - Prompt: goal-oriented, emphasizes autonomous task completion.
 
 **Default tool sets.** `research()` and `plan()` share the same read-only tool defaults: `grep()`, `read_file()`, and `list_files()` — new standalone read-only tools to be added to Inspect's toolset. These tools are always constructible regardless of whether a sandbox is configured; they fail clearly at runtime if no sandbox is available. (These are useful beyond `deepagent()` — any eval that wants read-only filesystem access currently requires `bash()` or `text_editor()`, both of which are read-write.)
 
 User tools passed to `deepagent(tools=[...])` are available to the top-level agent and flow down to `general()`, but do **not** automatically flow to `research()` or `plan()`. This preserves their read-only-by-default posture — if the user passes `bash()` or `text_editor()`, those mutating tools must not reach read-only subagents. Users can explicitly extend `research()` or `plan()` with additional tools via `extra_tools=`, but doing so overrides the read-only default at the user's discretion. All built-in subagents accept `extra_tools=` for additive customization.
+
+This is a default capability boundary, not a hard security guarantee. If a user explicitly gives a read-only subagent mutating tools through `extra_tools=` or gives it read-write memory, the subagent can mutate through those capabilities. Hard isolation should be enforced through sandboxing, approval policies, or task-specific tool design.
 
 `general()` inherits the `deepagent()`'s assembled tool list (user tools + memory + todo_write + skills), minus the `task()` tool itself at max depth per the recursion guard.
 
@@ -514,7 +535,9 @@ However, this is a significant infrastructure change with nontrivial risks:
 - **Unit tests:** `Subagent` construction, `task()` parameter schema generation, system prompt assembly and placeholder expansion, recursion depth tracking (verify closure-based depth is parallel-safe).
 - **Integration tests:** `deepagent()` end-to-end with `mockllm` — verify tool wiring, subagent dispatch (both isolated and forked), system prompt content, alias handling.
 - **Tool inheritance tests:** verify `research()`/`plan()` do not receive user-provided mutating tools; verify `general()` inherits the full parent tool set; verify `extra_tools=` works on all subagents.
+- **Skill inheritance tests:** verify `general()` inherits parent skills by default; verify `research()`/`plan()` and custom subagents do not inherit skills unless explicitly configured.
 - **Memory ACL tests:** verify `research()`/`plan()` get `memory(readonly=True)` and cannot write; verify `general()` gets full read-write memory.
+- **Limit tests:** verify sample-level limits apply across parent and child agents; verify `subagent(limits=[...])` applies additional scoped limits to child invocations.
 - **Sandbox/no-sandbox tests:** verify read-only tools are constructible without a sandbox and fail clearly at runtime; verify they work correctly with a sandbox.
 
 #### 10. Documentation
