@@ -3,9 +3,17 @@ title: Deep Agent
 llms-description: Using and customizing the built-in deep agent with subagent delegation, memory, and planning.
 ---
 
+::: callout-note
+The `deepagent()` described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
 ## Overview
 
-The deep agent is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](react-agent.qmd) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
+The `deepagent()` is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](react-agent.qmd) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
 
 The `react()` agent handles short-horizon tasks well, but can degrade in performance under longer horizons, losing context and not reliably decomposing work. The `deepagent()` bundles the patterns that address this, drawing from Claude Code, Codex CLI, and other deep agent frameworks:
 
@@ -47,9 +55,9 @@ Behind the scenes, `deepagent()` provides three subagents (`research()`, `plan()
 
 ## Agent Defaults
 
-When you call `deepagent()` with no configuration beyond tools, you get a fully assembled agent with the following default capabilities.
+When you call `deepagent()` with no configuration beyond tools, you get a fully assembled agent with the following default behavior.
 
-### Subagent Delegation {#sec-subagent-delegation}
+### Subagents {#sec-subagent-delegation}
 
 The parent agent has a `task()` tool that lets it delegate work to specialized subagents. Three are included by default:
 
@@ -63,7 +71,7 @@ The parent agent has a `task()` tool that lets it delegate work to specialized s
 
 The parent agent decides when to delegate vs. do work directly. The system prompt guides it to delegate when the work is complex, independent, or would benefit from an isolated context, and to do the work directly when it's a simple lookup or a single tool call.
 
-Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent's context lean.
+Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent's context lean. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
 
 ### Memory
 
@@ -195,7 +203,7 @@ deepagent(
     subagents=[
         research(
             instructions="Focus on configuration files and logs.",
-            model="anthropic/claude-haiku-3-5",         # <1>
+            model="anthropic/claude-haiku-4-5",         # <1>
         ),
         plan(
             instructions="Create conservative, step-by-step plans.",
@@ -273,7 +281,7 @@ deepagent(
         plan(),
         general(fork=True),                             # <1>
     ],
-    model="anthropic/claude-sonnet-4",                  # <2>
+    model="anthropic/claude-sonnet-4-6",                # <2>
 )
 ```
 
@@ -355,7 +363,7 @@ deepagent(
 
 Pass `submit=False` to disable the submit tool entirely (the agent will terminate when it stops calling tools). For more advanced configuration, pass an `AgentSubmit` or `AgentAttempts` instance. See the [ReAct Agent](react-agent.qmd#attempts) documentation for details.
 
-## Advanced
+## More Options
 
 `deepagent()` supports several additional options from `react()`:
 

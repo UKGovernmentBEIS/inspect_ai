@@ -3,6 +3,10 @@ title: Multi Agent
 llms-description: Composing agents together in multi-agent architectures.
 ---
 
+::: {.callout-tip appearance="simple"}
+If you need subagent delegation, persistent memory, and structured planning, consider the [Deep Agent](deepagent.qmd) first — it provides these out of the box without requiring custom multi-agent wiring.
+:::
+
 ## Overview
 
 There are several ways to implement multi-agent systems using the Inspect `Agent` protocol:
