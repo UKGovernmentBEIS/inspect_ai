@@ -13,7 +13,7 @@ class TestSubagentDefaults:
         assert s.extra_tools is None
         assert s.model is None
         assert s.fork is False
-        assert s.memory == "readonly"
+        assert s.memory is False
         assert s.limits is None
 
     def test_isinstance_subagent(self) -> None:

@@ -16,7 +16,7 @@ class TestResearchDefaults:
         assert research().tools is None
 
     def test_default_memory(self) -> None:
-        assert research().memory == "readonly"
+        assert research().memory is False
 
     def test_default_fork(self) -> None:
         assert research().fork is False
@@ -37,7 +37,7 @@ class TestPlanDefaults:
         assert plan().tools is None
 
     def test_default_memory(self) -> None:
-        assert plan().memory == "readonly"
+        assert plan().memory is False
 
     def test_default_fork(self) -> None:
         assert plan().fork is False
@@ -58,7 +58,7 @@ class TestGeneralDefaults:
         assert general().tools is None
 
     def test_default_memory(self) -> None:
-        assert general().memory == "readwrite"
+        assert general().memory is False
 
     def test_default_fork(self) -> None:
         assert general().fork is False
