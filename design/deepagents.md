@@ -117,9 +117,13 @@ The built-in subagents default as follows:
 |----------------|----------------|-----------|
 | `research()`   | `False`        | Information gathering is self-contained; isolated context keeps the parent lean. |
 | `plan()`       | `False`        | Planning from a clean slate avoids anchoring on noisy intermediate output. |
-| `general()`    | `False`        | Matches CC's original default. `general(fork=True)` opts into CC's newer fork behavior. |
+| `general()`    | `False`        | Isolated by default — avoids context rot and provides predictable behavior. |
 
 All three accept `fork=True` as an override.
+
+**Why isolated is the default for `general()`:** Claude Code, LangChain deep agents, and Codex CLI all default to isolated subagents. Isolation prevents context rot (quality degradation after ~200k tokens of accumulated history), enables true parallelism, and provides predictable behavior. For eval workloads — which are batch jobs where reproducibility matters — isolation is the safer baseline.
+
+**When to use `fork=True`:** Forked dispatch is valuable when the subagent needs substantial background from the parent conversation without re-explanation, when the parent context is still fresh (well under context window limits), and when using the same model family (to preserve prompt cache). In forked mode, the parent's system prompt and full message history are preserved verbatim, and the subagent's instructions (if any) are appended as a user message — keeping the provider prompt cache intact on all providers. Use `general(fork=True)` to opt into this behavior.
 
 #### The `task()` tool
 
@@ -737,6 +741,15 @@ Already complete — exports were added incrementally in each preceding phase. V
 
 Write `docs/deep-agent.qmd`.
 
-- Overview, API reference, configuration guide, examples.
-- System prompt customization guide (`instructions=` vs `prompt=` with placeholders).
+- Overview of the deep agent pattern and when to use `deepagent()` vs `react()`.
+- API reference for `deepagent()`, `subagent()`, and built-in subagents (`research()`, `plan()`, `general()`).
+- **Isolated vs forked dispatch guide** — explain the tradeoff clearly:
+  - Default is isolated (`fork=False`): subagent gets fresh context with only the task prompt. Prevents context rot, enables parallelism, predictable behavior. All major frameworks (Claude Code, LangChain, Codex) default to this.
+  - Forked (`fork=True`): subagent inherits parent's full conversation history. Preserves prompt cache on all providers (system prompt and message prefix unchanged). Best when subagent needs substantial background context and parent history is fresh. Use same model/family. Instructions appended as user message after cached prefix.
+  - When to choose each, with examples.
+- Configuring subagents: custom subagents, per-subagent model routing, fork mode.
+- System prompt customization: `instructions=` for the common case, `prompt=` with placeholders for full control.
+- Tool configuration: default tool sets, `web_search=`, `extra_tools=`.
+- Memory and planning: `memory=`, `todo_write=`, `memory=False` kill switch.
+- Examples: basic usage, custom subagents, forked dispatch, cost-aware model routing.
 - Update inspect_ai.agent.qmd with reference sections.
