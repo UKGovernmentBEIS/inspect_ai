@@ -358,3 +358,19 @@ deepagent(
 ```
 
 Pass `submit=False` to disable the submit tool entirely (the agent will terminate when it stops calling tools). For more advanced configuration, pass an `AgentSubmit` or `AgentAttempts` instance. See the [ReAct Agent](react-agent.qmd#attempts) documentation for details.
+
+## Refusals, Continuation, and Approval
+
+`deepagent()` supports several additional options from `react()`:
+
+``` python
+deepagent(
+    tools=[bash(), text_editor()],
+    retry_refusals=3,                                       # <1>
+    on_continue="Please continue working on the task.",     # <2>
+    approval=[ApprovalPolicy(human_approver(), "bash")],    # <3>
+)
+```
+1. Retry when the model refuses a request due to content filters. Applies to the top-level agent and all subagents. See [Refusals](react-agent.qmd#refusals) for details.
+2. Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](react-agent.qmd#continuation) for details.
+3. Apply approval policies for tool calls. Applies to the top-level agent only. See [Approval](approval.qmd) for details.

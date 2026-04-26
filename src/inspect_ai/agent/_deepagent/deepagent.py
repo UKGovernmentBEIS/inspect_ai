@@ -5,7 +5,13 @@ from typing import Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._react import react
-from inspect_ai.agent._types import AgentAttempts, AgentPrompt, AgentSubmit
+from inspect_ai.agent._types import (
+    AgentAttempts,
+    AgentContinue,
+    AgentPrompt,
+    AgentSubmit,
+)
+from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._model import Model
@@ -26,14 +32,17 @@ def deepagent(
     *,
     tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     subagents: list[Subagent] | None = None,
-    todo_write: bool = True,
     memory: bool = True,
+    todo_write: bool = True,
     web_search: bool | Tool = False,
     skills: list[Skill] | None = None,
-    compaction: CompactionStrategy | None = None,
-    submit: AgentSubmit | bool | None = None,
-    attempts: int | AgentAttempts = 1,
     model: str | Model | None = None,
+    attempts: int | AgentAttempts = 1,
+    submit: AgentSubmit | bool | None = None,
+    on_continue: str | AgentContinue | None = None,
+    retry_refusals: int | None = None,
+    compaction: CompactionStrategy | None = None,
+    approval: list[ApprovalPolicy] | None = None,
     instructions: str | None = None,
     prompt: str | None = None,
     max_depth: int = 1,
@@ -51,17 +60,23 @@ def deepagent(
             agent and to general() subagents.
         subagents: Subagent configurations. Defaults to
             [research(), plan(), general()].
-        todo_write: Include the todo_write planning tool.
         memory: Include the memory tool. False disables memory for the
             top-level agent and all subagents.
+        todo_write: Include the todo_write planning tool.
         web_search: Include web_search tool for all agents. Pass True
             for default config, or a pre-configured web_search() tool
             instance for custom setup.
         skills: Skills available to the agent.
-        compaction: Compaction strategy for context management.
-        submit: Submit tool configuration.
-        attempts: Number of submission attempts.
         model: Model to use.
+        attempts: Number of submission attempts.
+        submit: Submit tool configuration.
+        on_continue: Continuation behavior when the model stops calling
+            tools. Applies to the top-level agent only.
+        retry_refusals: Number of times to retry on content filter
+            refusals. Propagated to subagents.
+        compaction: Compaction strategy for context management.
+        approval: Approval policies for tool calls. Applies to the
+            top-level agent only.
         instructions: Additional instructions appended to the system
             prompt.
         prompt: Full replacement system prompt. Supports placeholders:
@@ -128,6 +143,7 @@ def deepagent(
             depth=0,
             max_depth=max_depth,
             get_messages=get_messages,
+            retry_refusals=retry_refusals,
         )
 
         # Top-level tools = parent tools + task + memory + skills
@@ -176,6 +192,9 @@ def deepagent(
             submit=submit,
             attempts=attempts,
             compaction=compaction,
+            on_continue=on_continue,
+            retry_refusals=retry_refusals,
+            approval=approval,
         )
 
         return await inner(state)

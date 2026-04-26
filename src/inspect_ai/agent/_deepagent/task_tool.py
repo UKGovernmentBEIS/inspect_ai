@@ -30,6 +30,7 @@ def task_tool(
     depth: int = 0,
     max_depth: int = 1,
     get_messages: Callable[[], list[ChatMessage]] | None = None,
+    retry_refusals: int | None = None,
 ) -> Tool:
     """Create a task multiplexer tool for dispatching to subagents.
 
@@ -44,6 +45,8 @@ def task_tool(
         max_depth: Maximum recursion depth.
         get_messages: Callback returning parent messages (required for
             forked dispatch).
+        retry_refusals: Number of times to retry on content filter
+            refusals.
     """
     subagent_map = {s.name: s for s in subagents}
     tool_description = _build_task_description(subagents)
@@ -84,6 +87,7 @@ def task_tool(
                 depth,
                 max_depth,
                 get_messages,
+                retry_refusals,
             )
 
             agent_span_id = shortuuid()
@@ -97,6 +101,7 @@ def task_tool(
                     model=sa.model or parent_model,
                     submit=False,
                     compaction=sa.compaction,
+                    retry_refusals=retry_refusals,
                 )
                 input, from_message = _prepare_forked_input(prompt, sa, get_messages)
                 result = await _dispatch_forked(
@@ -111,6 +116,7 @@ def task_tool(
                     model=sa.model or parent_model,
                     submit=False,
                     compaction=sa.compaction,
+                    retry_refusals=retry_refusals,
                 )
                 result = await _dispatch(child_agent, sa, prompt, span_id=agent_span_id)
 
@@ -303,6 +309,7 @@ def _resolve_tools(
     depth: int,
     max_depth: int,
     get_messages: Callable[[], list[ChatMessage]] | None,
+    retry_refusals: int | None = None,
 ) -> list[Tool | ToolDef | ToolSource]:
     tools: list[Tool | ToolDef | ToolSource] = []
     if sa.tools is not None:
@@ -341,6 +348,7 @@ def _resolve_tools(
                 depth + 1,
                 max_depth,
                 get_messages,
+                retry_refusals=retry_refusals,
             )
         )
     return tools
