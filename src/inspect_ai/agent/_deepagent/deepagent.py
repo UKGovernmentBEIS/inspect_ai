@@ -80,6 +80,7 @@ def deepagent(
             else [research(), plan(), general()]
         )
 
+        _validate_skill_names(skills, resolved_subagents)
         _apply_memory_kill_switch(resolved_subagents, memory)
         _apply_compaction(resolved_subagents, compaction)
 
@@ -99,18 +100,11 @@ def deepagent(
                 resolved_subagents, ws_tool_instance, skip=inherits_parent
             )
 
-        skill_tool_instance: Tool | None = None
-        if skills:
-            from inspect_ai.tool._tools._skill import skill as skill_tool
-
-            skill_tool_instance = skill_tool(skills)
-
-        # Parent tools = user tools + web_search + skill. Flow to general().
+        # Parent tools = user tools + web_search. Flow to general().
+        # Skills flow separately via _resolve_tools merge.
         parent_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
         if ws_tool_instance:
             parent_tools.append(ws_tool_instance)
-        if skill_tool_instance:
-            parent_tools.append(skill_tool_instance)
 
         _apply_parent_tools_to_general(resolved_subagents, parent_tools)
 
@@ -121,12 +115,13 @@ def deepagent(
             subagents=resolved_subagents,
             parent_tools=parent_tools,
             parent_model=model,
+            parent_skills=skills,
             depth=0,
             max_depth=max_depth,
             get_messages=get_messages,
         )
 
-        # Top-level tools = parent tools + task + memory + todo_write
+        # Top-level tools = parent tools + task + memory + todo_write + skills
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
         all_tools.append(task)
         if memory:
@@ -139,6 +134,10 @@ def deepagent(
             )
 
             all_tools.append(todo_write_tool())
+        if skills:
+            from inspect_ai.tool._tools._skill import skill as skill_fn
+
+            all_tools.append(skill_fn(skills))
 
         if prompt is not None:
             system_prompt = expand_prompt_placeholders(
@@ -238,6 +237,34 @@ def _apply_parent_tools_to_general(
             sa.tools = list(tools or [])
 
 
+def _validate_skill_names(
+    parent_skills: list[Skill] | None,
+    subagents: list[Subagent],
+) -> None:
+    """Validate skill names are unique across parent and all subagents.
+
+    Raises ValueError at setup time (not dispatch time) if any skill
+    name appears more than once. This prevents sandbox install directory
+    collisions and ambiguous skill lookups.
+    """
+    all_names: dict[str, str] = {}
+    for sk in parent_skills or []:
+        if sk.name in all_names:
+            raise ValueError(f"Duplicate skill name '{sk.name}' in parent skills.")
+        all_names[sk.name] = "parent"
+
+    for sa in subagents:
+        for sk in sa.skills or []:
+            if sk.name in all_names:
+                source = all_names[sk.name]
+                raise ValueError(
+                    f"Duplicate skill name '{sk.name}' in subagent "
+                    f"'{sa.name}' (also defined in {source}). Skill names "
+                    f"must be unique across parent and all subagents."
+                )
+            all_names[sk.name] = f"subagent '{sa.name}'"
+
+
 def _clone_subagent(sa: Subagent) -> Subagent:
     """Shallow clone a Subagent with fresh list copies.
 
@@ -248,5 +275,6 @@ def _clone_subagent(sa: Subagent) -> Subagent:
         sa,
         tools=list(sa.tools) if sa.tools is not None else None,
         extra_tools=list(sa.extra_tools) if sa.extra_tools is not None else None,
+        skills=list(sa.skills) if sa.skills is not None else None,
         limits=list(sa.limits) if sa.limits is not None else None,
     )

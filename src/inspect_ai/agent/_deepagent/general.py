@@ -3,6 +3,7 @@ from typing import Literal, Sequence
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tools._skill import Skill
 from inspect_ai.util._limit import Limit
 
 from .subagent import Subagent
@@ -32,6 +33,7 @@ def general(
     tools: Sequence[Tool | ToolDef | ToolSource] | Literal["default"] = "default",
     extra_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     instructions: str | None = None,
+    skills: list[Skill] | None = None,
     memory: Literal["readwrite", "readonly"] | bool = "readwrite",
     limits: list[Limit] | None = None,
     model: str | Model | None = None,
@@ -50,6 +52,7 @@ def general(
             custom tools.
         instructions: Additional instructions appended to the default
             general prompt.
+        skills: Subagent-specific skills (merged with parent skills).
         memory: Memory access level ("readwrite", "readonly", or False).
         limits: Scoped limits for each invocation.
         model: Model override (None inherits from parent).
@@ -72,6 +75,7 @@ def general(
         extra_tools=extra_tools,
         model=model,
         fork=fork,
+        skills=skills,
         memory=memory,
         limits=limits,
     )

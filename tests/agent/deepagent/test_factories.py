@@ -110,6 +110,30 @@ class TestCustomTools:
         assert len(sa.extra_tools) == 1
 
 
+class TestSkills:
+    def test_skills_on_research(self) -> None:
+        from inspect_ai.tool import Skill
+
+        sk = Skill(name="test-skill", description="A test.", instructions="Do stuff.")
+        sa = research(skills=[sk])
+        assert sa.skills is not None
+        assert len(sa.skills) == 1
+        assert sa.skills[0].name == "test-skill"
+
+    def test_skills_on_general(self) -> None:
+        from inspect_ai.tool import Skill
+
+        sk = Skill(name="test-skill", description="A test.", instructions="Do stuff.")
+        sa = general(skills=[sk])
+        assert sa.skills is not None
+        assert len(sa.skills) == 1
+
+    def test_skills_default_none(self) -> None:
+        assert research().skills is None
+        assert plan().skills is None
+        assert general().skills is None
+
+
 class TestOverrides:
     def test_model_override(self) -> None:
         sa = research(model="anthropic/claude-sonnet-4")

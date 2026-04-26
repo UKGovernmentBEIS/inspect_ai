@@ -4,6 +4,7 @@
 - Tools: Add `todo_write()` planning tool for structured task tracking.
 - Tools: Add `read_file()`, `list_files()`, and `grep()` read-only sandbox tools for agents that need filesystem access without write capabilities.
 - Tools: Add `readonly` parameter to `memory()` tool for read-only access to shared memory.
+- Skills: Add `instance` parameter to `skill()` for independent per-subagent skill stores. Skill names are now validated for uniqueness in `skill()`, `install_skills()`, and across `deepagent()` parent/subagent scopes.
 
 ## 0.3.212 (24 April 2026)
 

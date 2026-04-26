@@ -174,7 +174,7 @@ class TestRecursionGuard:
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
         tools = _resolve_tools(
-            sa, sas, None, None, depth=0, max_depth=2, get_messages=None
+            sa, sas, None, None, None, depth=0, max_depth=2, get_messages=None
         )
         assert "task" in self._tool_registry_names(tools)
 
@@ -183,9 +183,107 @@ class TestRecursionGuard:
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
         tools = _resolve_tools(
-            sa, sas, None, None, depth=0, max_depth=1, get_messages=None
+            sa, sas, None, None, None, depth=0, max_depth=1, get_messages=None
         )
         assert "task" not in self._tool_registry_names(tools)
+
+
+class TestSkillComposition:
+    def _find_skill_tools(self, tools: list) -> list:
+        from inspect_ai.tool._tool_def import ToolDef
+
+        result = []
+        for t in tools:
+            try:
+                td = ToolDef(t)
+                if td.name == "skill":
+                    result.append(td)
+            except Exception:
+                pass
+        return result
+
+    def test_parent_skills_flow_to_subagent(self) -> None:
+        from inspect_ai.tool import Skill
+
+        parent_sk = Skill(name="parent-skill", description="P.", instructions="P.")
+        sa = _test_subagent("research", "Gather info.")
+        sas = [sa]
+        tools = _resolve_tools(
+            sa, sas, None, None, [parent_sk], depth=0, max_depth=1, get_messages=None
+        )
+        skill_tools = self._find_skill_tools(tools)
+        assert len(skill_tools) == 1
+        assert "parent-skill" in skill_tools[0].description
+
+    def test_subagent_skills_merge_with_parent(self) -> None:
+        from inspect_ai.tool import Skill
+
+        parent_sk = Skill(name="parent-skill", description="Parent.", instructions="P.")
+        child_sk = Skill(name="child-skill", description="Child.", instructions="C.")
+        sa = subagent(
+            name="custom",
+            description="Custom.",
+            prompt="Custom.",
+            skills=[child_sk],
+        )
+        sas = [sa]
+        tools = _resolve_tools(
+            sa, sas, None, None, [parent_sk], depth=0, max_depth=1, get_messages=None
+        )
+        skill_tools = self._find_skill_tools(tools)
+        assert len(skill_tools) == 1
+        assert "parent-skill" in skill_tools[0].description
+        assert "child-skill" in skill_tools[0].description
+
+    def test_no_skill_tool_when_no_skills(self) -> None:
+        sa = _test_subagent("research", "Gather info.")
+        sas = [sa]
+        tools = _resolve_tools(
+            sa, sas, None, None, None, depth=0, max_depth=1, get_messages=None
+        )
+        skill_tools = self._find_skill_tools(tools)
+        assert len(skill_tools) == 0
+
+    def test_duplicate_skill_names_rejected(self) -> None:
+        import pytest
+
+        from inspect_ai.agent._deepagent.deepagent import _validate_skill_names
+        from inspect_ai.tool import Skill
+
+        parent_sk = Skill(name="pdf", description="Parent PDF.", instructions="P.")
+        child_sk = Skill(name="pdf", description="Child PDF.", instructions="C.")
+        sa = subagent(
+            name="custom",
+            description="Custom.",
+            prompt="Custom.",
+            skills=[child_sk],
+        )
+        with pytest.raises(ValueError, match="Duplicate skill name"):
+            _validate_skill_names([parent_sk], [sa])
+
+    def test_duplicate_across_sibling_subagents_rejected(self) -> None:
+        import pytest
+
+        from inspect_ai.agent._deepagent.deepagent import _validate_skill_names
+        from inspect_ai.tool import Skill
+
+        sk_a = Skill(name="pdf", description="A.", instructions="A.")
+        sk_b = Skill(name="pdf", description="B.", instructions="B.")
+        sa_a = subagent(name="agent_a", description="A.", prompt="A.", skills=[sk_a])
+        sa_b = subagent(name="agent_b", description="B.", prompt="B.", skills=[sk_b])
+        with pytest.raises(ValueError, match="Duplicate skill name"):
+            _validate_skill_names(None, [sa_a, sa_b])
+
+    def test_duplicate_in_parent_skills_rejected(self) -> None:
+        import pytest
+
+        from inspect_ai.agent._deepagent.deepagent import _validate_skill_names
+        from inspect_ai.tool import Skill
+
+        sk1 = Skill(name="pdf", description="First.", instructions="1.")
+        sk2 = Skill(name="pdf", description="Second.", instructions="2.")
+        with pytest.raises(ValueError, match="Duplicate skill name"):
+            _validate_skill_names([sk1, sk2], [])
 
 
 class TestForkedDispatch:

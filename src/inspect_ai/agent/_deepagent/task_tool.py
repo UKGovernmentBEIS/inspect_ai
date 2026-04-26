@@ -1,4 +1,9 @@
-from typing import Callable, Sequence
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Sequence
+
+if TYPE_CHECKING:
+    from inspect_ai.tool._tools._skill import Skill
 
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
@@ -19,6 +24,7 @@ def task_tool(
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     parent_model: str | Model | None = None,
+    parent_skills: list[Skill] | None = None,
     depth: int = 0,
     max_depth: int = 1,
     get_messages: Callable[[], list[ChatMessage]] | None = None,
@@ -30,6 +36,8 @@ def task_tool(
         parent_tools: Tools from the parent agent (flow to general()).
         parent_model: Parent agent's model (inherited by subagents
             that don't set their own).
+        parent_skills: Parent agent's skills (merged with subagent
+            skills at dispatch time).
         depth: Current recursion depth.
         max_depth: Maximum recursion depth.
         get_messages: Callback returning parent messages (required for
@@ -70,6 +78,7 @@ def task_tool(
                 subagents,
                 parent_tools,
                 parent_model,
+                parent_skills,
                 depth,
                 max_depth,
                 get_messages,
@@ -238,6 +247,7 @@ def _resolve_tools(
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None,
     parent_model: str | Model | None,
+    parent_skills: list[Skill] | None,
     depth: int,
     max_depth: int,
     get_messages: Callable[[], list[ChatMessage]] | None,
@@ -257,12 +267,22 @@ def _resolve_tools(
         from inspect_ai.tool._tools._memory import memory
 
         tools.append(memory(readonly=True))
+
+    # Merge parent + subagent skills with instance scoping.
+    # Duplicate names are validated globally in deepagent.execute().
+    merged_skills = list(parent_skills or []) + list(sa.skills or [])
+    if merged_skills:
+        from inspect_ai.tool._tools._skill import skill as skill_fn
+
+        tools.append(skill_fn(merged_skills, instance=sa.name))
+
     if depth + 1 < max_depth:
         tools.append(
             task_tool(
                 subagents,
                 parent_tools,
                 parent_model,
+                parent_skills,
                 depth + 1,
                 max_depth,
                 get_messages,

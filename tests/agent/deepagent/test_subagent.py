@@ -31,6 +31,7 @@ class TestSubagentAllFields:
             extra_tools=[],
             model="anthropic/claude-sonnet-4",
             fork=True,
+            skills=[],
             memory="readwrite",
             limits=[],
         )
@@ -41,6 +42,7 @@ class TestSubagentAllFields:
         assert s.extra_tools == []
         assert s.model == "anthropic/claude-sonnet-4"
         assert s.fork is True
+        assert s.skills == []
         assert s.memory == "readwrite"
         assert s.limits == []
 

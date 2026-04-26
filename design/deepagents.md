@@ -137,7 +137,7 @@ Default behavior matches the convergent pattern across CC, LangChain, and Pydant
 
 - **Sandbox** — shared (already true per-sample in Inspect).
 - **Memory** — shared, read by default, write opt-in per subagent. `research()` and `plan()` get `memory(readonly=True)`; `general()` gets full read-write `memory()`. Custom subagents declare explicitly. Note: `memory(readonly=True)` is a new mode that must be implemented — the current `memory()` tool supports all CRUD operations.
-- **Skills** — defined once at the `deepagent()` level. The `skill()` tool is included in the parent tool set and flows to `general()` through normal tool inheritance. `research()` and `plan()` do not inherit skills (they are read-only focused).
+- **Skills** — composable across parent and subagents. `deepagent(skills=[...])` defines parent skills available to the top-level agent. Each subagent can also define its own skills via `skills=`. At dispatch time, parent and subagent skills are merged into a single `skill()` tool with instance-scoped storage (no store contention). A subagent with `skills=[C]` and a parent with `skills=[A, B]` sees all three skills.
 - **Message history** — isolated (this is what subagents are *for*).
 - **Tools** — subset declared by the subagent's definition.
 
@@ -377,7 +377,7 @@ reviewer = subagent(
 )
 ```
 
-`Subagent` holds: name, description, prompt, tools, model, fork, limits, memory mode, and compaction. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The optional `limits` parameter takes scoped Inspect limits (e.g. `token_limit`, `message_limit`, `time_limit`, `cost_limit`) that apply to the child agent invocation. Skills are defined once at the `deepagent()` level and flow to `general()` through normal tool inheritance. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
+`Subagent` holds: name, description, prompt, tools, model, fork, limits, memory mode, and compaction. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The optional `limits` parameter takes scoped Inspect limits (e.g. `token_limit`, `message_limit`, `time_limit`, `cost_limit`) that apply to the child agent invocation. Skills compose across parent and subagents: parent skills from `deepagent(skills=...)` merge with subagent-specific skills from `sa.skills` at dispatch time, with instance-scoped `skill()` tool stores to avoid contention. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
 
 **Recursion guard.** Depth is tracked via closure — the current depth is closed over when constructing the child agent's tool set, so each dispatch path carries its own depth counter. This is parallel-safe: sibling subagents dispatched concurrently (in a future parallel v2) won't interfere with each other's depth tracking. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
 
@@ -538,7 +538,7 @@ However, this is a significant infrastructure change with nontrivial risks:
 - **Unit tests:** `Subagent` construction, `task()` parameter schema generation, system prompt assembly and placeholder expansion, recursion depth tracking (verify closure-based depth is parallel-safe).
 - **Integration tests:** `deepagent()` end-to-end with `mockllm` — verify tool wiring, subagent dispatch (both isolated and forked), system prompt content.
 - **Tool inheritance tests:** verify `research()`/`plan()` do not receive user-provided mutating tools; verify `general()` inherits the full parent tool set; verify `extra_tools=` works on all subagents.
-- **Skill inheritance tests:** verify `general()` inherits parent skills through normal tool inheritance.
+- **Skill composition tests:** verify parent + subagent skills merge correctly; verify instance-scoped stores don't collide.
 - **Memory ACL tests:** verify `research()`/`plan()` get `memory(readonly=True)` and cannot write; verify `general()` gets full read-write memory.
 - **Limit tests:** verify sample-level limits apply across parent and child agents; verify `subagent(limits=[...])` applies additional scoped limits to child invocations.
 - **Sandbox/no-sandbox tests:** verify read-only tools are constructible without a sandbox and fail clearly at runtime; verify they work correctly with a sandbox.
