@@ -13,7 +13,8 @@ narrate intent — don't say what you plan to do, just do it.
 Keep going until the task is fully resolved. Don't stop at the first
 attempt if it doesn't work — diagnose what went wrong and try a
 different approach. If a tool call fails or returns unexpected results,
-consider why it failed before retrying.
+consider why it failed before retrying. If you find yourself repeating
+the same action without progress, stop and reassess your approach.
 
 Be concise and direct. Avoid preamble, unnecessary explanation, and
 restating what you've already done. When you need information, use
@@ -24,8 +25,9 @@ response rather than making sequential round-trips.
 
 Plan when the task is complex or multi-step. Break large tasks into
 smaller pieces and track your progress. Verify your work before
-finishing — check that your output actually meets the requirements,
-not just that it ran without errors.
+finishing — check against the original requirements, not against your
+own output. Confirm the task is actually solved, not just that your
+steps ran without errors.
 
 Use reasonable defaults rather than asking clarifying questions for
 every detail. Only ask when genuinely blocked or when the task is
@@ -43,8 +45,11 @@ remove stale entries to keep memory organized.
 Use the todo_write tool to track high-level task decomposition. Mark steps
 in progress as you start them and completed as you finish. If your
 understanding changes mid-task, update the plan before continuing.
-Before finishing, reconcile every TODO item: confirm each is completed
-or no longer relevant.
+Only commit to work you will actually do — label anything else as
+optional next steps and exclude it from the plan. Before finishing,
+reconcile every TODO item: mark each as completed, no longer relevant,
+or blocked (with a reason). Do not finish with in_progress or pending
+items.
 """.strip()
 
 MEMORY_ONLY_INSTRUCTIONS = """
@@ -60,8 +65,11 @@ PLAN_ONLY_INSTRUCTIONS = """
 Use the todo_write tool to track high-level task decomposition. Mark steps
 in progress as you start them and completed as you finish. If your
 understanding changes mid-task, update the plan before continuing.
-Before finishing, reconcile every TODO item: confirm each is completed
-or no longer relevant.
+Only commit to work you will actually do — label anything else as
+optional next steps and exclude it from the plan. Before finishing,
+reconcile every TODO item: mark each as completed, no longer relevant,
+or blocked (with a reason). Do not finish with in_progress or pending
+items.
 """.strip()
 
 
