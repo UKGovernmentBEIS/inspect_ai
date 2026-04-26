@@ -41,14 +41,15 @@ def memory(
     """
 
     def _seed(store: MemoryStore) -> None:
-        if not store.seeding_complete:
-            if initial_data:
-                for seed_path, value in initial_data.items():
-                    _create(store, seed_path, resource(value))
+        if not store.seeding_complete and initial_data:
+            for seed_path, value in initial_data.items():
+                _create(store, seed_path, resource(value))
             store.seeding_complete = True
 
     if readonly:
-        return _readonly_execute(_seed)
+        result = _readonly_execute(_seed)
+        result.initial_data = initial_data  # type: ignore[attr-defined]
+        return result
 
     async def execute(
         command: Literal["view", "create", "str_replace", "insert", "delete", "rename"],
@@ -122,6 +123,7 @@ def memory(
             case _:
                 raise ToolError(f"Unknown command: {command}")
 
+    execute.initial_data = initial_data  # type: ignore[attr-defined]
     return execute
 
 

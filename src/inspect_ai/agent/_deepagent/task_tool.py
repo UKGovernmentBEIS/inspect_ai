@@ -265,16 +265,32 @@ def _apply_subagent_type_enum(tool: Tool, subagents: list[Subagent]) -> None:
     )
 
 
-def _has_memory_tool(tools: list[Tool | ToolDef | ToolSource]) -> bool:
+def _has_memory_tool(tools: Sequence[Tool | ToolDef | ToolSource]) -> bool:
+    return _find_memory_tool(tools) is not None
+
+
+def _find_memory_tool(
+    tools: Sequence[Tool | ToolDef | ToolSource],
+) -> Tool | ToolDef | None:
     from inspect_ai._util.registry import is_registry_object, registry_unqualified_name
 
     for t in tools:
         if is_registry_object(t):
             if registry_unqualified_name(t) == "memory":
-                return True
+                return t  # type: ignore[return-value]
         elif isinstance(t, ToolDef) and t.name == "memory":
-            return True
-    return False
+            return t
+    return None
+
+
+def _get_memory_initial_data(
+    tools: Sequence[Tool | ToolDef | ToolSource],
+) -> dict[str, str] | None:
+    mem = _find_memory_tool(tools)
+    if mem is None:
+        return None
+    execute = getattr(mem, "execute", mem)
+    return getattr(execute, "initial_data", None)
 
 
 def _resolve_tools(
@@ -294,14 +310,14 @@ def _resolve_tools(
         tools.extend(_default_readonly_tools())
     if sa.extra_tools is not None:
         tools.extend(sa.extra_tools)
-    if sa.memory == "readwrite" and not _has_memory_tool(tools):
+    if sa.memory and not _has_memory_tool(tools):
         from inspect_ai.tool._tools._memory import memory
 
-        tools.append(memory())
-    elif sa.memory == "readonly" and not _has_memory_tool(tools):
-        from inspect_ai.tool._tools._memory import memory
-
-        tools.append(memory(readonly=True))
+        parent_initial_data = _get_memory_initial_data(parent_tools or [])
+        if sa.memory == "readwrite":
+            tools.append(memory(initial_data=parent_initial_data))
+        elif sa.memory == "readonly":
+            tools.append(memory(initial_data=parent_initial_data, readonly=True))
 
     # Merge parent + subagent skills with instance scoping.
     # Duplicate names are validated globally in deepagent.execute().
