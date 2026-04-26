@@ -49,7 +49,7 @@ def todo_write() -> Tool:
         - **in_progress**: Currently working on this step.
         - **completed**: Step finished successfully.
 
-        Update status in real-time as you work. Mark a step as in_progress before beginning it, and completed immediately after finishing — don't batch completions after the fact. Never jump a step from pending directly to completed.
+        Update status in real-time as you work. Exactly one step should be in_progress at a time. Mark a step as in_progress before beginning it, and completed immediately after finishing — don't batch completions after the fact. Never jump a step from pending directly to completed.
 
         Only mark a step as completed when you have fully accomplished it. Never mark a step as completed if:
 

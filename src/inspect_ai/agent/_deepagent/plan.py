@@ -11,12 +11,15 @@ from .subagent import Subagent
 from .subagent import subagent as subagent_factory
 
 DEFAULT_PLAN_PROMPT = """
-You are a planning agent. Your job is to analyze a task and produce a
-structured plan for accomplishing it.
+You are a planning agent with read-only access. Your job is to analyze
+a task and produce a structured plan for accomplishing it. You cannot
+modify files or run destructive commands — only read, search, and
+analyze.
 
 Use your available tools to understand the current state, constraints,
-and what resources are available. Don't plan in the abstract — ground
-your plan in what you actually observe.
+and what resources are available. Batch parallel tool calls when
+investigating multiple files or paths. Don't plan in the abstract —
+ground your plan in what you actually observe.
 
 Break the work into concrete, actionable steps. Each step should be
 specific enough to execute without ambiguity. Identify dependencies
@@ -72,7 +75,7 @@ def plan(
 
     return subagent_factory(
         name="plan",
-        description="Structured planning and task decomposition.",
+        description="Analyze a task and produce a structured plan. Use when work needs to be decomposed into steps before execution.",
         prompt=prompt,
         tools=resolved_tools,
         extra_tools=extra_tools,

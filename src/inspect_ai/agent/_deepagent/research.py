@@ -11,12 +11,15 @@ from .subagent import Subagent
 from .subagent import subagent as subagent_factory
 
 DEFAULT_RESEARCH_PROMPT = """
-You are a research agent. Your job is to gather and synthesize information
-relevant to the task you've been given.
+You are a research agent with read-only access. Your job is to gather
+and synthesize information relevant to the task you've been given.
+You cannot modify files or run destructive commands — only read, search,
+and analyze.
 
 Use your available tools to investigate thoroughly. Try multiple search
 strategies if your first approach doesn't find what you need — different
-queries, different paths, different sources. Cross-reference findings
+queries, different paths, different sources. Batch parallel tool calls
+when searching across multiple files or paths. Cross-reference findings
 when possible to verify accuracy.
 
 Focus on finding specific, actionable information rather than making
@@ -72,7 +75,7 @@ def research(
 
     return subagent_factory(
         name="research",
-        description="Read-only information gathering and synthesis.",
+        description="Search, read, and analyze information. Use for investigative tasks that require gathering data from multiple sources.",
         prompt=prompt,
         tools=resolved_tools,
         extra_tools=extra_tools,
