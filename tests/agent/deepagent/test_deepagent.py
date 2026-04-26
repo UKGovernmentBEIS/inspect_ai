@@ -134,3 +134,58 @@ def test_deepagent_submit_prompt_excluded_when_false() -> None:
     assert msg is not None
     assert isinstance(msg.content, str)
     assert "submit" not in msg.content.lower()
+
+
+def test_deepagent_duplicate_subagent_names_rejected() -> None:
+    """Duplicate subagent names raise ValueError at eval time."""
+    from inspect_ai.agent import subagent
+
+    sa1 = subagent(name="research", description="A.", prompt="A.")
+    sa2 = subagent(name="research", description="B.", prompt="B.")
+    da = deepagent(subagents=[sa1, sa2], submit=True)
+    task = Task(
+        dataset=[Sample(input="test")],
+        solver=da,
+        message_limit=5,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "error"
+
+
+def test_deepagent_empty_subagents_rejected() -> None:
+    """Empty subagent list raises ValueError at eval time."""
+    da = deepagent(subagents=[], submit=True)
+    task = Task(
+        dataset=[Sample(input="test")],
+        solver=da,
+        message_limit=5,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "error"
+
+
+def test_deepagent_fork_with_max_depth_rejected() -> None:
+    """fork=True with max_depth > 1 raises ValueError at eval time."""
+    from inspect_ai.agent import subagent
+
+    sa = subagent(name="forked", description="F.", prompt="", fork=True)
+    da = deepagent(subagents=[sa], max_depth=2, submit=True)
+    task = Task(
+        dataset=[Sample(input="test")],
+        solver=da,
+        message_limit=5,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", "done")],
+    )
+    log = eval(task, model=model)[0]
+    assert log.status == "error"

@@ -80,6 +80,8 @@ def deepagent(
             else [research(), plan(), general()]
         )
 
+        _validate_subagent_names(resolved_subagents)
+        _validate_fork_depth(resolved_subagents, max_depth)
         _validate_skill_names(skills, resolved_subagents)
         _apply_memory_kill_switch(resolved_subagents, memory)
         _apply_compaction(resolved_subagents, compaction)
@@ -236,6 +238,37 @@ def _apply_parent_tools_to_general(
     for sa in subagents:
         if sa.name == "general" and sa.tools is None:
             sa.tools = list(tools or [])
+
+
+def _validate_subagent_names(subagents: list[Subagent]) -> None:
+    """Validate subagent names are non-empty, unique, and list is non-empty."""
+    if not subagents:
+        raise ValueError("At least one subagent must be configured.")
+    seen: set[str] = set()
+    for sa in subagents:
+        if sa.name in seen:
+            raise ValueError(
+                f"Duplicate subagent name '{sa.name}'. "
+                f"Each subagent must have a unique name."
+            )
+        seen.add(sa.name)
+
+
+def _validate_fork_depth(subagents: list[Subagent], max_depth: int) -> None:
+    """Reject fork=True with max_depth > 1.
+
+    Forked dispatch inherits the top-level agent's conversation, not
+    the calling subagent's. With max_depth > 1, a nested fork would
+    get the wrong conversation context. Raise early rather than
+    silently producing incorrect behavior.
+    """
+    if max_depth > 1 and any(sa.fork for sa in subagents):
+        raise ValueError(
+            "fork=True is not supported with max_depth > 1. Forked "
+            "subagents inherit the top-level conversation context, "
+            "which is incorrect for nested delegation. Use fork=False "
+            "for subagents when max_depth > 1."
+        )
 
 
 def _validate_skill_names(

@@ -275,11 +275,14 @@ def _resolve_tools(
         tools.append(skill_fn(merged_skills, instance=sa.name))
 
     if depth + 1 < max_depth:
+        # Pass the effective model (sa.model or parent_model) so nested
+        # subagents inherit the calling subagent's model, not the top-level
+        effective_model = sa.model or parent_model
         tools.append(
             task_tool(
                 subagents,
                 parent_tools,
-                parent_model,
+                effective_model,
                 parent_skills,
                 depth + 1,
                 max_depth,

@@ -660,7 +660,7 @@ def intercode_ctf():
 
 ## Read-Only Tools {#sec-read-only-tools}
 
-Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the [deep agent](deep-agent.qmd) system, but are useful in any eval where you want to give a model read-only access.
+Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
 
 All three tools require a [Sandbox Environment](sandboxing.qmd) and accept optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool.
 
@@ -778,7 +778,7 @@ Keys should be valid `/memories` paths (e.g. "/memories/notes.md"). Values are r
 
 ### Read-Only Mode
 
-Use `memory(readonly=True)` to provide read-only access to the memory directory. In readonly mode, only the `view` command is available — write operations (`create`, `str_replace`, `insert`, `delete`, `rename`) are not exposed to the model. This is used by `research()` and `plan()` subagents in the [deep agent](deep-agent.qmd) system to share context without allowing mutation.
+Use `memory(readonly=True)` to provide read-only access to the memory directory. In readonly mode, only the `view` command is available — write operations (`create`, `str_replace`, `insert`, `delete`, `rename`) are not exposed to the model. This is used by `research()` and `plan()` subagents in the deep agent system to share context without allowing mutation.
 
 ``` python
 # read-only memory with pre-seeded data
@@ -790,7 +790,7 @@ memory(
 
 ### Tool Binding
 
-The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the memory tool will automatically bind to the native Claude tool definition.
+The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the memory tool will automatically bind to the native Claude tool definition.
 
 ## Think {#sec-think}
 
