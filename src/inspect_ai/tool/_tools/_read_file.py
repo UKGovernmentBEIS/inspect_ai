@@ -47,9 +47,11 @@ def read_file(
         else:
             awk_prog = f'NR >= {start} {{ printf "%d\\t%s\\n", NR, $0 }}'
 
-        # Pure argv — no shell interpolation of file_path
+        # Pure argv — no shell interpolation of file_path.
+        # Prefix with ./ if path starts with - to prevent awk option parsing.
+        safe_path = f"./{file_path}" if file_path.startswith("-") else file_path
         result = await sandbox_env(sandbox).exec(
-            cmd=["awk", awk_prog, file_path],
+            cmd=["awk", awk_prog, safe_path],
             timeout=timeout,
             user=user,
         )
