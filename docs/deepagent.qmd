@@ -75,7 +75,7 @@ Subagents run in isolated context by default. Each gets a fresh message history 
 
 ### Memory
 
-The `memory()` tool provides a persistent scratchpad shared across the parent and all subagents. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.
+The `memory()` tool provides a scratchpad shared across the parent and all subagents for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.
 
 Memory is important for long-running agents because it survives context [compaction](compaction.qmd). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress.
 
@@ -154,7 +154,7 @@ from inspect_ai.agent import deepagent
 from inspect_ai.tool import Skill
 
 pdf_skill = Skill(
-    name="pdf_analysis",
+    name="pdf-analysis",
     description="Extract and analyze content from PDF documents.",
     instructions="Use pdfplumber to extract tables and text...",
     scripts={"extract_pdf.py": "..."},
@@ -347,7 +347,7 @@ deepagent(
 )
 ```
 
-1.  Disables the memory tool for the top-level agent and all subagents, regardless of their individual `memory` setting.
+1.  Disables the automatically added memory tool for the top-level agent and all subagents.
 2.  Disables the todo_write planning tool.
 
 ## Submission
@@ -371,7 +371,7 @@ Pass `submit=False` to disable the submit tool entirely (the agent will terminat
 
 - `on_continue` --- Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](react-agent.qmd#continuation) for details.
 
-- `approval` --- Apply approval policies for tool calls. Applies to the top-level agent only. See [Approval](approval.qmd) for details.
+- `approval` --- Apply approval policies for tool calls. Applies to the top-level agent and all subagents. See [Approval](approval.qmd) for details.
 
 For example:
 

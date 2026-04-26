@@ -75,8 +75,8 @@ def deepagent(
         retry_refusals: Number of times to retry on content filter
             refusals (default: 3). Propagated to subagents.
         compaction: Compaction strategy for context management.
-        approval: Approval policies for tool calls. Applies to the
-            top-level agent only.
+        approval: Approval policies for tool calls. Propagated to
+            subagents.
         instructions: Additional instructions appended to the system
             prompt.
         prompt: Full replacement system prompt. Supports placeholders:
@@ -146,6 +146,7 @@ def deepagent(
             max_depth=max_depth,
             get_messages=get_messages,
             retry_refusals=retry_refusals,
+            approval=approval,
         )
 
         # Top-level tools = parent tools + task + memory + skills

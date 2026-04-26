@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Sequence
 
 if TYPE_CHECKING:
+    from inspect_ai.approval._policy import ApprovalPolicy
     from inspect_ai.tool._tools._skill import Skill
 
 from shortuuid import uuid as shortuuid
@@ -31,6 +32,7 @@ def task_tool(
     max_depth: int = 1,
     get_messages: Callable[[], list[ChatMessage]] | None = None,
     retry_refusals: int | None = None,
+    approval: list[ApprovalPolicy] | None = None,
 ) -> Tool:
     """Create a task multiplexer tool for dispatching to subagents.
 
@@ -47,6 +49,7 @@ def task_tool(
             forked dispatch).
         retry_refusals: Number of times to retry on content filter
             refusals.
+        approval: Approval policies for tool calls.
     """
     subagent_map = {s.name: s for s in subagents}
     tool_description = _build_task_description(subagents)
@@ -88,6 +91,7 @@ def task_tool(
                 max_depth,
                 get_messages,
                 retry_refusals,
+                approval,
             )
 
             agent_span_id = shortuuid()
@@ -102,6 +106,7 @@ def task_tool(
                     submit=False,
                     compaction=sa.compaction,
                     retry_refusals=retry_refusals,
+                    approval=approval,
                 )
                 input, from_message = _prepare_forked_input(prompt, sa, get_messages)
                 result = await _dispatch_forked(
@@ -117,6 +122,7 @@ def task_tool(
                     submit=False,
                     compaction=sa.compaction,
                     retry_refusals=retry_refusals,
+                    approval=approval,
                 )
                 result = await _dispatch(child_agent, sa, prompt, span_id=agent_span_id)
 
@@ -310,6 +316,7 @@ def _resolve_tools(
     max_depth: int,
     get_messages: Callable[[], list[ChatMessage]] | None,
     retry_refusals: int | None = None,
+    approval: list[ApprovalPolicy] | None = None,
 ) -> list[Tool | ToolDef | ToolSource]:
     tools: list[Tool | ToolDef | ToolSource] = []
     if sa.tools is not None:
@@ -349,6 +356,7 @@ def _resolve_tools(
                 max_depth,
                 get_messages,
                 retry_refusals=retry_refusals,
+                approval=approval,
             )
         )
     return tools
