@@ -160,7 +160,6 @@ def deepagent(
             instructions=system_prompt,
             handoff_prompt=None,
             assistant_prompt=None,
-            submit_prompt=None,
         )
 
         inner = react(
