@@ -289,8 +289,9 @@ def _get_memory_initial_data(
     mem = _find_memory_tool(tools)
     if mem is None:
         return None
-    execute = getattr(mem, "execute", mem)
-    return getattr(execute, "initial_data", None)
+    # Tool stores the callable directly; ToolDef stores it on .tool
+    callable_ = getattr(mem, "tool", None) or getattr(mem, "execute", mem)
+    return getattr(callable_, "initial_data", None)
 
 
 def _resolve_tools(
