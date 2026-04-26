@@ -6,7 +6,6 @@ from inspect_ai import Task, eval
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.agent._deepagent.subagent import Subagent, subagent
 from inspect_ai.agent._deepagent.task_tool import (
-    SUBAGENT_ALIASES,
     _build_task_description,
     _prepare_forked_input,
     _resolve_tools,
@@ -50,11 +49,6 @@ class TestBuildTaskDescription:
     def test_includes_delegation_guidance(self) -> None:
         desc = _build_task_description([_test_subagent()])
         assert "Delegate" in desc or "delegate" in desc
-
-
-class TestAliasHandling:
-    def test_general_purpose_alias(self) -> None:
-        assert SUBAGENT_ALIASES.get("general_purpose") == "general"
 
 
 class TestTaskToolConstructibility:
@@ -132,9 +126,8 @@ class TestTaskToolDispatch:
         tool_event = get_tool_event(log)
         assert tool_event is not None
         assert tool_event.error is not None
-        assert "Unknown subagent_type" in tool_event.error.message
 
-    def test_alias_dispatch(self) -> None:
+    def test_general_dispatch(self) -> None:
         sa = _test_subagent("general", "General work.")
         tt = task_tool(subagents=[sa])
 
@@ -151,7 +144,7 @@ class TestTaskToolDispatch:
                     model="mockllm/model",
                     tool_name="task",
                     tool_arguments={
-                        "subagent_type": "general_purpose",
+                        "subagent_type": "general",
                         "prompt": "Do general work.",
                     },
                 ),

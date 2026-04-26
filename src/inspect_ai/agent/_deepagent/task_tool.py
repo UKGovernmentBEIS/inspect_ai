@@ -54,8 +54,7 @@ def task_tool(
                     unless it uses forked mode.
                 task_description: Brief description of the task.
             """
-            resolved = SUBAGENT_ALIASES.get(subagent_type, subagent_type)
-            sa = subagent_map.get(resolved)
+            sa = subagent_map.get(subagent_type)
             if sa is None:
                 available = ", ".join(subagent_map.keys())
                 raise ToolError(
@@ -86,7 +85,9 @@ def task_tool(
         execute.__doc__ = tool_description
         return execute
 
-    return task()
+    result = task()
+    _apply_subagent_type_enum(result, subagents)
+    return result
 
 
 def _build_task_description(subagents: list[Subagent]) -> str:
@@ -185,6 +186,34 @@ def _extract_result(state: AgentState) -> str:
         return ""
 
 
+def _apply_subagent_type_enum(tool: Tool, subagents: list[Subagent]) -> None:
+    """Patch the subagent_type parameter with an enum constraint.
+
+    Sets all three ToolDescription fields (name, description, parameters)
+    so parse_tool_info() uses them directly instead of re-parsing.
+    """
+    from inspect_ai._util.registry import registry_unqualified_name
+    from inspect_ai.tool._tool_description import (
+        ToolDescription,
+        set_tool_description,
+    )
+    from inspect_ai.tool._tool_info import parse_tool_info
+
+    info = parse_tool_info(tool)
+    param = info.parameters.properties.get("subagent_type")
+    if param:
+        param.enum = [sa.name for sa in subagents]
+
+    set_tool_description(
+        tool,
+        ToolDescription(
+            name=registry_unqualified_name(tool),
+            description=info.description,
+            parameters=info.parameters,
+        ),
+    )
+
+
 def _resolve_tools(
     sa: Subagent,
     subagents: list[Subagent],
@@ -232,8 +261,3 @@ def _last_message_id(messages: list[ChatMessage]) -> str:
         if msg.id:
             return msg.id
     return ""
-
-
-SUBAGENT_ALIASES: dict[str, str] = {
-    "general_purpose": "general",
-}

@@ -65,7 +65,7 @@ Each is a factory function that returns a `subagent()` configured with appropria
 
 - `research()` over `explore()`: we expect a meaningful share of evals built on `deepagent()` to be AI-Scientist-flavored (literature synthesis, web research) rather than codebase-flavored. `explore` reads awkwardly there. Pydantic-deep also blesses `research` as its single default. The underlying behavior — read-only delegation for information gathering — is the same as CC's Explore.
 - `plan()` matches CC directly.
-- `general()` is the shorter form of CC/LangChain's `general_purpose`. No semantic loss; consistent with the other one-word factories. The string `"general_purpose"` will be aliased on the tool side to absorb model habits trained on CC's vocabulary.
+- `general()` is the shorter form of CC/LangChain's `general_purpose`. No semantic loss; consistent with the other one-word factories.
 
 #### The `subagent()` primitive
 
@@ -391,7 +391,7 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 **Description generation.** A standalone function `subagent_dispatch_description(subagents: list[Subagent]) -> str` generates the `task()` tool description from the registered subagents. It produces the enumeration of available `subagent_type` values with their descriptions, plus when-to/when-not-to dispatch guidance and worked examples. The `task()` constructor calls this to set its description, keeping the tool description always in sync with the actual subagent list.
 
 **Dispatch mechanics:**
-- Look up the `Subagent` by `subagent_type` (with alias handling: `"general_purpose"` → `"general"`).
+- Look up the `Subagent` by `subagent_type`.
 - Construct a `react()` agent from the `Subagent` config.
 - If `fork=False`: invoke via `as_tool()` semantics — isolated context, summary returns as tool result.
 - If `fork=True`: the `task()` tool implements custom dispatch logic inspired by `handoff()` but adapted for the multiplexer context. It strips system messages, repairs the active tool call (removes sibling calls, adds a tool result boundary), and passes the remaining history verbatim to preserve prompt-cache compatibility. The child runs via `run()` and only its final output returns to the parent via `_extract_result()`. Wrapped in `timeline_branch()` for proper log viewer rendering.
@@ -469,7 +469,7 @@ Stored as string constants in `prompt.py`, with assembly logic that composes the
 
 **Layers assembled by `deepagent()`:**
 - **Core behavior** (~20-30 lines). Goal-oriented: action bias, verify-iterate, conciseness, batched tool calls, don't over-ask. Written as expectations, not procedures.
-- **Subagent dispatch** (included when subagents are configured). Generated from the `Subagent` list — names each available subagent, its role, and provides high-level guidance on when to delegate vs. do the work directly. This gives subagent awareness more weight than the tool description alone. The detailed dispatch mechanics (parameter usage, worked examples, alias handling) remain in the `task()` tool description.
+- **Subagent dispatch** (included when subagents are configured). Generated from the `Subagent` list — names each available subagent, its role, and provides high-level guidance on when to delegate vs. do the work directly. This gives subagent awareness more weight than the tool description alone. The detailed dispatch mechanics (parameter usage, worked examples) remain in the `task()` tool description.
 - **Memory/plan coordination** (included when memory and/or todo_write are enabled). Cross-tool guidance: "Use memory to offload large intermediate results. Use the plan to track high-level task decomposition."
 - **User instructions** (`instructions=` text appended at the end).
 
@@ -532,7 +532,7 @@ However, this is a significant infrastructure change with nontrivial risks:
 #### 9. Testing strategy
 
 - **Unit tests:** `Subagent` construction, `task()` parameter schema generation, system prompt assembly and placeholder expansion, recursion depth tracking (verify closure-based depth is parallel-safe).
-- **Integration tests:** `deepagent()` end-to-end with `mockllm` — verify tool wiring, subagent dispatch (both isolated and forked), system prompt content, alias handling.
+- **Integration tests:** `deepagent()` end-to-end with `mockllm` — verify tool wiring, subagent dispatch (both isolated and forked), system prompt content.
 - **Tool inheritance tests:** verify `research()`/`plan()` do not receive user-provided mutating tools; verify `general()` inherits the full parent tool set; verify `extra_tools=` works on all subagents.
 - **Skill inheritance tests:** verify `general()` inherits parent skills through normal tool inheritance.
 - **Memory ACL tests:** verify `research()`/`plan()` get `memory(readonly=True)` and cannot write; verify `general()` gets full read-write memory.
@@ -640,7 +640,7 @@ Built the multiplexer tool that dispatches to subagents.
 
 **Files created:**
 - `src/inspect_ai/agent/_deepagent/task_tool.py` — `task_tool()` factory creating a `@tool`-decorated `task` function. Dispatches via `run()` for both modes: isolated (string prompt) and forked (parent messages with system stripped and tool call repaired + prompt). Includes `_build_task_description()` for dynamic tool description, `_resolve_tools()` for child tool assembly with recursion guard, `_dispatch()` for unified limit handling, and `_extract_result()` for output extraction.
-- `tests/agent/deepagent/test_task_tool.py` — 9 tests: description generation (2), alias mapping (1), constructibility (1), mockllm dispatch (1), invalid subagent_type error (1), alias dispatch end-to-end (1), recursion guard included/excluded (2).
+- `tests/agent/deepagent/test_task_tool.py` — tests for description generation, constructibility, mockllm dispatch, invalid subagent_type error, general dispatch, recursion guard, forked dispatch, and forked input preparation.
 
 **Files modified:**
 - `src/inspect_ai/agent/_deepagent/__init__.py` — added `task_tool` export (internal only).
@@ -649,7 +649,7 @@ Built the multiplexer tool that dispatches to subagents.
 - Used `run()` for both isolated and forked dispatch — handles string→messages, limit application with `catch_errors=True`, span creation with `name=sa.name`, and returns `AgentState` + optional `LimitExceededError`.
 - For forked dispatch, parent messages are passed with minimal filtering (system stripped, tool call repaired) to preserve prompt cache. Parent messages accessed via `get_messages` callback (wired by `deepagent()` in Phase 8).
 - Recursion guard: `_resolve_tools()` includes a recursive `task_tool` at `depth < max_depth`, omits it at `depth >= max_depth`. Depth tracked via closure.
-- Alias handling: `"general_purpose"` → `"general"` to absorb CC vocabulary habits.
+- `subagent_type` parameter has a dynamic `enum` constraint in the JSON schema for structured model guidance.
 - Tool named `"task"` internally — no conflict with `@task` decorator (separate registries). Not publicly exported to avoid API confusion.
 - `task_description` parameter name (not `description`) to avoid shadowing.
 
