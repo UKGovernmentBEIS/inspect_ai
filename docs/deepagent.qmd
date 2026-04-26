@@ -256,6 +256,8 @@ deepagent(
 
 The `subagent()` factory accepts the same customization parameters as the built-in factories (`model`, `limits`, `memory`, `skills`, `fork`, `compaction`) plus the required `name`, `description`, and `prompt`.
 
+By default, subagents cannot delegate to further subagents (`max_depth=1`). Set `max_depth=2` on `deepagent()` to allow one level of nested delegation. Higher values increase token usage and latency; `max_depth=1` is sufficient for most tasks.
+
 ### Fork Mode {#sec-fork-mode}
 
 By default, subagents run in isolated context: they start with a fresh message history and only their summary returns to the parent. This is the standard pattern used by Claude Code, LangChain, and Codex CLI, and it prevents context rot in long-running conversations.
@@ -280,7 +282,9 @@ deepagent(
 1.  The `general` subagent inherits the parent's full message history.
 2.  Use the same model for parent and forked subagents.
 
-Fork mode is useful when the subagent needs substantial background from the parent conversation without re-explanation, and when the parent's context is still fresh (well under context window limits). It preserves the prompt cache on all providers because the message prefix is unchanged.
+Fork mode is useful when the subagent needs substantial background from the parent conversation without re-explanation, and when the parent's context is still fresh (well under context window limits).
+
+Fork mode also preserves prompt cache efficiency: the forked subagent reuses the parent's message prefix, so cached tokens carry over. Isolated subagents start with a fresh message history, which invalidates the cache.
 
 ::: {.callout-note appearance="simple"}
 Use the same model or model family when forking to preserve the prompt cache and avoid errors from incompatible tool call formats or reasoning content in the inherited message history. Fork mode is not supported with `max_depth > 1`.
