@@ -41,7 +41,7 @@ def todo_write() -> Tool:
         - The work is trivial or can be completed in fewer than 3 steps.
         - The task is purely conversational or informational.
 
-        Do not pad out simple work with filler steps or state the obvious. The content of your plan should not involve doing anything that you aren't capable of doing.
+        Do not pad out simple work with filler steps or state the obvious. The content of your plan should not involve doing anything that you aren't capable of doing. Aim for 3-7 items unless the task genuinely needs more.
 
         ## Status Management
 
@@ -51,7 +51,13 @@ def todo_write() -> Tool:
 
         Update status in real-time as you work. Mark a step as in_progress before beginning it, and completed immediately after finishing — don't batch completions after the fact. Never jump a step from pending directly to completed.
 
-        Only mark a step as completed when you have fully accomplished it. If you encounter errors, blockers, or cannot finish, keep it as in_progress and note the issue.
+        Only mark a step as completed when you have fully accomplished it. Never mark a step as completed if:
+
+        - Errors remain unresolved.
+        - The implementation is partial or untested.
+        - You encountered blockers you haven't worked around.
+
+        If you cannot finish a step, keep it as in_progress and note the issue.
 
         Remove steps that are no longer relevant from the list entirely. If understanding changes mid-task, update the plan before continuing and provide an explanation of the rationale.
 

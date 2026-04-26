@@ -236,25 +236,27 @@ Use the `subagent()` factory to create wholly new subagent types beyond the thre
 from inspect_ai.agent import deepagent, research, plan, general, subagent
 from inspect_ai.tool import bash, read_file, grep, text_editor
 
-reviewer = subagent(
-    name="reviewer",                                    # <1>
-    description="Reviews work for correctness and completeness.",
-    prompt="You are a careful reviewer. Examine the work "
-           "done so far and identify errors, omissions, or "
-           "improvements. Be specific about what needs to change.",
-    tools=[read_file(), grep()],                        # <2>
-    memory="readonly",
-)
+def reviewer():                                         # <1>
+    return subagent(
+        name="reviewer",
+        description="Reviews work for correctness and completeness.",
+        prompt="You are a careful reviewer. Examine the work "
+               "done so far and identify errors, omissions, or "
+               "improvements. Be specific about what needs to change.",
+        tools=[read_file(), grep()],                    # <2>
+        model="anthropic/claude-opus-4-7",              # <3>
+        memory="readonly",
+    )
 
 deepagent(
     tools=[bash(), text_editor()],
-    subagents=[research(), plan(), general(), reviewer], # <3>
+    subagents=[research(), plan(), general(), reviewer()],
 )
 ```
 
-1.  Name must be a valid Python identifier. It becomes the `subagent_type` value in the `task()` tool.
+1.  Define custom subagents as factory functions, consistent with the built-in `research()`, `plan()`, and `general()`.
 2.  Custom subagents declare their own tools explicitly.
-3.  Add the custom subagent alongside the built-ins.
+3.  Use a stronger model for review — the parent can consult this subagent for a second opinion on complex decisions or to verify its own work.
 
 The `subagent()` factory accepts the same customization parameters as the built-in factories (`model`, `limits`, `memory`, `skills`, `fork`, `compaction`) plus the required `name`, `description`, and `prompt`.
 
@@ -289,7 +291,7 @@ Fork mode is useful when the subagent needs substantial background from the pare
 Fork mode also preserves prompt cache efficiency: the forked subagent reuses the parent's message prefix, so cached tokens carry over. Isolated subagents start with a fresh message history, which invalidates the cache.
 
 ::: {.callout-note appearance="simple"}
-Use the same model or model family when forking to preserve the prompt cache and avoid errors from incompatible tool call formats or reasoning content in the inherited message history. Fork mode is not supported with `max_depth > 1`.
+Use the same model or model family when forking to preserve the prompt cache and avoid errors from incompatible tool call formats or reasoning content in the inherited message history. Fork mode is not supported with `max_depth > 1`. If compaction has run on the parent, the forked subagent inherits the compacted messages, not the original history.
 :::
 
 ## System Prompt {#sec-prompt}

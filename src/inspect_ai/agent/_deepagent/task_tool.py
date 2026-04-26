@@ -152,6 +152,13 @@ def _build_task_description(subagents: list[Subagent]) -> str:
         "step whose context would be harder to reconstruct in a subagent prompt."
     )
     lines.append("")
+    lines.append(
+        "Examples — delegate: 'Search the codebase for all logging "
+        "configurations and summarize what each one does.' "
+        "Don't delegate: 'Read the file config.yaml and tell me the "
+        "timeout value.'"
+    )
+    lines.append("")
     has_forked = any(sa.fork for sa in subagents)
     if has_forked:
         lines.append(
