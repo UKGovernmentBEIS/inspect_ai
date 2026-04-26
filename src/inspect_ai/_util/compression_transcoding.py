@@ -190,36 +190,47 @@ class _DeflateCompressStream(AsyncIterator[bytes]):
 
 
 class _ZstdDecompressIterator(AsyncIterator[bytes]):
-    """AsyncIterator that decompresses zstd data from a source iterator."""
+    """AsyncIterator that decompresses zstd data from a source iterator.
+
+    Supports multi-frame zstd streams (entries written by
+    ``_MultiFrameZstdCompressObj``): chains fresh inner decompressobj
+    instances across frame boundaries, carrying ``unused_data`` from
+    the end of one frame into the next.
+    """
 
     def __init__(self, source: AsyncIterator[bytes]):
         self._source = source
-        dctx = zstandard.ZstdDecompressor()
-        self._decompressor: zstandard.ZstdDecompressionObj | None = dctx.decompressobj()
+        self._dctx = zstandard.ZstdDecompressor()
+        self._obj: zstandard.ZstdDecompressionObj | None = self._dctx.decompressobj()
+        self._pending: bytes = b""
         self._exhausted = False
 
     def __aiter__(self) -> AsyncIterator[bytes]:
         return self
 
     async def __anext__(self) -> bytes:
-        if self._exhausted or self._decompressor is None:
+        if self._exhausted or self._obj is None:
             raise StopAsyncIteration
 
         while True:
-            try:
-                chunk = await self._source.__anext__()
-                decompressed = self._decompressor.decompress(chunk)
-                if decompressed:
-                    return decompressed
-            except StopAsyncIteration:
-                # Flush any remaining data
-                if self._decompressor:
+            if self._pending:
+                data, self._pending = self._pending, b""
+            else:
+                try:
+                    data = await self._source.__anext__()
+                except StopAsyncIteration:
                     try:
-                        final = self._decompressor.decompress(b"")
+                        final = self._obj.decompress(b"")
                     except zstandard.ZstdError:
                         final = b""
-                    self._decompressor = None
+                    self._obj = None
                     self._exhausted = True
                     if final:
                         return final
-                raise
+                    raise
+            decompressed = self._obj.decompress(data)
+            if self._obj.eof:
+                self._pending = self._obj.unused_data
+                self._obj = self._dctx.decompressobj()
+            if decompressed:
+                return decompressed
