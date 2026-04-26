@@ -78,3 +78,43 @@ def test_list_files_with_depth() -> None:
     assert "sub" in content
     # c.txt is at depth 2, should not appear with depth=1
     assert "c.txt" not in content
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_list_files_dash_path_safe() -> None:
+    """Path starting with - must not be interpreted as a find predicate."""
+    task = Task(
+        dataset=[
+            Sample(
+                input="Please use the tool",
+                target="n/a",
+                files=TEST_FILES,
+            )
+        ],
+        solver=[use_tools(list_files()), generate()],
+        scorer=includes(),
+        message_limit=3,
+        sandbox="docker",
+    )
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="list_files",
+                    tool_arguments={"path": "-delete"},
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    messages = result.samples[0].messages
+    tool_call = get_tool_call(messages, "list_files")
+    assert tool_call is not None
+    response = get_tool_response(messages, tool_call)
+    assert response is not None
+    # Should get an error (path not found), not execute -delete
+    assert response.error is not None

@@ -31,7 +31,7 @@ def list_files(
             depth: Maximum depth for recursive listing. 1 lists only the
                 immediate directory. None lists all files recursively.
         """
-        cmd = ["find", path]
+        cmd = ["find", "--", path]
         if depth is not None:
             cmd.extend(["-maxdepth", str(depth)])
         cmd.extend(["-not", "-name", ".", "-print"])
