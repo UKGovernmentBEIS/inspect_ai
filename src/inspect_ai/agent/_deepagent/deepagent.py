@@ -85,9 +85,19 @@ def deepagent(
 
         # Build shared tool instances once so they appear in both
         # top-level tools and general()'s inherited set
+        # Subagents that inherit parent tools get web_search/skill
+        # through parent_tools — skip them to avoid duplicates
+        inherits_parent = {
+            sa.name
+            for sa in resolved_subagents
+            if sa.name == "general" and sa.tools is None
+        }
+
         ws_tool_instance = _resolve_web_search(web_search)
         if ws_tool_instance:
-            _inject_extra_tool(resolved_subagents, ws_tool_instance)
+            _inject_extra_tool(
+                resolved_subagents, ws_tool_instance, skip=inherits_parent
+            )
 
         skill_tool_instance: Tool | None = None
         if skills:
@@ -177,9 +187,20 @@ def _resolve_web_search(web_search: Tool | bool) -> Tool | None:
     return web_search
 
 
-def _inject_extra_tool(subagents: list[Subagent], tool: Tool) -> None:
-    """Add a tool to every subagent's extra_tools."""
+def _inject_extra_tool(
+    subagents: list[Subagent], tool: Tool, skip: set[str] | None = None
+) -> None:
+    """Add a tool to subagents' extra_tools.
+
+    Args:
+        subagents: Subagents to modify.
+        tool: Tool to inject.
+        skip: Subagent names to skip (e.g. those that inherit parent
+            tools which already include this tool).
+    """
     for sa in subagents:
+        if skip and sa.name in skip:
+            continue
         if sa.extra_tools is None:
             sa.extra_tools = [tool]
         else:
