@@ -531,6 +531,8 @@ class SampleBufferDatabase(SampleBuffer):
             query += " AND id > ?"
             params.append(after_attachment_id)
 
+        query += " ORDER BY id"
+
         cursor = conn.execute(query, params)
 
         for row in cursor:

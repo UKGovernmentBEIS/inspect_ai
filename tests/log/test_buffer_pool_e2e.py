@@ -29,6 +29,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 
 
@@ -54,7 +55,12 @@ def workspace() -> Generator[
         filestore.cleanup()
 
 
-def _make_event(input_msgs: list) -> ModelEvent:
+def _make_event(input_msgs: list, call_msgs: Any = None) -> ModelEvent:
+    call = (
+        ModelCall(request={"messages": call_msgs}, response={})
+        if call_msgs is not None
+        else None
+    )
     return ModelEvent(
         model="test-model",
         input=input_msgs,
@@ -62,6 +68,7 @@ def _make_event(input_msgs: list) -> ModelEvent:
         tool_choice="auto",
         config=GenerateConfig(),
         output=ModelOutput.from_content("test-model", "response"),
+        call=call,
     )
 
 
@@ -324,3 +331,106 @@ def test_segment_with_no_new_pool_entries_does_not_duplicate(
         "Question 1",
         "Question 2",
     ]
+
+
+def test_segment_with_no_new_call_pool_entries_does_not_duplicate(
+    workspace: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    """Same cursor-reset bug, but for the call_pool path.
+
+    `last_call_pool_id` zeroes out when a segment adds events whose calls
+    contain no new request messages; the next sync must not re-include the
+    call_pool entries already written.
+    """
+    db, filestore = workspace
+    sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    db.start_sample(sample)
+
+    call_a = [{"role": "user", "content": "call A"}]
+    call_b = [{"role": "user", "content": "call B"}]
+
+    # Flush 1: introduces 1 call_pool entry.
+    db.log_events(
+        [SampleEvent(id="s1", epoch=1, event=_make_event([], call_msgs=call_a))]
+    )
+    sync_to_filestore(db, filestore)
+
+    # Flush 2: same call request → no new call_pool entries → bug trigger.
+    db.log_events(
+        [SampleEvent(id="s1", epoch=1, event=_make_event([], call_msgs=call_a))]
+    )
+    sync_to_filestore(db, filestore)
+
+    # Flush 3: a new call request.
+    db.log_events(
+        [
+            SampleEvent(
+                id="s1", epoch=1, event=_make_event([], call_msgs=call_a + call_b)
+            )
+        ]
+    )
+    sync_to_filestore(db, filestore)
+
+    fs_data = filestore.get_sample_data("s1", 1)
+    assert fs_data is not None
+
+    call_ids = [entry.id for entry in fs_data.call_pool]
+    assert len(call_ids) == len(set(call_ids)), (
+        f"duplicate call_pool entry ids: {call_ids}"
+    )
+
+
+def test_per_sample_cursor_with_interleaved_samples(
+    workspace: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    """Cursor must scan the sample's own segments, not just the manifest's last.
+
+    Sample A's segments are non-contiguous (segment 2 belongs to sample B
+    only), and sample A's later segments add events without new pool entries.
+    The cursor for sample A must ignore segment 2 entirely and still recover
+    the correct max from segment 1.
+    """
+    db, filestore = workspace
+    sample_a = EvalSampleSummary(id="sA", epoch=1, input="test", target="target")
+    sample_b = EvalSampleSummary(id="sB", epoch=1, input="test", target="target")
+    db.start_sample(sample_a)
+    db.start_sample(sample_b)
+
+    a_msg1 = ChatMessageUser(content="A1")
+    a_msg2 = ChatMessageUser(content="A2")
+    b_msg = ChatMessageUser(content="B1")
+
+    # Segment 1: sample A only, contributes pool entries [a_msg1, a_msg2].
+    db.log_events([SampleEvent(id="sA", epoch=1, event=_make_event([a_msg1, a_msg2]))])
+    sync_to_filestore(db, filestore)
+
+    # Segment 2: sample B only. A is absent here.
+    db.log_events([SampleEvent(id="sB", epoch=1, event=_make_event([b_msg]))])
+    sync_to_filestore(db, filestore)
+
+    # Segment 3: sample A, same messages as before → events only, no new pool.
+    db.log_events([SampleEvent(id="sA", epoch=1, event=_make_event([a_msg1, a_msg2]))])
+    sync_to_filestore(db, filestore)
+
+    # Segment 4: sample A adds a new message. Cursor must come from segment 1
+    # (which A was in), not segment 3 (which has last_message_pool_id=0) and
+    # not segment 2 (which A was never in).
+    a_msg3 = ChatMessageUser(content="A3")
+    db.log_events(
+        [SampleEvent(id="sA", epoch=1, event=_make_event([a_msg1, a_msg2, a_msg3]))]
+    )
+    sync_to_filestore(db, filestore)
+
+    data_a = filestore.get_sample_data("sA", 1)
+    assert data_a is not None
+
+    pool_ids = [entry.id for entry in data_a.message_pool]
+    assert len(pool_ids) == len(set(pool_ids)), (
+        f"duplicate pool ids for sample A: {pool_ids}"
+    )
+
+    pool_a = [json.loads(entry.data) for entry in data_a.message_pool]
+    last_event = data_a.events[-1].event
+    assert isinstance(last_event, dict)
+    resolved = _expand_refs(last_event["input_refs"], pool_a)
+    assert [m["content"] for m in resolved] == ["A1", "A2", "A3"]
