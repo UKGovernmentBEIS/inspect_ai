@@ -409,7 +409,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--no-score-display",
         type=bool,
         is_flag=True,
-        help=NO_SCORE_HELP,
+        help=NO_SCORE_DISPLAY,
         envvar="INSPECT_EVAL_SCORE_DISPLAY",
     )
     @click.option(
@@ -1468,7 +1468,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--no-score-display",
     type=bool,
     is_flag=True,
-    help=NO_SCORE_HELP,
+    help=NO_SCORE_DISPLAY,
     envvar="INSPECT_EVAL_SCORE_DISPLAY",
 )
 @click.option(
