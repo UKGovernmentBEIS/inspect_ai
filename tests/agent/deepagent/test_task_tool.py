@@ -169,19 +169,21 @@ class TestRecursionGuard:
                 names.append(name.split("/")[-1])
         return names
 
-    def test_task_tool_included_below_max_depth(self) -> None:
+    def test_task_tool_included_when_depth_allows(self) -> None:
+        """max_depth=2 at depth=0: child gets task tool (can delegate once)."""
+        sa = _test_subagent("research", "Gather info.")
+        sas = [sa]
+        tools = _resolve_tools(
+            sa, sas, None, None, depth=0, max_depth=2, get_messages=None
+        )
+        assert "task" in self._tool_registry_names(tools)
+
+    def test_task_tool_excluded_at_default_depth(self) -> None:
+        """max_depth=1 (default) at depth=0: child does NOT get task tool."""
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
         tools = _resolve_tools(
             sa, sas, None, None, depth=0, max_depth=1, get_messages=None
-        )
-        assert "task" in self._tool_registry_names(tools)
-
-    def test_task_tool_excluded_at_max_depth(self) -> None:
-        sa = _test_subagent("research", "Gather info.")
-        sas = [sa]
-        tools = _resolve_tools(
-            sa, sas, None, None, depth=1, max_depth=1, get_messages=None
         )
         assert "task" not in self._tool_registry_names(tools)
 

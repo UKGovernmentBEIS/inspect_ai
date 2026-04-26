@@ -257,7 +257,7 @@ def _resolve_tools(
         from inspect_ai.tool._tools._memory import memory
 
         tools.append(memory(readonly=True))
-    if depth < max_depth:
+    if depth + 1 < max_depth:
         tools.append(
             task_tool(
                 subagents,
