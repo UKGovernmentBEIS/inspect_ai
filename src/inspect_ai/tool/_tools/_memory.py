@@ -66,15 +66,14 @@ def memory(
     ) -> str:
         """Memory tool for managing persistent information.
 
-        IMPORTANT: ALWAYS VIEW YOUR MEMORY DIRECTORY BEFORE DOING ANYTHING ELSE.
+        View your memory directory at the start of your work to recover
+        any earlier progress. As you work, record important findings,
+        intermediate results, and status to memory — your context window
+        may be compacted at any point, so information not saved to memory
+        can be lost.
 
-        MEMORY PROTOCOL:
-        1. Use the `view` command of your `memory` tool to check for earlier progress.
-        2. ... (work on the task) ...
-            - As you make progress, record status / progress / thoughts etc in your memory.
-        ASSUME INTERRUPTION: Your context window might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory.
-
-        Note: when editing your memory folder, always try to keep its content up-to-date, coherent and organized. You can rename or delete files that are no longer relevant. Do not create new files unless necessary.
+        Keep memory organized: update or remove stale entries rather than
+        accumulating. Do not create new files unless necessary.
 
         Args:
             command: Command to execute (view, create, str_replace, insert, delete,

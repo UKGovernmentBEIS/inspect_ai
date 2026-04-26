@@ -162,7 +162,7 @@ deepagent(
 )
 ```
 
-Parent skills are available to the top-level agent. At dispatch time, parent skills and subagent-specific skills are merged so that a subagent sees both its own skills and the parent's. See the [Skills](tools-standard.qmd#sec-skill) documentation for details on creating and using skills.
+Parent skills are available to the top-level agent. At dispatch time, parent skills and subagent-specific skills are merged so that a subagent sees both its own skills and the parent's. Skills use the [Agent Skills](https://agentskills.io) specification (`SKILL.md` with YAML frontmatter), which is compatible with skills directories from other agent frameworks. See the [Skills](tools-standard.qmd#sec-skill) documentation for details on creating and using skills.
 
 ## Compaction
 
