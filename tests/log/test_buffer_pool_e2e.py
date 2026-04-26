@@ -378,6 +378,11 @@ def test_segment_with_no_new_call_pool_entries_does_not_duplicate(
     assert len(call_ids) == len(set(call_ids)), (
         f"duplicate call_pool entry ids: {call_ids}"
     )
+    calls = [json.loads(entry.data) for entry in fs_data.call_pool]
+    assert calls == [
+        {"role": "user", "content": "call A"},
+        {"role": "user", "content": "call B"},
+    ]
 
 
 def test_per_sample_cursor_with_interleaved_samples(
@@ -434,3 +439,12 @@ def test_per_sample_cursor_with_interleaved_samples(
     assert isinstance(last_event, dict)
     resolved = _expand_refs(last_event["input_refs"], pool_a)
     assert [m["content"] for m in resolved] == ["A1", "A2", "A3"]
+
+    # Sample B's data must not have been corrupted by sample A's writes.
+    data_b = filestore.get_sample_data("sB", 1)
+    assert data_b is not None
+    pool_b = [json.loads(entry.data) for entry in data_b.message_pool]
+    b_event = data_b.events[-1].event
+    assert isinstance(b_event, dict)
+    resolved_b = _expand_refs(b_event["input_refs"], pool_b)
+    assert [m["content"] for m in resolved_b] == ["B1"]
