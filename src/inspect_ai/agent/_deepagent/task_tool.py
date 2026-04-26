@@ -8,6 +8,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageUser,
 )
+from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool, tool_result_content
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -17,6 +18,7 @@ from .subagent import Subagent
 def task_tool(
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
+    parent_model: str | Model | None = None,
     depth: int = 0,
     max_depth: int = 1,
     get_messages: Callable[[], list[ChatMessage]] | None = None,
@@ -26,6 +28,8 @@ def task_tool(
     Args:
         subagents: List of available subagent configurations.
         parent_tools: Tools from the parent agent (flow to general()).
+        parent_model: Parent agent's model (inherited by subagents
+            that don't set their own).
         depth: Current recursion depth.
         max_depth: Maximum recursion depth.
         get_messages: Callback returning parent messages (required for
@@ -62,7 +66,13 @@ def task_tool(
                 )
 
             child_tools = _resolve_tools(
-                sa, subagents, parent_tools, depth, max_depth, get_messages
+                sa,
+                subagents,
+                parent_tools,
+                parent_model,
+                depth,
+                max_depth,
+                get_messages,
             )
 
             if sa.fork:
@@ -71,7 +81,7 @@ def task_tool(
                     description=sa.description,
                     prompt=None,
                     tools=child_tools,
-                    model=sa.model,
+                    model=sa.model or parent_model,
                     submit=False,
                     compaction=sa.compaction,
                 )
@@ -83,7 +93,7 @@ def task_tool(
                     description=sa.description,
                     prompt=sa.prompt,
                     tools=child_tools,
-                    model=sa.model,
+                    model=sa.model or parent_model,
                     submit=False,
                     compaction=sa.compaction,
                 )
@@ -224,6 +234,7 @@ def _resolve_tools(
     sa: Subagent,
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None,
+    parent_model: str | Model | None,
     depth: int,
     max_depth: int,
     get_messages: Callable[[], list[ChatMessage]] | None,
@@ -245,7 +256,14 @@ def _resolve_tools(
         tools.append(memory(readonly=True))
     if depth < max_depth:
         tools.append(
-            task_tool(subagents, parent_tools, depth + 1, max_depth, get_messages)
+            task_tool(
+                subagents,
+                parent_tools,
+                parent_model,
+                depth + 1,
+                max_depth,
+                get_messages,
+            )
         )
     return tools
 

@@ -172,13 +172,17 @@ class TestRecursionGuard:
     def test_task_tool_included_below_max_depth(self) -> None:
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
-        tools = _resolve_tools(sa, sas, None, depth=0, max_depth=1, get_messages=None)
+        tools = _resolve_tools(
+            sa, sas, None, None, depth=0, max_depth=1, get_messages=None
+        )
         assert "task" in self._tool_registry_names(tools)
 
     def test_task_tool_excluded_at_max_depth(self) -> None:
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
-        tools = _resolve_tools(sa, sas, None, depth=1, max_depth=1, get_messages=None)
+        tools = _resolve_tools(
+            sa, sas, None, None, depth=1, max_depth=1, get_messages=None
+        )
         assert "task" not in self._tool_registry_names(tools)
 
 

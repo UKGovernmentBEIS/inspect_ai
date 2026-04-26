@@ -120,6 +120,7 @@ def deepagent(
         task = task_tool(
             subagents=resolved_subagents,
             parent_tools=parent_tools,
+            parent_model=model,
             depth=0,
             max_depth=max_depth,
             get_messages=get_messages,
