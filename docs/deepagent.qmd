@@ -79,7 +79,7 @@ The `memory()` tool provides a scratchpad shared across the parent and all subag
 
 Memory is important for long-running agents because it survives context [compaction](compaction.qmd). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. When compaction is enabled, the model is instructed to checkpoint important state to memory before context is reduced, ensuring progress survives across compaction boundaries.
 
-The `research()` and `plan()` subagents have read-only memory access (they can view but not modify entries), while `general()` has full read-write access.
+Memory is a single shared store: entries written by the parent are immediately visible to subagents, and entries written by `general()` are visible to the parent after the subagent returns. The `research()` and `plan()` subagents have read-only memory access (they can view but not modify entries), while `general()` has full read-write access.
 
 ### Planning
 
@@ -101,6 +101,8 @@ The default system prompt is goal-oriented rather than procedurally prescriptive
 - Batch independent tool calls in a single response rather than making sequential round-trips.
 - Plan when tasks are complex; break large tasks into smaller pieces and verify results.
 - Use reasonable defaults rather than asking clarifying questions for every detail.
+
+The prompt is oriented toward autonomous execution — the agent acts on reasonable defaults rather than pausing to ask clarifying questions. This is deliberate for evaluation workloads where the task is fully specified and human-in-the-loop clarification is not available.
 
 The prompt also includes cross-tool coordination guidance (use memory for intermediate results, use the plan for decomposition) and subagent delegation guidance (when to delegate, how to pass context to subagents).
 
