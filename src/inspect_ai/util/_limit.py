@@ -54,9 +54,9 @@ class LimitExceededError(Exception):
         self.value_str = self._format_float_or_int(value)
         self.limit = limit
         self.limit_str = self._format_float_or_int(limit)
-        self.message = f"Exceeded {type} limit: {limit:,}"
+        self.message = message or f"Exceeded {type} limit: {limit:,}"
         self.source = source
-        super().__init__(message)
+        super().__init__(self.message)
 
     def with_state(self, state: TaskState) -> LimitExceededError:
         warn_once(
