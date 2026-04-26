@@ -541,7 +541,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
-        envvar="INSPECT_EVAL_EFFORT",
+        envvar="INSPECT_EVAL_VERBOSITY",
     )
     @click.option(
         "--effort",
