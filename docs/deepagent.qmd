@@ -63,8 +63,8 @@ The parent agent has a `task()` tool that lets it delegate work to specialized s
 
 | Subagent | Role | Tools | Memory |
 |----------------------|-----------------|-----------------|-----------------|
-| `research()` | Read-only information gathering and synthesis | `read_file()`, `list_files()`, `grep()` | Read-only |
-| `plan()` | Structured task decomposition and planning | `read_file()`, `list_files()`, `grep()` | Read-only |
+| `research()` | Read-only information gathering and synthesis | `read_file()`, `list_files()`, `grep()`^[Sandbox file tools are included only when a sandbox is configured.] | Read-only |
+| `plan()` | Structured task decomposition and planning | `read_file()`, `list_files()`, `grep()`^[Sandbox file tools are included only when a sandbox is configured.] | Read-only |
 | `general()` | General-purpose autonomous task completion | Inherits parent's tools | Read-write |
 
 : {tbl-colwidths=\[20,30,30,20\]}

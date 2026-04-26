@@ -95,6 +95,8 @@ def deepagent(
             else [research(), plan(), general()]
         )
 
+        if max_depth < 1:
+            raise ValueError("max_depth must be >= 1.")
         _validate_subagent_names(resolved_subagents)
         _validate_fork_depth(resolved_subagents, max_depth)
         _validate_skill_names(skills, resolved_subagents)

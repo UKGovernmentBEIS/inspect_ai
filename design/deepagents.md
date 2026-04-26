@@ -426,7 +426,7 @@ Each returns a `Subagent` with opinionated defaults. All accept additive customi
 - Memory: read-write.
 - Prompt: goal-oriented, emphasizes autonomous task completion.
 
-**Default tool sets.** `research()` and `plan()` share the same read-only tool defaults: `grep()`, `read_file()`, and `list_files()` — new standalone read-only tools to be added to Inspect's toolset. These tools are always constructible regardless of whether a sandbox is configured; they fail clearly at runtime if no sandbox is available. (These are useful beyond `deepagent()` — any eval that wants read-only filesystem access currently requires `bash()` or `text_editor()`, both of which are read-write.)
+**Default tool sets.** `research()` and `plan()` share the same sandbox-aware read-only tool defaults: `grep()`, `read_file()`, and `list_files()` when a sandbox is configured, and no filesystem tools when there is no sandbox context. The underlying tools remain standalone read-only tools in Inspect's toolset: they are constructible regardless of sandbox configuration and fail clearly at runtime if explicitly called without an available sandbox. (These are useful beyond `deepagent()` — any eval that wants read-only filesystem access currently requires `bash()` or `text_editor()`, both of which are read-write.)
 
 User tools passed to `deepagent(tools=[...])` are available to the top-level agent and flow down to `general()`, but do **not** automatically flow to `research()` or `plan()`. This preserves their read-only-by-default posture — if the user passes `bash()` or `text_editor()`, those mutating tools must not reach read-only subagents. Users can explicitly extend `research()` or `plan()` with additional tools via `extra_tools=`, but doing so overrides the read-only default at the user's discretion. All built-in subagents accept `extra_tools=` for additive customization.
 
@@ -541,11 +541,11 @@ However, this is a significant infrastructure change with nontrivial risks:
 - **Skill composition tests:** verify parent + subagent skills merge correctly; verify instance-scoped stores don't collide.
 - **Memory ACL tests:** verify `research()`/`plan()` get `memory(readonly=True)` and cannot write; verify `general()` gets full read-write memory.
 - **Limit tests:** verify sample-level limits apply across parent and child agents; verify `subagent(limits=[...])` applies additional scoped limits to child invocations.
-- **Sandbox/no-sandbox tests:** verify read-only tools are constructible without a sandbox and fail clearly at runtime; verify they work correctly with a sandbox.
+- **Sandbox/no-sandbox tests:** verify read-only tools are constructible without a sandbox and fail clearly at runtime when explicitly called; verify `deepagent()`'s default read-only subagent tools are included only with a sandbox context; verify the tools work correctly with a sandbox.
 
 #### 10. Documentation
 
-New documentation file: `docs/deep-agent.qmd` — a standalone guide covering:
+New documentation file: `docs/deepagent.qmd` — a standalone guide covering:
 
 - Overview of the deep agent pattern and when to use `deepagent()` vs `react()`.
 - API reference for `deepagent()`, `subagent()`, and built-in subagents (`research()`, `plan()`, `general()`).
