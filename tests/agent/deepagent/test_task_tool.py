@@ -256,7 +256,7 @@ class TestPrepareForkedInput:
             isinstance(m, ChatMessageUser) and "Hello" in str(m.content) for m in result
         )
 
-    def test_repairs_sibling_tool_calls(self) -> None:
+    def test_strips_trailing_assistant_with_tool_calls(self) -> None:
         from inspect_ai.model._chat_message import ChatMessageSystem
         from inspect_ai.tool._tool_call import ToolCall
 
@@ -288,21 +288,14 @@ class TestPrepareForkedInput:
         # No system messages
         assert not any(isinstance(m, ChatMessageSystem) for m in result)
 
-        # Last assistant message should have only the task() call
-        assistant_msgs = [m for m in result if isinstance(m, ChatMessageAssistant)]
-        assert len(assistant_msgs) == 1
-        assert assistant_msgs[0].tool_calls is not None
-        assert len(assistant_msgs[0].tool_calls) == 1
-        assert assistant_msgs[0].tool_calls[0].function == "task"
-        assert assistant_msgs[0].tool_calls[0].id == "call-task-1"
+        # Trailing assistant message with tool calls is stripped
+        assert not any(isinstance(m, ChatMessageAssistant) for m in result)
 
-        # Should have a ChatMessageTool boundary
-        from inspect_ai.model._chat_message import ChatMessageTool
-
-        tool_msgs = [m for m in result if isinstance(m, ChatMessageTool)]
-        assert len(tool_msgs) == 1
-        assert tool_msgs[0].tool_call_id == "call-task-1"
-        assert "forked" in str(tool_msgs[0].content).lower()
+        # Original user message preserved
+        assert any(
+            isinstance(m, ChatMessageUser) and "Do two things" in str(m.content)
+            for m in result
+        )
 
         # Ends with the child prompt
         assert isinstance(result[-1], ChatMessageUser)

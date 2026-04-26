@@ -80,20 +80,25 @@ def deepagent(
             else [research(), plan(), general()]
         )
 
-        _apply_web_search(resolved_subagents, web_search, tools)
         _apply_memory_kill_switch(resolved_subagents, memory)
         _apply_compaction(resolved_subagents, compaction)
 
-        # Build the skill tool once (if configured) so it can be
-        # included in both top-level tools and general()'s inherited set
+        # Build shared tool instances once so they appear in both
+        # top-level tools and general()'s inherited set
+        ws_tool_instance = _resolve_web_search(web_search)
+        if ws_tool_instance:
+            _inject_extra_tool(resolved_subagents, ws_tool_instance)
+
         skill_tool_instance: Tool | None = None
         if skills:
             from inspect_ai.tool._tools._skill import skill as skill_tool
 
             skill_tool_instance = skill_tool(skills)
 
-        # Parent tools = user tools + skill tool. These flow to general().
+        # Parent tools = user tools + web_search + skill. Flow to general().
         parent_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
+        if ws_tool_instance:
+            parent_tools.append(ws_tool_instance)
         if skill_tool_instance:
             parent_tools.append(skill_tool_instance)
 
@@ -161,24 +166,24 @@ def deepagent(
     return execute
 
 
-def _apply_web_search(
-    subagents: list[Subagent],
-    web_search: Tool | bool,
-    tools: Sequence[Tool | ToolDef | ToolSource] | None,
-) -> None:
+def _resolve_web_search(web_search: Tool | bool) -> Tool | None:
+    """Build web_search tool instance if configured."""
     if not web_search:
-        return
+        return None
     if web_search is True:
         from inspect_ai.tool._tools._web_search import web_search as ws_factory
 
-        ws_tool: Tool = ws_factory()
-    else:
-        ws_tool = web_search
+        return ws_factory()
+    return web_search
+
+
+def _inject_extra_tool(subagents: list[Subagent], tool: Tool) -> None:
+    """Add a tool to every subagent's extra_tools."""
     for sa in subagents:
         if sa.extra_tools is None:
-            sa.extra_tools = [ws_tool]
+            sa.extra_tools = [tool]
         else:
-            sa.extra_tools.append(ws_tool)
+            sa.extra_tools.append(tool)
 
 
 def _apply_memory_kill_switch(subagents: list[Subagent], memory: bool) -> None:

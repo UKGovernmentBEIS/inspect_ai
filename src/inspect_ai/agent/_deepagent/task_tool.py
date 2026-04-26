@@ -7,7 +7,6 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
-    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool, tool_result_content
@@ -157,30 +156,17 @@ def _prepare_forked_input(
             "but no get_messages callback was provided."
         )
 
+    # Strip system messages (child gets its own) and the trailing
+    # assistant message (which contains the in-flight task() call).
+    # The child sees the conversation history up to the parent's last
+    # user turn, then the delegation prompt as a fresh user message.
     messages: list[ChatMessage] = []
     for m in get_messages():
         if isinstance(m, ChatMessageSystem):
             continue
         messages.append(m)
-
-    # Following agent_handoff() pattern: strip sibling tool calls from
-    # the last assistant message (keep only the task() call that
-    # triggered this dispatch) and add a tool result boundary.
     if messages and isinstance(messages[-1], ChatMessageAssistant):
-        last = messages[-1]
-        if last.tool_calls:
-            task_call = next(
-                (tc for tc in last.tool_calls if tc.function == "task"), None
-            )
-            if task_call:
-                messages[-1] = last.model_copy(update=dict(tool_calls=[task_call]))
-                messages.append(
-                    ChatMessageTool(
-                        content=f"Transferring to {sa.name}.",
-                        tool_call_id=task_call.id,
-                        function="task",
-                    )
-                )
+        messages.pop()
 
     messages.append(ChatMessageUser(content=prompt, source="input"))
     return messages
