@@ -50,6 +50,8 @@ class ZstdDecompressor(Decompressor):
 
     async def decompress_next(self, stream_iterator: AsyncIterator[bytes]) -> bytes:
         """Read compressed chunks until decompressed output is available."""
+        if self._exhausted:
+            raise StopAsyncIteration
         if self._dctx is None:
             self._dctx = zstandard.ZstdDecompressor()
             self._obj = self._dctx.decompressobj()

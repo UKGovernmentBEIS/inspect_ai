@@ -41,7 +41,7 @@ def read_raw_compressed_entry(zip_path: Path, entry_name: str) -> bytes:
             f.seek(info.header_offset)
             sig_version_etc = f.read(30)
             assert sig_version_etc[:4] == b"PK\x03\x04", "not a local file header"
-            name_len = struct.unpack("<H", sig_version_etc[26:28])[0]
-            extra_len = struct.unpack("<H", sig_version_etc[28:30])[0]
+            name_len: int = struct.unpack("<H", sig_version_etc[26:28])[0]
+            extra_len: int = struct.unpack("<H", sig_version_etc[28:30])[0]
             f.read(name_len + extra_len)
             return f.read(info.compress_size)

@@ -201,7 +201,7 @@ class _ZstdDecompressIterator(AsyncIterator[bytes]):
     def __init__(self, source: AsyncIterator[bytes]):
         self._source = source
         self._dctx = zstandard.ZstdDecompressor()
-        self._obj: zstandard.ZstdDecompressionObj | None = self._dctx.decompressobj()
+        self._obj: zstandard.ZstdDecompressionObj = self._dctx.decompressobj()
         self._pending: bytes = b""
         self._exhausted = False
 
@@ -209,7 +209,7 @@ class _ZstdDecompressIterator(AsyncIterator[bytes]):
         return self
 
     async def __anext__(self) -> bytes:
-        if self._exhausted or self._obj is None:
+        if self._exhausted:
             raise StopAsyncIteration
 
         while True:
@@ -223,7 +223,6 @@ class _ZstdDecompressIterator(AsyncIterator[bytes]):
                         final = self._obj.decompress(b"")
                     except zstandard.ZstdError:
                         final = b""
-                    self._obj = None
                     self._exhausted = True
                     if final:
                         return final
