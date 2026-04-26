@@ -276,7 +276,7 @@ The reference frameworks implement a mix of context-management strategies to kee
 
 LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents in parallel: "Whenever you have independent steps to complete — kick off tasks in parallel to accomplish them faster." Claude Code does the same — models can invoke the `task()` tool multiple times in a single response.
 
-**Inspect status:** Inspect's current `execute_tools` processes tool calls sequentially, and `handoff()` explicitly disables parallel tool calls. In v1, subagent dispatch is sequential — multiple `task()` calls in one response execute one at a time. The system prompt should not encourage multiple subagent calls in a single response, as this adds latency and cost with no execution-time benefit in v1. Guidance should be: delegate when helpful; focus on one delegation at a time. Parallel subagent execution is a future enhancement (see Implementation Blueprint section 8).
+**Inspect status:** Inspect's current `execute_tools` processes tool calls sequentially, but `task()` is marked `parallel=True` (the default). Multiple `task()` calls in one response execute one at a time in v1 but are architecturally safe — forked dispatch strips the trailing assistant message entirely (rather than repairing specific tool calls), so each child sees the same clean conversation prefix regardless of sibling calls. When parallel tool execution lands, `task()` will benefit without changes.
 
 #### Async / background subagents
 

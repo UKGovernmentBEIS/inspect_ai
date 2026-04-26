@@ -3,6 +3,7 @@
 from test_helpers.tool_call_utils import get_tool_event
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.agent._deepagent.subagent import Subagent, subagent
 from inspect_ai.agent._deepagent.task_tool import (
@@ -284,6 +285,39 @@ class TestSkillComposition:
         sk2 = Skill(name="pdf", description="Second.", instructions="2.")
         with pytest.raises(ValueError, match="Duplicate skill name"):
             _validate_skill_names([sk1, sk2], [])
+
+
+class TestExtractResult:
+    def test_extract_result_with_content_text(self) -> None:
+        """_extract_result handles list[ContentText] from providers like Anthropic."""
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.agent._deepagent.task_tool import _extract_result
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+        from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+
+        content_blocks = [ContentText(text="The answer is 42.")]
+        msg = ChatMessageAssistant(content=content_blocks)
+        output = ModelOutput(
+            model="test",
+            choices=[ChatCompletionChoice(message=msg, stop_reason="stop")],
+        )
+        state = AgentState(messages=[msg])
+        state._output = output  # type: ignore[attr-defined]
+
+        result = _extract_result(state)
+        assert result == "The answer is 42."
+
+    def test_extract_result_with_str_content(self) -> None:
+        """_extract_result handles plain string content."""
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.agent._deepagent.task_tool import _extract_result
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+
+        msg = ChatMessageAssistant(content="Plain string answer.")
+        state = AgentState(messages=[msg])
+
+        result = _extract_result(state)
+        assert result == "Plain string answer."
 
 
 class TestForkedDispatch:

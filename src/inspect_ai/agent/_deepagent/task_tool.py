@@ -14,7 +14,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model
-from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool, tool_result_content
+from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 
 from .subagent import Subagent
@@ -203,13 +203,11 @@ def _prepare_forked_input(
 
 def _extract_result(state: AgentState) -> str:
     if not state.output.empty:
-        result = tool_result_content(state.output.message.content)
-        return result if isinstance(result, str) else ""
+        return state.output.message.text
     elif len(state.messages) > 0 and isinstance(
         state.messages[-1], ChatMessageAssistant
     ):
-        result = tool_result_content(state.messages[-1].content)
-        return result if isinstance(result, str) else ""
+        return state.messages[-1].text
     else:
         return ""
 

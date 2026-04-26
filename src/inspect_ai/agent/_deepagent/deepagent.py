@@ -100,11 +100,18 @@ def deepagent(
                 resolved_subagents, ws_tool_instance, skip=inherits_parent
             )
 
-        # Parent tools = user tools + web_search. Flow to general().
+        # Parent tools = user tools + web_search + todo_write.
+        # These flow to general() via _apply_parent_tools_to_general.
         # Skills flow separately via _resolve_tools merge.
         parent_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
         if ws_tool_instance:
             parent_tools.append(ws_tool_instance)
+        if todo_write:
+            from inspect_ai.tool._tools._todo_write import (
+                todo_write as todo_write_tool,
+            )
+
+            parent_tools.append(todo_write_tool())
 
         _apply_parent_tools_to_general(resolved_subagents, parent_tools)
 
@@ -121,19 +128,13 @@ def deepagent(
             get_messages=get_messages,
         )
 
-        # Top-level tools = parent tools + task + memory + todo_write + skills
+        # Top-level tools = parent tools + task + memory + skills
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
         all_tools.append(task)
         if memory:
             from inspect_ai.tool._tools._memory import memory as memory_tool
 
             all_tools.append(memory_tool())
-        if todo_write:
-            from inspect_ai.tool._tools._todo_write import (
-                todo_write as todo_write_tool,
-            )
-
-            all_tools.append(todo_write_tool())
         if skills:
             from inspect_ai.tool._tools._skill import skill as skill_fn
 
