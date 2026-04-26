@@ -53,6 +53,7 @@ _COMPUTER_TOOL_PARAMETERS: frozenset[str] = frozenset(
         "scroll_direction",
         "start_coordinate",
         "text",
+        "press_enter",
         "actions",
     ]
 )
@@ -98,6 +99,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None = None,
         start_coordinate: list[int] | None = None,
         text: str | None = None,
+        press_enter: bool | None = None,
         actions: list[dict[str, object]] | None = None,
     ) -> ToolResult:
         """
@@ -149,6 +151,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=scroll`.
           text (str | None): The text to type or the key to press. Required when action is "key" or "type".
+          press_enter (bool): If True and action is "type", press Return after typing. Defaults to False.
           actions (list[dict] | None): A list of action dicts to execute sequentially (OpenAI multi-action format).
 
         Returns:
@@ -167,6 +170,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                     scroll_direction,
                     start_coordinate,
                     text,
+                    press_enter,
                 )
             ]
             if action is not None
@@ -206,7 +210,10 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
             case "type":
                 if coordinate is not None:
                     await common.left_click(coordinate, timeout=timeout)
-                return await common.type(not_none(text, "text"), timeout=timeout)
+                result = await common.type(not_none(text, "text"), timeout=timeout)
+                if bool(args.get("press_enter")):
+                    result = await common.press_key("Return", timeout=timeout)
+                return result
             case "cursor_position":
                 return await common.cursor_position(timeout=timeout)
             case "mouse_move":
@@ -282,6 +289,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         scroll_direction: Literal["up", "down", "left", "right"] | None,
         start_coordinate: list[int] | None,
         text: str | None,
+        press_enter: bool | None,
     ) -> dict[str, object]:
         return {
             k: v
@@ -294,6 +302,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 scroll_direction=scroll_direction,
                 start_coordinate=start_coordinate,
                 text=text,
+                press_enter=press_enter,
             ).items()
             if v is not None
         }
