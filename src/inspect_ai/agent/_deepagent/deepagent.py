@@ -83,12 +83,25 @@ def deepagent(
         _apply_web_search(resolved_subagents, web_search, tools)
         _apply_memory_kill_switch(resolved_subagents, memory)
         _apply_compaction(resolved_subagents, compaction)
-        _apply_parent_tools_to_general(resolved_subagents, tools)
+
+        # Build the skill tool once (if configured) so it can be
+        # included in both top-level tools and general()'s inherited set
+        skill_tool_instance: Tool | None = None
+        if skills:
+            from inspect_ai.tool._tools._skill import skill as skill_tool
+
+            skill_tool_instance = skill_tool(skills)
+
+        # Parent tools = user tools + skill tool. These flow to general().
+        parent_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
+        if skill_tool_instance:
+            parent_tools.append(skill_tool_instance)
+
+        _apply_parent_tools_to_general(resolved_subagents, parent_tools)
 
         def get_messages() -> list[ChatMessage]:
             return list(state.messages)
 
-        parent_tools = list(tools or [])
         task = task_tool(
             subagents=resolved_subagents,
             parent_tools=parent_tools,
@@ -97,7 +110,8 @@ def deepagent(
             get_messages=get_messages,
         )
 
-        all_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
+        # Top-level tools = parent tools + task + memory + todo_write
+        all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
         all_tools.append(task)
         if memory:
             from inspect_ai.tool._tools._memory import memory as memory_tool
@@ -109,10 +123,6 @@ def deepagent(
             )
 
             all_tools.append(todo_write_tool())
-        if skills:
-            from inspect_ai.tool._tools._skill import skill as skill_tool
-
-            all_tools.append(skill_tool(skills))
 
         if prompt is not None:
             system_prompt = expand_prompt_placeholders(
@@ -209,6 +219,5 @@ def _clone_subagent(sa: Subagent) -> Subagent:
         sa,
         tools=list(sa.tools) if sa.tools is not None else None,
         extra_tools=list(sa.extra_tools) if sa.extra_tools is not None else None,
-        skills=list(sa.skills) if sa.skills is not None else None,
         limits=list(sa.limits) if sa.limits is not None else None,
     )

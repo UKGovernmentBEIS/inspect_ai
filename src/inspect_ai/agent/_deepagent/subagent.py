@@ -5,7 +5,6 @@ from inspect_ai.model._compaction import CompactionStrategy
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill import Skill
 from inspect_ai.util._limit import Limit
 
 
@@ -37,9 +36,6 @@ class Subagent:
     and avoid errors from incompatible tool call formats or reasoning
     content in the inherited message history."""
 
-    skills: list[Skill] | None = None
-    """Skills available to this subagent."""
-
     memory: Literal["readwrite", "readonly"] | bool = "readonly"
     """Memory tool access level."""
 
@@ -60,7 +56,6 @@ def subagent(
     extra_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     model: str | Model | None = None,
     fork: bool = False,
-    skills: list[Skill] | None = None,
     memory: Literal["readwrite", "readonly"] | bool = "readonly",
     limits: list[Limit] | None = None,
     compaction: CompactionStrategy | None = None,
@@ -93,9 +88,6 @@ def subagent(
             parent when forking to preserve the prompt cache and
             avoid errors from incompatible tool call formats or
             reasoning content.
-        skills: Skills available to this subagent. None means no
-            skills (general() overrides this to inherit parent
-            skills).
         memory: Memory tool access level. "readwrite" gives full
             memory access, "readonly" exposes only read/search
             operations, False disables memory entirely. Overridden
@@ -130,7 +122,6 @@ def subagent(
         extra_tools=list(extra_tools) if extra_tools is not None else None,
         model=model,
         fork=fork,
-        skills=skills,
         memory=memory,
         limits=limits,
         compaction=compaction,

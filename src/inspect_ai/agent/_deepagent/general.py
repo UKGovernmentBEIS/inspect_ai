@@ -38,9 +38,9 @@ def general(
 ) -> Subagent:
     """Create a general-purpose subagent with full tool access.
 
-    The general subagent inherits the parent agent's tools by default
-    and has read-write memory access. It is intended for tasks that
-    require full capabilities in an isolated context.
+    The general subagent inherits the parent agent's tools (including
+    skills) by default and has read-write memory access. It is intended for
+    tasks that require full capabilities in an isolated context.
 
     Args:
         tools: Tools for this subagent. "default" inherits the parent

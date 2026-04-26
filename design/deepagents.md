@@ -133,7 +133,7 @@ Default behavior matches the convergent pattern across CC, LangChain, and Pydant
 
 - **Sandbox** — shared (already true per-sample in Inspect).
 - **Memory** — shared, read by default, write opt-in per subagent. `research()` and `plan()` get `memory(readonly=True)`; `general()` gets full read-write `memory()`. Custom subagents declare explicitly. Note: `memory(readonly=True)` is a new mode that must be implemented — the current `memory()` tool supports all CRUD operations.
-- **Skills** — inherited only by `general()` by default. `research()`, `plan()`, and custom subagents get skills only when explicitly configured. This keeps read-only and specialist subagents focused and avoids silently expanding their context or capabilities.
+- **Skills** — defined once at the `deepagent()` level. The `skill()` tool is included in the parent tool set and flows to `general()` through normal tool inheritance. `research()` and `plan()` do not inherit skills (they are read-only focused).
 - **Message history** — isolated (this is what subagents are *for*).
 - **Tools** — subset declared by the subagent's definition.
 
@@ -373,7 +373,7 @@ reviewer = subagent(
 )
 ```
 
-`Subagent` holds: name, description, prompt, tools, model, fork, output_filter, limits, skills, and memory mode. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The optional `limits` parameter takes scoped Inspect limits (e.g. `token_limit`, `message_limit`, `time_limit`, `cost_limit`) that apply to the child agent invocation. The optional `skills` parameter provides subagent-specific skills; only `general()` inherits parent skills automatically. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
+`Subagent` holds: name, description, prompt, tools, model, fork, limits, memory mode, and compaction. The memory parameter is `memory: Literal["readwrite", "readonly", False] = "readonly"` — `"readonly"` gives the subagent `memory(readonly=True)`, `"readwrite"` gives full `memory()`, and `False` disables memory entirely. **Precedence:** if `deepagent(memory=False)` is set, memory is disabled for the top-level agent and all subagents regardless of their individual `memory` setting. The optional `limits` parameter takes scoped Inspect limits (e.g. `token_limit`, `message_limit`, `time_limit`, `cost_limit`) that apply to the child agent invocation. Skills are defined once at the `deepagent()` level and flow to `general()` through normal tool inheritance. The `task()` tool reads this metadata to build its parameter schema and to configure `react()` at dispatch time.
 
 **Recursion guard.** Depth is tracked via closure — the current depth is closed over when constructing the child agent's tool set, so each dispatch path carries its own depth counter. This is parallel-safe: sibling subagents dispatched concurrently (in a future parallel v2) won't interfere with each other's depth tracking. Default cap at 1 level, matching CC and Codex. Configurable via `deepagent(max_depth=...)`. Enforcement is by omission: when constructing the `react()` agent at max depth, the `task()` tool is simply not included in the tool list. The model never sees a tool it can't use.
 
@@ -400,27 +400,26 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 
 #### 3. Built-in subagent factories: `research()`, `plan()`, `general()`
 
-Each returns a `Subagent` with opinionated defaults. All accept additive customization via `instructions=`, `extra_tools=`, `model=`, `fork=`, `limits=`, and `skills=`.
+Each returns a `Subagent` with opinionated defaults. All accept additive customization via `instructions=`, `extra_tools=`, `model=`, `fork=`, and `limits=`.
 
 **`research()`** — Read-only information gathering.
 - Tools: read-only defaults (see below).
 - Fork: `False` (isolated context).
 - Memory: read-only.
-- Skills: none by default.
+- Skills: does not inherit top-level skills.
 - Prompt: goal-oriented, emphasizes gathering and synthesizing information.
 
 **`plan()`** — Structured planning, no execution.
 - Tools: same read-only defaults as `research()`.
 - Fork: `False`.
 - Memory: read-only.
-- Skills: none by default.
+- Skills: does not inherit top-level skills.
 - Prompt: goal-oriented, emphasizes decomposing work and producing a structured plan.
 
 **`general()`** — Full tools, isolated context for noisy work.
-- Tools: inherits all parent tools.
+- Tools: inherits parent tools (including skills) by default.
 - Fork: `False` (user can opt into `True` for CC-style fork behavior).
 - Memory: read-write.
-- Skills: inherits parent skills by default.
 - Prompt: goal-oriented, emphasizes autonomous task completion.
 
 **Default tool sets.** `research()` and `plan()` share the same read-only tool defaults: `grep()`, `read_file()`, and `list_files()` — new standalone read-only tools to be added to Inspect's toolset. These tools are always constructible regardless of whether a sandbox is configured; they fail clearly at runtime if no sandbox is available. (These are useful beyond `deepagent()` — any eval that wants read-only filesystem access currently requires `bash()` or `text_editor()`, both of which are read-write.)
@@ -429,7 +428,7 @@ User tools passed to `deepagent(tools=[...])` are available to the top-level age
 
 This is a default capability boundary, not a hard security guarantee. If a user explicitly gives a read-only subagent mutating tools through `extra_tools=` or gives it read-write memory, the subagent can mutate through those capabilities. Hard isolation should be enforced through sandboxing, approval policies, or task-specific tool design.
 
-`general()` inherits the `deepagent()`'s assembled tool list (user tools + memory + todo_write + skills), minus the `task()` tool itself at max depth per the recursion guard.
+`general()` inherits the `deepagent()`'s parent tool list (user tools + skills), minus the `task()` tool itself at max depth per the recursion guard. Memory and todo_write are added by `_resolve_tools()` at dispatch time.
 
 **`todo_write()` tool.** A new `todo_write()` tool replaces the existing `update_plan()`, aligning with the deep-agent vocabulary used by CC and LangChain. The implementation is largely the same — a planning tool that tracks steps and progress — but renamed for consistency. `update_plan()` will be deprecated with an alias pointing to `todo_write()`.
 
@@ -535,7 +534,7 @@ However, this is a significant infrastructure change with nontrivial risks:
 - **Unit tests:** `Subagent` construction, `task()` parameter schema generation, system prompt assembly and placeholder expansion, recursion depth tracking (verify closure-based depth is parallel-safe).
 - **Integration tests:** `deepagent()` end-to-end with `mockllm` — verify tool wiring, subagent dispatch (both isolated and forked), system prompt content, alias handling.
 - **Tool inheritance tests:** verify `research()`/`plan()` do not receive user-provided mutating tools; verify `general()` inherits the full parent tool set; verify `extra_tools=` works on all subagents.
-- **Skill inheritance tests:** verify `general()` inherits parent skills by default; verify `research()`/`plan()` and custom subagents do not inherit skills unless explicitly configured.
+- **Skill inheritance tests:** verify `general()` inherits parent skills through normal tool inheritance.
 - **Memory ACL tests:** verify `research()`/`plan()` get `memory(readonly=True)` and cannot write; verify `general()` gets full read-write memory.
 - **Limit tests:** verify sample-level limits apply across parent and child agents; verify `subagent(limits=[...])` applies additional scoped limits to child invocations.
 - **Sandbox/no-sandbox tests:** verify read-only tools are constructible without a sandbox and fail clearly at runtime; verify they work correctly with a sandbox.
@@ -576,7 +575,7 @@ Created the `Subagent` dataclass and `subagent()` factory function.
 - Used `@dataclass(kw_only=True)` (not Pydantic) to match agent module conventions and allow required fields after fields with defaults.
 - Dropped `output_filter` parameter — forked subagents always use `last_message`. Simplifies the API; can be added later if needed.
 - Dropped `instructions` from `Subagent` — only `prompt` is stored. Built-in factories (`research()`, `plan()`, `general()`) accept `instructions=` and merge it with their default prompt before constructing the `Subagent`.
-- Field order: `name`, `description`, `prompt` (identity), then `tools`, `extra_tools` (adjacent), `model`, `fork`, `skills`, `memory`, `limits`.
+- Field order: `name`, `description`, `prompt` (identity), then `tools`, `extra_tools` (adjacent), `model`, `fork`, `memory`, `limits`, `compaction`.
 
 ### Phase 2: `todo_write()` tool (713c8ea0c)
 

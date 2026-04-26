@@ -13,7 +13,6 @@ class TestSubagentDefaults:
         assert s.extra_tools is None
         assert s.model is None
         assert s.fork is False
-        assert s.skills is None
         assert s.memory == "readonly"
         assert s.limits is None
 
@@ -32,7 +31,6 @@ class TestSubagentAllFields:
             extra_tools=[],
             model="anthropic/claude-sonnet-4",
             fork=True,
-            skills=[],
             memory="readwrite",
             limits=[],
         )
@@ -43,7 +41,6 @@ class TestSubagentAllFields:
         assert s.extra_tools == []
         assert s.model == "anthropic/claude-sonnet-4"
         assert s.fork is True
-        assert s.skills == []
         assert s.memory == "readwrite"
         assert s.limits == []
 
