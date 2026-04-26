@@ -35,7 +35,7 @@ def general(
     extra_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     instructions: str | None = None,
     skills: list[str | Path | Skill] | None = None,
-    memory: Literal["readwrite", "readonly"] | bool = "readwrite",
+    memory: Literal["readwrite", "readonly"] | bool = False,
     limits: list[Limit] | None = None,
     model: str | Model | None = None,
     fork: bool = False,

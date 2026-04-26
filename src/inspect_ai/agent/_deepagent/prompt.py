@@ -40,7 +40,7 @@ against context window limits and ensures progress is not lost. Record
 key findings rather than trying to remember everything. Update or
 remove stale entries to keep memory organized.
 
-Use the plan tool to track high-level task decomposition. Mark steps
+Use the todo_write tool to track high-level task decomposition. Mark steps
 in progress as you start them and completed as you finish. If your
 understanding changes mid-task, update the plan before continuing.
 Before finishing, reconcile every TODO item: confirm each is completed
@@ -57,7 +57,7 @@ remove stale entries to keep memory organized.
 """.strip()
 
 PLAN_ONLY_INSTRUCTIONS = """
-Use the plan tool to track high-level task decomposition. Mark steps
+Use the todo_write tool to track high-level task decomposition. Mark steps
 in progress as you start them and completed as you finish. If your
 understanding changes mid-task, update the plan before continuing.
 Before finishing, reconcile every TODO item: confirm each is completed

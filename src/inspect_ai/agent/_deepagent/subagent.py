@@ -42,7 +42,7 @@ class Subagent:
     """Subagent-specific skills. Merged with parent skills at dispatch
     time — the subagent sees both parent and its own skills."""
 
-    memory: Literal["readwrite", "readonly"] | bool = "readonly"
+    memory: Literal["readwrite", "readonly"] | bool = False
     """Memory tool access level."""
 
     limits: list[Limit] | None = None
@@ -63,7 +63,7 @@ def subagent(
     model: str | Model | None = None,
     fork: bool = False,
     skills: list[str | Path | Skill] | None = None,
-    memory: Literal["readwrite", "readonly"] | bool = "readonly",
+    memory: Literal["readwrite", "readonly"] | bool = False,
     limits: list[Limit] | None = None,
     compaction: CompactionStrategy | None = None,
 ) -> Subagent:
