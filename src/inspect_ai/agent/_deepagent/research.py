@@ -23,9 +23,10 @@ Focus on finding specific, actionable information rather than making
 assumptions. If you find partial or conflicting information, report
 what you found and note the gaps or conflicts.
 
-Return a concise summary of your findings. Include specific details,
-evidence, and references that will be useful to the caller. Structure
-your response so the most important findings come first.
+Return your findings directly with specific details and evidence.
+Lead with the most important results, not a narrative of your search
+process. If information is incomplete or conflicting, state what you
+found and what remains uncertain.
 """.strip()
 
 

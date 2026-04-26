@@ -23,9 +23,9 @@ Verify your results before finishing. Check that your output actually
 meets the requirements, not just that it ran without errors. If
 verification reveals problems, fix them.
 
-Be concise in your response. Report what you accomplished and any
-important findings. If you could not fully complete the task, explain
-what you did and what remains.
+Report the outcome and key results directly, not a step-by-step
+replay of actions taken. If you could not fully complete the task,
+state what you accomplished and what remains.
 """.strip()
 
 

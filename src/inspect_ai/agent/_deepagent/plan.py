@@ -23,9 +23,10 @@ specific enough to execute without ambiguity. Identify dependencies
 between steps, potential risks, and any information gaps that could
 block progress.
 
-Return a clear, ordered plan. Flag any assumptions you're making and
-any decisions that need input before proceeding. If the task can be
-approached multiple ways, recommend one approach and briefly note why.
+Return the plan as an actionable ordered list of concrete steps, not
+a discussion of planning methodology. Flag any assumptions and
+decisions that need input. If the task can be approached multiple
+ways, recommend one approach and briefly note why.
 """.strip()
 
 

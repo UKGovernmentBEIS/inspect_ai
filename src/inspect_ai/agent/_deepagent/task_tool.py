@@ -146,27 +146,40 @@ def _build_task_description(subagents: list[Subagent]) -> str:
         lines.append(f"- **{sa.name}**: {sa.description}{suffix}")
     lines.append("")
     lines.append(
-        "Delegate when the work is complex, independent, or would benefit "
-        "from a fresh context. Do the work directly when it's a simple "
-        "lookup or single tool call."
+        "Delegate when the work is multi-step, benefits from tool isolation, "
+        "or requires independent research or analysis. Do the work directly "
+        "when it's a single tool call, a quick lookup, or a tightly coupled "
+        "step whose context would be harder to reconstruct in a subagent prompt."
     )
     lines.append("")
     has_forked = any(sa.fork for sa in subagents)
-    lines.append("Args:")
-    lines.append("    subagent_type: Which subagent to use.")
     if has_forked:
         lines.append(
-            "    prompt: Detailed instructions for the subagent. Non-forked"
-            " subagents start with a fresh context and cannot see your"
-            " conversation history — include all necessary context for them."
-            " Forked subagents already have your full conversation context."
+            "Non-forked subagents start with a fresh context and cannot see "
+            "your conversation history. Write the prompt as a self-contained "
+            "brief: state the goal, include any relevant findings or data, "
+            "and specify what you need back. Forked subagents already have "
+            "your full conversation context."
         )
     else:
         lines.append(
-            "    prompt: Detailed instructions for the subagent. Include"
-            " all necessary context — the subagent starts with a fresh"
-            " context and cannot see your conversation history."
+            "The subagent starts with a fresh context and cannot see your "
+            "conversation history. Write the prompt as a self-contained "
+            "brief: state the goal, include any relevant findings or data, "
+            "and specify what you need back."
         )
+    lines.append("")
+    lines.append(
+        "The task tool returns the subagent's final text response. If you "
+        "need a specific format, ask for it explicitly in the prompt."
+    )
+    lines.append("")
+    lines.append("Args:")
+    lines.append("    subagent_type: Which subagent to use.")
+    lines.append(
+        "    prompt: Self-contained instructions for the subagent, "
+        "including all necessary context."
+    )
     lines.append("    task_description: Brief description of the task.")
     return "\n".join(lines)
 

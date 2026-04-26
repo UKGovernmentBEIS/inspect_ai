@@ -61,17 +61,16 @@ def todo_write() -> Tool:
 
         High-quality plans:
 
-        - Add CLI entry with file args
-        - Parse Markdown via CommonMark library
-        - Apply semantic HTML template
-        - Handle code blocks, images, links
-        - Add error handling for invalid files
+        - Identify relevant sources, inputs, and constraints to inspect
+        - Evaluate each candidate approach against the task requirements
+        - Cross-check important findings against available evidence
+        - Summarize conclusions, remaining uncertainty, and next action
 
         Low-quality plans:
 
-        - Create CLI tool
-        - Add Markdown parser
-        - Convert to HTML
+        - Look things up
+        - Compare options
+        - Write summary
 
         If you need to write a plan, only write high quality plans, not low quality ones.
 
