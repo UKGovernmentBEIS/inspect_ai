@@ -107,8 +107,10 @@ def subagent(
         )
     if not description:
         raise ValueError("Subagent description must not be empty.")
-    if not prompt:
-        raise ValueError("Subagent prompt must not be empty.")
+    if not prompt and not fork:
+        raise ValueError(
+            "Subagent prompt must not be empty for isolated (fork=False) dispatch."
+        )
     if memory is True or memory not in ("readwrite", "readonly", False):
         raise ValueError(
             f"Subagent memory must be 'readwrite', 'readonly', or False, got {memory!r}"

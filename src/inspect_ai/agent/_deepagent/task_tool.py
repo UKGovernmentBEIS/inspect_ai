@@ -6,7 +6,6 @@ from inspect_ai.agent._run import run
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageSystem,
     ChatMessageUser,
 )
 from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool, tool_result_content
@@ -66,20 +65,28 @@ def task_tool(
                 sa, subagents, parent_tools, depth, max_depth, get_messages
             )
 
-            child_agent = react(
-                name=sa.name,
-                description=sa.description,
-                prompt=sa.prompt,
-                tools=child_tools,
-                model=sa.model,
-                submit=False,
-                compaction=sa.compaction,
-            )
-
             if sa.fork:
+                child_agent = react(
+                    name=sa.name,
+                    description=sa.description,
+                    prompt=None,
+                    tools=child_tools,
+                    model=sa.model,
+                    submit=False,
+                    compaction=sa.compaction,
+                )
                 input = _prepare_forked_input(prompt, sa, get_messages)
                 return await _dispatch_forked(child_agent, sa, input)
             else:
+                child_agent = react(
+                    name=sa.name,
+                    description=sa.description,
+                    prompt=sa.prompt,
+                    tools=child_tools,
+                    model=sa.model,
+                    submit=False,
+                    compaction=sa.compaction,
+                )
                 return await _dispatch(child_agent, sa, prompt)
 
         execute.__doc__ = tool_description
@@ -157,19 +164,18 @@ def _prepare_forked_input(
             "but no get_messages callback was provided."
         )
 
-    # Strip system messages (child gets its own) and the trailing
-    # assistant message (which contains the in-flight task() call).
-    # The child sees the conversation history up to the parent's last
-    # user turn, then the delegation prompt as a fresh user message.
-    messages: list[ChatMessage] = []
-    for m in get_messages():
-        if isinstance(m, ChatMessageSystem):
-            continue
-        messages.append(m)
+    # Keep parent system message (preserves prompt cache on all providers).
+    # Strip the trailing assistant message (in-flight task() call).
+    # Subagent instructions + task prompt go in a single user message
+    # appended after the cached prefix.
+    messages = list(get_messages())
     if messages and isinstance(messages[-1], ChatMessageAssistant):
         messages.pop()
 
-    messages.append(ChatMessageUser(content=prompt, source="input"))
+    content = prompt
+    if sa.prompt:
+        content = f"{sa.prompt}\n\n{content}"
+    messages.append(ChatMessageUser(content=content, source="input"))
     return messages
 
 

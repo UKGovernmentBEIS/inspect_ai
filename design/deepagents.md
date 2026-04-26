@@ -94,7 +94,7 @@ Subagents support two dispatch modes, corresponding to Inspect's existing `as_to
 
 - **Isolated** (default) — the subagent runs with a fresh message history. The parent sends a prompt; only the subagent's summary returns. This is the standard CC/LangChain pattern and is what `as_tool()` provides.
 
-- **Forked** — the subagent inherits the parent's full message history with minimal filtering: system messages are stripped (the child gets its own) and the active tool call is repaired (sibling calls removed, tool result boundary added). Message content is preserved verbatim to maintain provider prompt-cache compatibility. Only the subagent's final output returns to the parent. Use the same model or model family as the parent when forking.
+- **Forked** — the subagent inherits the parent's full message history including the system prompt. The trailing assistant message (in-flight tool call) is stripped, and the subagent's instructions (if any) plus the task prompt are appended as a user message. This preserves the provider prompt cache on all providers since the message prefix is unchanged. Only the subagent's final output returns to the parent. `prompt` is optional for forked subagents — omit it for a transparent fork that continues as the parent. Use the same model or model family when forking.
 
 Claude Code recently added fork semantics to its general-purpose agent. We expose the same choice on `subagent()`:
 
@@ -109,7 +109,7 @@ def reviewer():
     )
 ```
 
-The `fork` parameter controls which dispatch primitive is used under the hood. When `fork=False` (the default), the subagent runs with isolated context via `run()` — only the summary returns. When `fork=True`, the subagent inherits the parent's message history with minimal filtering (system messages stripped, active tool call repaired) to preserve provider prompt-cache compatibility. Only the subagent's final output returns to the parent. Use the same model or model family when forking to avoid errors from incompatible tool call formats or reasoning content.
+The `fork` parameter controls which dispatch primitive is used under the hood. When `fork=False` (the default), the subagent runs with isolated context via `run()` — only the summary returns. When `fork=True`, the subagent inherits the parent's full message history (including system prompt) with only the trailing assistant message stripped. The subagent's instructions (if any) are prepended to the task prompt in a user message appended after the cached prefix, preserving the prompt cache on all providers. `prompt` is optional for forked subagents. The child runs via `react(prompt=None)` so it doesn't add its own system message. Use the same model or model family when forking.
 
 The built-in subagents default as follows:
 
@@ -394,7 +394,7 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 - Look up the `Subagent` by `subagent_type`.
 - Construct a `react()` agent from the `Subagent` config.
 - If `fork=False`: invoke via `as_tool()` semantics — isolated context, summary returns as tool result.
-- If `fork=True`: the `task()` tool implements custom dispatch logic inspired by `handoff()` but adapted for the multiplexer context. It strips system messages, repairs the active tool call (removes sibling calls, adds a tool result boundary), and passes the remaining history verbatim to preserve prompt-cache compatibility. The child runs via `run()` and only its final output returns to the parent via `_extract_result()`. Wrapped in `timeline_branch()` for proper log viewer rendering.
+- If `fork=True`: the `task()` tool keeps the parent's full message history (including system prompt), strips only the trailing assistant message, and appends the subagent's instructions + task prompt as a user message. The child runs via `react(prompt=None)` and `run()`, preserving the prompt cache on all providers. Only the final output returns via `_extract_result()`. Wrapped in `timeline_branch()` for log viewer rendering.
 - The `task()` tool creates `span(type="agent")` for each dispatch explicitly. (Unlike `as_tool()`/`handoff()` which create spans automatically, `task()` manages its own dispatch lifecycle.)
 - V1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe for future parallel execution — forked subagents receive a copy of the parent's messages and only their filtered result returns. See section 8 for the deferred parallel execution plan.
 

@@ -74,9 +74,14 @@ class TestSubagentDescriptionValidation:
 
 
 class TestSubagentPromptValidation:
-    def test_empty_prompt(self) -> None:
+    def test_empty_prompt_isolated_rejected(self) -> None:
         with pytest.raises(ValueError, match="prompt must not be empty"):
             subagent(name="test", description="desc", prompt="")
+
+    def test_empty_prompt_forked_accepted(self) -> None:
+        s = subagent(name="test", description="desc", prompt="", fork=True)
+        assert s.prompt == ""
+        assert s.fork is True
 
 
 class TestSubagentMemoryValidation:

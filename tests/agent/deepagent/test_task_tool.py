@@ -234,7 +234,7 @@ class TestForkedDispatch:
 
 
 class TestPrepareForkedInput:
-    def test_strips_system_messages(self) -> None:
+    def test_keeps_system_messages(self) -> None:
         from inspect_ai.model._chat_message import ChatMessageSystem
 
         sa = _test_subagent("forked", "Forked agent.")
@@ -244,12 +244,14 @@ class TestPrepareForkedInput:
             ChatMessageAssistant(content="Hi there", id="msg-2"),
         ]
         result = _prepare_forked_input("Do work.", sa, lambda: messages)
-        assert not any(isinstance(m, ChatMessageSystem) for m in result)
-        assert any(
-            isinstance(m, ChatMessageUser) and "Hello" in str(m.content) for m in result
-        )
+        # System message preserved for prompt cache
+        sys_msgs = [m for m in result if isinstance(m, ChatMessageSystem)]
+        assert len(sys_msgs) == 1
+        assert "You are helpful." in str(sys_msgs[0].content)
+        # Trailing assistant stripped
+        assert not any(isinstance(m, ChatMessageAssistant) for m in result)
 
-    def test_strips_trailing_assistant_with_tool_calls(self) -> None:
+    def test_strips_trailing_assistant_keeps_history(self) -> None:
         from inspect_ai.model._chat_message import ChatMessageSystem
         from inspect_ai.tool._tool_call import ToolCall
 
@@ -258,7 +260,7 @@ class TestPrepareForkedInput:
             ChatMessageSystem(content="System prompt."),
             ChatMessageUser(content="Do two things", id="msg-1"),
             ChatMessageAssistant(
-                content="I'll delegate and search.",
+                content="I'll delegate.",
                 id="msg-2",
                 tool_calls=[
                     ToolCall(
@@ -267,21 +269,15 @@ class TestPrepareForkedInput:
                         arguments={"subagent_type": "forked", "prompt": "x"},
                         type="function",
                     ),
-                    ToolCall(
-                        id="call-other-1",
-                        function="web_search",
-                        arguments={"query": "test"},
-                        type="function",
-                    ),
                 ],
             ),
         ]
         result = _prepare_forked_input("Do work.", sa, lambda: messages)
 
-        # No system messages
-        assert not any(isinstance(m, ChatMessageSystem) for m in result)
+        # System message preserved
+        assert any(isinstance(m, ChatMessageSystem) for m in result)
 
-        # Trailing assistant message with tool calls is stripped
+        # Trailing assistant stripped
         assert not any(isinstance(m, ChatMessageAssistant) for m in result)
 
         # Original user message preserved
@@ -289,6 +285,35 @@ class TestPrepareForkedInput:
             isinstance(m, ChatMessageUser) and "Do two things" in str(m.content)
             for m in result
         )
+
+    def test_subagent_prompt_prepended_to_task(self) -> None:
+        sa = _test_subagent("forked", "Forked agent.")
+        messages: list[ChatMessage] = [
+            ChatMessageUser(content="Hello", id="msg-1"),
+        ]
+        result = _prepare_forked_input("Do the task.", sa, lambda: messages)
+        # Last message is user message with subagent prompt + task prompt
+        last = result[-1]
+        assert isinstance(last, ChatMessageUser)
+        content = str(last.content)
+        assert "research assistant" in content.lower()
+        assert "Do the task." in content
+
+    def test_empty_prompt_transparent_fork(self) -> None:
+        sa = subagent(
+            name="transparent",
+            description="Transparent fork.",
+            prompt="",
+            fork=True,
+        )
+        messages: list[ChatMessage] = [
+            ChatMessageUser(content="Hello", id="msg-1"),
+        ]
+        result = _prepare_forked_input("Do work.", sa, lambda: messages)
+        last = result[-1]
+        assert isinstance(last, ChatMessageUser)
+        # Only the task prompt, no prepended instructions
+        assert str(last.content) == "Do work."
 
         # Ends with the child prompt
         assert isinstance(result[-1], ChatMessageUser)
