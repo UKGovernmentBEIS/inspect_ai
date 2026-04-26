@@ -79,7 +79,9 @@ The `memory()` tool provides a scratchpad for the top-level agent for the durati
 
 Memory is important for long-running agents because it survives context [compaction](compaction.qmd). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. When compaction is enabled, the model is instructed to checkpoint important state to memory before context is reduced, ensuring progress survives across compaction boundaries.
 
-By default, only the top-level agent has memory — subagents do not. Subagents communicate their findings back through their return value, which is the designed channel for information flow. This avoids cross-contamination where subagent scratch notes could pollute the parent's memory. To enable subagent memory access, set `memory="readonly"` or `memory="readwrite"` on individual subagents when [customizing](#sec-customizing-builtins).
+The `memory()` tool is based on Anthropic's [native memory tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool) and binds to it natively on Anthropic models.
+
+By default, only the top-level agent has memory — subagents do not. Subagents communicate their findings back through their return value, which is the designed channel for information flow. This avoids cross-contamination where subagent scratch notes could pollute the parent's memory. If a subagent is given memory access (via `memory="readwrite"` on [customized subagents](#sec-customizing-builtins)), its writes are visible to the parent and to subsequent subagent invocations, since all memory tools share the same underlying store.
 
 ### Planning
 
@@ -367,7 +369,7 @@ Pass `submit=False` to disable the submit tool entirely (the agent will terminat
 
 `deepagent()` supports several additional options from `react()`:
 
-- `retry_refusals` --- Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. See [Refusals](react-agent.qmd#refusals) for details.
+- `retry_refusals` --- Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. If a subagent refuses and retries are exhausted, the refusal text becomes the subagent's return value to the parent. See [Refusals](react-agent.qmd#refusals) for details.
 
 - `on_continue` --- Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](react-agent.qmd#continuation) for details.
 
