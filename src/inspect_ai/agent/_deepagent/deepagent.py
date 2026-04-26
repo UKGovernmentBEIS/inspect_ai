@@ -1,5 +1,6 @@
 """Top-level deep agent assembly."""
 
+from dataclasses import replace
 from typing import Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState, agent
@@ -69,83 +70,82 @@ def deepagent(
             prompt entirely.
         max_depth: Maximum subagent recursion depth.
     """
-    resolved_subagents = (
-        subagents if subagents is not None else [research(), plan(), general()]
-    )
-
-    _apply_web_search(resolved_subagents, web_search, tools)
-    _apply_memory_kill_switch(resolved_subagents, memory)
-    _apply_compaction(resolved_subagents, compaction)
-    _apply_parent_tools_to_general(resolved_subagents, tools)
-
-    # Mutable reference for forked dispatch — points to state.messages
-    # once the agent starts executing
-    _state_ref: list[AgentState | None] = [None]
-
-    def get_messages() -> list[ChatMessage]:
-        return list(_state_ref[0].messages) if _state_ref[0] else []
-
-    # Build task tool
-    parent_tools = list(tools or [])
-    task = task_tool(
-        subagents=resolved_subagents,
-        parent_tools=parent_tools,
-        depth=0,
-        max_depth=max_depth,
-        get_messages=get_messages,
-    )
-
-    # Collect top-level tools
-    all_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
-    all_tools.append(task)
-    if memory:
-        from inspect_ai.tool._tools._memory import memory as memory_tool
-
-        all_tools.append(memory_tool())
-    if todo_write:
-        from inspect_ai.tool._tools._todo_write import todo_write as todo_write_tool
-
-        all_tools.append(todo_write_tool())
-    if skills:
-        from inspect_ai.tool._tools._skill import skill as skill_tool
-
-        all_tools.append(skill_tool(skills))
-
-    # Build system prompt
-    if prompt is not None:
-        system_prompt = expand_prompt_placeholders(
-            prompt,
-            subagents=resolved_subagents,
-            memory=memory,
-            todo_write=todo_write,
-            instructions=instructions,
-        )
-    else:
-        system_prompt = build_system_prompt(
-            subagents=resolved_subagents,
-            memory=memory,
-            todo_write=todo_write,
-            instructions=instructions,
-        )
-
-    agent_prompt = AgentPrompt(
-        instructions=system_prompt,
-        handoff_prompt=None,
-        assistant_prompt=None,
-        submit_prompt=None,
-    )
-
-    inner = react(
-        tools=all_tools,
-        prompt=agent_prompt,
-        model=model,
-        submit=submit,
-        attempts=attempts,
-        compaction=compaction,
-    )
 
     async def execute(state: AgentState) -> AgentState:
-        _state_ref[0] = state
+        # All setup runs per-sample inside execute() so there is no
+        # shared mutable state across concurrent samples.
+        resolved_subagents = (
+            [_clone_subagent(sa) for sa in subagents]
+            if subagents is not None
+            else [research(), plan(), general()]
+        )
+
+        _apply_web_search(resolved_subagents, web_search, tools)
+        _apply_memory_kill_switch(resolved_subagents, memory)
+        _apply_compaction(resolved_subagents, compaction)
+        _apply_parent_tools_to_general(resolved_subagents, tools)
+
+        def get_messages() -> list[ChatMessage]:
+            return list(state.messages)
+
+        parent_tools = list(tools or [])
+        task = task_tool(
+            subagents=resolved_subagents,
+            parent_tools=parent_tools,
+            depth=0,
+            max_depth=max_depth,
+            get_messages=get_messages,
+        )
+
+        all_tools: list[Tool | ToolDef | ToolSource] = list(tools or [])
+        all_tools.append(task)
+        if memory:
+            from inspect_ai.tool._tools._memory import memory as memory_tool
+
+            all_tools.append(memory_tool())
+        if todo_write:
+            from inspect_ai.tool._tools._todo_write import (
+                todo_write as todo_write_tool,
+            )
+
+            all_tools.append(todo_write_tool())
+        if skills:
+            from inspect_ai.tool._tools._skill import skill as skill_tool
+
+            all_tools.append(skill_tool(skills))
+
+        if prompt is not None:
+            system_prompt = expand_prompt_placeholders(
+                prompt,
+                subagents=resolved_subagents,
+                memory=memory,
+                todo_write=todo_write,
+                instructions=instructions,
+            )
+        else:
+            system_prompt = build_system_prompt(
+                subagents=resolved_subagents,
+                memory=memory,
+                todo_write=todo_write,
+                instructions=instructions,
+            )
+
+        agent_prompt = AgentPrompt(
+            instructions=system_prompt,
+            handoff_prompt=None,
+            assistant_prompt=None,
+            submit_prompt=None,
+        )
+
+        inner = react(
+            tools=all_tools,
+            prompt=agent_prompt,
+            model=model,
+            submit=submit,
+            attempts=attempts,
+            compaction=compaction,
+        )
+
         return await inner(state)
 
     return execute
@@ -197,3 +197,18 @@ def _apply_parent_tools_to_general(
     for sa in subagents:
         if sa.name == "general" and sa.tools is None:
             sa.tools = list(tools or [])
+
+
+def _clone_subagent(sa: Subagent) -> Subagent:
+    """Shallow clone a Subagent with fresh list copies.
+
+    Preserves Tool/Model/Limit object identity but avoids mutating the
+    caller's Subagent objects or their list fields.
+    """
+    return replace(
+        sa,
+        tools=list(sa.tools) if sa.tools is not None else None,
+        extra_tools=list(sa.extra_tools) if sa.extra_tools is not None else None,
+        skills=list(sa.skills) if sa.skills is not None else None,
+        limits=list(sa.limits) if sa.limits is not None else None,
+    )
