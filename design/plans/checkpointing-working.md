@@ -32,11 +32,11 @@ For an eval log `foo.eval`, checkpoints live in a sibling directory `foo.eval.ch
 logs/
   foo.eval                                   # existing eval log
   foo.eval.checkpoints/                      # sibling dir (default)
-    manifest.json                            # minimal header:
-                                             #   eval_id (to pair with log),
+    manifest.json                            # eval-level header:
+                                             #   eval_id (pairs with log),
                                              #   layout version,
                                              #   engine = "restic",
-                                             #   restic repo password
+                                             #   restic password
     <sample-id>__<epoch>[_<retry>]/          # one subtree per attempt.
                                              #   <epoch>: inspect's existing
                                              #   per-sample multi-pass concept.
@@ -44,25 +44,45 @@ logs/
                                              #   sample-level retries are
                                              #   enabled (another existing
                                              #   inspect concept).
-      sandboxes/                             # sandbox state (see §4)
-        <sandbox-name-1>/                    # restic repo for sandbox 1
+      ckpt-00001.json                        # per-checkpoint sidecar
+      ckpt-00002.json                        #   (plaintext index;
+      ...                                    #    sidecar write is the
+                                             #    commit point — see §4d).
+      host/                                  # restic repo: host state.
+                                             #   each snapshot contains
+                                             #   context.json + store.json
+                                             #   (see §5).
+        config data/ index/ snapshots/ keys/ locks/
+      sandboxes/
+        <sandbox-name-1>/                    # restic repo: sandbox 1's
+                                             #   $HOME (see §4).
           config data/ index/ snapshots/ keys/ locks/
-        <sandbox-name-2>/                    # restic repo for sandbox 2
-          ...
-      checkpoints/
-        <checkpoint-id>/                     # one subdir per checkpoint
-          metadata.json                      # seq, trigger, turn #,
-                                             #   created-at, status
-          context.json                       # messages + condensed events +
-                                             #   events_data (messages/calls
-                                             #   pools)
-          store.json                         # Store key/values
-          sandbox-refs.json                  # { <sandbox-name>: <snapshot-id> }
-        <checkpoint-id>/
+        <sandbox-name-2>/                    # restic repo: sandbox 2's
+                                             #   $HOME.
           ...
     <sample-id>__<epoch>[_<retry>]/
       ...
 ```
+
+A **checkpoint** is identified by an ordinal integer (1, 2, 3, …) chosen by inspect at write time. Each per-checkpoint sidecar (`ckpt-NNNNN.json`, zero-padded for lexical sort) carries the customer-facing metadata and references into the restic repos:
+
+```json
+{
+  "checkpoint_id": 42,
+  "trigger": "time",
+  "turn": 137,
+  "created_at": "2026-04-26T14:23:11Z",
+  "duration_ms": 842,
+  "size_bytes": 1834291,
+  "host_snapshot_id": "<restic snapshot id>",
+  "sandboxes": {
+    "default":  "<restic snapshot id>",
+    "tools":    "<restic snapshot id>"
+  }
+}
+```
+
+Listing checkpoints for an attempt is `ls <attempt>/ckpt-*.json` — no restic invocation needed. Restic snapshots are also tagged with the ordinal as a debugging aid / fallback if a sidecar is lost; the sidecar is the authoritative index.
 
 Inspect already supports both multiple **epochs** per sample (an
 existing feature — multi-pass evaluation of the same sample) and
@@ -89,11 +109,13 @@ Inspect provides checkpointing support at two layers:
 -   **Built-in React agent.** The React agent accepts an optional `CheckpointConfig` and supports all policies out of the box. It serves as the reference consumer of the underlying primitives.
 -   **Primitives for custom agents.** Custom agents follow the same pattern: accept a `CheckpointConfig` parameter and delegate to inspect-provided primitives — capture state, write checkpoint, restore from checkpoint, policy hooks — rather than reimplementing the machinery. The agent author does **not** track policy state (time elapsed, turns since last checkpoint); inspect's helpers consume the `CheckpointConfig` and fire a checkpoint when the policy says to. The boilerplate to add checkpoint support to a custom agent is minimal.
 
-## 4. Sandbox snapshotting
+## 4. Snapshotting
 
 ### 4a. Scope
 
-The agent's **home directory** inside the sandbox — typically `$HOME`, which is `/root` for inspect's default sandbox user. Fixed path per container convention; not configurable in v1. Anything the agent writes outside this path (`/tmp`, `/workspace`, `/opt/...`) is not captured and will not be restored on resume.
+**Sandbox repos** capture the agent's **home directory** inside each sandbox — typically `$HOME`, which is `/root` for inspect's default sandbox user. Fixed path per container convention; not configurable in v1. Anything the agent writes outside this path (`/tmp`, `/workspace`, `/opt/...`) is not captured and will not be restored on resume.
+
+**Host repo** captures a small per-attempt host-local working tree containing exactly two files (`context.json`, `store.json`) — see §5.
 
 ### 4b. Engine: restic
 
@@ -107,33 +129,89 @@ The agent's **home directory** inside the sandbox — typically `$HOME`, which i
 
 See Appendix A for a fuller characteristics summary and Appendix B for the egress protocol.
 
-### 4c. Repository and snapshot scoping
+### 4c. Acquisition
 
--   **One restic repo per sandbox** Repos live at peer level to `checkpoints/` — at `<sample-id>__<epoch>[_<retry>]/sandboxes/<sandbox-name>/` — rather than nested under each checkpoint subdir, because restic's unit of storage is a repository and individual checkpoints are *snapshots within* a repository.
--   **Snapshots correlate 1:1 with checkpoint ids.** Every checkpoint id has a corresponding snapshot in every active sandbox's repo. The per-checkpoint `sandbox-refs.json` maps `<sandbox-name>` → snapshot id, and the snapshot is **tagged** with the checkpoint id (via restic's `--tag`) so the correlation is recoverable from restic alone if the sidecar is lost.
+Restic is a foreign Go binary, not built from inspect's source. Inspect bundles it for both **sandbox** (injected into sandbox containers per §4e) and **host** (used directly by the eval process for the host repo).
 
-### 4d. Injection
+**Pinned version, single source of truth.** A restic version is pinned in `restic_version.txt` alongside the existing `sandbox_tools_version.txt`. The file holds just the version string (e.g. `0.18.1`). The same version is used everywhere — wheel build, host resolver, sandbox injection. Restic's repo format is stable within a major version, but pinning the exact version on both sides removes any compatibility ambiguity.
 
-The restic binary must be injected into the sandbox image — it runs inside the sandbox to enumerate and snapshot the home directory. Implemented by adding it to the existing sandbox-tools injection pipeline (`src/inspect_sandbox_tools/`).
+**Filename convention.** Inspect uses restic's own published filenames verbatim — no renaming. Given a pinned version *V* (e.g. `0.18.1`), the four expected files are:
 
-### 4e. Egress
+-   `restic_{V}_linux_amd64.bz2` — covers most sandboxes and linux hosts.
+-   `restic_{V}_linux_arm64.bz2` — covers arm sandboxes and graviton-class linux hosts.
+-   `restic_{V}_darwin_amd64.bz2` — intel mac hosts.
+-   `restic_{V}_darwin_arm64.bz2` — apple silicon mac hosts.
 
-**Host-mediated copy-out.** Restic writes to a sandbox-local staging path; inspect copies the data out via the standard sandbox exec/copy API to the configured checkpoint destination (local filesystem or `s3://`). Works uniformly across destinations; **no storage credentials are ever plumbed into the sandbox.** Egress protocol sketch in Appendix B.
+Total bundle weight ~36 MB compressed. Windows is not bundled in v1; the runtime download fallback below would still attempt to fetch a Windows binary if anyone tried, but it's not a v1 commitment.
 
-### 4f. Encryption
+The download URL follows the same naming: `https://github.com/restic/restic/releases/download/v{V}/restic_{V}_{os}_{arch}.bz2`.
 
-Restic mandates encryption. Inspect **auto-generates** a random password per repo at checkpoint-creation time and stores it in `manifest.json` alongside the repo reference. Encryption is effectively nominal — anyone with access to the checkpoint directory has the key — but operational burden on customers is zero. Customers requiring real at-rest encryption should place the checkpoint directory on an encrypted volume or bucket. A future user-provided-password mode can be added without breaking the auto-generate default.
+**Release-time fetch.** The PyPI release script (`scripts/pypi-release.py`) reads `restic_version.txt`, downloads the four platform `.bz2` files from restic's GitHub releases, verifies SHA256 against the published `SHA256SUMS` file, and stages them under `src/inspect_ai/binaries/` using the same upstream filenames. They ship in the wheel as package data — same approach the existing sandbox-tools pipeline uses, with one difference: we never build restic, only fetch.
 
-## 5. Context-window serialization
+**Runtime resolution.** Three-tier fallback (no fourth-tier "build locally" — restic is upstream and we never build it):
 
-Messages and events use the same **condensed representation** as inside a `.eval` log which avoids the O(N²) serialization cost. Each checkpoint writes a single `context.json` containing:
+1.  **Decompressed cache** — look up `~/.cache/inspect/bin/restic_{V}_{os}_{arch}`. Hot path: subsequent runs skip both decompression and download.
+2.  **Bundled compressed** — on cache miss, look up `src/inspect_ai/binaries/restic_{V}_{os}_{arch}.bz2`. If present (the pypi-install case), decompress into the cache, populating tier 1.
+3.  **Download** — if both miss (editable install with no bundle, or an unsupported platform whose user wants to try anyway), download from restic's GitHub releases at runtime, verify SHA256, decompress into the cache.
 
--   Events in condensed form (with `input_refs` / `call_refs`).
--   Deduplication pools (`events_data` with `messages` and `calls`).
+The same resolver is used by the host process to obtain restic for host-repo writes and by the sandbox-tools injection code to obtain the linux-arch binary it copies into the sandbox.
 
-Reuses `condense_sample()` / `resolve_sample_events_data()` from `src/inspect_ai/log/_pool.py` and `_condense.py`. Not a `.eval` file; no zip coupling.
+**Verification.** SHA256 in v1; restic publishes `SHA256SUMS` per release. GPG verification against restic's signing key is a future enhancement.
 
-`store.json` is a separate file containing the sample's `Store` key/value state.
+**macOS Gatekeeper.** macOS attaches a `com.apple.quarantine` extended attribute to files downloaded by browsers (Safari, Chrome) and similar UI tools; Gatekeeper checks quarantined binaries against Apple notarization and blocks unnotarized binaries with a modal dialog. Restic is unsigned and unnotarized, so manually downloading and decompressing a `restic_*.bz2` via a browser will trigger Gatekeeper on first execution.
+
+**Programmatic downloads via Python's stdlib do not set the quarantine xattr** — verified empirically. Both inspect's tier-3 download path (`urllib.request` + `bz2`) and tier-2 wheel-bundled path produce executable binaries that run without prompting. The user-visible Gatekeeper failure is limited to users who manually stage a browser-downloaded binary into a path the resolver picks up (e.g. via an override env var). The verified pattern:
+
+```python
+import bz2
+import shutil
+import stat
+import urllib.request
+from pathlib import Path
+
+VERSION = "0.18.1"
+OS_ARCH = "darwin_arm64"  # or linux_amd64, linux_arm64, darwin_amd64
+URL = f"https://github.com/restic/restic/releases/download/v{VERSION}/restic_{VERSION}_{OS_ARCH}.bz2"
+
+compressed = Path(f"restic_{VERSION}_{OS_ARCH}.bz2")
+binary = Path(f"restic_{VERSION}_{OS_ARCH}")
+
+urllib.request.urlretrieve(URL, compressed)
+with bz2.open(compressed, "rb") as src, open(binary, "wb") as dst:
+    shutil.copyfileobj(src, dst)
+binary.chmod(binary.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+```
+
+### 4d. Repository and snapshot scoping
+
+-   **N+1 restic repos per attempt:** one `host/` repo plus one `sandboxes/<sandbox-name>/` repo per active sandbox. Every repo lives **at the destination** — there is no separate "active" or "mirror" concept. The path to a repo on disk (or in s3) *is* the repo.
+-   **Snapshots correlate 1:1 with checkpoint ids.** For every committed checkpoint, the host repo and each sandbox repo contain a snapshot tagged with the checkpoint's ordinal. The per-checkpoint sidecar (§1) is the authoritative mapping from checkpoint id to restic snapshot ids; restic tags are a debugging aid / fallback.
+-   **Commit point = atomic sidecar write.** Each cycle: write all sandbox snapshots, write the host snapshot, then atomically write `ckpt-NNNNN.json` (single-object PUT on s3; write-temp-then-rename on local). A checkpoint is visible to resume only when its sidecar exists. Crashed cycles leave tagged-but-unreferenced restic snapshots — orphan garbage, recoverable but not visible.
+
+### 4e. Injection
+
+The restic binary must be injected into the sandbox image — it runs inside the sandbox to enumerate and snapshot the home directory. Implemented by extending the existing sandbox-tools injection mechanism (`src/inspect_sandbox_tools/`) to also inject the linux-arch restic binary obtained via §4c at a stable path inside the sandbox (e.g., `/opt/restic`).
+
+### 4f. Egress
+
+**Sandbox repos** are populated indirectly. Restic running inside the sandbox writes new pack files into a transient in-sandbox **egress buffer** (no storage creds in the sandbox). After each snapshot, inspect ships the new pack files out via the standard sandbox exec/copy API and appends them to the sandbox repo at the destination (local filesystem or `s3://`). Works uniformly across destinations. Protocol sketch in Appendix B.
+
+**Host repo** has no egress step. The host process holds storage creds and uses restic's native backend (local FS, S3, GCS, …) to write directly to the destination.
+
+### 4g. Encryption
+
+Restic mandates encryption. Inspect **auto-generates** a random password per eval at checkpoint-directory creation time and stores it in `manifest.json`. The same password is used for every repo (host + each sandbox) under that eval. Encryption is effectively nominal — anyone with access to the checkpoint directory has the key — but operational burden on customers is zero. Customers requiring real at-rest encryption should place the checkpoint directory on an encrypted volume or bucket. A future user-provided-password mode can be added without breaking the auto-generate default.
+
+## 5. Host snapshot contents
+
+Each host-repo snapshot contains exactly two files, sourced from a host-local working tree at checkpoint time:
+
+-   **`context.json`** — messages and events in the same **condensed representation** used inside a `.eval` log (avoids the O(N²) serialization cost). Carries events in condensed form (with `input_refs` / `call_refs`) and deduplication pools (`events_data` with `messages` and `calls`). Reuses `condense_sample()` / `resolve_sample_events_data()` from `src/inspect_ai/log/_pool.py` and `_condense.py`. Not a `.eval` file; no zip coupling.
+-   **`store.json`** — the sample's `Store` key/value state.
+
+Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
+
+The host working tree is host-local and ephemeral (not at the destination). Restic needs a real local-filesystem source path even when the destination is on s3; the working tree is overwritten in place each cycle.
 
 ## 6. Resumption
 
@@ -170,10 +248,12 @@ Identity and completion discovery come from the log plus existing retry infrastr
 
 The **harness** performs the full restoration before the agent runs:
 
-1.  Restore the sandbox from the corresponding restic snapshot.
-2.  Rehydrate the context window (messages + events) into ambient inspect state.
-3.  Rehydrate the `Store` into ambient inspect state.
-4.  Invoke the agent with `resume=True`.
+1.  Read the chosen `ckpt-NNNNN.json` sidecar → host snapshot id + per-sandbox snapshot ids.
+2.  Restore each sandbox from its tagged snapshot in the sandbox repo.
+3.  Restore the host snapshot to a local working dir; parse `context.json` and `store.json`.
+4.  Rehydrate the context window (messages + events) into ambient inspect state.
+5.  Rehydrate the `Store` into ambient inspect state.
+6.  Invoke the agent with `resume=True`.
 
 The **agent** does not re-open the checkpoint, does not re-materialize the sandbox, and does not re-parse stored state.
 
@@ -206,7 +286,7 @@ Handling `resume=True` is not strictly required — an agent that ignores the pa
 
 ### 8a. CheckpointEvent
 
-Each checkpoint attempt emits a structured `CheckpointEvent` into the normal event stream, carrying at minimum: `seq`, `trigger` (time/turn/manual), outcome (success/failure), duration, on-disk size, and — on failure — the error. Events are part of the `.eval` log, so checkpoint history is preserved in the normal log. No dedicated checkpoint journal file in v1.
+Each checkpoint attempt emits a structured `CheckpointEvent` into the normal event stream, carrying at minimum: `checkpoint_id`, `trigger` (time/turn/manual), outcome (success/failure), duration, on-disk size, and — on failure — the error. Events are part of the `.eval` log, so checkpoint history is preserved in the normal log. No dedicated checkpoint journal file in v1.
 
 ### 8b. TUI surface
 
@@ -229,9 +309,7 @@ Known risk under the unlimited default: a customer not monitoring the event stre
 ## 9. Open questions
 
 -   **Retention granularity: eval-complete vs. sample-complete.** §8d says checkpoints are deleted "on successful eval completion." Open: should a sample's checkpoint subtree instead be deleted (or at least eligible for deletion) as soon as *that sample* completes successfully, rather than waiting for the whole eval to finish? Eval-complete is simpler and keeps everything available until the run is done; sample-complete reclaims space sooner and scales better for evals with many long-running samples. Interacts with retain-forever (which would presumably still hold things until eval end).
--   **Checkpoint atomicity.** How do we guarantee a checkpoint is either fully written or ignored on resume after a mid-write crash? Deferred.
--   **Checkpoint-id naming.** Monotonic seq, UUID, or timestamp? Monotonic reads most naturally for humans.
--   **Engine commitment.** Restic is strongly preferred but not formally committed. Alternatives (borg, kopia, rsync-based, custom) remain theoretically on the table.
+-   **Engine commitment.** Restic is strongly preferred but not formally committed. The case is stronger now that it's used on both halves (host repo + sandbox repos); alternatives (borg, kopia, rsync-based, custom) remain theoretically on the table.
 
 ## Appendix A — Restic characteristics
 
@@ -250,26 +328,26 @@ Notes from a scan of restic's documentation.
 
 **Caveats:**
 
--   **Mandatory encryption** (AES-256-CTR + Poly1305-AES, password-derived master key). Not optional, even for local non-sensitive repos. See §4f for password handling.
--   **Locking model.** At most one process can hold an exclusive lock on a repository. Drives the per-sandbox-repo decision in §1c.
+-   **Mandatory encryption** (AES-256-CTR + Poly1305-AES, password-derived master key). Not optional, even for local non-sensitive repos. See §4g for password handling.
+-   **Locking model.** At most one process can hold an exclusive lock on a repository. Drives the per-sandbox-repo decision in §4d.
 -   Pack files are already a bundle (deduplication-aware). An outer tar around restic's output is likely redundant for size but may still help egress round-trip count when copying many pack files.
 
-## Appendix B — Restic egress protocol (design sketch)
+## Appendix B — Sandbox egress protocol (design sketch)
 
-Concrete design for the host-mediated egress path in §4e. Written against Docker specifically (using `docker cp` as the copy-out primitive); generalizes to any sandbox provider by substituting inspect's standard sandbox exec/copy API for `docker cp`. Starting point for implementation, not yet end-to-end validated.
+Concrete design for §4f, by which sandbox-side restic produces pack files inside the sandbox and inspect ships them into the sandbox repo at the destination. Written against Docker specifically (using `docker cp` as the copy-out primitive); generalizes to any sandbox provider by substituting inspect's standard sandbox exec/copy API for `docker cp`. Starting point for implementation, not yet end-to-end validated.
 
 ### Overview
 
-A network-isolated Docker container maintains a local restic repository for checkpoint snapshots. After each snapshot, incremental changes are egressed to a host-side mirror repository via `docker cp`. The host-side repo is a valid restic repository usable for restore, check, and prune operations.
+Inside each sandbox, restic writes pack files into a transient **egress buffer** at a fixed path. After each snapshot, new pack files are egressed via `docker cp` and appended to the sandbox repo at the destination. The buffer is not a persistent repo from the design's perspective — it's a holding area for pack files awaiting shipment. The destination repo is the only restic repository that appears in the layout (§1).
 
-### Key property: append-only repository
+### Key property: append-only writes
 
-With normal `restic backup` operations (no `prune`, `forget`, or `rebuild-index` inside the container), the repo is effectively append-only:
+With normal `restic backup` operations inside the sandbox (no `prune`, `forget`, or `rebuild-index`), egressed content is append-only at the destination:
 
 -   `data/` pack files — immutable, content-addressed.
 -   `snapshots/` — immutable, content-addressed.
--   `index/` — new files added; occasional consolidation may delete superseded index files (harmless — mirror accumulates a superset).
--   `config`, `keys/` — written at init, never modified.
+-   `index/` — new files added; occasional consolidation may delete superseded index files (harmless — destination accumulates a superset).
+-   `config`, `keys/` — written at buffer init, never modified.
 -   `locks/` — transient, excluded from egress.
 
 Because filenames are content hashes, filename-level presence checks suffice to identify new files; no content comparison needed.
@@ -280,10 +358,10 @@ Each snapshot cycle:
 
 1.  **Host → Container:** "Take snapshot, egress sequence N."
 2.  **Container:** Runs `restic backup`, waits for lock release.
-3.  **Container:** Diffs current repo contents against an egress manifest (list of filenames previously egressed) to find new files.
+3.  **Container:** Diffs current buffer contents against an egress manifest (list of filenames previously egressed) to find new files.
 4.  **Container:** Creates `/tmp/egress-N.tar` containing new files in order: `data/` first, then `index/`, then `snapshots/`. Returns tarball path and file list.
-5.  **Host:** `docker cp`s the tarball out, extracts into the host repo.
-6.  **Host:** Verifies integrity (minimum: `restic -r /host/repo snapshots` succeeds).
+5.  **Host:** `docker cp`s the tarball out, extracts into the destination's sandbox repo.
+6.  **Host:** Verifies integrity (minimum: `restic -r <destination> snapshots` succeeds).
 7.  **Host → Container:** "Commit N."
 8.  **Container:** Updates manifest, deletes tarball.
 
@@ -291,10 +369,10 @@ Each snapshot cycle:
 
 -   **Manifest-based diff, not mtime-based.** Container maintains a sorted list of already-egressed filenames. Robust to clock skew, container restarts, and partial failures.
 -   **Two-phase commit on the manifest.** Container does not advance its manifest until the host confirms successful extraction. Prevents state divergence if egress fails between tar creation and host extraction.
--   **Ordered tar contents** (`data/` → `index/` → `snapshots/`). The host repo is valid at every intermediate state. A crashed extraction leaves the mirror missing the newest snapshot, never with a dangling snapshot referencing missing data.
--   **Tarball lives outside the repo** (`/tmp/`) to keep the repo directory clean.
--   **No `prune` / `forget` inside the container.** These break the append-only property. Run them on the host-side mirror instead, accepting that the container repo grows monotonically until the container is torn down.
+-   **Ordered tar contents** (`data/` → `index/` → `snapshots/`). The destination is valid at every intermediate state. A crashed extraction leaves the destination missing the newest snapshot, never with a dangling snapshot referencing missing data.
+-   **Tarball lives outside the buffer** (`/tmp/`) to keep the buffer directory clean.
+-   **No `prune` / `forget` inside the container.** These break the append-only property. Run them on the destination instead, accepting that the in-sandbox buffer grows monotonically until the container is torn down.
 
 ### Open question (scoped to this appendix)
 
-Container lifecycle — if ephemeral across snapshots, the manifest must live in the repo or be passed in by the host each cycle. If long-lived, it can be container-local state.
+Container lifecycle — if ephemeral across snapshots, the manifest must live in the buffer or be passed in by the host each cycle. If long-lived, it can be container-local state.
