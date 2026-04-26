@@ -43,6 +43,8 @@ remove stale entries to keep memory organized.
 Use the plan tool to track high-level task decomposition. Mark steps
 in progress as you start them and completed as you finish. If your
 understanding changes mid-task, update the plan before continuing.
+Before finishing, reconcile every TODO item: confirm each is completed
+or no longer relevant.
 """.strip()
 
 MEMORY_ONLY_INSTRUCTIONS = """
@@ -58,6 +60,8 @@ PLAN_ONLY_INSTRUCTIONS = """
 Use the plan tool to track high-level task decomposition. Mark steps
 in progress as you start them and completed as you finish. If your
 understanding changes mid-task, update the plan before continuing.
+Before finishing, reconcile every TODO item: confirm each is completed
+or no longer relevant.
 """.strip()
 
 
