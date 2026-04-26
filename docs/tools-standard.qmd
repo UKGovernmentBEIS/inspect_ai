@@ -678,7 +678,7 @@ read_file()
 read_file(timeout=30, user="nobody")
 ```
 
-The model can specify `start_line` and `end_line` parameters to read a range. Output includes line numbers for reference.
+The model can specify `offset` (0-indexed line to start from) and `limit` (max lines to read) for pagination. Output includes line numbers for reference.
 
 ### list_files
 
@@ -710,7 +710,7 @@ grep()
 grep(timeout=60)
 ```
 
-The model can specify a `pattern`, `path`, optional `include` glob (e.g. `"*.py"`), and `fixed_strings` flag for literal matching. Results include file paths and line numbers.
+The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Results include file paths and line numbers by default.
 
 ### Task Setup
 
