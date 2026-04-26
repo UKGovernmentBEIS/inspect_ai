@@ -85,11 +85,20 @@ def build_subagent_dispatch(subagents: list[Subagent]) -> str:
         "current conversation state."
     )
     lines.append("")
-    lines.append(
-        "When delegating, include all necessary context in the prompt — "
-        "the subagent cannot see your conversation history. Be specific "
-        "about what information you need back."
-    )
+    has_forked = any(sa.fork for sa in subagents)
+    if has_forked:
+        lines.append(
+            "When delegating to non-forked subagents, include all necessary "
+            "context in the prompt — they cannot see your conversation "
+            "history. Forked subagents already have your full conversation "
+            "context. Be specific about what information you need back."
+        )
+    else:
+        lines.append(
+            "When delegating, include all necessary context in the prompt — "
+            "the subagent cannot see your conversation history. Be specific "
+            "about what information you need back."
+        )
     return "\n".join(lines)
 
 

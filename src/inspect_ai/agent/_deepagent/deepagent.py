@@ -134,9 +134,11 @@ def deepagent(
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
         all_tools.append(task)
         if memory:
+            from inspect_ai.agent._deepagent.task_tool import _has_memory_tool
             from inspect_ai.tool._tools._memory import memory as memory_tool
 
-            all_tools.append(memory_tool())
+            if not _has_memory_tool(all_tools):
+                all_tools.append(memory_tool())
         if skills:
             from inspect_ai.tool._tools._skill import skill as skill_fn
 

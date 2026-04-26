@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Callable, Sequence
 if TYPE_CHECKING:
     from inspect_ai.tool._tools._skill import Skill
 
+from shortuuid import uuid as shortuuid
+
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
@@ -84,6 +86,8 @@ def task_tool(
                 get_messages,
             )
 
+            agent_span_id = shortuuid()
+
             if sa.fork:
                 child_agent = react(
                     name=sa.name,
@@ -94,8 +98,10 @@ def task_tool(
                     submit=False,
                     compaction=sa.compaction,
                 )
-                input = _prepare_forked_input(prompt, sa, get_messages)
-                return await _dispatch_forked(child_agent, sa, input)
+                input, from_message = _prepare_forked_input(prompt, sa, get_messages)
+                result = await _dispatch_forked(
+                    child_agent, sa, input, from_message, span_id=agent_span_id
+                )
             else:
                 child_agent = react(
                     name=sa.name,
@@ -106,7 +112,10 @@ def task_tool(
                     submit=False,
                     compaction=sa.compaction,
                 )
-                return await _dispatch(child_agent, sa, prompt)
+                result = await _dispatch(child_agent, sa, prompt, span_id=agent_span_id)
+
+            execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
+            return result
 
         execute.__doc__ = tool_description
         return execute
@@ -120,7 +129,8 @@ def _build_task_description(subagents: list[Subagent]) -> str:
     lines = ["Delegate a task to a specialized subagent.\n"]
     lines.append("Available subagent types:\n")
     for sa in subagents:
-        lines.append(f"- **{sa.name}**: {sa.description}")
+        suffix = " (has conversation context)" if sa.fork else ""
+        lines.append(f"- **{sa.name}**: {sa.description}{suffix}")
     lines.append("")
     lines.append(
         "Delegate when the work is complex, independent, or would benefit "
@@ -128,14 +138,22 @@ def _build_task_description(subagents: list[Subagent]) -> str:
         "lookup or single tool call."
     )
     lines.append("")
+    has_forked = any(sa.fork for sa in subagents)
     lines.append("Args:")
     lines.append("    subagent_type: Which subagent to use.")
-    lines.append(
-        "    prompt: Detailed instructions for the subagent. Include"
-        " all necessary context — the subagent starts with a fresh"
-        " context and cannot see your conversation history unless"
-        " it uses forked mode."
-    )
+    if has_forked:
+        lines.append(
+            "    prompt: Detailed instructions for the subagent. Non-forked"
+            " subagents start with a fresh context and cannot see your"
+            " conversation history — include all necessary context for them."
+            " Forked subagents already have your full conversation context."
+        )
+    else:
+        lines.append(
+            "    prompt: Detailed instructions for the subagent. Include"
+            " all necessary context — the subagent starts with a fresh"
+            " context and cannot see your conversation history."
+        )
     lines.append("    task_description: Brief description of the task.")
     return "\n".join(lines)
 
@@ -144,17 +162,20 @@ async def _dispatch(
     agent: Agent,
     sa: Subagent,
     input: str | list[ChatMessage],
+    span_id: str | None = None,
 ) -> str:
     from copy import deepcopy
 
     # deepcopy limits per dispatch — Limit objects are single-use
     limits = deepcopy(sa.limits) if sa.limits else []
     if limits:
-        state, limit_error = await run(agent, input=input, limits=limits, name=sa.name)
+        state, limit_error = await run(
+            agent, input=input, limits=limits, name=sa.name, span_id=span_id
+        )
         if limit_error:
-            return f"Subagent '{sa.name}' stopped: {limit_error}"
+            return f"Subagent '{sa.name}' stopped: {limit_error.message}"
     else:
-        state = await run(agent, input=input, name=sa.name)
+        state = await run(agent, input=input, name=sa.name, span_id=span_id)
     return _extract_result(state)
 
 
@@ -162,24 +183,25 @@ async def _dispatch_forked(
     agent: Agent,
     sa: Subagent,
     input: list[ChatMessage],
+    from_message: str,
+    span_id: str | None = None,
 ) -> str:
     from inspect_ai.event._timeline import timeline_branch
     from inspect_ai.util._span import current_span_id
 
     from_span = current_span_id() or ""
-    from_message = _last_message_id(input)
 
     async with timeline_branch(
         name=sa.name, from_span=from_span, from_message=from_message
     ):
-        return await _dispatch(agent, sa, input)
+        return await _dispatch(agent, sa, input, span_id=span_id)
 
 
 def _prepare_forked_input(
     prompt: str,
     sa: Subagent,
     get_messages: Callable[[], list[ChatMessage]] | None,
-) -> list[ChatMessage]:
+) -> tuple[list[ChatMessage], str]:
     if get_messages is None:
         raise ToolError(
             f"Forked dispatch for '{sa.name}' requires parent messages, "
@@ -194,11 +216,14 @@ def _prepare_forked_input(
     if messages and isinstance(messages[-1], ChatMessageAssistant):
         messages.pop()
 
+    # Capture branch point before appending the synthetic child prompt.
+    from_message = _last_message_id(messages)
+
     content = prompt
     if sa.prompt:
         content = f"{sa.prompt}\n\n{content}"
     messages.append(ChatMessageUser(content=content, source="input"))
-    return messages
+    return messages, from_message
 
 
 def _extract_result(state: AgentState) -> str:
@@ -240,6 +265,18 @@ def _apply_subagent_type_enum(tool: Tool, subagents: list[Subagent]) -> None:
     )
 
 
+def _has_memory_tool(tools: list[Tool | ToolDef | ToolSource]) -> bool:
+    from inspect_ai._util.registry import is_registry_object, registry_unqualified_name
+
+    for t in tools:
+        if is_registry_object(t):
+            if registry_unqualified_name(t) == "memory":
+                return True
+        elif isinstance(t, ToolDef) and t.name == "memory":
+            return True
+    return False
+
+
 def _resolve_tools(
     sa: Subagent,
     subagents: list[Subagent],
@@ -257,11 +294,11 @@ def _resolve_tools(
         tools.extend(_default_readonly_tools())
     if sa.extra_tools is not None:
         tools.extend(sa.extra_tools)
-    if sa.memory == "readwrite":
+    if sa.memory == "readwrite" and not _has_memory_tool(tools):
         from inspect_ai.tool._tools._memory import memory
 
         tools.append(memory())
-    elif sa.memory == "readonly":
+    elif sa.memory == "readonly" and not _has_memory_tool(tools):
         from inspect_ai.tool._tools._memory import memory
 
         tools.append(memory(readonly=True))

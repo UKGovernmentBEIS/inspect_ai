@@ -381,7 +381,9 @@ class TestPrepareForkedInput:
             ChatMessageUser(content="Hello", id="msg-1"),
             ChatMessageAssistant(content="Hi there", id="msg-2"),
         ]
-        result = _prepare_forked_input("Do work.", sa, lambda: messages)
+        result, from_message = _prepare_forked_input("Do work.", sa, lambda: messages)
+        # Branch point is the last parent message before the synthetic prompt
+        assert from_message == "msg-1"
         # System message preserved for prompt cache
         sys_msgs = [m for m in result if isinstance(m, ChatMessageSystem)]
         assert len(sys_msgs) == 1
@@ -410,7 +412,9 @@ class TestPrepareForkedInput:
                 ],
             ),
         ]
-        result = _prepare_forked_input("Do work.", sa, lambda: messages)
+        result, from_message = _prepare_forked_input("Do work.", sa, lambda: messages)
+        # Branch point is the user message (assistant was stripped)
+        assert from_message == "msg-1"
 
         # System message preserved
         assert any(isinstance(m, ChatMessageSystem) for m in result)
@@ -429,7 +433,10 @@ class TestPrepareForkedInput:
         messages: list[ChatMessage] = [
             ChatMessageUser(content="Hello", id="msg-1"),
         ]
-        result = _prepare_forked_input("Do the task.", sa, lambda: messages)
+        result, from_message = _prepare_forked_input(
+            "Do the task.", sa, lambda: messages
+        )
+        assert from_message == "msg-1"
         # Last message is user message with subagent prompt + task prompt
         last = result[-1]
         assert isinstance(last, ChatMessageUser)
@@ -447,7 +454,8 @@ class TestPrepareForkedInput:
         messages: list[ChatMessage] = [
             ChatMessageUser(content="Hello", id="msg-1"),
         ]
-        result = _prepare_forked_input("Do work.", sa, lambda: messages)
+        result, from_message = _prepare_forked_input("Do work.", sa, lambda: messages)
+        assert from_message == "msg-1"
         last = result[-1]
         assert isinstance(last, ChatMessageUser)
         # Only the task prompt, no prepended instructions
