@@ -21,7 +21,7 @@ from .subagent import Subagent
 from .task_tool import task_tool
 
 
-@agent
+@agent(description="Autonomous agent for complex, multi-step tasks.")
 def deepagent(
     *,
     tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
