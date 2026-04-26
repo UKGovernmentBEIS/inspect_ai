@@ -77,7 +77,7 @@ Subagents run in isolated context by default. Each gets a fresh message history 
 
 The `memory()` tool provides a scratchpad shared across the parent and all subagents for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.
 
-Memory is important for long-running agents because it survives context [compaction](compaction.qmd). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress.
+Memory is important for long-running agents because it survives context [compaction](compaction.qmd). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. When compaction is enabled, the model is instructed to checkpoint important state to memory before context is reduced, ensuring progress survives across compaction boundaries.
 
 The `research()` and `plan()` subagents have read-only memory access (they can view but not modify entries), while `general()` has full read-write access.
 
