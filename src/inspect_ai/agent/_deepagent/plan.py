@@ -6,6 +6,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import Limit
 
 from .subagent import Subagent
+from .subagent import subagent as subagent_factory
 
 DEFAULT_PLAN_PROMPT = """
 You are a planning agent. Your job is to analyze a task and produce a
@@ -64,12 +65,12 @@ def plan(
 
     resolved_tools = None if tools == "default" else list(tools)
 
-    return Subagent(
+    return subagent_factory(
         name="plan",
         description="Structured planning and task decomposition.",
         prompt=prompt,
         tools=resolved_tools,
-        extra_tools=list(extra_tools) if extra_tools else None,
+        extra_tools=extra_tools,
         model=model,
         fork=fork,
         memory=memory,
