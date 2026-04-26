@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Sequence
 
 from inspect_ai.model._compaction import CompactionStrategy
@@ -37,7 +38,7 @@ class Subagent:
     and avoid errors from incompatible tool call formats or reasoning
     content in the inherited message history."""
 
-    skills: list[Skill] | None = None
+    skills: list[str | Path | Skill] | None = None
     """Subagent-specific skills. Merged with parent skills at dispatch
     time — the subagent sees both parent and its own skills."""
 
@@ -61,7 +62,7 @@ def subagent(
     extra_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     model: str | Model | None = None,
     fork: bool = False,
-    skills: list[Skill] | None = None,
+    skills: list[str | Path | Skill] | None = None,
     memory: Literal["readwrite", "readonly"] | bool = "readonly",
     limits: list[Limit] | None = None,
     compaction: CompactionStrategy | None = None,

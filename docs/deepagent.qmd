@@ -147,21 +147,13 @@ Tools passed to `deepagent()` do not automatically flow to the `research()` or `
 
 ## Skills
 
-Skills are structured task packages (bundles of instructions, scripts, and references) that agents can invoke via a `skill()` tool. Pass them to `deepagent()` with the `skills` parameter:
+Skills are structured task packages (bundles of instructions, scripts, and references) that agents can invoke via a `skill()` tool. Pass directories containing a `SKILL.md` file to `deepagent()` with the `skills` parameter:
 
 ``` python
 from inspect_ai.agent import deepagent
-from inspect_ai.tool import Skill
-
-pdf_skill = Skill(
-    name="pdf-analysis",
-    description="Extract and analyze content from PDF documents.",
-    instructions="Use pdfplumber to extract tables and text...",
-    scripts={"extract_pdf.py": "..."},
-)
 
 deepagent(
-    skills=[pdf_skill],
+    skills=["./skills/pdf-analysis", "./skills/data-cleaning"],
     ...
 )
 ```

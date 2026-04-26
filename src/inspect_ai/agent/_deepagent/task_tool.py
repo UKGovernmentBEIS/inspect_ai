@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Sequence
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ def task_tool(
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     parent_model: str | Model | None = None,
-    parent_skills: list[Skill] | None = None,
+    parent_skills: list[str | Path | Skill] | None = None,
     depth: int = 0,
     max_depth: int = 1,
     get_messages: Callable[[], list[ChatMessage]] | None = None,
@@ -311,7 +312,7 @@ def _resolve_tools(
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None,
     parent_model: str | Model | None,
-    parent_skills: list[Skill] | None,
+    parent_skills: list[str | Path | Skill] | None,
     depth: int,
     max_depth: int,
     get_messages: Callable[[], list[ChatMessage]] | None,

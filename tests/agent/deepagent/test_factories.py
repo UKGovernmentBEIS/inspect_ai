@@ -118,7 +118,9 @@ class TestSkills:
         sa = research(skills=[sk])
         assert sa.skills is not None
         assert len(sa.skills) == 1
-        assert sa.skills[0].name == "test-skill"
+        skill = sa.skills[0]
+        assert isinstance(skill, Skill)
+        assert skill.name == "test-skill"
 
     def test_skills_on_general(self) -> None:
         from inspect_ai.tool import Skill

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal, Sequence
 
 from inspect_ai.model._model import Model
@@ -33,7 +34,7 @@ def plan(
     tools: Sequence[Tool | ToolDef | ToolSource] | Literal["default"] = "default",
     extra_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     instructions: str | None = None,
-    skills: list[Skill] | None = None,
+    skills: list[str | Path | Skill] | None = None,
     memory: Literal["readwrite", "readonly"] | bool = "readonly",
     limits: list[Limit] | None = None,
     model: str | Model | None = None,

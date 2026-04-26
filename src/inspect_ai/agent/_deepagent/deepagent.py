@@ -1,6 +1,7 @@
 """Top-level deep agent assembly."""
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState, agent
@@ -35,7 +36,7 @@ def deepagent(
     memory: bool = True,
     todo_write: bool = True,
     web_search: bool | Tool = False,
-    skills: list[Skill] | None = None,
+    skills: list[str | Path | Skill] | None = None,
     model: str | Model | None = None,
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit | bool | None = None,
@@ -296,7 +297,7 @@ def _validate_fork_depth(subagents: list[Subagent], max_depth: int) -> None:
 
 
 def _validate_skill_names(
-    parent_skills: list[Skill] | None,
+    parent_skills: list[str | Path | Skill] | None,
     subagents: list[Subagent],
 ) -> None:
     """Validate skill names are unique across parent and all subagents.
@@ -305,14 +306,18 @@ def _validate_skill_names(
     name appears more than once. This prevents sandbox install directory
     collisions and ambiguous skill lookups.
     """
+    from inspect_ai.tool._tools._skill import read_skills
+
+    resolved_parent = read_skills(parent_skills) if parent_skills else []
     all_names: dict[str, str] = {}
-    for sk in parent_skills or []:
+    for sk in resolved_parent:
         if sk.name in all_names:
             raise ValueError(f"Duplicate skill name '{sk.name}' in parent skills.")
         all_names[sk.name] = "parent"
 
     for sa in subagents:
-        for sk in sa.skills or []:
+        resolved_sa = read_skills(sa.skills) if sa.skills else []
+        for sk in resolved_sa:
             if sk.name in all_names:
                 source = all_names[sk.name]
                 raise ValueError(

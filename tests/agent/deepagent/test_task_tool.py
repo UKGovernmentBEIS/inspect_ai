@@ -3,7 +3,7 @@
 from test_helpers.tool_call_utils import get_tool_event
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.agent._deepagent.subagent import Subagent, subagent
 from inspect_ai.agent._deepagent.task_tool import (
@@ -295,14 +295,14 @@ class TestExtractResult:
         from inspect_ai.model._chat_message import ChatMessageAssistant
         from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 
-        content_blocks = [ContentText(text="The answer is 42.")]
+        content_blocks: list[Content] = [ContentText(text="The answer is 42.")]
         msg = ChatMessageAssistant(content=content_blocks)
         output = ModelOutput(
             model="test",
             choices=[ChatCompletionChoice(message=msg, stop_reason="stop")],
         )
         state = AgentState(messages=[msg])
-        state._output = output  # type: ignore[attr-defined]
+        state._output = output
 
         result = _extract_result(state)
         assert result == "The answer is 42."
