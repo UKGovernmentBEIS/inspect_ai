@@ -7,7 +7,7 @@ from pathlib import Path
 from aiohttp.web import Application, Request, Response, run_app
 from jsonrpcserver import async_dispatch
 
-from inspect_sandbox_tools._util.constants import SOCKET_PATH
+from inspect_sandbox_tools._util.constants import SERVER_DIR, SOCKET_PATH
 from inspect_sandbox_tools._util.load_tools import load_tools
 
 # When running as a PyInstaller onefile binary, all bundled shared libs are extracted
@@ -23,6 +23,12 @@ if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
 def main():
     load_tools("inspect_sandbox_tools._remote_tools")
 
+    # Create server directory with permissions based on privilege level.
+    # Root: 0o700 prevents the agent from accessing socket/logs.
+    # Non-root: 0o777 allows any user (no privilege to escalate anyway).
+    SERVER_DIR.mkdir(exist_ok=True)
+    os.chmod(SERVER_DIR, 0o700 if os.getuid() == 0 else 0o777)
+
     # Remove stale socket file
     SOCKET_PATH.unlink(missing_ok=True)
 
@@ -35,14 +41,8 @@ def main():
     app = Application()
     app.router.add_post("/", handle_request)
 
-    # Set umask to handle dynamic user switching scenarios:
-    # The server is created on-demand by the first client call, but subsequent
-    # calls may come from different users. We must support all combinations:
-    # - root creates socket, non-root clients connect later
-    # - non-root creates socket, root connects later
-    # - non-root1 creates socket, non-root2 connects later
-    # Using umask 0o111 creates socket with 0o666 permissions (rw-rw-rw-)
-    # allowing any user to connect regardless of who created the socket
+    # When non-root, use permissive umask so any user can connect to the socket.
+    # When root, directory permissions (0o700) already block unauthorized access.
     old_umask = os.umask(0o111)
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
