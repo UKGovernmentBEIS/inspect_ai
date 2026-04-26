@@ -136,7 +136,10 @@ async def _dispatch(
     sa: Subagent,
     input: str | list[ChatMessage],
 ) -> str:
-    limits = sa.limits or []
+    from copy import deepcopy
+
+    # deepcopy limits per dispatch — Limit objects are single-use
+    limits = deepcopy(sa.limits) if sa.limits else []
     if limits:
         state, limit_error = await run(agent, input=input, limits=limits, name=sa.name)
         if limit_error:
