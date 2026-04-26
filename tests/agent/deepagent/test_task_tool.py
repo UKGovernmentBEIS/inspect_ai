@@ -8,11 +8,17 @@ from inspect_ai.agent._deepagent.subagent import Subagent, subagent
 from inspect_ai.agent._deepagent.task_tool import (
     SUBAGENT_ALIASES,
     _build_task_description,
+    _prepare_forked_input,
     _resolve_tools,
     task_tool,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.solver import generate, use_tools
 
 
@@ -232,3 +238,72 @@ class TestForkedDispatch:
         assert tool_event is not None
         assert tool_event.function == "task"
         assert tool_event.error is None
+
+
+class TestPrepareForkedInput:
+    def test_strips_system_messages(self) -> None:
+        from inspect_ai.model._chat_message import ChatMessageSystem
+
+        sa = _test_subagent("forked", "Forked agent.")
+        messages: list[ChatMessage] = [
+            ChatMessageSystem(content="You are helpful."),
+            ChatMessageUser(content="Hello", id="msg-1"),
+            ChatMessageAssistant(content="Hi there", id="msg-2"),
+        ]
+        result = _prepare_forked_input("Do work.", sa, lambda: messages)
+        assert not any(isinstance(m, ChatMessageSystem) for m in result)
+        assert any(
+            isinstance(m, ChatMessageUser) and "Hello" in str(m.content) for m in result
+        )
+
+    def test_repairs_sibling_tool_calls(self) -> None:
+        from inspect_ai.model._chat_message import ChatMessageSystem
+        from inspect_ai.tool._tool_call import ToolCall
+
+        sa = _test_subagent("forked", "Forked agent.")
+        messages: list[ChatMessage] = [
+            ChatMessageSystem(content="System prompt."),
+            ChatMessageUser(content="Do two things", id="msg-1"),
+            ChatMessageAssistant(
+                content="I'll delegate and search.",
+                id="msg-2",
+                tool_calls=[
+                    ToolCall(
+                        id="call-task-1",
+                        function="task",
+                        arguments={"subagent_type": "forked", "prompt": "x"},
+                        type="function",
+                    ),
+                    ToolCall(
+                        id="call-other-1",
+                        function="web_search",
+                        arguments={"query": "test"},
+                        type="function",
+                    ),
+                ],
+            ),
+        ]
+        result = _prepare_forked_input("Do work.", sa, lambda: messages)
+
+        # No system messages
+        assert not any(isinstance(m, ChatMessageSystem) for m in result)
+
+        # Last assistant message should have only the task() call
+        assistant_msgs = [m for m in result if isinstance(m, ChatMessageAssistant)]
+        assert len(assistant_msgs) == 1
+        assert assistant_msgs[0].tool_calls is not None
+        assert len(assistant_msgs[0].tool_calls) == 1
+        assert assistant_msgs[0].tool_calls[0].function == "task"
+        assert assistant_msgs[0].tool_calls[0].id == "call-task-1"
+
+        # Should have a ChatMessageTool boundary
+        from inspect_ai.model._chat_message import ChatMessageTool
+
+        tool_msgs = [m for m in result if isinstance(m, ChatMessageTool)]
+        assert len(tool_msgs) == 1
+        assert tool_msgs[0].tool_call_id == "call-task-1"
+        assert "forked" in str(tool_msgs[0].content).lower()
+
+        # Ends with the child prompt
+        assert isinstance(result[-1], ChatMessageUser)
+        assert "Do work." in str(result[-1].content)

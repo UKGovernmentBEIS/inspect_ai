@@ -94,7 +94,7 @@ Subagents support two dispatch modes, corresponding to Inspect's existing `as_to
 
 - **Isolated** (default) — the subagent runs with a fresh message history. The parent sends a prompt; only the subagent's summary returns. This is the standard CC/LangChain pattern and is what `as_tool()` provides.
 
-- **Forked** — the subagent inherits the parent's full message history (filtered through `content_only` on input so tool calls, reasoning traces, and system messages don't confound a potentially different model). The subagent works with the accumulated context but only its final message returns to the parent (via `last_message` output filter), keeping the parent context lean. This maps to Inspect's `handoff()` with `input_filter=content_only` and `output_filter=last_message`.
+- **Forked** — the subagent inherits the parent's full message history with minimal filtering: system messages are stripped (the child gets its own) and the active tool call is repaired (sibling calls removed, tool result boundary added). Message content is preserved verbatim to maintain provider prompt-cache compatibility. Only the subagent's final output returns to the parent. Use the same model or model family as the parent when forking.
 
 Claude Code recently added fork semantics to its general-purpose agent. We expose the same choice on `subagent()`:
 
@@ -109,7 +109,7 @@ def reviewer():
     )
 ```
 
-The `fork` parameter controls which dispatch primitive is used under the hood. When `fork=False` (the default), the subagent behaves like `as_tool()` — isolated context, only the summary returns. When `fork=True`, it behaves like `handoff()` with `input_filter=content_only` and `output_filter=last_message` — the subagent sees the parent's conversation but only its final message returns, keeping the parent context lean. An optional `output_filter` parameter (only valid when `fork=True`) allows overriding the default `last_message` filter.
+The `fork` parameter controls which dispatch primitive is used under the hood. When `fork=False` (the default), the subagent runs with isolated context via `run()` — only the summary returns. When `fork=True`, the subagent inherits the parent's message history with minimal filtering (system messages stripped, active tool call repaired) to preserve provider prompt-cache compatibility. Only the subagent's final output returns to the parent. Use the same model or model family when forking to avoid errors from incompatible tool call formats or reasoning content.
 
 The built-in subagents default as follows:
 
@@ -394,7 +394,7 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 - Look up the `Subagent` by `subagent_type` (with alias handling: `"general_purpose"` → `"general"`).
 - Construct a `react()` agent from the `Subagent` config.
 - If `fork=False`: invoke via `as_tool()` semantics — isolated context, summary returns as tool result.
-- If `fork=True`: the `task()` tool implements custom dispatch logic inspired by `handoff()` but adapted for the multiplexer context. It filters the parent's messages via `content_only` on input, runs the child `react()` agent, and applies `output_filter` (default `last_message`) to the result. This cannot be a trivial `handoff()` wrapper because `task()` has a different tool schema, needs to construct the child agent from `Subagent` config, and must control exactly what returns to the parent. The `output_filter` is configurable on `subagent()` (defaults to `last_message`); only valid when `fork=True`.
+- If `fork=True`: the `task()` tool implements custom dispatch logic inspired by `handoff()` but adapted for the multiplexer context. It strips system messages, repairs the active tool call (removes sibling calls, adds a tool result boundary), and passes the remaining history verbatim to preserve prompt-cache compatibility. The child runs via `run()` and only its final output returns to the parent via `_extract_result()`. Wrapped in `timeline_branch()` for proper log viewer rendering.
 - The `task()` tool creates `span(type="agent")` for each dispatch explicitly. (Unlike `as_tool()`/`handoff()` which create spans automatically, `task()` manages its own dispatch lifecycle.)
 - V1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe for future parallel execution — forked subagents receive a copy of the parent's messages and only their filtered result returns. See section 8 for the deferred parallel execution plan.
 
@@ -640,7 +640,7 @@ Added read-only mode to the existing `memory()` tool.
 Built the multiplexer tool that dispatches to subagents.
 
 **Files created:**
-- `src/inspect_ai/agent/_deepagent/task_tool.py` — `task_tool()` factory creating a `@tool`-decorated `task` function. Dispatches via `run()` for both modes: isolated (string prompt) and forked (`content_only` filtered parent messages + prompt). Includes `_build_task_description()` for dynamic tool description, `_resolve_tools()` for child tool assembly with recursion guard, `_dispatch()` for unified limit handling, and `_extract_result()` for output extraction.
+- `src/inspect_ai/agent/_deepagent/task_tool.py` — `task_tool()` factory creating a `@tool`-decorated `task` function. Dispatches via `run()` for both modes: isolated (string prompt) and forked (parent messages with system stripped and tool call repaired + prompt). Includes `_build_task_description()` for dynamic tool description, `_resolve_tools()` for child tool assembly with recursion guard, `_dispatch()` for unified limit handling, and `_extract_result()` for output extraction.
 - `tests/agent/deepagent/test_task_tool.py` — 9 tests: description generation (2), alias mapping (1), constructibility (1), mockllm dispatch (1), invalid subagent_type error (1), alias dispatch end-to-end (1), recursion guard included/excluded (2).
 
 **Files modified:**
@@ -648,7 +648,7 @@ Built the multiplexer tool that dispatches to subagents.
 
 **Design decisions:**
 - Used `run()` for both isolated and forked dispatch — handles string→messages, limit application with `catch_errors=True`, span creation with `name=sa.name`, and returns `AgentState` + optional `LimitExceededError`.
-- For forked dispatch, `content_only` filters parent messages (strips system messages, reasoning, converts tool calls to text) so the child agent works safely with potentially different models. Parent messages accessed via `get_messages` callback (wired by `deepagent()` in Phase 8).
+- For forked dispatch, parent messages are passed with minimal filtering (system stripped, tool call repaired) to preserve prompt cache. Parent messages accessed via `get_messages` callback (wired by `deepagent()` in Phase 8).
 - Recursion guard: `_resolve_tools()` includes a recursive `task_tool` at `depth < max_depth`, omits it at `depth >= max_depth`. Depth tracked via closure.
 - Alias handling: `"general_purpose"` → `"general"` to absorb CC vocabulary habits.
 - Tool named `"task"` internally — no conflict with `@task` decorator (separate registries). Not publicly exported to avoid API confusion.
