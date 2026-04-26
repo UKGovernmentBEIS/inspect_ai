@@ -100,3 +100,37 @@ def test_deepagent_default_subagents() -> None:
     assert r.name == "research"
     assert p.name == "plan"
     assert g.name == "general"
+
+
+def test_deepagent_submit_prompt_included() -> None:
+    """System message includes submit guidance when submit is enabled."""
+    from inspect_ai.agent._react import _prompt_to_system_message
+    from inspect_ai.agent._types import DEFAULT_SUBMIT_PROMPT, AgentPrompt
+
+    prompt = AgentPrompt(
+        instructions="Test.",
+        handoff_prompt=None,
+        assistant_prompt=DEFAULT_SUBMIT_PROMPT,
+        submit_prompt=None,
+    )
+    msg = _prompt_to_system_message(prompt, [], "submit")
+    assert msg is not None
+    assert isinstance(msg.content, str)
+    assert "submit" in msg.content.lower()
+
+
+def test_deepagent_submit_prompt_excluded_when_false() -> None:
+    """System message excludes submit guidance when submit=False."""
+    from inspect_ai.agent._react import _prompt_to_system_message
+    from inspect_ai.agent._types import AgentPrompt
+
+    prompt = AgentPrompt(
+        instructions="Test.",
+        handoff_prompt=None,
+        assistant_prompt=None,
+        submit_prompt=None,
+    )
+    msg = _prompt_to_system_message(prompt, [], None)
+    assert msg is not None
+    assert isinstance(msg.content, str)
+    assert "submit" not in msg.content.lower()

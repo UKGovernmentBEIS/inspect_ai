@@ -156,10 +156,13 @@ def deepagent(
                 instructions=instructions,
             )
 
+        from inspect_ai.agent._types import DEFAULT_SUBMIT_PROMPT
+
         agent_prompt = AgentPrompt(
             instructions=system_prompt,
             handoff_prompt=None,
-            assistant_prompt=None,
+            assistant_prompt=DEFAULT_SUBMIT_PROMPT if submit is not False else None,
+            submit_prompt=None,
         )
 
         inner = react(
