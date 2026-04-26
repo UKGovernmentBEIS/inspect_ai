@@ -5,21 +5,21 @@ llms-description: Using and customizing the built-in deep agent with subagent de
 
 ## Overview
 
-The `deepagent()` agent is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](react-agent.qmd) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
+The deep agent is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](react-agent.qmd) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
 
-The `react()` agent handles short-horizon tasks well, but tends to flatten under longer horizons: agents lose context, exhaust their context window with intermediate tool output, and don't reliably plan or decompose work. The `deepagent()` bundles the patterns that address this, drawing from Claude Code, Codex CLI, and other deep agent frameworks:
+The `react()` agent handles short-horizon tasks well, but can degrade in performance under longer horizons, losing context and not reliably decomposing work. The `deepagent()` bundles the patterns that address this, drawing from Claude Code, Codex CLI, and other deep agent frameworks:
 
-1.  **Subagent delegation.** Spawn isolated workers (`research`, `plan`, `general`) with their own context windows. Only their summary returns to the parent.
+1.  Subagent delegation. Spawn isolated workers (`research()`, `plan()`, and `general()`) with their own context windows. Only their summary returns to the parent.
 
-2.  **Persistent memory.** A scratchpad for offloading intermediate results out of the message history so they survive context compaction.
+2.  Persistent memory. A `memory()` tool for offloading intermediate results out of the message history so they survive context compaction.
 
-3.  **Structured planning.** A todo tool for explicit task decomposition and progress tracking.
+3.  Structured planning. A `todo_write()` tool for explicit task decomposition and progress tracking.
 
-4.  **Opinionated system prompt.** Goal-oriented instructions that teach the model to act autonomously, delegate effectively, and verify its work.
+4.  Opinionated system prompt. Goal-oriented instructions that teach the model to act autonomously, delegate effectively, and verify its work.
 
 ### Example
 
-Here is a `ctf_agent()` that uses `deepagent()` with `bash()` and `text_editor()` tools:
+Here is a CTF task that uses `deepagent()` with `bash()` and `text_editor()` tools:
 
 ``` python
 from textwrap import dedent
@@ -34,34 +34,32 @@ def ctf_challenge():
     return Task(
         dataset=json_dataset("ctf_challenge.json"),
         solver=deepagent(
-            tools=[bash(), text_editor()],   # <1>
+            tools=[bash(), text_editor()]
         ),
         scorer=includes(),
         sandbox="docker",
     )
 ```
-1. Tools are the only required customization for most tasks. Everything else is handled by defaults.
 
-::: {.callout-note appearance="simple"}
-Behind the scenes, `deepagent()` provides three subagents (research, plan, general), a persistent memory tool, a todo_write planning tool, and a system prompt that teaches the model when to use each. The sections below describe these defaults and how to customize them.
-:::
+Tools are the only required customization for most tasks. Everything else is handled by defaults.
 
+Behind the scenes, `deepagent()` provides three subagents (`research()`, `plan()`, and `general()`), a `memory()` tool, a `todo_write()` planning tool, and a system prompt that teaches the model when to use each. The sections below describe these defaults and how to customize them.
 
-## What You Get
+## Agent Defaults
 
-When you call `deepagent()` with no configuration beyond tools, you get a fully assembled agent with the following capabilities.
+When you call `deepagent()` with no configuration beyond tools, you get a fully assembled agent with the following default capabilities.
 
 ### Subagent Delegation {#sec-subagent-delegation}
 
 The parent agent has a `task()` tool that lets it delegate work to specialized subagents. Three are included by default:
 
 | Subagent | Role | Tools | Memory |
-|----------|------|-------|--------|
-| `research` | Read-only information gathering and synthesis | `read_file`, `list_files`, `grep` | Read-only |
-| `plan` | Structured task decomposition and planning | `read_file`, `list_files`, `grep` | Read-only |
-| `general` | General-purpose autonomous task completion | Inherits parent's tools | Read-write |
+|----------------------|-----------------|-----------------|-----------------|
+| `research()` | Read-only information gathering and synthesis | `read_file()`, `list_files()`, `grep()` | Read-only |
+| `plan()` | Structured task decomposition and planning | `read_file()`, `list_files()`, `grep()` | Read-only |
+| `general()` | General-purpose autonomous task completion | Inherits parent's tools | Read-write |
 
-: {tbl-colwidths="[15,35,25,15]"}
+: {tbl-colwidths=\[20,30,30,20\]}
 
 The parent agent decides when to delegate vs. do work directly. The system prompt guides it to delegate when the work is complex, independent, or would benefit from an isolated context, and to do the work directly when it's a simple lookup or a single tool call.
 
@@ -73,15 +71,15 @@ The `memory()` tool provides a persistent scratchpad shared across the parent an
 
 Memory is important for long-running agents because it survives context [compaction](compaction.qmd). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress.
 
-The `research` and `plan` subagents have read-only memory access (they can view but not modify entries), while `general` has full read-write access.
+The `research()` and `plan()` subagents have read-only memory access (they can view but not modify entries), while `general()` has full read-write access.
 
 ### Planning
 
 The `todo_write()` tool provides structured task tracking. The model uses it to decompose complex tasks into steps and track progress:
 
-- `pending` -- step not yet started
-- `in_progress` -- step currently being worked on
-- `completed` -- step finished
+- `pending` — step not yet started
+- `in_progress` — step currently being worked on
+- `completed` — step finished
 
 The system prompt instructs the model to update the plan as it works, marking steps in progress as it starts them and completed as it finishes.
 
@@ -97,7 +95,6 @@ The default system prompt is goal-oriented rather than procedurally prescriptive
 - Use reasonable defaults rather than asking clarifying questions for every detail.
 
 The prompt also includes cross-tool coordination guidance (use memory for intermediate results, use the plan for decomposition) and subagent delegation guidance (when to delegate, how to pass context to subagents).
-
 
 ## Instructions
 
@@ -120,10 +117,9 @@ deepagent(
 
 Instructions are appended to the end of the system prompt, after the core behavior, delegation guidance, and memory/planning instructions.
 
-
 ## Tools {#sec-tools}
 
-Pass additional tools to `deepagent()` with the `tools` parameter. These tools are available to the top-level agent and automatically flow to the `general()` subagent:
+Pass task specific tools to `deepagent()` with the `tools` parameter. These tools are available to the top-level agent and automatically flow to the `general()` subagent:
 
 ``` python
 from inspect_ai.agent import deepagent
@@ -131,15 +127,15 @@ from inspect_ai.tool import bash, text_editor, web_search
 
 deepagent(
     tools=[bash(), text_editor()],
-    web_search=True,                    # <1>
+    web_search=True
 )
 ```
-1. Pass `True` for default web search configuration, or a pre-configured `web_search()` instance for custom setup. Web search is added to all agents (parent and subagents).
+
+Pass `True` for default web search configuration, or a pre-configured `web_search()` instance for custom setup. Web search is added to all agents (parent and subagents).
 
 ::: {.callout-note appearance="simple"}
 Tools passed to `deepagent()` do not automatically flow to the `research()` or `plan()` subagents. This preserves their read-only posture. To add tools to those subagents, use `extra_tools=` when [customizing built-in subagents](#sec-customizing-builtins).
 :::
-
 
 ## Skills
 
@@ -164,7 +160,6 @@ deepagent(
 
 Parent skills are available to the top-level agent. At dispatch time, parent skills and subagent-specific skills are merged so that a subagent sees both its own skills and the parent's. See the [Skills](tools-standard.qmd#sec-skill) documentation for details on creating and using skills.
 
-
 ## Compaction
 
 Long-running agents can exhaust their context window. Use the `compaction` parameter to automatically manage conversation context as it grows:
@@ -184,10 +179,9 @@ Compaction propagates to subagents that don't set their own strategy, so a singl
 
 See the [Compaction](compaction.qmd) documentation for details on available strategies (`CompactionSummary`, `CompactionEdit`, `CompactionTrim`, `CompactionAuto`, and `CompactionNative`).
 
+## Subagents {#sec-subagent-config}
 
-## Subagent Configuration {#sec-subagent-config}
-
-### Customizing Built-in Subagents {#sec-customizing-builtins}
+### Built-in Subagents {#sec-customizing-builtins}
 
 The built-in subagent factories (`research()`, `plan()`, and `general()`) all accept customization parameters. Pass a customized `subagents` list to `deepagent()`:
 
@@ -212,13 +206,14 @@ deepagent(
     ],
 )
 ```
-1. Use a cheaper model for information gathering to reduce costs.
-2. Apply a scoped token limit to each `general` subagent invocation.
 
-The customization parameters available on all three factories:
+1.  Use a cheaper model for information gathering to reduce costs.
+2.  Apply a scoped token limit to each `general` subagent invocation.
+
+These customization parameters available on all three builtin subagents:
 
 | Parameter | Description |
-|-----------|-------------|
+|---------------------------------|---------------------------------------|
 | `instructions` | Additional text appended to the default subagent prompt. |
 | `model` | Model override (default inherits parent's model). |
 | `limits` | Scoped limits per invocation (`token_limit`, `message_limit`, `time_limit`, `cost_limit`). |
@@ -229,7 +224,7 @@ The customization parameters available on all three factories:
 | `fork` | Dispatch mode. See [Fork Mode](#sec-fork-mode). |
 | `compaction` | Compaction strategy override. |
 
-: {tbl-colwidths="[20,80]"}
+: {tbl-colwidths=\[35,65\]}
 
 ### Custom Subagents {#sec-custom-subagents}
 
@@ -254,9 +249,10 @@ deepagent(
     subagents=[research(), plan(), general(), reviewer], # <3>
 )
 ```
-1. Name must be a valid Python identifier. It becomes the `subagent_type` value in the `task()` tool.
-2. Custom subagents declare their own tools explicitly.
-3. Add the custom subagent alongside the built-ins.
+
+1.  Name must be a valid Python identifier. It becomes the `subagent_type` value in the `task()` tool.
+2.  Custom subagents declare their own tools explicitly.
+3.  Add the custom subagent alongside the built-ins.
 
 The `subagent()` factory accepts the same customization parameters as the built-in factories (`model`, `limits`, `memory`, `skills`, `fork`, `compaction`) plus the required `name`, `description`, and `prompt`.
 
@@ -280,8 +276,9 @@ deepagent(
     model="anthropic/claude-sonnet-4",                  # <2>
 )
 ```
-1. The `general` subagent inherits the parent's full message history.
-2. Use the same model for parent and forked subagents.
+
+1.  The `general` subagent inherits the parent's full message history.
+2.  Use the same model for parent and forked subagents.
 
 Fork mode is useful when the subagent needs substantial background from the parent conversation without re-explanation, and when the parent's context is still fresh (well under context window limits). It preserves the prompt cache on all providers because the message prefix is unchanged.
 
@@ -289,8 +286,7 @@ Fork mode is useful when the subagent needs substantial background from the pare
 Use the same model or model family when forking to preserve the prompt cache and avoid errors from incompatible tool call formats or reasoning content in the inherited message history. Fork mode is not supported with `max_depth > 1`.
 :::
 
-
-## Prompt Customization {#sec-prompt}
+## System Prompt {#sec-prompt}
 
 When `instructions=` is not sufficient, use the `prompt=` parameter for full system prompt replacement. Named placeholders are expanded at assembly time:
 
@@ -321,13 +317,13 @@ Security-specific rules:
 Available placeholders:
 
 | Placeholder | Content |
-|-------------|---------|
+|------------------------------------------|------------------------------|
 | `{core_behavior}` | Core behavioral expectations (act, persist, verify, batch). |
 | `{subagent_dispatch}` | Subagent names, roles, and delegation guidance (generated from the subagent list). |
 | `{memory_instructions}` | Memory and planning coordination guidance. |
 | `{instructions}` | The user's `instructions=` text. |
 
-: {tbl-colwidths="[25,75]"}
+: {tbl-colwidths=\[35,65\]}
 
 Placeholders are optional. Omit any to exclude that content from the final prompt.
 
@@ -342,11 +338,11 @@ deepagent(
     todo_write=False,   # <2>
 )
 ```
-1. Disables the memory tool for the top-level agent and all subagents, regardless of their individual `memory` setting.
-2. Disables the todo_write planning tool.
 
+1.  Disables the memory tool for the top-level agent and all subagents, regardless of their individual `memory` setting.
+2.  Disables the todo_write planning tool.
 
-## Submit and Attempts
+## Submission
 
 By default, `deepagent()` includes a `submit()` tool that the model calls to report its final answer. You can configure multiple attempts so that if the score is incorrect the model is allowed to continue and try again:
 
@@ -359,18 +355,26 @@ deepagent(
 
 Pass `submit=False` to disable the submit tool entirely (the agent will terminate when it stops calling tools). For more advanced configuration, pass an `AgentSubmit` or `AgentAttempts` instance. See the [ReAct Agent](react-agent.qmd#attempts) documentation for details.
 
-## Refusals, Continuation, and Approval
+## Advanced
 
 `deepagent()` supports several additional options from `react()`:
+
+- `retry_refusals` --- Retry when the model refuses a request due to content filters (default: 3). Applies to the top-level agent and all subagents. See [Refusals](react-agent.qmd#refusals) for details.
+
+- `on_continue` --- Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](react-agent.qmd#continuation) for details.
+
+- `approval` --- Apply approval policies for tool calls. Applies to the top-level agent only. See [Approval](approval.qmd) for details.
+
+For example:
 
 ``` python
 deepagent(
     tools=[bash(), text_editor()],
-    retry_refusals=3,                                       # <1>
-    on_continue="Please continue working on the task.",     # <2>
-    approval=[ApprovalPolicy(human_approver(), "bash")],    # <3>
+    retry_refusals=3,
+    on_continue="Please continue working on the task.",
+    approval=[
+        ApprovalPolicy(human_approver(), "bash"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ],
 )
 ```
-1. Retry when the model refuses a request due to content filters. Applies to the top-level agent and all subagents. See [Refusals](react-agent.qmd#refusals) for details.
-2. Control continuation behavior when the model stops calling tools. Applies to the top-level agent only. See [Continuation](react-agent.qmd#continuation) for details.
-3. Apply approval policies for tool calls. Applies to the top-level agent only. See [Approval](approval.qmd) for details.

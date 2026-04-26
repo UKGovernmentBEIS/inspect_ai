@@ -40,7 +40,7 @@ def deepagent(
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit | bool | None = None,
     on_continue: str | AgentContinue | None = None,
-    retry_refusals: int | None = None,
+    retry_refusals: int | None = 3,
     compaction: CompactionStrategy | None = None,
     approval: list[ApprovalPolicy] | None = None,
     instructions: str | None = None,
@@ -73,7 +73,7 @@ def deepagent(
         on_continue: Continuation behavior when the model stops calling
             tools. Applies to the top-level agent only.
         retry_refusals: Number of times to retry on content filter
-            refusals. Propagated to subagents.
+            refusals (default: 3). Propagated to subagents.
         compaction: Compaction strategy for context management.
         approval: Approval policies for tool calls. Applies to the
             top-level agent only.
