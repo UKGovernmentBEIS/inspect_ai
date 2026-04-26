@@ -48,8 +48,7 @@ understanding changes mid-task, update the plan before continuing.
 Only commit to work you will actually do — label anything else as
 optional next steps and exclude it from the plan. Before finishing,
 reconcile every TODO item: mark each as completed, no longer relevant,
-or blocked (with a reason). Do not finish with in_progress or pending
-items.
+or blocked (with a reason and what you tried).
 """.strip()
 
 MEMORY_ONLY_INSTRUCTIONS = """
@@ -68,8 +67,7 @@ understanding changes mid-task, update the plan before continuing.
 Only commit to work you will actually do — label anything else as
 optional next steps and exclude it from the plan. Before finishing,
 reconcile every TODO item: mark each as completed, no longer relevant,
-or blocked (with a reason). Do not finish with in_progress or pending
-items.
+or blocked (with a reason and what you tried).
 """.strip()
 
 
