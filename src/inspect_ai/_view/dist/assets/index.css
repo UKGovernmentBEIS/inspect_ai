@@ -17077,35 +17077,52 @@ button._segment_19z32_10 {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_usp41_1 {
+._outer_1j47y_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
   position: relative;
 }
 
-._expandablePanel_usp41_8 {
+._expandablePanel_1j47y_8 {
   position: relative;
 }
 
-._expandableBordered_usp41_12 {
+._expandableBordered_1j47y_12 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_usp41_17 {
+._expandableTogglable_1j47y_17 {
   margin-bottom: 1em;
 }
 
-._expandableContents_usp41_21 {
+._expandableContents_1j47y_21 {
   font-size: var(--inspect-font-size-base);
 }
 
-._expandableCollapsed_usp41_25 {
-  overflow: hidden;
+/* Fade-out at the bottom of truncated content to signal "more below".
+   Applied only when collapsed AND the content overflows.
+
+   The wrapper carries `overflow: hidden` + `max-height` (set inline), so its
+   box matches the visible region — the mask gradient's "bottom" lands on the
+   last visible line rather than on the bottom of the natural-height content
+   (which would sit off-screen).
+
+   We mask the content itself (rather than overlaying a background-color
+   gradient) so the affordance works on any surface, regardless of the
+   panel's bg. The inline-right toggle is a sibling of this wrapper, so it
+   stays fully opaque. */
+._expandableTruncated_1j47y_37 {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - 3rem),
+    transparent
+  );
+  mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_usp41_29 {
+._moreToggle_1j47y_46 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -17115,11 +17132,11 @@ button._segment_19z32_10 {
   color: var(--bs-link-color);
 }
 
-._moreToggle_usp41_29._bordered_usp41_39 {
+._moreToggle_1j47y_46._bordered_1j47y_56 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
-._moreToggleButton_usp41_43 {
+._moreToggleButton_1j47y_60 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -17127,7 +17144,7 @@ button._segment_19z32_10 {
   color: var(--bs-body-color);
 }
 
-._separator_usp41_51 {
+._separator_1j47y_68 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
   margin-top: -1px;
@@ -17136,7 +17153,7 @@ button._segment_19z32_10 {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_usp41_60 {
+._inlineToggleHolder_1j47y_77 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -17148,13 +17165,13 @@ button._segment_19z32_10 {
   z-index: 2;
 }
 
-._inlineToggleSticky_usp41_72 {
+._inlineToggleSticky_1j47y_89 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_usp41_29._blockLeft_usp41_78 {
+._moreToggle_1j47y_46._blockLeft_1j47y_95 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
