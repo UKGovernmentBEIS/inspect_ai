@@ -126,6 +126,7 @@ inspect log recover [OPTIONS] [LOG_FILE]
 | `--output` | text | Output path for the recovered log file. | None |
 | `--overwrite` | boolean | Overwrite the crashed log file in-place instead of creating a new file. | `False` |
 | `--no-cleanup` | boolean | Don’t remove the sample buffer database after recovery. | `False` |
+| `--no-events` | boolean | Exclude event transcript from recovered samples (reduces output size). | `False` |
 | `--list` | boolean | List recoverable logs instead of recovering. | `False` |
 | `--json` | boolean | Output listing as JSON (only with –list). | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |

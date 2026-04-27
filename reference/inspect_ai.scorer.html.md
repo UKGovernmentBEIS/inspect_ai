@@ -6,7 +6,7 @@
 
 Scorer which matches text or a number.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_match.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_match.py#L8)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -31,7 +31,7 @@ Is this a numeric match? (in this case different punctuation removal rules are u
 
 Check whether the specified text is included in the model output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_match.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_match.py#L39)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -49,7 +49,7 @@ Note that at least one regex group is required to match against the target.
 
 The regex can have a single capture group or multiple groups. In the case of multiple groups, the scorer can be configured to match either one or all of the extracted groups
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_pattern.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_pattern.py#L46)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -73,7 +73,7 @@ Some solvers including multiple_choice solicit answers from the model prefaced w
 
 Note that you must specify a `type` for the answer scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_answer.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_answer.py#L35)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -97,7 +97,7 @@ This assumes that the model was called using a template ordered with letters cor
 
 The target for the dataset will then have a letter corresponding to the correct answer, e.g. the [Target](../reference/inspect_ai.scorer.html.md#target) would be `"A"` for the above question. If multiple choices are correct, the [Target](../reference/inspect_ai.scorer.html.md#target) can be an array of these letters.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_choice.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_choice.py#L40)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -110,7 +110,7 @@ Create a mathematical expression scorer.
 
 Extracts answers from model output and compares them to target answers using mathematical equivalence checking.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_math.py#L679)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_math.py#L679)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -123,7 +123,7 @@ Scorer which produces an F1 score
 
 Computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_classification.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_classification.py#L13)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -144,7 +144,7 @@ Scorer which produces an exact match score
 
 Normalizes the text of the answer and target(s) and performs an exact matching comparison of the text. This scorer will return `CORRECT` when the answer is an exact match to one or more targets.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_classification.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_classification.py#L42)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -155,7 +155,7 @@ def exact() -> Scorer
 
 Score a question/answer task using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_model.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_model.py#L86)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -195,7 +195,7 @@ Named model role to use for grading (default: “grader”). Ignored if `model` 
 
 Score a question/answer task with a fact response using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_model.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_model.py#L28)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -231,11 +231,55 @@ Model or models to use for grading. If a list is provided, each model grades ind
 `model_role` str \| None  
 Named model role to use for grading (default: “grader”). Ignored if `model` is provided. If specified and a model is bound to this role (e.g. via the `model_roles` argument to [eval()](../reference/inspect_ai.html.md#eval)), that model is used. If no role-bound model is available, the model being evaluated (the default model) is used.
 
+### perplexity
+
+Score samples by computing per-token negative log-likelihood from prompt logprobs.
+
+Requires `prompt_logprobs` to be set in [GenerateConfig](../reference/inspect_ai.model.html.md#generateconfig) so that the model provider returns log probabilities for each prompt token.
+
+The score value is the per-sample negative log-likelihood (NLL). Per-sample perplexity is `exp(value)`. The companion :func:`perplexity_per_token` metric computes corpus-level perplexity weighted by token count.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_perplexity.py#L26)
+
+``` python
+@scorer(metrics=[perplexity_per_token(), perplexity_per_seq()])
+def perplexity() -> Scorer
+```
+
+### target_perplexity
+
+Score samples by computing NLL of target-completion tokens.
+
+*N* (number of target tokens) is resolved in order:
+
+1.  The `num_target_tokens` argument (uniform for all samples).
+2.  `state.metadata["num_target_tokens"]` (per-sample).
+3.  Auto-tokenize `state.metadata[target_text_key]` via the model provider’s :meth:`~ModelAPI.tokenize` method.
+4.  Raises an error if `target_text` is present but tokenization fails (no silent fallback to incorrect results).
+
+If neither `num_target_tokens` nor `target_text` is available, defaults to `1` (single-token targets like `" A"`).
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_target_perplexity.py#L42)
+
+``` python
+@scorer(metrics=[perplexity_per_token(), perplexity_per_seq()])
+def target_perplexity(
+    num_target_tokens: int | None = None,
+    target_text_key: str = "target_text",
+) -> Scorer
+```
+
+`num_target_tokens` int \| None  
+Fixed number of trailing prompt tokens. When `None`, resolved per-sample from metadata or auto-tokenization.
+
+`target_text_key` str  
+Metadata key holding the target text for auto-tokenization. Defaults to `"target_text"`.
+
 ### multi_scorer
 
 Returns a Scorer that runs multiple Scorers in parallel and aggregates their results into a single Score using the provided reducer function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_multi.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_multi.py#L13)
 
 ``` python
 def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer
@@ -253,7 +297,7 @@ a function which takes in a list of Scores and returns a single Score.
 
 Compute proportion of total answers which are correct.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
 
 ``` python
 @metric
@@ -267,7 +311,7 @@ Function for mapping [Value](../reference/inspect_ai.scorer.html.md#value) to fl
 
 Compute mean of all scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metrics/mean.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/mean.py#L6)
 
 ``` python
 @metric
@@ -278,7 +322,7 @@ def mean() -> Metric
 
 Calculates the sample standard deviation of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metrics/std.py#L137)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/std.py#L137)
 
 ``` python
 @metric
@@ -292,7 +336,7 @@ Function for mapping [Value](../reference/inspect_ai.scorer.html.md#value) to fl
 
 Standard error of the mean using Central Limit Theorem.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metrics/std.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/std.py#L50)
 
 ``` python
 @metric
@@ -311,7 +355,7 @@ The key from the Sample metadata corresponding to a cluster identifier for compu
 
 Standard error of the mean using bootstrap.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metrics/std.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/std.py#L17)
 
 ``` python
 @metric
@@ -326,13 +370,43 @@ Number of bootstrap samples to take.
 `to_float` ValueToFloat  
 Function for mapping Value to float for computing metrics. The default `value_to_float()` maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).
 
+### perplexity_per_token
+
+Corpus-level perplexity weighted by token count.
+
+Longer samples contribute proportionally more. Computed as `exp(-total_sum_log_probs / total_num_tokens)`.
+
+This is the standard definition of corpus perplexity used in the HuggingFace Transformers documentation and the EleutherAI lm-evaluation-harness (`weighted_perplexity`).
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/perplexity.py#L62)
+
+``` python
+@metric
+def perplexity_per_token() -> Metric
+```
+
+### perplexity_per_seq
+
+Corpus-level perplexity with equal weight per sample.
+
+Each sample’s per-token NLL is averaged, then exponentiated. Computed as `exp(mean_over_samples(nll_i / num_tokens_i))`.
+
+Unlike `perplexity_per_token`, this gives equal weight to each sample regardless of length, preventing long samples from dominating the metric. This matches the EleutherAI lm-evaluation-harness (`perplexity`).
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metrics/perplexity.py#L88)
+
+``` python
+@metric
+def perplexity_per_seq() -> Metric
+```
+
 ## Reducers
 
 ### at_least
 
 Score correct if there are at least k score values greater than or equal to the value.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/reducer.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/reducer.py#L77)
 
 ``` python
 @score_reducer
@@ -354,7 +428,7 @@ Function to convert score values to float.
 
 Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/reducer.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/reducer.py#L109)
 
 ``` python
 @score_reducer
@@ -376,7 +450,7 @@ Function to convert score values to float.
 
 Take the maximum value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/reducer.py#L144)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/reducer.py#L144)
 
 ``` python
 @score_reducer(name="max")
@@ -390,7 +464,7 @@ Function to convert the value to a float
 
 Take the mean of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/reducer.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/reducer.py#L39)
 
 ``` python
 @score_reducer(name="mean")
@@ -404,7 +478,7 @@ Function to convert the value to a float
 
 Take the median value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/reducer.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/reducer.py#L58)
 
 ``` python
 @score_reducer(name="median")
@@ -418,7 +492,7 @@ Function to convert the value to a float
 
 Take the mode from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/reducer.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/reducer.py#L13)
 
 ``` python
 @score_reducer(name="mode")
@@ -433,7 +507,7 @@ Score model outputs.
 
 Evaluate the passed outputs and targets and return a dictionary with scoring outcomes and context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_scorer.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_scorer.py#L35)
 
 ``` python
 class Scorer(Protocol):
@@ -469,7 +543,7 @@ Target for scoring against the current TaskState.
 
 Target is a sequence of one or more strings. Use the `text` property to access the value as a single string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_target.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_target.py#L4)
 
 ``` python
 class Target(Sequence[str])
@@ -479,7 +553,7 @@ class Target(Sequence[str])
 
 Score generated by a scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L81)
 
 ``` python
 class Score(BaseModel)
@@ -510,7 +584,7 @@ Read the score as text.
 as_str  
 Read the score as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L104)
 
 ``` python
 def as_str(self) -> str
@@ -519,7 +593,7 @@ def as_str(self) -> str
 as_int  
 Read the score as an integer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L108)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L108)
 
 ``` python
 def as_int(self) -> int
@@ -528,7 +602,7 @@ def as_int(self) -> int
 as_float  
 Read the score as a float.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L112)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L112)
 
 ``` python
 def as_float(self) -> float
@@ -537,7 +611,7 @@ def as_float(self) -> float
 as_bool  
 Read the score as a boolean.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L116)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L116)
 
 ``` python
 def as_bool(self) -> bool
@@ -546,7 +620,7 @@ def as_bool(self) -> bool
 as_list  
 Read the score as a list.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L120)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L120)
 
 ``` python
 def as_list(self) -> list[str | int | float | bool]
@@ -555,7 +629,7 @@ def as_list(self) -> list[str | int | float | bool]
 as_dict  
 Read the score as a dictionary.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L127)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L127)
 
 ``` python
 def as_dict(self) -> dict[str, str | int | float | bool | None]
@@ -567,7 +641,7 @@ Value provided by a score.
 
 Use the methods of [Score](../reference/inspect_ai.scorer.html.md#score) to easily treat the [Value](../reference/inspect_ai.scorer.html.md#value) as a simple scalar of various types.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L47)
 
 ``` python
 Value = Union[
@@ -581,7 +655,7 @@ Value = Union[
 
 Reduce a set of scores to a single score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/types.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/types.py#L8)
 
 ``` python
 class ScoreReducer(Protocol):
@@ -597,7 +671,7 @@ Metric protocol.
 
 The Metric signature changed in release v0.3.64. Both the previous and new signatures are supported – you should use [MetricProtocol](../reference/inspect_ai.scorer.html.md#metricprotocol) for new code as the depreacated signature will eventually be removed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L265)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L265)
 
 ``` python
 Metric = MetricProtocol | MetricDeprecated
@@ -607,7 +681,7 @@ Metric = MetricProtocol | MetricDeprecated
 
 Compute a metric on a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L244)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L244)
 
 ``` python
 class MetricProtocol(Protocol):
@@ -631,7 +705,7 @@ def mean() -> Metric:
 
 Score for a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L141)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L141)
 
 ``` python
 class SampleScore(BaseModel)
@@ -656,7 +730,7 @@ Registry name of scorer that created this score.
 sample_metadata_as  
 Pydantic model interface to sample metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L153)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L153)
 
 ``` python
 def sample_metadata_as(self, metadata_cls: Type[MT]) -> MT | None
@@ -671,7 +745,7 @@ Pydantic model type
 
 Decorator for registering scorers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_scorer.py#L129)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_scorer.py#L129)
 
 ``` python
 def scorer(
@@ -708,7 +782,7 @@ def custom_scorer() -> Scorer:
 
 Decorator for registering metrics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_metric.py#L364)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_metric.py#L364)
 
 ``` python
 def metric(
@@ -727,7 +801,7 @@ Optional name for metric. If the decorator has no name argument then the name of
 
 Decorator for registering Score Reducers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_reducer/registry.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_reducer/registry.py#L37)
 
 ``` python
 def score_reducer(
@@ -749,7 +823,7 @@ Score a model conversation.
 
 Score a model conversation (you may pass [TaskState](../reference/inspect_ai.solver.html.md#taskstate) or [AgentState](../reference/inspect_ai.agent.html.md#agentstate) as the value for `conversation`)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/f2350995e8b87fe85b3c6e8944887f203abbfb5b/src/inspect_ai/scorer/_score.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6929aca73a494b15969e58e5e3202740481a9580/src/inspect_ai/scorer/_score.py#L13)
 
 ``` python
 async def score(conversation: ModelConversation) -> list[Score]

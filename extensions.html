@@ -405,6 +405,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./deepagent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Deep Agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multi-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multi Agent</span></a>
   </div>
@@ -935,8 +941,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-78"><a href="#cb10-78" aria-hidden="true" tabindex="-1"></a><span class="co">           ConnectionError: If sandbox is not currently running.</span></span>
 <span id="cb10-79"><a href="#cb10-79" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>exec()</code> method should enforce an output limit of <code>SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE</code> (default 10MB, configurable via the <code>INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE</code> environment variable) and front-truncate its output to the limit when it is exceeded.</p>
-<p>The <code>read_file()</code> method should enforce the <code>SandboxEnvironmentLimits.MAX_READ_FILE_SIZE</code> limit (default 100MB, configurable via the <code>INSPECT_SANDBOX_MAX_READ_FILE_SIZE</code> environment variable) and raise an <code>OutputLimitExceededError</code> when it is exceeded.</p>
-<p>The <code>read_file()</code> method should preserve newline constructs (e.g.&nbsp;crlf should be preserved not converted to lf). This is equivalent to specifying <code>newline=""</code> in a call to the Python <code>open()</code> function. Note that <code>write_file()</code> automatically creates parent directories as required if they don’t exist.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span> method should enforce the <code>SandboxEnvironmentLimits.MAX_READ_FILE_SIZE</code> limit (default 100MB, configurable via the <code>INSPECT_SANDBOX_MAX_READ_FILE_SIZE</code> environment variable) and raise an <code>OutputLimitExceededError</code> when it is exceeded.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span> method should preserve newline constructs (e.g.&nbsp;crlf should be preserved not converted to lf). This is equivalent to specifying <code>newline=""</code> in a call to the Python <code>open()</code> function. Note that <code>write_file()</code> automatically creates parent directories as required if they don’t exist.</p>
 <p>The <code>connection()</code> method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.</p>
 <p>Note that to deal with potential unreliability of container services, the <code>exec()</code> method includes a <code>timeout_retry</code> parameter that defaults to <code>True</code>. For sandbox implementations this parameter is <em>advisory</em> (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e.&nbsp;the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify <code>timeout_retry=False</code> to override this behavior.</p>
 <p>For each method there is a documented set of errors that are raised: these are <em>expected</em> errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, <em>unexpected</em> errors may occur (e.g.&nbsp;a networking error connecting to a remote container): these errors are not reported to the model and fail the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> with an error state.</p>

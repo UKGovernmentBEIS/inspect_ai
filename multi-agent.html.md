@@ -1,5 +1,9 @@
 # Multi Agent – Inspect
 
+> **TIP:**
+>
+> If you need subagent delegation, persistent memory, and structured planning, consider the [Deep Agent](./deepagent.html.md) first — it provides these out of the box without requiring custom multi-agent wiring.
+
 ## Overview
 
 There are several ways to implement multi-agent systems using the Inspect [Agent](./reference/inspect_ai.agent.html.md#agent) protocol:

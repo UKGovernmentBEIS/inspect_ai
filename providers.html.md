@@ -487,6 +487,15 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
+Prompt log probabilities for CPT models can be passed as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  -M prompt_logprobs=1
+```
+
 > **NOTE: Note**
 >
 > Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
@@ -871,9 +880,44 @@ inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
 
 Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
 
+### Chat Templates
+
+For vLLM models, the `chat_template` model arg is forwarded to the vLLM server’s `--chat-template` flag. Use `use_chat_template=false` to bypass chat-template rendering entirely (useful for base models):
+
+``` bash
+inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
+> **NOTE: Note**
+>
+> `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+
+### Prompt Log Probabilities
+
+vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](./scorers.html.md#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
+
+``` bash
+inspect eval perplexity_eval.py --model vllm/meta-llama/Meta-Llama-3-8B \
+  --prompt-logprobs 1
+```
+
+Or in Python:
+
+``` python
+Task(
+    dataset=dataset,
+    solver=generate(max_tokens=1, prompt_logprobs=1),
+    scorer=perplexity(),
+)
+```
+
+> **NOTE: Note**
+>
+> Prompt log probabilities are not available when streaming is enabled. Ensure streaming is disabled when using perplexity scorers.
 
 ### vLLM Server
 

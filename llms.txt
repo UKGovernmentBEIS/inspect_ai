@@ -42,6 +42,7 @@
 
 - [Using Agents](https://inspect.aisi.org.uk/agents.html.md): Agents combine planning, memory, and tool usage to pursue complex, longer horizon tasks.
 - [ReAct Agent](https://inspect.aisi.org.uk/react-agent.html.md): Using and customizing the built-in ReAct agent.
+- [Deep Agent](https://inspect.aisi.org.uk/deepagent.html.md): Using and customizing the built-in deep agent with subagent delegation, memory, and planning.
 - [Multi Agent](https://inspect.aisi.org.uk/multi-agent.html.md): Composing agents together in multi-agent architectures.
 - [Custom Agents](https://inspect.aisi.org.uk/agent-custom.html.md): APIs for creating custom agents.
 - [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html.md): Integrating agents from third-party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI.

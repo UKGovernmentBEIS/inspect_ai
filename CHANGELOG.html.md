@@ -1,5 +1,29 @@
 # changelog – Inspect
 
+## Unreleased
+
+- Agents: Add [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) — a batteries-included agent with subagent delegation, persistent memory, structured planning, and an opinionated system prompt. Includes built-in [research()](./reference/inspect_ai.agent.html.md#research), [plan()](./reference/inspect_ai.agent.html.md#plan), and [general()](./reference/inspect_ai.agent.html.md#general) subagent factories, a `task` multiplexer tool for delegation, and support for both isolated and forked (prompt-cache-preserving) dispatch modes.
+- Tools: Add [todo_write()](./reference/inspect_ai.tool.html.md#todo_write) planning tool for structured task tracking.
+- Tools: Add [read_file()](./reference/inspect_ai.tool.html.md#read_file), [list_files()](./reference/inspect_ai.tool.html.md#list_files), and [grep()](./reference/inspect_ai.tool.html.md#grep) read-only sandbox tools for agents that need filesystem access without write capabilities.
+- Tools: Add `readonly` parameter to [memory()](./reference/inspect_ai.tool.html.md#memory) tool for read-only access to shared memory.
+- Skills: Add `instance` parameter to [skill()](./reference/inspect_ai.tool.html.md#skill) for independent per-subagent skill stores. Skill names are now validated for uniqueness in [skill()](./reference/inspect_ai.tool.html.md#skill), [install_skills()](./reference/inspect_ai.tool.html.md#install_skills), and across [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) parent/subagent scopes.
+
+## 0.3.212 (24 April 2026)
+
+- Google: Honor the `press_enter` default on Gemini’s `type_text_at` action so typed text commits with Enter as the spec specifies.
+- vLLM: Support `use_chat_template=false` for base model evaluation (complements existing HF provider support).
+- Log recovery: Stream segment-at-a-time to bound memory on large evals.
+- Scoring: Neutralize structural delimiters in model graded scorer inputs.
+- Scoring: Add [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) and [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scorers with `perplexity_per_token` and `perplexity_per_seq` metrics for evaluating model prediction quality via prompt log probabilities.
+- Model API: Add `prompt_logprobs` to [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) and the `--prompt-logprobs` CLI flag for requesting prompt token log probabilities (vLLM).
+- MCP: Forward MCP stdio server stderr to logging instead of the tty.
+- Tool calls: Record a [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) when an approver rejects or terminates a call so the attempt is visible in the transcript.
+- Inspect View: Improve wrapping behavior in message and events.
+- Inspect View: Fix issues positioning chat messages within model events.
+- Inspect View: Improve tool call error rendering.
+- Inspect View: Improve model event tool configuration rendering.
+- Bugfix: Ensure that model role defaulting doesn’t affect other configured roles.
+
 ## 0.3.211 (23 April 2026)
 
 - OpenAI: Gracefully catch when response.tools is null and normalize it to \[\]

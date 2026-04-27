@@ -199,6 +199,42 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#deepagent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">deepagent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#subagent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subagent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#subagent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subagent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#research" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">research</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#plan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">plan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#general" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">general</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.agent.html#handoff" class="sidebar-item-text sidebar-link">
  <span class="menu-text">handoff</span></a>
   </div>
@@ -1972,6 +2008,18 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#perplexity" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">perplexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#target_perplexity" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">target_perplexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
  <span class="menu-text">multi_scorer</span></a>
   </div>
@@ -2004,6 +2052,18 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
  <span class="menu-text">bootstrap_stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#perplexity_per_token" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">perplexity_per_token</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#perplexity_per_seq" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">perplexity_per_seq</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2282,6 +2342,24 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#read_file" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_file</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#list_files" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">list_files</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#grep" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">grep</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#skill" class="sidebar-item-text sidebar-link">
  <span class="menu-text">skill</span></a>
   </div>
@@ -2294,8 +2372,8 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#update_plan" class="sidebar-item-text sidebar-link">
- <span class="menu-text">update_plan</span></a>
+  <a href="../reference/inspect_ai.tool.html#todo_write" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">todo_write</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3489,150 +3567,156 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="odd">
+<td><code>--prompt-logprobs</code></td>
+<td>integer</td>
+<td>Number of log probabilities to return per prompt token (1-20). vLLM only.</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--parallel-tool-calls</code> / <code>--no-parallel-tool-calls</code></td>
 <td>boolean</td>
 <td>Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--internal-tools</code> / <code>--no-internal-tools</code></td>
 <td>boolean</td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for anthropic).</td>
 <td><code>True</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-tool-output</code></td>
 <td>integer</td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--cache-prompt</code></td>
 <td>choice (<code>auto</code> | <code>true</code> | <code>false</code>)</td>
 <td>Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--verbosity</code></td>
 <td>choice (<code>low</code> | <code>medium</code> | <code>high</code>)</td>
 <td>Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--effort</code></td>
 <td>choice (<code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code> | <code>max</code>)</td>
 <td>Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Claude 4.5, 4.6, 4.7 only (<code>max</code> only supported on 4.6+, <code>xhigh</code> only supported on 4.7).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-effort</code></td>
 <td>choice (<code>none</code> | <code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code> | <code>xhigh</code> | <code>max</code>)</td>
 <td>Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-tokens</code></td>
 <td>integer</td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-summary</code></td>
 <td>choice (<code>none</code> | <code>concise</code> | <code>detailed</code> | <code>auto</code>)</td>
 <td>Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-history</code></td>
 <td>choice (<code>none</code> | <code>all</code> | <code>last</code> | <code>auto</code>)</td>
 <td>Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--response-schema</code></td>
 <td>text</td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--cache</code></td>
 <td>text</td>
 <td>Policy for caching of model generations. Specify –cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g.&nbsp;(e.g.&nbsp;1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#cachepolicy">CachePolicy</a></span> configuration.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--batch</code></td>
 <td>text</td>
 <td>Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify –batch to batch with default configuration, specify a batch size e.g.&nbsp;<code>--batch=1000</code> to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--modalities</code></td>
 <td>text</td>
 <td>Additional output modalities beyond text (e.g.&nbsp;‘image’). Comma-separated names or a YAML/JSON config file path. OpenAI and Google only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-format</code></td>
 <td>choice (<code>eval</code> | <code>json</code>)</td>
 <td>Format for writing log files.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--traceback-locals</code></td>
 <td>boolean</td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

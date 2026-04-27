@@ -76,6 +76,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--num-choices` | integer | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. | None |
 | `--logprobs` | boolean | Return log probabilities of the output tokens. OpenAI, Google, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. | `False` |
 | `--top-logprobs` | integer | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, TogetherAI, Huggingface, and vLLM only. | None |
+| `--prompt-logprobs` | integer | Number of log probabilities to return per prompt token (1-20). vLLM only. | None |
 | `--parallel-tool-calls` / `--no-parallel-tool-calls` | boolean | Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only. | `True` |
 | `--internal-tools` / `--no-internal-tools` | boolean | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic). | `True` |
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | None |

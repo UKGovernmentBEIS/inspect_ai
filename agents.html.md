@@ -6,13 +6,15 @@ Agents combine planning, memory, and tool usage to pursue more complex, longer h
 
 1.  Using Inspect’s built-in [ReAct Agent](./react-agent.html.md).
 
-2.  Implementing a fully [Custom Agent](./agent-custom.html.md).
+2.  Using the [Deep Agent](./deepagent.html.md) for long-horizon tasks with subagent delegation, memory, and planning.
 
-3.  Composing agents into [Multi Agent](./multi-agent.html.md) architectures.
+3.  Implementing a fully [Custom Agent](./agent-custom.html.md).
 
-4.  Integrating external frameworks via the [Agent Bridge](./agent-bridge.html.md).
+4.  Composing agents into [Multi Agent](./multi-agent.html.md) architectures.
 
-5.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
+5.  Integrating external frameworks via the [Agent Bridge](./agent-bridge.html.md).
+
+6.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
 Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct agent, custom agents, and multi-agent systems.
 

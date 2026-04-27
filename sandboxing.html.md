@@ -14,7 +14,7 @@ To accommodate these scenarios, Inspect provides support for *sandboxing*, which
 
 ## Example: File Listing
 
-Let’s take a look at a simple example to illustrate. First, we’ll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function to get access to the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) instance for the currently executing [Sample](./reference/inspect_ai.dataset.html.md#sample):
+Let’s take a look at a simple example to illustrate. First, we’ll define a [list_files()](./reference/inspect_ai.tool.html.md#list_files) tool. This tool need to access the `ls` command—it does so by calling the [sandbox()](./reference/inspect_ai.util.html.md#sandbox) function to get access to the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) instance for the currently executing [Sample](./reference/inspect_ai.dataset.html.md#sample):
 
 ``` python
 from inspect_ai.tool import ToolError, tool
@@ -164,9 +164,9 @@ class SandboxEnvironment:
 
 The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
+The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
-The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
+The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 
@@ -184,8 +184,8 @@ There are two sandbox environments built in to Inspect and five available as ext
 |----|----|----|----|
 | `docker` | Built-in | Yes | [Docker](#sec-docker-configuration) local installation. |
 | `k8s` | [inspect-k8s-sandbox](https://pypi.org/project/inspect-k8s-sandbox/) | Yes | [Kubernetes](https://k8s-sandbox.aisi.org.uk/) cluster. |
-| `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) cloud sandbox. |
-| `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) cloud sandbox. |
+| `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) cloud sandbox. |
+| `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandbox. |
 | `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `local` | Built-in | No | Local file system (no sandbox). |

@@ -58,6 +58,14 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
   Scorer for evaluating mathematical expressions and answers. Extracts answers from model output (supporting both `\boxed{}` LaTeX notation and plain text), normalizes mathematical expressions, and uses SymPy to check for mathematical equivalence. Handles various mathematical formats including LaTeX, fractions, roots, percentages, and algebraic expressions. **Note:** Requires the optional `sympy` dependency—install with `pip install sympy`.
 
+- [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity)
+
+  Compute per-token negative log-likelihood (NLL) from prompt log probabilities. Used for full-text perplexity benchmarks (WikiText, C4). Requires `prompt_logprobs` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig). See [Perplexity](#perplexity) below.
+
+- [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity)
+
+  Compute NLL of target-completion tokens only, given a prompt context. Used for benchmarks like ARC-C, MMLU, and HumanEval where only trailing target tokens are scored. See [Perplexity](#perplexity) below.
+
 Scorers provide one or more built-in metrics (each of the scorers above provides `accuracy` and `stderr` as a metric). You can also provide your own custom metrics in [Task](./reference/inspect_ai.html.md#task) definitions. For example:
 
 ``` python
@@ -79,6 +87,52 @@ Task(
 > Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g. quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.
 >
 > A common misunderstanding is that “t-tests require the underlying data to be normally distributed”. This is only true for small-sample problems; for large sample problems (say 30 or more questions), you just need finite variance in the underlying data and the CLT guarantees a normally distributed mean value.
+
+## Perplexity
+
+Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](./providers.html.md#vllm) provider.
+
+- [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the [HuggingFace Transformers documentation](https://huggingface.co/docs/transformers/en/perplexity).
+
+- [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scores only the trailing target tokens, given a prompt context. This corresponds to the `loglikelihood` evaluation pattern in the [EleutherAI lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness). The number of target tokens is resolved in order from: the `num_target_tokens` argument, `state.metadata["num_target_tokens"]`, auto-tokenization of `state.metadata["target_text"]`, or a default of 1.
+
+Both scorers provide two built-in metrics:
+
+- [perplexity_per_token()](./reference/inspect_ai.scorer.html.md#perplexity_per_token) — standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
+- [perplexity_per_seq()](./reference/inspect_ai.scorer.html.md#perplexity_per_seq) — equal weight per sample regardless of length (geometric mean of per-sample perplexities).
+
+### Example
+
+``` python
+from inspect_ai import Task
+from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.scorer import perplexity, target_perplexity
+from inspect_ai.solver import generate
+
+# Full-text perplexity (WikiText, C4)
+Task(
+    dataset=dataset,
+    solver=generate(max_tokens=1, prompt_logprobs=1),
+    scorer=perplexity(),
+)
+
+# Target-completion perplexity (ARC-C, MMLU)
+Task(
+    dataset=MemoryDataset(samples=[
+        Sample(
+            input="The capital of France is Paris",
+            target="Paris",
+            metadata={"num_target_tokens": 1},
+        ),
+    ]),
+    solver=generate(max_tokens=1, prompt_logprobs=1),
+    scorer=target_perplexity(),
+)
+```
+
+> **NOTE: Note**
+>
+> Prompt log probabilities are not available when streaming is enabled. Ensure streaming is disabled when using perplexity scorers.
 
 ## Model Graded
 
