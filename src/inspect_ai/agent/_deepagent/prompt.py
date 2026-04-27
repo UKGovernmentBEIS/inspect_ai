@@ -37,6 +37,9 @@ finishing — check against the original requirements, not against your
 own output. Confirm the task is actually solved, not just that your
 steps ran without errors.
 
+Cross-check important subagent results before acting on them — subagents
+can miss context or return incomplete findings.
+
 Use reasonable defaults rather than asking clarifying questions for
 every detail. Only ask when genuinely blocked or when the task is
 fundamentally ambiguous.
