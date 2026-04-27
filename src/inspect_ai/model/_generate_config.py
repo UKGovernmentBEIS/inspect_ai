@@ -160,6 +160,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     reasoning_history: Literal["none", "all", "last", "auto"] | None
     """Include reasoning in chat message history sent to generate."""
 
+    openai_phase: bool | None
+    """Annotate assistant messages with the OpenAI Responses API `phase` field (`commentary` when a message has tool calls, `final_answer` otherwise). Auto-enabled for GPT-5.4 and later. Set `True` to force-enable on other models (e.g. pre-release evaluations) or `False` to disable. OpenAI Responses API only."""
+
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
@@ -283,6 +286,9 @@ class GenerateConfig(BaseModel):
         default=None
     )
     """Include reasoning in chat message history sent to generate."""
+
+    openai_phase: bool | None = Field(default=None)
+    """Annotate assistant messages with the OpenAI Responses API `phase` field (`commentary` when a message has tool calls, `final_answer` otherwise). Auto-enabled for GPT-5.4 and later. Set `True` to force-enable on other models (e.g. pre-release evaluations) or `False` to disable. OpenAI Responses API only."""
 
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, vLLM, and SGLang only."""

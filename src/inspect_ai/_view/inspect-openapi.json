@@ -4514,6 +4514,17 @@
             ],
             "title": "Num Choices"
           },
+          "openai_phase": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openai Phase"
+          },
           "parallel_tool_calls": {
             "anyOf": [
               {

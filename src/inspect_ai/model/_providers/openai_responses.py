@@ -50,6 +50,7 @@ from .._openai_responses import (
     openai_responses_tool_choice,
     openai_responses_tools,
     responses_extra_body_fields,
+    should_use_phase,
 )
 from .util.hooks import HttpxHooks
 
@@ -111,7 +112,9 @@ async def generate_responses(
     )
 
     request = dict(
-        input=await openai_responses_inputs(input, model_info),
+        input=await openai_responses_inputs(
+            input, model_info, use_phase=should_use_phase(model_info, config)
+        ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0
