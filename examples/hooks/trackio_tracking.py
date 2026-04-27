@@ -38,7 +38,6 @@ from inspect_ai.hooks import (
     hooks,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -155,7 +154,9 @@ class TrackioHooks(Hooks):
             trace = trackio.Trace(messages=messages, metadata=metadata)
             await asyncio.to_thread(trackio.log, {"sample": trace}, step=step)
         except Exception as e:
-            logger.warning(f"Failed to log Trackio trace for sample {metadata['sample_id']}: {e}")
+            logger.warning(
+                f"Failed to log Trackio trace for sample {metadata['sample_id']}: {e}"
+            )
 
     async def on_run_end(self, data: RunEnd) -> None:
         if not self._initialized:
