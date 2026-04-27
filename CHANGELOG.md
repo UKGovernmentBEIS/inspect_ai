@@ -1,3 +1,7 @@
+## Unreleased
+
+- Computer Use: Map `PRTSCR` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRTSCR` work correctly.
+
 ## 0.3.212 (24 April 2026)
 
 - Google: Honor the `press_enter` default on Gemini's `type_text_at` action so typed text commits with Enter as the spec specifies.
