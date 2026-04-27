@@ -1344,6 +1344,13 @@ async def task_run_sample(
 
     # we have an error and should not raise it
     else:
+        # If score_on_error produced any partial-state scores, return them so
+        # they flow into the eval-level metric denominator. The sample's error
+        # is still tracked via sample_error / error_retries; this only opts
+        # the partial scores into the metric aggregation.
+        if score_on_error and results:
+            await sample_complete(state.sample_id, state.epoch, results)
+            return results
         return None
 
 

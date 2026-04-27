@@ -119,6 +119,22 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
+    score_on_error: bool | None = Field(default=None)
+    """Run scorers against samples that errored.
+
+    `True` to attempt scoring on partial state when a sample errors —
+    the scorer sees whatever state was reached before the error, and
+    its result lands in the metric denominator. Defaults to `False`,
+    which excludes errored samples from both the numerator and
+    denominator (the historical behavior; this can inflate metrics
+    when run against endpoints with intermittent errors).
+
+    Each scorer call is wrapped in its own try/except when scoring on
+    error: a scorer that itself raises on partial state (e.g. because
+    `state.output` is missing) is dropped silently and the sample's
+    primary error stays the one reported.
+    """
+
     continue_on_fail: bool | None = Field(default=None)
     """Continue eval even if the `fail_on_error` condition is met.
 
