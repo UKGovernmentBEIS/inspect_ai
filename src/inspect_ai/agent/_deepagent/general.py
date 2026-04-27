@@ -24,8 +24,8 @@ Verify your results before finishing. Check that your output actually
 meets the requirements, not just that it ran without errors. If
 verification reveals problems, fix them.
 
-Report the outcome and key results directly, not a step-by-step
-replay of actions taken. If you could not fully complete the task,
+Submit the outcome and key results using the submit() tool. Do not
+replay actions step-by-step. If you could not fully complete the task,
 state what you accomplished and what remains.
 """.strip()
 

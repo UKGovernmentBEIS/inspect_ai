@@ -6,6 +6,14 @@ content (subagent list, memory/plan configuration, user instructions).
 
 from .subagent import Subagent
 
+SUBAGENT_SUBMIT_PROMPT = """
+When you have completed the task, call the {submit}() tool to report your
+findings. The parent agent that dispatched you cannot see your conversation
+history or tool calls — the content you pass to {submit}() is the only
+information that will be returned. Include all relevant findings, evidence,
+and conclusions in your submission.
+""".strip()
+
 CORE_BEHAVIOR = """
 Complete tasks autonomously using your available tools. Act rather than
 narrate intent — don't say what you plan to do, just do it.

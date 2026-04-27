@@ -12,6 +12,7 @@ from shortuuid import uuid as shortuuid
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
+from inspect_ai.agent._types import AgentPrompt, AgentSubmit
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -21,6 +22,7 @@ from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 
+from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
 
 
@@ -104,7 +106,7 @@ def task_tool(
                     prompt=None,
                     tools=child_tools,
                     model=sa.model or parent_model,
-                    submit=False,
+                    submit=AgentSubmit(answer_only=True),
                     compaction=sa.compaction,
                     retry_refusals=retry_refusals,
                     approval=approval,
@@ -117,10 +119,15 @@ def task_tool(
                 child_agent = react(
                     name=sa.name,
                     description=sa.description,
-                    prompt=sa.prompt,
+                    prompt=AgentPrompt(
+                        instructions=sa.prompt,
+                        assistant_prompt=SUBAGENT_SUBMIT_PROMPT,
+                        submit_prompt=None,
+                        handoff_prompt=None,
+                    ),
                     tools=child_tools,
                     model=sa.model or parent_model,
-                    submit=False,
+                    submit=AgentSubmit(answer_only=True),
                     compaction=sa.compaction,
                     retry_refusals=retry_refusals,
                     approval=approval,
@@ -255,11 +262,15 @@ def _prepare_forked_input(
     content = prompt
     if sa.prompt:
         content = f"{sa.prompt}\n\n{content}"
+    submit_text = SUBAGENT_SUBMIT_PROMPT.format(submit="submit")
+    content = f"{content}\n\n{submit_text}"
     messages.append(ChatMessageUser(content=content, source="input"))
     return messages, from_message
 
 
 def _extract_result(state: AgentState) -> str:
+    if state.output.completion:
+        return state.output.completion
     if not state.output.empty:
         return state.output.message.text
     elif len(state.messages) > 0 and isinstance(

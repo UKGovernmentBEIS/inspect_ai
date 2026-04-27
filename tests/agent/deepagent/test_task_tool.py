@@ -81,9 +81,11 @@ class TestTaskToolDispatch:
                         "prompt": "Find relevant information.",
                     },
                 ),
-                # 2. Inner subagent (research) generates a response (no tools, so it stops)
-                ModelOutput.from_content(
-                    "mockllm/model", "I found the relevant information."
+                # 2. Inner subagent (research) submits its findings
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "I found the relevant information."},
                 ),
                 # 3. Outer agent generates final response
                 ModelOutput.from_content("mockllm/model", "Done"),
@@ -149,7 +151,11 @@ class TestTaskToolDispatch:
                         "prompt": "Do general work.",
                     },
                 ),
-                ModelOutput.from_content("mockllm/model", "Did the work."),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Did the work."},
+                ),
                 ModelOutput.from_content("mockllm/model", "Done"),
             ],
         )
@@ -355,8 +361,12 @@ class TestForkedDispatch:
                         "prompt": "Continue the work.",
                     },
                 ),
-                # Inner forked agent generates a response
-                ModelOutput.from_content("mockllm/model", "Completed forked work."),
+                # Inner forked agent submits its response
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Completed forked work."},
+                ),
                 # Outer agent finishes
                 ModelOutput.from_content("mockllm/model", "Done"),
             ],
@@ -458,9 +468,7 @@ class TestPrepareForkedInput:
         assert from_message == "msg-1"
         last = result[-1]
         assert isinstance(last, ChatMessageUser)
-        # Only the task prompt, no prepended instructions
-        assert str(last.content) == "Do work."
-
-        # Ends with the child prompt
-        assert isinstance(result[-1], ChatMessageUser)
-        assert "Do work." in str(result[-1].content)
+        # Task prompt present (no prepended sa.prompt since it's empty)
+        assert "Do work." in str(last.content)
+        # Submit instructions appended
+        assert "submit()" in str(last.content)

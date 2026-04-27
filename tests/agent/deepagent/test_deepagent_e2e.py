@@ -57,8 +57,10 @@ class TestMultiStepDelegation:
                         "prompt": "Find background information.",
                     },
                 ),
-                ModelOutput.from_content(
-                    "mockllm/model", "Found relevant background info."
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found relevant background info."},
                 ),
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -68,8 +70,10 @@ class TestMultiStepDelegation:
                         "prompt": "Execute based on findings.",
                     },
                 ),
-                ModelOutput.from_content(
-                    "mockllm/model", "Executed the task successfully."
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Executed the task successfully."},
                 ),
                 _submit(),
             ],
@@ -102,9 +106,11 @@ class TestMemoryIntegration:
                         "prompt": "Check memory for context, then investigate further.",
                     },
                 ),
-                # 3. Research subagent responds
-                ModelOutput.from_content(
-                    "mockllm/model", "Found X=42 in memory, confirmed."
+                # 3. Research subagent submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found X=42 in memory, confirmed."},
                 ),
                 # 4. Outer agent finishes
                 _submit(),
@@ -139,8 +145,12 @@ class TestTodoWriteIntegration:
                         "prompt": "Research the topic.",
                     },
                 ),
-                # 3. Research responds
-                ModelOutput.from_content("mockllm/model", "Research complete."),
+                # 3. Research submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Research complete."},
+                ),
                 # 4. Model updates plan
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -175,8 +185,12 @@ class TestSubmitIntegration:
                         "prompt": "Find the answer.",
                     },
                 ),
-                # 2. Research responds
-                ModelOutput.from_content("mockllm/model", "The answer is 42."),
+                # 2. Research submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "The answer is 42."},
+                ),
                 # 3. Model submits
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -208,8 +222,12 @@ class TestCustomSubagents:
                         "prompt": "Analyze this data.",
                     },
                 ),
-                # 2. Analyzer responds
-                ModelOutput.from_content("mockllm/model", "Analysis complete."),
+                # 2. Analyzer submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Analysis complete."},
+                ),
                 # 3. Outer agent finishes
                 _submit(),
             ],
@@ -306,8 +324,12 @@ class TestFullWorkflow:
                         "prompt": "Research X.",
                     },
                 ),
-                # 4. Research subagent responds
-                ModelOutput.from_content("mockllm/model", "X = success."),
+                # 4. Research subagent submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "X = success."},
+                ),
                 # 5. Update plan
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -344,8 +366,10 @@ class TestPlanSubagent:
                         "prompt": "Create a plan for solving this problem.",
                     },
                 ),
-                ModelOutput.from_content(
-                    "mockllm/model", "Plan: Step 1, Step 2, Step 3."
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Plan: Step 1, Step 2, Step 3."},
                 ),
                 _submit(),
             ],
@@ -380,8 +404,12 @@ class TestGeneralInheritsParentTools:
                     tool_name="think",
                     tool_arguments={"thought": "Let me consider..."},
                 ),
-                # General subagent finishes
-                ModelOutput.from_content("mockllm/model", "Thought it through."),
+                # General subagent submits
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Thought it through."},
+                ),
                 # Outer agent finishes
                 _submit(),
             ],
@@ -429,7 +457,11 @@ class TestMultipleCallsToSameSubagent:
                         "prompt": "Research topic A.",
                     },
                 ),
-                ModelOutput.from_content("mockllm/model", "Found info about A."),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found info about A."},
+                ),
                 # Second research call
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -439,7 +471,11 @@ class TestMultipleCallsToSameSubagent:
                         "prompt": "Research topic B.",
                     },
                 ),
-                ModelOutput.from_content("mockllm/model", "Found info about B."),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found info about B."},
+                ),
                 # Outer agent finishes
                 _submit(),
             ],
@@ -471,7 +507,11 @@ class TestInterleavedToolUseAndDelegation:
                         "prompt": "Find data.",
                     },
                 ),
-                ModelOutput.from_content("mockllm/model", "Found data."),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Found data."},
+                ),
                 # 3. Save to memory
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -502,7 +542,11 @@ class TestInterleavedToolUseAndDelegation:
                         "prompt": "Process the data.",
                     },
                 ),
-                ModelOutput.from_content("mockllm/model", "Data processed."),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "Data processed."},
+                ),
                 # 6. Finish
                 _submit(),
             ],

@@ -26,10 +26,10 @@ Focus on finding specific, actionable information rather than making
 assumptions. If you find partial or conflicting information, report
 what you found and note the gaps or conflicts.
 
-Return your findings directly with specific details and evidence.
-Lead with the most important results, not a narrative of your search
-process. If information is incomplete or conflicting, state what you
-found and what remains uncertain.
+Submit your findings using the submit() tool. Lead with the most
+important results and include specific details and evidence. Do not
+narrate your search process. If information is incomplete or
+conflicting, state what you found and what remains uncertain.
 """.strip()
 
 

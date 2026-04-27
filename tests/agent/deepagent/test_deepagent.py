@@ -36,8 +36,12 @@ def test_deepagent_end_to_end() -> None:
                     "prompt": "Find information.",
                 },
             ),
-            # 2. Inner research subagent responds
-            ModelOutput.from_content("mockllm/model", "Found the info."),
+            # 2. Inner research subagent submits
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "Found the info."},
+            ),
             # 3. Outer agent submits
             ModelOutput.for_tool_call(
                 model="mockllm/model",
