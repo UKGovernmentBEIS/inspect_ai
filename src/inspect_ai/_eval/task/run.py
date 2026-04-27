@@ -487,6 +487,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
                         ),
+                        score_on_error=bool(config.score_on_error),
                         retry_on_error=config.retry_on_error or 0,
                         error_retries=[],
                         time_limit=config.time_limit,
@@ -737,6 +738,7 @@ async def task_run_sample(
         [int | str, int, dict[str, SampleScore]], Awaitable[None]
     ],
     fails_on_error: bool,
+    score_on_error: bool,
     early_stopping: EarlyStopping | None,
     retry_on_error: int,
     error_retries: list[EvalRetryError],
@@ -1110,7 +1112,12 @@ async def task_run_sample(
                         try:
                             # timeout during scoring will result in an ordinary sample error
                             with create_time_limit(scoring_time_limit):
-                                if error is None:
+                                # When `error is None` we always score. When the sample
+                                # already errored we score only if `score_on_error` was
+                                # requested; the scorer sees whatever partial state was
+                                # reached before the error so its result lands in the
+                                # metric denominator instead of silently dropping out.
+                                if error is None or score_on_error:
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
                                             scorers or []
@@ -1130,9 +1137,29 @@ async def task_run_sample(
                                             ):
                                                 if not scorer:
                                                     continue
-                                                score_result = await scorer(
-                                                    state, Target(sample.target)
-                                                )
+                                                try:
+                                                    score_result = await scorer(
+                                                        state, Target(sample.target)
+                                                    )
+                                                except Exception as scorer_ex:
+                                                    if error is None:
+                                                        # Error-free sample: surface the
+                                                        # scorer failure as a sample error
+                                                        # via the outer except — preserves
+                                                        # existing behavior.
+                                                        raise
+                                                    # score_on_error path: scorer can't
+                                                    # handle partial state. Drop this
+                                                    # score and keep the sample's
+                                                    # original error as the reported one.
+                                                    py_logger.debug(
+                                                        "Scorer %s raised on errored "
+                                                        "sample %s during score_on_error: %s",
+                                                        scorer_name,
+                                                        sample.id,
+                                                        scorer_ex,
+                                                    )
+                                                    continue
                                                 if scorer_name in state.scores:
                                                     raise RuntimeError(
                                                         f"Scorer {scorer_name} has modified state.scores"
@@ -1286,6 +1313,7 @@ async def task_run_sample(
             sample_complete=sample_complete,
             early_stopping=early_stopping,
             fails_on_error=fails_on_error,
+            score_on_error=score_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
             # forward on error that caused retry
