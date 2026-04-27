@@ -122,6 +122,10 @@ from inspect_ai.tool._tools._computer._common import (
         ("PrintScreen", "Print"),
         ("printscreen", "Print"),
         ("PRINTSCREEN", "Print"),
+        # PRTSCR
+        ("PrtScr", "Print"),
+        ("prtscr", "Print"),
+        ("PRTSCR", "Print"),
     ],
 )
 def test_single_key(input_key: str, expected: str) -> None:
@@ -169,6 +173,7 @@ def test_modifier_combo_lowercases_letter(input_combo: str, expected: str) -> No
         ("ctrl+esc", "ctrl+Escape"),
         ("ctrl+,", "ctrl+comma"),
         ("alt+printscreen", "alt+Print"),
+        ("alt+prtscr", "alt+Print"),
         ("ctrl+s", "ctrl+s"),
     ],
 )
