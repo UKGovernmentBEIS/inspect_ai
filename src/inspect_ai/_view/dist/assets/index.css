@@ -15664,7 +15664,6 @@ li > ul {
 .tab-tools > * {
   flex: 0 1 auto;
   height: 1.5rem;
-  margin-left: 0.5rem;
 }
 
 .tab-tools > input {
@@ -17007,23 +17006,23 @@ button._segment_19z32_10 {
 ._dropdownItem_1q996_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_13md5_1 {
+._tabs_1wfac_1 {
   align-items: center;
 }
 
-._tabContents_13md5_5 {
+._tabContents_1wfac_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_13md5_5._scrollable_13md5_11 {
+._tabContents_1wfac_5._scrollable_1wfac_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_13md5_1 {
+._tab_1wfac_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17033,47 +17032,52 @@ button._segment_19z32_10 {
   margin-bottom: -1px;
 }
 
-._tabItem_13md5_27 {
+._tabItem_1wfac_27 {
   align-self: end;
 }
 
-._pillSmallContainer_13md5_31 {
+._pillSmallContainer_1wfac_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_13md5_31 {
+._pillSmall_1wfac_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_13md5_39 {
+._tabIcon_1wfac_39 {
   margin-right: 0.5em;
 }
 
-._tabTools_13md5_43 {
+._tabSpacer_1wfac_43 {
+  flex: 1 1 0;
+  min-width: 0;
+  list-style: none;
+}
+
+._tabTools_1wfac_49 {
   flex-basis: auto;
-  margin-left: auto;
   display: flex;
   align-items: center;
   justify-content: end;
   flex-wrap: wrap;
   row-gap: 0.3rem;
+  column-gap: 0.5rem;
 }
 
-._tabStyle_13md5_53 {
+._tabStyle_1wfac_59 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_13md5_43 > * {
+._tabTools_1wfac_49 > * {
   flex: 0 1 auto;
-  margin-left: 0.5rem;
 }
 
-._tabTools_13md5_43 input {
+._tabTools_1wfac_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_13md5_43 .btn {
+._tabTools_1wfac_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
