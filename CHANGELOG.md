@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.213 (27 April 2026)
 
 - Agents: Add `deepagent()` — a batteries-included agent with subagent delegation, persistent memory, structured planning, and an opinionated system prompt. Includes built-in `research()`, `plan()`, and `general()` subagent factories, a `task` multiplexer tool for delegation, and support for both isolated and forked (prompt-cache-preserving) dispatch modes.
 - Tools: Add `todo_write()` planning tool for structured task tracking.
