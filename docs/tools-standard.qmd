@@ -606,7 +606,7 @@ The `skill()` tool takes a list of paths that contain standard skill specificati
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, skill, update_plan
+from inspect_ai.tool import bash, skill, todo_write
 
 SKILLS_DIR = Path(__file__).parent / "skills"
 
@@ -631,33 +631,107 @@ def intercode_ctf():
 
 Note that use of the `skill()` tool requires a that a [sandbox](sandboxing.qmd) be defined for the task so there is a filesystem to publish the skills within.
 
-## Update Plan {#sec-update-plan}
+## Todo Write {#sec-todo-write}
 
-The `update_plan()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
+The `todo_write()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
 
 Note though that for simpler tasks, plan maintenance is just overhead, and some models may fixate on updating the plan rather than actually executing it.
 
 ### Task Setup
 
-A task configured to use the update_plan tool might look like this:
+A task configured to use the todo_write tool might look like this:
 
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, update_plan
+from inspect_ai.tool import bash, todo_write
 
 @task
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        solver=react(tools=[bash(timeout=180), update_plan()]),
+        solver=react(tools=[bash(timeout=180), todo_write()]),
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
     )
 ```
 
-The update_plan tool is based on the update_plan tool used by [Codex CLI](https://github.com/openai/codex). The default tool description is taken from the GPT 5.1 system prompt for Codex. Pass a custom `description` to override this.
+
+## Read-Only Tools {#sec-read-only-tools}
+
+Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
+
+All three tools require a [Sandbox Environment](sandboxing.qmd) and accept optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool.
+
+### read_file
+
+Read the contents of a file, optionally selecting a range of lines:
+
+``` python
+from inspect_ai.tool import read_file
+
+# default configuration
+read_file()
+
+# with timeout and user
+read_file(timeout=30, user="nobody")
+```
+
+The model can specify `offset` (0-indexed line to start from) and `limit` (max lines to read) for pagination. Output includes line numbers for reference.
+
+### list_files
+
+List files and directories, with optional depth control:
+
+``` python
+from inspect_ai.tool import list_files
+
+# default configuration (recursive)
+list_files()
+
+# with depth limit
+list_files(timeout=30)
+```
+
+The model can specify a `path` and `depth` parameter. `depth=1` lists only immediate contents; omitting it lists everything recursively.
+
+### grep
+
+Search for patterns in files:
+
+``` python
+from inspect_ai.tool import grep
+
+# default configuration
+grep()
+
+# with timeout
+grep(timeout=60)
+```
+
+The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Results include file paths and line numbers by default.
+
+### Task Setup
+
+A task configured with read-only tools might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.agent import react
+from inspect_ai.tool import read_file, list_files, grep
+
+@task
+def code_analysis():
+    return Task(
+        dataset=read_dataset(),
+        solver=react(tools=[read_file(), list_files(), grep()]),
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
 
 ## Memory {#sec-memory}
 
@@ -702,9 +776,21 @@ memory(
 
 Keys should be valid `/memories` paths (e.g. "/memories/notes.md"). Values are resolved via `resource()`, supporting inline strings, file paths, or remote resources (s3://, https://). Seeding happens once on first tool execution. The model is prompted to read any pre-seeded memories before beginning work.
 
+### Read-Only Mode
+
+Use `memory(readonly=True)` to provide read-only access to the memory directory. In readonly mode, only the `view` command is available — write operations (`create`, `str_replace`, `insert`, `delete`, `rename`) are not exposed to the model. This is used by `research()` and `plan()` subagents in the deep agent system to share context without allowing mutation.
+
+``` python
+# read-only memory with pre-seeded data
+memory(
+    initial_data={"/memories/context.md": "shared context"},
+    readonly=True,
+)
+```
+
 ### Tool Binding
 
-The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
+The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the memory tool will automatically bind to the native Claude tool definition.
 
 ## Think {#sec-think}
 

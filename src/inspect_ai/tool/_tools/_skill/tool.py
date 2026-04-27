@@ -17,6 +17,7 @@ from .types import Skill, SkillInfo
 def skill(
     skills: Sequence[str | Path | Skill],
     *,
+    instance: str | None = None,
     sandbox: str | None = None,
     user: str | None = None,
     dir: str | None = None,
@@ -27,12 +28,18 @@ def skill(
 
     Args:
         skills: Agent skill specifications. Either a directory containing a skill or a full `Skill` specification.
+        instance: Optional instance name for the skill store. Enables
+            multiple independent skill tool instances within a single
+            sample (e.g., different subagents with different skill sets).
         sandbox: Sandbox environment name to copy skills to.
         user: User to write skills files with.
         dir: Directory to install into (defaults to "./skills").
     """
-    # resolve skills
+    from .validate import check_unique_skill_names
+
+    # resolve skills and validate uniqueness
     resolved_skills = read_skills(skills)
+    check_unique_skill_names(resolved_skills)
 
     async def execute(command: str) -> str:
         """Execute a skill within the main conversation.
@@ -41,7 +48,7 @@ def skill(
            command: The skill name (no arguments). E.g., "pdf" or "xlsx"
         """
         # see if we need to install the skills
-        installed = store_as(InstalledSkills)
+        installed = store_as(InstalledSkills, instance=instance)
         if installed.skills is None:
             installed.skills = await install_skills(resolved_skills, sandbox, user, dir)
 

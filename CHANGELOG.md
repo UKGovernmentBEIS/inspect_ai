@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Agents: Add `deepagent()` — a batteries-included agent with subagent delegation, persistent memory, structured planning, and an opinionated system prompt. Includes built-in `research()`, `plan()`, and `general()` subagent factories, a `task` multiplexer tool for delegation, and support for both isolated and forked (prompt-cache-preserving) dispatch modes.
+- Tools: Add `todo_write()` planning tool for structured task tracking.
+- Tools: Add `read_file()`, `list_files()`, and `grep()` read-only sandbox tools for agents that need filesystem access without write capabilities.
+- Tools: Add `readonly` parameter to `memory()` tool for read-only access to shared memory.
+- Skills: Add `instance` parameter to `skill()` for independent per-subagent skill stores. Skill names are now validated for uniqueness in `skill()`, `install_skills()`, and across `deepagent()` parent/subagent scopes.
 - Computer Use: Map `PRTSCR` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRTSCR` work correctly.
 
 ## 0.3.212 (24 April 2026)

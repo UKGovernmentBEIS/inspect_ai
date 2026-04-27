@@ -48,10 +48,14 @@ from ._tools._bash_session import bash_session
 from ._tools._code_execution import CodeExecutionProviders, code_execution
 from ._tools._computer import computer
 from ._tools._execute import bash, python
+from ._tools._grep import grep
+from ._tools._list_files import list_files
 from ._tools._memory import memory
+from ._tools._read_file import read_file
 from ._tools._skill import Skill, SkillInfo, install_skills, read_skills, skill
 from ._tools._text_editor import text_editor
 from ._tools._think import think
+from ._tools._todo_write import todo_write
 from ._tools._update_plan import update_plan
 from ._tools._web_browser import web_browser
 from ._tools._web_search import WebSearchProviders, web_search
@@ -62,12 +66,16 @@ __all__ = [
     "code_execution",
     "CodeExecutionProviders",
     "computer",
+    "grep",
+    "list_files",
     "memory",
     "python",
+    "read_file",
     "web_browser",
     "web_search",
     "WebSearchProviders",
     "think",
+    "todo_write",
     "update_plan",
     "text_editor",
     "tool",
