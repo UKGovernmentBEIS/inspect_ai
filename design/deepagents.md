@@ -396,11 +396,20 @@ task_tool = task(subagents=[research(), plan(), general(), reviewer()])
 
 **Dispatch mechanics:**
 - Look up the `Subagent` by `subagent_type`.
-- Construct a `react()` agent from the `Subagent` config.
-- If `fork=False`: invoke via `as_tool()` semantics — isolated context, summary returns as tool result.
-- If `fork=True`: the `task()` tool keeps the parent's full message history (including system prompt), strips only the trailing assistant message, and appends the subagent's instructions + task prompt as a user message. The child runs via `react(prompt=None)` and `run()`, preserving the prompt cache on all providers. Only the final output returns via `_extract_result()`. Wrapped in `timeline_branch()` for log viewer rendering.
+- Construct a `react()` agent from the `Subagent` config with `submit=AgentSubmit(answer_only=True)`.
+- If `fork=False`: invoke via `as_tool()` semantics — isolated context, submitted answer returns as tool result. The subagent's system prompt includes `SUBAGENT_SUBMIT_PROMPT` (via `AgentPrompt.assistant_prompt`) which instructs the model to call `submit()` with its complete findings and emphasizes that the parent cannot see conversation history.
+- If `fork=True`: the `task()` tool keeps the parent's full message history (including system prompt), strips only the trailing assistant message, and appends the subagent's instructions + task prompt + submit instructions as a user message. Submit instructions are appended to the user message (not as a system message) to preserve the prompt cache. The child runs via `react(prompt=None)` and `run()`, preserving the prompt cache on all providers. Only the submitted answer returns via `_extract_result()`. Wrapped in `timeline_branch()` for log viewer rendering.
 - The `task()` tool creates `span(type="agent")` for each dispatch explicitly. (Unlike `as_tool()`/`handoff()` which create spans automatically, `task()` manages its own dispatch lifecycle.)
 - V1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe for future parallel execution — forked subagents receive a copy of the parent's messages and only their filtered result returns. See section 8 for the deferred parallel execution plan.
+
+**Subagent submit behavior.** Subagents use `react()`'s `submit()` tool to explicitly report results back to the parent. This was introduced because without submit, subagents terminated when the model stopped calling tools, and the last assistant message often contained just a tool call or minimal text — making `_extract_result()` unreliable. With submit enabled:
+
+- Each subagent gets a `submit()` tool added by `react()`. The model must call `submit(answer=...)` to terminate and report results.
+- If the model stops calling tools without submitting, `react()`'s default continue prompt nudges it: "If you believe you have completed the task, please call the `submit()` tool with your final answer."
+- `AgentSubmit(answer_only=True)` ensures `state.output.completion` contains just the submitted answer (not the model's reasoning preamble). `_extract_result()` reads `completion` first, falling back to `message.text` if no submission occurred (e.g., limit exceeded).
+- Submit tool calls are removed from the subagent's message history after completion (`keep_in_messages=False`), preventing the parent from seeing submit calls that could confuse its own submit tracking.
+- The `SUBAGENT_SUBMIT_PROMPT` (defined in `prompt.py`) tells the model: "The parent agent that dispatched you cannot see your conversation history or tool calls — the content you pass to submit() is the only information that will be returned."
+- Built-in factory prompts (`research.py`, `plan.py`, `general.py`) reference `submit()` in their output guidance (e.g., "Submit your findings using the submit() tool").
 
 #### 3. Built-in subagent factories: `research()`, `plan()`, `general()`
 
