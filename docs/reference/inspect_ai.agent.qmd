@@ -8,6 +8,24 @@ description: Agent scaffolds and protocol.
 ### react
 ### human_cli
 
+## Deep Agent
+
+::: callout-note
+The `deepagent()` described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+### deepagent
+### subagent
+### Subagent
+### research
+### plan
+### general
+
+
 ## Execution
 
 ### handoff

@@ -223,6 +223,14 @@ class TimelineSpan(BaseModel):
     branched_from: str | None = Field(default=None)
     description: str | None = None
     utility: bool = False
+    tool_invoked: bool = False
+    """True if this agent span was invoked as a tool (via task/as_tool/handoff).
+
+    Tool-invoked subagents are explicit user-intended sub-trajectories and
+    are never classified as `utility` regardless of turn count or prompt
+    differences. The `_classify_utility_agents` heuristic targets internal
+    helper model calls, not explicit subagent invocations.
+    """
     agent_result: str | None = None
     outline: "Outline | None" = None
 
@@ -700,7 +708,11 @@ def _is_agent_span(span: EventTreeSpan) -> bool:
     """
     if span.type in ("agent", "solver"):
         return True
-    if span.type == "tool" and _contains_model_events(span):
+    if (
+        span.type == "tool"
+        and _contains_model_events(span)
+        and not _contains_agent_span(span)
+    ):
         return True
     return False
 
@@ -751,6 +763,7 @@ def _event_to_node(event: Event) -> TimelineEvent | TimelineSpan:
                 span_type="agent",
                 content=nested_content,
                 agent_result=agent_result,
+                tool_invoked=True,
             )
     return TimelineEvent(event=event)
 
@@ -765,9 +778,17 @@ def _build_span_from_generic_span(
     """
     content, branches = _process_children(span.children)
 
-    # Determine the span_type based on span type and content
+    # Determine the span_type based on span type and content. A tool span
+    # that recursively contains model events is treated as a tool-spawned
+    # agent (e.g. bridge-style tools that emit raw model events). But if
+    # the tool already wraps an explicit agent span, leave the
+    # classification alone — the inner agent span represents the agent.
     span_type: str | None
-    if span.type == "tool" and _contains_model_events(span):
+    if (
+        span.type == "tool"
+        and _contains_model_events(span)
+        and not _contains_agent_span(span)
+    ):
         span_type = "agent"
     else:
         span_type = span.type
@@ -796,6 +817,19 @@ def _contains_model_events(span: EventTreeSpan) -> bool:
                 return True
         elif isinstance(child, ModelEvent):
             return True
+    return False
+
+
+def _contains_agent_span(span: EventTreeSpan) -> bool:
+    """Check if a span has any descendant span with type='agent'.
+
+    Used to suppress tool→agent classification when the tool already
+    wraps an explicit agent span (which will represent the agent itself).
+    """
+    for child in span.children:
+        if isinstance(child, EventTreeSpan):
+            if child.type == "agent" or _contains_agent_span(child):
+                return True
     return False
 
 
@@ -844,6 +878,12 @@ def _unroll_span(
     # Emit span begin event
     into.append(TimelineEvent(event=span.begin))
 
+    # An agent span discovered as a direct child of a tool span being
+    # unrolled was invoked as a tool (task/as_tool/handoff). Mark it so
+    # _classify_utility_agents leaves it alone — tool-invoked subagents
+    # are explicit user intent, not internal helper calls.
+    parent_is_tool = span.type == "tool"
+
     # Process children: recurse into non-agent spans, keep agent spans
     for child in span.children:
         if isinstance(child, EventTreeSpan):
@@ -852,6 +892,8 @@ def _unroll_span(
                 if isinstance(node, TimelineSpan) and not node.content:
                     pass  # skip empty agent spans
                 else:
+                    if parent_is_tool and isinstance(node, TimelineSpan):
+                        node.tool_invoked = True
                     into.append(node)
             else:
                 _unroll_span(child, into)
@@ -1400,8 +1442,15 @@ def _classify_utility_agents(
     """
     agent_system_prompt = _get_system_prompt(node)
 
-    # Classify this node (root agent is never utility)
-    if parent_system_prompt is not None and agent_system_prompt is not None:
+    # Classify this node (root agent is never utility). Tool-invoked
+    # subagents (task/as_tool/handoff) are explicit user-intended
+    # sub-trajectories — never utility — even if single-turn. Foreign-prompt
+    # helper model calls are handled separately by _wrap_utility_events.
+    if (
+        parent_system_prompt is not None
+        and agent_system_prompt is not None
+        and not node.tool_invoked
+    ):
         if agent_system_prompt != parent_system_prompt and _is_single_turn(node):
             node.utility = True
 
