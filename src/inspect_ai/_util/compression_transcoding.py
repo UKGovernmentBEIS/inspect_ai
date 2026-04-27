@@ -190,13 +190,7 @@ class _DeflateCompressStream(AsyncIterator[bytes]):
 
 
 class _ZstdDecompressIterator(AsyncIterator[bytes]):
-    """AsyncIterator that decompresses zstd data from a source iterator.
-
-    Supports multi-frame zstd streams (entries written by
-    ``_MultiFrameZstdCompressObj``): chains fresh inner decompressobj
-    instances across frame boundaries, carrying ``unused_data`` from
-    the end of one frame into the next.
-    """
+    """AsyncIterator that decompresses zstd data, supporting multi-frame streams."""
 
     def __init__(self, source: AsyncIterator[bytes]):
         self._source = source

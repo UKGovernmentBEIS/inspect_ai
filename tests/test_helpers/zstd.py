@@ -1,9 +1,4 @@
-"""Shared test helpers for zstd zip-entry construction and inspection.
-
-Used by:
-- tests/util/test_zipfile_multiframe.py (existing sync multi-frame tests)
-- tests/util/test_async_zip.py (new async multi-frame integration test)
-"""
+"""Shared test helpers for zstd zip-entry construction and inspection."""
 
 from __future__ import annotations
 

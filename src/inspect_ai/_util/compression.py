@@ -30,13 +30,7 @@ class Decompressor(Protocol):
 
 
 class ZstdDecompressor(Decompressor):
-    """Decompressor for zstd compressed data, supporting multi-frame streams.
-
-    A single ``zstandard`` decompressobj only spans one frame; on eof it
-    rejects further input. This class chains fresh inner decompressobj
-    instances across frame boundaries, carrying the previous frame's
-    ``unused_data`` into the next frame.
-    """
+    """Decompressor for zstd compressed data, supporting multi-frame streams."""
 
     def __init__(self) -> None:
         self._dctx: zstandard.ZstdDecompressor | None = None
@@ -63,11 +57,9 @@ class ZstdDecompressor(Decompressor):
                 try:
                     data = await stream_iterator.__anext__()
                 except StopAsyncIteration:
-                    # Note: Unlike zlib, zstandard's decompressobj doesn't
-                    # have a flush() method. Passing empty bytes can trigger
-                    # output of any remaining buffered data in some edge
-                    # cases; if the inner is already eof'd, swallow the
-                    # error.
+                    # Note: Unlike zlib, zstandard's decompressobj doesn't have
+                    # a flush() method. Passing empty bytes can trigger output
+                    # of any remaining buffered data in some edge cases.
                     try:
                         final = self._obj.decompress(b"")
                     except zstandard.ZstdError:
@@ -80,8 +72,6 @@ class ZstdDecompressor(Decompressor):
                     raise
             decompressed = self._obj.decompress(data)
             if self._obj.eof:
-                # Inner frame complete; carry leftover bytes (the start of
-                # the next frame) into a fresh inner decompressobj.
                 self._pending = self._obj.unused_data
                 self._obj = self._dctx.decompressobj()
             if decompressed:

@@ -519,24 +519,14 @@ def test_entries_caching_trio(test_zip_file: Path) -> None:
 async def test_read_multi_frame_zstd_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AsyncZipReader must read back zstd entries that span multiple frames.
-
-    PR #3746's writer caps each zstd frame at 200 MiB of input, so any
-    sample whose JSON exceeds that cap becomes multi-frame on disk. The
-    async read path used by `read_log_sample` (AsyncZipReader ->
-    CompressedToUncompressedStream -> ZstdDecompressor) must transparently
-    span those frames.
-    """
+    """AsyncZipReader must read back zstd entries that span multiple frames."""
     from test_helpers.zstd import (
         ZSTD_MAGIC,
         moderately_compressible_payload,
         read_raw_compressed_entry,
     )
 
-    # Lower the per-frame cap so the test produces a multi-frame entry
-    # without writing hundreds of MiB. _MAX_INPUT_PER_FRAME is read on
-    # every compress() call inside _MultiFrameZstdCompressObj, so a
-    # monkey-patched module-level value takes effect immediately.
+    # Lower the per-frame cap so the test produces multi-frame output cheaply.
     monkeypatch.setattr("inspect_ai._util.zipfile._MAX_INPUT_PER_FRAME", 64 * 1024)
 
     payload = moderately_compressible_payload(256 * 1024)
@@ -545,10 +535,6 @@ async def test_read_multi_frame_zstd_member(
     with zipfile.ZipFile(zip_path, "w", compression=zip_zstandard) as zf:
         zf.writestr("big.json", payload)
 
-    # Sanity-check: confirm the entry actually has multiple frames.
-    # Without this assertion, a future change that breaks the
-    # monkey-patch could cause this test to silently exercise a
-    # single-frame entry and stop catching multi-frame regressions.
     raw = read_raw_compressed_entry(zip_path, "big.json")
     frame_count = raw.count(ZSTD_MAGIC)
     assert frame_count >= 2, (

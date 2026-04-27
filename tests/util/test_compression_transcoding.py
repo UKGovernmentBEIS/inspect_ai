@@ -1,9 +1,4 @@
-"""Tests for compression_transcoding helpers.
-
-Covers _ZstdDecompressIterator's handling of multi-frame zstd streams.
-The class is small enough that direct unit testing is high-confidence;
-no full CompressedToDeflateStream integration is needed.
-"""
+"""Tests for compression_transcoding helpers."""
 
 from __future__ import annotations
 
@@ -32,8 +27,6 @@ async def test_multi_frame_round_trip() -> None:
     expected = b"".join(parts)
     compressed = _multi_frame_zstd(parts)
 
-    # Use a chunk size that does NOT align with frame boundaries — the
-    # carryover logic must hold unused_data across calls.
     iterator = _ZstdDecompressIterator(_aiter_chunks(compressed, 7))
     chunks: list[bytes] = []
     async for chunk in iterator:
