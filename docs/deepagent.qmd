@@ -53,6 +53,12 @@ Tools are the only required customization for most tasks. Everything else is han
 
 Behind the scenes, `deepagent()` provides three subagents (`research()`, `plan()`, and `general()`), a `memory()` tool, a `todo_write()` planning tool, and a system prompt that teaches the model when to use each. The sections below describe these defaults and how to customize them.
 
+### Use Cases
+
+The `deepagent()` is designed for long-horizon tasks that benefit from planning, decomposition, and persistent memory. These are tasks where the agent needs to work for extended periods, manage intermediate results across context compaction, and coordinate multiple phases of work.
+
+For shorter but still difficult benchmarks (e.g. Cybench, Terminal Bench 2.0), we do not observe  performance differences between the `react()`, `deepagent()`, and `claude_code()` agents. You should only reach for `deepagent()` when you are confident that the task will benefit from it, and you should always measure against a `react()` baseline to be sure.
+
 ## Agent Defaults
 
 When you call `deepagent()` with no configuration beyond tools, you get a fully assembled agent with the following default behavior.
