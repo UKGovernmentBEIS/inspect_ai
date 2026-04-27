@@ -9876,14 +9876,6 @@ Note that when you pass an [Agent](./reference/inspect_ai.agent.html.md#agent) a
 
 # Deep Agent – Inspect
 
-> **NOTE: Note**
->
-> The [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) described below is available only in the development version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](./react-agent.html.md) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
