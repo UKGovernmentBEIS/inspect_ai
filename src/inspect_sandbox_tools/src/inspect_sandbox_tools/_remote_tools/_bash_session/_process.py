@@ -5,13 +5,18 @@ from asyncio.subprocess import Process as AsyncIOProcess
 
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
+from ..._util.user_switch import get_home_dir, make_preexec
 from .tool_types import InteractResult
 
 
 class Process:
     @classmethod
-    async def create(cls) -> "Process":
+    async def create(cls, user: str | None = None) -> "Process":
         pty = await PseudoTerminal.create()
+
+        env = {**os.environ, "TERM": "dumb"}
+        if user is not None:
+            env["HOME"] = get_home_dir(user)
 
         return cls(
             await asyncio.create_subprocess_exec(
@@ -20,8 +25,9 @@ class Process:
                 stdin=pty.subprocess_fd,
                 stdout=pty.subprocess_fd,
                 stderr=pty.subprocess_fd,
-                env={**os.environ, "TERM": "dumb"},
+                env=env,
                 start_new_session=True,
+                preexec_fn=make_preexec(user),
             ),
             pty,
         )
