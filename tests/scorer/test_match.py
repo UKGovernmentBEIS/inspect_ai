@@ -45,7 +45,16 @@ async def test_non_numeric_match_end():
 @pytest.mark.anyio
 async def test_non_numeric_match_plain():
     scorer = match(numeric=True)
-    state = simple_task_state(model_output="28 + 32 = 60%")
+    state = simple_task_state(model_output="The answer is 32 dollars")
     result = await scorer(state, Target(["32"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_match_percent_suffix():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="The answer is 20%")
+    result = await scorer(state, Target(["20"]))
 
     assert result.text == CORRECT
