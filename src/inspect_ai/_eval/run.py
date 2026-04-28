@@ -17,6 +17,7 @@ if sys.version_info < (3, 11):
 
 import anyio
 from anyio.abc import TaskGroup
+from inspect_scout import Scanner, Transcript
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
@@ -72,6 +73,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
+    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,
@@ -257,6 +259,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         solver=eval_solver,
+                        scanner=scanner,
                         tags=merged_tags,
                         run_samples=run_samples,
                         score=score,

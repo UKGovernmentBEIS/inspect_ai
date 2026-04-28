@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
+from inspect_scout import Scanner, Transcript
 from pydantic import BaseModel
 from pydantic_core import to_json
 from rich.status import Status
@@ -113,6 +114,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -188,6 +190,8 @@ def eval_set(
             (defaults to True)
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the
+            sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
@@ -292,6 +296,7 @@ def eval_set(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            scanner=scanner,
             tags=tags,
             metadata=metadata,
             trace=trace,

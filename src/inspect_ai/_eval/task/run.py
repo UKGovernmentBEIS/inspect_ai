@@ -12,6 +12,8 @@ from typing import Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
+from inspect_scout import Scanner
+from inspect_scout import Transcript as ScoutTranscript
 from typing_extensions import Unpack
 
 from inspect_ai._display import (
@@ -136,6 +138,7 @@ from .images import (
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
+from .scan import scan_eval_sample
 from .store import DiskSampleStore, maybe_page_to_disk
 from .util import sample_messages, slice_dataset
 
@@ -161,6 +164,9 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
+    scanner: Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None = field(
+        default=None
+    )
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -203,6 +209,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     eval_wd = options.eval_wd
     config = options.config
     solver = options.solver
+    scanner = options.scanner
     tags = options.tags
     score = options.score
     sample_source = options.sample_source
@@ -474,6 +481,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
+                        scanner=scanner,
                         cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
@@ -726,6 +734,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
+    scanner: Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None,
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -1250,6 +1259,7 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
+                    await scan_eval_sample(eval_sample, scanner)
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
@@ -1276,6 +1286,7 @@ async def task_run_sample(
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
+            scanner=scanner,
             cleanup=cleanup,
             generate=generate,
             progress=progress,

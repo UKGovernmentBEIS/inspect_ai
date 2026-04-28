@@ -21,6 +21,7 @@ from inspect_ai.util._anyio import inner_exception
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
+from inspect_scout import Scanner, Transcript
 from shortuuid import uuid
 from typing_extensions import Unpack
 
@@ -94,6 +95,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -158,6 +160,8 @@ def eval(
             (defaults to True)
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the
+            sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
@@ -254,6 +258,7 @@ def eval(
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
+                scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
@@ -319,6 +324,7 @@ async def eval_async(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -375,6 +381,7 @@ async def eval_async(
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
@@ -452,6 +459,7 @@ async def eval_async(
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
+                scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
@@ -522,6 +530,7 @@ async def _eval_async_inner(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -758,6 +767,7 @@ async def _eval_async_inner(
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
                         solver=solver,
+                        scanner=scanner,
                         tags=tags,
                         metadata=metadata,
                         run_samples=run_samples,
@@ -787,6 +797,7 @@ async def _eval_async_inner(
                 header_only=log_header_only,
                 epochs_reducer=epochs_reducer,
                 solver=solver,
+                scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 run_samples=run_samples,
