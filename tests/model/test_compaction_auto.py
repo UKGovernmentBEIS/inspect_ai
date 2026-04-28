@@ -38,25 +38,29 @@ async def test_auto_uses_fallback_on_unsupported_provider() -> None:
     assert len(result) > 0
     assert isinstance(result, list)
 
-    # Fallback should have been triggered
-    assert strategy._use_fallback is True
 
-
-async def test_auto_fallback_is_sticky() -> None:
-    """After the first fallback, _use_fallback is True and subsequent calls use fallback directly."""
+async def test_auto_fallback_is_stateless(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CompactionAuto tries native on every call (no sticky state)."""
     strategy = CompactionAuto()
     model = get_model("mockllm/model")
     messages = _sample_messages()
 
-    # First call triggers fallback via NotImplementedError catch
-    assert strategy._use_fallback is False
-    await strategy.compact(model, messages, [])
-    assert strategy._use_fallback is True
+    native_call_count = 0
+    original_compact = strategy._native.compact
 
-    # Second call goes through the sticky fallback path (no try/except)
-    result, summary = await strategy.compact(model, messages, [])
-    assert len(result) > 0
-    assert strategy._use_fallback is True
+    async def counting_compact(m: object, msgs: object, t: object) -> object:
+        nonlocal native_call_count
+        native_call_count += 1
+        return await original_compact(m, msgs, t)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(strategy._native, "compact", counting_compact)
+
+    await strategy.compact(model, messages, [])
+    await strategy.compact(model, messages, [])
+
+    assert native_call_count == 2
 
 
 async def test_auto_parameter_forwarding() -> None:
@@ -82,7 +86,7 @@ async def test_auto_parameter_forwarding() -> None:
 
 
 async def test_auto_memory_auto_default() -> None:
-    """CompactionAuto defaults memory to 'auto' with dynamic behavior."""
+    """CompactionAuto defaults memory to 'auto' — True since fallback may occur."""
     strategy = CompactionAuto()
 
     # Default memory setting should be "auto"
@@ -91,31 +95,14 @@ async def test_auto_memory_auto_default() -> None:
     assert strategy._native.memory is False
     # Summary benefits from memory warnings
     assert strategy._summary.memory is True
-    # Before fallback, memory property returns False (optimistic - assume native works)
-    assert strategy.memory is False
-
-
-async def test_auto_memory_auto_after_fallback() -> None:
-    """CompactionAuto memory property returns True after falling back to summary."""
-    strategy = CompactionAuto()
-    model = get_model("mockllm/model")
-    messages = _sample_messages()
-
-    # Before compaction, memory is False
-    assert strategy.memory is False
-
-    # Trigger compaction (will fall back on mockllm)
-    await strategy.compact(model, messages, [])
-
-    # After fallback, memory property returns True
-    assert strategy._use_fallback is True
+    # Memory property returns True (conservative — can't predict native support)
     assert strategy.memory is True
 
 
-async def test_auto_fallback_logs_warning(
+async def test_auto_no_warning_on_unsupported_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """CompactionAuto logs a warning when falling back to summary compaction."""
+    """CompactionAuto does not warn when provider doesn't support native compaction."""
     warnings: list[str] = []
 
     import inspect_ai.model._compaction.auto as auto_module
@@ -130,9 +117,7 @@ async def test_auto_fallback_logs_warning(
 
     await strategy.compact(model, messages, [])
 
-    assert len(warnings) == 1
-    assert "Falling back to summary compaction" in warnings[0]
-    assert "switch to CompactionAuto" not in warnings[0]
+    assert len(warnings) == 0
 
 
 async def test_auto_memory_explicit_true() -> None:
@@ -155,6 +140,38 @@ async def test_auto_memory_explicit_false() -> None:
     assert strategy.memory is False
 
 
+async def test_auto_warns_on_native_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CompactionAuto logs a warning when native compaction fails with a non-NotImplementedError."""
+    warnings: list[str] = []
+
+    import inspect_ai.model._compaction.auto as auto_module
+
+    monkeypatch.setattr(
+        auto_module.logger, "warning", lambda msg, *a, **kw: warnings.append(str(msg))
+    )
+
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+    messages = _sample_messages()
+
+    # Patch native to raise a real error (not NotImplementedError)
+    async def failing_compact(m, msgs, t):
+        raise RuntimeError("API rate limit exceeded")
+
+    monkeypatch.setattr(strategy._native, "compact", failing_compact)
+
+    result, _ = await strategy.compact(model, messages, [])
+
+    # Should fall back to summary successfully
+    assert len(result) > 0
+    # Should have logged a warning
+    assert len(warnings) == 1
+    assert "Native compaction failed" in warnings[0]
+    assert "Falling back to summary compaction" in warnings[0]
+
+
 @skip_if_no_openai
 async def test_auto_uses_native_when_supported() -> None:
     """CompactionAuto uses native compaction when the provider supports it."""
@@ -171,9 +188,6 @@ async def test_auto_uses_native_when_supported() -> None:
     # Native compaction returns None for the supplemental message
     assert summary is None
 
-    # Fallback should NOT have been triggered
-    assert strategy._use_fallback is False
-
 
 @skip_if_no_anthropic
 async def test_auto_fallback_on_unsupported_anthropic_model() -> None:
@@ -186,9 +200,6 @@ async def test_auto_fallback_on_unsupported_anthropic_model() -> None:
 
     # Should succeed via fallback since model doesn't support compaction
     result, summary = await strategy.compact(model, messages, [])
-
-    # Fallback should have been triggered
-    assert strategy._use_fallback is True
     assert len(result) > 0
 
 
