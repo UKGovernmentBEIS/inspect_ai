@@ -1928,7 +1928,7 @@ def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
 
     prefix = sample_context_prefix()
     error = retry_error_summary(retry_state)
-    level = logging.WARNING if retry_state.upcoming_sleep >= 60 else HTTP
+    level = logging.WARNING if retry_state.upcoming_sleep >= (60 * 20) else HTTP
     logger.log(
         level,
         f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
