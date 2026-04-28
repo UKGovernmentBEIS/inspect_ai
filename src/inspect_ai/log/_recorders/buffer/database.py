@@ -531,6 +531,8 @@ class SampleBufferDatabase(SampleBuffer):
             query += " AND id > ?"
             params.append(after_attachment_id)
 
+        query += " ORDER BY id"
+
         cursor = conn.execute(query, params)
 
         for row in cursor:
@@ -809,27 +811,24 @@ def sync_to_filestore(
     last_message_pool_id = 0
     last_call_pool_id = 0
     segment_files: list[SegmentFile] = []
+    segment_by_id = {seg.id: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
-        # get last ids we've seen for this sample
-        sample_last_segment_id = (
-            manifest_sample.segments[-1] if manifest_sample.segments else None
-        )
-        sample_last_segment = next(
-            (
-                segment
-                for segment in manifest.segments
-                if segment.id == sample_last_segment_id
-            ),
-            None,
-        )
-        if sample_last_segment is not None:
-            after_event_id = sample_last_segment.last_event_id
-            after_attachment_id = sample_last_segment.last_attachment_id
-            after_message_pool_id = sample_last_segment.last_message_pool_id
-            after_call_pool_id = sample_last_segment.last_call_pool_id
-        else:
-            after_event_id, after_attachment_id = (0, 0)
-            after_message_pool_id, after_call_pool_id = (0, 0)
+        # take the max of last_*_id across all of this sample's segments, not
+        # just the latest: each segment's last_*_id is 0 if no items of that
+        # type were added there, so the latest alone can regress the cursor.
+        after_event_id = 0
+        after_attachment_id = 0
+        after_message_pool_id = 0
+        after_call_pool_id = 0
+        for seg_id in manifest_sample.segments:
+            seg = segment_by_id.get(seg_id)
+            if seg is not None:
+                after_event_id = max(after_event_id, seg.last_event_id)
+                after_attachment_id = max(after_attachment_id, seg.last_attachment_id)
+                after_message_pool_id = max(
+                    after_message_pool_id, seg.last_message_pool_id
+                )
+                after_call_pool_id = max(after_call_pool_id, seg.last_call_pool_id)
 
         # get sample data
         sample_data = db.get_sample_data(

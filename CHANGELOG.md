@@ -6,6 +6,7 @@
 - HTTP retries: Only log warning if retry wait will be > 20 minutes (previously was 1 minute).
 - Sandbox tools: `user` parameter on `bash_session`, `text_editor`, and `exec_remote` now correctly applied server-side; CLI binary and server socket are no longer accessible to the sandbox's default user.
 - Display: Add a "Flow" tab to the full (textual) display, populated by Inspect Flow via an internal `set_flow_content()` integration point.
+- Inspect View: Fix live transcript streaming so model inputs and calls resolve to the correct messages across buffer segments.
 
 ## 0.3.213 (27 April 2026)
 
