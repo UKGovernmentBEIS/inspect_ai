@@ -30,6 +30,14 @@ class NewSessionResult(BaseModel):
     session_name: str
 
 
+class NewSessionParams(BaseModel):
+    """Parameters for bash_session_new_session."""
+
+    user: str | None = None
+    """User to run the bash session as (requires server running as root)."""
+    model_config = {"extra": "forbid"}
+
+
 BashRestartResult: TypeAlias = str
 
 

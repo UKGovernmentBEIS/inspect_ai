@@ -1,3 +1,37 @@
+## Unreleased
+
+- Deepagent: Use `CompactionAuto` by default as the compaction strategy.
+- Compaction: Make `CompactionAuto` stateless — native compaction is attempted on every trigger rather than remembering fallback state.
+- OpenAI: Add `responses_phase` model arg to opt in to synthesizing missing Responses API assistant message `phase` labels while continuing to preserve OpenAI-returned phase metadata by default.
+- HTTP retries: Only log warning if retry wait will be > 20 minutes (previously was 1 minute).
+- Sandbox tools: `user` parameter on `bash_session`, `text_editor`, and `exec_remote` now correctly applied server-side; CLI binary and server socket are no longer accessible to the sandbox's default user.
+- Display: Add a "Flow" tab to the full (textual) display, populated by Inspect Flow via an internal `set_flow_content()` integration point.
+
+## 0.3.213 (27 April 2026)
+
+- Agents: Add `deepagent()` — a batteries-included agent with subagent delegation, persistent memory, structured planning, and an opinionated system prompt. Includes built-in `research()`, `plan()`, and `general()` subagent factories, a `task` multiplexer tool for delegation, and support for both isolated and forked (prompt-cache-preserving) dispatch modes.
+- Tools: Add `todo_write()` planning tool for structured task tracking.
+- Tools: Add `read_file()`, `list_files()`, and `grep()` read-only sandbox tools for agents that need filesystem access without write capabilities.
+- Tools: Add `readonly` parameter to `memory()` tool for read-only access to shared memory.
+- Skills: Add `instance` parameter to `skill()` for independent per-subagent skill stores. Skill names are now validated for uniqueness in `skill()`, `install_skills()`, and across `deepagent()` parent/subagent scopes.
+- Computer Use: Map `PRTSCR` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRTSCR` work correctly.
+Inspect View: Display approvals within tool calls and filter auto-approvals from the display.
+Inspect View: Improve formatting of rejected and long approval messages.
+Inspect View: Fix phantom "more" toggles on expandable panels by measuring overflow against the correct font size.
+Inspect View: Keep the expandable panel toggle on screen when content exceeds the viewport height.
+Inspect View: Remove duplicated borders and corners on root elements of the transcript.
+Inspect View: Default to showing branches expanded in the timeline.
+Inspect View: Fix outline, citation, and swimlane navigation to reliably scroll to the targeted event.
+Inspect View: Add branch-aware citation deep-linking and land target messages just below the sticky bar.
+Inspect View: Detect additional todo/task tool names for inspect-deepagent.
+Inspect View: Persist task list filter and sort independently per scope to prevent state leaking between Tasks and Folders.
+Inspect View: Add Tokens and Duration columns to the samples list.
+Inspect View: Fix timeline error markers that flagged every model and tool event.
+Inspect View: Add a fade-out affordance at the bottom of truncated content in expandable panels.
+Inspect View: Collapse system, user, assistant, and tool chat messages by default with per-role line caps.
+Inspect View: Improve sample appearance at narrow widths.
+Inspect View: Improve reliability of viewing running samples.
+
 ## 0.3.212 (24 April 2026)
 
 - Google: Honor the `press_enter` default on Gemini's `type_text_at` action so typed text commits with Enter as the spec specifies.

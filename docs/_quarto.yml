@@ -70,6 +70,7 @@ inspect-docs:
       contents:
         - href: agents.qmd
         - href: react-agent.qmd
+        - href: deepagent.qmd
         - href: multi-agent.qmd
         - href: agent-custom.qmd
         - href: agent-bridge.qmd

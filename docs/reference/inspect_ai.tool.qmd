@@ -13,12 +13,15 @@ description: Built-in and custom tool functions.
 ### computer
 ### code_execution
 ### web_browser
+### read_file
+### list_files
+### grep
 
 ## Agentic Tools
 
 ### skill
 ### memory
-### update_plan
+### todo_write
 ### think
 
 ## MCP
