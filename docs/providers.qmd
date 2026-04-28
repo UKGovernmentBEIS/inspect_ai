@@ -36,6 +36,7 @@ The `openai` provider supports the following custom model args (other model args
 |--------------------------|----------------------------------------------|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
+| `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
@@ -72,6 +73,16 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
 Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+
+### Responses Phase
+
+OpenAI Responses API assistant messages can include a [`phase`](https://developers.openai.com/api/docs/guides/reasoning#phase-parameter) label that distinguishes intermediate commentary from the final answer. Inspect preserves and replays `phase` values returned by OpenAI. To additionally synthesize missing `phase` values for assistant messages constructed outside the Responses API, use the `responses_phase` model argument:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 -M responses_phase=true
+```
+
+When enabled, assistant messages with tool calls are labeled `commentary`; other assistant messages are labeled `final_answer`.
 
 ### Responses Store
 
