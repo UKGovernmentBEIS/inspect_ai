@@ -70,7 +70,7 @@ Subagents run in isolated context by default. Each gets a fresh message history 
 
 The [memory()](./reference/inspect_ai.tool.html.md#memory) tool provides a scratchpad for the top-level agent for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.
 
-Memory is important for long-running agents because it survives context [compaction](./compaction.html.md). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. When compaction is enabled, the model is instructed to checkpoint important state to memory before context is reduced, ensuring progress survives across compaction boundaries.
+Memory is important for long-running agents because it survives context [compaction](./compaction.html.md), which is enabled by default. The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. Before compaction reduces the context, the model is instructed to checkpoint important state to memory, ensuring progress survives across compaction boundaries.
 
 The [memory()](./reference/inspect_ai.tool.html.md#memory) tool is based on Anthropic’s [native memory tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool) and binds to it natively on Anthropic models.
 
@@ -159,20 +159,29 @@ Parent skills are available to the top-level agent. At dispatch time, parent ski
 
 ## Compaction
 
-Long-running agents can exhaust their context window. Use the `compaction` parameter to automatically manage conversation context as it grows:
+Long-running agents can exhaust their context window. By default, [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) uses [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto), which tries efficient provider-native compaction first and falls back to summary-based compaction for providers that don’t support it. This means compaction is active out of the box — no configuration needed.
+
+To override with a specific strategy or disable compaction:
 
 ``` python
 from inspect_ai.agent import deepagent
 from inspect_ai.model import CompactionSummary
 from inspect_ai.tool import bash, text_editor
 
+# Use a specific strategy
 deepagent(
     tools=[bash(), text_editor()],
     compaction=CompactionSummary(),
 )
+
+# Disable compaction entirely
+deepagent(
+    tools=[bash(), text_editor()],
+    compaction=None,
+)
 ```
 
-Compaction propagates to subagents that don’t set their own strategy, so a single `compaction=` on [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) covers the parent and all subagents. Individual subagents can override with their own strategy when [customized](#sec-customizing-builtins).
+Compaction propagates to subagents that don’t set their own strategy, so the default covers the parent and all subagents. Individual subagents can override with their own strategy when [customized](#sec-customizing-builtins).
 
 See the [Compaction](./compaction.html.md) documentation for details on available strategies ([CompactionSummary](./reference/inspect_ai.model.html.md#compactionsummary), [CompactionEdit](./reference/inspect_ai.model.html.md#compactionedit), [CompactionTrim](./reference/inspect_ai.model.html.md#compactiontrim), [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto), and [CompactionNative](./reference/inspect_ai.model.html.md#compactionnative)).
 

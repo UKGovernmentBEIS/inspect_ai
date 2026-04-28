@@ -4513,6 +4513,7 @@ The `openai` provider supports the following custom model args (other model args
 |----|----|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
+| `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
@@ -4547,6 +4548,16 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
 Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+
+### Responses Phase
+
+OpenAI Responses API assistant messages can include a [`phase`](https://developers.openai.com/api/docs/guides/reasoning#phase-parameter) label that distinguishes intermediate commentary from the final answer. Inspect preserves and replays `phase` values returned by OpenAI. To additionally synthesize missing `phase` values for assistant messages constructed outside the Responses API, use the `responses_phase` model argument:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 -M responses_phase=true
+```
+
+When enabled, assistant messages with tool calls are labeled `commentary`; other assistant messages are labeled `final_answer`.
 
 ### Responses Store
 
@@ -6034,7 +6045,7 @@ Here are all options available for [CompactionAuto](./reference/inspect_ai.model
 |----|----|----|
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
 | `instructions` | None | Additional instructions to give the model about compaction (e.g. “Focus on preserving code snippets and technical decisions.”) |
-| `memory` | “auto” | Warn the model to save content to memory before compaction (when the memory tool is available). Use `"auto"` to disable memory for native compaction and enable it for summary compaction. |
+| `memory` | “auto” | Warn the model to save content to memory before compaction (when the memory tool is available). `"auto"` enables warnings for all compaction paths. |
 
 ## Native Compaction
 
@@ -8456,6 +8467,8 @@ The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should e
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
+The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
+
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 
 Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is *advisory* (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
@@ -8835,6 +8848,8 @@ The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
+
+The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
 
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 
@@ -9946,7 +9961,7 @@ Subagents run in isolated context by default. Each gets a fresh message history 
 
 The [memory()](./reference/inspect_ai.tool.html.md#memory) tool provides a scratchpad for the top-level agent for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.
 
-Memory is important for long-running agents because it survives context [compaction](./compaction.html.md). The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. When compaction is enabled, the model is instructed to checkpoint important state to memory before context is reduced, ensuring progress survives across compaction boundaries.
+Memory is important for long-running agents because it survives context [compaction](./compaction.html.md), which is enabled by default. The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. Before compaction reduces the context, the model is instructed to checkpoint important state to memory, ensuring progress survives across compaction boundaries.
 
 The [memory()](./reference/inspect_ai.tool.html.md#memory) tool is based on Anthropic’s [native memory tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool) and binds to it natively on Anthropic models.
 
@@ -10035,20 +10050,29 @@ Parent skills are available to the top-level agent. At dispatch time, parent ski
 
 ## Compaction
 
-Long-running agents can exhaust their context window. Use the `compaction` parameter to automatically manage conversation context as it grows:
+Long-running agents can exhaust their context window. By default, [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) uses [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto), which tries efficient provider-native compaction first and falls back to summary-based compaction for providers that don’t support it. This means compaction is active out of the box — no configuration needed.
+
+To override with a specific strategy or disable compaction:
 
 ``` python
 from inspect_ai.agent import deepagent
 from inspect_ai.model import CompactionSummary
 from inspect_ai.tool import bash, text_editor
 
+# Use a specific strategy
 deepagent(
     tools=[bash(), text_editor()],
     compaction=CompactionSummary(),
 )
+
+# Disable compaction entirely
+deepagent(
+    tools=[bash(), text_editor()],
+    compaction=None,
+)
 ```
 
-Compaction propagates to subagents that don’t set their own strategy, so a single `compaction=` on [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) covers the parent and all subagents. Individual subagents can override with their own strategy when [customized](#sec-customizing-builtins).
+Compaction propagates to subagents that don’t set their own strategy, so the default covers the parent and all subagents. Individual subagents can override with their own strategy when [customized](#sec-customizing-builtins).
 
 See the [Compaction](./compaction.html.md) documentation for details on available strategies ([CompactionSummary](./reference/inspect_ai.model.html.md#compactionsummary), [CompactionEdit](./reference/inspect_ai.model.html.md#compactionedit), [CompactionTrim](./reference/inspect_ai.model.html.md#compactiontrim), [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto), and [CompactionNative](./reference/inspect_ai.model.html.md#compactionnative)).
 
@@ -14961,13 +14985,15 @@ The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should e
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
+The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
+
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 
 Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is *advisory* (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](./reference/inspect_ai.dataset.html.md#sample) with an error state.
 
-Note that the `exec_remote()` method is implemented directly in the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) base class so should not be implemented by subclasses.
+Note that the `exec_remote()` method is implemented directly in the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) base class so should not be implemented by subclasses. It supports running commands as different users via the `user` option — when the sandbox tools server runs as root, it uses `setuid` to switch to the requested user before executing the command.
 
 The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
 

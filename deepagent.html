@@ -674,7 +674,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="memory" class="level3">
 <h3 class="anchored" data-anchor-id="memory">Memory</h3>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool provides a scratchpad for the top-level agent for the duration of the evaluation. The model can create, view, update, delete, and search memory entries, storing intermediate results, findings, and status as it works.</p>
-<p>Memory is important for long-running agents because it survives context <a href="./compaction.html">compaction</a>. The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. When compaction is enabled, the model is instructed to checkpoint important state to memory before context is reduced, ensuring progress survives across compaction boundaries.</p>
+<p>Memory is important for long-running agents because it survives context <a href="./compaction.html">compaction</a>, which is enabled by default. The system prompt instructs the model to save important findings to memory, and to check memory at the start of its work to recover any earlier progress. Before compaction reduces the context, the model is instructed to checkpoint important state to memory, ensuring progress survives across compaction boundaries.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool is based on Anthropic’s <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">native memory tool</a> and binds to it natively on Anthropic models.</p>
 <p>By default, only the top-level agent has memory — subagents do not. Subagents communicate their findings back through their return value, which is the designed channel for information flow. This avoids cross-contamination where subagent scratch notes could pollute the parent’s memory. If a subagent is given memory access (via <code>memory="readwrite"</code> on <a href="#sec-customizing-builtins">customized subagents</a>), its writes are visible to the parent and to subsequent subagent invocations, since all memory tools share the same underlying store.</p>
 </section>
@@ -755,16 +755,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="compaction" class="level2">
 <h2 class="anchored" data-anchor-id="compaction">Compaction</h2>
-<p>Long-running agents can exhaust their context window. Use the <code>compaction</code> parameter to automatically manage conversation context as it grows:</p>
+<p>Long-running agents can exhaust their context window. By default, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> uses <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span>, which tries efficient provider-native compaction first and falls back to summary-based compaction for providers that don’t support it. This means compaction is active out of the box — no configuration needed.</p>
+<p>To override with a specific strategy or disable compaction:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> deepagent</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionSummary</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span>CompactionSummary(),</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Compaction propagates to subagents that don’t set their own strategy, so a single <code>compaction=</code> on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> covers the parent and all subagents. Individual subagents can override with their own strategy when <a href="#sec-customizing-builtins">customized</a>.</p>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Use a specific strategy</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span>CompactionSummary(),</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Disable compaction entirely</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Compaction propagates to subagents that don’t set their own strategy, so the default covers the parent and all subagents. Individual subagents can override with their own strategy when <a href="#sec-customizing-builtins">customized</a>.</p>
 <p>See the <a href="./compaction.html">Compaction</a> documentation for details on available strategies (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span>).</p>
 </section>
 <section id="sec-subagent-config" class="level2">

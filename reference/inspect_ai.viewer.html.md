@@ -8,7 +8,7 @@ Top-level viewer configuration.
 
 `scanner_result_view` keys are fnmatch-style glob patterns (`"*"`, `"audit_*"`, exact names). Pass a ScannerResultView to apply a single configuration to every scanner.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/61ad3d77880674914a7aecade7b819e3cc54e232/src/inspect_ai/viewer/_config.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/194afe0d9fbc79ec6d6faf8f192750a221d83bfa/src/inspect_ai/viewer/_config.py#L58)
 
 ``` python
 class ViewerConfig(BaseModel)
@@ -25,7 +25,7 @@ Glob-keyed map from scanner name pattern to its sidebar config. May also be a ba
 
 How the scann results should render the results.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/61ad3d77880674914a7aecade7b819e3cc54e232/src/inspect_ai/viewer/_config.py#L43)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/194afe0d9fbc79ec6d6faf8f192750a221d83bfa/src/inspect_ai/viewer/_config.py#L43)
 
 ``` python
 class ScannerResultView(BaseModel)
@@ -45,7 +45,7 @@ Fields to suppress. For a [ScannerResultField](../reference/inspect_ai.viewer.ht
 
 A metadata key promoted out of metadata into a top level value.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/61ad3d77880674914a7aecade7b819e3cc54e232/src/inspect_ai/viewer/_config.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/194afe0d9fbc79ec6d6faf8f192750a221d83bfa/src/inspect_ai/viewer/_config.py#L28)
 
 ``` python
 class MetadataField(BaseModel)
@@ -66,7 +66,7 @@ Whether the field should be collapsed by default.
 
 A built-in scanner-result section (e.g. `value`, `explanation`).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/61ad3d77880674914a7aecade7b819e3cc54e232/src/inspect_ai/viewer/_config.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/194afe0d9fbc79ec6d6faf8f192750a221d83bfa/src/inspect_ai/viewer/_config.py#L6)
 
 ``` python
 class ScannerResultField(BaseModel)

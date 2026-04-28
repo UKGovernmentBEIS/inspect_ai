@@ -321,13 +321,15 @@ The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should e
 
 The [read_file()](./reference/inspect_ai.tool.html.md#read_file) method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don’t exist.
 
+The `exec_remote()` options ([ExecRemoteStreamingOptions](./reference/inspect_ai.util.html.md#execremotestreamingoptions) and [ExecRemoteAwaitableOptions](./reference/inspect_ai.util.html.md#execremoteawaitableoptions)) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
+
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 
 Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is *advisory* (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised: these are *expected* errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, *unexpected* errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the [Sample](./reference/inspect_ai.dataset.html.md#sample) with an error state.
 
-Note that the `exec_remote()` method is implemented directly in the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) base class so should not be implemented by subclasses.
+Note that the `exec_remote()` method is implemented directly in the [SandboxEnvironment](./reference/inspect_ai.util.html.md#sandboxenvironment) base class so should not be implemented by subclasses. It supports running commands as different users via the `user` option — when the sandbox tools server runs as root, it uses `setuid` to switch to the requested user before executing the command.
 
 The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
 

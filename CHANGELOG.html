@@ -151,7 +151,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#april-2026" id="toc-april-2026" class="nav-link active" data-scroll-target="#april-2026">0.3.213 (27 April 2026)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#april-2026" id="toc-april-2026" class="nav-link" data-scroll-target="#april-2026">0.3.213 (27 April 2026)</a></li>
   <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.212 (24 April 2026)</a></li>
   <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.211 (23 April 2026)</a></li>
   <li><a href="#april-2026-3" id="toc-april-2026-3" class="nav-link" data-scroll-target="#april-2026-3">0.3.210 (22 April 2026)</a></li>
@@ -370,6 +371,20 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Deepagent: Use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span> by default as the compaction strategy.</li>
+<li>Compaction: Make <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span> stateless — native compaction is attempted on every trigger rather than remembering fallback state.</li>
+<li>OpenAI: Add <code>responses_phase</code> model arg to opt in to synthesizing missing Responses API assistant message <code>phase</code> labels while continuing to preserve OpenAI-returned phase metadata by default.</li>
+<li>Eval Logs: Handle multi-frame zstd in async ZIP read paths.</li>
+<li>HTTP retries: Only log warning if retry wait will be &gt; 20 minutes (previously was 1 minute).</li>
+<li>Sandbox tools: <code>user</code> parameter on <code>bash_session</code>, <code>text_editor</code>, and <code>exec_remote</code> now correctly applied server-side; CLI binary and server socket are no longer accessible to the sandbox’s default user.</li>
+<li>Display: Add a “Flow” tab to the full (textual) display, populated by Inspect Flow via an internal <code>set_flow_content()</code> integration point.</li>
+<li>Inspect View: Fix live transcript streaming so model inputs and calls resolve to the correct messages across buffer segments.</li>
+<li>Bugfix: Correct delivery of trailing-edge calls from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#throttle">throttle()</a></span> decorator.</li>
+</ul>
+</section>
 <section id="april-2026" class="level2">
 <h2 class="anchored" data-anchor-id="april-2026">0.3.213 (27 April 2026)</h2>
 <ul>
@@ -378,7 +393,23 @@ ul.task-list li input[type="checkbox"] {
 <li>Tools: Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#list_files">list_files()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#grep">grep()</a></span> read-only sandbox tools for agents that need filesystem access without write capabilities.</li>
 <li>Tools: Add <code>readonly</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool for read-only access to shared memory.</li>
 <li>Skills: Add <code>instance</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#skill">skill()</a></span> for independent per-subagent skill stores. Skill names are now validated for uniqueness in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#skill">skill()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#install_skills">install_skills()</a></span>, and across <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> parent/subagent scopes.</li>
-<li>Computer Use: Map <code>PRTSCR</code> (OpenAI vocab) to xdotool <code>Print</code> keysym so key combos like <code>ALT+PRTSCR</code> work correctly. Inspect View: Display approvals within tool calls and filter auto-approvals from the display. Inspect View: Improve formatting of rejected and long approval messages. Inspect View: Fix phantom “more” toggles on expandable panels by measuring overflow against the correct font size. Inspect View: Keep the expandable panel toggle on screen when content exceeds the viewport height. Inspect View: Remove duplicated borders and corners on root elements of the transcript. Inspect View: Default to showing branches expanded in the timeline. Inspect View: Fix outline, citation, and swimlane navigation to reliably scroll to the targeted event. Inspect View: Add branch-aware citation deep-linking and land target messages just below the sticky bar. Inspect View: Detect additional todo/task tool names for inspect-deepagent. Inspect View: Persist task list filter and sort independently per scope to prevent state leaking between Tasks and Folders. Inspect View: Add Tokens and Duration columns to the samples list. Inspect View: Fix timeline error markers that flagged every model and tool event. Inspect View: Add a fade-out affordance at the bottom of truncated content in expandable panels. Inspect View: Collapse system, user, assistant, and tool chat messages by default with per-role line caps. Inspect View: Improve sample appearance at narrow widths. Inspect View: Improve reliability of viewing running samples.</li>
+<li>Computer Use: Map <code>PRTSCR</code> (OpenAI vocab) to xdotool <code>Print</code> keysym so key combos like <code>ALT+PRTSCR</code> work correctly.</li>
+<li>Inspect View: Display approvals within tool calls and filter auto-approvals from the display.</li>
+<li>Inspect View: Improve formatting of rejected and long approval messages.</li>
+<li>Inspect View: Fix phantom “more” toggles on expandable panels by measuring overflow against the correct font size.</li>
+<li>Inspect View: Keep the expandable panel toggle on screen when content exceeds the viewport height.</li>
+<li>Inspect View: Remove duplicated borders and corners on root elements of the transcript.</li>
+<li>Inspect View: Default to showing branches expanded in the timeline.</li>
+<li>Inspect View: Fix outline, citation, and swimlane navigation to reliably scroll to the targeted event.</li>
+<li>Inspect View: Add branch-aware citation deep-linking and land target messages just below the sticky bar.</li>
+<li>Inspect View: Detect additional todo/task tool names for inspect-deepagent.</li>
+<li>Inspect View: Persist task list filter and sort independently per scope to prevent state leaking between Tasks and Folders.</li>
+<li>Inspect View: Add Tokens and Duration columns to the samples list.</li>
+<li>Inspect View: Fix timeline error markers that flagged every model and tool event.</li>
+<li>Inspect View: Add a fade-out affordance at the bottom of truncated content in expandable panels.</li>
+<li>Inspect View: Collapse system, user, assistant, and tool chat messages by default with per-role line caps.</li>
+<li>Inspect View: Improve sample appearance at narrow widths.</li>
+<li>Inspect View: Improve reliability of viewing running samples.</li>
 </ul>
 </section>
 <section id="april-2026-1" class="level2">
