@@ -1212,9 +1212,7 @@ def _openai_input_items_from_chat_message_assistant(
 
 def _synthetic_phase_for_assistant_message(
     message: ChatMessageAssistant,
-    content_items: list[
-        ContentText | ContentReasoning | ContentToolUse | ContentImage
-    ],
+    content_items: list[ContentText | ContentReasoning | ContentToolUse | ContentImage],
 ) -> str:
     # OpenAI recommends preserving `phase` when replaying Responses API
     # assistant messages; see:
