@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Deepagent: Use `CompactionAuto` by default as the compaction strategy.
 - Compaction: Make `CompactionAuto` stateless — native compaction is attempted on every trigger rather than remembering fallback state.
 - Sandbox tools: `user` parameter on `bash_session`, `text_editor`, and `exec_remote` now correctly applied server-side; CLI binary and server socket are no longer accessible to the sandbox's default user.
 

@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Sequence
+from typing import Literal, Sequence
 
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._react import react
@@ -42,7 +42,7 @@ def deepagent(
     submit: AgentSubmit | bool | None = None,
     on_continue: str | AgentContinue | None = None,
     retry_refusals: int | None = 3,
-    compaction: CompactionStrategy | None = None,
+    compaction: CompactionStrategy | Literal["auto"] | None = "auto",
     approval: list[ApprovalPolicy] | None = None,
     instructions: str | None = None,
     prompt: str | None = None,
@@ -76,6 +76,9 @@ def deepagent(
         retry_refusals: Number of times to retry on content filter
             refusals (default: 3). Propagated to subagents.
         compaction: Compaction strategy for context management.
+            Defaults to "auto" which uses CompactionAuto (native
+            compaction with summary fallback). Pass None to disable
+            compaction, or a specific strategy to override.
         approval: Approval policies for tool calls. Propagated to
             subagents.
         instructions: Additional instructions appended to the system
@@ -90,6 +93,10 @@ def deepagent(
     async def execute(state: AgentState) -> AgentState:
         # All setup runs per-sample inside execute() so there is no
         # shared mutable state across concurrent samples.
+        from inspect_ai.model._compaction import CompactionAuto
+
+        resolved_compaction = CompactionAuto() if compaction == "auto" else compaction
+
         resolved_subagents = (
             [_clone_subagent(sa) for sa in subagents]
             if subagents is not None
@@ -102,7 +109,7 @@ def deepagent(
         _validate_fork_depth(resolved_subagents, max_depth)
         _validate_skill_names(skills, resolved_subagents)
         _apply_memory_kill_switch(resolved_subagents, memory)
-        _apply_compaction(resolved_subagents, compaction)
+        _apply_compaction(resolved_subagents, resolved_compaction)
 
         # Build shared tool instances once so they appear in both
         # top-level tools and general()'s inherited set
@@ -195,7 +202,7 @@ def deepagent(
             model=model,
             submit=submit,
             attempts=attempts,
-            compaction=compaction,
+            compaction=resolved_compaction,
             on_continue=on_continue,
             retry_refusals=retry_refusals,
             approval=approval,
