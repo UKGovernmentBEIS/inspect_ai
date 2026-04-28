@@ -278,6 +278,13 @@ def types() -> None:
     help="Don't remove the sample buffer database after recovery.",
 )
 @click.option(
+    "--no-events",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Exclude event transcript from recovered samples (reduces output size).",
+)
+@click.option(
     "--list",
     "list_mode",
     type=bool,
@@ -299,6 +306,7 @@ def recover_command(
     output: str | None,
     overwrite: bool,
     no_cleanup: bool,
+    no_events: bool,
     list_mode: bool,
     json_output: bool,
     **common: Unpack[CommonOptions],
@@ -333,6 +341,7 @@ def recover_command(
                             "flushed_samples": r.flushed_samples,
                             "completed_samples": r.completed_samples,
                             "in_progress_samples": r.in_progress_samples,
+                            "source": r.source,
                         }
                         for r in logs
                     ],
@@ -350,6 +359,7 @@ def recover_command(
                 console.print(
                     f"[bold]log:[/bold] {pretty_path(r.log.name)}", highlight=False
                 )
+                console.print(f"  [dim]source:[/dim] {r.source}", highlight=False)
                 print(
                     f"  ({r.total_samples} total, "
                     f"{r.flushed_samples} flushed, "
@@ -362,24 +372,25 @@ def recover_command(
         if log_file is None:
             raise click.UsageError("LOG_FILE is required when not using --list.")
 
-        from inspect_ai.log._recover import RecoveryNotAvailable
+        from inspect_ai.log._recover import RecoveryNotAvailable, RecoveryStats
 
+        stats = RecoveryStats()
         try:
             log = recover_eval_log(
                 log_file,
                 output=output,
                 overwrite=overwrite,
                 cleanup=not no_cleanup,
+                no_events=no_events,
+                _stats=stats,
             )
         except RecoveryNotAvailable as e:
             raise click.UsageError(str(e))
-        sample_count = len(log.samples) if log.samples else 0
         output_path = log.location or output
-        print(f"Recovered {sample_count} samples to {output_path}")
+        print(f"Recovered {stats.sample_count} samples to {output_path}")
 
-        failed_count = sum(1 for s in (log.samples or []) if s.error is not None)
-        if failed_count > 0:
-            print(f"\nTo re-run the {failed_count} failed/cancelled samples:")
+        if stats.failed_count > 0:
+            print(f"\nTo re-run the {stats.failed_count} failed/cancelled samples:")
             print(f"  inspect eval-retry {output_path}")
 
 

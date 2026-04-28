@@ -26,7 +26,12 @@ class _CustomJsonSchemaGenerator(GenerateJsonSchema):
         schema_type = schema.get("type")
         if schema_type == "nullable":
             return True
-        if schema_type == "default":
+        if schema_type in (
+            "default",
+            "function-before",
+            "function-after",
+            "function-wrap",
+        ):
             return self._is_nullable_schema(schema.get("schema", {}))
         return False
 

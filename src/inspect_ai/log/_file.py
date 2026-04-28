@@ -77,6 +77,7 @@ class LogOverview(BaseModel):
     error: EvalError | None = Field(default=None)
 
     model: str
+    model_roles: dict[str, str] | None = Field(default=None)
 
     started_at: UtcDatetimeStr | Literal[""]
     completed_at: UtcDatetimeStr | Literal[""]
@@ -813,6 +814,12 @@ def to_overview(header: EvalLog) -> LogOverview:
     ):
         primary_metric = next(iter(first_scorer.metrics.values()))
 
+    model_roles = (
+        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        if header.eval.model_roles
+        else None
+    )
+
     return LogOverview(
         eval_id=header.eval.eval_id,
         run_id=header.eval.run_id,
@@ -824,6 +831,7 @@ def to_overview(header: EvalLog) -> LogOverview:
         invalidated=header.invalidated,
         error=header.error,
         model=header.eval.model,
+        model_roles=model_roles,
         started_at=header.stats.started_at,
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,

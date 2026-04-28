@@ -21,7 +21,7 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -32,7 +32,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
@@ -187,7 +187,7 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
     return plan
 
 
-async def task_run(options: TaskRunOptions) -> EvalLog:
+async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
         emit_task_start,
@@ -219,9 +219,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         options.task.approval,
     )
 
-    # track stats and error
+    # track stats, results, and log
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
+    eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
     # handle sample errors (raise as required)
@@ -235,7 +236,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
     sandbox_cleanup = config.sandbox_cleanup is not False
     log_images = config.log_images is not False
-    log_model_api = config.log_model_api is True
+    log_model_api = config.log_model_api
     log_samples = config.log_samples is not False
 
     # slice dataset (but don't materialize all sample+state pairs upfront --
@@ -294,6 +295,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         tags=tags,
         log_location=log_location,
         task_id=logger.eval.task_id,
+        task_cancel=task_cancel,
     )
 
     # set custom sandbox limits
@@ -566,13 +568,30 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 # collect eval data
                 collect_eval_data(stats)
 
-                # finish w/ cancelled status
-                eval_log = await logger.log_finish(
-                    "cancelled", stats, results, reductions
-                )
-
-                # display task cancelled
-                td.complete(TaskCancelled(logger.samples_completed, stats))
+                if task_cancel and task_cancel.cancel_type is not None:
+                    # User-initiated cancel (abort/retry) — log as error so
+                    # eval_set doesn't interpret it as external cancellation
+                    cancel_ex = TerminateTaskError(
+                        f"Task cancelled by user ({task_cancel.cancel_type})"
+                    )
+                    error = eval_error(cancel_ex, TerminateTaskError, cancel_ex, None)
+                    eval_log = await logger.log_finish(
+                        "error", stats, results, reductions, error
+                    )
+                    td.complete(
+                        TaskError(
+                            logger.samples_completed,
+                            TerminateTaskError,
+                            cancel_ex,
+                            None,
+                        )
+                    )
+                else:
+                    # External cancellation (ctrl+c)
+                    eval_log = await logger.log_finish(
+                        "cancelled", stats, results, reductions
+                    )
+                    td.complete(TaskCancelled(logger.samples_completed, stats))
 
         except BaseException as ex:
             if options.debug_errors:
@@ -604,6 +623,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # notify the view module that an eval just completed
     # (in case we have a view polling for new evals)
     view_notify_eval(logger.location)
+
+    assert eval_log is not None
 
     try:
         # Log file locations are emitted to the "new" hooks via the "task end" event,
@@ -710,7 +731,7 @@ async def task_run_sample(
     progress: Callable[[int], None],
     logger: TaskLogger | None,
     log_images: bool,
-    log_model_api: bool,
+    log_model_api: bool | None,
     sample_error: SampleErrorHandler,
     sample_complete: Callable[
         [int | str, int, dict[str, SampleScore]], Awaitable[None]

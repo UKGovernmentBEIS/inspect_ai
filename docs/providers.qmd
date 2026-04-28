@@ -36,6 +36,7 @@ The `openai` provider supports the following custom model args (other model args
 |--------------------------|----------------------------------------------|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
+| `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
@@ -72,6 +73,16 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
 Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+
+### Responses Phase
+
+OpenAI Responses API assistant messages can include a [`phase`](https://developers.openai.com/api/docs/guides/reasoning#phase-parameter) label that distinguishes intermediate commentary from the final answer. Inspect preserves and replays `phase` values returned by OpenAI. To additionally synthesize missing `phase` values for assistant messages constructed outside the Responses API, use the `responses_phase` model argument:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 -M responses_phase=true
+```
+
+When enabled, assistant messages with tool calls are labeled `commentary`; other assistant messages are labeled `final_answer`.
 
 ### Responses Store
 
@@ -440,6 +451,7 @@ The following model args are supported:
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
 | `stream` | Enable streaming responses (default: `false`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
+| `inference_component_name` | Name of the inference component for multi-model endpoints. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -450,6 +462,16 @@ inspect eval arc.py --model sagemaker/my-endpoint \
   -M region_name=us-west-2 \
   -M read_timeout=300 \
   -M stream=true
+```
+
+### Inference Components
+
+For [multi-model endpoints](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html) that use inference components, specify the `inference_component_name` to route requests to a specific component:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M inference_component_name=my-inference-component
 ```
 
 ### Completion Mode
@@ -470,6 +492,15 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   -M completion_mode=true \
   --logprobs \
   --top-logprobs 5
+```
+
+Prompt log probabilities for CPT models can be passed as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  -M prompt_logprobs=1
 ```
 
 ::: {.callout-note}
@@ -858,9 +889,44 @@ inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
 
 Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
 
+### Chat Templates
+
+For vLLM models, the `chat_template` model arg is forwarded to the vLLM server's `--chat-template` flag. Use `use_chat_template=false` to bypass chat-template rendering entirely (useful for base models):
+
+``` bash
+inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
+::: {.callout-note}
+`use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
+:::
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+
+### Prompt Log Probabilities
+
+vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](scorers.qmd#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
+
+``` bash
+inspect eval perplexity_eval.py --model vllm/meta-llama/Meta-Llama-3-8B \
+  --prompt-logprobs 1
+```
+
+Or in Python:
+
+``` python
+Task(
+    dataset=dataset,
+    solver=generate(max_tokens=1, prompt_logprobs=1),
+    scorer=perplexity(),
+)
+```
+
+::: {.callout-note}
+Prompt log probabilities are not available when streaming is enabled. Ensure streaming is disabled when using perplexity scorers.
+:::
 
 ### vLLM Server
 

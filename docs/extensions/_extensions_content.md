@@ -6,7 +6,7 @@
 [EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox" style="text-decoration:none">UK AISI</a></small>
 :   Python package that provides a EC2 virtual machine sandbox environment for Inspect.
 
-[Modal Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
+[Modal Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
 :   Serverless container sandbox for Inspect using Modal's cloud infrastructure.
 
 [Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox" style="text-decoration:none">UK AISI</a></small>
@@ -18,7 +18,7 @@
 [Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
 :   Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
 
-[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
+[Daytona Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
 :   Sandbox environment for Inspect using Daytona's cloud infrastructure.
 
 [Podman Sandbox](https://github.com/VectorInstitute/inspect-podman) &mdash; <small><a href="https://github.com/VectorInstitute/inspect-podman" style="text-decoration:none">Vector Institute and National Research Council of Canada</a></small>
@@ -60,7 +60,10 @@
 [Petri](https://safety-research.github.io/petri/) &mdash; <small><a href="https://www.anthropic.com/research/petri-open-source-auditing" style="text-decoration:none">Anthropic</a></small>
 :   Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
 
-[Control Arena](https://github.com/UKGovernmentBEIS/control-arena) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
+[Control Arena](https://control-arena.aisi.org.uk) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small>
+:   Framework for running experiments on AI Control and Monitoring.
+
+[Linux Arena](https://www.linuxarena.ai) &mdash; <small><a href="https://github.com/linuxarena/control-tower" style="text-decoration:none">Redwood Research</a></small>
 :   Framework for running experiments on AI Control and Monitoring.
 
 
@@ -82,7 +85,7 @@
 ## Evals {#sec-evals}
 
 [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_evals" style="text-decoration:none">UK AISI</a></small>
-:   Over 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
+:   Over 120 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
 
 [OpenBench](https://github.com/groq/openbench) &mdash; <small><a href="https://github.com/groq" style="text-decoration:none">Groq</a></small>
 :   Standardized, reproducible benchmarking for LLMs across 30+ evals.

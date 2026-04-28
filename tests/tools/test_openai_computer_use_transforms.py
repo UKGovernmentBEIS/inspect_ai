@@ -369,6 +369,7 @@ def _computer_tool_info():
                     "scroll_direction",
                     "start_coordinate",
                     "text",
+                    "press_enter",
                     "actions",
                 ]
             }
