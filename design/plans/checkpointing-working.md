@@ -239,7 +239,7 @@ The cache holds only decompressed binaries and lives in the user cache directory
 **Pre-download CLI.** A CLI command pre-warms the cache so a checkpointed eval starts without waiting for downloads:
 
 ```bash
-inspect checkpoint download    # every supported platform
+inspect download restic        # every supported platform
 ```
 
 The command always fetches every supported platform (~36 MB compressed total) — selectivity isn't worth the configuration complexity at this size, and a complete cache means any sandbox arch is ready regardless of which one a sample ends up using. Idempotent: per-platform output indicates "downloaded" or "already cached," then a summary table shows the cache state. Recommended for offline / air-gapped environments, CI runners that want predictable startup, and any time you need a guarantee that checkpointing won't pause on a download at start time.

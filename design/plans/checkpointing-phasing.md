@@ -35,11 +35,13 @@
   SHA256 verification against fetched `SHA256SUMS`. Fail-fast on any
   error (no retries, no locking). Sync work wrapped in
   `anyio.to_thread`.
-- Hidden CLI group `inspect checkpoint download` (no flags) that
+- Hidden CLI command `inspect download restic` (no flags) that
   fetches every supported platform. Idempotent: prints "downloaded" or
-  "already cached" per platform, then a summary table. Hidden via
-  click `hidden=True` so it doesn't appear in `--help` until
-  checkpointing itself is exposed.
+  "already cached" per platform, then a summary table. Hosted under a
+  hidden `inspect download` group so future binary downloads can slot
+  in alongside without namespace churn. Hidden via click `hidden=True`
+  so it doesn't appear in `--help` until checkpointing itself is
+  exposed.
 - 3 unit tests (`tests/util/test_restic_resolver.py`) covering cache
   hit, cache miss + populate, and SHA256 mismatch. No network.
 - Decisions deliberately deferred: file locking, retry, macOS xattr
