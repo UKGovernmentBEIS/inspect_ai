@@ -11,6 +11,7 @@ from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint import CheckpointConfig
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -68,6 +69,7 @@ async def eval_run(
     parallel: int,
     eval_config: EvalConfig,
     eval_sandbox: SandboxEnvironmentType | None,
+    eval_checkpoint: CheckpointConfig | None,
     recorder: Recorder,
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
@@ -259,6 +261,8 @@ async def eval_run(
                         model=resolved_task.model,
                         model_roles=resolved_task.model_roles,
                         sandbox=resolved_task.sandbox,
+                        checkpoint=resolved_task.checkpoint,
+                        eval_checkpoint=eval_checkpoint,
                         logger=logger,
                         eval_wd=eval_wd,
                         config=task_eval_config,

@@ -38,6 +38,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
+from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._resource import resource
 
 from .common import (
@@ -97,6 +98,7 @@ TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
+CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
 
 
 def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -202,6 +204,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SANDBOX_CLEANUP_HELP,
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+    )
+    @click.option(
+        "--checkpoint",
+        is_flag=False,
+        flag_value="turn:5",
+        default=None,
+        help=CHECKPOINT_HELP,
+        envvar="INSPECT_EVAL_CHECKPOINT",
     )
     @click.option(
         "--limit",
@@ -676,6 +686,7 @@ def eval_command(
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -776,6 +787,7 @@ def eval_command(
         approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         no_epochs_reducer=no_epochs_reducer,
@@ -913,6 +925,7 @@ def eval_set_command(
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1022,6 +1035,7 @@ def eval_set_command(
         approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         no_epochs_reducer=no_epochs_reducer,
@@ -1095,6 +1109,7 @@ def eval_exec(
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1218,6 +1233,7 @@ def eval_exec(
             approval=approval,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
