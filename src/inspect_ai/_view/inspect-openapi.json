@@ -452,6 +452,16 @@
           "message": {
             "$ref": "#/components/schemas/ChatMessageAssistant"
           },
+          "prompt_logprobs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stop_reason": {
             "default": "unknown",
             "enum": [
@@ -4043,6 +4053,16 @@
             ],
             "default": 0,
             "title": "Task Version"
+          },
+          "viewer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ViewerConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4515,6 +4535,17 @@
               }
             ],
             "title": "Presence Penalty"
+          },
+          "prompt_logprobs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Logprobs"
           },
           "reasoning_effort": {
             "anyOf": [
@@ -5602,6 +5633,44 @@
           "metadata_remove"
         ],
         "title": "MetadataEdit",
+        "type": "object"
+      },
+      "MetadataField": {
+        "description": "A metadata key promoted out of metadata into a top level value.",
+        "properties": {
+          "collapsed": {
+            "default": false,
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "const": "metadata",
+            "default": "metadata",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "collapsed"
+        ],
+        "title": "MetadataField",
         "type": "object"
       },
       "ModelCall": {
@@ -6805,6 +6874,103 @@
         "title": "SandboxEvent",
         "type": "object"
       },
+      "ScannerResultField": {
+        "description": "A built-in scanner-result section (e.g. `value`, `explanation`).",
+        "properties": {
+          "collapsed": {
+            "default": false,
+            "title": "Collapsed",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "builtin",
+            "default": "builtin",
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "name": {
+            "enum": [
+              "explanation",
+              "label",
+              "value",
+              "validation",
+              "answer",
+              "metadata"
+            ],
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "collapsed"
+        ],
+        "title": "ScannerResultField",
+        "type": "object"
+      },
+      "ScannerResultView": {
+        "description": "How the scann results should render the results.",
+        "properties": {
+          "exclude_fields": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ScannerResultField"
+                },
+                {
+                  "$ref": "#/components/schemas/MetadataField"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Exclude Fields",
+            "type": "array"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ScannerResultField"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MetadataField"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
+          }
+        },
+        "required": [
+          "exclude_fields"
+        ],
+        "title": "ScannerResultView",
+        "type": "object"
+      },
       "Score": {
         "description": "Score generated by a scorer.",
         "properties": {
@@ -7891,8 +8057,7 @@
         },
         "required": [
           "scorer",
-          "name",
-          "value"
+          "name"
         ],
         "title": "TaskDisplayMetric",
         "type": "object"
@@ -8027,6 +8192,11 @@
             ],
             "title": "Span Type"
           },
+          "tool_invoked": {
+            "default": false,
+            "title": "Tool Invoked",
+            "type": "boolean"
+          },
           "type": {
             "const": "span",
             "default": "span",
@@ -8045,7 +8215,8 @@
           "name",
           "content",
           "branches",
-          "utility"
+          "utility",
+          "tool_invoked"
         ],
         "title": "TimelineSpan",
         "type": "object"
@@ -8709,6 +8880,30 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "ViewerConfig": {
+        "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
+        "properties": {
+          "scanner_result_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScannerResultView"
+              },
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ScannerResultView"
+                },
+                "type": "object"
+              }
+            ],
+            "title": "Scanner Result View"
+          }
+        },
+        "required": [
+          "scanner_result_view"
+        ],
+        "title": "ViewerConfig",
         "type": "object"
       }
     }

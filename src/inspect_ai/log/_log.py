@@ -38,6 +38,7 @@ from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
+from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
@@ -67,7 +68,6 @@ class EvalConfigDefaults(TypedDict):
     log_samples: bool
     log_realtime: bool
     log_images: bool
-    log_model_api: bool
     score_display: bool
 
 
@@ -81,7 +81,6 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
-        "log_model_api": False,
         "score_display": True,
     }
 
@@ -172,7 +171,11 @@ class EvalConfig(BaseModel):
     """Log base64 encoded versions of images."""
 
     log_model_api: bool | None = Field(default=None)
-    """Log raw model api requests and responses."""
+    """Log raw model api requests and responses.
+
+    True logs all calls. False logs only errors. None (default) logs the
+    first few calls per model plus all errors.
+    """
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
@@ -910,6 +913,10 @@ class EvalSpec(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
+
+    viewer: ViewerConfig | None = Field(default=None)
+    """Log viewer configuration — controls how scanner results are rendered
+    in the sidebar. Authored via `Task(viewer=...)`."""
 
     scorers: list[EvalScorer] | None = Field(default=None)
     """Scorers and args for this eval"""

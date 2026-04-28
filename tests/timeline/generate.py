@@ -808,12 +808,17 @@ def validate_nested_sub_agent(timeline: Timeline) -> None:
 
 def validate_utility_agent(timeline: Timeline) -> None:
     root = timeline.root
-    # The inner lookup span should have utility=True
+    # Tool-invoked subagents (via as_tool/handoff/task) are explicit user
+    # invocations and are never auto-classified as utility, even when
+    # single-turn. The lookup agent should be visible and not utility.
     lookup_spans = find_spans(root, "lookup")
     assert len(lookup_spans) >= 1, "Expected at least one 'lookup' span"
-    utility_lookups = [s for s in lookup_spans if s.utility]
-    assert len(utility_lookups) >= 1, (
-        "Expected at least one lookup span with utility=True"
+    tool_invoked_lookups = [s for s in lookup_spans if s.tool_invoked]
+    assert len(tool_invoked_lookups) >= 1, (
+        "Expected at least one lookup span with tool_invoked=True"
+    )
+    assert all(not s.utility for s in tool_invoked_lookups), (
+        "Tool-invoked lookup must not be classified utility"
     )
     assert_repr_labels(timeline, "main", "lookup")
 
@@ -836,19 +841,20 @@ def validate_parallel_collect(timeline: Timeline) -> None:
 
 def validate_handoff_and_as_tool(timeline: Timeline) -> None:
     root = timeline.root
-    # Both sub-agents should exist somewhere in the tree
-    analyst_spans = find_spans(root, "transfer_to_analyst")
+    # Both sub-agents should exist somewhere in the tree under their
+    # actual agent names (not the handoff/as_tool wrapper tool names).
+    analyst_spans = find_spans(root, "analyst")
     calc_spans = find_spans(root, "calculator")
-    assert len(analyst_spans) >= 1, "Expected 'transfer_to_analyst' span"
+    assert len(analyst_spans) >= 1, "Expected 'analyst' span"
     assert len(calc_spans) >= 1, "Expected 'calculator' span"
-    # Both should be agent type
-    assert any(s.span_type == "agent" for s in analyst_spans), (
-        "Expected transfer_to_analyst with span_type='agent'"
+    # Both should be agent type and tool_invoked
+    assert any(s.span_type == "agent" and s.tool_invoked for s in analyst_spans), (
+        "Expected analyst tool-invoked agent span"
     )
-    assert any(s.span_type == "agent" for s in calc_spans), (
-        "Expected calculator with span_type='agent'"
+    assert any(s.span_type == "agent" and s.tool_invoked for s in calc_spans), (
+        "Expected calculator tool-invoked agent span"
     )
-    assert_repr_labels(timeline, "main", "transfer_to_analyst", "calculator")
+    assert_repr_labels(timeline, "main", "analyst", "calculator")
 
 
 def validate_deep_nesting(timeline: Timeline) -> None:
@@ -909,15 +915,17 @@ def validate_sequential_and_parallel(timeline: Timeline) -> None:
 
 def validate_deep_utility(timeline: Timeline) -> None:
     root = timeline.root
+    # Both dispatcher and lookup are tool-invoked subagents (via as_tool),
+    # so neither is auto-classified utility regardless of turn count.
     dispatcher_spans = find_spans(root, "dispatcher")
     assert len(dispatcher_spans) >= 1, "Expected at least one 'dispatcher' span"
-    assert any(not s.utility for s in dispatcher_spans), (
-        "Expected dispatcher span with utility=False"
+    assert any(s.tool_invoked and not s.utility for s in dispatcher_spans), (
+        "Expected dispatcher tool-invoked agent (utility=False)"
     )
     lookup_spans = find_spans(root, "lookup")
     assert len(lookup_spans) >= 1, "Expected at least one 'lookup' span"
-    assert any(s.utility for s in lookup_spans), (
-        "Expected lookup span with utility=True"
+    assert any(s.tool_invoked and not s.utility for s in lookup_spans), (
+        "Expected lookup tool-invoked agent (utility=False)"
     )
     assert_repr_labels(timeline, "main", "dispatcher", "lookup")
 

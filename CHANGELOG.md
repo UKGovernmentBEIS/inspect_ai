@@ -1,3 +1,53 @@
+## 0.3.213 (27 April 2026)
+
+- Agents: Add `deepagent()` — a batteries-included agent with subagent delegation, persistent memory, structured planning, and an opinionated system prompt. Includes built-in `research()`, `plan()`, and `general()` subagent factories, a `task` multiplexer tool for delegation, and support for both isolated and forked (prompt-cache-preserving) dispatch modes.
+- Tools: Add `todo_write()` planning tool for structured task tracking.
+- Tools: Add `read_file()`, `list_files()`, and `grep()` read-only sandbox tools for agents that need filesystem access without write capabilities.
+- Tools: Add `readonly` parameter to `memory()` tool for read-only access to shared memory.
+- Skills: Add `instance` parameter to `skill()` for independent per-subagent skill stores. Skill names are now validated for uniqueness in `skill()`, `install_skills()`, and across `deepagent()` parent/subagent scopes.
+- Computer Use: Map `PRTSCR` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRTSCR` work correctly.
+Inspect View: Display approvals within tool calls and filter auto-approvals from the display.
+Inspect View: Improve formatting of rejected and long approval messages.
+Inspect View: Fix phantom "more" toggles on expandable panels by measuring overflow against the correct font size.
+Inspect View: Keep the expandable panel toggle on screen when content exceeds the viewport height.
+Inspect View: Remove duplicated borders and corners on root elements of the transcript.
+Inspect View: Default to showing branches expanded in the timeline.
+Inspect View: Fix outline, citation, and swimlane navigation to reliably scroll to the targeted event.
+Inspect View: Add branch-aware citation deep-linking and land target messages just below the sticky bar.
+Inspect View: Detect additional todo/task tool names for inspect-deepagent.
+Inspect View: Persist task list filter and sort independently per scope to prevent state leaking between Tasks and Folders.
+Inspect View: Add Tokens and Duration columns to the samples list.
+Inspect View: Fix timeline error markers that flagged every model and tool event.
+Inspect View: Add a fade-out affordance at the bottom of truncated content in expandable panels.
+Inspect View: Collapse system, user, assistant, and tool chat messages by default with per-role line caps.
+Inspect View: Improve sample appearance at narrow widths.
+Inspect View: Improve reliability of viewing running samples.
+
+## 0.3.212 (24 April 2026)
+
+- Google: Honor the `press_enter` default on Gemini's `type_text_at` action so typed text commits with Enter as the spec specifies.
+- vLLM: Support `use_chat_template=false` for base model evaluation (complements existing HF provider support).
+- Log recovery: Stream segment-at-a-time to bound memory on large evals.
+- Scoring: Neutralize structural delimiters in model graded scorer inputs.
+- Scoring: Add `perplexity()` and `target_perplexity()` scorers with `perplexity_per_token` and `perplexity_per_seq` metrics for evaluating model prediction quality via prompt log probabilities.
+- Model API: Add `prompt_logprobs` to `GenerateConfig` and the `--prompt-logprobs` CLI flag for requesting prompt token log probabilities (vLLM).
+- MCP: Forward MCP stdio server stderr to logging instead of the tty.
+- Tool calls: Record a `ToolEvent` when an approver rejects or terminates a call so the attempt is visible in the transcript.
+- Inspect View: Improve wrapping behavior in message and events.
+- Inspect View: Fix issues positioning chat messages within model events.
+- Inspect View: Improve tool call error rendering.
+- Inspect View: Improve model event tool configuration rendering.
+- Bugfix: Ensure that model role defaulting doesn't affect other configured roles.
+
+## 0.3.211 (23 April 2026)
+
+- OpenAI: Gracefully catch when response.tools is null and normalize it to []
+- Model API: Log the first 5 API calls per-model by default. 
+- Avoid deep copy of messages when applying custom tool model input handler.
+- Inspect View: Metadata with more than 5 children will be collapsed by default (for real).
+- Inspect View: Improve column selection with fine-grained metrics selection in Folder and Tasks view.
+- Inspect View: Minor UX improvements.
+
 ## 0.3.210 (22 April 2026)
 
 - Anthropic: Warn when sampling parameters (`temperature`, etc.) are passed to Opus 4.7.

@@ -37,7 +37,12 @@ def test_hover_at_bidirectional():
 
 
 def test_type_text_at_bidirectional():
-    args = {"action": "type", "text": "hello world", "coordinate": [507, 361]}
+    args = {
+        "action": "type",
+        "text": "hello world",
+        "coordinate": [507, 361],
+        "press_enter": True,
+    }
     tool_call = ToolCall(id="test", function="computer", arguments=args)
     action_name, action_args = gemini_action_from_tool_call(tool_call)
 
@@ -45,10 +50,33 @@ def test_type_text_at_bidirectional():
     assert action_args["text"] == "hello world"
     assert abs(action_args["x"] - 371) <= 1
     assert abs(action_args["y"] - 470) <= 1
+    assert action_args["press_enter"] is True
 
     function_call = FunctionCall(name=action_name, args=action_args)
     parsed = tool_call_from_gemini_computer_action(function_call)
     assert parsed.arguments == args
+
+
+def test_type_text_at_press_enter_false():
+    function_call = FunctionCall(
+        name="type_text_at",
+        args={"text": "hello world", "press_enter": False},
+    )
+    parsed = tool_call_from_gemini_computer_action(function_call)
+
+    assert parsed.arguments["action"] == "type"
+    assert parsed.arguments["press_enter"] is False
+
+
+def test_type_text_at_default_press_enter():
+    function_call = FunctionCall(
+        name="type_text_at",
+        args={"text": "hello world"},
+    )
+    parsed = tool_call_from_gemini_computer_action(function_call)
+
+    assert parsed.arguments["action"] == "type"
+    assert parsed.arguments["press_enter"] is True
 
 
 def test_key_combination_bidirectional():

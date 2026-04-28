@@ -26,9 +26,12 @@ jobs:
           fetch-tags: true
       - name: Lint with Ruff
         uses: astral-sh/ruff-action@v3
+        with:
+          version-file: requirements-dev.txt
       - name: Format with Ruff
         uses: astral-sh/ruff-action@v3
         with:
+          version-file: requirements-dev.txt
           args: "format --check"
 
   mypy:

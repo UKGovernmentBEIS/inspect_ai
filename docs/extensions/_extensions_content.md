@@ -6,7 +6,7 @@
 [EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox" style="text-decoration:none">UK AISI</a></small>
 :   Python package that provides a EC2 virtual machine sandbox environment for Inspect.
 
-[Modal Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
+[Modal Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
 :   Serverless container sandbox for Inspect using Modal's cloud infrastructure.
 
 [Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) &mdash; <small><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox" style="text-decoration:none">UK AISI</a></small>
@@ -18,7 +18,7 @@
 [Inspect Vagrant Sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) &mdash; <small><a href="https://github.com/jasongwartz" style="text-decoration:none">Jason Gwartz</a></small>
 :   Use any virtual machine hypervisor supported by Hashicorp Vagrant as Inspect sandboxes.
 
-[Daytona Sandbox](https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/daytona) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
+[Daytona Sandbox](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) &mdash; <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small>
 :   Sandbox environment for Inspect using Daytona's cloud infrastructure.
 
 [Podman Sandbox](https://github.com/VectorInstitute/inspect-podman) &mdash; <small><a href="https://github.com/VectorInstitute/inspect-podman" style="text-decoration:none">Vector Institute and National Research Council of Canada</a></small>

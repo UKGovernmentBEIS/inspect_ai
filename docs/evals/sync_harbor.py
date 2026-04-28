@@ -1,13 +1,16 @@
 """Load inspect_harbor evals into normalized EvalRecord dicts.
 
 Fetches the Harbor dataset registry plus inspect_harbor's generated `_tasks.py`
-(for exposed Python function names), joins with `harbor_overrides.yml` for
-fields the registry lacks, and returns records matching the design schema.
+(for exposed Python function names), joins with inspect_harbor's
+`docs/overrides.yml` for fields the registry lacks, and returns records
+matching the design schema.
 
 Writes are handled by sync_all.py.
 
-`categories` (array) is REQUIRED per entry in harbor_overrides.yml; entries
-missing categories are reported back to the caller.
+`categories` (array) is REQUIRED per entry in overrides.yml; entries
+missing categories are reported back to the caller. inspect_harbor's CI
+validates this file on every PR, so in practice reaching this code path
+with a missing-category entry means the upstream validation was bypassed.
 """
 
 from __future__ import annotations
@@ -22,7 +25,6 @@ import yaml
 
 HERE = Path(__file__).parent
 CACHE_DIR = HERE / ".cache"
-OVERLAY_FILE = HERE / "harbor_overrides.yml"
 
 REGISTRY_URL = (
     "https://raw.githubusercontent.com/laude-institute/harbor/refs/heads/main/registry.json"
@@ -31,6 +33,12 @@ TASKS_URL = (
     "https://raw.githubusercontent.com/meridianlabs-ai/inspect_harbor"
     "/refs/heads/main/src/inspect_harbor/_tasks.py"
 )
+OVERRIDES_URL = (
+    "https://raw.githubusercontent.com/meridianlabs-ai/inspect_harbor"
+    "/refs/heads/main/docs/overrides.yml"
+)
+INSPECT_HARBOR_DOCS_BASE = "https://meridianlabs-ai.github.io/inspect_harbor"
+
 
 GENERIC_IMPLEMENTATION_REPOS = {
     "https://github.com/laude-institute/harbor.git",
@@ -73,21 +81,16 @@ def _fetch_to_cache(url: str, dest: Path, use_cache: bool) -> str:
     return text
 
 
-def _extract_dataset_metadata(
-    tasks_py_source: str,
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Parse `_tasks.py` docstrings for per-dataset metadata.
+def _extract_dataset_metadata(tasks_py_source: str) -> dict[str, str]:
+    """Parse `_tasks.py` docstrings to map dataset id → Python function name.
 
-    Returns (function_map, url_map):
-      - function_map: dataset id (name or name@version) → Python function name
-      - url_map: dataset id → canonical Harbor registry URL
-
-    Both maps are built from the `Dataset:` / `Harbor URL:` lines in each
-    `@task`-decorated function's docstring.
+    Built from the `Dataset:` line in each `@task`-decorated function's
+    docstring. Used to reject registry entries that aren't exposed by
+    inspect_harbor yet (e.g. Harbor added a dataset after the last
+    `_tasks.py` regeneration).
     """
     tree = ast.parse(tasks_py_source)
     function_map: dict[str, str] = {}
-    url_map: dict[str, str] = {}
     for node in tree.body:
         if not isinstance(node, ast.FunctionDef):
             continue
@@ -99,28 +102,26 @@ def _extract_dataset_metadata(
         if not has_task_decorator:
             continue
         doc = ast.get_docstring(node) or ""
-        dataset_id: str | None = None
-        harbor_url: str | None = None
         for line in doc.splitlines():
             line = line.strip()
             if line.startswith("Dataset:"):
-                dataset_id = line.split(":", 1)[1].strip() or None
-            elif line.startswith("Harbor URL:"):
-                harbor_url = line.split(":", 1)[1].strip() or None
-        if dataset_id is None:
-            continue
-        function_map[dataset_id] = node.name
-        if harbor_url is not None:
-            url_map[dataset_id] = harbor_url
-    return function_map, url_map
+                dataset_id = line.split(":", 1)[1].strip()
+                if dataset_id:
+                    function_map[dataset_id] = node.name
+                break
+    return function_map
 
 
-def _load_overlay() -> dict[str, dict[str, Any]]:
-    if not OVERLAY_FILE.exists():
-        return {}
-    data = yaml.safe_load(OVERLAY_FILE.read_text()) or {}
+def _load_overlay(use_cache: bool) -> dict[str, dict[str, Any]]:
+    """Fetch inspect_harbor's overrides.yml and return it as a mapping.
+
+    Cached in the same `.cache/` directory as the registry and tasks
+    fetches so `--no-fetch` runs offline cleanly.
+    """
+    text = _fetch_to_cache(OVERRIDES_URL, CACHE_DIR / "overrides.yml", use_cache)
+    data = yaml.safe_load(text) or {}
     if not isinstance(data, dict):
-        raise ValueError(f"{OVERLAY_FILE} must be a mapping keyed by dataset name")
+        raise ValueError(f"{OVERRIDES_URL} must be a mapping keyed by dataset name")
     return data
 
 
@@ -135,8 +136,8 @@ def load_harbor(
     tasks_text = _fetch_to_cache(TASKS_URL, CACHE_DIR / "_tasks.py", use_cache)
 
     registry = json.loads(registry_text)
-    function_map, url_map = _extract_dataset_metadata(tasks_text)
-    overlay = _load_overlay()
+    function_map = _extract_dataset_metadata(tasks_text)
+    overlay = _load_overlay(use_cache)
 
     sorted_registry = sorted(
         registry, key=lambda d: (d.get("name", ""), d.get("version", ""))
@@ -184,8 +185,7 @@ def load_harbor(
             "contributors": list(ov.get("contributors") or []),
             "samples": len(tasks),
             "featured": bool(ov.get("featured", False)),
-            "url": url_map.get(name_version)
-            or f"https://registry.harborframework.com/datasets?q={name}",
+            "url": f"{INSPECT_HARBOR_DOCS_BASE}/registry/{function_name}.html",
         })
 
     if skipped:

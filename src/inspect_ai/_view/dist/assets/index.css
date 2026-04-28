@@ -15664,7 +15664,6 @@ li > ul {
 .tab-tools > * {
   flex: 0 1 auto;
   height: 1.5rem;
-  margin-left: 0.5rem;
 }
 
 .tab-tools > input {
@@ -17007,23 +17006,23 @@ button._segment_19z32_10 {
 ._dropdownItem_1q996_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_13md5_1 {
+._tabs_1wfac_1 {
   align-items: center;
 }
 
-._tabContents_13md5_5 {
+._tabContents_1wfac_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_13md5_5._scrollable_13md5_11 {
+._tabContents_1wfac_5._scrollable_1wfac_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_13md5_1 {
+._tab_1wfac_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17033,86 +17032,115 @@ button._segment_19z32_10 {
   margin-bottom: -1px;
 }
 
-._tabItem_13md5_27 {
+._tabItem_1wfac_27 {
   align-self: end;
 }
 
-._pillSmallContainer_13md5_31 {
+._pillSmallContainer_1wfac_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_13md5_31 {
+._pillSmall_1wfac_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_13md5_39 {
+._tabIcon_1wfac_39 {
   margin-right: 0.5em;
 }
 
-._tabTools_13md5_43 {
+._tabSpacer_1wfac_43 {
+  flex: 1 1 0;
+  min-width: 0;
+  list-style: none;
+}
+
+._tabTools_1wfac_49 {
   flex-basis: auto;
-  margin-left: auto;
   display: flex;
   align-items: center;
   justify-content: end;
   flex-wrap: wrap;
   row-gap: 0.3rem;
+  column-gap: 0.5rem;
 }
 
-._tabStyle_13md5_53 {
+._tabStyle_1wfac_59 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_13md5_43 > * {
+._tabTools_1wfac_49 > * {
   flex: 0 1 auto;
-  margin-left: 0.5rem;
 }
 
-._tabTools_13md5_43 input {
+._tabTools_1wfac_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_13md5_43 .btn {
+._tabTools_1wfac_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._expandablePanel_1ka1g_1 {
+._outer_1j47y_1 {
+  /* Positioned so the block-left sticky toggle's containing block is this
+     wrapper — keeps sticky behavior scoped to the panel instead of leaking
+     to some arbitrary positioned ancestor up the tree. */
   position: relative;
 }
 
-._expandableBordered_1ka1g_5 {
+._expandablePanel_1j47y_8 {
+  position: relative;
+}
+
+._expandableBordered_1j47y_12 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_1ka1g_10 {
+._expandableTogglable_1j47y_17 {
   margin-bottom: 1em;
 }
 
-._expandableContents_1ka1g_14 {
+._expandableContents_1j47y_21 {
   font-size: var(--inspect-font-size-base);
 }
 
-._expandableCollapsed_1ka1g_18 {
-  overflow: hidden;
+/* Fade-out at the bottom of truncated content to signal "more below".
+   Applied only when collapsed AND the content overflows.
+
+   The wrapper carries `overflow: hidden` + `max-height` (set inline), so its
+   box matches the visible region — the mask gradient's "bottom" lands on the
+   last visible line rather than on the bottom of the natural-height content
+   (which would sit off-screen).
+
+   We mask the content itself (rather than overlaying a background-color
+   gradient) so the affordance works on any surface, regardless of the
+   panel's bg. The inline-right toggle is a sibling of this wrapper, so it
+   stays fully opaque. */
+._expandableTruncated_1j47y_37 {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - 3rem),
+    transparent
+  );
+  mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_1ka1g_22 {
+._moreToggle_1j47y_46 {
   display: flex;
   margin-top: 0;
   height: 20px;
-  background-color: var(--bs-body-bg);
+  background-color: var(--bs-tertiary-bg);
   border-radius: 5px;
   border: solid var(--bs-light-border-subtle) 1px;
   color: var(--bs-link-color);
 }
 
-._moreToggle_1ka1g_22._bordered_1ka1g_32 {
+._moreToggle_1j47y_46._bordered_1j47y_56 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
-._moreToggleButton_1ka1g_36 {
+._moreToggleButton_1j47y_60 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -17120,22 +17148,40 @@ button._segment_19z32_10 {
   color: var(--bs-body-color);
 }
 
-._separator_1ka1g_44 {
+._separator_1j47y_68 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
   margin-top: -1px;
 }
 
-._moreToggle_1ka1g_22._inlineRight_1ka1g_50 {
+/* Fills the panel so its sticky child is bounded by the panel's rect.
+   pointer-events: none lets clicks pass through to the content behind;
+   the sticky child re-enables pointer events on itself. */
+._inlineToggleHolder_1j47y_77 {
   position: absolute;
-  bottom: 0.25em;
-  right: 0.25em;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 0.25em;
+  pointer-events: none;
+  z-index: 2;
 }
 
-._moreToggle_1ka1g_22._blockLeft_1ka1g_56 {
+._inlineToggleSticky_1j47y_89 {
+  position: sticky;
+  bottom: 0.25em;
+  pointer-events: auto;
+}
+
+._moreToggle_1j47y_46._blockLeft_1j47y_95 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
+  position: sticky;
+  bottom: 0.25em;
+  z-index: 2;
 }
 ._carouselThumbs_1mvg8_1 {
   display: grid;
@@ -17644,64 +17690,91 @@ button._segment_19z32_10 {
 ._pathContainer_1u3sd_58 {
   overflow-x: hidden;
 }
-._navbarButton_1gksz_1 {
+._navbarButton_7hxb6_1 {
   font-size: 0.6rem;
   padding: 1px 5px;
 }
-._checkboxWrapper_vtlwq_1 {
+
+._dropdownChevron_7hxb6_6 {
+  margin-left: 0.35rem;
+  /* Inherit the button's font-size so the chevron never creates a taller
+     line-box than the button's text. Hard-coding a smaller font-size token
+     can easily exceed the button's own 0.6rem and stretch button height. */
+  font-size: inherit;
+  line-height: 1;
+}
+._checkboxWrapper_97vbj_1 {
   margin-bottom: 0.1rem;
 }
 
-._label_vtlwq_5 {
+._label_97vbj_5 {
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-._checkbox_vtlwq_1 {
+._checkbox_97vbj_1 {
   margin-right: 0.5rem;
   cursor: pointer;
 }
 
-._filterIcon_vtlwq_16 {
+._filterIcon_97vbj_16 {
   margin-left: 0.5rem;
   color: var(--bs-primary);
 }
 
-._scrollableContainer_vtlwq_21 {
-  max-height: calc(100vh - 4rem);
+._scrollableContainer_97vbj_21 {
+  /* The popper is positioned below the trigger, so its actual visible room
+     is less than full viewport height. Cap conservatively so the scrollbar
+     kicks in before the popover extends past the viewport. */
+  max-height: min(70vh, calc(100vh - 10rem));
   overflow-y: auto;
+  /* Reserve scrollbar space up-front so switching between view modes doesn't
+     reflow content width when a scrollbar appears/disappears — that reflow
+     would otherwise chain through ResizeObserver → popper.update(). */
+  scrollbar-gutter: stable;
 }
 
-._section_vtlwq_26 {
+._section_97vbj_33 {
   margin-bottom: 0.75rem;
 }
 
-._headerRow_vtlwq_30 {
+._headerRow_97vbj_37 {
   display: flex;
   column-gap: 2rem;
   row-gap: 1rem;
   border-bottom: solid 1px var(--bs-border-color);
   margin-bottom: 0.5rem;
   justify-content: space-between;
+  align-items: center;
 }
 
-._buttonContainer_vtlwq_39 {
+._scoresHeadingGroup_97vbj_47 {
+  display: flex;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+._scoresViewModeControl_97vbj_53 {
+  margin-bottom: 2px;
+}
+
+._buttonContainer_97vbj_57 {
   display: flex;
   gap: 0.5rem;
 }
 
-._button_vtlwq_39 {
+._button_97vbj_57 {
   padding: 0;
   text-decoration: none;
 }
 
-._button_vtlwq_39:hover {
+._button_97vbj_57:hover {
   text-decoration: underline;
   cursor: pointer;
 }
 
-._columnsLayout_vtlwq_54 {
+._columnsLayout_97vbj_72 {
   columns: 2;
   column-gap: 2rem;
 }
@@ -17764,51 +17837,70 @@ button._segment_19z32_10 {
   width: inherit;
   height: inherit;
 }
-._nameCell_1jtud_1 {
+._nameCell_90rs9_1 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_1jtud_8 {
+._modelCell_90rs9_8 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._scoreCell_1jtud_15 {
+._modelCellPrimary_90rs9_15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+._scoreCell_90rs9_22 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._error_1jtud_22 {
+._multiScorerBadge_90rs9_29 {
+  margin-left: 0.35rem;
+  padding: 2px 0.45rem;
+  border-radius: 0.5rem;
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+  font-size: var(--inspect-font-size-smallest);
+  line-height: 1;
+  cursor: help;
+  white-space: nowrap;
+}
+
+._error_90rs9_41 {
   color: var(--bs-danger);
 }
 
-._started_1jtud_26 {
+._started_90rs9_45 {
   color: var(--bs-secondary);
 }
 
-._success_1jtud_30 {
+._success_90rs9_49 {
   color: var(--bs-success);
 }
 
-._cancelled_1jtud_34 {
+._cancelled_90rs9_53 {
   color: var(--bs-secondary);
 }
 
-._statusCell_1jtud_38 {
+._statusCell_90rs9_57 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
 
-._dateCell_1jtud_45 {
+._dateCell_90rs9_64 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -18196,18 +18288,38 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
-._image_1vcac_1 {
+._image_1gmrl_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
 }
 
-._toolTitle_1vcac_6 {
+._toolTitle_1gmrl_6 {
   color: unset !important;
+  overflow-wrap: anywhere;
 }
 
-._description_1vcac_10 {
+._description_1gmrl_11 {
   margin-left: 0.3em;
   color: var(--bs-secondary-color);
+}
+._error_1lozs_1 {
+  color: var(--bs-danger);
+  background-color: rgba(var(--bs-danger-rgb), 0.06);
+  padding: 0.5em 0.7em;
+  border-radius: var(--bs-border-radius);
+  font-family: var(--bs-font-monospace);
+  overflow-wrap: anywhere;
+  margin: 0.5em 0;
+}
+
+._type_1lozs_11 {
+  font-weight: 600;
+  margin-bottom: 0.25em;
+  text-transform: capitalize;
+}
+
+._message_1lozs_17 {
+  white-space: pre-wrap;
 }
 ._message_1kuwu_1 {
   font-weight: 300;
@@ -18268,25 +18380,24 @@ a._citationLink_1ggvf_9:hover {
 ._hover_1kuwu_57 ._copyLink_1kuwu_42 {
   opacity: 0.75;
 }
-._grid_1tam7_1 {
+._grid_13k8p_1 {
   display: grid;
   grid-template-columns: max-content auto;
-  column-gap: 0.4rem;
   row-gap: 0;
   margin-bottom: 0.75rem;
 }
 
-._number_1tam7_9 {
+._number_13k8p_8 {
   margin-top: 0.1em;
 }
 
-._user_1tam7_13 {
+._user_13k8p_12 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
   border: solid 1px var(--bs-light-border-subtle);
 }
 
-._container_1tam7_19 {
+._container_13k8p_18 {
   padding-left: 0.7rem;
   padding-right: 0.7rem;
   padding-top: 0.5rem;
@@ -18294,37 +18405,38 @@ a._citationLink_1ggvf_9:hover {
   border-right: solid 1px var(--bs-light-border-subtle);
 }
 
-._first_1tam7_27 {
+._first_13k8p_26 {
   border-top-left-radius: var(--bs-border-radius);
   border-top-right-radius: var(--bs-border-radius);
   border-top: solid 1px var(--bs-light-border-subtle);
   padding-top: 0.7rem;
 }
 
-._last_1tam7_34 {
+._last_13k8p_33 {
   border-bottom-left-radius: var(--bs-border-radius);
   border-bottom-right-radius: var(--bs-border-radius);
   border-bottom: solid 1px var(--bs-light-border-subtle);
   padding-bottom: 0.7rem;
 }
 
-._label_1tam7_41 {
+._label_13k8p_40 {
   padding-top: 0.7rem;
+  margin-left: 0.4em;
 }
 
-._highlight_1tam7_45 {
+._highlight_13k8p_45 {
   background-color: rgba(var(--bs-info-rgb), 0.12);
 }
 
-._bottomMargin_1tam7_49 {
+._bottomMargin_13k8p_49 {
   margin-bottom: 0.75rem;
 }
 
-._codeCompact_1tam7_53 {
+._codeCompact_13k8p_53 {
   /* styles for compact code display */
 }
 
-._simple_1tam7_57 {
+._simple_13k8p_57 {
   /* styles for simple display mode */
 }
 ._list_1emnm_1 {
@@ -18436,18 +18548,21 @@ a._citationLink_1ggvf_9:hover {
     break-inside: avoid;
   }
 }
-._title_19l1b_1 {
-  margin-left: 0.5em;
+._title_xefxk_1 {
   display: grid;
   grid-template-columns: max-content max-content minmax(0, 1fr);
-  column-gap: 0.5em;
+  column-gap: 0.3em;
 }
 
-._contents_19l1b_8 {
+._contents_xefxk_7 {
   padding: 0.4em;
   margin-bottom: 0;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
+}
+
+._below_xefxk_14 {
+  margin-top: 0.4em;
 }
 ._container_1ww70_1 {
   margin: 1em 0 0 0;
@@ -19562,6 +19677,18 @@ a._citationLink_1ggvf_9:hover {
 ._sidebarHeaderClose_130zy_166:hover {
   opacity: 0.7;
 }
+._headline_1l22a_1 {
+  display: block;
+  min-width: 0;
+}
+
+._inlineExplanation_1l22a_6 {
+  margin-left: 0.3em;
+}
+
+._rejected_1l22a_10 {
+  color: var(--bs-danger);
+}
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
@@ -19649,44 +19776,44 @@ a._citationLink_1ggvf_9:hover {
   min-width: 300px;
   width: fit-content;
 }
-._container_hxt3q_1 {
+._container_1m4t0_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_hxt3q_6 {
+._all_1m4t0_6 {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   column-gap: 1em;
 }
 
-._tableSelection_hxt3q_12 {
+._tableSelection_1m4t0_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._tools_hxt3q_18 {
+._tools_1m4t0_18 {
   grid-column: -1/1;
 }
 
-._codePre_hxt3q_22 {
+._codePre_1m4t0_22 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_hxt3q_22 {
+._code_1m4t0_22 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_hxt3q_34 {
+._progress_1m4t0_34 {
   margin-left: 0.5em;
 }
 
-._error_hxt3q_38 {
+._error_1m4t0_38 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -19697,41 +19824,43 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._showAllLink_hxt3q_49 {
+._showAllLink_1m4t0_49 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_hxt3q_49 a {
+._showAllLink_1m4t0_49 a {
   cursor: pointer;
   color: var(--bs-secondary-color);
   text-decoration: none;
 }
 
-._showAllIcon_hxt3q_60 {
+._showAllIcon_1m4t0_60 {
   margin-right: 0.35em;
 }
 
-._showAllLink_hxt3q_49 a:hover {
+._showAllLink_1m4t0_49 a:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_hxt3q_69 {
+._toolConfig_1m4t0_69 {
   display: grid;
-  grid-template-columns: max-content auto;
+  grid-template-columns: max-content minmax(0, auto);
   column-gap: 1em;
   row-gap: 0.5em;
   padding-top: 0.5em;
+  overflow-wrap: anywhere;
 }
 
-._toolChoice_hxt3q_77 {
+._toolChoice_1m4t0_78 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
-  grid-template-columns: max-content auto;
+  grid-template-columns: max-content minmax(0, auto);
   column-gap: 1em;
   margin-top: 0.5em;
   padding-top: 0.5em;
+  overflow-wrap: anywhere;
 }
 ._noMargin_1a3fk_1 {
   margin-bottom: 0;
@@ -19874,46 +20003,56 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_1qsnv_1 {
+._summary_1gtzx_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._approval_1qsnv_6 {
+._approvalWrap_1gtzx_6 {
+  margin-top: 0.5rem;
+}
+
+._approval_1gtzx_6 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_1qsnv_12 {
+._progress_1gtzx_16 {
   margin-left: 0.5em;
 }
-._node_1nuy2_1 {
+._node_miohh_1 {
   padding-top: 0.8rem;
 }
 
-._attached_1nuy2_5 {
+._attached_miohh_5 {
   padding-top: 0rem;
 }
 
-._attachedParent_1nuy2_9 {
+._attachedParent_miohh_9 {
   padding-bottom: 0px;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   border-bottom: none;
 }
 
-._attachedChild_1nuy2_16 {
+._attachedChild_miohh_16 {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
-._last_1nuy2_21 {
+._depthRoot_miohh_21 {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
+._last_miohh_27 {
   padding-bottom: 0.8rem;
 }
 
 @media print {
-  ._node_1nuy2_1 {
+  ._node_miohh_1 {
     break-inside: avoid;
   }
 }
@@ -20264,21 +20403,8 @@ a._citationLink_1ggvf_9:hover {
 ._selected_1ml4j_40 {
   font-weight: 600;
 }
-._entry_an9co_1 {
-  margin-top: 1em;
-}
-
-/* Match the other section labels in ScannerResultDetailView: body color
-   (override LabeledValue's default `text-style-secondary`) and bold weight.
-   A bottom border separates the key from its rendered value. */
-._entry_an9co_1 > .text-style-label {
-  color: var(--bs-body-color) !important;
-  text-transform: none !important;
-  font-size: var(--inspect-font-size-base);
-  font-weight: 600;
-  border-bottom: 1px solid var(--bs-border-color);
-  padding-bottom: 0.25em;
-  margin-bottom: 0.5em;
+._entry_a2fxh_1 {
+  margin-bottom: 1rem;
 }
 ._container_15g5f_1 {
   display: flex;
@@ -21038,7 +21164,7 @@ pre._value_8citi_25 {
 ._noPadding_1tj8p_56 {
   padding: 0;
 }
-._simpleMetricsRows_1jkr3_1 {
+._simpleMetricsRows_13tuz_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -21049,7 +21175,7 @@ pre._value_8citi_25 {
   overflow: scroll;
 }
 
-._multiMetricsRows_1jkr3_12 {
+._multiMetricsRows_13tuz_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -21063,14 +21189,14 @@ pre._value_8citi_25 {
   align-items: baseline;
 }
 
-._verticalMetricReducer_1jkr3_26 {
+._verticalMetricReducer_13tuz_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_1jkr3_33 {
+._verticalMetricName_13tuz_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -21078,35 +21204,35 @@ pre._value_8citi_25 {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_1jkr3_41 {
+._verticalMetricValue_13tuz_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_1jkr3_46 {
+._multiScorer_13tuz_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_1jkr3_53 {
+._multiScorerIndent_13tuz_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_1jkr3_57 {
+._multiScorerReducer_13tuz_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_1jkr3_63 {
+._multiScorerLabel_13tuz_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_1jkr3_69 {
+._multiScorerValue_13tuz_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -21115,12 +21241,12 @@ pre._value_8citi_25 {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_1jkr3_78 {
+._multiScorerValueContent_13tuz_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_1jkr3_83 {
+._multiScoreMetricGrid_13tuz_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -21128,22 +21254,49 @@ pre._value_8citi_25 {
   justify-content: center;
 }
 
-._moreButton_1jkr3_91 {
+._moreButton_13tuz_91 {
   margin-top: 0.25em;
   padding-right: 0;
   padding-bottom: 0;
 }
 
-._metricsSummary_1jkr3_97 {
+._metricsSummary_13tuz_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   margin-bottom: 0.35em;
 }
-._gridContainer_1bz7o_1 {
-  width: 100%;
+
+._scoringDetailModal_13tuz_104 .modal-dialog {
+  max-width: min(1000px, 90vw);
+}
+
+/* Let the dialog shrink to the grid's natural width instead of always
+   stretching to the max-width. The grid container sizes itself from the
+   sum of column widths; modal-content honours that. */
+._scoringDetailModal_13tuz_104 .modal-content {
+  width: fit-content;
+  max-width: 100%;
+}
+._gridContainer_2wkq3_1 {
+  max-width: 100%;
   max-height: 60vh;
   overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Breathing room at the edges so values don't sit flush with the modal border
+   (and so the last column doesn't get overlapped by the vertical scroll bar).
+   The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
+   is needed to win against ag-grid's built-in theme padding. */
+.ag-cell._firstCell_2wkq3_12,
+.ag-header-cell._firstHeader_2wkq3_13 {
+  padding-left: 1rem;
+}
+
+.ag-cell._lastCell_2wkq3_17,
+.ag-header-cell._lastHeader_2wkq3_18 {
+  padding-right: 0.5rem;
 }
 ._unscoredSamples_1h85z_1 {
   margin-left: 0.2rem;

@@ -19,6 +19,7 @@ title: Reference
 | [inspect_ai.solver](inspect_ai.solver.qmd) | Prompting and elicitation. |
 | [inspect_ai.tool](inspect_ai.tool.qmd) | Built-in and custom tool functions. |
 | [inspect_ai.util](inspect_ai.util.qmd) | Miscellaneous utility functions. |
+| [inspect_ai.viewer](inspect_ai.viewer.qmd) | Customize Inspect view behavior. |
 : {.borderless tbl-colwidths=[35,65]}
 
 ### CLI
