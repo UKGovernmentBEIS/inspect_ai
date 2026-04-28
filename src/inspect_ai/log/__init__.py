@@ -54,6 +54,12 @@ from ._log import (
     EventsData,
 )
 from ._metric import recompute_metrics
+from ._outcome_consistency import (
+    apply_outcome_consistency_metadata,
+    make_outcome_consistency_reducer,
+    outcome_consistency_value_for_log,
+    write_outcome_consistency_to_eval_file,
+)
 from ._pool import resolve_sample_events_data
 from ._retry import retryable_eval_logs
 from ._score import edit_score
@@ -113,6 +119,10 @@ __all__ = [
     "edit_eval_log",
     "invalidate_samples",
     "uninvalidate_samples",
+    "apply_outcome_consistency_metadata",
+    "make_outcome_consistency_reducer",
+    "outcome_consistency_value_for_log",
+    "write_outcome_consistency_to_eval_file",
 ]
 
 

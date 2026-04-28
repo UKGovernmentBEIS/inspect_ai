@@ -1,81 +1,46 @@
 """Compute outcome consistency (C_out) from an Inspect eval log.
 
-This script groups scores by task id across repeated runs and computes:
+This script groups scores by sample id across repeated runs and computes:
     C_out = 1 - (sigma_hat^2 / (p_hat * (1 - p_hat) + epsilon))
 where p_hat is the mean task success rate and sigma_hat^2 is sample variance.
 
 Usage examples:
     python scripts/pli/outcome_consistency.py --latest
     python scripts/pli/outcome_consistency.py --log logs/my_eval.eval --scorer choice
+    python scripts/pli/outcome_consistency.py --log logs/my_eval.eval --write-metadata
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 _HELPERS = Path(__file__).resolve().parent.parent / "helper_scripts"
 if str(_HELPERS) not in sys.path:
     sys.path.insert(0, str(_HELPERS))
 
-from reliability_common import resolve_log_path
-from inspect_ai.log import read_eval_log
-from inspect_ai.scorer import Score, ScoreReducer, score_reducer, value_to_float
+from reliability_common import resolve_log_path  # noqa: E402
+
+from inspect_ai.log import (  # noqa: E402
+    apply_outcome_consistency_metadata,
+    make_outcome_consistency_reducer,
+    outcome_consistency_value_for_log,
+    read_eval_log,
+    write_eval_log,
+)
+from inspect_ai.scorer import ScoreReducer, score_reducer  # noqa: E402
 
 
 @score_reducer(name="outcome_consistency")
 def outcome_consistency(epsilon: float = 1e-8) -> ScoreReducer:
-    """Outcome consistency for one task across K runs."""
-    to_float = value_to_float()
-
-    def reduce(scores: list[Score]) -> Score:
-        values = [to_float(score.value) for score in scores]
-        count = len(values)
-        if count < 2:
-            return Score(value=1.0)
-
-        p_hat = sum(values) / count
-        variance = sum((value - p_hat) ** 2 for value in values) / (count - 1)
-        denom = p_hat * (1.0 - p_hat) + epsilon
-        c_out = 1.0 - (variance / denom)
-        c_out = max(0.0, min(1.0, c_out))
-        return Score(value=float(c_out))
-
-    return reduce
+    """Outcome consistency for one task across K runs (registry entry for tasks)."""
+    return make_outcome_consistency_reducer(epsilon=epsilon)
 
 
 def outcome_from_log(log_path: Path, scorer_name: str | None, epsilon: float) -> float:
     log = read_eval_log(str(log_path))
-    if not log.samples:
-        raise ValueError(f"Log has no samples: {log_path}")
-
-    if scorer_name is None:
-        if log.results and log.results.scores:
-            scorer_name = log.results.scores[0].name
-        else:
-            for sample in log.samples:
-                if sample.scores:
-                    scorer_name = next(iter(sample.scores.keys()))
-                    break
-            if scorer_name is None:
-                raise ValueError(
-                    "Could not infer scorer name from log results or sample scores."
-                )
-
-    by_sample_id: dict[str | int, list[Score]] = defaultdict(list)
-    for sample in log.samples:
-        if not sample.scores or scorer_name not in sample.scores:
-            continue
-        by_sample_id[sample.id].append(sample.scores[scorer_name])
-
-    if not by_sample_id:
-        raise ValueError(f"No sample scores found for scorer '{scorer_name}'.")
-
-    reducer = outcome_consistency(epsilon=epsilon)
-    per_task = [reducer(sample_scores).as_float() for sample_scores in by_sample_id.values()]
-    return float(sum(per_task) / len(per_task))
+    return outcome_consistency_value_for_log(log, scorer_name, epsilon)[0]
 
 
 def main() -> None:
@@ -92,12 +57,45 @@ def main() -> None:
         help="Scorer name (default: first scorer in log results).",
     )
     parser.add_argument("--epsilon", type=float, default=1e-8)
+    parser.add_argument(
+        "--write-metadata",
+        action="store_true",
+        help="Append C_out to log metadata (via edit_eval_log) and write the file in place.",
+    )
+    parser.add_argument(
+        "--metadata-key",
+        type=str,
+        default="outcome_consistency",
+        help="Metadata key for C_out when using --write-metadata.",
+    )
+    parser.add_argument(
+        "--no-scorer-in-metadata",
+        action="store_true",
+        help="Do not set outcome_consistency_scorer in metadata when using --write-metadata.",
+    )
     args = parser.parse_args()
 
     log_path = resolve_log_path(log=args.log, log_dir=args.log_dir, latest=args.latest)
-    score = outcome_from_log(log_path=log_path, scorer_name=args.scorer, epsilon=args.epsilon)
+    if args.write_metadata:
+        log = read_eval_log(str(log_path), header_only=False)
+        before_etag = log.etag
+        updated = apply_outcome_consistency_metadata(
+            log,
+            scorer_name=args.scorer,
+            epsilon=args.epsilon,
+            metadata_key=args.metadata_key,
+            include_scorer_in_metadata=not args.no_scorer_in_metadata,
+            reason="scripts/pli/outcome_consistency.py --write-metadata",
+        )
+        write_eval_log(updated, str(log_path), if_match_etag=before_etag)
+        value = float(updated.metadata[args.metadata_key])
+    else:
+        value = outcome_from_log(
+            log_path=log_path, scorer_name=args.scorer, epsilon=args.epsilon
+        )
+
     print(f"log={log_path}")
-    print(f"outcome_consistency={score:.6f}")
+    print(f"outcome_consistency={value:.6f}")
 
 
 if __name__ == "__main__":
