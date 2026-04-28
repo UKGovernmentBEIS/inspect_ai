@@ -20,11 +20,15 @@ from ._config import (
     TokenInterval,
     TurnInterval,
 )
+from ._layout import CheckpointManifest, CheckpointSidecar, CheckpointTrigger
 
 __all__ = [
     "BudgetPercent",
     "CheckpointConfig",
+    "CheckpointManifest",
     "CheckpointPolicy",
+    "CheckpointSidecar",
+    "CheckpointTrigger",
     "Checkpointer",
     "CostInterval",
     "Retention",
