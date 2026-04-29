@@ -111,6 +111,18 @@ class OpenAIAPI(ModelAPI):
             "safety_identifier", NOT_GIVEN
         )
 
+        # OpenAI recommends preserving `phase` on replayed Responses API
+        # assistant messages:
+        # https://developers.openai.com/api/docs/guides/reasoning#phase-parameter
+        #
+        # Inspect already preserves API-returned phase metadata by default.
+        # This model arg only opts in to synthesizing phase for assistant
+        # messages that were constructed without one.
+        responses_phase = model_args.pop("responses_phase", False)
+        if not isinstance(responses_phase, bool):
+            raise ValueError("responses_phase must be a bool")
+        self.responses_phase: bool = responses_phase
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -305,7 +317,9 @@ class OpenAIAPI(ModelAPI):
         orphaned tool calls/outputs for per-message counting.
         """
         # Convert messages to OpenAI input format
-        input_items = await openai_responses_inputs(messages, self)
+        input_items = await openai_responses_inputs(
+            messages, self, synthesize_phase=self.responses_phase
+        )
 
         # Apply padding to handle orphaned tool calls for per-message counting
         padded_items = pad_tool_messages_for_token_counting(input_items)
@@ -426,6 +440,7 @@ class OpenAIAPI(ModelAPI):
                 prompt_cache_retention=self.prompt_cache_retention,
                 safety_identifier=self.safety_identifier,
                 responses_store=self.responses_store,
+                synthesize_phase=self.responses_phase,
                 model_info=self,
                 batcher=self._responses_batcher,
             )
@@ -563,7 +578,9 @@ class OpenAIAPI(ModelAPI):
             )
 
         # Convert messages to OpenAI format
-        input_params = await openai_responses_inputs(input, self)
+        input_params = await openai_responses_inputs(
+            input, self, synthesize_phase=self.responses_phase
+        )
 
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
         try:

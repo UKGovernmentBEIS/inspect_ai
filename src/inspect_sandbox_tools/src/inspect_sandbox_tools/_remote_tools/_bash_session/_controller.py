@@ -1,4 +1,8 @@
+import pwd
+
+from ..._util.common_types import ToolException
 from ..._util.session_controller import SessionController
+from ..._util.user_switch import is_current_user
 from ._session import Session
 from .tool_types import BashRestartResult, InteractResult
 
@@ -8,8 +12,23 @@ DEFAULT_SESSION_NAME = "BashSession"
 class Controller(SessionController[Session]):
     """BashSessionController provides support for isolated inspect subtask sessions."""
 
-    async def new_session(self) -> str:
-        return await self.create_new_session(DEFAULT_SESSION_NAME, Session.create)
+    async def new_session(
+        self, user: str | None = None, can_switch_user: bool = False
+    ) -> str:
+        if user is not None and is_current_user(user):
+            user = None
+        if user is not None and not can_switch_user:
+            raise ToolException(
+                f"Cannot switch to user {user!r}: server is not running as root"
+            )
+        if user is not None:
+            try:
+                pwd.getpwnam(user)
+            except KeyError:
+                raise RuntimeError(f"User {user!r} not found in /etc/passwd") from None
+        return await self.create_new_session(
+            DEFAULT_SESSION_NAME, lambda: Session.create(user=user)
+        )
 
     async def interact(
         self,

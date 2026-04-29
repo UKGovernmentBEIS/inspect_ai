@@ -87,6 +87,7 @@ async def generate_responses(
     prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
+    synthesize_phase: bool,
     model_info: ResponsesModelInfo,
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
@@ -111,7 +112,9 @@ async def generate_responses(
     )
 
     request = dict(
-        input=await openai_responses_inputs(input, model_info),
+        input=await openai_responses_inputs(
+            input, model_info, synthesize_phase=synthesize_phase
+        ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0

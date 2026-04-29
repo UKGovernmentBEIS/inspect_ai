@@ -97,6 +97,45 @@ def test_all_nan_list_reducers() -> None:
     assert_list_nan(reduced)
 
 
+def test_nan_root_list_reducers() -> None:
+    # Mix of list-shaped scores and NaN-at-root unscored sentinels. The
+    # NaN-at-root entries should be skipped, with reduction computed over
+    # the list-shaped subset (1, 1).
+    list_scores = [
+        Score(value=[1, 2]),
+        Score(value=[4, 3]),
+        Score(value=float("nan")),
+        Score(value=[3, 1]),
+        Score(value=[1, 2]),
+        Score(value=float("nan")),
+        Score(value=[1, 2]),
+    ]
+
+    assert avg_reducer(list_scores).value == [2, 2]
+    assert median_reducer(list_scores).value == [1, 2]
+    assert mode_reducer(list_scores).value == [1, 2]
+    assert max_reducer(list_scores).value == [4, 3]
+    assert at_least_3_reducer(list_scores).value == [1, 1]
+    assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+
+
+def test_all_nan_root_list_reducers() -> None:
+    # When every score is NaN-at-root, list reducers fall through to a
+    # NaN-scalar Score (no list shape to construct from).
+    list_scores = [
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+    ]
+
+    assert _is_nan(avg_reducer(list_scores).value)
+    assert _is_nan(median_reducer(list_scores).value)
+    assert _is_nan(mode_reducer(list_scores).value)
+    assert _is_nan(max_reducer(list_scores).value)
+    assert _is_nan(at_least_3_reducer(list_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(list_scores).value)
+
+
 def test_dict_reducers() -> None:
     _test_dict_reducers_impl(include_nan=False)
 
@@ -131,6 +170,73 @@ def test_all_nan_dict_reducers() -> None:
     assert_dict_nan(reduced)
     reduced = pass_at_2_no_threshhold(dict_scores).value
     assert_dict_nan(reduced)
+
+
+def test_nan_root_dict_reducers() -> None:
+    # Mix of dict-shaped scores and NaN-at-root unscored sentinels. The
+    # NaN-at-root entries should be skipped, with reduction computed over
+    # the dict-shaped subset.
+    dict_scores = [
+        Score(value={"coolness": 5, "spiciness": 1}),
+        Score(value={"coolness": 4, "spiciness": 1}),
+        Score(value=float("nan")),
+        Score(value={"coolness": 3, "spiciness": 1}),
+        Score(value={"coolness": 2, "spiciness": 1}),
+        Score(value={"coolness": 1, "spiciness": 21}),
+        Score(value=float("nan")),
+    ]
+
+    assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
+    assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
+    assert mode_reducer(dict_scores).value == {"coolness": 5, "spiciness": 1}
+    assert max_reducer(dict_scores).value == {"coolness": 5, "spiciness": 21}
+    assert at_least_3_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
+    assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+
+
+def test_all_nan_root_dict_reducers() -> None:
+    # When every score is NaN-at-root, dict reducers fall through to a
+    # NaN-scalar Score (no dict shape to construct from).
+    scores = [
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+    ]
+
+    assert _is_nan(avg_reducer(scores).value)
+    assert _is_nan(median_reducer(scores).value)
+    assert _is_nan(mode_reducer(scores).value)
+    assert _is_nan(max_reducer(scores).value)
+    assert _is_nan(at_least_3_reducer(scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(scores).value)
+
+
+def test_nan_root_first_score_dict_reducers() -> None:
+    # Regression test: when the FIRST score is NaN-at-root, the reducer
+    # must still detect the dict shape from a later score and produce a
+    # dict-valued reduction (rather than dispatching to the scalar branch).
+    dict_scores = [
+        Score(value=float("nan")),
+        Score(value={"coolness": 4, "spiciness": 1}),
+        Score(value={"coolness": 2, "spiciness": 1}),
+    ]
+
+    assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
+    assert max_reducer(dict_scores).value == {"coolness": 4, "spiciness": 1}
+
+
+def test_score_unscored() -> None:
+    # Score.unscored() constructs a NaN-valued Score and preserves
+    # answer/explanation/metadata.
+    s = Score.unscored(
+        answer="?", explanation="scanner returned None", metadata={"reason": "error"}
+    )
+    assert _is_nan(s.value)
+    assert s.answer == "?"
+    assert s.explanation == "scanner returned None"
+    assert s.metadata == {"reason": "error"}
 
 
 def test_reducer_preserve_metadata() -> None:
