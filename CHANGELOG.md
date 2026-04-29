@@ -5,6 +5,7 @@
 - Deepagent: Use `CompactionAuto` by default as the compaction strategy.
 - Compaction: Make `CompactionAuto` stateless — native compaction is attempted on every trigger rather than remembering fallback state.
 - OpenAI: Add `responses_phase` model arg to opt in to synthesizing missing Responses API assistant message `phase` labels while continuing to preserve OpenAI-returned phase metadata by default.
+- Agent bridge: Handle OpenAI API's new NamespaceToolParam type.
 - Tool views: Catch and log warning for errors in tool view rendering.
 - Eval Logs: Handle multi-frame zstd in async ZIP read paths.
 - HTTP retries: Only log warning if retry wait will be > 20 minutes (previously was 1 minute).
