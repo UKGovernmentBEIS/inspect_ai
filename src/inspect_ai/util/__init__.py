@@ -1,3 +1,8 @@
+from inspect_ai._util.images import (
+    register_uri_resolver,
+    unregister_uri_resolver,
+    uri_resolver,
+)
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -73,6 +78,9 @@ from ._subtask import Subtask, subtask
 from ._throttle import throttle
 
 __all__ = [
+    "register_uri_resolver",
+    "unregister_uri_resolver",
+    "uri_resolver",
     "apply_limits",
     "sample_limits",
     "SampleLimits",
