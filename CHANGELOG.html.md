@@ -1,10 +1,14 @@
 # changelog – Inspect
 
-## Unreleased
+## 0.3.214 (29 April 2026)
 
+- Scoring: Allow NaN-at-root unscored sentinel for dict- and list-valued scorers.
+- Scoring: Add `Score.unscored()` for samples a scorer cannot produce a value for.
 - Deepagent: Use [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto) by default as the compaction strategy.
 - Compaction: Make [CompactionAuto](./reference/inspect_ai.model.html.md#compactionauto) stateless — native compaction is attempted on every trigger rather than remembering fallback state.
 - OpenAI: Add `responses_phase` model arg to opt in to synthesizing missing Responses API assistant message `phase` labels while continuing to preserve OpenAI-returned phase metadata by default.
+- Agent bridge: Handle OpenAI API’s new NamespaceToolParam type.
+- Tool views: Catch and log warning for errors in tool view rendering.
 - Eval Logs: Handle multi-frame zstd in async ZIP read paths.
 - HTTP retries: Only log warning if retry wait will be \> 20 minutes (previously was 1 minute).
 - Sandbox tools: `user` parameter on `bash_session`, `text_editor`, and `exec_remote` now correctly applied server-side; CLI binary and server socket are no longer accessible to the sandbox’s default user.

@@ -80,7 +80,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-00bb9cb7cda113ac4013fc9b55ca6f24.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -568,17 +568,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g.&nbsp;a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:</p>
+<p>Agents combine planning, memory, and tool usage to pursue more complex, tasks (e.g.&nbsp;a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:</p>
 <ol type="1">
 <li><p>Using Inspect’s built-in <a href="./react-agent.html">ReAct Agent</a>.</p></li>
 <li><p>Using the <a href="./deepagent.html">Deep Agent</a> for long-horizon tasks with subagent delegation, memory, and planning.</p></li>
-<li><p>Implementing a fully <a href="./agent-custom.html">Custom Agent</a>.</p></li>
-<li><p>Composing agents into <a href="./multi-agent.html">Multi Agent</a> architectures.</p></li>
-<li><p>Integrating external frameworks via the <a href="./agent-bridge.html">Agent Bridge</a>.</p></li>
+<li><p>Using software engineering agents like Claude Code and Codex CLI via the <a href="https://meridianlabs-ai.github.io/inspect_swe/">Inspect SWE</a> package.</p></li>
+<li><p>Implementing a fully <a href="./agent-custom.html">Custom Agent</a>, potentially composing agents into <a href="./multi-agent.html">Multi Agent</a> architectures.</p></li>
+<li><p>Integrating external agent frameworks via the <a href="./agent-bridge.html">Agent Bridge</a>.</p></li>
 <li><p>Using the <a href="./human-agent.html">Human Agent</a> for human baselining of computing tasks.</p></li>
 </ol>
-<p>Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct agent, custom agents, and multi-agent systems.</p>
-<p>If you are looking for state of the art software engineering agents, check out the <a href="https://meridianlabs-ai.github.io/inspect_swe/">Inspect SWE</a> package which makes Claude Code and Codex CLI available as standard Inspect agents.</p>
+<p>Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.</p>
 </section>
 <section id="agent-basics" class="level2">
 <h2 class="anchored" data-anchor-id="agent-basics">Agent Basics</h2>
@@ -686,6 +685,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>See these additional articles to learn more about creating agent evaluations with Inspect:</p>
 <ul>
 <li><p><a href="./react-agent.html">ReAct Agent</a> provides details on using and customizing the built-in ReAct agent.</p></li>
+<li><p><a href="./deepagent.html">Deep Agent</a> describes a batteries-included agent for long-horizon tasks.</p></li>
 <li><p><a href="./multi-agent.html">Multi Agent</a> covers various ways to compose agents together in multi-agent architectures.</p></li>
 <li><p><a href="./agent-custom.html">Custom Agents</a> describes Inspect APIs available for creating custom agents.</p></li>
 <li><p><a href="./agent-bridge.html">Agent Bridge</a> enables the use of agents from 3rd party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI with Inspect.</p></li>

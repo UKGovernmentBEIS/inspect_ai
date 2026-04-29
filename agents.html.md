@@ -2,23 +2,21 @@
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
+Agents combine planning, memory, and tool usage to pursue more complex, tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect’s built-in [ReAct Agent](./react-agent.html.md).
 
 2.  Using the [Deep Agent](./deepagent.html.md) for long-horizon tasks with subagent delegation, memory, and planning.
 
-3.  Implementing a fully [Custom Agent](./agent-custom.html.md).
+3.  Using software engineering agents like Claude Code and Codex CLI via the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package.
 
-4.  Composing agents into [Multi Agent](./multi-agent.html.md) architectures.
+4.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
 
-5.  Integrating external frameworks via the [Agent Bridge](./agent-bridge.html.md).
+5.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
 
 6.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
-Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct agent, custom agents, and multi-agent systems.
-
-If you are looking for state of the art software engineering agents, check out the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package which makes Claude Code and Codex CLI available as standard Inspect agents.
+Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 
 ## Agent Basics
 
@@ -154,6 +152,8 @@ Agents can be used in the following ways:
 See these additional articles to learn more about creating agent evaluations with Inspect:
 
 - [ReAct Agent](./react-agent.html.md) provides details on using and customizing the built-in ReAct agent.
+
+- [Deep Agent](./deepagent.html.md) describes a batteries-included agent for long-horizon tasks.
 
 - [Multi Agent](./multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
 
