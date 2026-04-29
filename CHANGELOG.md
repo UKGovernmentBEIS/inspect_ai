@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Scoring: Allow NaN-at-root unscored sentinel for dict- and list-valued scorers.
+- Scoring: Add `Score.unscored()` for samples a scorer cannot produce a value for.
 - Deepagent: Use `CompactionAuto` by default as the compaction strategy.
 - Compaction: Make `CompactionAuto` stateless — native compaction is attempted on every trigger rather than remembering fallback state.
 - OpenAI: Add `responses_phase` model arg to opt in to synthesizing missing Responses API assistant message `phase` labels while continuing to preserve OpenAI-returned phase metadata by default.
