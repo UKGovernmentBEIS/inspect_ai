@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.214 (29 April 2026)
 
 - Scoring: Allow NaN-at-root unscored sentinel for dict- and list-valued scorers.
 - Scoring: Add `Score.unscored()` for samples a scorer cannot produce a value for.
