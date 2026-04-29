@@ -1,8 +1,10 @@
 import contextlib
 from collections.abc import Iterator
 from contextvars import ContextVar
+from logging import getLogger
 
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._approval import Approval
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import (
@@ -15,6 +17,8 @@ from inspect_ai.tool._tool_call import (
 from ._approver import Approver
 from ._policy import ApprovalPolicy, policy_approver
 
+logger = getLogger(__name__)
+
 
 async def apply_tool_approval(
     message: str,
@@ -26,9 +30,17 @@ async def apply_tool_approval(
     if approver:
         # resolve view
         if viewer:
-            view = viewer(call)
-            if not view.call:
-                view.call = default_tool_call_viewer(call).call
+            try:
+                view = viewer(call)
+                if not view.call:
+                    view.call = default_tool_call_viewer(call).call
+            except Exception as ex:
+                warn_once(
+                    logger,
+                    f"Error in viewer for tool '{call.function}': {ex}. "
+                    "Falling back to default rendering.",
+                )
+                view = default_tool_call_viewer(call)
         else:
             view = default_tool_call_viewer(call)
 

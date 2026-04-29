@@ -19,7 +19,6 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
@@ -35,7 +34,6 @@ from ..._condense import (
 )
 from ..._log import EvalSampleSummary
 from ..._pool import (
-    _msg_hash,
     condense_model_event_calls,
     condense_model_event_inputs,
 )
@@ -289,6 +287,7 @@ class SampleBufferDatabase(SampleBuffer):
             finally:
                 cursor.close()
 
+    @override
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
@@ -532,6 +531,8 @@ class SampleBufferDatabase(SampleBuffer):
             query += " AND id > ?"
             params.append(after_attachment_id)
 
+        query += " ORDER BY id"
+
         cursor = conn.execute(query, params)
 
         for row in cursor:
@@ -645,29 +646,21 @@ class SampleBufferDatabase(SampleBuffer):
 
             # message pool
             msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
-            prev_msg_len = len(msg_pool)
-            [condensed_event], msg_pool = condense_model_event_inputs(
-                [event.event], msg_pool, msg_index
+            [condensed_event], msg_pool, msg_index, new_msgs = (
+                condense_model_event_inputs([event.event], msg_pool, msg_index)
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for i in range(prev_msg_len, len(msg_pool)):
-                msg = msg_pool[i]
-                msg_id = msg.id if msg.id is not None else _msg_hash(msg)
-                self._insert_message_pool_entry(
-                    conn, event.id, event.epoch, msg_id, msg
-                )
+            for h, msg in new_msgs:
+                self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
             self._msg_pools[key] = (msg_pool, msg_index)
 
             # call pool
             call_pool, call_index = self._call_pools.get(key, ([], {}))
-            prev_call_len = len(call_pool)
-            [condensed_event], call_pool = condense_model_event_calls(
-                [event.event], call_pool, call_index
+            [condensed_event], call_pool, call_index, new_calls = (
+                condense_model_event_calls([event.event], call_pool, call_index)
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
-            for i in range(prev_call_len, len(call_pool)):
-                call_msg = call_pool[i]
-                h = mm3_hash(json.dumps(call_msg, sort_keys=True))
+            for h, call_msg in new_calls:
                 self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
             self._call_pools[key] = (call_pool, call_index)
 
@@ -818,27 +811,24 @@ def sync_to_filestore(
     last_message_pool_id = 0
     last_call_pool_id = 0
     segment_files: list[SegmentFile] = []
+    segment_by_id = {seg.id: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
-        # get last ids we've seen for this sample
-        sample_last_segment_id = (
-            manifest_sample.segments[-1] if manifest_sample.segments else None
-        )
-        sample_last_segment = next(
-            (
-                segment
-                for segment in manifest.segments
-                if segment.id == sample_last_segment_id
-            ),
-            None,
-        )
-        if sample_last_segment is not None:
-            after_event_id = sample_last_segment.last_event_id
-            after_attachment_id = sample_last_segment.last_attachment_id
-            after_message_pool_id = sample_last_segment.last_message_pool_id
-            after_call_pool_id = sample_last_segment.last_call_pool_id
-        else:
-            after_event_id, after_attachment_id = (0, 0)
-            after_message_pool_id, after_call_pool_id = (0, 0)
+        # take the max of last_*_id across all of this sample's segments, not
+        # just the latest: each segment's last_*_id is 0 if no items of that
+        # type were added there, so the latest alone can regress the cursor.
+        after_event_id = 0
+        after_attachment_id = 0
+        after_message_pool_id = 0
+        after_call_pool_id = 0
+        for seg_id in manifest_sample.segments:
+            seg = segment_by_id.get(seg_id)
+            if seg is not None:
+                after_event_id = max(after_event_id, seg.last_event_id)
+                after_attachment_id = max(after_attachment_id, seg.last_attachment_id)
+                after_message_pool_id = max(
+                    after_message_pool_id, seg.last_message_pool_id
+                )
+                after_call_pool_id = max(after_call_pool_id, seg.last_call_pool_id)
 
         # get sample data
         sample_data = db.get_sample_data(

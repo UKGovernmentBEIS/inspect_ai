@@ -21938,13 +21938,14 @@ var e = { env: {} };
 							}
 							r[s] = e[s], i[s] = t[s], l.labeled && (c = this.updateHDW(l.childNodes[0], 0, s, u, e, t, a, c)), this.extendHD(s, e, t, c), this.extendHD(s, r, i, c);
 						}
+						var p = a[0];
 						return this.data = {
 							H: e,
 							D: t,
 							W: n,
 							NH: r,
 							ND: i,
-							L: a[0]
+							L: p
 						}, this.data;
 					}, t.prototype.updateHDW = function(e, t, n, r, i, a, o, s) {
 						var c = e.getBBox(), l = c.h, u = c.d, d = c.w, f = e.parent.bbox.rscale;

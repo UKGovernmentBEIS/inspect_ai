@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from random import random
 from types import FrameType
-from typing import Callable, Generator, Sequence, TypeVar
+from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
 
 import anyio
 import pytest
@@ -23,6 +23,8 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
 F = TypeVar("F", bound=Callable)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def _rearm_pytest_timeout() -> None:
@@ -120,6 +122,28 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
     return decorator
 
 
+def with_timeout(
+    seconds: float,
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Decorator that enforces a per-call timeout on an async test function.
+
+    Cancels the coroutine via ``anyio.fail_after`` at the next checkpoint,
+    raising ``TimeoutError``. Async-only — all tests that need timeout
+    enforcement in this repo are async.
+    """
+
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        @functools.wraps(func)
+        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            with anyio.fail_after(seconds):
+                return await func(*args, **kwargs)
+
+        async_wrapper._has_default_timeout = True  # type: ignore[attr-defined]
+        return async_wrapper
+
+    return decorator
+
+
 def skip_if_env_var(var: str, exists=True):
     """
     Pytest mark to skip the test if the var environment variable is not defined.
@@ -148,14 +172,6 @@ def skip_if_no_package(package):
 
 def skip_if_no_mcp_package(func):
     return skip_if_no_package("mcp")(func)
-
-
-def skip_if_no_mcp_fetch_package(func):
-    return skip_if_no_package("mcp_server_fetch")(func)
-
-
-def skip_if_no_mcp_git_package(func):
-    return skip_if_no_package("mcp_server_git")(func)
 
 
 def skip_if_no_vllm(func):

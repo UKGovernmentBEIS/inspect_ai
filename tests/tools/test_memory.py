@@ -327,3 +327,32 @@ async def test_initial_data_invalid_paths(invalid_path: str, match: str) -> None
     # Seeding happens on first execute call
     with pytest.raises(ToolError, match=match):
         await tool(command="view", path="/memories")
+
+
+async def test_memory_readonly_view() -> None:
+    """Test that readonly memory can view seeded data."""
+    tool = memory(
+        initial_data={"/memories/notes.txt": "important info"},
+        readonly=True,
+    )
+    result = await tool(command="view", path="/memories/notes.txt")
+    assert isinstance(result, str) and "important info" in result
+
+
+async def test_memory_readonly_view_directory() -> None:
+    """Test that readonly memory can list directories."""
+    tool = memory(
+        initial_data={"/memories/sub/notes.txt": "content"},
+        readonly=True,
+    )
+    result = await tool(command="view", path="/memories")
+    assert isinstance(result, str) and "notes.txt" in result
+
+
+async def test_memory_readonly_no_write_params() -> None:
+    """Test that readonly memory only exposes view parameters."""
+    ro_tool = memory(readonly=True)
+    # The readonly execute function only accepts command, path, view_range.
+    # Passing write-specific params like file_text raises TypeError.
+    with pytest.raises(TypeError):
+        await ro_tool(command="view", path="/memories", file_text="nope")

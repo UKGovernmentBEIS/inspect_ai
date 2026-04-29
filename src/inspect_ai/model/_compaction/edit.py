@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from shortuuid import uuid
 from typing_extensions import override
@@ -72,6 +72,19 @@ class CompactionEdit(CompactionStrategy):
         self.keep_tool_uses = keep_tool_uses
         self.keep_tool_inputs = keep_tool_inputs
         self.exclude_tools = exclude_tools
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params.update(
+            {
+                "keep_thinking_turns": self.keep_thinking_turns,
+                "keep_tool_uses": self.keep_tool_uses,
+                "keep_tool_inputs": self.keep_tool_inputs,
+                "exclude_tools": self.exclude_tools,
+            }
+        )
+        return params
 
     @override
     async def compact(

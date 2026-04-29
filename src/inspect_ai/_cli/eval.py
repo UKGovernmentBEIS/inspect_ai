@@ -373,7 +373,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-model-api/--no-log-model-api",
         type=bool,
-        default=False,
+        default=None,
         is_flag=True,
         help=LOG_MODEL_API_HELP,
         envvar="INSPECT_EVAL_LOG_MODEL_API",
@@ -409,7 +409,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--no-score-display",
         type=bool,
         is_flag=True,
-        help=NO_SCORE_HELP,
+        help=NO_SCORE_DISPLAY,
         envvar="INSPECT_EVAL_SCORE_DISPLAY",
     )
     @click.option(
@@ -504,6 +504,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
+        "--prompt-logprobs",
+        type=int,
+        help="Number of log probabilities to return per prompt token (1-20). vLLM only.",
+        envvar="INSPECT_EVAL_PROMPT_LOGPROBS",
+    )
+    @click.option(
         "--parallel-tool-calls/--no-parallel-tool-calls",
         type=bool,
         is_flag=True,
@@ -535,7 +541,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--verbosity",
         type=click.Choice(["low", "medium", "high"]),
         help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
-        envvar="INSPECT_EVAL_EFFORT",
+        envvar="INSPECT_EVAL_VERBOSITY",
     )
     @click.option(
         "--effort",
@@ -667,6 +673,7 @@ def eval_command(
     num_choices: int | None,
     logprobs: bool | None,
     top_logprobs: int | None,
+    prompt_logprobs: int | None,
     parallel_tool_calls: bool | None,
     internal_tools: bool | None,
     max_tool_output: int | None,
@@ -893,6 +900,7 @@ def eval_set_command(
     num_choices: int | None,
     logprobs: bool | None,
     top_logprobs: int | None,
+    prompt_logprobs: int | None,
     parallel_tool_calls: bool | None,
     internal_tools: bool | None,
     max_tool_output: int | None,
@@ -1424,7 +1432,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--log-model-api/--no-log-model-api",
     type=bool,
-    default=False,
+    default=None,
     is_flag=True,
     help=LOG_MODEL_API_HELP,
     envvar="INSPECT_EVAL_LOG_MODEL_API",
@@ -1460,7 +1468,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--no-score-display",
     type=bool,
     is_flag=True,
-    help=NO_SCORE_HELP,
+    help=NO_SCORE_DISPLAY,
     envvar="INSPECT_EVAL_SCORE_DISPLAY",
 )
 @click.option(
@@ -1527,7 +1535,6 @@ def eval_retry_command(
     log_samples = False if no_log_samples else None
     log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
-    log_model_api = True if log_model_api is True else None
     log_refusals = True if log_refusals is True else None
     score = False if no_score else True
     score_display = False if no_score_display else None

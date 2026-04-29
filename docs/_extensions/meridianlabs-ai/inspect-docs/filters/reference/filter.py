@@ -23,6 +23,15 @@ from griffe import Extensions, Module, UnpackTypedDictExtension
 import griffe
 import panflute as pf  # type: ignore
 
+# Quarto serializes some metadata values (e.g. the strings under
+# `categories:` in frontmatter) as pandoc RawInline elements whose format
+# is `"pandoc-native"`. That format isn't in panflute 2.x's RAW_FORMATS
+# set, so `pf.run_filters`'s JSON parse step raises a TypeError on any
+# document that reaches pandoc's AST through that path -- a crash well
+# before any of this filter's own logic runs. Widening the set at import
+# time lets such documents pass through unchanged.
+pf.elements.RAW_FORMATS.add("pandoc-native")  # type: ignore[attr-defined]
+
 from rich.console import Console
 
 from parse import DocParseOptions, MissingDocstringError, parse_docs
@@ -38,6 +47,45 @@ _console = Console(stderr=True, force_terminal=True)
 def _warn(message: str) -> None:
     """Print a yellow warning to stderr."""
     _console.print(f"[yellow][bold]WARNING:[/bold] {message}[/yellow]")
+
+
+def _is_empty_section(elem: pf.Header) -> bool:
+    """True when no content blocks sit between this heading and the next."""
+    nxt = elem.next
+    return nxt is None or (isinstance(nxt, pf.Header) and nxt.level <= elem.level)
+# Cheap discovery cache, used to short-circuit the expensive griffe load
+# in `get_parse_options` for pages that don't actually need symbol parsing.
+_cheap_cache: dict[str, tuple[str | None, str | None]] = {}
+
+
+def cheap_project_info(doc: pf.Doc) -> tuple[str | None, str | None]:
+    """Return ``(module_name, cli_name)`` using only pyproject + doc metadata.
+
+    Reads the project's `inspect-docs` metadata block and falls back to
+    `pyproject.toml` discovery. Performs no module imports of the target
+    package, so it can be called on every page render without paying the
+    griffe load cost.
+    """
+    if "result" in _cheap_cache:
+        return _cheap_cache["result"]
+
+    inspect_docs: Any = doc.metadata.get("inspect-docs", {})
+    if inspect_docs and "module" in inspect_docs:
+        module_name: str | None = pf.stringify(inspect_docs["module"])
+    else:
+        module_name = discover_module_name()
+
+    cli_name: str | None = None
+    if module_name:
+        if inspect_docs and "cli" in inspect_docs:
+            cli_name = pf.stringify(inspect_docs["cli"])
+        else:
+            cli_info = discover_cli(module_name)
+            if cli_info is not None:
+                cli_name = cli_info[0]
+
+    _cheap_cache["result"] = (module_name, cli_name)
+    return _cheap_cache["result"]
 
 
 def main() -> Any:
@@ -163,11 +211,11 @@ def main() -> Any:
         if elem.level != 3 and "reference" not in elem.attributes:
             return None
 
-        parse_options = get_parse_options(doc)
-        if parse_options is None:
-            return elem
-        project_module = get_module_name()
-        if project_module is None:
+        # Inline-reference flow: on article pages (outside reference/),
+        # only H3s that have an explicit `reference="..."` attribute become
+        # symbols. Plain H3s on article pages are normal headings.
+        has_explicit_attr = "reference" in elem.attributes
+        if not has_explicit_attr and not is_reference_page(doc):
             return elem
 
         # Pages must declare their binding via a `reference:` frontmatter
@@ -176,19 +224,29 @@ def main() -> Any:
         if page_ref is None:
             return elem
 
-        # Skip CLI command pages -- they are handled by click_cli at the
-        # document level, not by per-heading rewriting.
-        cli_name = get_cli_name()
-        if cli_name and (
-            page_ref == cli_name or page_ref.startswith(f"{cli_name} ")
-        ):
+        # Skip CLI command pages and bail when no project module is
+        # configured -- both decisions are made from cheap metadata, so
+        # we don't pay the griffe load cost on pages that won't render
+        # symbol docs.
+        project_module, cli_name = cheap_project_info(doc)
+        if project_module is None:
+            return elem
+        if cli_name and (page_ref == cli_name or page_ref.startswith(f"{cli_name} ")):
             return elem
 
         # Inline-reference flow: on article pages (outside reference/),
-        # only H3s that have an explicit `reference="..."` attribute become
-        # symbols. Plain H3s on article pages are normal headings.
+        # H3s with an explicit `reference="..."` attribute always become
+        # symbols. Plain H3s become symbols only when their section is
+        # empty (no content before the next heading), allowing reference
+        # pages outside a reference/ directory to omit redundant attributes.
         has_explicit_attr = "reference" in elem.attributes
         if not has_explicit_attr and not is_reference_page(doc):
+            if not _is_empty_section(elem):
+                return elem
+        # Heavy load: only reached for headings that will actually render
+        # a symbol from the project module.
+        parse_options = get_parse_options(doc)
+        if parse_options is None:
             return elem
 
         # Symbol lookups are relative to the griffe-loaded project module,
@@ -208,6 +266,11 @@ def main() -> Any:
         # parse docs
         try:
             docs = parse_docs(object, parse_options)
+        except KeyError:
+            if has_explicit_attr:
+                _warn(f"reference: symbol '{object}' not found (skipping)")
+                return []
+            return elem
         except MissingDocstringError as e:
             _warn(f"reference: {e} (skipping)")
             return []
@@ -221,18 +284,23 @@ def main() -> Any:
     def click_cli(elem: pf.Element, doc: pf.Doc) -> None:
         if not isinstance(elem, pf.Doc):
             return
-        # ensure project options are initialized
-        if get_parse_options(doc) is None:
-            return
-        cli_name = get_cli_name()
-        cli_entry = get_cli_entry()
-        if cli_name is None or cli_entry is None:
-            return
 
+        # cheap exits first -- avoid loading griffe for pages that aren't
+        # CLI command pages.
         if "reference" not in doc.metadata:
             return
         page_ref = pf.stringify(doc.metadata["reference"])
+        _, cli_name = cheap_project_info(doc)
+        if cli_name is None:
+            return
         if page_ref != cli_name and not page_ref.startswith(f"{cli_name} "):
+            return
+
+        # heavy load: only CLI pages reach here
+        if get_parse_options(doc) is None:
+            return
+        cli_entry = get_cli_entry()
+        if cli_entry is None:
             return
 
         # subcommand path: everything after "<cli> " (may be a multi-token

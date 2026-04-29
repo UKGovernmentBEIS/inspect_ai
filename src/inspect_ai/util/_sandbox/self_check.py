@@ -77,6 +77,10 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_timeout_kills_child_processes,
         test_exec_permission_error,
         test_exec_env_vars,
+        test_exec_input_text,
+        test_exec_input_shell_special,
+        test_exec_input_binary,
+        test_exec_input_large,
         test_exec_as_user,
         test_exec_as_nonexistent_user,
         test_cwd_unspecified,
@@ -513,6 +517,65 @@ async def test_exec_env_vars(sandbox_env: SandboxEnvironment) -> None:
     )
     assert exec_result.stdout == "chonko zamboodle\nzeddle_zom\n", (
         f"env var not passed to script; got {exec_result.stdout=}"
+    )
+
+
+async def test_exec_input_text(sandbox_env: SandboxEnvironment) -> None:
+    # Catches implementations that silently drop the input parameter.
+    content = "hello\nworld\n"
+    result = await sandbox_env.exec(["cat"], input=content)
+    assert result.success, f"cat failed: stderr=[{result.stderr}]"
+    assert result.stdout == content, (
+        f"stdin not forwarded; got {result.stdout=!r}, expected {content=!r}"
+    )
+
+    # Empty-string input is non-None and must still be handled
+    # (catches `if input:` truthiness bugs).
+    empty_result = await sandbox_env.exec(["cat"], input="")
+    assert empty_result.success, (
+        f"cat failed on empty input: stderr=[{empty_result.stderr}]"
+    )
+    assert empty_result.stdout == "", (
+        f"empty input should produce empty stdout, got {empty_result.stdout=!r}"
+    )
+
+
+async def test_exec_input_shell_special(sandbox_env: SandboxEnvironment) -> None:
+    # Catches implementations that embed input into a shell command without
+    # proper escaping: variable expansion, command substitution, quoting,
+    # backslashes, newlines must all round-trip verbatim.
+    content = "$HOME `whoami` 'single' \"double\" \\backslash\nnewline\n"
+    result = await sandbox_env.exec(["cat"], input=content)
+    assert result.success, f"cat failed: stderr=[{result.stderr}]"
+    assert result.stdout == content, (
+        f"stdin should round-trip verbatim; got {result.stdout=!r}, expected {content=!r}"
+    )
+
+
+async def test_exec_input_binary(sandbox_env: SandboxEnvironment) -> None:
+    # Bytes (including invalid UTF-8 and NULs) must round-trip unchanged.
+    # Use a file as the sink because ExecResult.stdout is decoded as str.
+    file_name = "test_exec_input_binary.file"
+    payload = b"\xc3\x28\x00\xff\x01\x02bytes"
+    result = await sandbox_env.exec(["sh", "-c", f"cat > {file_name}"], input=payload)
+    assert result.success, f"cat failed: stderr=[{result.stderr}]"
+    written = await sandbox_env.read_file(file_name, text=False)
+    assert written == payload, (
+        f"binary stdin should round-trip; got {written!r}, expected {payload!r}"
+    )
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
+    # Catches command-line / pipe / transport size limits. 1 MiB is enough to
+    # exceed several common limits but small enough to stay quick.
+    size = 1024 * 1024
+    payload = "a" * size
+    result = await sandbox_env.exec(["wc", "-c"], input=payload)
+    assert result.success, f"wc failed: stderr=[{result.stderr}]"
+    reported = int(result.stdout.strip().split()[0])
+    assert reported == size, (
+        f"wc -c reported {reported} bytes from stdin, expected {size}"
     )
 
 

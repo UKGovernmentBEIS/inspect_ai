@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, field_validator
 
 from inspect_ai._view._openapi import _CustomJsonSchemaGenerator, build_openapi_schema
 
@@ -41,6 +41,33 @@ class NestedNonNullable(BaseModel):
 
 class NestedNullable(BaseModel):
     nested: NonNullableNoDefault | None = Field(default=None)
+
+
+class NullableWithValidator(BaseModel):
+    field: int | None = Field(default=None)
+
+    @field_validator("field")
+    @classmethod
+    def _validate(cls, v: int | None) -> int | None:
+        return v
+
+
+class NullableWithBeforeValidator(BaseModel):
+    field: int | None = Field(default=None)
+
+    @field_validator("field", mode="before")
+    @classmethod
+    def _validate(cls, v: int | None) -> int | None:
+        return v
+
+
+class NullableWithWrapValidator(BaseModel):
+    field: int | None = Field(default=None)
+
+    @field_validator("field", mode="wrap")
+    @classmethod
+    def _validate(cls, v: Any, handler: Any) -> int | None:
+        return handler(v)
 
 
 # Test models for JsonValue
@@ -81,6 +108,10 @@ def _get_openapi_schemas(model: type[BaseModel]) -> dict[str, Any]:
         # Nested models follow same rules
         (NestedNonNullable, "nested", True),
         (NestedNullable, "nested", False),
+        # Nullable fields with validators are still not required
+        (NullableWithValidator, "field", False),
+        (NullableWithBeforeValidator, "field", False),
+        (NullableWithWrapValidator, "field", False),
     ],
     ids=[
         "str_no_default",
@@ -90,6 +121,9 @@ def _get_openapi_schemas(model: type[BaseModel]) -> dict[str, Any]:
         "str|None_default_value",
         "nested_non_nullable",
         "nested_nullable",
+        "int|None_with_after_validator",
+        "int|None_with_before_validator",
+        "int|None_with_wrap_validator",
     ],
 )
 def test_field_requiredness(

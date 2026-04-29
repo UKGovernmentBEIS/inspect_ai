@@ -16,6 +16,7 @@ if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 import anyio
+from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
@@ -23,7 +24,7 @@ from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
-from inspect_ai._display.core.display import TaskSpec
+from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset
@@ -239,6 +240,7 @@ async def eval_run(
                     model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
                     metadata=((metadata or {}) | (task.metadata or {})) or None,
+                    viewer=task.viewer,
                     recorder=recorder,
                     header_only=header_only,
                 )
@@ -305,7 +307,9 @@ async def run_single(tasks: list[TaskRunOptions], debug_errors: bool) -> list[Ev
             async with anyio.create_task_group() as tg:
 
                 async def run_task(index: int) -> None:
-                    result = await task_run(tasks[index])
+                    # In run_single all tasks share a task group, so we don't want to cancel the entire group.
+                    # Instead, do not support cancel for run_single.
+                    result = await task_run(tasks[index], task_cancel=None)
                     results.append((index, result))
 
                 for i in range(0, len(tasks)):
@@ -397,13 +401,33 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                             # task_options. Otherwise, we suffer from Python's
                             # late/by reference binding behavior.
                             # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+
+                            task_cancel = TaskCancel(
+                                can_retry=False,
+                                cancel_task=lambda _: None,
+                            )
+
+                            def cancel_task(
+                                type: CancelType,
+                                cancel_tg: TaskGroup = tg,
+                                tc: TaskCancel = task_cancel,
+                            ) -> None:
+                                tc.cancel_type = type
+                                if type:
+                                    cancel_tg.cancel_scope.cancel()
+
+                            task_cancel.cancel_task = cancel_task
+
                             def create_task_runner(
                                 options: TaskRunOptions = task_options,
                                 idx: int = original_index,
+                                task_cancel: TaskCancel = task_cancel,
                             ) -> Callable[[], Awaitable[None]]:
                                 async def run_task() -> None:
                                     nonlocal result
-                                    result = await task_run(options)
+                                    result = await task_run(
+                                        options, task_cancel=task_cancel
+                                    )
                                     # Store result with its original index
                                     results.append((idx, result))
 
@@ -481,6 +505,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 class PendingTask(NamedTuple):
     options: TaskRunOptions
     retries_remaining: int
+    original_index: int
 
 
 # run multiple logical tasks with retries (requires some smart
@@ -498,14 +523,12 @@ async def run_task_retry_attempts(
 
     # setup pending tasks, queue, and results
     pending_tasks: list[PendingTask] = [
-        PendingTask(options=t, retries_remaining=task_retry_attempts) for t in tasks
+        PendingTask(options=t, retries_remaining=task_retry_attempts, original_index=i)
+        for i, t in enumerate(tasks)
     ]
     results: dict[int, EvalLog] = {}
     tasks_completed = 0
     total_tasks = len(tasks)
-
-    # Create a mapping from task to its original index
-    task_to_original_index = {id(task): i for i, task in enumerate(tasks)}
 
     # produce/consume tasks
     send_channel, receive_channel = anyio.create_memory_object_stream[PendingTask](
@@ -546,11 +569,14 @@ async def run_task_retry_attempts(
     async def worker() -> None:
         try:
             nonlocal tasks_completed
+            task_seq = 0
             async for pending_task in receive_channel:
                 task_options = pending_task.options
                 result: EvalLog | None = None
                 # Get the original index of this task
-                original_index = task_to_original_index[id(task_options)]
+                original_index = pending_task.original_index
+                cancel_type: CancelType = None
+                task_seq += 1
 
                 # run the task
                 try:
@@ -564,13 +590,41 @@ async def run_task_retry_attempts(
                             # task_options. Otherwise, we suffer from Python's
                             # late/by reference binding behavior.
                             # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+
+                            task_cancel = TaskCancel(
+                                can_retry=pending_task.retries_remaining > 0,
+                                cancel_task=lambda _: None,
+                            )
+
+                            def cancel_task(
+                                type: CancelType,
+                                cancel_tg: TaskGroup = tg,
+                                seq: int = task_seq,
+                                tc: TaskCancel = task_cancel,
+                            ) -> None:
+                                nonlocal cancel_type, task_seq
+                                if seq != task_seq:  # noqa: B023
+                                    log.info(
+                                        f"Ignoring stale cancel callback (seq {seq} != current {task_seq})"  # noqa: B023
+                                    )
+                                    return
+                                cancel_type = type
+                                tc.cancel_type = type
+                                if type:
+                                    cancel_tg.cancel_scope.cancel()
+
+                            task_cancel.cancel_task = cancel_task
+
                             def create_task_runner(
                                 options: TaskRunOptions = task_options,
                                 idx: int = original_index,
+                                task_cancel: TaskCancel = task_cancel,
                             ) -> Callable[[], Awaitable[None]]:
                                 async def run_task() -> None:
                                     nonlocal result
-                                    result = await task_run(options)
+                                    result = await task_run(
+                                        options, task_cancel=task_cancel
+                                    )
                                     results[idx] = result
 
                                 return run_task
@@ -586,15 +640,33 @@ async def run_task_retry_attempts(
                     raise
 
                 # tracking
-                tasks_completed += 1
                 model_counts[str(task_options.model)] -= 1
 
-                # if a task was cancelled we are done
-                if not result or result.status == "cancelled":
+                retry = False
+                if not result:
+                    tasks_completed += 1
                     break
-
+                elif result.status == "cancelled":
+                    # external cancellation (ctrl+c) - stop the worker
+                    tasks_completed += 1
+                    break
+                elif cancel_type == "retry":
+                    log.info(
+                        f"Task '{task_options.task.name}' was cancelled with retry requested — {pending_task.retries_remaining} retries remaining"
+                    )
+                    retry = True
+                elif cancel_type == "abort":
+                    log.info(
+                        f"Task '{task_options.task.name}' was cancelled with abort requested"
+                    )
                 # retry on error if retries remain
-                if result.status == "error" and pending_task.retries_remaining > 0:
+                elif result.status == "error":
+                    retry = True
+
+                retry = retry and pending_task.retries_remaining > 0
+                if not retry:
+                    tasks_completed += 1
+                else:
                     # build sample_source from the failed log so completed
                     # samples are reused on retry (mirrors legacy eval_set retry)
                     failed_log_info = EvalLogInfo(
@@ -625,13 +697,12 @@ async def run_task_retry_attempts(
                         sample_source=sample_source,
                         display_name=retry_display_name,
                     )
-                    task_to_original_index[id(retry_options)] = original_index
                     retry_pending = PendingTask(
                         options=retry_options,
                         retries_remaining=pending_task.retries_remaining - 1,
+                        original_index=original_index,
                     )
                     pending_tasks.append(retry_pending)
-                    tasks_completed -= 1
                     log.info(
                         f"Retrying task '{task_options.task.name}' ({task_options.model}) "
                         f"— {retry_pending.retries_remaining} retries remaining"

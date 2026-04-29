@@ -126,6 +126,13 @@ class ChatCompletionChoice(BaseModel):
     logprobs: Logprobs | None = Field(default=None)
     """Logprobs."""
 
+    prompt_logprobs: Logprobs | None = Field(default=None)
+    """Per-prompt-token log probabilities (vLLM only).
+
+    Placed on the choice (not ``ModelOutput``) so scorers access prompt
+    and output logprobs uniformly via ``choices[0]``.  Perplexity evals
+    use ``num_choices=1``, so there is no duplication in practice."""
+
     @model_validator(mode="before")
     @classmethod
     def migrate_stop_reason(cls: Type["ChatCompletionChoice"], values: Any) -> Any:

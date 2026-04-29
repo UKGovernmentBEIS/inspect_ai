@@ -1,3 +1,5 @@
+from typing import Any
+
 from typing_extensions import override
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -37,6 +39,12 @@ class CompactionTrim(CompactionStrategy):
         """
         super().__init__(type="trim", threshold=threshold, memory=memory)
         self.preserve = preserve
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params["preserve"] = self.preserve
+        return params
 
     @override
     async def compact(

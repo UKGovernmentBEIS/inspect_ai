@@ -41,5 +41,4 @@ Additional files provide context when working in specific areas:
 
 ## Design Documentation
 
-- [Model Proxy Lifecycle: startup, communication, and termination flow](design/model-proxy-lifecycle.md)
-- [Timezone Handling Architecture: principles and patterns for temporal data](design/temporal-data-handling.md)
+`design/` contains architecture notes, subsystem internals, and documentation of repo/CI/development processes and workflows. Browse it before diving into an unfamiliar area.

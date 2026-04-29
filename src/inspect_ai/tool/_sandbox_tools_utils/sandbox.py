@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 import warnings
@@ -5,7 +6,7 @@ from contextlib import asynccontextmanager
 from importlib import resources
 from logging import getLogger
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Literal
+from typing import AsyncIterator, BinaryIO, Literal, get_args
 from urllib.parse import unquote, urlparse
 
 import httpx
@@ -97,12 +98,27 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         async with _open_executable_for_arch(info["architecture"]) as (_, f):
             # TODO: The first tuple member, filename, isn't currently used, but it will be
             await sandbox.write_file(SANDBOX_CLI, f.read())
-            # .write_file used `tee` which dropped execute permissions
-            result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI], user="root")
-            if not result.success:
-                raise RuntimeError(
-                    f"Failed to chmod sandbox tools binary: {result.stderr}"
-                )
+            # .write_file used `tee` which dropped execute permissions.
+            # Try root-only (0o700) first so the agent can't execute the binary;
+            # fall back to world-executable (+x) for sandboxes without root.
+            result = await sandbox.exec(["chmod", "700", SANDBOX_CLI], user="root")
+            if result.success:
+                sandbox._tools_user = "root"
+            else:
+                result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
+                if not result.success:
+                    raise RuntimeError(
+                        f"Failed to chmod sandbox tools binary: {result.stderr}"
+                    )
+
+        # Start the server as root so it can setuid to any user for exec_remote.
+        # If root isn't available, fall back to the sandbox's default user —
+        # user-switching will be disabled (auto-detected by the server).
+        result = await sandbox.exec(
+            [SANDBOX_CLI, "start-server"], user=sandbox._tools_user
+        )
+        if not result.success:
+            raise RuntimeError(f"Failed to start sandbox tools server: {result.stderr}")
     except Exception as e:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
@@ -264,8 +280,32 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
     print(f"Successfully built {dev_executable_name}")
 
 
+_INSTALL_STATE_OVERRIDE_ENV = "INSPECT_SANDBOX_TOOLS_INSTALL_STATE"
+
+
+def _install_state_override() -> InstallState | None:
+    """Read the CI escape-hatch env var; None if unset.
+
+    Release-gate jobs force "clean" so the non-dev binary name is resolved
+    even when version.txt has diverged from main on a release PR. See #3704.
+    """
+    match os.environ.get(_INSTALL_STATE_OVERRIDE_ENV):
+        case None:
+            return None
+        case "pypi" | "clean" | "edited" as s:
+            return s
+        case other:
+            raise ValueError(
+                f"{_INSTALL_STATE_OVERRIDE_ENV}={other!r} invalid; "
+                f"must be one of {get_args(InstallState)}"
+            )
+
+
 def _get_install_state() -> InstallState:
     """Detect the state of the inspect-ai installation."""
+    if (override := _install_state_override()) is not None:
+        return override
+
     if (direct_url := get_package_direct_url("inspect-ai")) is None:
         return "pypi"
 

@@ -221,17 +221,23 @@ def _extract_compaction_from_content_data(
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model_info: ResponsesModelInfo | None = None
+    messages: list[ChatMessage],
+    model_info: ResponsesModelInfo | None = None,
+    synthesize_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model_info)
+        for item in await _openai_input_item_from_chat_message(
+            message, model_info, synthesize_phase
+        )
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model_info: ResponsesModelInfo | None = None
+    message: ChatMessage,
+    model_info: ResponsesModelInfo | None = None,
+    synthesize_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -252,7 +258,9 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message, model_info)
+        return _openai_input_items_from_chat_message_assistant(
+            message, model_info, synthesize_phase
+        )
     elif message.role == "tool":
         # see if we need to recover the call id for the computer tool calls
         responses_tool_call = assistant_internal().tool_calls.get(
@@ -1013,7 +1021,9 @@ def tool_use_to_web_search_param(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant, model_info: ResponsesModelInfo | None = None
+    message: ChatMessageAssistant,
+    model_info: ResponsesModelInfo | None = None,
+    synthesize_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1063,6 +1073,12 @@ def _openai_input_items_from_chat_message_assistant(
     pending_response_output: list[
         ResponseOutputRefusalParam | ResponseOutputTextParam
     ] = []
+
+    synthetic_phase = (
+        _synthetic_phase_for_assistant_message(message, content_items)
+        if synthesize_phase
+        else None
+    )
 
     def flush_pending_context_text() -> None:
         nonlocal pending_response_output_id, pending_response_phase
@@ -1168,6 +1184,8 @@ def _openai_input_items_from_chat_message_assistant(
                         message_phase = (
                             phase_value if isinstance(phase_value, str) else None
                         )
+                if message_phase is None:
+                    message_phase = synthetic_phase
 
                 # see if we need to flush d
                 if (
@@ -1191,6 +1209,25 @@ def _openai_input_items_from_chat_message_assistant(
     flush_pending_context_text()
 
     return items + _tool_call_items_from_assistant_message(message)
+
+
+def _synthetic_phase_for_assistant_message(
+    message: ChatMessageAssistant,
+    content_items: list[ContentText | ContentReasoning | ContentToolUse | ContentImage],
+) -> str:
+    # OpenAI recommends preserving `phase` when replaying Responses API
+    # assistant messages; see:
+    # https://developers.openai.com/api/docs/guides/reasoning#phase-parameter
+    # https://developers.openai.com/api/reference/responses
+    #
+    # Inspect always preserves OpenAI-returned MESSAGE_PHASE metadata. This
+    # helper is intentionally opt-in (`responses_phase=True`) because the docs
+    # are explicit about preservation but less explicit about client synthesis
+    # for arbitrary histories constructed outside the OpenAI Responses API.
+    has_tool_activity = bool(message.tool_calls) or any(
+        isinstance(content, ContentToolUse) for content in content_items
+    )
+    return "commentary" if has_tool_activity else "final_answer"
 
 
 def _model_tool_call_for_internal(

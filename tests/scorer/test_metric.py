@@ -546,3 +546,95 @@ def test_sample_score_metadata_as():
     assert metadata is not None
     assert metadata.name == "jim"
     assert metadata.age == 42
+
+
+def _scorer_info_for_dict_metrics() -> Any:
+    from inspect_ai._eval.task.results import ScorerInfo
+
+    return ScorerInfo(name="test_scorer", metrics={"one": [mean()], "two": [mean()]})
+
+
+def test_dict_metric_unscored_samples_mixed():
+    # NaN-at-root samples should be skipped and counted as unscored;
+    # metrics computed only over the dict-shaped subset.
+    from inspect_ai._eval.task.results import scorers_from_metric_dict
+
+    sample_scores = [
+        SampleScore(score=Score(value={"one": 1, "two": 2}), sample_id=1),
+        SampleScore(score=Score(value=float("nan")), sample_id=2),
+        SampleScore(score=Score(value={"one": 3, "two": 4}), sample_id=3),
+        SampleScore(score=Score.unscored(explanation="no result"), sample_id=4),
+    ]
+
+    results = scorers_from_metric_dict(
+        scorer_name="test_scorer",
+        scorer_info=_scorer_info_for_dict_metrics(),
+        sample_scores=sample_scores,
+        metrics={"one": [mean()], "two": [mean()]},
+    )
+
+    assert len(results) == 2
+    by_name = {r.name: r for r in results}
+    assert by_name["one"].scored_samples == 2
+    assert by_name["one"].unscored_samples == 2
+    assert by_name["one"].metrics["mean"].value == 2.0
+    assert by_name["two"].scored_samples == 2
+    assert by_name["two"].unscored_samples == 2
+    assert by_name["two"].metrics["mean"].value == 3.0
+
+
+def test_dict_metric_first_sample_unscored():
+    # Regression: when the FIRST sample is NaN-at-root, the dict-key
+    # globbing must still find a dict-shaped sample to read keys from.
+    from inspect_ai._eval.task.results import scorers_from_metric_dict
+
+    sample_scores = [
+        SampleScore(score=Score(value=float("nan")), sample_id=1),
+        SampleScore(score=Score(value={"one": 5, "two": 6}), sample_id=2),
+        SampleScore(score=Score(value={"one": 1, "two": 2}), sample_id=3),
+    ]
+
+    # Use a glob pattern to exercise resolve_glob_metric_keys
+    results = scorers_from_metric_dict(
+        scorer_name="test_scorer",
+        scorer_info=_scorer_info_for_dict_metrics(),
+        sample_scores=sample_scores,
+        metrics={"*": [mean()]},
+    )
+
+    assert len(results) == 2
+    by_name = {r.name: r for r in results}
+    assert by_name["one"].scored_samples == 2
+    assert by_name["one"].unscored_samples == 1
+    assert by_name["one"].metrics["mean"].value == 3.0
+    assert by_name["two"].scored_samples == 2
+    assert by_name["two"].unscored_samples == 1
+    assert by_name["two"].metrics["mean"].value == 4.0
+
+
+def test_dict_metric_all_samples_unscored():
+    # When every sample is NaN-at-root, no key-globbing happens, every
+    # metric value is NaN, and unscored_samples equals the sample count.
+    import math
+
+    from inspect_ai._eval.task.results import scorers_from_metric_dict
+
+    sample_scores = [
+        SampleScore(score=Score.unscored(), sample_id=1),
+        SampleScore(score=Score.unscored(), sample_id=2),
+        SampleScore(score=Score.unscored(), sample_id=3),
+    ]
+
+    # Pass literal (non-glob) keys so resolution is unambiguous.
+    results = scorers_from_metric_dict(
+        scorer_name="test_scorer",
+        scorer_info=_scorer_info_for_dict_metrics(),
+        sample_scores=sample_scores,
+        metrics={"one": [mean()], "two": [mean()]},
+    )
+
+    assert len(results) == 2
+    for r in results:
+        assert r.scored_samples == 0
+        assert r.unscored_samples == 3
+        assert math.isnan(r.metrics["mean"].value)

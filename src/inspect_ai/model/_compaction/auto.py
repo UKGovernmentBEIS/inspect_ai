@@ -5,7 +5,7 @@ and falls back to summary-based compaction for unsupported providers.
 """
 
 from logging import getLogger
-from typing import Literal
+from typing import Any, Literal
 
 from typing_extensions import override
 
@@ -43,7 +43,8 @@ class CompactionAuto(CompactionStrategy):
             instructions: Additional instructions to give the model about compaction
                 (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
             memory: Whether to warn the model to save critical content to memory
-                prior to compaction. Use "auto" (the default) to disable memory for native compaction and enable it for summary compaction.
+                prior to compaction. "auto" (default) enables warnings for all
+                compaction paths.
         """
         # Don't pass memory to base - we'll handle it via property
         super().__init__(type="summary", threshold=threshold, memory=False)
@@ -67,20 +68,19 @@ class CompactionAuto(CompactionStrategy):
             memory=summary_memory,
         )
 
-        # Track whether we've fallen back to summary
-        self._use_fallback = False
-
     @property
     def memory(self) -> bool:
-        """Return memory setting based on current compaction strategy.
-
-        For "auto" mode, returns False when using native compaction and True
-        after falling back to summary compaction
-        """
+        """Whether to warn the model to save content to memory before compaction."""
         if self._memory_setting == "auto":
-            # Return True only after we've fallen back to summary
-            return self._use_fallback
+            return True
         return self._memory_setting
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params["instructions"] = self._instructions
+        params["memory"] = self._memory_setting
+        return params
 
     @override
     async def compact(
@@ -90,7 +90,7 @@ class CompactionAuto(CompactionStrategy):
 
         Attempts native compaction first. If the provider doesn't support
         native compaction (NotImplementedError), falls back to summary-based
-        compaction and remembers this choice for subsequent calls.
+        compaction.
 
         Args:
             model: Target model for compaction.
@@ -100,21 +100,13 @@ class CompactionAuto(CompactionStrategy):
         Returns:
             Tuple of (compacted messages, supplemental message or None).
         """
-        # Use fallback straight away if we've had to in the past
-        if self._use_fallback:
-            return await self._summary.compact(model, messages, tools)
-
         try:
-            # Try native compaction
             return await self._native.compact(model, messages, tools)
-        except NotImplementedError as ex:
-            # switch to summary and remember for future calls
-            self._use_fallback = True
-
-            # log warning
+        except NotImplementedError:
+            return await self._summary.compact(model, messages, tools)
+        except Exception as ex:
             logger.warning(
-                f"{exception_message(ex)} Falling back to summary compaction."
+                f"Native compaction failed: {exception_message(ex)}. "
+                "Falling back to summary compaction."
             )
-
-            # do summary compaction
             return await self._summary.compact(model, messages, tools)
