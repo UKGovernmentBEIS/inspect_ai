@@ -798,7 +798,15 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
     tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
     if tool_def and tool_def.viewer:
-        return tool_def.viewer(call).call
+        try:
+            return tool_def.viewer(call).call
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+            return None
     else:
         return None
 
