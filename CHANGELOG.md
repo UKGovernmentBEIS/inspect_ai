@@ -1,3 +1,7 @@
+## Unreleased
+
+- Logging: Add sample id, epoch, and task name to log records.
+
 ## 0.3.215 (30 April 2026)
 
 - Handle split UTF-16 "lone surrogate" in log message condensation.
