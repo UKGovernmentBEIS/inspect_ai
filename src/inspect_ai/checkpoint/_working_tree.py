@@ -38,31 +38,36 @@ def attempt_working_tree(log_location: str, sample_id: int | str, epoch: int) ->
 
 
 async def write_working_tree(
-    log_location: str, sample_id: int | str, epoch: int
+    log_location: str, sample_id: int | str, epoch: int, turn: int
 ) -> Path:
     """Materialize the per-attempt working tree.
 
     Phase 3 (in progress): writes placeholder ``context.json`` and
-    ``store.json``. Replaced by real condensed-context and ``Store``
-    serialization in subsequent slices.
+    ``store.json``. Each carries the current ``turn`` so successive
+    fires produce distinct content — that lets the upcoming restic
+    backup slice verify it captures real change between snapshots.
+    Replaced by real condensed-context and ``Store`` serialization in
+    subsequent slices.
     """
     return await anyio.to_thread.run_sync(
-        _write_working_tree_blocking, log_location, sample_id, epoch
+        _write_working_tree_blocking, log_location, sample_id, epoch, turn
     )
 
 
 def _write_working_tree_blocking(
-    log_location: str, sample_id: int | str, epoch: int
+    log_location: str, sample_id: int | str, epoch: int, turn: int
 ) -> Path:
     attempt = attempt_working_tree(log_location, sample_id, epoch)
     attempt.mkdir(parents=True, exist_ok=True)
 
     # TODO(checkpointing-phase-3): replace with the condensed
     # representation produced by `condense_sample()` (§5).
-    (attempt / "context.json").write_text('{"messages": [], "events": []}\n')
+    (attempt / "context.json").write_text(
+        f'{{"turn": {turn}, "messages": [], "events": []}}\n'
+    )
     # TODO(checkpointing-phase-3): replace with the sample's `Store`
     # key/value state.
-    (attempt / "store.json").write_text("{}\n")
+    (attempt / "store.json").write_text(f'{{"turn": {turn}}}\n')
     return attempt
 
 

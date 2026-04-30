@@ -62,28 +62,29 @@ def test_attempt_working_tree_uses_sample_id_and_epoch(cache_dir: Path) -> None:
 
 
 async def test_write_working_tree_creates_dir_and_files(cache_dir: Path) -> None:
-    attempt = await write_working_tree("/logs/foo.eval", "s1", 0)
+    attempt = await write_working_tree("/logs/foo.eval", "s1", 0, turn=3)
 
     assert attempt.is_dir()
     assert attempt == cache_dir / "checkpoints/foo/s1__0"
 
-    context = attempt / "context.json"
-    store = attempt / "store.json"
-    assert context.is_file()
-    assert store.is_file()
+    context = json.loads((attempt / "context.json").read_text())
+    store = json.loads((attempt / "store.json").read_text())
 
-    # Both files parse as JSON (placeholder content).
-    json.loads(context.read_text())
-    json.loads(store.read_text())
+    assert context["turn"] == 3
+    assert store["turn"] == 3
 
 
-async def test_write_working_tree_overwrites_in_place(cache_dir: Path) -> None:
-    attempt = await write_working_tree("/logs/foo.eval", "s1", 0)
+async def test_write_working_tree_overwrites_in_place_with_new_turn(
+    cache_dir: Path,
+) -> None:
+    """Successive fires must produce distinct content.
+
+    The turn field is what lets the upcoming restic backup slice
+    verify the snapshot actually captured change between checkpoints.
+    """
+    attempt = await write_working_tree("/logs/foo.eval", "s1", 0, turn=1)
     (attempt / "context.json").write_text('"polluted"')
 
-    # Second call rewrites the placeholders.
-    await write_working_tree("/logs/foo.eval", "s1", 0)
-    assert json.loads((attempt / "context.json").read_text()) == {
-        "messages": [],
-        "events": [],
-    }
+    await write_working_tree("/logs/foo.eval", "s1", 0, turn=2)
+    assert json.loads((attempt / "context.json").read_text())["turn"] == 2
+    assert json.loads((attempt / "store.json").read_text())["turn"] == 2

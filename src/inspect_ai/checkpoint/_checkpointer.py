@@ -209,6 +209,7 @@ class Checkpointer:
             self._identity.log_location,
             self._identity.sample_id,
             self._identity.epoch,
+            self._turn,
         )
         attempt_dir = attempt_dir_for(
             eval_dir, self._identity.sample_id, self._identity.epoch
