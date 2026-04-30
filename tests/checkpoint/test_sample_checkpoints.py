@@ -59,6 +59,7 @@ async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:
         turn=3,
         host=_info("snap-1"),
         sandboxes={},
+        duration_ms=0,
     )
     assert path == f"{sample_dir}/ckpt-00001.json"
     assert Path(path).is_file()
@@ -75,6 +76,7 @@ async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
         turn=7,
         host=_info("snap-42", size_bytes=1000, duration_ms=10),
         sandboxes={"default": _info("sb-42", size_bytes=234, duration_ms=20)},
+        duration_ms=99,
     )
     sidecar = CheckpointSidecar.model_validate_json(Path(path).read_text())
     assert sidecar.checkpoint_id == 42
@@ -84,6 +86,7 @@ async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
     assert sidecar.host.duration_ms == 10
     assert sidecar.sandboxes["default"].snapshot_id == "sb-42"
     assert sidecar.size_bytes == 1234  # rolled-up total
+    assert sidecar.duration_ms == 99  # whole-cycle
 
 
 async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> None:
@@ -98,6 +101,7 @@ async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> 
             turn=cid,
             host=_info(f"snap-{cid}"),
             sandboxes={},
+            duration_ms=0,
         )
         for cid in (1, 2, 10, 100)
     ]
@@ -122,6 +126,7 @@ async def test_sidecar_is_pretty_printed_json(tmp_path: Path) -> None:
         turn=1,
         host=_info("snap-1"),
         sandboxes={},
+        duration_ms=0,
     )
     raw = Path(path).read_text()
     assert json.loads(raw)["checkpoint_id"] == 1

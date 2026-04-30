@@ -207,8 +207,6 @@ focused swap of `_fire()`'s body plus the read side.
   but partly cross-cuts since the sidecar's sandbox snapshot ids
   already point at in-sandbox repos).
 - Atomic sidecar write (write `.tmp`, rename) — currently best-effort.
-- Cycle-level `duration_ms` on the sidecar (currently 0; per-backup
-  durations exist).
 - `CheckpointEvent` in the event stream.
 - `on_checkpoint_start` lifecycle hook.
 - `max_consecutive_failures` enforcement.

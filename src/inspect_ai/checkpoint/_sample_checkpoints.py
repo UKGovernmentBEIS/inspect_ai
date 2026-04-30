@@ -56,6 +56,7 @@ async def write_sidecar(
     turn: int,
     host: SnapshotInfo,
     sandboxes: dict[str, SnapshotInfo],
+    duration_ms: int,
 ) -> str:
     """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path."""
     return await anyio.to_thread.run_sync(
@@ -66,6 +67,7 @@ async def write_sidecar(
         turn,
         host,
         sandboxes,
+        duration_ms,
     )
 
 
@@ -76,16 +78,14 @@ def _write_sidecar_blocking(
     turn: int,
     host: SnapshotInfo,
     sandboxes: dict[str, SnapshotInfo],
+    duration_ms: int,
 ) -> str:
     sidecar = CheckpointSidecar(
         checkpoint_id=checkpoint_id,
         trigger=trigger,
         turn=turn,
         created_at=datetime.now(timezone.utc),
-        # Phase 3 (in progress): no cycle-level duration reported until
-        # _fire is wrapped in timing instrumentation. Per-backup
-        # durations live on `host` and `sandboxes`.
-        duration_ms=0,
+        duration_ms=duration_ms,
         size_bytes=host.size_bytes + sum(s.size_bytes for s in sandboxes.values()),
         host=host,
         sandboxes=sandboxes,

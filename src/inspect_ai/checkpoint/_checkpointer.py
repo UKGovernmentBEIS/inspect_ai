@@ -207,8 +207,10 @@ class _Checkpointer:
 
     async def _fire(self, trigger: CheckpointTrigger) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
-        # restic backup against the host working dir, then writes the
-        # per-checkpoint sidecar. Sandbox backups land in a future slice.
+        # restic backups (host + sandboxes in parallel), then writes
+        # the per-checkpoint sidecar.
+        cycle_start = time.monotonic()
+
         await self._write_host_context(self._sample_working_dir, self._turn)
 
         # Host + each sandbox backup in parallel — they're independent
@@ -233,6 +235,11 @@ class _Checkpointer:
             for (name, _), summary in zip(sandbox_items, summaries[1:])
         }
 
+        # Cycle duration measured up to the sidecar write — the write
+        # itself is the commit point, so its cost lands on the next
+        # cycle's clock if anywhere.
+        duration_ms = int((time.monotonic() - cycle_start) * 1000)
+
         await write_sidecar(
             sample_checkpoints_dir=self._sample_checkpoints_dir,
             checkpoint_id=self._next_checkpoint_id,
@@ -240,6 +247,7 @@ class _Checkpointer:
             turn=self._turn,
             host=host_info,
             sandboxes=sandbox_infos,
+            duration_ms=duration_ms,
         )
         self._next_checkpoint_id += 1
         self._turns_since_fire = 0
