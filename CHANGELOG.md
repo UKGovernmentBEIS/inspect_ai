@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent bridge: Preserve `ChatMessage.id`, `ToolCall.id`, and `ChatMessageSystem.id` across harness round trips so a downstream consumer that builds a transcript tree by id no longer sees the same logical message twice with different ids.
 - Handle split UTF-16 "lone surrogate" in log message condensation.
 
 ## 0.3.214 (29 April 2026)
