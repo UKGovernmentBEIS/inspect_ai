@@ -8,7 +8,7 @@ from test_helpers.utils import skip_if_github_action, skip_if_no_vllm
 from inspect_ai import Task, eval_async
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import target_perplexity
-from inspect_ai.solver import generate
+from inspect_ai.solver import completions_prompt_logprobs
 
 
 @pytest.mark.anyio
@@ -31,17 +31,14 @@ async def test_with_num_target_tokens_metadata() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=completions_prompt_logprobs(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
         model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model_args=dict(device=0),
     )
 
     result = log[0].results
@@ -87,17 +84,14 @@ async def test_auto_tokenize_via_provider() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=completions_prompt_logprobs(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
         model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model_args=dict(device=0),
     )
 
     assert log[0].samples is not None
@@ -128,17 +122,14 @@ async def test_default_fallback() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=completions_prompt_logprobs(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
         model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model_args=dict(device=0),
     )
 
     assert log[0].samples is not None
@@ -166,17 +157,14 @@ async def test_multi_token_target() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=completions_prompt_logprobs(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
         model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model_args=dict(device=0),
     )
 
     assert log[0].samples is not None

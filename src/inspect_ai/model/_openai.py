@@ -840,27 +840,18 @@ def chat_choices_from_openai(
     ]
 
 
-def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
-    """Parse prompt logprobs from a vLLM chat completions response.
+def parse_vllm_prompt_logprobs_raw(raw: list[Any]) -> Logprobs | None:
+    """Parse a vLLM prompt_logprobs list into a :class:`Logprobs` object.
 
-    vLLM places prompt_logprobs at the response top level (not inside choices).
-    Each position is a dict mapping token_id -> {decoded_token, logprob, rank}.
-    The first entry in each dict is always the actual prompt token (by vLLM's
-    insertion-order contract); subsequent entries are the top-N alternatives
-    (when prompt_logprobs > 1).  The rank field indicates the model's
-    prediction ranking (rank 1 = most likely), NOT which token is the actual
-    prompt token — the actual token may have a high rank if it was unlikely.
+    vLLM format: each position is either ``None`` (BOS) or a dict mapping
+    ``token_id -> {decoded_token, logprob, rank}``.  The first entry in
+    each dict is the actual prompt token (by vLLM's insertion-order
+    contract); subsequent entries are the top-N alternatives
+    (when ``prompt_logprobs > 1``).
+
+    This is the shared parsing logic used by both the chat completions
+    path (``_parse_prompt_logprobs``) and the ``completions_prompt_logprobs`` solver.
     """
-    raw: list[Any] | None = None
-    # vLLM returns prompt_logprobs at the top level of the response
-    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
-        raw = response.prompt_logprobs
-    elif hasattr(response, "model_extra") and response.model_extra:
-        raw = response.model_extra.get("prompt_logprobs")
-
-    if not raw:
-        return None
-
     result: list[Logprob] = []
     for entry in raw:
         # First token has None logprob (no left context)
@@ -910,6 +901,25 @@ def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
             )
         )
     return Logprobs(content=result) if result else None
+
+
+def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
+    """Parse prompt logprobs from a vLLM chat completions response.
+
+    vLLM places prompt_logprobs at the response top level (not inside choices).
+    This function locates the raw list and delegates to
+    :func:`parse_vllm_prompt_logprobs_raw` for parsing.
+    """
+    raw: list[Any] | None = None
+    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
+        raw = response.prompt_logprobs
+    elif hasattr(response, "model_extra") and response.model_extra:
+        raw = response.model_extra.get("prompt_logprobs")
+
+    if not raw:
+        return None
+
+    return parse_vllm_prompt_logprobs_raw(raw)
 
 
 def openai_should_retry(ex: BaseException) -> bool:
