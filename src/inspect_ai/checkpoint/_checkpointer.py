@@ -12,25 +12,15 @@ from __future__ import annotations
 
 import time
 from contextvars import ContextVar, Token
-from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol
 
 from inspect_ai.log._samples import sample_active
 
-from ._config import (
-    BudgetPercent,
-    CheckpointConfig,
-    CostInterval,
-    TimeInterval,
-    TokenInterval,
-    TurnInterval,
-)
+from ._config import CheckpointConfig, TimeInterval, TurnInterval
 from ._layout import CheckpointTrigger
 from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
 from ._working_dir import ensure_sample_working_dir, write_sample_working_dir
-
-_NOT_YET_IMPLEMENTED = (TokenInterval, CostInterval, BudgetPercent)
 
 
 class CheckpointSession(Protocol):
@@ -49,7 +39,7 @@ class CheckpointSession(Protocol):
 # trigger free function below. Stays unset for `_NoopCheckpointer`,
 # which is how a stray `await checkpoint()` from helper code raises
 # rather than silently no-op'ing.
-_active_checkpointer: ContextVar["_ActiveCheckpointer | None"] = ContextVar(
+_active_checkpointer: ContextVar["_Checkpointer | None"] = ContextVar(
     "inspect_ai_active_checkpointer", default=None
 )
 
@@ -64,13 +54,8 @@ class Checkpointer:
     """
 
     def __init__(self, config: CheckpointConfig[Any] | None) -> None:
-        if config is not None and isinstance(config.policy, _NOT_YET_IMPLEMENTED):
-            raise NotImplementedError(
-                f"{type(config.policy).__name__} policy is scheduled for Phase 5; "
-                "use TimeInterval, TurnInterval, or 'manual' for now."
-            )
         self._config = config
-        self._impl: _NoopCheckpointer | _ActiveCheckpointer | None = None
+        self._impl: _NoopCheckpointer | _Checkpointer | None = None
 
     async def __aenter__(self) -> CheckpointSession:
         self._impl = await self._build_impl()
@@ -85,7 +70,7 @@ class Checkpointer:
         assert self._impl is not None
         await self._impl.__aexit__(exc_type, exc, tb)
 
-    async def _build_impl(self) -> _NoopCheckpointer | _ActiveCheckpointer:
+    async def _build_impl(self) -> _NoopCheckpointer | _Checkpointer:
         if self._config is None:
             return _NoopCheckpointer()
 
@@ -119,7 +104,7 @@ class Checkpointer:
         sample_working_dir = await ensure_sample_working_dir(
             active.log_location, active.sample.id, active.epoch
         )
-        return _ActiveCheckpointer(
+        return _Checkpointer(
             config=self._config,
             sample_checkpoints_dir=sample_checkpoints_dir,
             sample_working_dir=sample_working_dir,
@@ -147,14 +132,14 @@ class _NoopCheckpointer:
         return None
 
 
-class _ActiveCheckpointer:
+class _Checkpointer:
     """Session with all on-disk dependencies pre-ensured."""
 
     def __init__(
         self,
         config: CheckpointConfig[Any],
         sample_checkpoints_dir: str,
-        sample_working_dir: Path,
+        sample_working_dir: str,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
@@ -163,9 +148,9 @@ class _ActiveCheckpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
-        self._reset_token: Token["_ActiveCheckpointer | None"] | None = None
+        self._reset_token: Token["_Checkpointer | None"] | None = None
 
-    async def __aenter__(self) -> "_ActiveCheckpointer":
+    async def __aenter__(self) -> "_Checkpointer":
         self._reset_token = _active_checkpointer.set(self)
         return self
 

@@ -19,16 +19,13 @@ from unittest.mock import patch
 import pytest
 
 from inspect_ai.checkpoint import (
-    BudgetPercent,
     CheckpointConfig,
     Checkpointer,
-    CostInterval,
     TimeInterval,
-    TokenInterval,
     TurnInterval,
     checkpoint,
 )
-from inspect_ai.checkpoint._checkpointer import _ActiveCheckpointer
+from inspect_ai.checkpoint._checkpointer import _Checkpointer
 from inspect_ai.checkpoint._layout import CheckpointTrigger
 
 # === Policy tests against `_ActiveCheckpointer` directly ====================
@@ -37,7 +34,7 @@ from inspect_ai.checkpoint._layout import CheckpointTrigger
 @dataclass
 class _Dirs:
     checkpoints: str
-    working: Path
+    working: str
 
 
 @pytest.fixture
@@ -47,10 +44,10 @@ def dirs(tmp_path: Path) -> _Dirs:
     working = tmp_path / "cache/checkpoints/test/s__0"
     checkpoints.mkdir(parents=True)
     working.mkdir(parents=True)
-    return _Dirs(checkpoints=str(checkpoints), working=working)
+    return _Dirs(checkpoints=str(checkpoints), working=str(working))
 
 
-class _CountingCheckpointer(_ActiveCheckpointer):
+class _CountingCheckpointer(_Checkpointer):
     """Counts fires on top of the real fire path."""
 
     fire_count: int = 0
@@ -215,24 +212,6 @@ async def test_none_config_does_not_set_active_checkpointer(
     async with Checkpointer(None):
         with pytest.raises(RuntimeError, match="outside an active Checkpointer"):
             await checkpoint()
-
-
-# --- not-yet-implemented policies -----------------------------------------
-
-
-@pytest.mark.parametrize(
-    "policy",
-    [
-        TokenInterval(every=1000),
-        CostInterval(every=1.0),
-        BudgetPercent(budget="cost", percent=10.0),
-    ],
-)
-def test_unimplemented_policy_raises(
-    policy: TokenInterval | CostInterval | BudgetPercent,
-) -> None:
-    with pytest.raises(NotImplementedError, match="Phase 5"):
-        Checkpointer(CheckpointConfig(policy=policy))
 
 
 # --- entering without an active sample -----------------------------------

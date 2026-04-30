@@ -21,20 +21,20 @@ from inspect_ai._util.file import basename
 _LOG_SUFFIX = ".eval"
 
 
-def _eval_working_dir(log_location: str) -> Path:
+def _eval_working_dir(log_location: str) -> str:
     log_base = basename(log_location)
     if log_base.endswith(_LOG_SUFFIX):
         log_base = log_base[: -len(_LOG_SUFFIX)]
-    return inspect_cache_dir("checkpoints") / log_base
+    return str(inspect_cache_dir("checkpoints") / log_base)
 
 
-def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> Path:
-    return _eval_working_dir(log_location) / f"{sample_id}__{epoch}"
+def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
+    return f"{_eval_working_dir(log_location)}/{sample_id}__{epoch}"
 
 
 async def ensure_sample_working_dir(
     log_location: str, sample_id: int | str, epoch: int
-) -> Path:
+) -> str:
     """Create (idempotent) and return the sample working dir path.
 
     Also ensures the eval working dir exists; that's an implementation
@@ -47,20 +47,20 @@ async def ensure_sample_working_dir(
 
 def _ensure_sample_working_dir_blocking(
     log_location: str, sample_id: int | str, epoch: int
-) -> Path:
+) -> str:
     _ensure_eval_working_dir(log_location)
     sample_dir = _sample_working_dir(log_location, sample_id, epoch)
-    sample_dir.mkdir(exist_ok=True)
+    Path(sample_dir).mkdir(exist_ok=True)
     return sample_dir
 
 
-def _ensure_eval_working_dir(log_location: str) -> Path:
+def _ensure_eval_working_dir(log_location: str) -> str:
     eval_dir = _eval_working_dir(log_location)
-    eval_dir.mkdir(parents=True, exist_ok=True)
+    Path(eval_dir).mkdir(parents=True, exist_ok=True)
     return eval_dir
 
 
-async def write_sample_working_dir(sample_working_dir: Path, turn: int) -> None:
+async def write_sample_working_dir(sample_working_dir: str, turn: int) -> None:
     """Materialize the sample working dir's contents.
 
     Phase 3 (in progress): writes placeholder ``context.json`` and
@@ -75,12 +75,13 @@ async def write_sample_working_dir(sample_working_dir: Path, turn: int) -> None:
     )
 
 
-def _write_sample_working_dir_blocking(sample_working_dir: Path, turn: int) -> None:
+def _write_sample_working_dir_blocking(sample_working_dir: str, turn: int) -> None:
+    sample_dir = Path(sample_working_dir)
     # TODO(checkpointing-phase-3): replace with the condensed
     # representation produced by `condense_sample()` (§5).
-    (sample_working_dir / "context.json").write_text(
+    (sample_dir / "context.json").write_text(
         f'{{"turn": {turn}, "messages": [], "events": []}}\n'
     )
     # TODO(checkpointing-phase-3): replace with the sample's `Store`
     # key/value state.
-    (sample_working_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
+    (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
