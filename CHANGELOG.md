@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.215 (30 April 2026)
 
 - Handle split UTF-16 "lone surrogate" in log message condensation.
 - Inspect View: Collapse the LogView title bar on scroll
