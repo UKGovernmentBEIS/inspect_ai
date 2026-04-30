@@ -15,12 +15,14 @@ from contextvars import ContextVar, Token
 from types import TracebackType
 from typing import Any, Protocol
 
+import anyio
+
 from inspect_ai.log._samples import sample_active
 
 from ._config import CheckpointConfig, TimeInterval, TurnInterval
 from ._layout import CheckpointTrigger
 from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
-from ._working_dir import ensure_sample_working_dir, write_sample_working_dir
+from ._working_dir import ensure_sample_working_dir
 
 
 class CheckpointSession(Protocol):
@@ -35,12 +37,12 @@ class CheckpointSession(Protocol):
         ...
 
 
-# Set by `_ActiveCheckpointer.__aenter__`; consumed by the manual
-# trigger free function below. Stays unset for `_NoopCheckpointer`,
-# which is how a stray `await checkpoint()` from helper code raises
-# rather than silently no-op'ing.
-_active_checkpointer: ContextVar["_Checkpointer | None"] = ContextVar(
-    "inspect_ai_active_checkpointer", default=None
+# Set by `Checkpointer.__aenter__` for either impl, so free functions
+# (e.g. the manual `checkpoint()` trigger below) get back whichever
+# session is active — including the no-op one. Outside any
+# `Checkpointer` context, lookups return None.
+_active_session: ContextVar[CheckpointSession | None] = ContextVar(
+    "inspect_ai_active_checkpoint_session", default=None
 )
 
 
@@ -50,16 +52,19 @@ class Checkpointer:
     Picks one of two concrete impls on entry: a no-op session when
     ``config`` is ``None``, or an active session bound to the current
     sample. Either way, the yielded object satisfies
-    :class:`CheckpointSession`.
+    :class:`CheckpointSession` and is registered as the active session
+    for the current async context.
     """
 
     def __init__(self, config: CheckpointConfig[Any] | None) -> None:
         self._config = config
-        self._impl: _NoopCheckpointer | _Checkpointer | None = None
+        self._impl: CheckpointSession | None = None
+        self._reset_token: Token[CheckpointSession | None] | None = None
 
     async def __aenter__(self) -> CheckpointSession:
         self._impl = await self._build_impl()
-        return await self._impl.__aenter__()
+        self._reset_token = _active_session.set(self._impl)
+        return self._impl
 
     async def __aexit__(
         self,
@@ -67,10 +72,12 @@ class Checkpointer:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        assert self._impl is not None
-        await self._impl.__aexit__(exc_type, exc, tb)
+        assert self._reset_token is not None
+        _active_session.reset(self._reset_token)
+        self._reset_token = None
+        self._impl = None
 
-    async def _build_impl(self) -> _NoopCheckpointer | _Checkpointer:
+    async def _build_impl(self) -> CheckpointSession:
         if self._config is None:
             return _NoopCheckpointer()
 
@@ -114,17 +121,6 @@ class Checkpointer:
 class _NoopCheckpointer:
     """No-op session for ``Checkpointer(None)``."""
 
-    async def __aenter__(self) -> "_NoopCheckpointer":
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
-
     async def tick(self) -> None:
         return None
 
@@ -148,21 +144,6 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
-        self._reset_token: Token["_Checkpointer | None"] | None = None
-
-    async def __aenter__(self) -> "_Checkpointer":
-        self._reset_token = _active_checkpointer.set(self)
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        assert self._reset_token is not None
-        _active_checkpointer.reset(self._reset_token)
-        self._reset_token = None
 
     async def tick(self) -> None:
         self._turn += 1
@@ -200,7 +181,11 @@ class _Checkpointer:
         # Phase 3 (in progress): writes placeholder content into the
         # sample working dir and a per-checkpoint sidecar. Host repo
         # init + real snapshot ids land in subsequent slices.
-        await write_sample_working_dir(self._sample_working_dir, self._turn)
+        await self._write_host_context(self._sample_working_dir, self._turn)
+
+        await self._backup_host()
+        await self._backup_sandboxes()
+
         await write_sidecar(
             sample_checkpoints_dir=self._sample_checkpoints_dir,
             checkpoint_id=self._next_checkpoint_id,
@@ -211,20 +196,22 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
 
+    async def _write_host_context(self, sample_working_dir: str, turn: int) -> None:
+        """Write the host context (``context.json`` + ``store.json``) for one fire.
 
-async def checkpoint() -> None:
-    """Manually trigger a checkpoint for the current sample.
-
-    Must be called inside an active :class:`Checkpointer` context —
-    typically from inside an agent's loop. Raises
-    :class:`RuntimeError` otherwise.
-
-    Fires immediately regardless of the configured policy; for
-    interval-based policies, the relevant counter is reset.
-    """
-    cp = _active_checkpointer.get()
-    if cp is None:
-        raise RuntimeError(
-            "checkpoint() called outside an active Checkpointer context."
+        Phase 3 (in progress): writes placeholder content carrying the
+        current ``turn`` so successive fires produce distinct content.
+        Replaced by real condensed-context (`condense_sample()`) and
+        ``Store`` serialization in subsequent slices.
+        """
+        sample_dir = anyio.Path(sample_working_dir)
+        await (sample_dir / "context.json").write_text(
+            f'{{"turn": {turn}, "messages": [], "events": []}}\n'
         )
-    await cp.checkpoint()
+        await (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
+
+    async def _backup_host(self) -> None:
+        pass
+
+    async def _backup_sandboxes(self) -> None:
+        pass

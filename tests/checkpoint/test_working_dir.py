@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,7 +13,6 @@ from inspect_ai.checkpoint._working_dir import (
     _eval_working_dir,
     _sample_working_dir,
     ensure_sample_working_dir,
-    write_sample_working_dir,
 )
 
 
@@ -67,30 +65,3 @@ async def test_ensure_creates_dir_and_returns_path(cache_dir: Path) -> None:
     sample_dir = await ensure_sample_working_dir("/logs/foo.eval", "s1", 0)
     assert Path(sample_dir).is_dir()
     assert sample_dir == str(cache_dir / "checkpoints/foo/s1__0")
-
-
-async def test_write_sample_working_dir_writes_turn_to_files(
-    cache_dir: Path,
-) -> None:
-    sample_dir = await ensure_sample_working_dir("/logs/foo.eval", "s1", 0)
-    await write_sample_working_dir(sample_dir, turn=3)
-
-    assert json.loads((Path(sample_dir) / "context.json").read_text())["turn"] == 3
-    assert json.loads((Path(sample_dir) / "store.json").read_text())["turn"] == 3
-
-
-async def test_write_sample_working_dir_overwrites_in_place_with_new_turn(
-    cache_dir: Path,
-) -> None:
-    """Successive fires must produce distinct content.
-
-    The turn field is what lets the upcoming restic backup slice
-    verify the snapshot actually captured change between checkpoints.
-    """
-    sample_dir = await ensure_sample_working_dir("/logs/foo.eval", "s1", 0)
-    await write_sample_working_dir(sample_dir, turn=1)
-    (Path(sample_dir) / "context.json").write_text('"polluted"')
-
-    await write_sample_working_dir(sample_dir, turn=2)
-    assert json.loads((Path(sample_dir) / "context.json").read_text())["turn"] == 2
-    assert json.loads((Path(sample_dir) / "store.json").read_text())["turn"] == 2

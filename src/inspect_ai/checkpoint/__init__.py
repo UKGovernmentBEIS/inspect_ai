@@ -9,7 +9,7 @@ Phase 2 ships the policy types, :class:`Checkpointer`, and the manual
 real writes.
 """
 
-from ._checkpointer import Checkpointer, checkpoint
+from ._checkpointer import Checkpointer
 from ._config import (
     BudgetPercent,
     CheckpointConfig,
@@ -37,5 +37,4 @@ __all__ = [
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",
-    "checkpoint",
 ]

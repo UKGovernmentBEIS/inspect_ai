@@ -58,30 +58,3 @@ def _ensure_eval_working_dir(log_location: str) -> str:
     eval_dir = _eval_working_dir(log_location)
     Path(eval_dir).mkdir(parents=True, exist_ok=True)
     return eval_dir
-
-
-async def write_sample_working_dir(sample_working_dir: str, turn: int) -> None:
-    """Materialize the sample working dir's contents.
-
-    Phase 3 (in progress): writes placeholder ``context.json`` and
-    ``store.json``. Each carries the current ``turn`` so successive
-    fires produce distinct content — that lets the upcoming restic
-    backup slice verify it captures real change between snapshots.
-    Replaced by real condensed-context and ``Store`` serialization in
-    subsequent slices.
-    """
-    await anyio.to_thread.run_sync(
-        _write_sample_working_dir_blocking, sample_working_dir, turn
-    )
-
-
-def _write_sample_working_dir_blocking(sample_working_dir: str, turn: int) -> None:
-    sample_dir = Path(sample_working_dir)
-    # TODO(checkpointing-phase-3): replace with the condensed
-    # representation produced by `condense_sample()` (§5).
-    (sample_dir / "context.json").write_text(
-        f'{{"turn": {turn}, "messages": [], "events": []}}\n'
-    )
-    # TODO(checkpointing-phase-3): replace with the sample's `Store`
-    # key/value state.
-    (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')

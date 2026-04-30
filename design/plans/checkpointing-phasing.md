@@ -137,25 +137,47 @@ focused swap of `_fire()`'s body plus the read side.
 **Plan sections covered:** §1, §4a, §4d, §4g, §5, §6, §7a, §7b, §8a,
 §8b, §8c, §8e.
 
+**Vocabulary** (used consistently across modules + tests):
+
+- *eval checkpoints dir*: `<log>.eval.checkpoints/` (destination root,
+  may be on s3).
+- *sample checkpoints dir*: `<eval checkpoints dir>/<sample>__<epoch>/`
+  (per-attempt subtree on the destination).
+- *eval working dir*: `inspect_cache_dir("checkpoints")/<log-base>/`
+  (host-local, ephemeral).
+- *sample working dir*:
+  `<eval working dir>/<sample>__<epoch>/` (host-local, restic backs
+  this up each cycle).
+
 **Landed so far (write side, on-disk skeleton):**
 
-- `_eval_dir.init_eval_dir()`: on first fire, materializes the
-  eval-level destination directory `<log>.eval.checkpoints/` and
-  writes `manifest.json` with an auto-generated `secrets.token_urlsafe`
-  password. Idempotent across samples; mismatched `eval_id` raises.
-- `_attempt.write_sidecar()`: per-attempt destination subdir
-  `<sample-id>__<epoch>/` and per-checkpoint sidecar
-  `ckpt-NNNNN.json` (zero-padded for lexical sort). Sidecar carries
-  the right shape; `host_snapshot_id` is `None` and `sandboxes` is
-  `{}` until the repo write lands.
-- `_working_tree.write_working_tree()`: host-local working tree at
-  `inspect_cache_dir("checkpoints")/<log-base>/<sample-id>__<epoch>/`,
-  shape mirroring the destination subtree (§5). Writes placeholder
-  `context.json` / `store.json`; overwritten in place each cycle.
-- `Checkpointer._fire(trigger)` orchestrates the three: ensure eval
-  dir → write working tree → write sidecar. Tracks turn counter,
-  per-checkpoint ordinal, and trigger derivation
-  (`time` / `turn` / `manual`).
+- Modules `_eval_checkpoints`, `_sample_checkpoints`, `_working_dir`
+  own paths + writes for each of the four dir kinds. `init_eval_…`
+  sets up the manifest; `ensure_sample_…` is the public entry-point
+  on each side and handles the eval-level setup as an implementation
+  detail.
+- `manifest.json` written at the eval checkpoints dir with an
+  auto-generated `secrets.token_urlsafe` password. Idempotent across
+  samples; mismatched `eval_id` raises.
+- Per-checkpoint sidecar `ckpt-NNNNN.json` (zero-padded for lexical
+  sort). Carries the right shape; `host_snapshot_id` is `None` and
+  `sandboxes` is `{}` until the repo write lands.
+- Sample working dir gets placeholder `context.json` / `store.json`
+  carrying the current turn (so successive fires produce distinct
+  content; lets the upcoming restic slice verify snapshot diffs).
+- `Checkpointer` is a thin facade that picks one of two
+  `CheckpointSession` impls on entry:
+  - `_NoopCheckpointer` for `Checkpointer(None)` — both methods are
+    pass-through.
+  - `_Checkpointer` for active configs — holds the two pre-ensured
+    sample dirs as ivars; `_fire(trigger)` orchestrates host-context
+    write → host backup (stub) → sandbox backups (stub) → sidecar
+    write. Tracks turn counter, per-checkpoint ordinal, and trigger
+    derivation (`time` / `turn` / `manual`).
+- The active session (either impl) is registered on a ContextVar so
+  free helpers (e.g. the manual `checkpoint()` trigger) work
+  transparently regardless of whether the surrounding Checkpointer is
+  active or no-op.
 
 **Deliverables — write side (still TBD):**
 

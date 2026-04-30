@@ -1,9 +1,10 @@
 """Policy + outer-facade tests for the Checkpointer.
 
-The policy tests drive ``_ActiveCheckpointer`` directly with prepared
-dirs, sidestepping the sample-context plumbing. Outer-facade tests
-(``Checkpointer(None)``, missing sample context, etc.) and the
-end-to-end test exercise the public construction site.
+The policy tests drive ``_Checkpointer`` directly with prepared dirs
+and call its methods without going through the public facade.
+Outer-facade tests cover dispatch, sample-identity validation, and
+ContextVar wiring (the public ``Checkpointer`` is what registers the
+active session).
 """
 
 from __future__ import annotations
@@ -23,7 +24,6 @@ from inspect_ai.checkpoint import (
     Checkpointer,
     TimeInterval,
     TurnInterval,
-    checkpoint,
 )
 from inspect_ai.checkpoint._checkpointer import _Checkpointer
 from inspect_ai.checkpoint._layout import CheckpointTrigger
@@ -70,26 +70,24 @@ def _counting(config: CheckpointConfig[Any], dirs: _Dirs) -> _CountingCheckpoint
 
 async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(policy=TurnInterval(every=3)), dirs)
-    async with cp:
-        for _ in range(9):
-            await cp.tick()
+    for _ in range(9):
+        await cp.tick()
     assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(policy=TurnInterval(every=4)), dirs)
-    async with cp:
-        for _ in range(3):
-            await cp.tick()
-        assert cp.fire_count == 0
+    for _ in range(3):
         await cp.tick()
-        assert cp.fire_count == 1
-        # counter reset; next fire requires another 4 ticks
-        for _ in range(3):
-            await cp.tick()
-        assert cp.fire_count == 1
+    assert cp.fire_count == 0
+    await cp.tick()
+    assert cp.fire_count == 1
+    # counter reset; next fire requires another 4 ticks
+    for _ in range(3):
         await cp.tick()
-        assert cp.fire_count == 2
+    assert cp.fire_count == 1
+    await cp.tick()
+    assert cp.fire_count == 2
 
 
 # --- time-based -----------------------------------------------------------
@@ -106,22 +104,21 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
         cp = _counting(
             CheckpointConfig(policy=TimeInterval(every=timedelta(seconds=10))), dirs
         )
-        async with cp:
-            fake_now[0] = 1004.0
-            await cp.tick()
-            assert cp.fire_count == 0
+        fake_now[0] = 1004.0
+        await cp.tick()
+        assert cp.fire_count == 0
 
-            fake_now[0] = 1010.0
-            await cp.tick()
-            assert cp.fire_count == 1
+        fake_now[0] = 1010.0
+        await cp.tick()
+        assert cp.fire_count == 1
 
-            # immediately again at t=1010 → does not fire (counter just reset)
-            await cp.tick()
-            assert cp.fire_count == 1
+        # immediately again at t=1010 → does not fire (counter just reset)
+        await cp.tick()
+        assert cp.fire_count == 1
 
-            fake_now[0] = 1025.0
-            await cp.tick()
-            assert cp.fire_count == 2
+        fake_now[0] = 1025.0
+        await cp.tick()
+        assert cp.fire_count == 2
 
 
 # --- manual ---------------------------------------------------------------
@@ -129,18 +126,16 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(policy="manual"), dirs)
-    async with cp:
-        for _ in range(50):
-            await cp.tick()
+    for _ in range(50):
+        await cp.tick()
     assert cp.fire_count == 0
 
 
-async def test_manual_checkpoint_call_fires(dirs: _Dirs) -> None:
+async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(policy="manual"), dirs)
-    async with cp:
-        await cp.tick()
-        await checkpoint()
-        await checkpoint()
+    await cp.tick()
+    await cp.checkpoint()
+    await cp.checkpoint()
     assert cp.fire_count == 2
 
 
@@ -201,19 +196,6 @@ async def test_none_config_works_without_active_sample() -> None:
             await cp.checkpoint()
 
 
-async def test_none_config_does_not_set_active_checkpointer(
-    active_sample: _FakeActiveSample,
-) -> None:
-    """No-op session skips ContextVar setup.
-
-    The free `checkpoint()` from helper code therefore raises rather
-    than silently no-op'ing.
-    """
-    async with Checkpointer(None):
-        with pytest.raises(RuntimeError, match="outside an active Checkpointer"):
-            await checkpoint()
-
-
 # --- entering without an active sample -----------------------------------
 
 
@@ -225,14 +207,6 @@ async def test_aenter_without_active_sample_raises() -> None:
     ):
         async with cp:
             pass
-
-
-# --- manual trigger outside context ---------------------------------------
-
-
-async def test_checkpoint_outside_context_raises() -> None:
-    with pytest.raises(RuntimeError, match="outside an active Checkpointer"):
-        await checkpoint()
 
 
 # === e2e: outer facade through to disk =====================================
