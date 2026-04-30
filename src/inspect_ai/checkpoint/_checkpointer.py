@@ -21,7 +21,6 @@ from typing import Any
 
 from inspect_ai.log._samples import sample_active
 
-from ._attempt import attempt_dir_for, write_sidecar
 from ._config import (
     BudgetPercent,
     CheckpointConfig,
@@ -30,9 +29,10 @@ from ._config import (
     TokenInterval,
     TurnInterval,
 )
-from ._eval_dir import init_eval_dir
+from ._eval_checkpoints import init_eval_checkpoints_dir
 from ._layout import CheckpointTrigger
-from ._working_tree import write_working_tree
+from ._sample_checkpoints import write_sidecar
+from ._working_dir import write_sample_working_dir
 
 # Scaffolding for ambient lookup of the active Checkpointer from code
 # that doesn't hold a Checkpointer reference. Currently consumed only by
@@ -99,9 +99,9 @@ class Checkpointer:
         self._turns_since_fire: int = 0
         self._last_fire_monotonic: float = time.monotonic()
         self._identity: _SampleIdentity | None = None
-        # Set on first fire by `_ensure_eval_dir()`; subsequent fires
-        # short-circuit the directory init.
-        self._eval_dir: str | None = None
+        # Set on first fire by `_ensure_eval_checkpoints_dir()`;
+        # subsequent fires short-circuit the manifest stat/read.
+        self._eval_checkpoints_dir: str | None = None
         self._next_checkpoint_id: int = 1
 
     async def __aenter__(self) -> "Checkpointer":
@@ -194,28 +194,28 @@ class Checkpointer:
 
     async def _fire(self, trigger: CheckpointTrigger) -> None:
         # Phase 3 (in progress): the on-disk side currently writes the
-        # eval-level manifest (first fire only) and a per-checkpoint
+        # eval manifest (first fire only), the sample working dir's
+        # placeholder context.json/store.json, and a per-checkpoint
         # sidecar. Host repo init, real snapshot ids, and sandbox repos
         # land in subsequent slices.
-        eval_dir = await self._ensure_eval_dir()
+        await self._ensure_eval_checkpoints_dir()
         assert self._identity is not None
         if self._identity.sample_id is None:
             raise RuntimeError(
                 "Checkpointer cannot write a sidecar: ActiveSample.sample.id is None."
             )
-        # Materialize the host working tree (the source restic backs up
-        # each cycle). Overwritten in place every fire.
-        await write_working_tree(
+        # Materialize the sample working dir (the source restic backs
+        # up each cycle). Overwritten in place every fire.
+        await write_sample_working_dir(
             self._identity.log_location,
             self._identity.sample_id,
             self._identity.epoch,
             self._turn,
         )
-        attempt_dir = attempt_dir_for(
-            eval_dir, self._identity.sample_id, self._identity.epoch
-        )
         await write_sidecar(
-            attempt_dir=attempt_dir,
+            log_location=self._identity.log_location,
+            sample_id=self._identity.sample_id,
+            epoch=self._identity.epoch,
             checkpoint_id=self._next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
@@ -224,18 +224,17 @@ class Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
 
-    async def _ensure_eval_dir(self) -> str:
-        if self._eval_dir is not None:
-            return self._eval_dir
+    async def _ensure_eval_checkpoints_dir(self) -> None:
+        if self._eval_checkpoints_dir is not None:
+            return
         assert self._identity is not None, "fire path requires captured identity"
         if self._identity.eval_id is None:
             raise RuntimeError(
                 "Checkpointer cannot write a manifest: ActiveSample.eval_id is None."
             )
-        self._eval_dir = await init_eval_dir(
+        self._eval_checkpoints_dir = await init_eval_checkpoints_dir(
             self._identity.log_location, self._identity.eval_id
         )
-        return self._eval_dir
 
 
 async def checkpoint() -> None:

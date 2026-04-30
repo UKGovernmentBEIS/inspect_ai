@@ -1,45 +1,59 @@
-"""Tests for per-attempt subdirectories and sidecar writes."""
+"""Tests for the sample checkpoints dir and sidecar writes."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from inspect_ai.checkpoint._attempt import attempt_dir_for, write_sidecar
 from inspect_ai.checkpoint._layout import CheckpointSidecar
+from inspect_ai.checkpoint._sample_checkpoints import (
+    _sample_checkpoints_dir,
+    write_sidecar,
+)
 
 
-def test_attempt_dir_uses_sample_id_and_epoch() -> None:
+def test_sample_checkpoints_dir_uses_sample_id_and_epoch() -> None:
     assert (
-        attempt_dir_for("/logs/foo.eval.checkpoints", "sample-7", 0)
+        _sample_checkpoints_dir("/logs/foo.eval", "sample-7", 0)
         == "/logs/foo.eval.checkpoints/sample-7__0"
     )
 
 
-def test_attempt_dir_accepts_int_sample_id() -> None:
+def test_sample_checkpoints_dir_accepts_int_sample_id() -> None:
     assert (
-        attempt_dir_for("/logs/foo.eval.checkpoints", 42, 1)
+        _sample_checkpoints_dir("/logs/foo.eval", 42, 1)
         == "/logs/foo.eval.checkpoints/42__1"
     )
 
 
-async def test_write_sidecar_creates_attempt_dir_and_file(tmp_path: Path) -> None:
-    attempt = str(tmp_path / "sample-1__0")
+async def test_write_sidecar_creates_dir_and_file(tmp_path: Path) -> None:
+    log = tmp_path / "foo.eval"
 
     path = await write_sidecar(
-        attempt_dir=attempt, checkpoint_id=1, trigger="turn", turn=3
+        log_location=str(log),
+        sample_id="sample-1",
+        epoch=0,
+        checkpoint_id=1,
+        trigger="turn",
+        turn=3,
     )
 
-    assert path == f"{attempt}/ckpt-00001.json"
-    assert Path(attempt).is_dir()
+    expected_dir = tmp_path / "foo.eval.checkpoints" / "sample-1__0"
+    assert path == f"{expected_dir}/ckpt-00001.json"
+    assert expected_dir.is_dir()
     assert Path(path).is_file()
 
 
 async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
-    attempt = str(tmp_path / "s__0")
+    log = tmp_path / "foo.eval"
 
     path = await write_sidecar(
-        attempt_dir=attempt, checkpoint_id=42, trigger="manual", turn=7
+        log_location=str(log),
+        sample_id="s",
+        epoch=0,
+        checkpoint_id=42,
+        trigger="manual",
+        turn=7,
     )
 
     sidecar = CheckpointSidecar.model_validate_json(Path(path).read_text())
@@ -51,10 +65,15 @@ async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
 
 
 async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> None:
-    attempt = str(tmp_path / "s__0")
+    log = tmp_path / "foo.eval"
     paths = [
         await write_sidecar(
-            attempt_dir=attempt, checkpoint_id=cid, trigger="turn", turn=cid
+            log_location=str(log),
+            sample_id="s",
+            epoch=0,
+            checkpoint_id=cid,
+            trigger="turn",
+            turn=cid,
         )
         for cid in (1, 2, 10, 100)
     ]
@@ -69,9 +88,14 @@ async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> 
 
 
 async def test_sidecar_is_pretty_printed_json(tmp_path: Path) -> None:
-    attempt = str(tmp_path / "s__0")
+    log = tmp_path / "foo.eval"
     path = await write_sidecar(
-        attempt_dir=attempt, checkpoint_id=1, trigger="turn", turn=1
+        log_location=str(log),
+        sample_id="s",
+        epoch=0,
+        checkpoint_id=1,
+        trigger="turn",
+        turn=1,
     )
     raw = Path(path).read_text()
     # Sanity: parses, and indent makes the file multi-line.

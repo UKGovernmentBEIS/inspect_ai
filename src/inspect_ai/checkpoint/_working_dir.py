@@ -1,10 +1,11 @@
-"""Host-local working tree management.
+"""Eval and sample working dirs (host-local, ephemeral).
 
-Each attempt has a working-tree directory rooted at
-``inspect_cache_dir("checkpoints")/<log-basename>/<sample-id>__<epoch>[_<retry>]/``
-that holds the two files (``context.json``, ``store.json``) restic
-snapshots each cycle. Working trees are host-local and ephemeral —
-overwritten in place at every fire. See
+The eval working dir lives at
+``inspect_cache_dir("checkpoints")/<log-basename>/``; under it, each
+attempt has its sample working dir
+(``<sample-id>__<epoch>[_<retry>]/``) holding the two files
+(``context.json``, ``store.json``) restic snapshots each cycle. Working
+dirs are overwritten in place at every fire. See
 ``design/plans/checkpointing-working.md`` §5.
 """
 
@@ -20,27 +21,23 @@ from inspect_ai._util.file import basename
 _LOG_SUFFIX = ".eval"
 
 
-def working_tree_root(log_location: str) -> Path:
-    """Per-eval-log working-tree root."""
+def _eval_working_dir(log_location: str) -> Path:
+    """Return the eval working dir path."""
     log_base = basename(log_location)
     if log_base.endswith(_LOG_SUFFIX):
         log_base = log_base[: -len(_LOG_SUFFIX)]
     return inspect_cache_dir("checkpoints") / log_base
 
 
-def attempt_working_tree(log_location: str, sample_id: int | str, epoch: int) -> Path:
-    """Per-attempt working-tree directory.
-
-    Phase 3 (in progress): the optional ``_<retry>`` suffix is omitted
-    until ``ActiveSample`` exposes the attempt index.
-    """
-    return working_tree_root(log_location) / f"{sample_id}__{epoch}"
+def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> Path:
+    """Return the sample working dir path."""
+    return _eval_working_dir(log_location) / f"{sample_id}__{epoch}"
 
 
-async def write_working_tree(
+async def write_sample_working_dir(
     log_location: str, sample_id: int | str, epoch: int, turn: int
 ) -> Path:
-    """Materialize the per-attempt working tree.
+    """Materialize the sample working dir.
 
     Phase 3 (in progress): writes placeholder ``context.json`` and
     ``store.json``. Each carries the current ``turn`` so successive
@@ -50,25 +47,22 @@ async def write_working_tree(
     subsequent slices.
     """
     return await anyio.to_thread.run_sync(
-        _write_working_tree_blocking, log_location, sample_id, epoch, turn
+        _write_sample_working_dir_blocking, log_location, sample_id, epoch, turn
     )
 
 
-def _write_working_tree_blocking(
+def _write_sample_working_dir_blocking(
     log_location: str, sample_id: int | str, epoch: int, turn: int
 ) -> Path:
-    attempt = attempt_working_tree(log_location, sample_id, epoch)
-    attempt.mkdir(parents=True, exist_ok=True)
+    sample_dir = _sample_working_dir(log_location, sample_id, epoch)
+    sample_dir.mkdir(parents=True, exist_ok=True)
 
     # TODO(checkpointing-phase-3): replace with the condensed
     # representation produced by `condense_sample()` (§5).
-    (attempt / "context.json").write_text(
+    (sample_dir / "context.json").write_text(
         f'{{"turn": {turn}, "messages": [], "events": []}}\n'
     )
     # TODO(checkpointing-phase-3): replace with the sample's `Store`
     # key/value state.
-    (attempt / "store.json").write_text(f'{{"turn": {turn}}}\n')
-    return attempt
-
-
-__all__ = ["attempt_working_tree", "working_tree_root", "write_working_tree"]
+    (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
+    return sample_dir

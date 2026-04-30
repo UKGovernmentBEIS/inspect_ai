@@ -239,8 +239,8 @@ async def test_fire_writes_manifest_and_sidecars(tmp_path: Path) -> None:
     """Driving a real `Checkpointer` end-to-end writes the destination dir + working tree.
 
     This complements the pure policy tests above; the I/O paths
-    themselves are covered in `test_eval_dir.py`, `test_attempt.py`,
-    and `test_working_tree.py`.
+    themselves are covered in `test_eval_checkpoints.py`,
+    `test_sample_checkpoints.py`, and `test_working_dir.py`.
     """
     dest = tmp_path / "dest"
     cache = tmp_path / "cache"
@@ -262,7 +262,7 @@ async def test_fire_writes_manifest_and_sidecars(tmp_path: Path) -> None:
     with (
         _patch_sample_active(fake),
         patch(
-            "inspect_ai.checkpoint._working_tree.inspect_cache_dir",
+            "inspect_ai.checkpoint._working_dir.inspect_cache_dir",
             side_effect=fake_cache_dir,
         ),
     ):
@@ -272,14 +272,14 @@ async def test_fire_writes_manifest_and_sidecars(tmp_path: Path) -> None:
             await cp.tick()  # turn 3, no fire
             await cp.tick()  # turn 4, fires
 
-    ckpt_dir = Path(f"{log}.checkpoints")
-    assert (ckpt_dir / "manifest.json").is_file()
-    attempt = ckpt_dir / "s7__2"
-    sidecars = sorted(p.name for p in attempt.glob("ckpt-*.json"))
+    eval_dir = Path(f"{log}.checkpoints")
+    assert (eval_dir / "manifest.json").is_file()
+    sample_dir = eval_dir / "s7__2"
+    sidecars = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
     assert sidecars == ["ckpt-00001.json", "ckpt-00002.json"]
 
-    # Working tree mirrors the destination shape under the cache root.
-    working_attempt = cache / "checkpoints/foo/s7__2"
-    assert working_attempt.is_dir()
-    assert (working_attempt / "context.json").is_file()
-    assert (working_attempt / "store.json").is_file()
+    # Sample working dir mirrors the destination shape under the cache.
+    sample_working = cache / "checkpoints/foo/s7__2"
+    assert sample_working.is_dir()
+    assert (sample_working / "context.json").is_file()
+    assert (sample_working / "store.json").is_file()
