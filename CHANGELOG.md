@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenRouter: Escape signature attribute in <think> tag round-trip.
 - Handle split UTF-16 "lone surrogate" in log message condensation.
 
 ## 0.3.214 (29 April 2026)
