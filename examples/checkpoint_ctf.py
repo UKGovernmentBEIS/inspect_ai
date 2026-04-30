@@ -26,6 +26,8 @@ from textwrap import dedent
 
 from inspect_ai import Task, task
 from inspect_ai.agent import react
+from inspect_ai.checkpoint import CheckpointConfig
+from inspect_ai.checkpoint._config import TurnInterval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.tool import bash
@@ -115,7 +117,16 @@ def checkpoint_ctf() -> Task:
                 setup=SETUP,
             )
         ],
-        solver=react(tools=[bash(timeout=60)]),
+        solver=react(
+            tools=[bash(timeout=60)],
+            # Phase 2: parameter is accepted but not yet wired up to a
+            # Checkpointer.  Set here so the harness exercises the public
+            # API surface that Phase 3+ will give real teeth.
+            checkpoint_config=CheckpointConfig(
+                policy=TurnInterval(1),
+                sandbox_paths={"default": ["/workspace"]},
+            ),
+        ),
         scorer=includes(),
         sandbox="docker",
     )

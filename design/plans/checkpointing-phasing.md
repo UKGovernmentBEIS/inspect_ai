@@ -53,8 +53,7 @@ verification surface.
 
 ## Phase 2 — Checkpointer skeleton (no I/O)
 
-**Status:** Done. React agent wiring is held back to Phase 3, where it
-lands together with the no-op fire becoming a real write.
+**Status:** Done.
 
 **Plan sections covered:** §2 (`CheckpointConfig` + policy types),
 partial §3 (built-in support primitives).
@@ -84,17 +83,52 @@ partial §3 (built-in support primitives).
   NotImplementedError paths, and the outside-context error case.
   No I/O.
 
-**Deferred (lands with Phase 3):**
-
-- Built-in React agent wiring (optional
-  `checkpoint: CheckpointConfig | None = None` constructor parameter;
-  per-iteration `tick()` call).
-
 **Why this carve-out:** locked the agent contract and the public type
 surface before the heavy machinery lands on top of it. Pure policy
 tests caught subtle threshold semantics in isolation. The state
 ownership question (`TaskState` vs. context var) settled in favor of
 context var.
+
+## Phase 2.5 — React agent wiring + sample identity capture
+
+**Status:** Done.
+
+**Plan sections covered:** the agent-wiring half of §3.
+
+**What landed:**
+
+- `react()` and `react_no_submit()` accept an optional
+  `checkpoint_config: CheckpointConfig[NonManualCheckpointPolicy] | None
+  = None`. The execute body runs inside `async with
+  Checkpointer(checkpoint_config) as cp:` and calls `await cp.tick()`
+  per loop iteration. `None` is a true no-op (no ContextVar set), so
+  `await checkpoint()` from helper code raises rather than silently
+  succeeding.
+- `NonManualCheckpointPolicy` type alias keeps `policy="manual"` out of
+  agents whose loops have no hook for the manual trigger.
+- `Checkpointer.__aenter__` captures `sample_id`, `epoch`,
+  `log_location`, and `eval_id` from `sample_active()` into
+  `_SampleIdentity` for use by Phase 3's real `_fire()`. Entering an
+  active (non-None) Checkpointer outside a sample raises.
+- `examples/checkpoint_ctf.py`: layered-decoder CTF harness exercising
+  the public API surface end-to-end (no real fire yet).
+
+**Deferred (still lands with Phase 3):**
+
+- **Sample-level retry / attempt index in `ActiveSample`.**
+  `Checkpointer.__aenter__` currently captures `sample_id`, `epoch`,
+  `log_location`, and `eval_id`. The retry / attempt index needed to
+  disambiguate `<sample-id>__<epoch>_<retry>/` is **not yet captured**
+  — `ActiveSample` doesn't expose it. Phase 3 resolves this either by
+  adding an `attempt` field to `ActiveSample` (symmetric with `epoch`)
+  or by subscribing to `on_sample_attempt_start`. See the TODO in
+  `inspect_ai/checkpoint/_checkpointer.py` `__aenter__`.
+
+**Why this carve-out:** wiring the agent and capturing identity are
+mechanical and reviewable on their own; pulling them forward gives a
+runnable harness (`examples/checkpoint_ctf.py`) that exercises the
+public API surface before the real I/O lands, and leaves Phase 3 as a
+focused swap of `_fire()`'s body plus the read side.
 
 ## Phase 3 — Host-only checkpointing + resume (native-agent end-to-end)
 
@@ -110,11 +144,7 @@ context var.
 - `on_checkpoint_start` lifecycle hook.
 - `max_consecutive_failures` enforcement.
 - TUI indicator.
-- Phase 2's no-op fire becomes a real write.
-- Built-in React agent wired up: optional
-  `checkpoint: CheckpointConfig | None = None` constructor parameter;
-  constructs a `Checkpointer` and calls `tick()` per loop iteration
-  when non-None.
+- Phase 2's no-op `_fire()` becomes a real write.
 
 **Deliverables — read side:**
 

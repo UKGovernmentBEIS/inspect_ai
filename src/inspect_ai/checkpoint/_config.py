@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Literal
+from typing import Generic, Literal
+
+from typing_extensions import TypeVar
 
 
 @dataclass
@@ -59,7 +61,6 @@ CheckpointPolicy = (
     | CostInterval
     | BudgetPercent
     | Literal["manual"]
-    | None
 )
 """Checkpoint trigger policy.
 
@@ -69,8 +70,25 @@ CheckpointPolicy = (
 - :class:`CostInterval` — every $N spent (Phase 5)
 - :class:`BudgetPercent` — at percentage milestones of a named budget (Phase 5)
 - ``"manual"`` — agent-triggered via :func:`checkpoint`
-- ``None`` — checkpointing disabled
+
+To disable checkpointing entirely, omit the ``CheckpointConfig`` (or pass
+``None`` to a checkpointing-aware agent).
 """
+
+
+NonManualCheckpointPolicy = (
+    TimeInterval | TurnInterval | TokenInterval | CostInterval | BudgetPercent
+)
+"""Subset of :data:`CheckpointPolicy` excluding ``"manual"``.
+
+Used to type the checkpoint parameter on agents whose loop is "baked"
+(no hook for an agent author to call :func:`checkpoint` at turn
+boundaries) — e.g. the built-in React agent. Custom agents that own
+their loops accept the full :data:`CheckpointPolicy`.
+"""
+
+
+_PolicyT = TypeVar("_PolicyT", bound=CheckpointPolicy, default=CheckpointPolicy)
 
 
 @dataclass
@@ -83,19 +101,25 @@ class Retention:
 
 
 @dataclass
-class CheckpointConfig:
+class CheckpointConfig(Generic[_PolicyT]):
     """Agent-side checkpoint configuration.
 
     Pass to a checkpointing-aware agent on its constructor:
 
         react(checkpoint=CheckpointConfig(policy=TimeInterval(every=timedelta(minutes=15))))
 
+    Generic over the policy type so callers can narrow the accepted set.
+    Built-in agents whose loops have no hook for manual triggers
+    (e.g. :func:`react`) parameterize this as
+    ``CheckpointConfig[NonManualCheckpointPolicy]`` to refuse
+    ``policy="manual"`` at type-check time. Construction without a type
+    argument defaults to the full :data:`CheckpointPolicy`.
+
     See ``design/plans/checkpointing-working.md`` §2 for the full semantic model.
     """
 
-    policy: CheckpointPolicy = None
-    """Checkpoint trigger. See :data:`CheckpointPolicy`. ``None`` disables
-    checkpointing entirely."""
+    policy: _PolicyT
+    """Checkpoint trigger. See :data:`CheckpointPolicy`."""
 
     sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
     """Per-sandbox-name list of absolute paths to capture inside the sandbox.

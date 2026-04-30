@@ -7,6 +7,9 @@ and externally controlled time/turn schedules.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -34,22 +37,68 @@ class _CountingCheckpointer(Checkpointer):
         self.fire_count += 1
 
 
-# --- disabled / None policy -----------------------------------------------
+# Minimal ActiveSample stand-in.  Real ActiveSample has many required
+# fields; the Checkpointer only reads four, so a small fake is plenty.
+@dataclass
+class _FakeSample:
+    id: int | str | None = 1
 
 
-async def test_none_policy_never_fires() -> None:
-    cp = _CountingCheckpointer(CheckpointConfig())
-    async with cp:
-        for _ in range(20):
-            await cp.tick()
-        await checkpoint()
+@dataclass
+class _FakeActiveSample:
+    sample: _FakeSample = field(default_factory=_FakeSample)
+    epoch: int = 0
+    log_location: str = "/tmp/test.eval"
+    eval_id: str | None = "test-eval-001"
+
+
+@contextmanager
+def _patch_sample_active(value: object) -> Iterator[None]:
+    with patch("inspect_ai.checkpoint._checkpointer.sample_active", return_value=value):
+        yield
+
+
+@pytest.fixture
+def active_sample() -> Iterator[_FakeActiveSample]:
+    """Make ``sample_active()`` return a fake for tests that enter a Checkpointer."""
+    fake = _FakeActiveSample()
+    with _patch_sample_active(fake):
+        yield fake
+
+
+# --- disabled (None config) -----------------------------------------------
+
+
+async def test_none_config_works_without_active_sample() -> None:
+    """`Checkpointer(None)` is a usable no-op; no sample required."""
+    cp = _CountingCheckpointer(None)
+    with _patch_sample_active(None):
+        async with cp:
+            for _ in range(5):
+                await cp.tick()
+            await cp.checkpoint()
     assert cp.fire_count == 0
+
+
+async def test_none_config_does_not_set_active_checkpointer(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """No-op Checkpointer skips ContextVar setup.
+
+    The free `checkpoint()` function from helper code therefore raises
+    rather than silently no-op'ing.
+    """
+    async with Checkpointer(None):
+        with pytest.raises(RuntimeError, match="outside an active Checkpointer"):
+            await checkpoint()
 
 
 # --- turn-based -----------------------------------------------------------
 
 
-async def test_turn_interval_fires_at_each_threshold() -> None:
+async def test_turn_interval_fires_at_each_threshold(
+    active_sample: _FakeActiveSample,
+) -> None:
     cp = _CountingCheckpointer(CheckpointConfig(policy=TurnInterval(every=3)))
     async with cp:
         for _ in range(9):
@@ -57,7 +106,9 @@ async def test_turn_interval_fires_at_each_threshold() -> None:
     assert cp.fire_count == 3
 
 
-async def test_turn_interval_resets_counter_on_fire() -> None:
+async def test_turn_interval_resets_counter_on_fire(
+    active_sample: _FakeActiveSample,
+) -> None:
     cp = _CountingCheckpointer(CheckpointConfig(policy=TurnInterval(every=4)))
     async with cp:
         for _ in range(3):
@@ -76,7 +127,9 @@ async def test_turn_interval_resets_counter_on_fire() -> None:
 # --- time-based -----------------------------------------------------------
 
 
-async def test_time_interval_fires_when_elapsed_exceeds_threshold() -> None:
+async def test_time_interval_fires_when_elapsed_exceeds_threshold(
+    active_sample: _FakeActiveSample,
+) -> None:
     """tick() advances the simulated clock; fires when delta ≥ interval."""
     fake_now = [1000.0]
 
@@ -112,7 +165,9 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold() -> None:
 # --- manual ---------------------------------------------------------------
 
 
-async def test_manual_policy_tick_never_fires() -> None:
+async def test_manual_policy_tick_never_fires(
+    active_sample: _FakeActiveSample,
+) -> None:
     cp = _CountingCheckpointer(CheckpointConfig(policy="manual"))
     async with cp:
         for _ in range(50):
@@ -120,7 +175,9 @@ async def test_manual_policy_tick_never_fires() -> None:
     assert cp.fire_count == 0
 
 
-async def test_manual_checkpoint_call_fires() -> None:
+async def test_manual_checkpoint_call_fires(
+    active_sample: _FakeActiveSample,
+) -> None:
     cp = _CountingCheckpointer(CheckpointConfig(policy="manual"))
     async with cp:
         await cp.tick()
@@ -145,6 +202,20 @@ def test_unimplemented_policy_raises(
 ) -> None:
     with pytest.raises(NotImplementedError, match="Phase 5"):
         Checkpointer(CheckpointConfig(policy=policy))
+
+
+# --- entering without an active sample -----------------------------------
+
+
+async def test_aenter_without_active_sample_raises() -> None:
+    """Active policies require a sample context."""
+    cp = Checkpointer(CheckpointConfig(policy=TurnInterval(every=1)))
+    with (
+        _patch_sample_active(None),
+        pytest.raises(RuntimeError, match="sample_active.. returned None"),
+    ):
+        async with cp:
+            pass
 
 
 # --- manual trigger outside context ---------------------------------------
