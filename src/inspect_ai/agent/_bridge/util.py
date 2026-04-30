@@ -5,7 +5,11 @@ from typing import Sequence, cast
 from typing_extensions import TypeIs
 
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageSystem,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -202,6 +206,12 @@ def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
         message.id = None
 
     # allocate ids based on message content (re-applying the same id for the same
-    # content, but also ensuring that if an id is already used we generate a new one)
+    # content, but also ensuring that if an id is already used we generate a new one).
+    # ChatMessageSystem is treated specially: a single slot per bridge keeps the id
+    # stable across content mutations (plan-mode toggles, skill activation, etc.) so
+    # downstream consumers don't see N parallel transcript roots.
     for message in messages:
-        message.id = bridge._id_for_message(message, messages)
+        if isinstance(message, ChatMessageSystem):
+            message.id = bridge._id_for_system_message()
+        else:
+            message.id = bridge._id_for_message(message, messages)
