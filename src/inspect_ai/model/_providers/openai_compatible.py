@@ -189,6 +189,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 prompt_cache_retention=NOT_GIVEN,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
+                synthesize_phase=False,
                 model_info=ModelInfo(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
