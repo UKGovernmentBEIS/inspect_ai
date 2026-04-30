@@ -29,7 +29,6 @@ from ._config import (
     TokenInterval,
     TurnInterval,
 )
-from ._eval_checkpoints import init_eval_checkpoints_dir
 from ._layout import CheckpointTrigger
 from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
 from ._working_dir import ensure_sample_working_dir, write_sample_working_dir
@@ -127,9 +126,8 @@ class Checkpointer:
             active.sample.id,
             active.epoch,
         )
-        await init_eval_checkpoints_dir(log_location, active.eval_id)
         self._sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
-            log_location, sample_id, epoch
+            log_location, sample_id, epoch, active.eval_id
         )
         self._sample_working_dir = await ensure_sample_working_dir(
             log_location, sample_id, epoch

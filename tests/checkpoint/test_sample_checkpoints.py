@@ -29,22 +29,22 @@ def test_sample_checkpoints_dir_accepts_int_sample_id() -> None:
 
 async def test_ensure_creates_dir_and_returns_path(tmp_path: Path) -> None:
     log = tmp_path / "foo.eval"
-    sample_dir = await ensure_sample_checkpoints_dir(str(log), "s1", 0)
+    sample_dir = await ensure_sample_checkpoints_dir(str(log), "s1", 0, "eval-1")
     assert Path(sample_dir).is_dir()
     assert sample_dir == str(tmp_path / "foo.eval.checkpoints" / "s1__0")
 
 
 async def test_ensure_is_idempotent(tmp_path: Path) -> None:
     log = tmp_path / "foo.eval"
-    a = await ensure_sample_checkpoints_dir(str(log), "s1", 0)
-    b = await ensure_sample_checkpoints_dir(str(log), "s1", 0)
+    a = await ensure_sample_checkpoints_dir(str(log), "s1", 0, "eval-1")
+    b = await ensure_sample_checkpoints_dir(str(log), "s1", 0, "eval-1")
     assert a == b
     assert Path(a).is_dir()
 
 
 async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:
     sample_dir = await ensure_sample_checkpoints_dir(
-        str(tmp_path / "foo.eval"), "s1", 0
+        str(tmp_path / "foo.eval"), "s1", 0, "eval-1"
     )
     path = await write_sidecar(
         sample_checkpoints_dir=sample_dir,
@@ -57,7 +57,9 @@ async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:
 
 
 async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
-    sample_dir = await ensure_sample_checkpoints_dir(str(tmp_path / "foo.eval"), "s", 0)
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.eval"), "s", 0, "eval-1"
+    )
     path = await write_sidecar(
         sample_checkpoints_dir=sample_dir,
         checkpoint_id=42,
@@ -73,7 +75,9 @@ async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
 
 
 async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> None:
-    sample_dir = await ensure_sample_checkpoints_dir(str(tmp_path / "foo.eval"), "s", 0)
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.eval"), "s", 0, "eval-1"
+    )
     paths = [
         await write_sidecar(
             sample_checkpoints_dir=sample_dir,
@@ -94,7 +98,9 @@ async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> 
 
 
 async def test_sidecar_is_pretty_printed_json(tmp_path: Path) -> None:
-    sample_dir = await ensure_sample_checkpoints_dir(str(tmp_path / "foo.eval"), "s", 0)
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.eval"), "s", 0, "eval-1"
+    )
     path = await write_sidecar(
         sample_checkpoints_dir=sample_dir,
         checkpoint_id=1,

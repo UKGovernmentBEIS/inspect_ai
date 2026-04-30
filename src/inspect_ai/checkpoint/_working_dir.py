@@ -35,7 +35,11 @@ def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> 
 async def ensure_sample_working_dir(
     log_location: str, sample_id: int | str, epoch: int
 ) -> Path:
-    """Create (idempotent) and return the sample working dir path."""
+    """Create (idempotent) and return the sample working dir path.
+
+    Also ensures the eval working dir exists; that's an implementation
+    detail callers shouldn't have to repeat.
+    """
     return await anyio.to_thread.run_sync(
         _ensure_sample_working_dir_blocking, log_location, sample_id, epoch
     )
@@ -44,9 +48,16 @@ async def ensure_sample_working_dir(
 def _ensure_sample_working_dir_blocking(
     log_location: str, sample_id: int | str, epoch: int
 ) -> Path:
+    _ensure_eval_working_dir(log_location)
     sample_dir = _sample_working_dir(log_location, sample_id, epoch)
-    sample_dir.mkdir(parents=True, exist_ok=True)
+    sample_dir.mkdir(exist_ok=True)
     return sample_dir
+
+
+def _ensure_eval_working_dir(log_location: str) -> Path:
+    eval_dir = _eval_working_dir(log_location)
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    return eval_dir
 
 
 async def write_sample_working_dir(sample_working_dir: Path, turn: int) -> None:

@@ -18,7 +18,7 @@ import anyio
 
 from inspect_ai._util.file import file, filesystem
 
-from ._eval_checkpoints import _eval_checkpoints_dir
+from ._eval_checkpoints import _eval_checkpoints_dir, init_eval_checkpoints_dir
 from ._layout import CheckpointSidecar, CheckpointTrigger
 
 
@@ -27,9 +27,14 @@ def _sample_checkpoints_dir(log_location: str, sample_id: int | str, epoch: int)
 
 
 async def ensure_sample_checkpoints_dir(
-    log_location: str, sample_id: int | str, epoch: int
+    log_location: str, sample_id: int | str, epoch: int, eval_id: str
 ) -> str:
-    """Create (idempotent) and return the sample checkpoints dir path."""
+    """Create (idempotent) and return the sample checkpoints dir path.
+
+    Also ensures the eval checkpoints dir + manifest exist; that's an
+    implementation detail callers shouldn't have to repeat.
+    """
+    await init_eval_checkpoints_dir(log_location, eval_id)
     return await anyio.to_thread.run_sync(
         _ensure_sample_checkpoints_dir_blocking, log_location, sample_id, epoch
     )
