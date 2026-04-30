@@ -28,7 +28,6 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall
 
 
@@ -46,9 +45,11 @@ def test_assistant_message_id_preserved_when_echoed_back() -> None:
     apply_message_ids(bridge, turn1_input)
 
     # Turn 1 output: the model emits an assistant message with a stable id.
+    # ``bridge_generate`` calls ``_register_output_message`` after each
+    # successful generation; we invoke it directly here to keep the test
+    # focused on the id-bookkeeping contract.
     output_msg = ChatMessageAssistant(id="ASSIST_TURN_1", content="Hi there!")
-    output = ModelOutput.from_message(output_msg)
-    bridge._track_state(turn1_input, output)
+    bridge._register_output_message(output_msg)
 
     # Turn 2 input: harness echoes back the assistant message (without an id,
     # which is what every native protocol does).
@@ -89,8 +90,7 @@ def test_tool_call_id_preserved_when_echoed_back() -> None:
         content="",
         tool_calls=[original_tool_call],
     )
-    output = ModelOutput.from_message(output_msg)
-    bridge._track_state(turn1_input, output)
+    bridge._register_output_message(output_msg)
 
     # Turn 2 input: harness echoes the message back. The tool_call.id has
     # been rewritten by the bridge's inbound translation (Gemini-style).

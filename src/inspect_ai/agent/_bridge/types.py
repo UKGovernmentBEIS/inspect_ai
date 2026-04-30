@@ -6,7 +6,12 @@ from shortuuid import uuid
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+)
 from inspect_ai.model._compaction import (
     Compact,
     CompactionStrategy,
@@ -17,6 +22,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._model import GenerateFilter, Model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -41,6 +47,8 @@ class AgentBridge:
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
         self._message_ids = {}
+        self._tool_call_ids = {}
+        self._system_message_id = None
         self._last_message_count = 0
 
     state: AgentState
@@ -88,30 +96,60 @@ class AgentBridge:
     def _id_for_message(
         self, message: ChatMessage, conversation: list[ChatMessage]
     ) -> str:
-        # message_id we will return
-        message_id: str | None = None
+        return self._id_for_message_signature(
+            _message_signature(message), conversation
+        )
 
-        # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
-
-        # do we already have an id for this message that isn't in the conversation?
+    def _id_for_message_signature(
+        self, signature: str, conversation: list[ChatMessage]
+    ) -> str:
+        # do we already have an id for this signature that isn't in the conversation?
         conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
-        message_ids = self._message_ids.get(message_key, [])
+        message_ids = self._message_ids.get(signature, [])
         for id in message_ids:
             if id not in conversation_ids:
-                message_id = id
-                break
+                return id
 
-        # if we didn't find an id then generate a new one and update our record
-        if message_id is None:
-            message_id = uuid()
-            message_ids.append(message_id)
-            self._message_ids[message_key] = message_ids
-
-        # return the id
+        # otherwise generate a new one and update our record
+        message_id = uuid()
+        message_ids.append(message_id)
+        self._message_ids[signature] = message_ids
         return message_id
 
+    def _id_for_system_message(self) -> str:
+        # treat the system prompt as a single slot per bridge: the same id is
+        # returned across content mutations (plan-mode toggles, skill activation,
+        # etc.) so downstream consumers don't see N parallel transcript roots.
+        if self._system_message_id is None:
+            self._system_message_id = uuid()
+        return self._system_message_id
+
+    def _register_output_message(self, message: ChatMessage) -> None:
+        """Register an output message so its id (and any tool_call ids)
+        survive a harness round trip.
+
+        After ``model.generate()`` returns, the bridge knows the canonical
+        ``ChatMessage.id`` and ``ToolCall.id`` values that will end up in
+        the transcript. Native protocols (Gemini in particular) drop or
+        rewrite both on round trip, so when the harness echoes the message
+        back as input next turn the bridge has to be able to map back to
+        them. This records that mapping keyed on a content-only signature
+        so the lookup works even when ids changed in flight.
+        """
+        if message.id is None:
+            return
+        signature = _message_signature(message)
+        pool = self._message_ids.setdefault(signature, [])
+        if message.id not in pool:
+            pool.append(message.id)
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+            for index, tool_call in enumerate(message.tool_calls):
+                if tool_call.id:
+                    self._tool_call_ids[(signature, index)] = tool_call.id
+
     _message_ids: dict[str, list[str]]
+    _tool_call_ids: dict[tuple[str, int], str]
+    _system_message_id: str | None
 
     def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
         # automatically track agent state based on observing generations made through
@@ -133,3 +171,31 @@ class AgentBridge:
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
+
+
+def _message_signature(message: ChatMessage) -> str:
+    """Return a content-only hash of *message*.
+
+    All id-shaped fields are stripped before hashing: the message's own
+    ``id``, every ``ToolCall.id`` inside an assistant message, and a
+    ``ChatMessageTool.tool_call_id`` link. This is the key the bridge uses
+    to recognize "the same logical message" across harness round trips,
+    where any of those ids may have been rewritten in flight.
+    """
+    canonical = message.model_copy(deep=True)
+    canonical.id = None
+    if isinstance(canonical, ChatMessageAssistant) and canonical.tool_calls:
+        canonical.tool_calls = [
+            ToolCall(
+                id="",
+                function=tc.function,
+                arguments=tc.arguments,
+                parse_error=tc.parse_error,
+                view=tc.view,
+                type=tc.type,
+            )
+            for tc in canonical.tool_calls
+        ]
+    if isinstance(canonical, ChatMessageTool):
+        canonical.tool_call_id = None
+    return message_json_hash(to_json_str_safe(canonical))

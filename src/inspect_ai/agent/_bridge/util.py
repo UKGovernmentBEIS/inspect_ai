@@ -4,8 +4,14 @@ from typing import Sequence, cast
 
 from typing_extensions import TypeIs
 
-from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.agent._bridge.types import AgentBridge, _message_signature
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -137,6 +143,9 @@ async def bridge_generate(
         ):
             refusals += 1
         else:
+            # Register the canonical output ids so a later turn can map a
+            # harness-echoed copy of this message back to them.
+            bridge._register_output_message(output.message)
             return output, c_message
 
 
@@ -197,11 +206,63 @@ def default_code_execution_providers() -> CodeExecutionProviders:
 
 
 def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
-    # clear the ids so we can apply new ones
+    """Assign stable ids to ``messages`` for one bridge turn.
+
+    Two distinct restorations happen here:
+
+    1. Each message gets an ``id`` chosen by content signature (and, for the
+       system message, by slot — see ``_id_for_system_message``). The lookup
+       table is populated by previous calls to ``apply_message_ids`` and by
+       ``bridge._register_output_message`` after each generation, so an
+       output emitted in turn N is recognized when echoed back as input in
+       turn N+1.
+    2. ``ToolCall.id`` values on assistant messages are remapped from the
+       harness's reformatted version back to the original inspect id (Gemini
+       reformats every ``tool_call.id`` on round trip, so the inbound message
+       carries something like ``call_search_abc12345`` where the original
+       output had whatever id ``model.generate()`` minted). Any
+       ``ChatMessageTool.tool_call_id`` referencing a renamed call is
+       rewritten in lockstep so the assistant ↔ tool linkage stays intact.
+    """
+    # snapshot the inbound tool_call ids so we can build a remap for tool messages
+    inbound_tool_call_ids: dict[int, list[str]] = {
+        idx: [tc.id for tc in m.tool_calls]
+        for idx, m in enumerate(messages)
+        if isinstance(m, ChatMessageAssistant) and m.tool_calls
+    }
+
+    # clear ids so we can apply new ones
     for message in messages:
         message.id = None
 
-    # allocate ids based on message content (re-applying the same id for the same
-    # content, but also ensuring that if an id is already used we generate a new one)
-    for message in messages:
-        message.id = bridge._id_for_message(message, messages)
+    tool_call_remap: dict[str, str] = {}
+
+    for idx, message in enumerate(messages):
+        if isinstance(message, ChatMessageSystem):
+            message.id = bridge._id_for_system_message()
+            continue
+
+        signature = _message_signature(message)
+        message.id = bridge._id_for_message_signature(signature, messages)
+
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+            for tc_idx, tool_call in enumerate(message.tool_calls):
+                inbound_id = inbound_tool_call_ids[idx][tc_idx]
+                registered_id = bridge._tool_call_ids.get((signature, tc_idx))
+                if registered_id is None:
+                    # first sighting: remember the inbound id as canonical so
+                    # we stay stable even when content_originated outside this
+                    # bridge (e.g. pre-populated agent state).
+                    if inbound_id:
+                        bridge._tool_call_ids[(signature, tc_idx)] = inbound_id
+                    continue
+                if inbound_id and inbound_id != registered_id:
+                    tool_call_remap[inbound_id] = registered_id
+                    tool_call.id = registered_id
+
+        elif (
+            isinstance(message, ChatMessageTool)
+            and message.tool_call_id is not None
+            and message.tool_call_id in tool_call_remap
+        ):
+            message.tool_call_id = tool_call_remap[message.tool_call_id]
