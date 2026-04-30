@@ -1,6 +1,11 @@
 ## Unreleased
 
 - Handle split UTF-16 "lone surrogate" in log message condensation.
+- Inspect View: Collapse the LogView title bar on scroll
+- Inspect View: Add additional column support when viewing task samples.
+- Inspect View: Add sample uuid column id and filtering.
+- Inspect View: Fix issue causing column sizing and re-ordering to snap back to initial state.
+- Inspect View: Fix copy command including large binary payloads.
 
 ## 0.3.214 (29 April 2026)
 
