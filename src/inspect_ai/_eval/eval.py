@@ -30,12 +30,14 @@ from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
+    DEFAULT_EPOCHS,
     DEFAULT_LOG_FORMAT,
     DEFAULT_LOG_SHARED,
     JSON_LOG_FORMAT,
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path, filesystem
+from inspect_ai._util.log_context import set_run_shape
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup, registry_package_name
@@ -737,6 +739,18 @@ async def _eval_async_inner(
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
+        # set run shape for log record enhancement
+        if eval_config.epochs is not None:
+            run_max_epochs = eval_config.epochs
+        else:
+            run_max_epochs = max(
+                (t.task.epochs or DEFAULT_EPOCHS for t in resolved_tasks),
+                default=DEFAULT_EPOCHS,
+            )
+        set_run_shape(
+            (t.task.name for t in resolved_tasks),
+            run_max_epochs,
+        )
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1

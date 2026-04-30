@@ -17690,12 +17690,15 @@ button._segment_19z32_10 {
 ._pathContainer_1u3sd_58 {
   overflow-x: hidden;
 }
-._navbarButton_7hxb6_1 {
-  font-size: 0.6rem;
+._navbarButton_i4zyi_1 {
+  font-size: 0.7rem;
+  /* Match the height of the navbar's `ViewSegmentedControl` outer
+   * container (20.8px): font 0.7rem * 1.5 = 16.8 line-height + 1px
+   * padding-y * 2 + 1px border * 2. */
   padding: 1px 5px;
 }
 
-._dropdownChevron_7hxb6_6 {
+._dropdownChevron_i4zyi_9 {
   margin-left: 0.35rem;
   /* Inherit the button's font-size so the chevron never creates a taller
      line-box than the button's text. Hard-coding a smaller font-size token
@@ -17965,6 +17968,91 @@ button._segment_19z32_10 {
   font-size: var(--inspect-font-size-title-secondary);
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
+}
+._gridWrapper_egqgb_1 {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+._gridContainer_egqgb_7 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* Shared chrome — applied to all sample/log grids. Other ag-grids in the
+ * app (e.g. the small score-summary table in title-view) intentionally opt
+ * out by not adding this class. */
+._gridChrome_egqgb_18 .ag-row {
+  cursor: pointer;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._gridChrome_egqgb_18 .ag-row.ag-row-selected {
+  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
+}
+
+._gridChrome_egqgb_18 .ag-header-cell {
+  padding: 0;
+}
+
+._gridChrome_egqgb_18 .ag-header-cell-label::before {
+  content: "";
+  flex: 0 1 var(--ag-cell-horizontal-padding);
+}
+
+._gridChrome_egqgb_18 .ag-header-cell-text {
+  font-size: var(--inspect-font-size-smallestest);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 400;
+}
+
+._gridChrome_egqgb_18 .ag-sort-order {
+  font-size: var(--inspect-font-size-smallestest);
+  align-self: center;
+  margin-right: -10px;
+}
+
+/* List mode — multi-line wrapping cells with vertical padding. */
+._listMode_egqgb_50 .ag-cell {
+  align-items: flex-start;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  white-space: normal;
+}
+
+/* Grid mode — vertically centered cells; column renderers handle ellipsis. */
+._gridMode_egqgb_58 .ag-cell {
+  align-items: center;
+}
+
+/* Cell helpers exposed for column renderers. */
+._cell_egqgb_63 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_egqgb_67 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_egqgb_71 {
+  padding-left: 0;
+}
+
+._score_egqgb_75 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._centered_egqgb_82 {
+  display: flex;
+  justify-content: center;
 }
 ._footer_14uod_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
@@ -20598,12 +20686,12 @@ pre._value_8citi_25 {
   opacity: 0.5;
   pointer-events: none;
 }
-._workspace_kf1qa_1 {
+._workspace_rc1vz_1 {
   padding-top: 0rem;
   overflow-y: hidden;
 }
 
-._tabContainer_kf1qa_6 {
+._tabContainer_rc1vz_6 {
   padding: 0;
   flex: 1;
   display: flex;
@@ -20611,14 +20699,14 @@ pre._value_8citi_25 {
   overflow-y: hidden;
 }
 
-._tabSet_kf1qa_14 {
+._tabSet_rc1vz_14 {
   flex-wrap: nowrap;
   padding: 0.5rem 0.5rem 0.5rem 0.5rem;
   border-bottom: solid 1px var(--bs-border-color);
-  background: var(--bs-light);
+  background: var(--bs-light-bg-subtle);
 }
 
-._tabs_kf1qa_21 {
+._tabs_rc1vz_21 {
   padding: 0.3rem 0.3rem 0.3rem 0.3rem;
   width: 5rem;
   text-transform: uppercase;
@@ -20626,7 +20714,7 @@ pre._value_8citi_25 {
   font-weight: 600;
 }
 
-._tabPanels_kf1qa_29 {
+._tabPanels_rc1vz_29 {
   flex: 1;
   overflow-y: hidden;
   display: flex;
@@ -20807,71 +20895,6 @@ pre._value_8citi_25 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
-._mainLayout_1pg7l_1 {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-._samplesListGrid_1pg7l_7 .ag-row {
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._samplesListGrid_1pg7l_7 .ag-row.ag-row-selected {
-  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
-}
-
-._samplesListGrid_1pg7l_7 .ag-header-cell {
-  padding: 0;
-}
-._samplesListGrid_1pg7l_7 .ag-header-cell-label::before {
-  content: "";
-  flex: 0 1 var(--ag-cell-horizontal-padding);
-}
-
-._samplesListGrid_1pg7l_7 .ag-header-cell-text {
-  font-size: var(--inspect-font-size-smallestest);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 400;
-}
-
-._samplesListGrid_1pg7l_7 .ag-sort-order {
-  font-size: var(--inspect-font-size-smallestest);
-  align-self: center;
-  margin-right: -10px;
-}
-
-._samplesListGrid_1pg7l_7 .ag-cell {
-  align-items: flex-start;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-  white-space: normal;
-}
-
-._cell_1pg7l_43 {
-  line-height: var(--bs-body-line-height);
-}
-
-._wrapAnywhere_1pg7l_47 {
-  overflow-wrap: break-word;
-}
-
-._noLeft_1pg7l_51 {
-  padding-left: 0;
-}
-
-._score_1pg7l_55 {
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-._centered_1pg7l_62 {
-  display: flex;
-  justify-content: center;
-}
 ._footer_vkofn_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
@@ -20899,6 +20922,38 @@ pre._value_8citi_25 {
 ._label_vkofn_25 {
   margin-left: 0.1em;
   margin-top: -3px;
+}
+._mainLayout_1qj8a_1 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Cell helpers — still referenced by columns.tsx. Phase 1 will migrate
+ * cell renderers into shared/samples-grid/cells.tsx and this file goes
+ * away entirely. */
+._cell_1qj8a_10 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_1qj8a_14 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_1qj8a_18 {
+  padding-left: 0;
+}
+
+._score_1qj8a_22 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._centered_1qj8a_29 {
+  display: flex;
+  justify-content: center;
 }
 ._label_jbrqc_1 {
   align-self: center;
@@ -21000,96 +21055,6 @@ pre._value_8citi_25 {
   column-gap: 3em;
   align-items: flex-start;
 }
-._downloadLogButton_fi3zx_1 {
-  border: none;
-  background-color: inherit;
-  opacity: 0.75;
-  padding-top: 0;
-  padding-left: 0;
-  transition: opacity 0.2s;
-}
-
-._downloadLogButton_fi3zx_1:hover {
-  opacity: 0.75;
-}
-._container_q17yq_1 {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0;
-  margin-top: -0.2rem;
-  margin-bottom: 0.2rem;
-}
-
-._grid_q17yq_10 {
-  display: grid;
-  grid-template-rows: repeat(auto-fill, minmax(10px, 1fr));
-  grid-template-columns: 1fr;
-  gap: 0.1em;
-  padding-right: 1em;
-}
-._container_17txe_1 {
-  display: flex;
-  padding-top: 0;
-  margin-left: 0.5rem;
-  min-width: 250px;
-}
-
-._wrapper_17txe_8 {
-  display: grid;
-  grid-template-columns: minmax(auto, 1fr) 1fr;
-  width: 100%;
-}
-
-._toggle_17txe_14 {
-  margin-top: 0.3em;
-  font-size: 1em;
-  padding: 0rem 0.1rem 0.1rem 0rem;
-  display: flex;
-}
-
-._body_17txe_21 {
-  display: flex;
-  flex-direction: column;
-  margin-left: 0.2rem;
-}
-
-._bodyContainer_17txe_27 {
-  margin-top: 0.1rem;
-  display: grid;
-  grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
-}
-
-._taskTitle_17txe_33 {
-  font-weight: 600;
-  margin-right: 0.3rem;
-}
-
-._taskModel_17txe_38 {
-  padding-top: 0.4rem;
-}
-
-._taskStatus_17txe_42 {
-  display: flex;
-  justify-content: end;
-  margin-right: 1em;
-  margin-bottom: 0;
-}
-
-._secondaryContainer_17txe_49 {
-  opacity: 0.7;
-  margin-top: -0.1rem;
-  padding-bottom: 0;
-  display: grid;
-  grid-template-columns: minmax(0, max-content) max-content;
-  gap: 0.5rem;
-}
-
-._buttonGroup_17txe_58 {
-  display: flex;
-  gap: 0.15rem;
-  align-items: center;
-}
 ._button_12472_1 {
   display: flex;
   border: none;
@@ -21163,6 +21128,85 @@ pre._value_8citi_25 {
 
 ._noPadding_1tj8p_56 {
   padding: 0;
+}
+._container_w43k4_1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  min-height: 1.75rem;
+}
+
+._left_w43k4_11 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+._task_w43k4_19 {
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+._model_w43k4_24 {
+  opacity: 0.75;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+._right_w43k4_30 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+._inlineMetrics_w43k4_38 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+._inlineMetric_w43k4_38 {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+._inlineMetricLabel_w43k4_50 {
+  opacity: 0.7;
+}
+
+._inlineMetricValue_w43k4_54 {
+  font-weight: 600;
+}
+
+._statusBadge_w43k4_58 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+._statusIcon_w43k4_64 {
+  font-size: 1em;
+}
+
+._statusCount_w43k4_68 {
+  opacity: 0.7;
+}
+
+._scoringDetailModal_w43k4_72 .modal-dialog {
+  max-width: min(1000px, 90vw);
+}
+
+._scoringDetailModal_w43k4_72 .modal-content {
+  width: fit-content;
+  max-width: 100%;
 }
 ._simpleMetricsRows_13tuz_1 {
   display: flex;
@@ -21353,6 +21397,96 @@ thead th {
 ._tableSeparator_12koy_45 th {
   border: none !important;
 }
+._downloadLogButton_fi3zx_1 {
+  border: none;
+  background-color: inherit;
+  opacity: 0.75;
+  padding-top: 0;
+  padding-left: 0;
+  transition: opacity 0.2s;
+}
+
+._downloadLogButton_fi3zx_1:hover {
+  opacity: 0.75;
+}
+._container_q17yq_1 {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: -0.2rem;
+  margin-bottom: 0.2rem;
+}
+
+._grid_q17yq_10 {
+  display: grid;
+  grid-template-rows: repeat(auto-fill, minmax(10px, 1fr));
+  grid-template-columns: 1fr;
+  gap: 0.1em;
+  padding-right: 1em;
+}
+._container_17txe_1 {
+  display: flex;
+  padding-top: 0;
+  margin-left: 0.5rem;
+  min-width: 250px;
+}
+
+._wrapper_17txe_8 {
+  display: grid;
+  grid-template-columns: minmax(auto, 1fr) 1fr;
+  width: 100%;
+}
+
+._toggle_17txe_14 {
+  margin-top: 0.3em;
+  font-size: 1em;
+  padding: 0rem 0.1rem 0.1rem 0rem;
+  display: flex;
+}
+
+._body_17txe_21 {
+  display: flex;
+  flex-direction: column;
+  margin-left: 0.2rem;
+}
+
+._bodyContainer_17txe_27 {
+  margin-top: 0.1rem;
+  display: grid;
+  grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
+}
+
+._taskTitle_17txe_33 {
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+._taskModel_17txe_38 {
+  padding-top: 0.4rem;
+}
+
+._taskStatus_17txe_42 {
+  display: flex;
+  justify-content: end;
+  margin-right: 1em;
+  margin-bottom: 0;
+}
+
+._secondaryContainer_17txe_49 {
+  opacity: 0.7;
+  margin-top: -0.1rem;
+  padding-bottom: 0;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) max-content;
+  gap: 0.5rem;
+}
+
+._buttonGroup_17txe_58 {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+}
 ._statusContainer_1sckj_1 {
   display: inline-block;
   margin-top: 0.3em;
@@ -21433,40 +21567,40 @@ thead th {
   color: var(--bs-warning-text-emphasis, #664d03);
   cursor: help;
 }
-._navbarContainer_838qu_1 {
+._navbarContainer_de7i3_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
   min-width: 250px;
 }
 
-._navbarToggle_838qu_8 {
+._navbarToggle_de7i3_8 {
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._navbarBody_838qu_13 {
+._navbarBody_de7i3_13 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-._navbarBodyContainer_838qu_19 {
+._navbarBodyContainer_de7i3_19 {
   margin-top: 0.1rem;
   display: grid;
   grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
 }
 
-._navbarTaskTitle_838qu_25 {
+._navbarTaskTitle_de7i3_25 {
   font-weight: 600;
   margin-right: 0.3rem;
 }
 
-._navbarTaskModel_838qu_30 {
+._navbarTaskModel_de7i3_30 {
   padding-top: 0.4rem;
 }
 
-._navbarSecondaryContainer_838qu_34 {
+._navbarSecondaryContainer_de7i3_34 {
   opacity: 0.7;
   margin-top: 0.1rem;
   padding-bottom: 0;
@@ -21474,18 +21608,67 @@ thead th {
   grid-template-columns: minmax(0, max-content) max-content;
 }
 
-._navbarStatus_838qu_42 {
+._navbarStatus_de7i3_42 {
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._navbarWrapper_838qu_48 {
+._navbarWrapper_de7i3_48 {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: sticky;
+  overflow: hidden;
+  background-color: var(--bs-light-bg-subtle);
 }
-._navbarInnerWrapper_838qu_51 {
+._navbarInnerWrapper_de7i3_57 {
   display: grid;
   grid-template-columns: 1fr auto;
+}
+
+/* Expanded / collapsed slot animation
+ *
+ * Both slots are rendered into a CSS grid with an animated row size:
+ * the active slot's container gets `grid-template-rows: 1fr` and the
+ * inactive slot collapses to `0fr`. Combined with `overflow: hidden`,
+ * this produces a smooth height transition.
+ */
+._expandedSlot_de7i3_69,
+._collapsedSlot_de7i3_70 {
+  width: 100%;
+  display: grid;
+  overflow: hidden;
+  transition: opacity 120ms linear;
+}
+
+._expandedSlot_de7i3_69 {
+  grid-template-rows: 1fr;
+}
+
+._collapsedSlot_de7i3_70 {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+._collapsed_de7i3_70 ._expandedSlot_de7i3_69 {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+._collapsed_de7i3_70 ._collapsedSlot_de7i3_70 {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+._expandedSlot_de7i3_69 > ._expandedInner_de7i3_99,
+._collapsedSlot_de7i3_70 > * {
+  min-height: 0;
+  overflow: hidden;
 }
 ._container_ovp9s_1 {
   display: grid;
