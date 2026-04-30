@@ -1,14 +1,11 @@
-"""Checkpointer skeleton: policy evaluation, no I/O.
+"""Checkpointer: policy evaluation + on-disk writes.
 
-Phase 2 scaffolding. ``Checkpointer.tick()`` consults the configured
-policy on each agent loop iteration and decides whether the iteration
-is a checkpoint moment. Firing is currently a no-op — counters reset,
-nothing is written, no event is emitted. Phase 3 replaces ``_fire()``
-with the actual checkpoint write.
-
-The active ``Checkpointer`` is exposed via a context variable so that
-the module-level :func:`checkpoint` function (used for ``"manual"``
-triggers from agent code) can locate it without explicit plumbing.
+``async with Checkpointer(config) as cp:`` yields a
+:class:`CheckpointSession` on which the agent calls ``tick()`` per
+turn (and optionally ``checkpoint()`` for manual triggers). When
+``config`` is ``None`` the session is a no-op; otherwise it's an
+active session bound to the current sample's identity, with
+on-disk dirs pre-ensured before the loop starts.
 """
 
 from __future__ import annotations
@@ -17,7 +14,7 @@ import time
 from contextvars import ContextVar, Token
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import Any, Protocol
 
 from inspect_ai.log._samples import sample_active
 
@@ -33,38 +30,37 @@ from ._layout import CheckpointTrigger
 from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
 from ._working_dir import ensure_sample_working_dir, write_sample_working_dir
 
-# Scaffolding for ambient lookup of the active Checkpointer from code
-# that doesn't hold a Checkpointer reference. Currently consumed only by
-# the module-level `checkpoint()` free function below; built-in agents
-# (e.g. react) use the direct instance method `Checkpointer.checkpoint()`
-# instead, so this var earns its keep only for external custom-agent
-# helper code and possible future inspect-internal consumers (e.g. a
-# hook payload that wants to ask "is checkpointing active for this
-# sample?"). Kept for those forward-looking cases despite no in-tree
-# caller today.
-_active_checkpointer: ContextVar["Checkpointer | None"] = ContextVar(
-    "inspect_ai_active_checkpointer", default=None
-)
-
 _NOT_YET_IMPLEMENTED = (TokenInterval, CostInterval, BudgetPercent)
 
 
+class CheckpointSession(Protocol):
+    """The session yielded by ``async with Checkpointer(...) as cp:``."""
+
+    async def tick(self) -> None:
+        """Invoke at each turn boundary; may fire a checkpoint."""
+        ...
+
+    async def checkpoint(self) -> None:
+        """Force a fire regardless of policy (used by manual triggers)."""
+        ...
+
+
+# Set by `_ActiveCheckpointer.__aenter__`; consumed by the manual
+# trigger free function below. Stays unset for `_NoopCheckpointer`,
+# which is how a stray `await checkpoint()` from helper code raises
+# rather than silently no-op'ing.
+_active_checkpointer: ContextVar["_ActiveCheckpointer | None"] = ContextVar(
+    "inspect_ai_active_checkpointer", default=None
+)
+
+
 class Checkpointer:
-    """Per-sample checkpoint policy machinery.
+    """Public construction site.
 
-    Construct from a :class:`CheckpointConfig` and use as an async
-    context manager inside the agent's loop:
-
-        async with Checkpointer(config) as cp:
-            while not done:
-                await cp.tick()
-                # ...turn body...
-
-    On entry the checkpointer is registered as the active one for the
-    current async context, so :func:`checkpoint` can locate it.
-
-    In Phase 2, firing is a no-op (state bookkeeping only). Phase 3
-    replaces the fire path with a real write.
+    Picks one of two concrete impls on entry: a no-op session when
+    ``config`` is ``None``, or an active session bound to the current
+    sample. Either way, the yielded object satisfies
+    :class:`CheckpointSession`.
     """
 
     def __init__(self, config: CheckpointConfig[Any] | None) -> None:
@@ -74,31 +70,27 @@ class Checkpointer:
                 "use TimeInterval, TurnInterval, or 'manual' for now."
             )
         self._config = config
-        # Token from `_active_checkpointer.set(self)` in __aenter__, used
-        # by __aexit__ to restore the prior value. Stays None when the
-        # Checkpointer is a no-op (config is None) — see __aenter__ for
-        # the short-circuit.
-        self._reset_token: Token["Checkpointer | None"] | None = None
-        self._turn: int = 0
-        self._turns_since_fire: int = 0
-        self._last_fire_monotonic: float = time.monotonic()
-        # Set in `__aenter__` from the active sample; `_fire()` writes
-        # into these directly. None on a no-op Checkpointer.
-        self._sample_checkpoints_dir: str | None = None
-        self._sample_working_dir: Path | None = None
-        self._next_checkpoint_id: int = 1
+        self._impl: _NoopCheckpointer | _ActiveCheckpointer | None = None
 
-    async def __aenter__(self) -> "Checkpointer":
-        # No-op Checkpointer (config is None): skip identity capture and
-        # ContextVar setup. `tick()` and `checkpoint()` short-circuit,
-        # and a stray `await checkpoint()` from helper code raises (the
-        # ContextVar is unset) — that's the desired "you didn't opt in"
-        # signal.
+    async def __aenter__(self) -> CheckpointSession:
+        self._impl = await self._build_impl()
+        return await self._impl.__aenter__()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        assert self._impl is not None
+        await self._impl.__aexit__(exc_type, exc, tb)
+
+    async def _build_impl(self) -> _NoopCheckpointer | _ActiveCheckpointer:
         if self._config is None:
-            return self
+            return _NoopCheckpointer()
 
-        # Entering an active Checkpointer outside a sample context is
-        # a programming error.
+        # Entering an active Checkpointer outside a sample context is a
+        # programming error.
         #
         # TODO(checkpointing-phase-3): capture the sample-level retry /
         # attempt index. `ActiveSample` does not currently carry it; the
@@ -121,17 +113,59 @@ class Checkpointer:
             raise RuntimeError(
                 "Checkpointer cannot initialize: ActiveSample.sample.id is None."
             )
-        log_location, sample_id, epoch = (
-            active.log_location,
-            active.sample.id,
-            active.epoch,
+        sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
+            active.log_location, active.sample.id, active.epoch, active.eval_id
         )
-        self._sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
-            log_location, sample_id, epoch, active.eval_id
+        sample_working_dir = await ensure_sample_working_dir(
+            active.log_location, active.sample.id, active.epoch
         )
-        self._sample_working_dir = await ensure_sample_working_dir(
-            log_location, sample_id, epoch
+        return _ActiveCheckpointer(
+            config=self._config,
+            sample_checkpoints_dir=sample_checkpoints_dir,
+            sample_working_dir=sample_working_dir,
         )
+
+
+class _NoopCheckpointer:
+    """No-op session for ``Checkpointer(None)``."""
+
+    async def __aenter__(self) -> "_NoopCheckpointer":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        return None
+
+    async def tick(self) -> None:
+        return None
+
+    async def checkpoint(self) -> None:
+        return None
+
+
+class _ActiveCheckpointer:
+    """Session with all on-disk dependencies pre-ensured."""
+
+    def __init__(
+        self,
+        config: CheckpointConfig[Any],
+        sample_checkpoints_dir: str,
+        sample_working_dir: Path,
+    ) -> None:
+        self._config = config
+        self._sample_checkpoints_dir = sample_checkpoints_dir
+        self._sample_working_dir = sample_working_dir
+        self._turn = 0
+        self._turns_since_fire = 0
+        self._last_fire_monotonic = time.monotonic()
+        self._next_checkpoint_id = 1
+        self._reset_token: Token["_ActiveCheckpointer | None"] | None = None
+
+    async def __aenter__(self) -> "_ActiveCheckpointer":
         self._reset_token = _active_checkpointer.set(self)
         return self
 
@@ -141,30 +175,20 @@ class Checkpointer:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        # No-op Checkpointer never set the ContextVar; nothing to reset.
-        if self._reset_token is None:
-            return
+        assert self._reset_token is not None
         _active_checkpointer.reset(self._reset_token)
         self._reset_token = None
 
     async def tick(self) -> None:
-        """Invoke at each turn boundary; may fire a checkpoint."""
-        if self._config is None:
-            return
         self._turn += 1
         self._turns_since_fire += 1
         if self._should_fire():
             await self._fire(self._policy_trigger())
 
     async def checkpoint(self) -> None:
-        """Force a fire regardless of policy (used by manual triggers)."""
-        if self._config is None:
-            return
         await self._fire("manual")
 
     def _should_fire(self) -> bool:
-        # Only called after tick()'s None check, so config is non-None.
-        assert self._config is not None
         policy = self._config.policy
         if policy == "manual":
             return False
@@ -177,7 +201,6 @@ class Checkpointer:
         raise AssertionError(f"unexpected policy: {policy!r}")
 
     def _policy_trigger(self) -> CheckpointTrigger:
-        assert self._config is not None
         policy = self._config.policy
         if isinstance(policy, TimeInterval):
             return "time"
@@ -192,9 +215,6 @@ class Checkpointer:
         # Phase 3 (in progress): writes placeholder content into the
         # sample working dir and a per-checkpoint sidecar. Host repo
         # init + real snapshot ids land in subsequent slices.
-        assert self._sample_working_dir is not None
-        assert self._sample_checkpoints_dir is not None
-        # Sample working dir is overwritten in place every fire.
         await write_sample_working_dir(self._sample_working_dir, self._turn)
         await write_sidecar(
             sample_checkpoints_dir=self._sample_checkpoints_dir,
@@ -210,8 +230,9 @@ class Checkpointer:
 async def checkpoint() -> None:
     """Manually trigger a checkpoint for the current sample.
 
-    Must be called inside an active :class:`Checkpointer` context — typically
-    from inside an agent's loop. Raises :class:`RuntimeError` otherwise.
+    Must be called inside an active :class:`Checkpointer` context —
+    typically from inside an agent's loop. Raises
+    :class:`RuntimeError` otherwise.
 
     Fires immediately regardless of the configured policy; for
     interval-based policies, the relevant counter is reset.
