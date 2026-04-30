@@ -15,19 +15,62 @@ parent). See ``design/plans/checkpointing-working.md`` §4f.
 
 from __future__ import annotations
 
-import json
 import os
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 import anyio
+from pydantic import BaseModel, ConfigDict
 
 from inspect_ai.util._restic._platform import Platform
 from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, detect_sandbox_os
 
+
+class ResticBackupSummary(BaseModel):
+    """Last JSON line emitted by ``restic backup --json``.
+
+    Field semantics mirror restic's documented summary output. Forward-
+    compatible: unknown fields are tolerated (``extra="allow"``) so a
+    future restic version that adds keys won't break parsing.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    message_type: Literal["summary"]
+    dry_run: bool = False
+    files_new: int
+    files_changed: int
+    files_unmodified: int
+    dirs_new: int
+    dirs_changed: int
+    dirs_unmodified: int
+    data_blobs: int
+    tree_blobs: int
+    data_added: int
+    """Bytes added to the repo, *before* compression — i.e. the sum of
+    uncompressed blob payloads."""
+
+    data_added_packed: int
+    """Bytes actually written to pack files on disk (after restic's
+    per-blob compression). The disk-truthful "incremental size" of the
+    snapshot."""
+
+    total_files_processed: int
+    total_bytes_processed: int
+    backup_start: datetime
+    backup_end: datetime
+    total_duration: float
+    snapshot_id: str
+    """Omitted by restic only when snapshot creation was skipped (e.g.
+    dry-run); always present for our writes."""
+
+
 _SANDBOX_RESTIC_DIR = "/opt/inspect-restic"
 SANDBOX_RESTIC_PATH = f"{_SANDBOX_RESTIC_DIR}/restic"
+_SANDBOX_RESTIC_REPO = f"{_SANDBOX_RESTIC_DIR}/repo"
 
 _ARCH_TO_PLATFORM: dict[Architecture, Platform] = {
     "amd64": "linux_amd64",
@@ -80,8 +123,8 @@ async def run_host_backup(
     password: str,
     source: str,
     checkpoint_id: int,
-) -> str:
-    """Run ``restic backup`` against ``source``; return the snapshot id."""
+) -> ResticBackupSummary:
+    """Run ``restic backup`` against ``source``; return the parsed summary."""
     proc = await anyio.run_process(
         [
             str(restic),
@@ -96,13 +139,63 @@ async def run_host_backup(
         env=_restic_env(password),
         check=True,
     )
-    for line in proc.stdout.decode().splitlines():
-        if not line.strip():
-            continue
-        msg = json.loads(line)
-        if msg.get("message_type") == "summary":
-            return str(msg["snapshot_id"])
-    raise RuntimeError("restic backup produced no summary message")
+    return _parse_summary(proc.stdout.decode())
+
+
+async def init_sandbox_repo(env: SandboxEnvironment, password: str) -> None:
+    """Initialize a restic repo inside the sandbox (idempotent).
+
+    Runs as root against the injected binary. Skip if the repo is
+    already initialized.
+    """
+    check = await env.exec(
+        ["test", "-e", f"{_SANDBOX_RESTIC_REPO}/config"], user="root"
+    )
+    if check.success:
+        return
+    result = await env.exec(
+        [SANDBOX_RESTIC_PATH, "-r", _SANDBOX_RESTIC_REPO, "init"],
+        env={"RESTIC_PASSWORD": password},
+        user="root",
+    )
+    if not result.success:
+        raise RuntimeError(f"Failed to init sandbox restic repo: {result.stderr}")
+
+
+async def run_sandbox_backup(
+    env: SandboxEnvironment,
+    password: str,
+    paths: list[str],
+    checkpoint_id: int,
+) -> ResticBackupSummary:
+    """Run ``restic backup`` inside the sandbox; return the parsed summary."""
+    cmd = [
+        SANDBOX_RESTIC_PATH,
+        "-r",
+        _SANDBOX_RESTIC_REPO,
+        "backup",
+        *paths,
+        "--tag",
+        f"ckpt-{checkpoint_id:05d}",
+        "--json",
+    ]
+    result = await env.exec(cmd, env={"RESTIC_PASSWORD": password}, user="root")
+    if not result.success:
+        raise RuntimeError(f"sandbox restic backup failed: {result.stderr}")
+    return _parse_summary(result.stdout)
+
+
+def _parse_summary(stdout: str) -> ResticBackupSummary:
+    """Parse the last line of ``restic backup --json`` output as the summary.
+
+    Restic emits one JSON object per line — periodic `status` messages
+    followed by a final `summary`. The ``message_type: Literal["summary"]``
+    field on the model means a non-summary last line raises ValidationError.
+    """
+    lines = stdout.strip().splitlines()
+    if not lines:
+        raise RuntimeError("restic backup produced no output")
+    return ResticBackupSummary.model_validate_json(lines[-1])
 
 
 def _restic_env(password: str) -> dict[str, str]:

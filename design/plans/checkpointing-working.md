@@ -74,13 +74,30 @@ A **checkpoint** is identified by an ordinal integer (1, 2, 3, …) chosen by in
   "created_at": "2026-04-26T14:23:11Z",
   "duration_ms": 842,
   "size_bytes": 1834291,
-  "host_snapshot_id": "<restic snapshot id>",
+  "host": {
+    "snapshot_id": "<restic snapshot id>",
+    "size_bytes": 1612345,
+    "duration_ms": 720
+  },
   "sandboxes": {
-    "default":  "<restic snapshot id>",
-    "tools":    "<restic snapshot id>"
+    "default": {
+      "snapshot_id": "<restic snapshot id>",
+      "size_bytes": 110234,
+      "duration_ms": 95
+    },
+    "tools": {
+      "snapshot_id": "<restic snapshot id>",
+      "size_bytes": 111712,
+      "duration_ms": 87
+    }
   }
 }
 ```
+
+Each per-repo entry (`host` and the values in `sandboxes`) is a
+`SnapshotInfo` record carrying the restic snapshot id plus that
+backup's incremental size (`data_added_packed` from restic's summary)
+and elapsed time. The top-level `size_bytes` is the rolled-up total.
 
 Listing checkpoints for an attempt is `ls <attempt>/ckpt-*.json` — no restic invocation needed. Restic snapshots are also tagged with the ordinal as a debugging aid / fallback if a sidecar is lost; the sidecar is the authoritative index.
 

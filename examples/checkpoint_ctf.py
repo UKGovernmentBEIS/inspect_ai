@@ -108,7 +108,7 @@ PROMPT = dedent(
 
 
 @task
-def checkpoint_ctf() -> Task:
+def cp_ctf() -> Task:
     return Task(
         dataset=[
             Sample(

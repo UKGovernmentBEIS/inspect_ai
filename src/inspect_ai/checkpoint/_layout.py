@@ -17,6 +17,26 @@ CheckpointTrigger = Literal["time", "turn", "manual", "token", "cost", "budget"]
 """All checkpoint trigger kinds, including those scheduled for Phase 5."""
 
 
+class SnapshotInfo(BaseModel):
+    """Per-backup stats captured in the sidecar.
+
+    One per repo (host repo + one per active sandbox repo). Values come
+    from restic's backup summary — see :class:`ResticBackupSummary`.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    snapshot_id: str
+    """Restic snapshot id for this backup."""
+
+    size_bytes: int
+    """Bytes this snapshot added to its repo, after compression
+    (restic's ``data_added_packed``)."""
+
+    duration_ms: int
+    """How long the restic invocation took, in milliseconds."""
+
+
 class CheckpointSidecar(BaseModel):
     """Per-checkpoint metadata file (``<attempt>/ckpt-NNNNN.json``).
 
@@ -43,16 +63,14 @@ class CheckpointSidecar(BaseModel):
     """How long the checkpoint cycle took, in milliseconds."""
 
     size_bytes: int
-    """On-disk size added by this checkpoint."""
+    """Total on-disk size added by this checkpoint (sum of host + sandboxes)."""
 
-    host_snapshot_id: str | None = None
-    """Restic snapshot id in the per-attempt host repo. ``None`` while the
-    host-repo write path is still being wired up; required once Phase 3
-    finishes."""
+    host: SnapshotInfo
+    """Stats for the host repo backup this cycle."""
 
-    sandboxes: dict[str, str] = Field(default_factory=dict)
-    """Map from sandbox name to the corresponding restic snapshot id in
-    that sandbox's per-attempt repo. Empty when checkpointing is host-only."""
+    sandboxes: dict[str, SnapshotInfo] = Field(default_factory=dict)
+    """Per-sandbox stats keyed by sandbox name. Empty when checkpointing is
+    host-only."""
 
 
 class CheckpointManifest(BaseModel):

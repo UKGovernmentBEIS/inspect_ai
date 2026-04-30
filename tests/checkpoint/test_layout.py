@@ -15,6 +15,17 @@ from pydantic import ValidationError
 
 from inspect_ai.checkpoint import CheckpointManifest, CheckpointSidecar
 
+
+def _info(
+    snapshot_id: str, size_bytes: int = 0, duration_ms: int = 0
+) -> dict[str, object]:
+    return {
+        "snapshot_id": snapshot_id,
+        "size_bytes": size_bytes,
+        "duration_ms": duration_ms,
+    }
+
+
 _BASE_SIDECAR = {
     "checkpoint_id": 1,
     "trigger": "time",
@@ -22,8 +33,11 @@ _BASE_SIDECAR = {
     "created_at": "2026-04-26T14:23:11Z",
     "duration_ms": 842,
     "size_bytes": 1834291,
-    "host_snapshot_id": "abc123",
-    "sandboxes": {"default": "def456", "tools": "ghi789"},
+    "host": _info("abc123"),
+    "sandboxes": {
+        "default": _info("def456"),
+        "tools": _info("ghi789"),
+    },
 }
 
 _BASE_MANIFEST = {
@@ -42,7 +56,11 @@ def test_sidecar_basic_round_trip() -> None:
     assert sidecar.checkpoint_id == 1
     assert sidecar.trigger == "time"
     assert sidecar.created_at == datetime(2026, 4, 26, 14, 23, 11, tzinfo=timezone.utc)
-    assert sidecar.sandboxes == {"default": "def456", "tools": "ghi789"}
+    assert sidecar.host.snapshot_id == "abc123"
+    assert {name: info.snapshot_id for name, info in sidecar.sandboxes.items()} == {
+        "default": "def456",
+        "tools": "ghi789",
+    }
 
     # JSON round-trip preserves all fields.
     rehydrated = CheckpointSidecar.model_validate_json(sidecar.model_dump_json())

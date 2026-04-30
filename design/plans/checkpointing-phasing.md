@@ -149,7 +149,7 @@ focused swap of `_fire()`'s body plus the read side.
   `<eval working dir>/<sample>__<epoch>/` (host-local, restic backs
   this up each cycle).
 
-**Landed so far (write side, on-disk skeleton):**
+**Landed so far (write side):**
 
 - Modules `_eval_checkpoints`, `_sample_checkpoints`, `_working_dir`
   own paths + writes for each of the four dir kinds. `init_eval_…`
@@ -159,33 +159,56 @@ focused swap of `_fire()`'s body plus the read side.
 - `manifest.json` written at the eval checkpoints dir with an
   auto-generated `secrets.token_urlsafe` password. Idempotent across
   samples; mismatched `eval_id` raises.
-- Per-checkpoint sidecar `ckpt-NNNNN.json` (zero-padded for lexical
-  sort). Carries the right shape; `host_snapshot_id` is `None` and
-  `sandboxes` is `{}` until the repo write lands.
-- Sample working dir gets placeholder `context.json` / `store.json`
-  carrying the current turn (so successive fires produce distinct
-  content; lets the upcoming restic slice verify snapshot diffs).
 - `Checkpointer` is a thin facade that picks one of two
   `CheckpointSession` impls on entry:
   - `_NoopCheckpointer` for `Checkpointer(None)` — both methods are
     pass-through.
-  - `_Checkpointer` for active configs — holds the two pre-ensured
-    sample dirs as ivars; `_fire(trigger)` orchestrates host-context
-    write → host backup (stub) → sandbox backups (stub) → sidecar
-    write. Tracks turn counter, per-checkpoint ordinal, and trigger
+  - `_Checkpointer` for active configs — holds pre-ensured sample
+    dirs, the resolved host restic binary, and the eval password as
+    ivars. Tracks turn counter, per-checkpoint ordinal, and trigger
     derivation (`time` / `turn` / `manual`).
 - The active session (either impl) is registered on a ContextVar so
   free helpers (e.g. the manual `checkpoint()` trigger) work
   transparently regardless of whether the surrounding Checkpointer is
   active or no-op.
+- **Restic integration is real**:
+  - Host: `init_host_repo` (idempotent — skip if `repo/config` exists)
+    runs at `__aenter__` against `<sample-checkpoints-dir>/host/`;
+    `run_host_backup` runs each fire and parses restic's `--json`
+    summary into a `ResticBackupSummary` pydantic model.
+  - Sandbox: `inject_restic` streams the linux binary as root via
+    stdin into `/opt/inspect-restic/restic` (parent dir mode 0700,
+    invisible to non-root). `init_sandbox_repo` initializes
+    `/opt/inspect-restic/repo` once. `run_sandbox_backup` invokes the
+    injected binary as root each fire.
+  - **Host + each sandbox run in parallel** via
+    `inspect_ai.util.collect()` so the per-fire wall-clock is
+    bounded by the slowest single backup.
+  - Sandbox repos are not yet egressed to the destination — they
+    live inside the sandbox until the egress slice lands (see TBD
+    list).
+- **Sidecar carries per-backup stats** (`host: SnapshotInfo`,
+  `sandboxes: dict[str, SnapshotInfo]`) where `SnapshotInfo` =
+  `{snapshot_id, size_bytes, duration_ms}`. `size_bytes` comes from
+  restic's `data_added_packed` (post-compression on-disk cost);
+  `duration_ms` from restic's `total_duration`. Top-level
+  `size_bytes` on the sidecar is the rolled-up total.
+- Sample working dir still gets **placeholder** `context.json` /
+  `store.json` carrying the current turn — restic actually backs them
+  up, but the contents are stand-ins until the real condensed
+  serialization lands.
 
 **Deliverables — write side (still TBD):**
 
-- Host repo: `restic init` + `restic backup` against the working tree;
-  populate the sidecar's `host_snapshot_id` with the real id.
 - Real `context.json`: condensed messages/events via `condense_sample()`.
 - Real `store.json`: serialized sample `Store`.
+- Egress: copy sandbox repo packs out to
+  `<sample-checkpoints-dir>/sandboxes/<name>/` (Phase 4 / Appendix B,
+  but partly cross-cuts since the sidecar's sandbox snapshot ids
+  already point at in-sandbox repos).
 - Atomic sidecar write (write `.tmp`, rename) — currently best-effort.
+- Cycle-level `duration_ms` on the sidecar (currently 0; per-backup
+  durations exist).
 - `CheckpointEvent` in the event stream.
 - `on_checkpoint_start` lifecycle hook.
 - `max_consecutive_failures` enforcement.

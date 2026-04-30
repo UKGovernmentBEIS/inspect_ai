@@ -19,13 +19,21 @@ from typing import Any, Protocol
 import anyio
 
 from inspect_ai.log._samples import sample_active
+from inspect_ai.util import collect
 from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 
 from ._config import CheckpointConfig, TimeInterval, TurnInterval
 from ._eval_checkpoints import read_eval_manifest
-from ._layout import CheckpointTrigger
-from ._restic import init_host_repo, inject_restic, run_host_backup
+from ._layout import CheckpointTrigger, SnapshotInfo
+from ._restic import (
+    ResticBackupSummary,
+    init_host_repo,
+    init_sandbox_repo,
+    inject_restic,
+    run_host_backup,
+    run_sandbox_backup,
+)
 from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
 from ._working_dir import ensure_sample_working_dir
 
@@ -121,7 +129,9 @@ class Checkpointer:
         host_repo = f"{sample_checkpoints_dir}/host"
         await init_host_repo(host_restic, host_repo, manifest.restic_password)
         for sandbox_name in self._config.sandbox_paths:
-            await inject_restic(sandbox(sandbox_name))
+            env = sandbox(sandbox_name)
+            await inject_restic(env)
+            await init_sandbox_repo(env, manifest.restic_password)
         return _Checkpointer(
             config=self._config,
             sample_checkpoints_dir=sample_checkpoints_dir,
@@ -201,15 +211,35 @@ class _Checkpointer:
         # per-checkpoint sidecar. Sandbox backups land in a future slice.
         await self._write_host_context(self._sample_working_dir, self._turn)
 
-        host_snapshot_id = await self._backup_host()
-        await self._backup_sandboxes()
+        # Host + each sandbox backup in parallel — they're independent
+        # restic invocations against separate repos. `collect()` adds a
+        # transcript span per task so the per-cycle structure is legible.
+        sandbox_items = list(self._config.sandbox_paths.items())
+        summaries = await collect(
+            self._backup_host(),
+            *(
+                run_sandbox_backup(
+                    sandbox(name),
+                    self._restic_password,
+                    paths,
+                    self._next_checkpoint_id,
+                )
+                for name, paths in sandbox_items
+            ),
+        )
+        host_info = _snapshot_info(summaries[0])
+        sandbox_infos = {
+            name: _snapshot_info(summary)
+            for (name, _), summary in zip(sandbox_items, summaries[1:])
+        }
 
         await write_sidecar(
             sample_checkpoints_dir=self._sample_checkpoints_dir,
             checkpoint_id=self._next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
-            host_snapshot_id=host_snapshot_id,
+            host=host_info,
+            sandboxes=sandbox_infos,
         )
         self._next_checkpoint_id += 1
         self._turns_since_fire = 0
@@ -229,7 +259,7 @@ class _Checkpointer:
         )
         await (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
 
-    async def _backup_host(self) -> str:
+    async def _backup_host(self) -> ResticBackupSummary:
         return await run_host_backup(
             self._host_restic,
             self._host_repo,
@@ -238,5 +268,10 @@ class _Checkpointer:
             self._next_checkpoint_id,
         )
 
-    async def _backup_sandboxes(self) -> None:
-        pass
+
+def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:
+    return SnapshotInfo(
+        snapshot_id=summary.snapshot_id,
+        size_bytes=summary.data_added_packed,
+        duration_ms=int(summary.total_duration * 1000),
+    )

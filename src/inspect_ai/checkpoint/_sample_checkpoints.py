@@ -19,7 +19,7 @@ import anyio
 from inspect_ai._util.file import file, filesystem
 
 from ._eval_checkpoints import _eval_checkpoints_dir, init_eval_checkpoints_dir
-from ._layout import CheckpointSidecar, CheckpointTrigger
+from ._layout import CheckpointSidecar, CheckpointTrigger, SnapshotInfo
 
 
 def _sample_checkpoints_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
@@ -54,7 +54,8 @@ async def write_sidecar(
     checkpoint_id: int,
     trigger: CheckpointTrigger,
     turn: int,
-    host_snapshot_id: str | None = None,
+    host: SnapshotInfo,
+    sandboxes: dict[str, SnapshotInfo],
 ) -> str:
     """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path."""
     return await anyio.to_thread.run_sync(
@@ -63,7 +64,8 @@ async def write_sidecar(
         checkpoint_id,
         trigger,
         turn,
-        host_snapshot_id,
+        host,
+        sandboxes,
     )
 
 
@@ -72,18 +74,21 @@ def _write_sidecar_blocking(
     checkpoint_id: int,
     trigger: CheckpointTrigger,
     turn: int,
-    host_snapshot_id: str | None,
+    host: SnapshotInfo,
+    sandboxes: dict[str, SnapshotInfo],
 ) -> str:
     sidecar = CheckpointSidecar(
         checkpoint_id=checkpoint_id,
         trigger=trigger,
         turn=turn,
         created_at=datetime.now(timezone.utc),
-        # Phase 3 (in progress): no I/O cost reported until the cycle
-        # is wrapped in timing instrumentation.
+        # Phase 3 (in progress): no cycle-level duration reported until
+        # _fire is wrapped in timing instrumentation. Per-backup
+        # durations live on `host` and `sandboxes`.
         duration_ms=0,
-        size_bytes=0,
-        host_snapshot_id=host_snapshot_id,
+        size_bytes=host.size_bytes + sum(s.size_bytes for s in sandboxes.values()),
+        host=host,
+        sandboxes=sandboxes,
     )
 
     sidecar_path = f"{sample_checkpoints_dir}/ckpt-{checkpoint_id:05d}.json"

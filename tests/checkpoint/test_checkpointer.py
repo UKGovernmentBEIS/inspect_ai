@@ -27,6 +27,30 @@ from inspect_ai.checkpoint import (
 )
 from inspect_ai.checkpoint._checkpointer import _Checkpointer
 from inspect_ai.checkpoint._layout import CheckpointTrigger
+from inspect_ai.checkpoint._restic import ResticBackupSummary
+
+
+def _fake_summary(checkpoint_id: int) -> ResticBackupSummary:
+    return ResticBackupSummary(
+        message_type="summary",
+        files_new=0,
+        files_changed=0,
+        files_unmodified=0,
+        dirs_new=0,
+        dirs_changed=0,
+        dirs_unmodified=0,
+        data_blobs=0,
+        tree_blobs=0,
+        data_added=0,
+        data_added_packed=0,
+        total_files_processed=0,
+        total_bytes_processed=0,
+        backup_start="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
+        backup_end="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
+        total_duration=0.0,
+        snapshot_id=f"fake-snap-{checkpoint_id:05d}",
+    )
+
 
 # === Policy tests against `_ActiveCheckpointer` directly ====================
 
@@ -56,8 +80,8 @@ class _CountingCheckpointer(_Checkpointer):
         await super()._fire(trigger)
         self.fire_count += 1
 
-    async def _backup_host(self) -> str:
-        return f"fake-snap-{self._next_checkpoint_id:05d}"
+    async def _backup_host(self) -> ResticBackupSummary:
+        return _fake_summary(self._next_checkpoint_id)
 
 
 def _counting(config: CheckpointConfig[Any], dirs: _Dirs) -> _CountingCheckpointer:
@@ -192,8 +216,10 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
     async def fake_init_host_repo(*_args: object, **_kwargs: object) -> None:
         return None
 
-    async def fake_run_host_backup(*_args: object, **_kwargs: object) -> str:
-        return "fake-snap"
+    async def fake_run_host_backup(
+        *_args: object, **_kwargs: object
+    ) -> ResticBackupSummary:
+        return _fake_summary(checkpoint_id=1)
 
     with (
         patch(
