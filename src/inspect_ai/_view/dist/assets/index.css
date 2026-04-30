@@ -15664,7 +15664,6 @@ li > ul {
 .tab-tools > * {
   flex: 0 1 auto;
   height: 1.5rem;
-  margin-left: 0.5rem;
 }
 
 .tab-tools > input {
@@ -17007,23 +17006,23 @@ button._segment_19z32_10 {
 ._dropdownItem_1q996_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_13md5_1 {
+._tabs_1wfac_1 {
   align-items: center;
 }
 
-._tabContents_13md5_5 {
+._tabContents_1wfac_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_13md5_5._scrollable_13md5_11 {
+._tabContents_1wfac_5._scrollable_1wfac_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_13md5_1 {
+._tab_1wfac_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17033,86 +17032,115 @@ button._segment_19z32_10 {
   margin-bottom: -1px;
 }
 
-._tabItem_13md5_27 {
+._tabItem_1wfac_27 {
   align-self: end;
 }
 
-._pillSmallContainer_13md5_31 {
+._pillSmallContainer_1wfac_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_13md5_31 {
+._pillSmall_1wfac_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_13md5_39 {
+._tabIcon_1wfac_39 {
   margin-right: 0.5em;
 }
 
-._tabTools_13md5_43 {
+._tabSpacer_1wfac_43 {
+  flex: 1 1 0;
+  min-width: 0;
+  list-style: none;
+}
+
+._tabTools_1wfac_49 {
   flex-basis: auto;
-  margin-left: auto;
   display: flex;
   align-items: center;
   justify-content: end;
   flex-wrap: wrap;
   row-gap: 0.3rem;
+  column-gap: 0.5rem;
 }
 
-._tabStyle_13md5_53 {
+._tabStyle_1wfac_59 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_13md5_43 > * {
+._tabTools_1wfac_49 > * {
   flex: 0 1 auto;
-  margin-left: 0.5rem;
 }
 
-._tabTools_13md5_43 input {
+._tabTools_1wfac_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_13md5_43 .btn {
+._tabTools_1wfac_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._expandablePanel_1ka1g_1 {
+._outer_1j47y_1 {
+  /* Positioned so the block-left sticky toggle's containing block is this
+     wrapper — keeps sticky behavior scoped to the panel instead of leaking
+     to some arbitrary positioned ancestor up the tree. */
   position: relative;
 }
 
-._expandableBordered_1ka1g_5 {
+._expandablePanel_1j47y_8 {
+  position: relative;
+}
+
+._expandableBordered_1j47y_12 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_1ka1g_10 {
+._expandableTogglable_1j47y_17 {
   margin-bottom: 1em;
 }
 
-._expandableContents_1ka1g_14 {
+._expandableContents_1j47y_21 {
   font-size: var(--inspect-font-size-base);
 }
 
-._expandableCollapsed_1ka1g_18 {
-  overflow: hidden;
+/* Fade-out at the bottom of truncated content to signal "more below".
+   Applied only when collapsed AND the content overflows.
+
+   The wrapper carries `overflow: hidden` + `max-height` (set inline), so its
+   box matches the visible region — the mask gradient's "bottom" lands on the
+   last visible line rather than on the bottom of the natural-height content
+   (which would sit off-screen).
+
+   We mask the content itself (rather than overlaying a background-color
+   gradient) so the affordance works on any surface, regardless of the
+   panel's bg. The inline-right toggle is a sibling of this wrapper, so it
+   stays fully opaque. */
+._expandableTruncated_1j47y_37 {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - 3rem),
+    transparent
+  );
+  mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_1ka1g_22 {
+._moreToggle_1j47y_46 {
   display: flex;
   margin-top: 0;
   height: 20px;
-  background-color: var(--bs-body-bg);
+  background-color: var(--bs-tertiary-bg);
   border-radius: 5px;
   border: solid var(--bs-light-border-subtle) 1px;
   color: var(--bs-link-color);
 }
 
-._moreToggle_1ka1g_22._bordered_1ka1g_32 {
+._moreToggle_1j47y_46._bordered_1j47y_56 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
-._moreToggleButton_1ka1g_36 {
+._moreToggleButton_1j47y_60 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -17120,22 +17148,40 @@ button._segment_19z32_10 {
   color: var(--bs-body-color);
 }
 
-._separator_1ka1g_44 {
+._separator_1j47y_68 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
   margin-top: -1px;
 }
 
-._moreToggle_1ka1g_22._inlineRight_1ka1g_50 {
+/* Fills the panel so its sticky child is bounded by the panel's rect.
+   pointer-events: none lets clicks pass through to the content behind;
+   the sticky child re-enables pointer events on itself. */
+._inlineToggleHolder_1j47y_77 {
   position: absolute;
-  bottom: 0.25em;
-  right: 0.25em;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 0.25em;
+  pointer-events: none;
+  z-index: 2;
 }
 
-._moreToggle_1ka1g_22._blockLeft_1ka1g_56 {
+._inlineToggleSticky_1j47y_89 {
+  position: sticky;
+  bottom: 0.25em;
+  pointer-events: auto;
+}
+
+._moreToggle_1j47y_46._blockLeft_1j47y_95 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
+  position: sticky;
+  bottom: 0.25em;
+  z-index: 2;
 }
 ._carouselThumbs_1mvg8_1 {
   display: grid;
@@ -18502,18 +18548,21 @@ a._citationLink_1ggvf_9:hover {
     break-inside: avoid;
   }
 }
-._title_19l1b_1 {
-  margin-left: 0.5em;
+._title_xefxk_1 {
   display: grid;
   grid-template-columns: max-content max-content minmax(0, 1fr);
-  column-gap: 0.5em;
+  column-gap: 0.3em;
 }
 
-._contents_19l1b_8 {
+._contents_xefxk_7 {
   padding: 0.4em;
   margin-bottom: 0;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
+}
+
+._below_xefxk_14 {
+  margin-top: 0.4em;
 }
 ._container_1ww70_1 {
   margin: 1em 0 0 0;
@@ -19628,6 +19677,18 @@ a._citationLink_1ggvf_9:hover {
 ._sidebarHeaderClose_130zy_166:hover {
   opacity: 0.7;
 }
+._headline_1l22a_1 {
+  display: block;
+  min-width: 0;
+}
+
+._inlineExplanation_1l22a_6 {
+  margin-left: 0.3em;
+}
+
+._rejected_1l22a_10 {
+  color: var(--bs-danger);
+}
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
@@ -19942,46 +20003,56 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_1qsnv_1 {
+._summary_1gtzx_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._approval_1qsnv_6 {
+._approvalWrap_1gtzx_6 {
+  margin-top: 0.5rem;
+}
+
+._approval_1gtzx_6 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_1qsnv_12 {
+._progress_1gtzx_16 {
   margin-left: 0.5em;
 }
-._node_1nuy2_1 {
+._node_miohh_1 {
   padding-top: 0.8rem;
 }
 
-._attached_1nuy2_5 {
+._attached_miohh_5 {
   padding-top: 0rem;
 }
 
-._attachedParent_1nuy2_9 {
+._attachedParent_miohh_9 {
   padding-bottom: 0px;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   border-bottom: none;
 }
 
-._attachedChild_1nuy2_16 {
+._attachedChild_miohh_16 {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
-._last_1nuy2_21 {
+._depthRoot_miohh_21 {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+}
+
+._last_miohh_27 {
   padding-bottom: 0.8rem;
 }
 
 @media print {
-  ._node_1nuy2_1 {
+  ._node_miohh_1 {
     break-inside: avoid;
   }
 }

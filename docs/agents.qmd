@@ -5,22 +5,21 @@ llms-description: Agents combine planning, memory, and tool usage to pursue comp
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
+Agents combine planning, memory, and tool usage to pursue more complex, tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect's built-in [ReAct Agent](react-agent.qmd).
 
-2.  Implementing a fully [Custom Agent](agent-custom.qmd).
+2.  Using the [Deep Agent](deepagent.qmd) for long-horizon tasks with subagent delegation, memory, and planning.
 
-3.  Composing agents into [Multi Agent](multi-agent.qmd) architectures.
+3.  Using software engineering agents like Claude Code and Codex CLI via the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package.
 
-4.  Integrating external frameworks via the [Agent Bridge](agent-bridge.qmd).
+3.  Implementing a fully [Custom Agent](agent-custom.qmd), potentially composing agents into [Multi Agent](multi-agent.qmd) architectures.
 
-5.  Using the [Human Agent](human-agent.qmd) for human baselining of computing tasks.
+5.  Integrating external agent frameworks via the [Agent Bridge](agent-bridge.qmd).
 
-Below, we'll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct agent, custom agents, and multi-agent systems.
+6.  Using the [Human Agent](human-agent.qmd) for human baselining of computing tasks.
 
-If you are looking for state of the art software engineering agents, check out the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package which makes Claude Code and Codex CLI available as standard Inspect agents.
-
+Below, we'll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 
 ## Agent Basics
 
@@ -159,6 +158,8 @@ Agents can be used in the following ways:
 See these additional articles to learn more about creating agent evaluations with Inspect:
 
 -   [ReAct Agent](react-agent.qmd) provides details on using and customizing the built-in ReAct agent.
+
+-   [Deep Agent](deepagent.qmd) describes a batteries-included agent for long-horizon tasks.
 
 -   [Multi Agent](multi-agent.qmd) covers various ways to compose agents together in multi-agent architectures.
 

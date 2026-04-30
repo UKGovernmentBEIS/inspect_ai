@@ -334,6 +334,20 @@ Score(
 
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your `Score`, as this makes it much easier to understand the details of scoring when viewing the eval log file.
 
+#### Unscored Samples
+
+When a scorer cannot produce a value for a sample (e.g. an external grader returned no result, the model refused, or an error occurred) but you still want to record context, use `Score.unscored()`:
+
+``` python
+return Score.unscored(
+    answer=extracted,
+    explanation="grader returned no result",
+    metadata={"reason": "timeout"},
+)
+```
+
+Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
+
 ### Value
 
 `Value` is union over the main scalar types as well as a `list` or `dict` of the same types:

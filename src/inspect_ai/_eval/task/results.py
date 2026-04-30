@@ -379,10 +379,16 @@ def scorers_from_metric_dict(
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
 
-    # Expand any metric keys
+    # Expand any metric keys. Use the first sample with a dict-valued score as
+    # the base for key globbing; samples with NaN-at-root (unscored sentinels)
+    # are skipped here and counted toward unscored_samples below.
+    base_score = next(
+        (s.score for s in sample_scores if isinstance(s.score.value, dict)),
+        None,
+    )
     resolved_metrics = (
-        resolve_glob_metric_keys(metrics, sample_scores[0].score)
-        if len(sample_scores) > 0
+        resolve_glob_metric_keys(metrics, base_score)
+        if base_score is not None
         else metrics
     )
 
@@ -396,13 +402,17 @@ def scorers_from_metric_dict(
         scored_samples = 0
 
         for sample_score in sample_scores:
-            if isinstance(sample_score.score.value, dict):
-                if metric_key in sample_score.score.value:
+            value = sample_score.score.value
+            # NaN-at-root is the unscored sentinel: count toward unscored_samples
+            # and skip without requiring the value to be a dict.
+            if isinstance(value, float) and np.isnan(value):
+                unscored_samples += 1
+                continue
+            if isinstance(value, dict):
+                if metric_key in value:
                     # Convert the score into a simple scalar value to apply metrics
                     metric_score = deepcopy(sample_score)
-                    metric_score.score.value = cast(
-                        float, sample_score.score.value[metric_key]
-                    )
+                    metric_score.score.value = cast(float, value[metric_key])
                     if isinstance(metric_score.score.value, float) and np.isnan(
                         metric_score.score.value
                     ):
