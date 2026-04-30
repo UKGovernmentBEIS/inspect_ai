@@ -54,6 +54,7 @@ async def write_sidecar(
     checkpoint_id: int,
     trigger: CheckpointTrigger,
     turn: int,
+    host_snapshot_id: str | None = None,
 ) -> str:
     """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path."""
     return await anyio.to_thread.run_sync(
@@ -62,6 +63,7 @@ async def write_sidecar(
         checkpoint_id,
         trigger,
         turn,
+        host_snapshot_id,
     )
 
 
@@ -70,17 +72,18 @@ def _write_sidecar_blocking(
     checkpoint_id: int,
     trigger: CheckpointTrigger,
     turn: int,
+    host_snapshot_id: str | None,
 ) -> str:
     sidecar = CheckpointSidecar(
         checkpoint_id=checkpoint_id,
         trigger=trigger,
         turn=turn,
         created_at=datetime.now(timezone.utc),
-        # Phase 3 (in progress): host repo write isn't wired yet, so
-        # there is no real snapshot to reference and no I/O cost to
-        # report. These fields get real values in subsequent slices.
+        # Phase 3 (in progress): no I/O cost reported until the cycle
+        # is wrapped in timing instrumentation.
         duration_ms=0,
         size_bytes=0,
+        host_snapshot_id=host_snapshot_id,
     )
 
     sidecar_path = f"{sample_checkpoints_dir}/ckpt-{checkpoint_id:05d}.json"

@@ -12,15 +12,20 @@ from __future__ import annotations
 
 import time
 from contextvars import ContextVar, Token
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol
 
 import anyio
 
 from inspect_ai.log._samples import sample_active
+from inspect_ai.util._restic._resolver import resolve_restic
+from inspect_ai.util._sandbox.context import sandbox
 
 from ._config import CheckpointConfig, TimeInterval, TurnInterval
+from ._eval_checkpoints import read_eval_manifest
 from ._layout import CheckpointTrigger
+from ._restic import init_host_repo, inject_restic, run_host_backup
 from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
 from ._working_dir import ensure_sample_working_dir
 
@@ -111,10 +116,18 @@ class Checkpointer:
         sample_working_dir = await ensure_sample_working_dir(
             active.log_location, active.sample.id, active.epoch
         )
+        manifest = await read_eval_manifest(active.log_location)
+        host_restic = await resolve_restic()
+        host_repo = f"{sample_checkpoints_dir}/host"
+        await init_host_repo(host_restic, host_repo, manifest.restic_password)
+        for sandbox_name in self._config.sandbox_paths:
+            await inject_restic(sandbox(sandbox_name))
         return _Checkpointer(
             config=self._config,
             sample_checkpoints_dir=sample_checkpoints_dir,
             sample_working_dir=sample_working_dir,
+            host_restic=host_restic,
+            restic_password=manifest.restic_password,
         )
 
 
@@ -136,10 +149,15 @@ class _Checkpointer:
         config: CheckpointConfig[Any],
         sample_checkpoints_dir: str,
         sample_working_dir: str,
+        host_restic: Path,
+        restic_password: str,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
         self._sample_working_dir = sample_working_dir
+        self._host_restic = host_restic
+        self._host_repo = f"{sample_checkpoints_dir}/host"
+        self._restic_password = restic_password
         self._turn = 0
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
@@ -178,12 +196,12 @@ class _Checkpointer:
         raise AssertionError(f"unexpected policy: {policy!r}")
 
     async def _fire(self, trigger: CheckpointTrigger) -> None:
-        # Phase 3 (in progress): writes placeholder content into the
-        # sample working dir and a per-checkpoint sidecar. Host repo
-        # init + real snapshot ids land in subsequent slices.
+        # Phase 3 (in progress): writes placeholder host context, runs
+        # restic backup against the host working dir, then writes the
+        # per-checkpoint sidecar. Sandbox backups land in a future slice.
         await self._write_host_context(self._sample_working_dir, self._turn)
 
-        await self._backup_host()
+        host_snapshot_id = await self._backup_host()
         await self._backup_sandboxes()
 
         await write_sidecar(
@@ -191,6 +209,7 @@ class _Checkpointer:
             checkpoint_id=self._next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
+            host_snapshot_id=host_snapshot_id,
         )
         self._next_checkpoint_id += 1
         self._turns_since_fire = 0
@@ -210,8 +229,14 @@ class _Checkpointer:
         )
         await (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
 
-    async def _backup_host(self) -> None:
-        pass
+    async def _backup_host(self) -> str:
+        return await run_host_backup(
+            self._host_restic,
+            self._host_repo,
+            self._restic_password,
+            self._sample_working_dir,
+            self._next_checkpoint_id,
+        )
 
     async def _backup_sandboxes(self) -> None:
         pass

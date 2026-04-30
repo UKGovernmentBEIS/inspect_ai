@@ -48,7 +48,7 @@ def dirs(tmp_path: Path) -> _Dirs:
 
 
 class _CountingCheckpointer(_Checkpointer):
-    """Counts fires on top of the real fire path."""
+    """Counts fires on top of the real fire path; stubs out restic."""
 
     fire_count: int = 0
 
@@ -56,12 +56,17 @@ class _CountingCheckpointer(_Checkpointer):
         await super()._fire(trigger)
         self.fire_count += 1
 
+    async def _backup_host(self) -> str:
+        return f"fake-snap-{self._next_checkpoint_id:05d}"
+
 
 def _counting(config: CheckpointConfig[Any], dirs: _Dirs) -> _CountingCheckpointer:
     return _CountingCheckpointer(
         config=config,
         sample_checkpoints_dir=dirs.checkpoints,
         sample_working_dir=dirs.working,
+        host_restic=Path("/fake/restic"),
+        restic_password="test-pwd",
     )
 
 
@@ -175,12 +180,48 @@ def _patch_cache_dir(tmp_path: Path) -> Iterator[None]:
         yield
 
 
+@contextmanager
+def _patch_restic(tmp_path: Path) -> Iterator[None]:
+    """Stub out everything that would actually run restic."""
+    fake_binary = tmp_path / "fake_restic"
+    fake_binary.write_bytes(b"#!/bin/sh\nexit 0\n")
+
+    async def fake_resolve(platform: object = None) -> Path:
+        return fake_binary
+
+    async def fake_init_host_repo(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    async def fake_run_host_backup(*_args: object, **_kwargs: object) -> str:
+        return "fake-snap"
+
+    with (
+        patch(
+            "inspect_ai.checkpoint._checkpointer.resolve_restic",
+            side_effect=fake_resolve,
+        ),
+        patch(
+            "inspect_ai.checkpoint._checkpointer.init_host_repo",
+            side_effect=fake_init_host_repo,
+        ),
+        patch(
+            "inspect_ai.checkpoint._checkpointer.run_host_backup",
+            side_effect=fake_run_host_backup,
+        ),
+    ):
+        yield
+
+
 @pytest.fixture
 def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
     """Active sample fixture; redirects on-disk writes under tmp_path."""
     fake = _FakeActiveSample(log_location=str(tmp_path / "logs" / "test.eval"))
     (tmp_path / "logs").mkdir()
-    with _patch_sample_active(fake), _patch_cache_dir(tmp_path):
+    with (
+        _patch_sample_active(fake),
+        _patch_cache_dir(tmp_path),
+        _patch_restic(tmp_path),
+    ):
         yield fake
 
 

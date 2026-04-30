@@ -69,3 +69,14 @@ def _init_eval_checkpoints_dir_blocking(log_location: str, eval_id: str) -> str:
     with file(manifest_path, "w") as f:
         f.write(manifest.model_dump_json(indent=2))
     return eval_checkpoints_dir
+
+
+async def read_eval_manifest(log_location: str) -> CheckpointManifest:
+    """Read the eval-level manifest. Caller must have ensured it exists."""
+    return await anyio.to_thread.run_sync(_read_eval_manifest_blocking, log_location)
+
+
+def _read_eval_manifest_blocking(log_location: str) -> CheckpointManifest:
+    manifest_path = f"{_eval_checkpoints_dir(log_location)}/manifest.json"
+    with file(manifest_path, "r") as f:
+        return CheckpointManifest.model_validate_json(f.read())
