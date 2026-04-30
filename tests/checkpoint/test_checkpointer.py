@@ -26,7 +26,7 @@ from inspect_ai.checkpoint import (
     TurnInterval,
 )
 from inspect_ai.checkpoint._checkpointer import _Checkpointer
-from inspect_ai.checkpoint._layout import CheckpointTrigger
+from inspect_ai.checkpoint._layout import CheckpointTriggerKind
 from inspect_ai.checkpoint._restic import ResticBackupSummary
 
 
@@ -76,7 +76,7 @@ class _CountingCheckpointer(_Checkpointer):
 
     fire_count: int = 0
 
-    async def _fire(self, trigger: CheckpointTrigger) -> None:
+    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
         await super()._fire(trigger)
         self.fire_count += 1
 
@@ -98,14 +98,14 @@ def _counting(config: CheckpointConfig[Any], dirs: _Dirs) -> _CountingCheckpoint
 
 
 async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(policy=TurnInterval(every=3)), dirs)
+    cp = _counting(CheckpointConfig(trigger=TurnInterval(every=3)), dirs)
     for _ in range(9):
         await cp.tick()
     assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(policy=TurnInterval(every=4)), dirs)
+    cp = _counting(CheckpointConfig(trigger=TurnInterval(every=4)), dirs)
     for _ in range(3):
         await cp.tick()
     assert cp.fire_count == 0
@@ -131,7 +131,7 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 
     with patch("inspect_ai.checkpoint._checkpointer.time.monotonic", clock):
         cp = _counting(
-            CheckpointConfig(policy=TimeInterval(every=timedelta(seconds=10))), dirs
+            CheckpointConfig(trigger=TimeInterval(every=timedelta(seconds=10))), dirs
         )
         fake_now[0] = 1004.0
         await cp.tick()
@@ -154,14 +154,14 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 
 
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(policy="manual"), dirs)
+    cp = _counting(CheckpointConfig(trigger="manual"), dirs)
     for _ in range(50):
         await cp.tick()
     assert cp.fire_count == 0
 
 
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(policy="manual"), dirs)
+    cp = _counting(CheckpointConfig(trigger="manual"), dirs)
     await cp.tick()
     await cp.checkpoint()
     await cp.checkpoint()
@@ -267,7 +267,7 @@ async def test_none_config_works_without_active_sample() -> None:
 
 
 async def test_aenter_without_active_sample_raises() -> None:
-    cp = Checkpointer(CheckpointConfig(policy=TurnInterval(every=1)))
+    cp = Checkpointer(CheckpointConfig(trigger=TurnInterval(every=1)))
     with (
         _patch_sample_active(None),
         pytest.raises(RuntimeError, match="sample_active.. returned None"),
@@ -286,7 +286,7 @@ async def test_fire_writes_manifest_and_sidecars(
     active_sample.sample.id = "s7"
     active_sample.epoch = 2
 
-    async with Checkpointer(CheckpointConfig(policy=TurnInterval(every=2))) as cp:
+    async with Checkpointer(CheckpointConfig(trigger=TurnInterval(every=2))) as cp:
         await cp.tick()  # turn 1, no fire
         await cp.tick()  # turn 2, fires
         await cp.tick()  # turn 3, no fire

@@ -98,13 +98,13 @@ context var.
 **What landed:**
 
 - `react()` and `react_no_submit()` accept an optional
-  `checkpoint_config: CheckpointConfig[NonManualCheckpointPolicy] | None
+  `checkpoint_config: CheckpointConfig[NonManualCheckpointTrigger] | None
   = None`. The execute body runs inside `async with
   Checkpointer(checkpoint_config) as cp:` and calls `await cp.tick()`
   per loop iteration. `None` is a true no-op (no ContextVar set), so
   `await checkpoint()` from helper code raises rather than silently
   succeeding.
-- `NonManualCheckpointPolicy` type alias keeps `policy="manual"` out of
+- `NonManualCheckpointTrigger` type alias keeps `trigger="manual"` out of
   agents whose loops have no hook for the manual trigger.
 - `Checkpointer.__aenter__` captures `sample_id`, `epoch`,
   `log_location`, and `eval_id` from `sample_active()` into

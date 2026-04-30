@@ -7,7 +7,7 @@ from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.checkpoint import (
     CheckpointConfig,
     Checkpointer,
-    NonManualCheckpointPolicy,
+    NonManualCheckpointTrigger,
 )
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
@@ -62,7 +62,7 @@ def react(
     compaction: CompactionStrategy | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
     approval: list[ApprovalPolicy] | None = None,
-    checkpoint_config: CheckpointConfig[NonManualCheckpointPolicy] | None = None,
+    checkpoint_config: CheckpointConfig[NonManualCheckpointTrigger] | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -367,7 +367,7 @@ def react_no_submit(
     compaction: CompactionStrategy | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
     approval: list[ApprovalPolicy] | None,
-    checkpoint_config: CheckpointConfig[NonManualCheckpointPolicy] | None,
+    checkpoint_config: CheckpointConfig[NonManualCheckpointTrigger] | None,
 ) -> Agent:
     # resolve tools
     tools = list(tools) if tools is not None else []

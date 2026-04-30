@@ -123,7 +123,7 @@ def cp_ctf() -> Task:
             # Checkpointer.  Set here so the harness exercises the public
             # API surface that Phase 3+ will give real teeth.
             checkpoint_config=CheckpointConfig(
-                policy=TurnInterval(1),
+                trigger=TurnInterval(1),
                 sandbox_paths={"default": ["/workspace"]},
             ),
         ),

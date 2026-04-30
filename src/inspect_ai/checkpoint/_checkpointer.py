@@ -25,7 +25,7 @@ from inspect_ai.util._sandbox.context import sandbox
 
 from ._config import CheckpointConfig, TimeInterval, TurnInterval
 from ._eval_checkpoints import read_eval_manifest
-from ._layout import CheckpointTrigger, SnapshotInfo
+from ._layout import CheckpointTriggerKind, SnapshotInfo
 from ._restic import (
     ResticBackupSummary,
     init_host_repo,
@@ -183,7 +183,7 @@ class _Checkpointer:
         await self._fire("manual")
 
     def _should_fire(self) -> bool:
-        policy = self._config.policy
+        policy = self._config.trigger
         if policy == "manual":
             return False
         if isinstance(policy, TimeInterval):
@@ -194,8 +194,8 @@ class _Checkpointer:
         # __init__ rejects the other variants; this is unreachable.
         raise AssertionError(f"unexpected policy: {policy!r}")
 
-    def _policy_trigger(self) -> CheckpointTrigger:
-        policy = self._config.policy
+    def _policy_trigger(self) -> CheckpointTriggerKind:
+        policy = self._config.trigger
         if isinstance(policy, TimeInterval):
             return "time"
         if isinstance(policy, TurnInterval):
@@ -205,7 +205,7 @@ class _Checkpointer:
         # construction time.
         raise AssertionError(f"unexpected policy: {policy!r}")
 
-    async def _fire(self, trigger: CheckpointTrigger) -> None:
+    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.

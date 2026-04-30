@@ -19,7 +19,7 @@ import anyio
 from inspect_ai._util.file import file, filesystem
 
 from ._eval_checkpoints import _eval_checkpoints_dir, init_eval_checkpoints_dir
-from ._layout import CheckpointSidecar, CheckpointTrigger, SnapshotInfo
+from ._layout import CheckpointSidecar, CheckpointTriggerKind, SnapshotInfo
 
 
 def _sample_checkpoints_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
@@ -52,7 +52,7 @@ async def write_sidecar(
     *,
     sample_checkpoints_dir: str,
     checkpoint_id: int,
-    trigger: CheckpointTrigger,
+    trigger: CheckpointTriggerKind,
     turn: int,
     host: SnapshotInfo,
     sandboxes: dict[str, SnapshotInfo],
@@ -74,7 +74,7 @@ async def write_sidecar(
 def _write_sidecar_blocking(
     sample_checkpoints_dir: str,
     checkpoint_id: int,
-    trigger: CheckpointTrigger,
+    trigger: CheckpointTriggerKind,
     turn: int,
     host: SnapshotInfo,
     sandboxes: dict[str, SnapshotInfo],

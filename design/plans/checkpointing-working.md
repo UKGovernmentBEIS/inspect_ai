@@ -134,14 +134,13 @@ class BudgetPercent:
     budget: Literal["token", "cost", "time", "working"]
     percent: float                # e.g. 10.0 → every 10% of the named budget
 
-CheckpointPolicy = (
+CheckpointTrigger = (
     TimeInterval         # every N of wall-clock time
     | TurnInterval       # every N agent turns
     | TokenInterval      # every N tokens generated
     | CostInterval       # every $N spent
     | BudgetPercent      # at percentage milestones of a named budget
     | Literal["manual"]  # agent-triggered via await checkpoint()
-    | None               # disabled
 )
 
 @dataclass
@@ -152,8 +151,8 @@ class Retention:
     later inspection or replay. See §8d."""
 
 class CheckpointConfig:
-    policy: CheckpointPolicy = None
-    """Checkpoint trigger. All policies fire at the next turn boundary
+    trigger: CheckpointTrigger
+    """Checkpoint trigger. All triggers fire at the next turn boundary
     after the trigger condition is reached. See bullets below."""
 
     sandbox_paths: dict[str, list[str]] = {}
@@ -168,15 +167,14 @@ class CheckpointConfig:
     """Controls when checkpoint data is deleted. See §8d."""
 ```
 
-All policies fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
+All triggers fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint. To disable checkpointing, omit the ``CheckpointConfig`` (or pass ``None`` to a checkpointing-aware agent).
 
--   **None** — checkpointing disabled.
--   **Time-based** (`policy=TimeInterval(every=timedelta(minutes=15))`) — approximately every N seconds/minutes of wall-clock time; fires at the next turn boundary after the interval elapses (effective interval ≥ N).
--   **Turn-based** (`policy=TurnInterval(every=5)`) — every N agent turns.
--   **Token-based** (`policy=TokenInterval(every=100_000)`) — every N tokens generated.
--   **Cost-based** (`policy=CostInterval(every=5.00)`) — every $N of model spend.
--   **Budget-percentage** (`policy=BudgetPercent(budget="cost", percent=10)`) — fires at percentage milestones of one of inspect's configured limits. `budget` is one of `"token"`, `"cost"`, `"time"` (wall-clock from `time_limit`), `"working"` (agent-active from `working_limit`); `percent` is the step size (e.g. `10` → fires at 10%, 20%, …). Requires the corresponding `*_limit` to be set on the task or sample.
--   **Manual** (`policy="manual"`) — agent-triggered via an inspect-provided Python function (e.g. `from inspect_ai import checkpoint; await checkpoint(...)`). Not a model-callable tool — this is a programmatic hook for agent authors, not a prompt-engineering surface for the model.
+-   **Time-based** (`trigger=TimeInterval(every=timedelta(minutes=15))`) — approximately every N seconds/minutes of wall-clock time; fires at the next turn boundary after the interval elapses (effective interval ≥ N).
+-   **Turn-based** (`trigger=TurnInterval(every=5)`) — every N agent turns.
+-   **Token-based** (`trigger=TokenInterval(every=100_000)`) — every N tokens generated.
+-   **Cost-based** (`trigger=CostInterval(every=5.00)`) — every $N of model spend.
+-   **Budget-percentage** (`trigger=BudgetPercent(budget="cost", percent=10)`) — fires at percentage milestones of one of inspect's configured limits. `budget` is one of `"token"`, `"cost"`, `"time"` (wall-clock from `time_limit`), `"working"` (agent-active from `working_limit`); `percent` is the step size (e.g. `10` → fires at 10%, 20%, …). Requires the corresponding `*_limit` to be set on the task or sample.
+-   **Manual** (`trigger="manual"`) — agent-triggered via an inspect-provided Python function (e.g. `from inspect_ai import checkpoint; await checkpoint(...)`). Not a model-callable tool — this is a programmatic hook for agent authors, not a prompt-engineering surface for the model.
 
 ### Sandbox paths
 
