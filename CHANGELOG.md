@@ -2,6 +2,7 @@
 
 - OpenRouter: Escape signature attribute in <think> tag round-trip.
 - Logging: Add sample id, epoch, and task name to log records.
+- Docker: Skip `docker pull` for service images already present in the local Docker daemon.
 
 ## 0.3.215 (30 April 2026)
 

@@ -45,6 +45,7 @@ from .compose import (
     compose_pull,
     compose_services,
     compose_up,
+    docker_image_exists_locally,
 )
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
@@ -112,15 +113,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     service.get("build", None) is None
                     and service.get("x-local", None) is None
                 ):
+                    # skip the pull if the image is already available locally
+                    # (avoids noisy errors for images loaded via 'docker load')
+                    if image and await docker_image_exists_locally(image):
+                        print(f"Service {name}: using local image '{image}'.")
+                        continue
                     pull_result = await compose_pull(name, project)
                     if not pull_result.success:
                         image = service.get("image", "(unknown)")
                         logger.error(
                             f"Failed to pull docker image '{image}' from remote registry. If this is a locally built image add 'x-local: true' to the the service definition to prevent this error."
                         )
-
-            # provide some space above task display
-            print("")
 
         except BaseException as ex:
             await project_cleanup_shutdown(True)
