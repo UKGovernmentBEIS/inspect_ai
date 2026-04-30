@@ -22,7 +22,6 @@ _LOG_SUFFIX = ".eval"
 
 
 def _eval_working_dir(log_location: str) -> Path:
-    """Return the eval working dir path."""
     log_base = basename(log_location)
     if log_base.endswith(_LOG_SUFFIX):
         log_base = log_base[: -len(_LOG_SUFFIX)]
@@ -30,14 +29,28 @@ def _eval_working_dir(log_location: str) -> Path:
 
 
 def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> Path:
-    """Return the sample working dir path."""
     return _eval_working_dir(log_location) / f"{sample_id}__{epoch}"
 
 
-async def write_sample_working_dir(
-    log_location: str, sample_id: int | str, epoch: int, turn: int
+async def ensure_sample_working_dir(
+    log_location: str, sample_id: int | str, epoch: int
 ) -> Path:
-    """Materialize the sample working dir.
+    """Create (idempotent) and return the sample working dir path."""
+    return await anyio.to_thread.run_sync(
+        _ensure_sample_working_dir_blocking, log_location, sample_id, epoch
+    )
+
+
+def _ensure_sample_working_dir_blocking(
+    log_location: str, sample_id: int | str, epoch: int
+) -> Path:
+    sample_dir = _sample_working_dir(log_location, sample_id, epoch)
+    sample_dir.mkdir(parents=True, exist_ok=True)
+    return sample_dir
+
+
+async def write_sample_working_dir(sample_working_dir: Path, turn: int) -> None:
+    """Materialize the sample working dir's contents.
 
     Phase 3 (in progress): writes placeholder ``context.json`` and
     ``store.json``. Each carries the current ``turn`` so successive
@@ -46,23 +59,17 @@ async def write_sample_working_dir(
     Replaced by real condensed-context and ``Store`` serialization in
     subsequent slices.
     """
-    return await anyio.to_thread.run_sync(
-        _write_sample_working_dir_blocking, log_location, sample_id, epoch, turn
+    await anyio.to_thread.run_sync(
+        _write_sample_working_dir_blocking, sample_working_dir, turn
     )
 
 
-def _write_sample_working_dir_blocking(
-    log_location: str, sample_id: int | str, epoch: int, turn: int
-) -> Path:
-    sample_dir = _sample_working_dir(log_location, sample_id, epoch)
-    sample_dir.mkdir(parents=True, exist_ok=True)
-
+def _write_sample_working_dir_blocking(sample_working_dir: Path, turn: int) -> None:
     # TODO(checkpointing-phase-3): replace with the condensed
     # representation produced by `condense_sample()` (§5).
-    (sample_dir / "context.json").write_text(
+    (sample_working_dir / "context.json").write_text(
         f'{{"turn": {turn}, "messages": [], "events": []}}\n'
     )
     # TODO(checkpointing-phase-3): replace with the sample's `Store`
     # key/value state.
-    (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
-    return sample_dir
+    (sample_working_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')

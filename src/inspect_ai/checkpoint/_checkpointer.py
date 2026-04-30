@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import time
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from pathlib import Path
 from types import TracebackType
 from typing import Any
 
@@ -31,8 +31,8 @@ from ._config import (
 )
 from ._eval_checkpoints import init_eval_checkpoints_dir
 from ._layout import CheckpointTrigger
-from ._sample_checkpoints import write_sidecar
-from ._working_dir import write_sample_working_dir
+from ._sample_checkpoints import ensure_sample_checkpoints_dir, write_sidecar
+from ._working_dir import ensure_sample_working_dir, write_sample_working_dir
 
 # Scaffolding for ambient lookup of the active Checkpointer from code
 # that doesn't hold a Checkpointer reference. Currently consumed only by
@@ -48,21 +48,6 @@ _active_checkpointer: ContextVar["Checkpointer | None"] = ContextVar(
 )
 
 _NOT_YET_IMPLEMENTED = (TokenInterval, CostInterval, BudgetPercent)
-
-
-@dataclass(frozen=True)
-class _SampleIdentity:
-    """Identity captured from `ActiveSample` at `__aenter__` time.
-
-    Used in Phase 3 to compute on-disk checkpoint paths. The retry /
-    attempt index is intentionally **not yet** captured here — see the
-    note on `Checkpointer.__aenter__` below.
-    """
-
-    sample_id: int | str | None
-    epoch: int
-    log_location: str
-    eval_id: str | None
 
 
 class Checkpointer:
@@ -98,10 +83,10 @@ class Checkpointer:
         self._turn: int = 0
         self._turns_since_fire: int = 0
         self._last_fire_monotonic: float = time.monotonic()
-        self._identity: _SampleIdentity | None = None
-        # Set on first fire by `_ensure_eval_checkpoints_dir()`;
-        # subsequent fires short-circuit the manifest stat/read.
-        self._eval_checkpoints_dir: str | None = None
+        # Set in `__aenter__` from the active sample; `_fire()` writes
+        # into these directly. None on a no-op Checkpointer.
+        self._sample_checkpoints_dir: str | None = None
+        self._sample_working_dir: Path | None = None
         self._next_checkpoint_id: int = 1
 
     async def __aenter__(self) -> "Checkpointer":
@@ -113,9 +98,8 @@ class Checkpointer:
         if self._config is None:
             return self
 
-        # Capture sample/epoch/log identity for use by `_fire()` in
-        # Phase 3.  Entering an active Checkpointer outside a sample
-        # context is a programming error.
+        # Entering an active Checkpointer outside a sample context is
+        # a programming error.
         #
         # TODO(checkpointing-phase-3): capture the sample-level retry /
         # attempt index. `ActiveSample` does not currently carry it; the
@@ -130,11 +114,25 @@ class Checkpointer:
                 "Checkpointer must be entered within a sample's execution "
                 "context; sample_active() returned None."
             )
-        self._identity = _SampleIdentity(
-            sample_id=active.sample.id,
-            epoch=active.epoch,
-            log_location=active.log_location,
-            eval_id=active.eval_id,
+        if active.eval_id is None:
+            raise RuntimeError(
+                "Checkpointer cannot initialize: ActiveSample.eval_id is None."
+            )
+        if active.sample.id is None:
+            raise RuntimeError(
+                "Checkpointer cannot initialize: ActiveSample.sample.id is None."
+            )
+        log_location, sample_id, epoch = (
+            active.log_location,
+            active.sample.id,
+            active.epoch,
+        )
+        await init_eval_checkpoints_dir(log_location, active.eval_id)
+        self._sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
+            log_location, sample_id, epoch
+        )
+        self._sample_working_dir = await ensure_sample_working_dir(
+            log_location, sample_id, epoch
         )
         self._reset_token = _active_checkpointer.set(self)
         return self
@@ -193,29 +191,15 @@ class Checkpointer:
         raise AssertionError(f"unexpected policy: {policy!r}")
 
     async def _fire(self, trigger: CheckpointTrigger) -> None:
-        # Phase 3 (in progress): the on-disk side currently writes the
-        # eval manifest (first fire only), the sample working dir's
-        # placeholder context.json/store.json, and a per-checkpoint
-        # sidecar. Host repo init, real snapshot ids, and sandbox repos
-        # land in subsequent slices.
-        await self._ensure_eval_checkpoints_dir()
-        assert self._identity is not None
-        if self._identity.sample_id is None:
-            raise RuntimeError(
-                "Checkpointer cannot write a sidecar: ActiveSample.sample.id is None."
-            )
-        # Materialize the sample working dir (the source restic backs
-        # up each cycle). Overwritten in place every fire.
-        await write_sample_working_dir(
-            self._identity.log_location,
-            self._identity.sample_id,
-            self._identity.epoch,
-            self._turn,
-        )
+        # Phase 3 (in progress): writes placeholder content into the
+        # sample working dir and a per-checkpoint sidecar. Host repo
+        # init + real snapshot ids land in subsequent slices.
+        assert self._sample_working_dir is not None
+        assert self._sample_checkpoints_dir is not None
+        # Sample working dir is overwritten in place every fire.
+        await write_sample_working_dir(self._sample_working_dir, self._turn)
         await write_sidecar(
-            log_location=self._identity.log_location,
-            sample_id=self._identity.sample_id,
-            epoch=self._identity.epoch,
+            sample_checkpoints_dir=self._sample_checkpoints_dir,
             checkpoint_id=self._next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
@@ -223,18 +207,6 @@ class Checkpointer:
         self._next_checkpoint_id += 1
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
-
-    async def _ensure_eval_checkpoints_dir(self) -> None:
-        if self._eval_checkpoints_dir is not None:
-            return
-        assert self._identity is not None, "fire path requires captured identity"
-        if self._identity.eval_id is None:
-            raise RuntimeError(
-                "Checkpointer cannot write a manifest: ActiveSample.eval_id is None."
-            )
-        self._eval_checkpoints_dir = await init_eval_checkpoints_dir(
-            self._identity.log_location, self._identity.eval_id
-        )
 
 
 async def checkpoint() -> None:

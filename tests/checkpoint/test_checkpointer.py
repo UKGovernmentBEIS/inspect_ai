@@ -1,13 +1,13 @@
-"""Pure policy tests for the Phase 2 Checkpointer skeleton.
+"""Policy tests for the Checkpointer.
 
-No I/O, no event stream — these exercise the decision logic only,
-counting how many times ``_fire()`` is invoked under various policies
-and externally controlled time/turn schedules.
+These exercise the decision logic — counting how many times ``_fire()``
+fires under various policies and externally controlled time/turn
+schedules. ``__aenter__`` does materialize the on-disk dirs, so the
+fixture redirects writes to a tmp dir.
 """
 
 from __future__ import annotations
 
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -31,15 +31,12 @@ from inspect_ai.checkpoint._layout import CheckpointTrigger
 
 
 class _CountingCheckpointer(Checkpointer):
-    """Counts fires for assertions; skips on-disk writes."""
+    """Counts fires for assertions; still runs the real fire path."""
 
     fire_count: int = 0
 
     async def _fire(self, trigger: CheckpointTrigger) -> None:
-        # Pure policy tests count fires only; the I/O paths live in
-        # `test_eval_dir.py` and `test_attempt.py`.
-        self._turns_since_fire = 0
-        self._last_fire_monotonic = time.monotonic()
+        await super()._fire(trigger)
         self.fire_count += 1
 
 
@@ -54,7 +51,7 @@ class _FakeSample:
 class _FakeActiveSample:
     sample: _FakeSample = field(default_factory=_FakeSample)
     epoch: int = 0
-    log_location: str = "/tmp/test.eval"
+    log_location: str = ""  # filled in by the `active_sample` fixture
     eval_id: str | None = "test-eval-001"
 
 
@@ -64,11 +61,26 @@ def _patch_sample_active(value: object) -> Iterator[None]:
         yield
 
 
+@contextmanager
+def _patch_cache_dir(tmp_path: Path) -> Iterator[None]:
+    def fake_cache_dir(subdir: str | None) -> Path:
+        d = tmp_path / "cache" / (subdir or "")
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    with patch(
+        "inspect_ai.checkpoint._working_dir.inspect_cache_dir",
+        side_effect=fake_cache_dir,
+    ):
+        yield
+
+
 @pytest.fixture
-def active_sample() -> Iterator[_FakeActiveSample]:
-    """Make ``sample_active()`` return a fake for tests that enter a Checkpointer."""
-    fake = _FakeActiveSample()
-    with _patch_sample_active(fake):
+def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
+    """Active sample fixture; redirects on-disk writes under tmp_path."""
+    fake = _FakeActiveSample(log_location=str(tmp_path / "logs" / "test.eval"))
+    (tmp_path / "logs").mkdir()
+    with _patch_sample_active(fake), _patch_cache_dir(tmp_path):
         yield fake
 
 
@@ -235,51 +247,33 @@ async def test_checkpoint_outside_context_raises() -> None:
 # --- end-to-end fire writes manifest + sidecar ----------------------------
 
 
-async def test_fire_writes_manifest_and_sidecars(tmp_path: Path) -> None:
+async def test_fire_writes_manifest_and_sidecars(
+    active_sample: _FakeActiveSample, tmp_path: Path
+) -> None:
     """Driving a real `Checkpointer` end-to-end writes the destination dir + working tree.
 
     This complements the pure policy tests above; the I/O paths
     themselves are covered in `test_eval_checkpoints.py`,
     `test_sample_checkpoints.py`, and `test_working_dir.py`.
     """
-    dest = tmp_path / "dest"
-    cache = tmp_path / "cache"
-    dest.mkdir()
+    active_sample.sample.id = "s7"
+    active_sample.epoch = 2
 
-    def fake_cache_dir(subdir: str | None) -> Path:
-        d = cache / (subdir or "")
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-
-    log = dest / "foo.eval"
-    fake = _FakeActiveSample(
-        sample=_FakeSample(id="s7"),
-        epoch=2,
-        log_location=str(log),
-        eval_id="eval-xyz",
-    )
     cp = Checkpointer(CheckpointConfig(policy=TurnInterval(every=2)))
-    with (
-        _patch_sample_active(fake),
-        patch(
-            "inspect_ai.checkpoint._working_dir.inspect_cache_dir",
-            side_effect=fake_cache_dir,
-        ),
-    ):
-        async with cp:
-            await cp.tick()  # turn 1, no fire
-            await cp.tick()  # turn 2, fires
-            await cp.tick()  # turn 3, no fire
-            await cp.tick()  # turn 4, fires
+    async with cp:
+        await cp.tick()  # turn 1, no fire
+        await cp.tick()  # turn 2, fires
+        await cp.tick()  # turn 3, no fire
+        await cp.tick()  # turn 4, fires
 
-    eval_dir = Path(f"{log}.checkpoints")
+    eval_dir = Path(f"{active_sample.log_location}.checkpoints")
     assert (eval_dir / "manifest.json").is_file()
     sample_dir = eval_dir / "s7__2"
     sidecars = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
     assert sidecars == ["ckpt-00001.json", "ckpt-00002.json"]
 
     # Sample working dir mirrors the destination shape under the cache.
-    sample_working = cache / "checkpoints/foo/s7__2"
+    sample_working = tmp_path / "cache/checkpoints/test/s7__2"
     assert sample_working.is_dir()
     assert (sample_working / "context.json").is_file()
     assert (sample_working / "store.json").is_file()

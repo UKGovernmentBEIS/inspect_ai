@@ -23,29 +23,37 @@ from ._layout import CheckpointSidecar, CheckpointTrigger
 
 
 def _sample_checkpoints_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
-    """Return the sample checkpoints dir path."""
     return f"{_eval_checkpoints_dir(log_location)}/{sample_id}__{epoch}"
+
+
+async def ensure_sample_checkpoints_dir(
+    log_location: str, sample_id: int | str, epoch: int
+) -> str:
+    """Create (idempotent) and return the sample checkpoints dir path."""
+    return await anyio.to_thread.run_sync(
+        _ensure_sample_checkpoints_dir_blocking, log_location, sample_id, epoch
+    )
+
+
+def _ensure_sample_checkpoints_dir_blocking(
+    log_location: str, sample_id: int | str, epoch: int
+) -> str:
+    sample_dir = _sample_checkpoints_dir(log_location, sample_id, epoch)
+    filesystem(sample_dir).mkdir(sample_dir, exist_ok=True)
+    return sample_dir
 
 
 async def write_sidecar(
     *,
-    log_location: str,
-    sample_id: int | str,
-    epoch: int,
+    sample_checkpoints_dir: str,
     checkpoint_id: int,
     trigger: CheckpointTrigger,
     turn: int,
 ) -> str:
-    """Write ``ckpt-NNNNN.json`` for this checkpoint.
-
-    Creates the sample checkpoints dir if it doesn't exist. Returns the
-    sidecar's path.
-    """
+    """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path."""
     return await anyio.to_thread.run_sync(
         _write_sidecar_blocking,
-        log_location,
-        sample_id,
-        epoch,
+        sample_checkpoints_dir,
         checkpoint_id,
         trigger,
         turn,
@@ -53,17 +61,11 @@ async def write_sidecar(
 
 
 def _write_sidecar_blocking(
-    log_location: str,
-    sample_id: int | str,
-    epoch: int,
+    sample_checkpoints_dir: str,
     checkpoint_id: int,
     trigger: CheckpointTrigger,
     turn: int,
 ) -> str:
-    sample_dir = _sample_checkpoints_dir(log_location, sample_id, epoch)
-    fs = filesystem(sample_dir)
-    fs.mkdir(sample_dir, exist_ok=True)
-
     sidecar = CheckpointSidecar(
         checkpoint_id=checkpoint_id,
         trigger=trigger,
@@ -76,7 +78,7 @@ def _write_sidecar_blocking(
         size_bytes=0,
     )
 
-    sidecar_path = f"{sample_dir}/ckpt-{checkpoint_id:05d}.json"
+    sidecar_path = f"{sample_checkpoints_dir}/ckpt-{checkpoint_id:05d}.json"
     # TODO(checkpointing-phase-3): make the sidecar write atomic (write
     # `.tmp`, fsync, rename). Per §4d, the sidecar is the commit point —
     # a torn write would expose a half-built checkpoint. Acceptable

@@ -13,6 +13,7 @@ import pytest
 from inspect_ai.checkpoint._working_dir import (
     _eval_working_dir,
     _sample_working_dir,
+    ensure_sample_working_dir,
     write_sample_working_dir,
 )
 
@@ -61,19 +62,20 @@ def test_sample_working_dir_uses_sample_id_and_epoch(cache_dir: Path) -> None:
     )
 
 
-async def test_write_sample_working_dir_creates_dir_and_files(
-    cache_dir: Path,
-) -> None:
-    sample_dir = await write_sample_working_dir("/logs/foo.eval", "s1", 0, turn=3)
-
+async def test_ensure_creates_dir_and_returns_path(cache_dir: Path) -> None:
+    sample_dir = await ensure_sample_working_dir("/logs/foo.eval", "s1", 0)
     assert sample_dir.is_dir()
     assert sample_dir == cache_dir / "checkpoints/foo/s1__0"
 
-    context = json.loads((sample_dir / "context.json").read_text())
-    store = json.loads((sample_dir / "store.json").read_text())
 
-    assert context["turn"] == 3
-    assert store["turn"] == 3
+async def test_write_sample_working_dir_writes_turn_to_files(
+    cache_dir: Path,
+) -> None:
+    sample_dir = await ensure_sample_working_dir("/logs/foo.eval", "s1", 0)
+    await write_sample_working_dir(sample_dir, turn=3)
+
+    assert json.loads((sample_dir / "context.json").read_text())["turn"] == 3
+    assert json.loads((sample_dir / "store.json").read_text())["turn"] == 3
 
 
 async def test_write_sample_working_dir_overwrites_in_place_with_new_turn(
@@ -84,9 +86,10 @@ async def test_write_sample_working_dir_overwrites_in_place_with_new_turn(
     The turn field is what lets the upcoming restic backup slice
     verify the snapshot actually captured change between checkpoints.
     """
-    sample_dir = await write_sample_working_dir("/logs/foo.eval", "s1", 0, turn=1)
+    sample_dir = await ensure_sample_working_dir("/logs/foo.eval", "s1", 0)
+    await write_sample_working_dir(sample_dir, turn=1)
     (sample_dir / "context.json").write_text('"polluted"')
 
-    await write_sample_working_dir("/logs/foo.eval", "s1", 0, turn=2)
+    await write_sample_working_dir(sample_dir, turn=2)
     assert json.loads((sample_dir / "context.json").read_text())["turn"] == 2
     assert json.loads((sample_dir / "store.json").read_text())["turn"] == 2

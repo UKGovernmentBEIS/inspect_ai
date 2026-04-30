@@ -8,6 +8,7 @@ from pathlib import Path
 from inspect_ai.checkpoint._layout import CheckpointSidecar
 from inspect_ai.checkpoint._sample_checkpoints import (
     _sample_checkpoints_dir,
+    ensure_sample_checkpoints_dir,
     write_sidecar,
 )
 
@@ -26,36 +27,43 @@ def test_sample_checkpoints_dir_accepts_int_sample_id() -> None:
     )
 
 
-async def test_write_sidecar_creates_dir_and_file(tmp_path: Path) -> None:
+async def test_ensure_creates_dir_and_returns_path(tmp_path: Path) -> None:
     log = tmp_path / "foo.eval"
+    sample_dir = await ensure_sample_checkpoints_dir(str(log), "s1", 0)
+    assert Path(sample_dir).is_dir()
+    assert sample_dir == str(tmp_path / "foo.eval.checkpoints" / "s1__0")
 
+
+async def test_ensure_is_idempotent(tmp_path: Path) -> None:
+    log = tmp_path / "foo.eval"
+    a = await ensure_sample_checkpoints_dir(str(log), "s1", 0)
+    b = await ensure_sample_checkpoints_dir(str(log), "s1", 0)
+    assert a == b
+    assert Path(a).is_dir()
+
+
+async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.eval"), "s1", 0
+    )
     path = await write_sidecar(
-        log_location=str(log),
-        sample_id="sample-1",
-        epoch=0,
+        sample_checkpoints_dir=sample_dir,
         checkpoint_id=1,
         trigger="turn",
         turn=3,
     )
-
-    expected_dir = tmp_path / "foo.eval.checkpoints" / "sample-1__0"
-    assert path == f"{expected_dir}/ckpt-00001.json"
-    assert expected_dir.is_dir()
+    assert path == f"{sample_dir}/ckpt-00001.json"
     assert Path(path).is_file()
 
 
 async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
-
+    sample_dir = await ensure_sample_checkpoints_dir(str(tmp_path / "foo.eval"), "s", 0)
     path = await write_sidecar(
-        log_location=str(log),
-        sample_id="s",
-        epoch=0,
+        sample_checkpoints_dir=sample_dir,
         checkpoint_id=42,
         trigger="manual",
         turn=7,
     )
-
     sidecar = CheckpointSidecar.model_validate_json(Path(path).read_text())
     assert sidecar.checkpoint_id == 42
     assert sidecar.trigger == "manual"
@@ -65,12 +73,10 @@ async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
 
 
 async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
+    sample_dir = await ensure_sample_checkpoints_dir(str(tmp_path / "foo.eval"), "s", 0)
     paths = [
         await write_sidecar(
-            log_location=str(log),
-            sample_id="s",
-            epoch=0,
+            sample_checkpoints_dir=sample_dir,
             checkpoint_id=cid,
             trigger="turn",
             turn=cid,
@@ -88,16 +94,13 @@ async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> 
 
 
 async def test_sidecar_is_pretty_printed_json(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
+    sample_dir = await ensure_sample_checkpoints_dir(str(tmp_path / "foo.eval"), "s", 0)
     path = await write_sidecar(
-        log_location=str(log),
-        sample_id="s",
-        epoch=0,
+        sample_checkpoints_dir=sample_dir,
         checkpoint_id=1,
         trigger="turn",
         turn=1,
     )
     raw = Path(path).read_text()
-    # Sanity: parses, and indent makes the file multi-line.
     assert json.loads(raw)["checkpoint_id"] == 1
     assert "\n" in raw
