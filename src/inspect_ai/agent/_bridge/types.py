@@ -9,7 +9,6 @@ from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
-    ChatMessageSystem,
     ChatMessageTool,
 )
 from inspect_ai.model._compaction import (
@@ -96,9 +95,7 @@ class AgentBridge:
     def _id_for_message(
         self, message: ChatMessage, conversation: list[ChatMessage]
     ) -> str:
-        return self._id_for_message_signature(
-            _message_signature(message), conversation
-        )
+        return self._id_for_message_signature(_message_signature(message), conversation)
 
     def _id_for_message_signature(
         self, signature: str, conversation: list[ChatMessage]
@@ -125,8 +122,7 @@ class AgentBridge:
         return self._system_message_id
 
     def _register_output_message(self, message: ChatMessage) -> None:
-        """Register an output message so its id (and any tool_call ids)
-        survive a harness round trip.
+        """Register output ids so they survive a harness round trip.
 
         After ``model.generate()`` returns, the bridge knows the canonical
         ``ChatMessage.id`` and ``ToolCall.id`` values that will end up in
@@ -176,14 +172,22 @@ def message_json_hash(message_json: str) -> str:
 def _message_signature(message: ChatMessage) -> str:
     """Return a content-only hash of *message*.
 
-    All id-shaped fields are stripped before hashing: the message's own
-    ``id``, every ``ToolCall.id`` inside an assistant message, and a
-    ``ChatMessageTool.tool_call_id`` link. This is the key the bridge uses
-    to recognize "the same logical message" across harness round trips,
-    where any of those ids may have been rewritten in flight.
+    Normalized to be invariant under harness round trips:
+
+    * id fields are stripped (the message's own ``id``, every ``ToolCall.id``
+      inside an assistant message, and the ``tool_call_id`` link on a tool
+      message)
+    * string content is promoted to ``[ContentText(text=...)]`` so a message
+      whose content the harness reformatted from a plain string to a single
+      text block (Gemini does this) still hashes the same as the outbound
+      version.
     """
+    from inspect_ai._util.content import ContentText
+
     canonical = message.model_copy(deep=True)
     canonical.id = None
+    if isinstance(canonical.content, str):
+        canonical.content = [ContentText(text=canonical.content)]
     if isinstance(canonical, ChatMessageAssistant) and canonical.tool_calls:
         canonical.tool_calls = [
             ToolCall(

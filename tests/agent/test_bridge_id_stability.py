@@ -28,6 +28,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall
 
 
@@ -159,4 +160,86 @@ def test_system_message_id_preserved_across_content_mutation() -> None:
 
     assert turn3_input[0].id == first_id, (
         "reverted system prompt must keep the id from the first turn"
+    )
+
+
+def test_gemini_round_trip_preserves_ids_end_to_end() -> None:
+    """End-to-end check that ids survive the Gemini-shaped translation.
+
+    Drives one turn through ``gemini_response_from_output`` (outbound) and
+    ``messages_from_google_contents`` (inbound) to confirm the deterministic
+    Gemini ``call_id`` reconstruction in ``_extract_model_parts`` still
+    resolves back to the original ids once ``apply_message_ids`` runs over
+    the reconstructed conversation.
+    """
+    from inspect_ai.agent._bridge.google_api_impl import (
+        gemini_response_from_output,
+        messages_from_google_contents,
+    )
+
+    bridge = _make_bridge()
+
+    # Turn 1: bridge sees the first request from the harness.
+    system_text = "You are a helpful assistant."
+    contents_t1 = [{"role": "user", "parts": [{"text": "Search for hello"}]}]
+    messages_t1 = messages_from_google_contents(
+        contents_t1,
+        {"parts": [{"text": system_text}]},
+    )
+    apply_message_ids(bridge, messages_t1)
+
+    # Output from inspect: an assistant message with a tool call.
+    original_tc = ToolCall(
+        id="ORIGINAL_TC_ID",
+        function="search",
+        arguments={"q": "hello"},
+        type="function",
+    )
+    output_msg = ChatMessageAssistant(
+        id="ORIGINAL_MSG_ID",
+        content="searching...",
+        tool_calls=[original_tc],
+    )
+    output = ModelOutput.from_message(output_msg)
+    bridge._register_output_message(output_msg)
+
+    # Bridge's outbound translation. Note that Gemini drops both ids.
+    gemini_response = gemini_response_from_output(output, "inspect")
+    model_parts = gemini_response["candidates"][0]["content"]["parts"]
+
+    # Turn 2: harness echoes the assistant turn back as part of history.
+    contents_t2 = [
+        contents_t1[0],
+        {"role": "model", "parts": model_parts},
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "search",
+                        "response": {"results": ["hello, world"]},
+                    }
+                }
+            ],
+        },
+    ]
+    messages_t2 = messages_from_google_contents(
+        contents_t2,
+        {"parts": [{"text": system_text}]},
+    )
+    apply_message_ids(bridge, messages_t2)
+
+    # find the assistant message and its tool result
+    assistant = next(m for m in messages_t2 if isinstance(m, ChatMessageAssistant))
+    tool_result = next(m for m in messages_t2 if isinstance(m, ChatMessageTool))
+
+    assert assistant.id == "ORIGINAL_MSG_ID", (
+        "assistant message id must be preserved through Gemini round trip"
+    )
+    assert assistant.tool_calls is not None
+    assert assistant.tool_calls[0].id == "ORIGINAL_TC_ID", (
+        "tool_call id must be remapped from the synthesized Gemini id"
+    )
+    assert tool_result.tool_call_id == "ORIGINAL_TC_ID", (
+        "tool result must follow the tool_call rename"
     )
