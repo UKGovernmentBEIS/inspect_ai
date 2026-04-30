@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent bridge: Preserve `ChatMessageAssistant.id` and `ToolCall.id` across harness round trips. Native protocols (Gemini in particular) drop or rewrite both, which previously caused the bridge to mint fresh ids on every echoed history turn — a downstream consumer that built a transcript tree by id saw the same logical message twice with two different ids.
 - Handle split UTF-16 "lone surrogate" in log message condensation.
 
 ## 0.3.214 (29 April 2026)
