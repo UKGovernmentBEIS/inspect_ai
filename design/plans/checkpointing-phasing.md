@@ -132,19 +132,43 @@ focused swap of `_fire()`'s body plus the read side.
 
 ## Phase 3 — Host-only checkpointing + resume (native-agent end-to-end)
 
+**Status:** In progress.
+
 **Plan sections covered:** §1, §4a, §4d, §4g, §5, §6, §7a, §7b, §8a,
 §8b, §8c, §8e.
 
-**Deliverables — write side:**
+**Landed so far (write side, on-disk skeleton):**
 
-- Host working tree + host repo (`context.json` + `store.json`).
-- Sidecar (`ckpt-NNNNN.json`) atomic write.
-- `manifest.json` with auto-generated password.
+- `_eval_dir.init_eval_dir()`: on first fire, materializes the
+  eval-level destination directory `<log>.eval.checkpoints/` and
+  writes `manifest.json` with an auto-generated `secrets.token_urlsafe`
+  password. Idempotent across samples; mismatched `eval_id` raises.
+- `_attempt.write_sidecar()`: per-attempt destination subdir
+  `<sample-id>__<epoch>/` and per-checkpoint sidecar
+  `ckpt-NNNNN.json` (zero-padded for lexical sort). Sidecar carries
+  the right shape; `host_snapshot_id` is `None` and `sandboxes` is
+  `{}` until the repo write lands.
+- `_working_tree.write_working_tree()`: host-local working tree at
+  `inspect_cache_dir("checkpoints")/<log-base>/<sample-id>__<epoch>/`,
+  shape mirroring the destination subtree (§5). Writes placeholder
+  `context.json` / `store.json`; overwritten in place each cycle.
+- `Checkpointer._fire(trigger)` orchestrates the three: ensure eval
+  dir → write working tree → write sidecar. Tracks turn counter,
+  per-checkpoint ordinal, and trigger derivation
+  (`time` / `turn` / `manual`).
+
+**Deliverables — write side (still TBD):**
+
+- Host repo: `restic init` + `restic backup` against the working tree;
+  populate the sidecar's `host_snapshot_id` with the real id.
+- Real `context.json`: condensed messages/events via `condense_sample()`.
+- Real `store.json`: serialized sample `Store`.
+- Atomic sidecar write (write `.tmp`, rename) — currently best-effort.
 - `CheckpointEvent` in the event stream.
 - `on_checkpoint_start` lifecycle hook.
 - `max_consecutive_failures` enforcement.
 - TUI indicator.
-- Phase 2's no-op `_fire()` becomes a real write.
+- Concurrent-safe manifest creation (today: race; first writer wins).
 
 **Deliverables — read side:**
 

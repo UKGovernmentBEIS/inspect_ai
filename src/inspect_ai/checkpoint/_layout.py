@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 CheckpointTrigger = Literal["time", "turn", "manual", "token", "cost", "budget"]
 """All checkpoint trigger kinds, including those scheduled for Phase 5."""
@@ -45,10 +45,12 @@ class CheckpointSidecar(BaseModel):
     size_bytes: int
     """On-disk size added by this checkpoint."""
 
-    host_snapshot_id: str
-    """Restic snapshot id in the per-attempt host repo."""
+    host_snapshot_id: str | None = None
+    """Restic snapshot id in the per-attempt host repo. ``None`` while the
+    host-repo write path is still being wired up; required once Phase 3
+    finishes."""
 
-    sandboxes: dict[str, str]
+    sandboxes: dict[str, str] = Field(default_factory=dict)
     """Map from sandbox name to the corresponding restic snapshot id in
     that sandbox's per-attempt repo. Empty when checkpointing is host-only."""
 

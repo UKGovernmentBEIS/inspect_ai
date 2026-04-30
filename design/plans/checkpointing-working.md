@@ -312,6 +312,27 @@ Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot i
 
 The host working tree is host-local and ephemeral (not at the destination). Restic needs a real local-filesystem source path even when the destination is on s3; the working tree is overwritten in place each cycle.
 
+**Working-tree location.** Working trees live under
+`inspect_cache_dir("checkpoints")/<log-basename>/<sample-id>__<epoch>[_<retry>]/`,
+where `<log-basename>` is the eval log file name with its `.eval`
+suffix stripped. The per-attempt subtree mirrors the per-attempt
+subtree of the destination `<log>.eval.checkpoints/` directory — same
+shape, different root — so a working tree and its destination repo
+are trivially correlated. Caching under `inspect_cache_dir` keeps the
+working tree writable in all install scenarios (matching the §4c
+restic-binary cache rationale) and survives across `pip install`
+cycles. The working tree is overwritten in place each cycle and
+cleaned up on attempt completion.
+
+```
+$XDG_CACHE_HOME/inspect_ai/checkpoints/      # working-tree root
+  <log-basename>/                            # one per eval log
+    <sample-id>__<epoch>[_<retry>]/          # one per attempt;
+                                             #   shape mirrors §1.
+      context.json
+      store.json
+```
+
 ## 6. Resumption
 
 ### 6a. User-facing command
