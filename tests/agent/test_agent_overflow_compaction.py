@@ -14,6 +14,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._compaction import CompactionStrategy
+from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -94,14 +95,32 @@ def test_model_length_with_compaction_triggers_force_and_continues(
     )
 
 
-def test_model_length_with_compaction_recovers_and_continues() -> None:
-    """With a realistic conversation, forced compaction reduces messages and the agent continues.
+@pytest.mark.parametrize(
+    "strategy_factory",
+    [
+        pytest.param(
+            lambda: CompactionTrim(threshold=10_000, preserve=0.5),
+            id="trim",
+        ),
+        # CompactionEdit reduces message *content* (replaces tool results
+        # with TOOL_RESULT_REMOVED) but not message *count*. This test
+        # verifies that recovery happens despite no count reduction --
+        # the previous len(compacted) < len(previous_messages) gate broke
+        # this path.
+        pytest.param(
+            lambda: CompactionEdit(threshold=10_000, keep_tool_uses=0),
+            id="edit",
+        ),
+    ],
+)
+def test_model_length_with_compaction_recovers_and_continues(strategy_factory) -> None:
+    """With a realistic conversation, forced compaction recovers and the agent continues.
 
-    The conversation must be large enough that CompactionTrim actually
-    reduces message count, otherwise the len(compacted) < len(previous)
-    guard in _handle_overflow correctly skips the compaction result.
     The submit answer is the canary -- if the agent broke out on overflow
-    instead of recovering, it would never reach submit.
+    instead of recovering, it would never reach submit. We additionally
+    assert there are no duplicate message IDs in the recovered history,
+    which guards against summary-style strategies where the c_message
+    object is also the last element of the compacted input.
     """
     # Build conversation: 10 plain turns (each adds an assistant message
     # and a default-continue user prompt = 20 messages), then overflow,
@@ -133,7 +152,7 @@ def test_model_length_with_compaction_recovers_and_continues() -> None:
 
     task = Task(
         dataset=[Sample(input="Test", target="done")],
-        solver=react(compaction=CompactionTrim(threshold=10_000, preserve=0.5)),
+        solver=react(compaction=strategy_factory()),
         message_limit=100,
     )
 
@@ -146,6 +165,13 @@ def test_model_length_with_compaction_recovers_and_continues() -> None:
     assert "done" in output_text, (
         f"Expected agent to reach submit after overflow recovery; "
         f"got output completion: {output_text!r}"
+    )
+
+    # Guard against C1 (CompactionSummary duplicate-summary regression):
+    # any message with an id should appear exactly once.
+    ids = [m.id for m in log.samples[0].messages if m.id]
+    assert len(ids) == len(set(ids)), (
+        f"Duplicate message IDs detected in recovered history: {ids}"
     )
 
 

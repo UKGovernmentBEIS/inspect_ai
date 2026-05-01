@@ -494,17 +494,22 @@ async def _handle_overflow(
     # compaction.
     if compact is not None:
         try:
-            compacted, c_message = await compact.compact_input(
+            compacted, _c_message = await compact.compact_input(
                 previous_messages, force=True
             )
-            if len(compacted) < len(previous_messages):
-                state.messages = compacted
-                if c_message is not None:
-                    state.messages.append(c_message)
-                transcript().info(
-                    "Agent exceeded model context window, performing forced compaction and continuing."
-                )
-                return state, True
+            # If compact_input returned successfully, _perform_compaction
+            # already validated that total_compacted <= threshold (it raises
+            # otherwise). Trust that; do not gate on length reduction
+            # (CompactionEdit reduces content not message count).
+            #
+            # For CompactionSummary the summary is the last element of
+            # compacted, so we don't append c_message again (would duplicate).
+            # For other strategies c_message is None.
+            state.messages = compacted
+            transcript().info(
+                "Agent exceeded model context window, performing forced compaction and continuing."
+            )
+            return state, True
         except Exception:
             # Compaction failed (e.g., RuntimeError "compaction insufficient").
             # Fall through to the overflow filter below.
