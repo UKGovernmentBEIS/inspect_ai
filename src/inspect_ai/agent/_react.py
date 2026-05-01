@@ -582,7 +582,7 @@ def _model_generate(
             # update the compaction baseline with the actual input token
             # count from the generate call (most accurate source of truth)
             if compact is not None:
-                compact.record_output(output)
+                await compact.record_output(input_messages, output)
 
             break
         return state

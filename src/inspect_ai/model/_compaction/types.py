@@ -85,15 +85,23 @@ class Compact(Protocol):
         """
         ...
 
-    def record_output(self, output: ModelOutput) -> None:
+    async def record_output(
+        self, input: list[ChatMessage], output: ModelOutput
+    ) -> None:
         """Record the output from a generate call.
 
-        After each generate call, pass the ModelOutput to calibrate
-        the compaction's token estimation. This accounts for API-level
-        overhead (tool definitions, system messages, thinking
-        configuration) that per-message counting cannot capture.
+        Calibrates the compaction's token estimation against the actual
+        input token count from `output.usage`. This captures API-level
+        overhead (tool definitions, system messages, thinking configuration)
+        that per-message counting cannot.
+
+        `input` must be the messages that were passed to `model.generate`
+        — it determines the baseline message ids that produced
+        `output.usage`. This matters when one `Compact` instance is shared
+        across concurrent callers (e.g. via AgentBridge).
 
         Args:
+            input: The list of messages that was passed to model.generate.
             output: The ModelOutput from the generate call.
         """
         ...
