@@ -760,3 +760,60 @@ async def test_compaction_strips_citations() -> None:
                     assert content.citations is None, (
                         f"Expected citations to be None, got {content.citations}"
                     )
+
+
+# ==============================================================================
+# Concurrent access regression test (race #1 from spec
+# 2026-05-01-compaction-bridge-race-fix-design.md)
+# ==============================================================================
+async def test_compact_input_concurrent_no_duplicate_messages() -> None:
+    """Concurrent compact_input calls must not duplicate messages in the closure.
+
+    Reproduces the AgentBridge / SandboxAgentBridge race where multiple
+    coroutines share one Compact handler.
+    """
+    import anyio
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai.model._generate_config import GenerateConfig
+
+    # threshold high enough that we always take the else branch (no compaction)
+    strategy = CompactionEdit(threshold=10_000_000)
+
+    model = get_model("mockllm/model")
+
+    # Patch count_tokens to yield explicitly. This forces the scheduler to
+    # interleave concurrent compact_input calls at the await point on
+    # _compaction.py:147, deterministically opening the race window.
+    async def yielding_count_tokens(
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        await anyio.sleep(0)
+        return 1
+
+    model.count_tokens = yielding_count_tokens  # type: ignore[method-assign]
+
+    prefix: list[ChatMessage] = []
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    messages: list[ChatMessage] = [
+        user_msg("hello", "msg1"),
+        assistant_msg("hi", "msg2"),
+    ]
+
+    # N concurrent compact_input calls, all observing the same (empty)
+    # processed_message_ids set when they compute `unprocessed`.
+    N = 10
+
+    async def call_once() -> tuple[list[ChatMessage], object]:
+        return await compact.compact_input(messages)
+
+    await tg_collect([call_once for _ in range(N)])
+
+    # Final snapshot: one more call returns list(compacted_input).
+    final, _ = await compact.compact_input(messages)
+    final_ids = [m.id for m in final]
+    assert len(final_ids) == len(set(final_ids)), (
+        f"compacted_input contains duplicate message ids: {final_ids}"
+    )
