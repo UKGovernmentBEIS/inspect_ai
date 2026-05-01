@@ -1,3 +1,4 @@
+from inspect_ai._util.download import download, gdrive_download
 from inspect_ai._util.images import MediaResolverFunc, media_resolver
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
@@ -85,6 +86,8 @@ __all__ = [
     "ComposeService",
     "ExecResult",
     "concurrency",
+    "download",
+    "gdrive_download",
     "DisplayType",
     "display_counter",
     "display_type",
