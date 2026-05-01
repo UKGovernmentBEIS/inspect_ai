@@ -181,12 +181,24 @@ focused swap of `_fire()`'s body plus the read side.
     invisible to non-root). `init_sandbox_repo` initializes
     `/opt/inspect-restic/repo` once. `run_sandbox_backup` invokes the
     injected binary as root each fire.
-  - **Host + each sandbox run in parallel** via
-    `inspect_ai.util.collect()` so the per-fire wall-clock is
-    bounded by the slowest single backup.
-  - Sandbox repos are not yet egressed to the destination — they
-    live inside the sandbox until the egress slice lands (see TBD
-    list).
+  - **Sandbox egress** (Appendix B): each cycle, `egress_sandbox`
+    runs a phase-1 root exec in the sandbox that diffs current
+    `repo/` files against `egress-manifest.txt`, builds an ordered
+    tar (`config → keys → data → index → snapshots`) into
+    `staging/egress-NNNNN.tar`, and emits the new file list. Host
+    pulls the tar via `env.read_file`, extracts into the destination
+    `<sample-checkpoints-dir>/sandboxes/<name>/`, runs
+    `restic snapshots --json` against the destination to verify the
+    new snapshot id is listed, then phase-2 root exec advances the
+    manifest and drops the tarball. Failure between phases leaves
+    the manifest unadvanced so the next cycle re-egresses the same
+    files. Destination repo is **not** pre-initialized — first
+    cycle's tarball carries `config` + `keys/*`, which makes the
+    destination valid on extraction.
+  - **Host + each sandbox `(backup → egress)` run in parallel** via
+    `inspect_ai.util.collect()`. Within a sandbox the pair is
+    sequential (egress diffs against what backup just wrote); pairs
+    across sandboxes and the host backup are independent.
 - **Sidecar carries per-backup stats** (`host: SnapshotInfo`,
   `sandboxes: dict[str, SnapshotInfo]`) where `SnapshotInfo` =
   `{snapshot_id, size_bytes, duration_ms}`. `size_bytes` comes from
@@ -202,10 +214,6 @@ focused swap of `_fire()`'s body plus the read side.
 
 - Real `context.json`: condensed messages/events via `condense_sample()`.
 - Real `store.json`: serialized sample `Store`.
-- Egress: copy sandbox repo packs out to
-  `<sample-checkpoints-dir>/sandboxes/<name>/` (Phase 4 / Appendix B,
-  but partly cross-cuts since the sidecar's sandbox snapshot ids
-  already point at in-sandbox repos).
 - Atomic sidecar write (write `.tmp`, rename) — currently best-effort.
 - `CheckpointEvent` in the event stream.
 - `on_checkpoint_start` lifecycle hook.
