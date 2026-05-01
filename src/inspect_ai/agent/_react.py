@@ -213,7 +213,7 @@ def react(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow)
+                    state, handled = await _handle_overflow(state, overflow, compact)
                     if handled:
                         continue
                     else:
@@ -381,7 +381,7 @@ def react_no_submit(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow)
+                    state, handled = await _handle_overflow(state, overflow, compact)
                     if handled:
                         continue
                     else:
@@ -476,12 +476,41 @@ def _resolve_overflow(
 
 
 async def _handle_overflow(
-    state: AgentState, overflow: MessageFilter | None
+    state: AgentState,
+    overflow: MessageFilter | None,
+    compact: Compact | None = None,
 ) -> tuple[AgentState, bool]:
     from inspect_ai.log._transcript import transcript
 
+    # state.messages[-1] is the failed assistant turn that _model_generate
+    # appended unconditionally even on stop_reason=model_length. Drop it; it
+    # has no usable content. The next loop iteration will produce a fresh
+    # assistant message via generate.
+    previous_messages = state.messages[:-1]
+
+    # Try forced compaction first if configured. Compaction is more
+    # semantically faithful than truncation (it preserves intent, not just
+    # bytes) and uses the same strategy already chosen for predictive
+    # compaction.
+    if compact is not None:
+        try:
+            compacted, c_message = await compact.compact_input(
+                previous_messages, force=True
+            )
+            if len(compacted) < len(previous_messages):
+                state.messages = compacted
+                if c_message is not None:
+                    state.messages.append(c_message)
+                transcript().info(
+                    "Agent exceeded model context window, performing forced compaction and continuing."
+                )
+                return state, True
+        except Exception:
+            # Compaction failed (e.g., RuntimeError "compaction insufficient").
+            # Fall through to the overflow filter below.
+            pass
+
     if overflow is not None:
-        previous_messages = state.messages[:-1]
         state.messages = await overflow(previous_messages)
         if len(state.messages) < len(previous_messages):
             transcript().info(
@@ -582,6 +611,10 @@ def _model_generate(
             # update the compaction baseline with the actual input token
             # count from the generate call (most accurate source of truth)
             if compact is not None:
+                # Note: when output has stop_reason='model_length', record_output sees
+                # an over-the-window usage value. baseline_tokens gets set to that
+                # value, but the subsequent forced compaction (if any) in
+                # _handle_overflow resets baseline_tokens during its housekeeping.
                 await compact.record_output(input_messages, output)
 
             break
