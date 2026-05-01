@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added `media_resolver()` context manager for scoped URI resolution for media reading (images, audiot, etc.).
+
 ## 0.3.216 (01 May 2026)
 
 - OpenRouter: Escape signature attribute in <think> tag round-trip.
