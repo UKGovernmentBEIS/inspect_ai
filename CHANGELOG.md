@@ -4,9 +4,12 @@
 - Add `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
 - Add `download()` and `gdrive_download()` helpers for fetching external files with SHA256 verification, caching, and transient-error retry. `gdrive_download()` requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Compaction: Detect re-injected encrypted reasoning content in already-counted messages and recount via the provider's authoritative `count_tokens()` so the threshold trigger fires correctly for OpenAI Responses with `store=false` and `include=['reasoning.encrypted_content']`.
+- Compaction: Add forced-compaction recovery in `_handle_overflow`. When generate returns `stop_reason='model_length'` and a compaction strategy is configured, the agent attempts a forced compaction before falling through to the overflow filter. Forced compactions emit `CompactionEvent.source='inspect_recovery'`.
 - Analysis: Fix wrong `working_time` path in `SampleSummary` columns.
 
 ## 0.3.216 (01 May 2026)
+
 
 - OpenRouter: Escape signature attribute in <think> tag round-trip.
 - Logging: Add sample id, epoch, and task name to log records.
