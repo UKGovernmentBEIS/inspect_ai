@@ -1,3 +1,45 @@
+## Unreleased
+
+- Add `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
+- Add `download()` and `gdrive_download()` helpers for fetching external files with SHA256 verification, caching, and transient-error retry. `gdrive_download()` requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
+- Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Analysis: Fix wrong `working_time` path in `SampleSummary` columns.
+
+## 0.3.216 (01 May 2026)
+
+- OpenRouter: Escape signature attribute in <think> tag round-trip.
+- Logging: Add sample id, epoch, and task name to log records.
+- Docker: Skip `docker pull` for service images already present in the local Docker daemon.
+- Inspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)
+- Inspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)
+- Inspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)
+- Model database: Fix incorrect `input_tokens` for `gpt-5.4`, `gpt-5.4-pro`, `gpt-5.5`, `gpt-5.5-pro` (was 778000, now 922000 = 1,050,000 context − 128,000 output).
+
+## 0.3.215 (30 April 2026)
+
+- Handle split UTF-16 "lone surrogate" in log message condensation.
+- Inspect View: Collapse the LogView title bar on scroll
+- Inspect View: Add additional column support when viewing task samples.
+- Inspect View: Add sample uuid column id and filtering.
+- Inspect View: Fix issue causing column sizing and re-ordering to snap back to initial state.
+- Inspect View: Fix copy command including large binary payloads.
+
+## 0.3.214 (29 April 2026)
+
+- Scoring: Allow NaN-at-root unscored sentinel for dict- and list-valued scorers.
+- Scoring: Add `Score.unscored()` for samples a scorer cannot produce a value for.
+- Deepagent: Use `CompactionAuto` by default as the compaction strategy.
+- Compaction: Make `CompactionAuto` stateless — native compaction is attempted on every trigger rather than remembering fallback state.
+- OpenAI: Add `responses_phase` model arg to opt in to synthesizing missing Responses API assistant message `phase` labels while continuing to preserve OpenAI-returned phase metadata by default.
+- Agent bridge: Handle OpenAI API's new NamespaceToolParam type.
+- Tool views: Catch and log warning for errors in tool view rendering.
+- Eval Logs: Handle multi-frame zstd in async ZIP read paths.
+- HTTP retries: Only log warning if retry wait will be > 20 minutes (previously was 1 minute).
+- Sandbox tools: `user` parameter on `bash_session`, `text_editor`, and `exec_remote` now correctly applied server-side; CLI binary and server socket are no longer accessible to the sandbox's default user.
+- Display: Add a "Flow" tab to the full (textual) display, populated by Inspect Flow via an internal `set_flow_content()` integration point.
+- Inspect View: Fix live transcript streaming so model inputs and calls resolve to the correct messages across buffer segments.
+- Bugfix: Correct delivery of trailing-edge calls from `throttle()` decorator.
+
 ## 0.3.213 (27 April 2026)
 
 - Agents: Add `deepagent()` — a batteries-included agent with subagent delegation, persistent memory, structured planning, and an opinionated system prompt. Includes built-in `research()`, `plan()`, and `general()` subagent factories, a `task` multiplexer tool for delegation, and support for both isolated and forked (prompt-cache-preserving) dispatch modes.
@@ -6,22 +48,22 @@
 - Tools: Add `readonly` parameter to `memory()` tool for read-only access to shared memory.
 - Skills: Add `instance` parameter to `skill()` for independent per-subagent skill stores. Skill names are now validated for uniqueness in `skill()`, `install_skills()`, and across `deepagent()` parent/subagent scopes.
 - Computer Use: Map `PRTSCR` (OpenAI vocab) to xdotool `Print` keysym so key combos like `ALT+PRTSCR` work correctly.
-Inspect View: Display approvals within tool calls and filter auto-approvals from the display.
-Inspect View: Improve formatting of rejected and long approval messages.
-Inspect View: Fix phantom "more" toggles on expandable panels by measuring overflow against the correct font size.
-Inspect View: Keep the expandable panel toggle on screen when content exceeds the viewport height.
-Inspect View: Remove duplicated borders and corners on root elements of the transcript.
-Inspect View: Default to showing branches expanded in the timeline.
-Inspect View: Fix outline, citation, and swimlane navigation to reliably scroll to the targeted event.
-Inspect View: Add branch-aware citation deep-linking and land target messages just below the sticky bar.
-Inspect View: Detect additional todo/task tool names for inspect-deepagent.
-Inspect View: Persist task list filter and sort independently per scope to prevent state leaking between Tasks and Folders.
-Inspect View: Add Tokens and Duration columns to the samples list.
-Inspect View: Fix timeline error markers that flagged every model and tool event.
-Inspect View: Add a fade-out affordance at the bottom of truncated content in expandable panels.
-Inspect View: Collapse system, user, assistant, and tool chat messages by default with per-role line caps.
-Inspect View: Improve sample appearance at narrow widths.
-Inspect View: Improve reliability of viewing running samples.
+- Inspect View: Display approvals within tool calls and filter auto-approvals from the display.
+- Inspect View: Improve formatting of rejected and long approval messages.
+- Inspect View: Fix phantom "more" toggles on expandable panels by measuring overflow against the correct font size.
+- Inspect View: Keep the expandable panel toggle on screen when content exceeds the viewport height.
+- Inspect View: Remove duplicated borders and corners on root elements of the transcript.
+- Inspect View: Default to showing branches expanded in the timeline.
+- Inspect View: Fix outline, citation, and swimlane navigation to reliably scroll to the targeted event.
+- Inspect View: Add branch-aware citation deep-linking and land target messages just below the sticky bar.
+- Inspect View: Detect additional todo/task tool names for inspect-deepagent.
+- Inspect View: Persist task list filter and sort independently per scope to prevent state leaking between Tasks and Folders.
+- Inspect View: Add Tokens and Duration columns to the samples list.
+- Inspect View: Fix timeline error markers that flagged every model and tool event.
+- Inspect View: Add a fade-out affordance at the bottom of truncated content in expandable panels.
+- Inspect View: Collapse system, user, assistant, and tool chat messages by default with per-role line caps.
+- Inspect View: Improve sample appearance at narrow widths.
+- Inspect View: Improve reliability of viewing running samples.
 
 ## 0.3.212 (24 April 2026)
 

@@ -235,6 +235,43 @@ def test_reasoning_round_trip_no_summary():
     assert parsed.summary is None
 
 
+def test_reasoning_round_trip_signature_with_quotes():
+    # OpenRouter encodes its reasoning_details payload as a JSON-bearing
+    # signature, which contains double quotes that must survive the
+    # think-tag attribute round-trip.
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature='reasoning-details://[{"type": "reasoning.text", "text": "hi"}]',
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.signature == original.signature
+    assert parsed.reasoning == original.reasoning
+
+
+def test_reasoning_round_trip_signature_with_angle_brackets_and_amp():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature='a<b>c & d "e"',
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.signature == original.signature
+    assert parsed.reasoning == original.reasoning
+
+
 # Tests for internal field (values are base64-encoded JSON)
 def test_reasoning_parse_with_internal_simple():
     # base64("123") = "MTIz"

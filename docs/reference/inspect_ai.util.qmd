@@ -43,12 +43,14 @@ description: Miscellaneous utility functions.
 ### span
 ### current_span_id
 ### collect
-### resource
 ### throttle
 ### background
 ### trace_action
 ### trace_message
-
+### media_resolver
+### resource
+### download
+### gdrive_download
 
 ## Sandbox
 

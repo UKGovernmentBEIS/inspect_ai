@@ -214,6 +214,7 @@ async def test_responses_api_invalid_prompt_content_filter():
         prompt_cache_retention=NOT_GIVEN,
         safety_identifier=NOT_GIVEN,
         responses_store=None,
+        synthesize_phase=False,
         model_info=model_info,
         batcher=None,
     )
@@ -766,6 +767,84 @@ def test_phase_round_trip_mixed():
 
     # Second message: has phase
     assert message_items[1]["phase"] == "commentary"
+
+
+def test_phase_synthesis_final_answer_opt_in():
+    """Test opt-in synthesis for assistant messages without tool calls."""
+    message = ChatMessageAssistant(
+        content=[ContentText(text="Here is the answer.")],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "final_answer"
+
+
+def test_phase_synthesis_commentary_opt_in_for_tool_calls():
+    """Test opt-in synthesis for assistant messages with tool calls."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[ContentText(text="I'll check that.")],
+        tool_calls=[
+            ToolCall(id="call_123", function="lookup", arguments={"query": "phase"})
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+def test_phase_synthesis_preserves_explicit_phase():
+    """Test phase synthesis doesn't overwrite existing phase metadata."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Still working.",
+                internal={MESSAGE_ID: "msg_1", MESSAGE_PHASE: "commentary"},
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+async def test_openai_responses_phase_model_arg():
+    """Test responses_phase is an OpenAI model arg, not an SDK arg."""
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    api = OpenAIAPI(
+        "gpt-4o",
+        api_key="test-key",
+        responses_api=True,
+        responses_phase=True,
+    )
+    try:
+        assert api.responses_phase is True
+        assert "responses_phase" not in api.model_args
+    finally:
+        await api.aclose()
 
 
 def test_web_search_to_tool_use_handles_missing_action() -> None:

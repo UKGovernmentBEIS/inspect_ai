@@ -79,7 +79,7 @@ Here are all options available for `CompactionAuto`:
 |-----------|---------|-------------|
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
 | `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets and technical decisions.") |
-| `memory` | "auto" | Warn the model to save content to memory before compaction (when the memory tool is available). Use `"auto"` to disable memory for native compaction and enable it for summary compaction. |
+| `memory` | "auto" | Warn the model to save content to memory before compaction (when the memory tool is available). `"auto"` enables warnings for all compaction paths. |
 
 : {tbl-colwidths=\[15,12,73\]}
 

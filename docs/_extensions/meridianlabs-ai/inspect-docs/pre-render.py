@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,27 @@ from _discover import discover_cli_name, discover_module_name  # noqa: E402
 
 # type alias for YAML-style nested dicts
 YamlDict = dict[str, Any]
+
+# cache file for reference frontmatter / H3-name scan
+_REFSCAN_CACHE = Path(".quarto/inspect-docs/refscan-cache.json")
+
+# external refs are re-downloaded once per day; users can force a refresh
+# by deleting the cached refs-*.json files
+_EXTERNAL_REFS_TTL_SEC = 24 * 60 * 60
+
+
+def _load_refscan_cache() -> dict[str, Any]:
+    if _REFSCAN_CACHE.exists():
+        try:
+            return json.loads(_REFSCAN_CACHE.read_text())  # type: ignore[no-any-return]
+        except (OSError, json.JSONDecodeError):
+            pass
+    return {}
+
+
+def _save_refscan_cache(cache: dict[str, Any]) -> None:
+    _REFSCAN_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    write_if_changed(_REFSCAN_CACHE, json.dumps(cache, sort_keys=True, indent=2))
 
 
 class _NoAliasDumper(yaml.SafeDumper):
@@ -54,7 +76,6 @@ def main() -> None:
     # user-provided website overrides (merged with extension defaults)
     user_website: YamlDict = config.get("website") or {}
     user_navbar: YamlDict = user_website.get("navbar") or {}
-
 
     # create default .gitignore if none exists
     write_if_changed(
@@ -155,9 +176,7 @@ def main() -> None:
                     ref_entry["href"] = ref_index_href or ref_entry.get("href")
                     ref_entry["contents"] = ref_contents
                 else:
-                    entry: YamlDict = dict(
-                        section="Reference", contents=ref_contents
-                    )
+                    entry: YamlDict = dict(section="Reference", contents=ref_contents)
                     if ref_index_href:
                         entry["href"] = ref_index_href
                     main_contents.append(entry)
@@ -178,8 +197,7 @@ def main() -> None:
         p
         for p in Path(".").glob("**/*.excalidraw")
         if not any(
-            part.startswith((".", "_")) or part == "node_modules"
-            for part in p.parts
+            part.startswith((".", "_")) or part == "node_modules" for part in p.parts
         )
     ):
         ensure_excalidraw_deps()
@@ -436,9 +454,7 @@ def _flatten_menu_leaves(items: list[YamlDict]) -> list[YamlDict]:
             # a branch: if it has its own href, include it as a leaf before
             # recursing into its children
             if "href" in item:
-                leaf = {
-                    k: v for k, v in item.items() if k not in ("contents", "menu")
-                }
+                leaf = {k: v for k, v in item.items() if k not in ("contents", "menu")}
                 leaves.append(_ensure_text(leaf))
             leaves.extend(_flatten_menu_leaves(children))
     return leaves
@@ -512,13 +528,31 @@ def generate_reference_artifacts(
     if not ref_dir.is_dir():
         return None
 
+    # cached scan: mtime-keyed per-file frontmatter + parsed H3 list. Entries
+    # are kept only for files that still exist (stale entries are dropped).
+    cache = _load_refscan_cache()
+    new_cache: dict[str, Any] = {}
+
     # (path, title, description, reference)
     api_docs: list[tuple[Path, str, str, str]] = []
     cli_docs: list[tuple[Path, str, str, str]] = []
     for qmd in sorted(ref_dir.glob("*.qmd")):
         if qmd.name == "index.qmd":
             continue
-        frontmatter = read_frontmatter(qmd) or {}
+        path_key = str(qmd)
+        mtime_ns = qmd.stat().st_mtime_ns
+        entry = cache.get(path_key)
+        if (
+            isinstance(entry, dict)
+            and entry.get("mtime_ns") == mtime_ns
+            and "frontmatter" in entry
+        ):
+            frontmatter = entry["frontmatter"] or {}
+        else:
+            frontmatter = read_frontmatter(qmd) or {}
+            entry = {"mtime_ns": mtime_ns, "frontmatter": frontmatter}
+        new_cache[path_key] = entry
+
         reference = frontmatter.get("reference")
         if not reference:
             # reference pages must declare a 'reference:' field
@@ -530,14 +564,13 @@ def generate_reference_artifacts(
         )
         title = str(frontmatter.get("title") or reference)
 
-        if cli_name and (
-            reference == cli_name or reference.startswith(f"{cli_name} ")
-        ):
+        if cli_name and (reference == cli_name or reference.startswith(f"{cli_name} ")):
             cli_docs.append((qmd, title, description, reference))
         else:
             api_docs.append((qmd, title, description, reference))
 
     if not api_docs and not cli_docs:
+        _save_refscan_cache(new_cache)
         return None
 
     # generate reference/index.qmd
@@ -551,7 +584,11 @@ def generate_reference_artifacts(
     index_json: dict[str, str] = {}
     api_sidebar_entries: list[YamlDict] = []
     for doc, title, _, _ in api_docs:
-        objects = parse_reference_objects(doc.read_text())
+        path_key = str(doc)
+        entry = new_cache[path_key]
+        if "objects" not in entry:
+            entry["objects"] = parse_reference_objects(doc.read_text())
+        objects = entry["objects"]
         refs: list[YamlDict] = [
             dict(text=o, href=f"{doc}#{o.lower()}") for o in objects
         ]
@@ -586,6 +623,8 @@ def generate_reference_artifacts(
 
     # write refs.json
     write_if_changed(ref_dir / "refs.json", json.dumps(index_json, indent=2))
+
+    _save_refscan_cache(new_cache)
 
     return [
         {
@@ -680,13 +719,21 @@ def download_external_refs(ref_dir: Path, opts: YamlDict) -> None:
     for pkg_name, site_url in external_refs.items():
         base = site_url.rstrip("/") + "/reference/"
         dest = ref_dir / f"refs-{pkg_name}.json"
+        # skip the network call when the local cache is fresh; users can
+        # force a refresh by deleting the cached refs-*.json file
+        if dest.exists():
+            try:
+                age = time.time() - dest.stat().st_mtime
+            except OSError:
+                age = _EXTERNAL_REFS_TTL_SEC + 1  # treat as stale on error
+            if age < _EXTERNAL_REFS_TTL_SEC:
+                continue
         try:
             with urlopen(base + "refs.json", timeout=5) as resp:
                 raw = json.loads(resp.read())
             # transform relative .qmd paths to absolute .html URLs
             absolute: dict[str, str] = {
-                key: base + value.replace(".qmd", ".html")
-                for key, value in raw.items()
+                key: base + value.replace(".qmd", ".html") for key, value in raw.items()
             }
             write_if_changed(dest, json.dumps(absolute, indent=2))
         except Exception as e:
