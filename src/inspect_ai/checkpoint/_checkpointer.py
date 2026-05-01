@@ -24,7 +24,7 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 
 from ._config import CheckpointConfig, TimeInterval, TurnInterval
-from ._eval_checkpoints import read_eval_manifest
+from ._eval_checkpoints import eval_checkpoints_dir, read_eval_manifest
 from ._layout import CheckpointTriggerKind, SnapshotInfo
 from ._restic import (
     ResticBackupSummary,
@@ -119,13 +119,16 @@ class Checkpointer:
             raise RuntimeError(
                 "Checkpointer cannot initialize: ActiveSample.sample.id is None."
             )
+        eval_ckpts_dir = eval_checkpoints_dir(
+            active.log_location, self._config.checkpoints_dir
+        )
         sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
-            active.log_location, active.sample.id, active.epoch, active.eval_id
+            eval_ckpts_dir, active.sample.id, active.epoch, active.eval_id
         )
         sample_working_dir = await ensure_sample_working_dir(
             active.log_location, active.sample.id, active.epoch
         )
-        manifest = await read_eval_manifest(active.log_location)
+        manifest = await read_eval_manifest(eval_ckpts_dir)
         host_restic = await resolve_restic()
         host_repo = f"{sample_checkpoints_dir}/host"
         await init_host_repo(host_restic, host_repo, manifest.restic_password)

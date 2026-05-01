@@ -18,32 +18,32 @@ import anyio
 
 from inspect_ai._util.file import file, filesystem
 
-from ._eval_checkpoints import _eval_checkpoints_dir, init_eval_checkpoints_dir
+from ._eval_checkpoints import init_eval_checkpoints_dir
 from ._layout import CheckpointSidecar, CheckpointTriggerKind, SnapshotInfo
 
 
-def _sample_checkpoints_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
-    return f"{_eval_checkpoints_dir(log_location)}/{sample_id}__{epoch}"
+def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
+    return f"{eval_dir}/{sample_id}__{epoch}"
 
 
 async def ensure_sample_checkpoints_dir(
-    log_location: str, sample_id: int | str, epoch: int, eval_id: str
+    eval_dir: str, sample_id: int | str, epoch: int, eval_id: str
 ) -> str:
     """Create (idempotent) and return the sample checkpoints dir path.
 
     Also ensures the eval checkpoints dir + manifest exist; that's an
     implementation detail callers shouldn't have to repeat.
     """
-    await init_eval_checkpoints_dir(log_location, eval_id)
+    await init_eval_checkpoints_dir(eval_dir, eval_id)
     return await anyio.to_thread.run_sync(
-        _ensure_sample_checkpoints_dir_blocking, log_location, sample_id, epoch
+        _ensure_sample_checkpoints_dir_blocking, eval_dir, sample_id, epoch
     )
 
 
 def _ensure_sample_checkpoints_dir_blocking(
-    log_location: str, sample_id: int | str, epoch: int
+    eval_dir: str, sample_id: int | str, epoch: int
 ) -> str:
-    sample_dir = _sample_checkpoints_dir(log_location, sample_id, epoch)
+    sample_dir = _sample_checkpoints_dir(eval_dir, sample_id, epoch)
     filesystem(sample_dir).mkdir(sample_dir, exist_ok=True)
     return sample_dir
 

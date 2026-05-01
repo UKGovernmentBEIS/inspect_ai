@@ -8,25 +8,48 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.checkpoint._eval_checkpoints import (
-    _eval_checkpoints_dir,
+    eval_checkpoints_dir,
     init_eval_checkpoints_dir,
 )
 from inspect_ai.checkpoint._layout import CheckpointManifest
 
 
-def test_eval_checkpoints_dir_appends_suffix() -> None:
-    assert _eval_checkpoints_dir("/logs/foo.eval") == "/logs/foo.eval.checkpoints"
+def test_eval_checkpoints_dir_strips_eval_suffix() -> None:
+    assert eval_checkpoints_dir("/logs/foo.eval", None) == "/logs/foo.checkpoints"
+
+
+def test_eval_checkpoints_dir_passthrough_when_no_eval_suffix() -> None:
+    assert eval_checkpoints_dir("/logs/raw_name", None) == "/logs/raw_name.checkpoints"
+
+
+def test_eval_checkpoints_dir_handles_s3_uri() -> None:
+    assert (
+        eval_checkpoints_dir("s3://bucket/path/foo.eval", None)
+        == "s3://bucket/path/foo.checkpoints"
+    )
+
+
+def test_eval_checkpoints_dir_with_override_root() -> None:
+    """Override repoints the parent; the per-eval subdir name is unchanged."""
+    assert (
+        eval_checkpoints_dir("/logs/foo.eval", "/scratch/ckpts")
+        == "/scratch/ckpts/foo.checkpoints"
+    )
+
+
+def test_eval_checkpoints_dir_with_s3_override() -> None:
+    assert (
+        eval_checkpoints_dir("/logs/foo.eval", "s3://bucket/ckpts")
+        == "s3://bucket/ckpts/foo.checkpoints"
+    )
 
 
 async def test_init_creates_dir_and_manifest(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
-    log.touch()
+    eval_dir = str(tmp_path / "foo.checkpoints")
 
-    eval_dir = await init_eval_checkpoints_dir(str(log), eval_id="eval-001")
+    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
 
-    assert eval_dir == f"{log}.checkpoints"
     assert Path(eval_dir).is_dir()
-
     manifest = CheckpointManifest.model_validate_json(
         (Path(eval_dir) / "manifest.json").read_text()
     )
@@ -37,40 +60,35 @@ async def test_init_creates_dir_and_manifest(tmp_path: Path) -> None:
 
 
 async def test_init_is_idempotent(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
-    eval_dir = await init_eval_checkpoints_dir(str(log), eval_id="eval-001")
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
     manifest_path = Path(eval_dir) / "manifest.json"
     original = manifest_path.read_text()
 
     # Second call must not rewrite the manifest (password must survive).
-    await init_eval_checkpoints_dir(str(log), eval_id="eval-001")
+    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
     assert manifest_path.read_text() == original
 
 
 async def test_init_rejects_mismatched_eval_id(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
-    await init_eval_checkpoints_dir(str(log), eval_id="eval-001")
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
 
     with pytest.raises(RuntimeError, match="different eval"):
-        await init_eval_checkpoints_dir(str(log), eval_id="eval-002")
+        await init_eval_checkpoints_dir(eval_dir, eval_id="eval-002")
 
 
-async def test_init_works_when_log_does_not_exist_yet(tmp_path: Path) -> None:
-    """Logs are created lazily.
+async def test_init_creates_parent_dirs(tmp_path: Path) -> None:
+    """Eval-dir parent may not exist yet (e.g. nested override root)."""
+    eval_dir = str(tmp_path / "nested" / "foo.checkpoints")
 
-    The manifest write must not depend on the `.eval` file already
-    existing — only on the parent directory.
-    """
-    log = tmp_path / "nested" / "foo.eval"
-    log.parent.mkdir()
-
-    eval_dir = await init_eval_checkpoints_dir(str(log), eval_id="eval-001")
+    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
     assert Path(eval_dir).is_dir()
     assert (Path(eval_dir) / "manifest.json").is_file()
 
 
 async def test_manifest_is_valid_json(tmp_path: Path) -> None:
-    log = tmp_path / "foo.eval"
-    eval_dir = await init_eval_checkpoints_dir(str(log), eval_id="eval-001")
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
     parsed = json.loads((Path(eval_dir) / "manifest.json").read_text())
     assert parsed["eval_id"] == "eval-001"

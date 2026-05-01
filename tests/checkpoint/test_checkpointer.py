@@ -64,7 +64,7 @@ class _Dirs:
 @pytest.fixture
 def dirs(tmp_path: Path) -> _Dirs:
     """Pre-create the two sample dirs without going through the facade."""
-    checkpoints = tmp_path / "logs/test.eval.checkpoints/s__0"
+    checkpoints = tmp_path / "logs/test.checkpoints/s__0"
     working = tmp_path / "cache/checkpoints/test/s__0"
     checkpoints.mkdir(parents=True)
     working.mkdir(parents=True)
@@ -292,7 +292,8 @@ async def test_fire_writes_manifest_and_sidecars(
         await cp.tick()  # turn 3, no fire
         await cp.tick()  # turn 4, fires
 
-    eval_dir = Path(f"{active_sample.log_location}.checkpoints")
+    log = Path(active_sample.log_location)
+    eval_dir = log.parent / f"{log.stem}.checkpoints"
     assert (eval_dir / "manifest.json").is_file()
     sample_dir = eval_dir / "s7__2"
     sidecars = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))

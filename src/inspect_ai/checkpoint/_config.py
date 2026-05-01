@@ -121,6 +121,13 @@ class CheckpointConfig(Generic[_TriggerT]):
     trigger: _TriggerT
     """Checkpoint trigger. See :data:`CheckpointTrigger`."""
 
+    checkpoints_dir: str | None = None
+    """Override the parent directory under which the eval checkpoints
+    dir lands. ``None`` (default) places it as a sibling of the eval
+    log file. When set, inspect places ``<log-base>.checkpoints/`` under
+    this root. Supports any fsspec-resolvable path (``s3://``, ``gs://``,
+    plain local)."""
+
     sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
     """Per-sandbox-name list of absolute paths to capture inside the sandbox.
     Empty / omitted means host-only checkpointing (no sandbox repos)."""

@@ -26,12 +26,14 @@ Checkpoint + resume is **phase 1 of a broader long-horizon eval feature stream**
 
 ## 1. Data layout
 
-For an eval log `foo.eval`, checkpoints live in a sibling directory `foo.eval.checkpoints/` (default location; overridable to `s3://` or any fsspec-supported URL). The log records the canonical checkpoints directory location.
+For an eval log `foo.eval`, checkpoints live by default in a sibling directory `foo.checkpoints/` (`.eval` is stripped from the basename before the `.checkpoints` suffix is appended). The parent root is overridable via `CheckpointConfig.checkpoints_dir` (any fsspec-resolvable path: local, `s3://`, etc.) — the per-eval subdir name is unchanged. The log records the canonical checkpoints directory location.
 
 ```         
 logs/
   foo.eval                                   # existing eval log
-  foo.eval.checkpoints/                      # sibling dir (default)
+  foo.checkpoints/                           # sibling dir (default;
+                                             #   parent overridable via
+                                             #   CheckpointConfig.checkpoints_dir).
     manifest.json                            # eval-level header:
                                              #   eval_id (pairs with log),
                                              #   layout version,
@@ -154,6 +156,12 @@ class CheckpointConfig:
     trigger: CheckpointTrigger
     """Checkpoint trigger. All triggers fire at the next turn boundary
     after the trigger condition is reached. See bullets below."""
+
+    checkpoints_dir: str | None = None
+    """Override the parent root under which the eval checkpoints dir
+    lands. None (default) = sibling of the eval log file. When set,
+    inspect places <log-base>.checkpoints/ under this root. Any
+    fsspec-resolvable path (s3://, local, etc.). See §1."""
 
     sandbox_paths: dict[str, list[str]] = {}
     """Per-sandbox-name list of absolute paths to capture inside the sandbox.
