@@ -960,8 +960,8 @@ async def test_no_redacted_reasoning_preserves_baseline_shortcut(monkeypatch) ->
 
     # The baseline shortcut path was taken: count_tokens was called with only
     # the new message(s) since baseline, not the full list.
-    if call_inputs:
-        assert all(len(inp) <= 1 for inp in call_inputs), (
-            "Expected count_tokens to be called only on new_since_baseline "
-            f"(<= 1 message); call inputs were: {[len(inp) for inp in call_inputs]}"
-        )
+    assert call_inputs, "expected count_tokens to be called on new messages"
+    assert all(len(inp) <= 1 for inp in call_inputs), (
+        "Expected count_tokens to be called only on new_since_baseline "
+        f"(<= 1 message); call inputs were: {[len(inp) for inp in call_inputs]}"
+    )

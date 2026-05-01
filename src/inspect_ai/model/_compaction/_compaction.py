@@ -20,21 +20,13 @@ logger = getLogger(__name__)
 
 
 def _has_redacted_reasoning_in(messages: list[ChatMessage]) -> bool:
-    """Return True if any message contains a redacted (encrypted) reasoning item.
-
-    Used to detect the OpenAI Responses + store=false + include=encrypted_content
-    case where usage.input_tokens (and thus baseline_tokens) under-counts the
-    actual context cost of the input. In that case the baseline shortcut is
-    unsafe and we must recount the full target_messages list via count_tokens
-    (which calls the provider's native counting API for OpenAI Responses,
-    Anthropic, and Google).
-    """
-    for m in messages:
-        if isinstance(m.content, list):
-            for c in m.content:
-                if isinstance(c, ContentReasoning) and c.redacted:
-                    return True
-    return False
+    """Return True if any message contains a redacted (encrypted) ContentReasoning."""
+    return any(
+        isinstance(c, ContentReasoning) and c.redacted
+        for m in messages
+        if isinstance(m.content, list)
+        for c in m.content
+    )
 
 
 def compaction(
@@ -171,23 +163,20 @@ def compaction(
             # to a full recount via count_tokens, which calls the provider's native
             # counting endpoint (authoritative for OpenAI Responses, Anthropic,
             # and Google).
-            baseline_messages_have_uncounted_reasoning = (
-                not provider_input_tokens_complete
-                and _has_redacted_reasoning_in(
-                    [
-                        m
-                        for m in target_messages
-                        if message_id(m) in baseline_message_ids
-                    ]
-                )
-            )
-            baseline_trustworthy = (
+            if (
                 baseline_tokens is not None
                 and baseline_message_ids.issubset(target_message_ids)
-                and not baseline_messages_have_uncounted_reasoning
-            )
-            if baseline_trustworthy:
-                assert baseline_tokens is not None  # narrowed by baseline_trustworthy
+                and not (
+                    not provider_input_tokens_complete
+                    and _has_redacted_reasoning_in(
+                        [
+                            m
+                            for m in target_messages
+                            if message_id(m) in baseline_message_ids
+                        ]
+                    )
+                )
+            ):
                 new_since_baseline = [
                     m
                     for m in target_messages
