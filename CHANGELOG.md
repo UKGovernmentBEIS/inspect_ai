@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Added `media_resolver()` context manager for scoped URI resolution for media reading (images, audiot, etc.).
+- Added `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
 
 ## 0.3.216 (01 May 2026)
 

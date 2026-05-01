@@ -27,49 +27,49 @@ class TestMediaResolver:
         if self._token is not None:
             _media_resolvers.reset(self._token)
 
-    async def test_resolver_registration(self) -> None:
+    def test_resolver_registration(self) -> None:
         async def resolver(uri: str) -> str:
             return uri
 
         assert _get_resolver("gs") is None
-        async with media_resolver("gs", resolver):
+        with media_resolver("gs", resolver):
             assert _get_resolver("gs") is resolver
         assert _get_resolver("gs") is None
 
-    async def test_cleanup_on_exception(self) -> None:
+    def test_cleanup_on_exception(self) -> None:
         async def resolver(uri: str) -> str:
             return uri
 
         try:
-            async with media_resolver("gs", resolver):
+            with media_resolver("gs", resolver):
                 raise ValueError("test")
         except ValueError:
             pass
         assert _get_resolver("gs") is None
 
-    async def test_nested_same_scheme(self) -> None:
+    def test_nested_same_scheme(self) -> None:
         async def outer(uri: str) -> str:
             return "outer"
 
         async def inner(uri: str) -> str:
             return "inner"
 
-        async with media_resolver("s3", outer):
+        with media_resolver("s3", outer):
             assert _get_resolver("s3") is outer
-            async with media_resolver("s3", inner):
+            with media_resolver("s3", inner):
                 assert _get_resolver("s3") is inner
             assert _get_resolver("s3") is outer
         assert _get_resolver("s3") is None
 
-    async def test_multiple_schemes_simultaneously(self) -> None:
+    def test_multiple_schemes_simultaneously(self) -> None:
         async def s3_resolver(uri: str) -> str:
             return "s3_resolved"
 
         async def gs_resolver(uri: str) -> str:
             return "gs_resolved"
 
-        async with media_resolver("s3", s3_resolver):
-            async with media_resolver("gs", gs_resolver):
+        with media_resolver("s3", s3_resolver):
+            with media_resolver("gs", gs_resolver):
                 assert _get_resolver("s3") is s3_resolver
                 assert _get_resolver("gs") is gs_resolver
             assert _get_resolver("s3") is s3_resolver
@@ -97,13 +97,13 @@ class TestConcurrentIsolation:
             return "data:text/plain;base64,Qg=="
 
         async def task_a() -> None:
-            async with media_resolver("test", resolver_a):
+            with media_resolver("test", resolver_a):
                 await anyio.sleep(0.01)
                 data, _ = await file_as_data("test://bucket/file")
                 results["a"] = data.decode()
 
         async def task_b() -> None:
-            async with media_resolver("test", resolver_b):
+            with media_resolver("test", resolver_b):
                 await anyio.sleep(0.01)
                 data, _ = await file_as_data("test://bucket/file")
                 results["b"] = data.decode()
@@ -139,7 +139,7 @@ class TestFileAsDataResolver:
                 calls.append(uri)
                 return path
 
-            async with media_resolver("test", resolver):
+            with media_resolver("test", resolver):
                 await file_as_data("test://bucket/image.png")
             assert calls == ["test://bucket/image.png"]
         finally:
@@ -152,7 +152,7 @@ class TestFileAsDataResolver:
         async def resolver(uri: str) -> str:
             return f"data:text/plain;base64,{b64}"
 
-        async with media_resolver("custom", resolver):
+        with media_resolver("custom", resolver):
             data, mime = await file_as_data("custom://x")
         assert data == content
         assert mime == "text/plain"
@@ -165,7 +165,7 @@ class TestFileAsDataResolver:
             called = True
             return "data:text/plain;base64,Yw=="
 
-        async with media_resolver("c", resolver):
+        with media_resolver("c", resolver):
             with tempfile.NamedTemporaryFile(
                 mode="wb", suffix=".txt", delete=False
             ) as f:
@@ -183,7 +183,7 @@ class TestFileAsDataResolver:
         async def failing_resolver(uri: str) -> str:
             raise RuntimeError("Connection failed")
 
-        async with media_resolver("fail", failing_resolver):
+        with media_resolver("fail", failing_resolver):
             with pytest.raises(ValueError) as exc_info:
                 await file_as_data("fail://bucket/file")
             assert "Media resolver for scheme 'fail' failed" in str(exc_info.value)
@@ -204,8 +204,8 @@ class TestFileAsDataResolver:
             calls.append(f"inner:{uri}")
             return "data:text/plain;base64,dGVzdA=="
 
-        async with media_resolver("outer", outer_resolver):
-            async with media_resolver("inner", inner_resolver):
+        with media_resolver("outer", outer_resolver):
+            with media_resolver("inner", inner_resolver):
                 # This should fail because inner:// is not re-resolved
                 # and "inner://should/not/resolve" is not a valid file
                 with pytest.raises(Exception):
@@ -237,7 +237,7 @@ class TestFileAsDataUri:
             called = True
             return "data:text/plain;base64,eA=="
 
-        async with media_resolver("data", resolver):
+        with media_resolver("data", resolver):
             uri = "data:text/plain;base64,aGVsbG8="
             result = await file_as_data_uri(uri)
         assert not called
@@ -245,7 +245,7 @@ class TestFileAsDataUri:
 
 
 class TestGetResolverWithoutContext:
-    async def test_get_resolver_without_context_returns_none(self) -> None:
+    def test_get_resolver_without_context_returns_none(self) -> None:
         """Test that _get_resolver returns None for an unregistered scheme."""
         # Verify it returns None for an unregistered scheme (tests the .get() part)
         assert _get_resolver("nonexistent") is None
@@ -258,7 +258,7 @@ class TestGetResolverWithoutContext:
             return "data:text/plain;base64,dGVzdA=="
 
         # Should not raise even if ContextVar was never set
-        async with media_resolver("fresh", resolver):
+        with media_resolver("fresh", resolver):
             assert _get_resolver("fresh") is resolver
             data, _ = await file_as_data("fresh://test")
             assert data == b"test"

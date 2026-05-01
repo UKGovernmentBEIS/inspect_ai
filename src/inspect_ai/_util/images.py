@@ -1,8 +1,8 @@
 import base64
 import mimetypes
-from contextlib import asynccontextmanager
+from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import AsyncIterator, Awaitable, Callable
+from typing import Awaitable, Callable, Iterator
 from urllib.parse import urlparse
 
 import httpx
@@ -34,14 +34,14 @@ def _get_resolver(scheme: str) -> MediaResolverFunc | None:
         return None
 
 
-@asynccontextmanager
-async def media_resolver(
+@contextmanager
+def media_resolver(
     scheme: str,
     resolver: MediaResolverFunc,
-) -> AsyncIterator[None]:
+) -> Iterator[None]:
     """Context manager for registering a media URI resolver.
 
-    Registers a resolver scoped to the current async task for resolving
+    Registers a resolver scoped to the current context for resolving
     custom URI schemes in media content (images, audio, video). Stack-safe
     for nested use with the same scheme.
 
