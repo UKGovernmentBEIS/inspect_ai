@@ -28,6 +28,7 @@ from ._eval_checkpoints import read_eval_manifest
 from ._layout import CheckpointTriggerKind, SnapshotInfo
 from ._restic import (
     ResticBackupSummary,
+    egress_sandbox,
     init_host_repo,
     init_sandbox_repo,
     inject_restic,
@@ -213,19 +214,16 @@ class _Checkpointer:
 
         await self._write_host_context(self._sample_working_dir, self._turn)
 
-        # Host + each sandbox backup in parallel — they're independent
-        # restic invocations against separate repos. `collect()` adds a
-        # transcript span per task so the per-cycle structure is legible.
+        # Host + each sandbox (backup → egress) in parallel. The
+        # backup-then-egress pair for a given sandbox is sequential
+        # (egress diffs against what backup just wrote), but the pairs
+        # are independent across sandboxes and from the host backup.
+        # `collect()` adds a transcript span per task.
         sandbox_items = list(self._config.sandbox_paths.items())
         summaries = await collect(
             self._backup_host(),
             *(
-                run_sandbox_backup(
-                    sandbox(name),
-                    self._restic_password,
-                    paths,
-                    self._next_checkpoint_id,
-                )
+                self._backup_and_egress_sandbox(name, paths)
                 for name, paths in sandbox_items
             ),
         )
@@ -275,6 +273,24 @@ class _Checkpointer:
             self._sample_working_dir,
             self._next_checkpoint_id,
         )
+
+    async def _backup_and_egress_sandbox(
+        self, name: str, paths: list[str]
+    ) -> ResticBackupSummary:
+        env = sandbox(name)
+        summary = await run_sandbox_backup(
+            env, self._restic_password, paths, self._next_checkpoint_id
+        )
+        dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
+        await egress_sandbox(
+            env,
+            dest_repo=dest_repo,
+            password=self._restic_password,
+            host_restic=self._host_restic,
+            checkpoint_id=self._next_checkpoint_id,
+            snapshot_id=summary.snapshot_id,
+        )
+        return summary
 
 
 def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:
