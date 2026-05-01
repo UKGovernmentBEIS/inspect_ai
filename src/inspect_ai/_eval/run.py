@@ -836,6 +836,10 @@ async def startup_sandbox_environments(
                 (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
             )
 
+        # provide some space above task display
+        if sandboxenvs:
+            print("")
+
     # return shutdown method
     async def shutdown() -> None:
         with anyio.CancelScope(shield=True):
