@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from dataclasses import replace
-from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
@@ -17,8 +17,10 @@ if sys.version_info < (3, 11):
 
 import anyio
 from anyio.abc import TaskGroup
-from inspect_scout import Scanner, Transcript
 from typing_extensions import Unpack
+
+if TYPE_CHECKING:
+    from inspect_scout import Scanner, Transcript
 
 from inspect_ai._display import display
 from inspect_ai._display.core.active import (
@@ -73,7 +75,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
-    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
+    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,

@@ -4,10 +4,9 @@ import logging
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Literal, NamedTuple, Set, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
 
 import rich
-from inspect_scout import Scanner, Transcript
 from pydantic import BaseModel
 from pydantic_core import to_json
 from rich.status import Status
@@ -20,6 +19,9 @@ from tenacity import (
     wait_exponential,
 )
 from typing_extensions import Unpack
+
+if TYPE_CHECKING:
+    from inspect_scout import Scanner, Transcript
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
@@ -114,7 +116,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
+    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,

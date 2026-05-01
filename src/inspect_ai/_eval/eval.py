@@ -4,7 +4,7 @@ import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import anyio
 from anyio.abc import TaskGroup
@@ -21,9 +21,11 @@ from inspect_ai.util._anyio import inner_exception
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-from inspect_scout import Scanner, Transcript
 from shortuuid import uuid
 from typing_extensions import Unpack
+
+if TYPE_CHECKING:
+    from inspect_scout import Scanner, Transcript
 
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
@@ -97,7 +99,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
+    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -326,7 +328,7 @@ async def eval_async(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
+    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -532,7 +534,7 @@ async def _eval_async_inner(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None = None,
+    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,

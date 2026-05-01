@@ -8,13 +8,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Awaitable, Callable, Literal
+from typing import TYPE_CHECKING, Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
-from inspect_scout import Scanner
-from inspect_scout import Transcript as ScoutTranscript
 from typing_extensions import Unpack
+
+if TYPE_CHECKING:
+    from inspect_scout import Scanner
+    from inspect_scout import Transcript as ScoutTranscript
 
 from inspect_ai._display import (
     TaskCancelled,
@@ -164,7 +166,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
-    scanner: Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None = field(
+    scanner: "Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None" = field(
         default=None
     )
     tags: list[str] | None = field(default=None)
@@ -734,7 +736,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
-    scanner: Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None,
+    scanner: "Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],

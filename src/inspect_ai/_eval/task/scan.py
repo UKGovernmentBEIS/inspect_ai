@@ -1,11 +1,14 @@
-from inspect_scout import Scanner, Transcript
+from typing import TYPE_CHECKING
 
 from inspect_ai.log._log import EvalSample
+
+if TYPE_CHECKING:
+    from inspect_scout import Scanner, Transcript
 
 
 async def scan_eval_sample(
     eval_sample: EvalSample,
-    scanner: Scanner[Transcript] | list[Scanner[Transcript]] | None,
+    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None",
 ) -> None:
     """Run scanner(s) over a completed sample's transcript.
 
@@ -18,5 +21,6 @@ async def scan_eval_sample(
     scanners = scanner if isinstance(scanner, list) else [scanner]
     if not scanners:
         return
+
     # TODO: convert eval_sample to inspect_scout.Transcript and invoke each
     # scanner via a new scout API; persist results.
