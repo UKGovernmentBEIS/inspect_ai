@@ -82,16 +82,16 @@ def test_model_length_with_compaction_triggers_force_and_continues(
     log = eval(task, model=model)[0]
     assert log.status == "success", f"Agent should have recovered. Status: {log.status}"
 
-    # Verify the recovery emitted a differentiated CompactionEvent. This is
-    # the load-bearing assertion: it confirms that _handle_overflow invoked
-    # compact_input(force=True), which is the wiring this task adds.
+    # Verify the recovery emitted a CompactionEvent with trigger=forced.
+    # This confirms _handle_overflow invoked compact_input(force=True).
     from inspect_ai.event import CompactionEvent
 
     assert log.samples
     events = [e for e in log.samples[0].events if isinstance(e, CompactionEvent)]
-    assert any(e.source == "inspect_recovery" for e in events), (
-        "Expected at least one CompactionEvent with source='inspect_recovery' "
-        f"from forced compaction; got sources {[e.source for e in events]}"
+    triggers = [(e.metadata or {}).get("trigger") for e in events]
+    assert "forced" in triggers, (
+        f"Expected a CompactionEvent with metadata.trigger='forced' "
+        f"from overflow recovery; got triggers {triggers}"
     )
 
 

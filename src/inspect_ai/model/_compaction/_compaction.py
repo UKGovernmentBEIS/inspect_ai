@@ -230,13 +230,14 @@ def compaction(
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
-                        source="inspect_recovery" if force else "inspect",
+                        source="inspect",
                         tokens_before=total_tokens,
                         tokens_after=compacted_tokens,
                         metadata={
                             "strategy": strategy.__class__.__name__,
                             "messages_before": len(target_messages),
                             "messages_after": len(compacted_input),
+                            "trigger": "forced" if force else "threshold",
                         },
                     )
                 )
