@@ -231,6 +231,13 @@ async def egress_sandbox(
     if not new_files:
         return
 
+    # TODO(checkpointing-phase-3): for very large per-cycle deltas on
+    # slow providers (Proxmox, Daytona, k8s), `read_file` on a single
+    # big tar can hit per-call timeouts and peaks host RAM at the
+    # tarball size. If that becomes a real problem, swap to a streaming
+    # primitive (`cat <tar> | exec stdout`, chunked) — same protocol,
+    # different copy-out mechanism. Typical inspect deltas are small
+    # enough that a one-shot read_file is the right default.
     tar_path = f"{_EGRESS_STAGING}/egress-{checkpoint_id:05d}.tar"
     tar_bytes = await env.read_file(tar_path, text=False)
     Path(dest_repo).mkdir(parents=True, exist_ok=True)
