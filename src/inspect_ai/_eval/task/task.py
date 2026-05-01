@@ -81,6 +81,7 @@ class Task:
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
+        score_on_error: bool | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
         time_limit: int | None = None,
@@ -120,6 +121,9 @@ class Task:
                 eval if a count of samples fails.
             continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
                 `False` to fail eval immediately when the `fail_on_error` condition is met (default).
+            score_on_error: `True` to score samples that error rather than failing the eval mid-run.
+                Errors still count toward the `fail_on_error` threshold for marking the eval log
+                as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on total tokens used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
@@ -180,6 +184,7 @@ class Task:
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
         self.continue_on_fail = continue_on_fail
+        self.score_on_error = score_on_error
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
@@ -252,6 +257,7 @@ def task_with(
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
+    score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
@@ -294,6 +300,9 @@ def task_with(
             eval if a count of samples fails.
         continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
+        score_on_error: `True` to score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval log
+            as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
@@ -347,6 +356,8 @@ def task_with(
         task.fail_on_error = fail_on_error
     if not isinstance(continue_on_fail, NotGiven):
         task.continue_on_fail = continue_on_fail
+    if not isinstance(score_on_error, NotGiven):
+        task.score_on_error = score_on_error
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):

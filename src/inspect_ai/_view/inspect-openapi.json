@@ -2154,6 +2154,17 @@
             ],
             "title": "Score Display"
           },
+          "score_on_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score On Error"
+          },
           "time_limit": {
             "anyOf": [
               {

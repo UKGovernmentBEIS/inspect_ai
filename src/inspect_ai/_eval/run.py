@@ -211,6 +211,12 @@ async def eval_run(
                 else:
                     task.continue_on_fail = task_eval_config.continue_on_fail
 
+                # score_on_error
+                if task_eval_config.score_on_error is None:
+                    task_eval_config.score_on_error = task.score_on_error
+                else:
+                    task.score_on_error = task_eval_config.score_on_error
+
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None
 
