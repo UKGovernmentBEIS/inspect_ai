@@ -11,6 +11,7 @@
 - Inspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)
 - Inspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)
 - Inspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)
+- Model database: Fix incorrect `input_tokens` for `gpt-5.4`, `gpt-5.4-pro`, `gpt-5.5`, `gpt-5.5-pro` (was 778000, now 922000 = 1,050,000 context − 128,000 output).
 
 ## 0.3.215 (30 April 2026)
 
