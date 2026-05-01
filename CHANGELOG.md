@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Added `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
+- Compaction: Lock Compact handler against concurrent AgentBridge calls.
 
 ## 0.3.216 (01 May 2026)
 
