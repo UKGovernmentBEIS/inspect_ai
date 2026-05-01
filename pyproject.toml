@@ -7,7 +7,6 @@ dependencies = { file = ["requirements.txt"] }
 optional-dependencies.dev = { file = ["requirements-dev.txt"] }
 optional-dependencies.doc = { file = ["requirements-doc.txt"] }
 optional-dependencies.dist = { file = ["requirements-dist.txt"] }
-optional-dependencies.gdown = { file = ["requirements-gdown.txt"] }
 
 [tool.setuptools_scm]
 git_describe_command = [

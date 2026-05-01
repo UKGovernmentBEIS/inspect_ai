@@ -110,10 +110,10 @@ def gdrive_download(file_id: str, sha256: str, dest: Path) -> Path:
     Useful for fetching public-link Google Drive assets (datasets, zipped
     corpora) without OAuth. Requires the optional `gdown` dependency:
 
-        pip install inspect_ai[gdown]
+        pip install gdown
 
     Skip-if-checksum-matches and atomic-write semantics are identical to
-    `download`.
+    `download()`.
 
     Args:
         file_id: Google Drive file id.
