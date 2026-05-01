@@ -2774,14 +2774,21 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Handle split UTF-16 “lone surrogate” in log message condensation.\nInspect View: Collapse the LogView title bar on scroll\nInspect View: Add additional column support when viewing task samples.\nInspect View: Add sample uuid column id and filtering.\nInspect View: Fix issue causing column sizing and re-ordering to snap back to initial state.\nInspect View: Fix copy command including large binary payloads."
+    "text": "OpenRouter: Escape signature attribute in  tag round-trip.\nLogging: Add sample id, epoch, and task name to log records.\nDocker: Skip docker pull for service images already present in the local Docker daemon.\nInspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)\nInspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)\nInspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)"
+  },
+  {
+    "objectID": "CHANGELOG.html#may-2026",
+    "href": "CHANGELOG.html#may-2026",
+    "title": "Inspect",
+    "section": "",
+    "text": "OpenRouter: Escape signature attribute in  tag round-trip.\nLogging: Add sample id, epoch, and task name to log records.\nDocker: Skip docker pull for service images already present in the local Docker daemon.\nInspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)\nInspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)\nInspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)"
   },
   {
     "objectID": "CHANGELOG.html#april-2026",
     "href": "CHANGELOG.html#april-2026",
     "title": "Inspect",
-    "section": "",
-    "text": "Handle split UTF-16 “lone surrogate” in log message condensation.\nInspect View: Collapse the LogView title bar on scroll\nInspect View: Add additional column support when viewing task samples.\nInspect View: Add sample uuid column id and filtering.\nInspect View: Fix issue causing column sizing and re-ordering to snap back to initial state.\nInspect View: Fix copy command including large binary payloads."
+    "section": "0.3.215 (30 April 2026)",
+    "text": "0.3.215 (30 April 2026)\n\nHandle split UTF-16 “lone surrogate” in log message condensation.\nInspect View: Collapse the LogView title bar on scroll\nInspect View: Add additional column support when viewing task samples.\nInspect View: Add sample uuid column id and filtering.\nInspect View: Fix issue causing column sizing and re-ordering to snap back to initial state.\nInspect View: Fix copy command including large binary payloads."
   },
   {
     "objectID": "CHANGELOG.html#april-2026-1",
