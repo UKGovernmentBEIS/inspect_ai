@@ -3,6 +3,9 @@
 - OpenRouter: Escape signature attribute in <think> tag round-trip.
 - Logging: Add sample id, epoch, and task name to log records.
 - Docker: Skip `docker pull` for service images already present in the local Docker daemon.
+- Inspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)
+- Inspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)
+- Inspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)
 
 ## 0.3.215 (30 April 2026)
 
