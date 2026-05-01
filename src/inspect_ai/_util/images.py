@@ -15,70 +15,56 @@ from .url import (
     is_http_url,
 )
 
-_UriResolver = Callable[[str], Awaitable[str]]
+MediaResolverFunc = Callable[[str], Awaitable[str]]
+"""Type alias for media resolver functions.
 
-_global_uri_resolvers: dict[str, _UriResolver] = {}
-_scoped_uri_resolvers: ContextVar[dict[str, _UriResolver]] = ContextVar(
-    "_scoped_uri_resolvers", default={}
+A media resolver is an async function that takes a URI string and returns
+a resolved path, URL, or data URI.
+"""
+
+_media_resolvers: ContextVar[dict[str, MediaResolverFunc]] = ContextVar(
+    "_media_resolvers"
 )
 
 
-def _get_resolver(scheme: str) -> _UriResolver | None:
-    scoped = _scoped_uri_resolvers.get()
-    if scheme in scoped:
-        return scoped[scheme]
-    return _global_uri_resolvers.get(scheme)
-
-
-def register_uri_resolver(
-    scheme: str,
-    resolver: Callable[[str], Awaitable[str]],
-) -> Callable[[], None]:
-    """Register a global URI resolver for a scheme.
-
-    Registers a process-wide resolver. For task-scoped resolvers, use the
-    `uri_resolver` context manager instead.
-
-    Args:
-        scheme: URI scheme (e.g., "s3", "gs").
-        resolver: Async function taking a URI and returning a resolved path,
-            URL, or data URI.
-
-    Returns:
-        Cleanup function to unregister the resolver.
-    """
-    _global_uri_resolvers[scheme] = resolver
-    return lambda: unregister_uri_resolver(scheme)
-
-
-def unregister_uri_resolver(scheme: str) -> None:
-    """Remove a global URI resolver."""
-    _global_uri_resolvers.pop(scheme, None)
+def _get_resolver(scheme: str) -> MediaResolverFunc | None:
+    try:
+        return _media_resolvers.get().get(scheme)
+    except LookupError:
+        return None
 
 
 @asynccontextmanager
-async def uri_resolver(
+async def media_resolver(
     scheme: str,
-    resolver: Callable[[str], Awaitable[str]],
+    resolver: MediaResolverFunc,
 ) -> AsyncIterator[None]:
-    """Context manager for task-local URI resolver registration.
+    """Context manager for registering a media URI resolver.
 
-    Registers a resolver scoped to the current async task. Takes precedence
-    over global resolvers. Stack-safe for nested use with the same scheme.
+    Registers a resolver scoped to the current async task for resolving
+    custom URI schemes in media content (images, audio, video). Stack-safe
+    for nested use with the same scheme.
+
+    Note: The resolver is called at most once per URI. The returned value
+    is not re-resolved, so returning another custom scheme URI will not
+    trigger additional resolver lookups.
 
     Args:
         scheme: URI scheme (e.g., "s3", "gs").
         resolver: Async function taking a URI and returning a resolved path,
             URL, or data URI.
     """
-    current = _scoped_uri_resolvers.get()
+    try:
+        current = _media_resolvers.get()
+    except LookupError:
+        current = {}
     new_scoped = current.copy()
     new_scoped[scheme] = resolver
-    token = _scoped_uri_resolvers.set(new_scoped)
+    token = _media_resolvers.set(new_scoped)
     try:
         yield
     finally:
-        _scoped_uri_resolvers.reset(token)
+        _media_resolvers.reset(token)
 
 
 def _is_uri_with_scheme(file: str) -> str | None:
@@ -95,7 +81,12 @@ async def file_as_data(file: str) -> tuple[bytes, str]:
     if scheme:
         resolver = _get_resolver(scheme)
         if resolver is not None:
-            file = await resolver(file)
+            try:
+                file = await resolver(file)
+            except Exception as e:
+                raise ValueError(
+                    f"Media resolver for scheme '{scheme}' failed on '{file}'"
+                ) from e
 
     if is_data_uri(file):
         # resolve mime type and base64 content
@@ -104,16 +95,16 @@ async def file_as_data(file: str) -> tuple[bytes, str]:
         file_bytes = base64.b64decode(file_base64)
     else:
         # guess mime type; need strict=False for webp images
-        type, _ = mimetypes.guess_type(file, strict=False)
-        if type:
-            mime_type = type
+        guessed_type, _ = mimetypes.guess_type(file, strict=False)
+        if guessed_type:
+            mime_type = guessed_type
         else:
             mime_type = "image/png"
 
         # handle url or file
         if is_http_url(file):
-            client = httpx.AsyncClient()
-            file_bytes = (await client.get(file)).content
+            async with httpx.AsyncClient() as client:
+                file_bytes = (await client.get(file)).content
         else:
             with open_file(file, "rb") as f:
                 file_bytes = f.read()
@@ -126,8 +117,8 @@ async def file_as_data_uri(file: str) -> str:
     if is_data_uri(file):
         return file
     else:
-        bytes, mime_type = await file_as_data(file)
-        base64_file = base64.b64encode(bytes).decode("utf-8")
+        file_bytes, mime_type = await file_as_data(file)
+        base64_file = base64.b64encode(file_bytes).decode("utf-8")
         return as_data_uri(mime_type, base64_file)
 
 
