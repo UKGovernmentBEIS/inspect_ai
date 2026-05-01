@@ -127,7 +127,7 @@ async def bridge_generate(
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)
         if compact is not None:
-            compact.record_output(output)
+            await compact.record_output(input_messages, output)
 
         # Check for refusal and retry if needed
         if (

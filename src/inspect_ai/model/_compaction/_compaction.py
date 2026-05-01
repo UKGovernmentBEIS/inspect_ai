@@ -86,24 +86,28 @@ def compaction(
             raise RuntimeError("Message must have an ID")
         return message.id
 
-    def record_output_fn(output: ModelOutput) -> None:
+    async def record_output_fn(input: list[ChatMessage], output: ModelOutput) -> None:
         """Record output from generate call to calibrate token baseline."""
         nonlocal baseline_tokens, baseline_message_ids
 
         if output.usage is None:
             return
 
-        # Compute total input tokens including cached tokens
-        input_tokens = output.usage.input_tokens
-        if output.usage.input_tokens_cache_read:
-            input_tokens += output.usage.input_tokens_cache_read
-        if output.usage.input_tokens_cache_write:
-            input_tokens += output.usage.input_tokens_cache_write
+        async with _lock:
+            # Compute total input tokens including cached tokens
+            input_tokens = output.usage.input_tokens
+            if output.usage.input_tokens_cache_read:
+                input_tokens += output.usage.input_tokens_cache_read
+            if output.usage.input_tokens_cache_write:
+                input_tokens += output.usage.input_tokens_cache_write
 
-        # The baseline reflects the token count for messages currently in
-        # compacted_input (what was sent to generate)
-        baseline_tokens = input_tokens
-        baseline_message_ids = {message_id(m) for m in compacted_input}
+            # The baseline reflects the token count for the messages that
+            # were actually passed to generate (the source of `output.usage`).
+            # Reading from the closure's `compacted_input` here would race with
+            # any concurrent compact_input call that mutated it after this
+            # generate started.
+            baseline_tokens = input_tokens
+            baseline_message_ids = {message_id(m) for m in input}
 
     async def compact_fn(
         messages: list[ChatMessage],
@@ -249,8 +253,10 @@ def compaction(
         ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
             return await compact_fn(messages)
 
-        def record_output(self, output: ModelOutput) -> None:
-            record_output_fn(output)
+        async def record_output(
+            self, input: list[ChatMessage], output: ModelOutput
+        ) -> None:
+            await record_output_fn(input, output)
 
     return _CompactHandler()
 
