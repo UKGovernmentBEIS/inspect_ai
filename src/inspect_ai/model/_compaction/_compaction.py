@@ -3,6 +3,8 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Sequence
 
+import anyio
+
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
@@ -62,6 +64,10 @@ def compaction(
     # snapshot the prefix in case it changes
     prefix = prefix.copy()
 
+    # lock serializing closure-state mutation across concurrent callers
+    # (relevant when the same Compact instance is shared via AgentBridge).
+    _lock = anyio.Lock()
+
     # resolve target model
     target_model = get_model(model)
 
@@ -108,129 +114,134 @@ def compaction(
         nonlocal tool_tokens, tools_info, prefix_tokens, memory_warning_issued
         nonlocal baseline_tokens, baseline_message_ids
 
-        # one time resolution of tool_tokens and prefix_tokens
-        # (must be done here b/c calls are async)
-        if tool_tokens is None:
-            tools_info = get_tools_info(await resolve_tools(tools or []))
-            tool_tokens = await target_model.count_tool_tokens(tools_info)
-        if prefix_tokens is None:
-            prefix_tokens = await target_model.count_tokens(prefix) if prefix else 0
+        async with _lock:
+            # one time resolution of tool_tokens and prefix_tokens
+            # (must be done here b/c calls are async)
+            if tool_tokens is None:
+                tools_info = get_tools_info(await resolve_tools(tools or []))
+                tool_tokens = await target_model.count_tool_tokens(tools_info)
+            if prefix_tokens is None:
+                prefix_tokens = await target_model.count_tokens(prefix) if prefix else 0
 
-        # determine unprocessed messages (messages not yet added to input).
-        # we allow unprocessed messages to accumulate in the input until
-        # the compaction 'threshold' is reached.
-        unprocessed: list[ChatMessage] = [
-            m for m in messages if message_id(m) not in processed_message_ids
-        ]
-
-        # estimate total tokens using the most accurate method available
-        target_messages = compacted_input + unprocessed
-        target_message_ids = {message_id(m) for m in target_messages}
-        if baseline_tokens is not None and baseline_message_ids.issubset(
-            target_message_ids
-        ):
-            # Use the baseline from the last generate call (most accurate).
-            # The baseline already includes tool definitions, system messages,
-            # and API-level overhead. We only need to count NEW messages
-            # added since the baseline was established.
-            new_since_baseline = [
-                m for m in target_messages if message_id(m) not in baseline_message_ids
+            # determine unprocessed messages (messages not yet added to input).
+            # we allow unprocessed messages to accumulate in the input until
+            # the compaction 'threshold' is reached.
+            unprocessed: list[ChatMessage] = [
+                m for m in messages if message_id(m) not in processed_message_ids
             ]
-            new_tokens = (
-                await target_model.count_tokens(new_since_baseline)
-                if new_since_baseline
-                else 0
-            )
-            total_tokens = baseline_tokens + new_tokens
-        else:
-            # No baseline yet (first call). Fall back to per-message counting.
-            message_tokens = await target_model.count_tokens(target_messages)
-            total_tokens = tool_tokens + message_tokens
 
-        if total_tokens > threshold:
-            # perform compaction (with iteration if needed)
-            c_input, c_message = await _perform_compaction(
-                strategy=strategy,
-                messages=target_messages,
-                tools=tools_info,
-                model=target_model,
-                threshold=threshold,
-                tool_tokens=tool_tokens,
-                prefix_tokens=prefix_tokens,
-            )
-
-            # track all messages that were processed in this compaction pass
-            for m in compacted_input + unprocessed:
-                processed_message_ids.add(message_id(m))
-
-            # c_message is a compaction side effect to append to the history
-            # (e.g. a summary). track it as processed as well
-            if c_message is not None:
-                processed_message_ids.add(message_id(c_message))
-
-            # Preserve prefix messages based on strategy type
-            if strategy.preserve_prefix:
-                # Non-native strategies: prepend any prefix messages not in output
-                input_ids = {message_id(m) for m in c_input}
-                prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
-            else:
-                # Native compaction: only prepend system messages
-                # (user content is preserved by provider or in compaction block)
-                prepend_prefix = [m for m in prefix if m.role == "system"]
-            c_input = prepend_prefix + c_input
-
-            # update input
-            compacted_input.clear()
-            compacted_input.extend(c_input)
-
-            # log compaction
-            compacted_tokens = await target_model.count_tokens(compacted_input)
-            transcript()._event(
-                CompactionEvent(
-                    type=strategy.type,
-                    source="inspect",
-                    tokens_before=total_tokens,
-                    tokens_after=compacted_tokens,
-                    metadata={
-                        "strategy": strategy.__class__.__name__,
-                        "messages_before": len(target_messages),
-                        "messages_after": len(compacted_input),
-                    },
-                )
-            )
-
-            # clear memory warning state
-            memory_warning_issued = False
-
-            # invalidate baseline (compaction changed the messages)
-            baseline_tokens = None
-            baseline_message_ids = set()
-
-            # return input and any extra message to append
-            return list(c_input), c_message
-
-        else:
-            # track unprocessed messages as now processed
-            for m in unprocessed:
-                processed_message_ids.add(message_id(m))
-
-            # extend input with unprocessed messages
-            compacted_input.extend(unprocessed)
-
-            # check if we need to do a memory warning
-            if (
-                strategy.memory is True
-                and MEMORY_TOOL in [t.name for t in tools_info]
-                and total_tokens > memory_warning_threshold
-                and not memory_warning_issued
+            # estimate total tokens using the most accurate method available
+            target_messages = compacted_input + unprocessed
+            target_message_ids = {message_id(m) for m in target_messages}
+            if baseline_tokens is not None and baseline_message_ids.issubset(
+                target_message_ids
             ):
-                memory_message = memory_warning_message()
-                compacted_input.append(memory_message)
-                processed_message_ids.add(message_id(memory_message))
-                memory_warning_issued = True
+                # Use the baseline from the last generate call (most accurate).
+                # The baseline already includes tool definitions, system messages,
+                # and API-level overhead. We only need to count NEW messages
+                # added since the baseline was established.
+                new_since_baseline = [
+                    m
+                    for m in target_messages
+                    if message_id(m) not in baseline_message_ids
+                ]
+                new_tokens = (
+                    await target_model.count_tokens(new_since_baseline)
+                    if new_since_baseline
+                    else 0
+                )
+                total_tokens = baseline_tokens + new_tokens
+            else:
+                # No baseline yet (first call). Fall back to per-message counting.
+                message_tokens = await target_model.count_tokens(target_messages)
+                total_tokens = tool_tokens + message_tokens
 
-            # return
-            return list(compacted_input), None
+            if total_tokens > threshold:
+                # perform compaction (with iteration if needed)
+                c_input, c_message = await _perform_compaction(
+                    strategy=strategy,
+                    messages=target_messages,
+                    tools=tools_info,
+                    model=target_model,
+                    threshold=threshold,
+                    tool_tokens=tool_tokens,
+                    prefix_tokens=prefix_tokens,
+                )
+
+                # track all messages that were processed in this compaction pass
+                for m in compacted_input + unprocessed:
+                    processed_message_ids.add(message_id(m))
+
+                # c_message is a compaction side effect to append to the history
+                # (e.g. a summary). track it as processed as well
+                if c_message is not None:
+                    processed_message_ids.add(message_id(c_message))
+
+                # Preserve prefix messages based on strategy type
+                if strategy.preserve_prefix:
+                    # Non-native strategies: prepend any prefix messages not in output
+                    input_ids = {message_id(m) for m in c_input}
+                    prepend_prefix = [
+                        m for m in prefix if message_id(m) not in input_ids
+                    ]
+                else:
+                    # Native compaction: only prepend system messages
+                    # (user content is preserved by provider or in compaction block)
+                    prepend_prefix = [m for m in prefix if m.role == "system"]
+                c_input = prepend_prefix + c_input
+
+                # update input
+                compacted_input.clear()
+                compacted_input.extend(c_input)
+
+                # log compaction
+                compacted_tokens = await target_model.count_tokens(compacted_input)
+                transcript()._event(
+                    CompactionEvent(
+                        type=strategy.type,
+                        source="inspect",
+                        tokens_before=total_tokens,
+                        tokens_after=compacted_tokens,
+                        metadata={
+                            "strategy": strategy.__class__.__name__,
+                            "messages_before": len(target_messages),
+                            "messages_after": len(compacted_input),
+                        },
+                    )
+                )
+
+                # clear memory warning state
+                memory_warning_issued = False
+
+                # invalidate baseline (compaction changed the messages)
+                baseline_tokens = None
+                baseline_message_ids = set()
+
+                # return input and any extra message to append
+                return list(c_input), c_message
+
+            else:
+                # track unprocessed messages as now processed
+                for m in unprocessed:
+                    processed_message_ids.add(message_id(m))
+
+                # extend input with unprocessed messages
+                compacted_input.extend(unprocessed)
+
+                # check if we need to do a memory warning
+                if (
+                    strategy.memory is True
+                    and MEMORY_TOOL in [t.name for t in tools_info]
+                    and total_tokens > memory_warning_threshold
+                    and not memory_warning_issued
+                ):
+                    memory_message = memory_warning_message()
+                    compacted_input.append(memory_message)
+                    processed_message_ids.add(message_id(memory_message))
+                    memory_warning_issued = True
+
+                # return
+                return list(compacted_input), None
 
     class _CompactHandler:
         async def compact_input(
