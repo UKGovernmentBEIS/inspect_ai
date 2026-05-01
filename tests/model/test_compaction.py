@@ -760,3 +760,52 @@ async def test_compaction_strips_citations() -> None:
                     assert content.citations is None, (
                         f"Expected citations to be None, got {content.citations}"
                     )
+
+
+async def test_compact_input_concurrent_no_duplicate_messages() -> None:
+    """Concurrent compact_input calls must not duplicate closure state.
+
+    When the same Compact instance is shared (e.g. through AgentBridge),
+    parallel callers must not lose updates to compacted_input.
+    """
+    import anyio
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai.model._generate_config import GenerateConfig
+
+    # high threshold so compaction never triggers; exercises the no-compaction
+    # branch where concurrent callers all extend compacted_input
+    strategy = CompactionEdit(threshold=10_000_000)
+
+    model = get_model("mockllm/model")
+
+    # yield inside count_tokens so the scheduler interleaves concurrent
+    # callers; without an explicit yield, asyncio may run each coroutine
+    # to completion without context-switching
+    async def yielding_count_tokens(
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        await anyio.sleep(0)
+        return 1
+
+    model.count_tokens = yielding_count_tokens  # type: ignore[method-assign]
+
+    prefix: list[ChatMessage] = []
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    messages: list[ChatMessage] = [
+        user_msg("hello", "msg1"),
+        assistant_msg("hi", "msg2"),
+    ]
+
+    async def call_once() -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return await compact.compact_input(messages)
+
+    await tg_collect([call_once for _ in range(10)])
+
+    final, _ = await compact.compact_input(messages)
+    final_ids = [m.id for m in final]
+    assert len(final_ids) == len(set(final_ids)), (
+        f"compacted_input contains duplicate message ids: {final_ids}"
+    )

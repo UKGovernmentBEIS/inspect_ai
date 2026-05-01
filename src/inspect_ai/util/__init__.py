@@ -1,3 +1,4 @@
+from inspect_ai._util.images import MediaResolverFunc, media_resolver
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -73,6 +74,8 @@ from ._subtask import Subtask, subtask
 from ._throttle import throttle
 
 __all__ = [
+    "media_resolver",
+    "MediaResolverFunc",
     "apply_limits",
     "sample_limits",
     "SampleLimits",
