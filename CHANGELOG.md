@@ -2,6 +2,7 @@
 
 - Added `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Util: Add `download()` and `gdrive_download()` helpers for fetching external files with SHA256 verification, caching, and transient-error retry. `gdrive_download()` requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
 
 ## 0.3.216 (01 May 2026)
 
