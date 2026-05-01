@@ -486,8 +486,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         fails_on_error=(
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
+                            and config.score_on_error is not True
                         ),
                         retry_on_error=config.retry_on_error or 0,
+                        score_on_error=config.score_on_error or False,
                         error_retries=[],
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
@@ -542,7 +544,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # collect eval data
             collect_eval_data(stats)
 
-            sample_error_count = sum(result is None for result in sample_results)
+            # use the SampleErrorHandler's authoritative count (incremented in
+            # handle_error() exactly once per sample after retries are
+            # exhausted). With score_on_error, errored samples now return a
+            # populated score dict instead of None, so counting via
+            # `result is None` would miss them.
+            sample_error_count = sample_error_handler.error_count
             mark_log_as_error = _should_eval_fail(
                 sample_error_count, profile.samples, config.fail_on_error
             )
@@ -739,6 +746,7 @@ async def task_run_sample(
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     retry_on_error: int,
+    score_on_error: bool,
     error_retries: list[EvalRetryError],
     time_limit: int | None,
     working_limit: int | None,
@@ -810,6 +818,8 @@ async def task_run_sample(
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
                 if retry_on_error > 0:
                     msg = f"{msg}. Sample will be retried."
+                elif score_on_error:
+                    msg = f"{msg}. Sample will be scored."
                 py_logger.warning(msg)
 
             # if we have retries left then return EvalError
@@ -818,6 +828,14 @@ async def task_run_sample(
                 return eval_error(ex, type(ex), ex, ex.__traceback__), None
             else:
                 err = sample_error(ex)
+                # with score_on_error, suppress the raise so we can score the
+                # sample; error_count was still incremented on sample_error()
+                # above, so the eval-level fail_on_error threshold continues
+                # to apply.
+                if score_on_error:
+                    log_sample_error()
+                    transcript()._event(ErrorEvent(error=err[0]))
+                    return err[0], None
                 # if we aren't raising the error then print a warning
                 if err[1] is None:
                     log_sample_error()
@@ -1110,7 +1128,13 @@ async def task_run_sample(
                         try:
                             # timeout during scoring will result in an ordinary sample error
                             with create_time_limit(scoring_time_limit):
-                                if error is None:
+                                # score on success, or when score_on_error is on
+                                # for the final attempt (no retries left, not cancelled)
+                                if error is None or (
+                                    score_on_error
+                                    and retry_on_error == 0
+                                    and cancelled_error is None
+                                ):
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
                                             scorers or []
@@ -1288,6 +1312,7 @@ async def task_run_sample(
             fails_on_error=fails_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
+            score_on_error=score_on_error,
             # forward on error that caused retry
             error_retries=copy(error_retries) + [_eval_retry_error(error)],
             time_limit=time_limit,

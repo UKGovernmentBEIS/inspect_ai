@@ -127,6 +127,14 @@ class EvalConfig(BaseModel):
     retry_on_error: int | None = Field(default=None)
     """Number of times to retry samples if they encounter errors."""
 
+    score_on_error: bool | None = Field(default=None)
+    """Score samples that error rather than failing the eval mid-run.
+
+    Errors are still counted toward the `fail_on_error` threshold for marking
+    the eval log as 'error'. Only takes effect after retries (if any) are
+    exhausted.
+    """
+
     message_limit: int | None = Field(default=None)
     """Maximum messages to allow per sample."""
 

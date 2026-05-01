@@ -92,8 +92,11 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
         sample_errors = samples_executed - success.samples_completed
         if sample_errors > 0:
             sample_error_pct = int(float(sample_errors) / float(samples_executed) * 100)
+            scored_qualifier = (
+                "" if profile.eval_config.score_on_error else " and were not scored"
+            )
             message.append(
-                f"[{theme.warning}]WARNING: {sample_errors} of {samples_executed} executed samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]"
+                f"[{theme.warning}]WARNING: {sample_errors} of {samples_executed} executed samples ({sample_error_pct}%) had errors{scored_qualifier}.[/{theme.warning}]"
             )
 
         # return special messages if we have them
