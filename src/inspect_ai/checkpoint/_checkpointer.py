@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar, Token
+from functools import partial
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol
@@ -21,11 +22,15 @@ from typing import Any, Protocol
 import anyio
 from pydantic_core import to_jsonable_python
 
+from inspect_ai._util._async import tg_collect
+from inspect_ai.event._event import Event
 from inspect_ai.log._samples import sample_active
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.util import collect
+from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
+from inspect_ai.util._store import Store, store_jsonable
 
 from ._config import CheckpointConfig, TimeInterval, TurnInterval
 from ._eval_checkpoints import eval_checkpoints_dir, read_eval_manifest
@@ -54,10 +59,11 @@ class CheckpointSession(Protocol):
         """
         ...
 
-    async def checkpoint(self) -> None:
+    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
         """Force a fire regardless of policy (used by manual triggers).
 
-        Uses the most recent ``messages`` seen by ``tick()``.
+        ``messages`` is the agent's current conversation — same role as
+        in :meth:`tick`.
         """
         ...
 
@@ -162,7 +168,7 @@ class _NoopCheckpointer:
     async def tick(self, messages: Sequence[ChatMessage]) -> None:
         return None
 
-    async def checkpoint(self) -> None:
+    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
         return None
 
 
@@ -187,21 +193,15 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
-        # Most recent messages seen via tick(); used by both policy
-        # fires and manual checkpoint() calls. Stored as a list so the
-        # agent can keep mutating its own messages list without
-        # affecting our snapshot.
-        self._messages: list[ChatMessage] = []
 
     async def tick(self, messages: Sequence[ChatMessage]) -> None:
-        self._messages = list(messages)
         self._turn += 1
         self._turns_since_fire += 1
         if self._should_fire():
-            await self._fire(self._policy_trigger())
+            await self._fire(self._policy_trigger(), messages)
 
-    async def checkpoint(self) -> None:
-        await self._fire("manual")
+    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
+        await self._fire("manual", messages)
 
     def _should_fire(self) -> bool:
         policy = self._config.trigger
@@ -226,27 +226,36 @@ class _Checkpointer:
         # construction time.
         raise AssertionError(f"unexpected policy: {policy!r}")
 
-    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
+    async def _fire(
+        self, trigger: CheckpointTriggerKind, messages: Sequence[ChatMessage]
+    ) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.
         cycle_start = time.monotonic()
 
-        await self._write_host_context(self._sample_working_dir, self._turn)
+        state = sample_state()
+        if not state:
+            raise RuntimeError("Checkpointer must find sample state")
+        await self._write_host_context(
+            self._sample_working_dir, messages, transcript().events, state.store
+        )
 
         # Host + each sandbox (backup → egress) in parallel. The
         # backup-then-egress pair for a given sandbox is sequential
         # (egress diffs against what backup just wrote), but the pairs
         # are independent across sandboxes and from the host backup.
-        # `collect()` adds a transcript span per task.
+        # `tg_collect` takes thunks (zero-arg callables) so coroutines
+        # are only created at task-group start time.
         sandbox_items = list(self._config.sandbox_paths.items())
-        summaries = await collect(
-            self._backup_host(),
-            *(
-                self._backup_and_egress_sandbox(name, paths)
+        backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
+            self._backup_host,
+            *[
+                partial(self._backup_and_egress_sandbox, name, paths)
                 for name, paths in sandbox_items
-            ),
-        )
+            ],
+        ]
+        summaries = await tg_collect(backup_funcs)
         host_info = _snapshot_info(summaries[0])
         sandbox_infos = {
             name: _snapshot_info(summary)
@@ -271,25 +280,26 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
 
-    async def _write_host_context(self, sample_working_dir: str, turn: int) -> None:
-        """Write the host context (``context.json`` + ``store.json``) for one fire.
+    async def _write_host_context(
+        self,
+        sample_working_dir: str,
+        messages: Sequence[ChatMessage],
+        events: Sequence[Event],
+        store: Store,
+    ) -> None:
+        """Write the host context across three files.
 
-        Phase 3 (in progress): ``messages`` are the real conversation
-        captured via the most recent ``tick()``; ``events`` and the
-        dedup pools (`condense_sample()`-shaped) plus the real ``Store``
-        contents land in a subsequent slice.
+        - ``messages.json`` — JSON array of ChatMessage. Append-only in
+          practice; restic's content-defined chunking dedups the
+          unchanged prefix across snapshots.
+        - ``events.json`` — JSON array of Event. Same property.
+        - ``store.json`` — Store key/value as a single JSON object.
+          Mutates anywhere; doesn't dedup, but it's the smallest file.
         """
         sample_dir = anyio.Path(sample_working_dir)
-        context = to_jsonable_python(
-            {"turn": turn, "messages": self._messages, "events": []},
-            exclude_none=True,
-            fallback=lambda _: None,
-        )
-        store_data = to_jsonable_python(
-            {"turn": turn}, exclude_none=True, fallback=lambda _: None
-        )
-        await (sample_dir / "context.json").write_text(json.dumps(context) + "\n")
-        await (sample_dir / "store.json").write_text(json.dumps(store_data) + "\n")
+        await (sample_dir / "messages.json").write_text(_json_dump(messages))
+        await (sample_dir / "events.json").write_text(_json_dump(events))
+        await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
 
     async def _backup_host(self) -> ResticBackupSummary:
         return await run_host_backup(
@@ -324,4 +334,12 @@ def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:
         snapshot_id=summary.snapshot_id,
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
+    )
+
+
+def _json_dump(obj: object) -> str:
+    """Serialize ``obj`` to JSON, excluding ``None`` fields, with a trailing newline."""
+    return (
+        json.dumps(to_jsonable_python(obj, exclude_none=True, fallback=lambda _: None))
+        + "\n"
     )

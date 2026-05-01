@@ -30,7 +30,8 @@ from inspect_ai.checkpoint import CheckpointConfig
 from inspect_ai.checkpoint._config import TurnInterval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.tool import bash
+from inspect_ai.tool import Tool, bash, tool
+from inspect_ai.util import store
 
 FLAG = "FLAG{checkpointing-actually-works}"
 
@@ -96,15 +97,40 @@ PROMPT = dedent(
     you the next layer's filename (it will look like `next: layerN`).
 
     Save each decoded plaintext to /workspace/ctf/decoded/<filename>.txt so
-    there's an audit trail of progress.  Continue until you reach a layer
-    whose decoded content is a string of the form `FLAG{...}`.  Submit
-    that flag as your final answer.
+    there's an audit trail of progress.  After saving, also call
+    `remember(key="layer_<N>_plaintext", value=<decoded>)` so the
+    structured progress is captured alongside the files.  Continue until
+    you reach a layer whose decoded content is a string of the form
+    `FLAG{...}`.  Submit that flag as your final answer.
 
     Process one layer at a time: read the hint, reason about which encoding
-    it describes, decode, save, then move on to the next layer in your
-    next turn.  Do not try to chain multiple layers in a single command.
+    it describes, decode, save, remember, then move on to the next layer
+    in your next turn.  Do not try to chain multiple layers in a single
+    command.
     """
 )
+
+
+@tool
+def remember() -> Tool:
+    async def execute(key: str, value: str) -> str:
+        """Record a key/value note that persists across the sample.
+
+        Used by the CTF agent to record decoded layer plaintexts so that
+        the host-side `Store` accumulates structured per-checkpoint state
+        (visible in the per-attempt `store.json` snapshots).
+
+        Args:
+            key: short label for the note (e.g. ``layer_1_plaintext``).
+            value: the value to remember (the decoded plaintext).
+
+        Returns:
+            Confirmation string echoing the key.
+        """
+        store().set(key, value)
+        return f"remembered: {key}={value!r}"
+
+    return execute
 
 
 @task
@@ -118,10 +144,7 @@ def cp_ctf() -> Task:
             )
         ],
         solver=react(
-            tools=[bash(timeout=60)],
-            # Phase 2: parameter is accepted but not yet wired up to a
-            # Checkpointer.  Set here so the harness exercises the public
-            # API surface that Phase 3+ will give real teeth.
+            tools=[bash(timeout=60), remember()],
             checkpoint_config=CheckpointConfig(
                 trigger=TurnInterval(1),
                 sandbox_paths={"default": ["/workspace"]},

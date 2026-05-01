@@ -129,7 +129,13 @@ async def run_host_backup(
     source: str,
     checkpoint_id: int,
 ) -> ResticBackupSummary:
-    """Run ``restic backup`` against ``source``; return the parsed summary."""
+    """Run ``restic backup`` against ``source``; return the parsed summary.
+
+    The host working dir is JSON-only and tiny. ``--compression max``
+    exploits the high text-compressibility (zstd-max ≈ 5–10× vs the
+    default `auto` ≈ 2–3×); ``--no-scan`` skips the up-front size-estimate
+    walk since we control exactly what's in the source dir.
+    """
     proc = await anyio.run_process(
         [
             str(restic),
@@ -137,6 +143,9 @@ async def run_host_backup(
             repo,
             "backup",
             source,
+            "--compression",
+            "max",
+            "--no-scan",
             "--tag",
             f"ckpt-{checkpoint_id:05d}",
             "--json",

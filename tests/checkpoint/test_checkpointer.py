@@ -9,7 +9,7 @@ active session).
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -28,6 +28,7 @@ from inspect_ai.checkpoint import (
 from inspect_ai.checkpoint._checkpointer import _Checkpointer
 from inspect_ai.checkpoint._layout import CheckpointTriggerKind
 from inspect_ai.checkpoint._restic import ResticBackupSummary
+from inspect_ai.model._chat_message import ChatMessage
 
 
 def _fake_summary(checkpoint_id: int) -> ResticBackupSummary:
@@ -61,14 +62,42 @@ class _Dirs:
     working: str
 
 
+@contextmanager
+def _patch_sample_runtime() -> Iterator[None]:
+    """Patch sample_state() and transcript() for tests that drive _fire.
+
+    `_Checkpointer._fire` reads ``sample_state().store`` and
+    ``transcript().events`` directly from ContextVars. Tests that
+    construct `_Checkpointer` outside a real sample run need stand-ins.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai.util._store import Store
+
+    fake_state = SimpleNamespace(store=Store())
+    fake_transcript = SimpleNamespace(events=[])
+    with (
+        patch(
+            "inspect_ai.checkpoint._checkpointer.sample_state",
+            return_value=fake_state,
+        ),
+        patch(
+            "inspect_ai.checkpoint._checkpointer.transcript",
+            return_value=fake_transcript,
+        ),
+    ):
+        yield
+
+
 @pytest.fixture
-def dirs(tmp_path: Path) -> _Dirs:
+def dirs(tmp_path: Path) -> Iterator[_Dirs]:
     """Pre-create the two sample dirs without going through the facade."""
     checkpoints = tmp_path / "logs/test.checkpoints/s__0"
     working = tmp_path / "cache/checkpoints/test/s__0"
     checkpoints.mkdir(parents=True)
     working.mkdir(parents=True)
-    return _Dirs(checkpoints=str(checkpoints), working=str(working))
+    with _patch_sample_runtime():
+        yield _Dirs(checkpoints=str(checkpoints), working=str(working))
 
 
 class _CountingCheckpointer(_Checkpointer):
@@ -76,8 +105,10 @@ class _CountingCheckpointer(_Checkpointer):
 
     fire_count: int = 0
 
-    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
-        await super()._fire(trigger)
+    async def _fire(
+        self, trigger: CheckpointTriggerKind, messages: Sequence[ChatMessage]
+    ) -> None:
+        await super()._fire(trigger, messages)
         self.fire_count += 1
 
     async def _backup_host(self) -> ResticBackupSummary:
@@ -163,8 +194,8 @@ async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger="manual"), dirs)
     await cp.tick([])
-    await cp.checkpoint()
-    await cp.checkpoint()
+    await cp.checkpoint([])
+    await cp.checkpoint([])
     assert cp.fire_count == 2
 
 
@@ -247,6 +278,7 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         _patch_sample_active(fake),
         _patch_cache_dir(tmp_path),
         _patch_restic(tmp_path),
+        _patch_sample_runtime(),
     ):
         yield fake
 
@@ -260,7 +292,7 @@ async def test_none_config_works_without_active_sample() -> None:
         async with Checkpointer(None) as cp:
             for _ in range(5):
                 await cp.tick([])
-            await cp.checkpoint()
+            await cp.checkpoint([])
 
 
 # --- entering without an active sample -----------------------------------
@@ -301,5 +333,6 @@ async def test_fire_writes_manifest_and_sidecars(
 
     sample_working = tmp_path / "cache/checkpoints/test/s7__2"
     assert sample_working.is_dir()
-    assert (sample_working / "context.json").is_file()
+    assert (sample_working / "messages.json").is_file()
+    assert (sample_working / "events.json").is_file()
     assert (sample_working / "store.json").is_file()

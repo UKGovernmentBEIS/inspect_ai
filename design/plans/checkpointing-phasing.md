@@ -213,19 +213,32 @@ together because the work fell out that way naturally. Resume
   restic's `data_added_packed` (post-compression on-disk cost);
   `duration_ms` from restic's `total_duration`. Top-level
   `size_bytes` on the sidecar is the rolled-up total.
-- **Real messages in `context.json`.** `CheckpointSession.tick()`
-  now takes `messages: Sequence[ChatMessage]`; react passes
-  `state.messages` each turn. `_Checkpointer` keeps a defensive copy
-  of the latest messages and serializes them via
-  `to_jsonable_python(..., exclude_none=True)` into `context.json`
-  on every fire. The agent's conversation is now part of the snapshot
-  for real.
-- **Events, dedup pools, and `store.json` are still fake.** Restic
-  backs up whatever bytes are in the working dir — that's all real —
-  but `context.json` still has `"events": []`, no
-  `condense_sample()`-shaped dedup pools, and `store.json` is the
-  turn-only placeholder. The real condensed events + Store
-  serialization is the next item in the TBD list below.
+- **Real messages, events, and Store in the host snapshot.** The
+  host working dir is split into three files written each fire:
+  - `messages.json` — JSON array of the agent's `ChatMessage`s,
+    plumbed via `tick(messages)` / `checkpoint(messages)` (`react()`
+    passes `state.messages`).
+  - `events.json` — JSON array of `transcript().events`, pulled
+    from the active sample's transcript ContextVar.
+  - `store.json` — `store_jsonable(state.store)`, pulled from
+    `sample_state().store`.
+  All three serialize via `to_jsonable_python(..., exclude_none=True)`
+  so None fields don't bloat the on-disk bytes. Split rationale:
+  messages and events are append-only, so restic's content-defined
+  chunking dedups the unchanged prefix snapshot-to-snapshot. Store
+  mutates anywhere; it's the smallest file and rewrites in full.
+- **Restic-config tuning for the host repo.** Host backup invokes
+  restic with `--compression max` (zstd-max ≈ 5–10× ratio on
+  JSON-only content vs the default `auto` ≈ 2–3×) and `--no-scan`
+  (skips the up-front size-estimate walk; we control the source).
+  Sandbox backups keep restic defaults — sandbox content is mixed
+  binaries / logs, where `auto` is right.
+- **Dedup pools (`condense_sample()`-shaped) still TBD.** Today's
+  `events.json` is a flat array of raw events. The design's
+  condensed form (events carrying `input_refs` / `call_refs`, plus
+  `events_data.{messages, calls}` dedup pools, plus `attachments`)
+  is the next item in the TBD list below — a size optimization on
+  top of the already-real-data baseline.
 - **Destination override**: `CheckpointConfig.checkpoints_dir`
   repoints the parent root under which the per-eval subdir lands;
   default is the log's directory. The per-eval subdir name strips a
@@ -234,12 +247,11 @@ together because the work fell out that way naturally. Resume
 
 **Still TBD (write side):**
 
-- Real events + dedup pools in `context.json`: `condense_sample()`
-  shape (events with `input_refs` / `call_refs` plus
-  `events_data.{messages, calls}`) plus `attachments`. Messages
-  themselves already land — this rounds out the rest.
-- Real `store.json`: serialized sample `Store` via
-  `store_jsonable(store())` — replaces the turn-only placeholder.
+- **Condensed events + dedup pools** in `events.json` /
+  `events_data.json` / `attachments.json`. `condense_sample()`-shape
+  output: events with `input_refs` / `call_refs`, dedup pools keyed
+  by hash, attachments split out. A size optimization on top of the
+  flat events array we ship today.
 - Atomic sidecar write (write `.tmp`, rename) — currently best-effort.
 - `max_consecutive_failures` enforcement.
 - Concurrent-safe manifest creation (today: race; first writer wins).
