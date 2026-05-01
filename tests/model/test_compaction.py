@@ -809,3 +809,37 @@ async def test_compact_input_concurrent_no_duplicate_messages() -> None:
     assert len(final_ids) == len(set(final_ids)), (
         f"compacted_input contains duplicate message ids: {final_ids}"
     )
+
+
+async def test_force_compaction_skips_threshold() -> None:
+    """force=True compacts even when total tokens are well under threshold.
+
+    Without force=True, CompactionTrim with threshold=1_000_000 should not
+    trim (way under the threshold). With force=True, compaction runs
+    unconditionally and trim's preserve=0.5 reduces the message count.
+
+    The differentiated CompactionEvent source ('inspect_recovery') is
+    verified separately via integration tests in Task 4.
+    """
+    strategy = CompactionTrim(threshold=1_000_000, preserve=0.5)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = []
+
+    messages: list[ChatMessage] = [user_msg(f"msg{i}", f"u{i}") for i in range(10)]
+
+    # Predictive (no force) should not trim under a huge threshold.
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    result_predictive, _ = await compact.compact_input(messages)
+    assert len(result_predictive) == len(messages), (
+        f"Predictive compaction should not trim under threshold; "
+        f"got {len(result_predictive)} vs {len(messages)} messages"
+    )
+
+    # Force should trim regardless of threshold.
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    result_forced, _ = await compact.compact_input(messages, force=True)
+    assert len(result_forced) < len(messages), (
+        f"force=True should trigger compaction (trim with preserve=0.5); "
+        f"got {len(result_forced)} vs {len(messages)} messages"
+    )

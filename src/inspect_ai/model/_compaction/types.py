@@ -74,12 +74,17 @@ class Compact(Protocol):
     """Interface for compaction strategies."""
 
     async def compact_input(
-        self, messages: list[ChatMessage]
+        self,
+        messages: list[ChatMessage],
+        force: bool = False,
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages for input to the model.
 
         Args:
-            messages: Full message history
+            messages: Full message history.
+            force: If True, perform compaction unconditionally (skip the
+                threshold gate). Used by overflow recovery paths after a
+                model_length error.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
