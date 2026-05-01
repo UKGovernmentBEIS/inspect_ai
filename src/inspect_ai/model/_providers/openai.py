@@ -495,12 +495,10 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def usage_input_tokens_complete(self) -> bool:
-        # Responses API may omit reasoning items from usage.input_tokens when
-        # encrypted reasoning is preserved across turns via
-        # `store=false` + `include=["reasoning.encrypted_content"]`. We don't
-        # try to inspect per-call config; conservatively return False whenever
-        # Responses mode is active. The cost of a false positive is at most
-        # one extra count_tokens call per turn.
+        # Responses API may omit encrypted reasoning from usage.input_tokens
+        # (when store=false + include=encrypted_content); conservatively False
+        # for all Responses mode. False positives cost one extra count_tokens
+        # call per turn.
         if self.responses_api:
             return False
         return super().usage_input_tokens_complete()

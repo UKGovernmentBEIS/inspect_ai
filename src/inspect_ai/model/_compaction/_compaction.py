@@ -137,9 +137,7 @@ def compaction(
             if prefix_tokens is None:
                 prefix_tokens = await target_model.count_tokens(prefix) if prefix else 0
 
-            # provider signal: does usage.input_tokens cover all input content?
-            # When False (e.g. OpenAI Responses with encrypted reasoning), the
-            # baseline shortcut is unsafe if any redacted reasoning is in baseline.
+            # False for providers whose usage.input_tokens may omit reasoning content.
             provider_input_tokens_complete = (
                 target_model.api.usage_input_tokens_complete()
             )
@@ -155,14 +153,11 @@ def compaction(
             target_messages = compacted_input + unprocessed
             target_message_ids = {message_id(m) for m in target_messages}
 
-            # The baseline shortcut trusts usage.input_tokens for messages already
-            # counted by a prior generate call. That trust is misplaced when those
-            # messages contain redacted reasoning items AND the provider's
-            # usage.input_tokens may omit them (the known case is OpenAI Responses
-            # with store=false + include=encrypted_content). In that case fall back
-            # to a full recount via count_tokens, which calls the provider's native
-            # counting endpoint (authoritative for OpenAI Responses, Anthropic,
-            # and Google).
+            # Skip the baseline shortcut when the provider's usage.input_tokens
+            # may omit redacted reasoning that's present in already-counted
+            # messages (OpenAI Responses with encrypted-reasoning preservation).
+            # Recount via count_tokens, which authoritatively counts encrypted
+            # reasoning blocks.
             if (
                 baseline_tokens is not None
                 and baseline_message_ids.issubset(target_message_ids)

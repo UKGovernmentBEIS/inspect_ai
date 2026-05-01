@@ -482,32 +482,24 @@ async def _handle_overflow(
 ) -> tuple[AgentState, bool]:
     from inspect_ai.log._transcript import transcript
 
-    # state.messages[-1] is the failed assistant turn that _model_generate
-    # appended unconditionally even on stop_reason=model_length. Drop it; it
-    # has no usable content. The next loop iteration will produce a fresh
-    # assistant message via generate.
+    # Drop the failed assistant turn appended by _model_generate; it has no
+    # usable content and the next iteration will generate a fresh one.
     previous_messages = state.messages[:-1]
 
-    # Try forced compaction first if configured. Compaction is more
-    # semantically faithful than truncation (it preserves intent, not just
-    # bytes) and uses the same strategy already chosen for predictive
-    # compaction.
+    # Try forced compaction first: preserves intent via the same strategy
+    # used for predictive compaction; the overflow filter only truncates.
     if compact is not None:
         try:
             compacted, c_message = await compact.compact_input(
                 previous_messages, force=True
             )
-            # If compact_input returned successfully, _perform_compaction
-            # already validated that total_compacted <= threshold (it raises
-            # otherwise). Trust that; do not gate on length reduction
-            # (CompactionEdit reduces content not message count).
-            #
-            # For the four built-in strategies c_message is either None
-            # (Trim/Edit/Native) or the same object as compacted[-1]
-            # (Summary), so no append is needed. Custom strategies may
-            # return a distinct c_message; append it so we don't silently
-            # drop it (the predictive path appends it via _react_loop).
+            # A successful return means _perform_compaction validated
+            # total_compacted <= threshold, so don't gate on length
+            # (CompactionEdit reduces content, not count).
             state.messages = compacted
+            # CompactionSummary returns its summary as compacted[-1] AND
+            # as c_message (same object); Trim/Edit/Native return None.
+            # Append only for custom strategies that return a distinct one.
             if c_message is not None and (
                 not compacted or compacted[-1] is not c_message
             ):
@@ -517,11 +509,8 @@ async def _handle_overflow(
             )
             return state, True
         except Exception as ex:
-            # Compaction failed (e.g., RuntimeError "compaction insufficient").
-            # Fall through to the overflow filter below. Emit a transcript
-            # info so operators see compaction was attempted (the
-            # CompactionEvent itself never fires when _perform_compaction
-            # raises before logging it).
+            # CompactionEvent isn't emitted when _perform_compaction raises
+            # before logging it; surface the attempt + failure for operators.
             transcript().info(
                 f"Forced compaction failed during overflow recovery: {ex}; "
                 "falling back to overflow filter."
@@ -628,10 +617,9 @@ def _model_generate(
             # update the compaction baseline with the actual input token
             # count from the generate call (most accurate source of truth)
             if compact is not None:
-                # Note: when output has stop_reason='model_length', record_output sees
-                # an over-the-window usage value. baseline_tokens gets set to that
-                # value, but the subsequent forced compaction (if any) in
-                # _handle_overflow resets baseline_tokens during its housekeeping.
+                # On stop_reason='model_length' the recorded baseline may
+                # exceed the context window; _handle_overflow's forced
+                # compaction (if any) resets it during housekeeping.
                 await compact.record_output(input_messages, output)
 
             break

@@ -102,11 +102,9 @@ def test_model_length_with_compaction_triggers_force_and_continues(
             lambda: CompactionTrim(threshold=10_000, preserve=0.5),
             id="trim",
         ),
-        # CompactionEdit reduces message *content* (replaces tool results
-        # with TOOL_RESULT_REMOVED) but not message *count*. This test
-        # verifies that recovery happens despite no count reduction --
-        # the previous len(compacted) < len(previous_messages) gate broke
-        # this path.
+        # CompactionEdit reduces message content (replaces tool results
+        # with TOOL_RESULT_REMOVED) but not message count, so recovery
+        # must not gate on length reduction.
         pytest.param(
             lambda: CompactionEdit(threshold=10_000, keep_tool_uses=0),
             id="edit",
@@ -167,8 +165,8 @@ def test_model_length_with_compaction_recovers_and_continues(strategy_factory) -
         f"got output completion: {output_text!r}"
     )
 
-    # Guard against C1 (CompactionSummary duplicate-summary regression):
-    # any message with an id should appear exactly once.
+    # Recovered history should not contain duplicate message IDs
+    # (e.g., a summary appearing as both compacted[-1] and c_message).
     ids = [m.id for m in log.samples[0].messages if m.id]
     assert len(ids) == len(set(ids)), (
         f"Duplicate message IDs detected in recovered history: {ids}"
