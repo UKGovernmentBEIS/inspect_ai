@@ -100,22 +100,22 @@ def _counting(config: CheckpointConfig[Any], dirs: _Dirs) -> _CountingCheckpoint
 async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger=TurnInterval(every=3)), dirs)
     for _ in range(9):
-        await cp.tick()
+        await cp.tick([])
     assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger=TurnInterval(every=4)), dirs)
     for _ in range(3):
-        await cp.tick()
+        await cp.tick([])
     assert cp.fire_count == 0
-    await cp.tick()
+    await cp.tick([])
     assert cp.fire_count == 1
     # counter reset; next fire requires another 4 ticks
     for _ in range(3):
-        await cp.tick()
+        await cp.tick([])
     assert cp.fire_count == 1
-    await cp.tick()
+    await cp.tick([])
     assert cp.fire_count == 2
 
 
@@ -134,19 +134,19 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
             CheckpointConfig(trigger=TimeInterval(every=timedelta(seconds=10))), dirs
         )
         fake_now[0] = 1004.0
-        await cp.tick()
+        await cp.tick([])
         assert cp.fire_count == 0
 
         fake_now[0] = 1010.0
-        await cp.tick()
+        await cp.tick([])
         assert cp.fire_count == 1
 
         # immediately again at t=1010 → does not fire (counter just reset)
-        await cp.tick()
+        await cp.tick([])
         assert cp.fire_count == 1
 
         fake_now[0] = 1025.0
-        await cp.tick()
+        await cp.tick([])
         assert cp.fire_count == 2
 
 
@@ -156,13 +156,13 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger="manual"), dirs)
     for _ in range(50):
-        await cp.tick()
+        await cp.tick([])
     assert cp.fire_count == 0
 
 
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger="manual"), dirs)
-    await cp.tick()
+    await cp.tick([])
     await cp.checkpoint()
     await cp.checkpoint()
     assert cp.fire_count == 2
@@ -259,7 +259,7 @@ async def test_none_config_works_without_active_sample() -> None:
     with _patch_sample_active(None):
         async with Checkpointer(None) as cp:
             for _ in range(5):
-                await cp.tick()
+                await cp.tick([])
             await cp.checkpoint()
 
 
@@ -287,10 +287,10 @@ async def test_fire_writes_manifest_and_sidecars(
     active_sample.epoch = 2
 
     async with Checkpointer(CheckpointConfig(trigger=TurnInterval(every=2))) as cp:
-        await cp.tick()  # turn 1, no fire
-        await cp.tick()  # turn 2, fires
-        await cp.tick()  # turn 3, no fire
-        await cp.tick()  # turn 4, fires
+        await cp.tick([])  # turn 1, no fire
+        await cp.tick([])  # turn 2, fires
+        await cp.tick([])  # turn 3, no fire
+        await cp.tick([])  # turn 4, fires
 
     log = Path(active_sample.log_location)
     eval_dir = log.parent / f"{log.stem}.checkpoints"

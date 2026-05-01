@@ -219,7 +219,7 @@ def react(
                 # or if a message or token limit is hit
                 while True:
                     # checkpoint at turn boundary (no-op when policy says so)
-                    await cp.tick()
+                    await cp.tick(state.messages)
 
                     # generate output and append assistant message
                     state = await _agent_generate(
@@ -394,7 +394,7 @@ def react_no_submit(
                 # main loop
                 while True:
                     # checkpoint at turn boundary (no-op when policy says so)
-                    await cp.tick()
+                    await cp.tick(state.messages)
 
                     # generate output and append assistant message
                     state = await _agent_generate(

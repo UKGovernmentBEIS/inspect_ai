@@ -10,15 +10,19 @@ on-disk dirs pre-ensured before the loop starts.
 
 from __future__ import annotations
 
+import json
 import time
+from collections.abc import Sequence
 from contextvars import ContextVar, Token
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Protocol
 
 import anyio
+from pydantic_core import to_jsonable_python
 
 from inspect_ai.log._samples import sample_active
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.util import collect
 from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
@@ -42,12 +46,19 @@ from ._working_dir import ensure_sample_working_dir
 class CheckpointSession(Protocol):
     """The session yielded by ``async with Checkpointer(...) as cp:``."""
 
-    async def tick(self) -> None:
-        """Invoke at each turn boundary; may fire a checkpoint."""
+    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+        """Invoke at each turn boundary; may fire a checkpoint.
+
+        ``messages`` is the agent's current conversation — the source of
+        the messages written into ``context.json`` if this tick fires.
+        """
         ...
 
     async def checkpoint(self) -> None:
-        """Force a fire regardless of policy (used by manual triggers)."""
+        """Force a fire regardless of policy (used by manual triggers).
+
+        Uses the most recent ``messages`` seen by ``tick()``.
+        """
         ...
 
 
@@ -148,7 +159,7 @@ class Checkpointer:
 class _NoopCheckpointer:
     """No-op session for ``Checkpointer(None)``."""
 
-    async def tick(self) -> None:
+    async def tick(self, messages: Sequence[ChatMessage]) -> None:
         return None
 
     async def checkpoint(self) -> None:
@@ -176,8 +187,14 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
+        # Most recent messages seen via tick(); used by both policy
+        # fires and manual checkpoint() calls. Stored as a list so the
+        # agent can keep mutating its own messages list without
+        # affecting our snapshot.
+        self._messages: list[ChatMessage] = []
 
-    async def tick(self) -> None:
+    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+        self._messages = list(messages)
         self._turn += 1
         self._turns_since_fire += 1
         if self._should_fire():
@@ -257,16 +274,22 @@ class _Checkpointer:
     async def _write_host_context(self, sample_working_dir: str, turn: int) -> None:
         """Write the host context (``context.json`` + ``store.json``) for one fire.
 
-        Phase 3 (in progress): writes placeholder content carrying the
-        current ``turn`` so successive fires produce distinct content.
-        Replaced by real condensed-context (`condense_sample()`) and
-        ``Store`` serialization in subsequent slices.
+        Phase 3 (in progress): ``messages`` are the real conversation
+        captured via the most recent ``tick()``; ``events`` and the
+        dedup pools (`condense_sample()`-shaped) plus the real ``Store``
+        contents land in a subsequent slice.
         """
         sample_dir = anyio.Path(sample_working_dir)
-        await (sample_dir / "context.json").write_text(
-            f'{{"turn": {turn}, "messages": [], "events": []}}\n'
+        context = to_jsonable_python(
+            {"turn": turn, "messages": self._messages, "events": []},
+            exclude_none=True,
+            fallback=lambda _: None,
         )
-        await (sample_dir / "store.json").write_text(f'{{"turn": {turn}}}\n')
+        store_data = to_jsonable_python(
+            {"turn": turn}, exclude_none=True, fallback=lambda _: None
+        )
+        await (sample_dir / "context.json").write_text(json.dumps(context) + "\n")
+        await (sample_dir / "store.json").write_text(json.dumps(store_data) + "\n")
 
     async def _backup_host(self) -> ResticBackupSummary:
         return await run_host_backup(

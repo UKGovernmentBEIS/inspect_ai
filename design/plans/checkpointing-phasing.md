@@ -213,13 +213,19 @@ together because the work fell out that way naturally. Resume
   restic's `data_added_packed` (post-compression on-disk cost);
   `duration_ms` from restic's `total_duration`. Top-level
   `size_bytes` on the sidecar is the rolled-up total.
-- **The host snapshot contents are still fake.** The infrastructure
-  around them is real — restic backs them up to the host repo, the
-  snapshot id and size land in the sidecar, the egress protocol
-  ships them — but the bytes inside `context.json` / `store.json`
-  are placeholder JSON carrying just the current turn. Real
-  serialization (`condense_sample()` + `Store`) is the first item in
-  the TBD list below.
+- **Real messages in `context.json`.** `CheckpointSession.tick()`
+  now takes `messages: Sequence[ChatMessage]`; react passes
+  `state.messages` each turn. `_Checkpointer` keeps a defensive copy
+  of the latest messages and serializes them via
+  `to_jsonable_python(..., exclude_none=True)` into `context.json`
+  on every fire. The agent's conversation is now part of the snapshot
+  for real.
+- **Events, dedup pools, and `store.json` are still fake.** Restic
+  backs up whatever bytes are in the working dir — that's all real —
+  but `context.json` still has `"events": []`, no
+  `condense_sample()`-shaped dedup pools, and `store.json` is the
+  turn-only placeholder. The real condensed events + Store
+  serialization is the next item in the TBD list below.
 - **Destination override**: `CheckpointConfig.checkpoints_dir`
   repoints the parent root under which the per-eval subdir lands;
   default is the log's directory. The per-eval subdir name strips a
@@ -228,10 +234,12 @@ together because the work fell out that way naturally. Resume
 
 **Still TBD (write side):**
 
-- Real `context.json`: condensed messages/events via
-  `condense_sample()` — replaces the placeholder.
-- Real `store.json`: serialized sample `Store` — replaces the
-  placeholder.
+- Real events + dedup pools in `context.json`: `condense_sample()`
+  shape (events with `input_refs` / `call_refs` plus
+  `events_data.{messages, calls}`) plus `attachments`. Messages
+  themselves already land — this rounds out the rest.
+- Real `store.json`: serialized sample `Store` via
+  `store_jsonable(store())` — replaces the turn-only placeholder.
 - Atomic sidecar write (write `.tmp`, rename) — currently best-effort.
 - `max_consecutive_failures` enforcement.
 - Concurrent-safe manifest creation (today: race; first writer wins).
