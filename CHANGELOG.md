@@ -2,6 +2,7 @@
 
 - Added `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Analysis: Fix `samples_df()` `working_time` column reading from `total_time` JSON path instead of `working_time`.
 
 ## 0.3.216 (01 May 2026)
 
