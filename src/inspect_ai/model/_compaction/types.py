@@ -90,15 +90,15 @@ class Compact(Protocol):
     ) -> None:
         """Record the output from a generate call.
 
-        After each generate call, pass the input that was sent to generate and
-        the resulting ModelOutput to calibrate the compaction's token estimation.
-        This accounts for API-level overhead (tool definitions, system messages,
-        thinking configuration) that per-message counting cannot capture.
+        Calibrates the compaction's token estimation against the actual
+        input token count from `output.usage`. This captures API-level
+        overhead (tool definitions, system messages, thinking configuration)
+        that per-message counting cannot.
 
-        Passing `input` (rather than re-reading internal state) ensures the
-        baseline message ids match the messages that produced `output.usage` —
-        important when the same `Compact` instance is shared across concurrent
-        callers (e.g. via AgentBridge).
+        `input` must be the messages that were passed to `model.generate`
+        — it determines the baseline message ids that produced
+        `output.usage`. This matters when one `Compact` instance is shared
+        across concurrent callers (e.g. via AgentBridge).
 
         Args:
             input: The list of messages that was passed to model.generate.

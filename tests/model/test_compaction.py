@@ -762,29 +762,26 @@ async def test_compaction_strips_citations() -> None:
                     )
 
 
-# ==============================================================================
-# Concurrent access regression test (race #1 from spec
-# 2026-05-01-compaction-bridge-race-fix-design.md)
-# ==============================================================================
 async def test_compact_input_concurrent_no_duplicate_messages() -> None:
-    """Concurrent compact_input calls must not duplicate messages in the closure.
+    """Concurrent compact_input calls must not duplicate closure state.
 
-    Reproduces the AgentBridge / SandboxAgentBridge race where multiple
-    coroutines share one Compact handler.
+    When the same Compact instance is shared (e.g. through AgentBridge),
+    parallel callers must not lose updates to compacted_input.
     """
     import anyio
 
     from inspect_ai._util._async import tg_collect
     from inspect_ai.model._generate_config import GenerateConfig
 
-    # threshold high enough that we always take the else branch (no compaction)
+    # high threshold so compaction never triggers; exercises the no-compaction
+    # branch where concurrent callers all extend compacted_input
     strategy = CompactionEdit(threshold=10_000_000)
 
     model = get_model("mockllm/model")
 
-    # Patch count_tokens to yield explicitly. This forces the scheduler to
-    # interleave concurrent compact_input calls at the await point on
-    # _compaction.py:147, deterministically opening the race window.
+    # yield inside count_tokens so the scheduler interleaves concurrent
+    # callers; without an explicit yield, asyncio may run each coroutine
+    # to completion without context-switching
     async def yielding_count_tokens(
         input: str | list[ChatMessage],
         config: GenerateConfig | None = None,
@@ -802,16 +799,11 @@ async def test_compact_input_concurrent_no_duplicate_messages() -> None:
         assistant_msg("hi", "msg2"),
     ]
 
-    # N concurrent compact_input calls, all observing the same (empty)
-    # processed_message_ids set when they compute `unprocessed`.
-    N = 10
-
     async def call_once() -> tuple[list[ChatMessage], ChatMessageUser | None]:
         return await compact.compact_input(messages)
 
-    await tg_collect([call_once for _ in range(N)])
+    await tg_collect([call_once for _ in range(10)])
 
-    # Final snapshot: one more call returns list(compacted_input).
     final, _ = await compact.compact_input(messages)
     final_ids = [m.id for m in final]
     assert len(final_ids) == len(set(final_ids)), (

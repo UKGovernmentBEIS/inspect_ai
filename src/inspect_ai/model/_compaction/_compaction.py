@@ -64,8 +64,8 @@ def compaction(
     # snapshot the prefix in case it changes
     prefix = prefix.copy()
 
-    # lock serializing closure-state mutation across concurrent callers
-    # (relevant when the same Compact instance is shared via AgentBridge).
+    # serializes closure-state mutation when the same Compact instance is
+    # shared across concurrent callers (e.g. via AgentBridge)
     _lock = anyio.Lock()
 
     # resolve target model
@@ -101,11 +101,9 @@ def compaction(
             if output.usage.input_tokens_cache_write:
                 input_tokens += output.usage.input_tokens_cache_write
 
-            # The baseline reflects the token count for the messages that
-            # were actually passed to generate (the source of `output.usage`).
-            # Reading from the closure's `compacted_input` here would race with
-            # any concurrent compact_input call that mutated it after this
-            # generate started.
+            # `input` is the messages that produced output.usage; under
+            # concurrent bridge use the closure's `compacted_input` may
+            # already reflect a later call
             baseline_tokens = input_tokens
             baseline_message_ids = {message_id(m) for m in input}
 
