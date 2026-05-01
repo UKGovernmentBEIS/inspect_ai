@@ -806,7 +806,7 @@ async def test_compact_input_concurrent_no_duplicate_messages() -> None:
     # processed_message_ids set when they compute `unprocessed`.
     N = 10
 
-    async def call_once() -> tuple[list[ChatMessage], object]:
+    async def call_once() -> tuple[list[ChatMessage], ChatMessageUser | None]:
         return await compact.compact_input(messages)
 
     await tg_collect([call_once for _ in range(N)])
