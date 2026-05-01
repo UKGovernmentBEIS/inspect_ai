@@ -5,6 +5,7 @@ from typing import Sequence
 
 import anyio
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
@@ -16,6 +17,24 @@ from .memory import MEMORY_TOOL, memory_warning_message
 from .types import Compact, CompactionStrategy
 
 logger = getLogger(__name__)
+
+
+def _has_redacted_reasoning_in(messages: list[ChatMessage]) -> bool:
+    """Return True if any message contains a redacted (encrypted) reasoning item.
+
+    Used to detect the OpenAI Responses + store=false + include=encrypted_content
+    case where usage.input_tokens (and thus baseline_tokens) under-counts the
+    actual context cost of the input. In that case the baseline shortcut is
+    unsafe and we must recount the full target_messages list via count_tokens
+    (which calls the provider's native counting API for OpenAI Responses,
+    Anthropic, and Google).
+    """
+    for m in messages:
+        if isinstance(m.content, list):
+            for c in m.content:
+                if isinstance(c, ContentReasoning) and c.redacted:
+                    return True
+    return False
 
 
 def compaction(
@@ -136,13 +155,25 @@ def compaction(
             # estimate total tokens using the most accurate method available
             target_messages = compacted_input + unprocessed
             target_message_ids = {message_id(m) for m in target_messages}
-            if baseline_tokens is not None and baseline_message_ids.issubset(
-                target_message_ids
-            ):
-                # Use the baseline from the last generate call (most accurate).
-                # The baseline already includes tool definitions, system messages,
-                # and API-level overhead. We only need to count NEW messages
-                # added since the baseline was established.
+
+            # The baseline shortcut trusts usage.input_tokens for messages already
+            # counted by a prior generate call. That trust is misplaced when those
+            # messages contain redacted reasoning items, because some providers (OpenAI
+            # Responses with store=false + include=encrypted_content) don't include
+            # encrypted reasoning blobs in usage.input_tokens, even though the blobs
+            # do consume context window space. In that case fall back to a full recount
+            # via count_tokens, which calls the provider's native counting endpoint
+            # (authoritative for OpenAI Responses, Anthropic, and Google).
+            baseline_messages = [
+                m for m in target_messages if message_id(m) in baseline_message_ids
+            ]
+            baseline_trustworthy = (
+                baseline_tokens is not None
+                and baseline_message_ids.issubset(target_message_ids)
+                and not _has_redacted_reasoning_in(baseline_messages)
+            )
+            if baseline_trustworthy:
+                assert baseline_tokens is not None  # narrowed by baseline_trustworthy
                 new_since_baseline = [
                     m
                     for m in target_messages
@@ -155,7 +186,6 @@ def compaction(
                 )
                 total_tokens = baseline_tokens + new_tokens
             else:
-                # No baseline yet (first call). Fall back to per-message counting.
                 message_tokens = await target_model.count_tokens(target_messages)
                 total_tokens = tool_tokens + message_tokens
 

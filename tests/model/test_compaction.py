@@ -5,7 +5,7 @@ from typing import Literal
 import pytest
 
 from inspect_ai._util.citation import UrlCitation
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -843,3 +843,118 @@ async def test_force_compaction_skips_threshold() -> None:
         f"force=True should trigger compaction (trim with preserve=0.5); "
         f"got {len(result_forced)} vs {len(messages)} messages"
     )
+
+
+def _assistant_with_redacted_reasoning(
+    content: str, encrypted: str, id: str
+) -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning=encrypted, redacted=True),
+            ContentText(text=content),
+        ],
+        id=id,
+    )
+
+
+async def test_redacted_reasoning_in_baseline_triggers_full_recount(
+    monkeypatch,
+) -> None:
+    """Recount full target_messages when baseline contains redacted reasoning.
+
+    When baseline messages contain redacted reasoning, count_tokens must be
+    called on the full target_messages list (not just new_since_baseline).
+    Regression guard for the OpenAI Responses + store=false +
+    include=encrypted_content blind spot.
+    """
+    strategy = CompactionTrim(threshold=10_000)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = []
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # First call to establish a baseline. Mock record_output to install one.
+    initial: list[ChatMessage] = [
+        user_msg("Question 1", "u1"),
+        _assistant_with_redacted_reasoning("Answer", "ENCRYPTED_BLOB", "a1"),
+    ]
+    await compact.compact_input(initial)
+
+    # Simulate record_output establishing a baseline.
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+    output = ModelOutput.from_content(model="mockllm/model", content="dummy")
+    output.usage = ModelUsage(input_tokens=100, output_tokens=10, total_tokens=110)
+    await compact.record_output(initial, output)
+
+    # Now add new messages and re-run compaction. Patch count_tokens to track inputs.
+    call_inputs: list[list[ChatMessage]] = []
+    real_count_tokens = model.count_tokens
+
+    async def tracking_count_tokens(input, config=None):
+        if isinstance(input, list):
+            call_inputs.append(list(input))
+        return await real_count_tokens(input, config)
+
+    monkeypatch.setattr(model, "count_tokens", tracking_count_tokens)
+
+    next_messages: list[ChatMessage] = initial + [
+        user_msg("Question 2", "u2"),
+    ]
+    await compact.compact_input(next_messages)
+
+    # The recount path was taken: count_tokens was called with the full target list,
+    # not just the new message.
+    assert any(len(inp) >= len(initial) + 1 for inp in call_inputs), (
+        "Expected count_tokens to be called on the full target_messages "
+        f"(>= {len(initial) + 1} messages); call inputs were: "
+        f"{[len(inp) for inp in call_inputs]}"
+    )
+
+
+async def test_no_redacted_reasoning_preserves_baseline_shortcut(monkeypatch) -> None:
+    """Preserve baseline shortcut when baseline contains no redacted reasoning.
+
+    When baseline messages don't contain redacted reasoning, count_tokens
+    is called only on new_since_baseline (existing behavior preserved).
+    """
+    strategy = CompactionTrim(threshold=10_000)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = []
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    initial: list[ChatMessage] = [
+        user_msg("Question 1", "u1"),
+        assistant_msg("Plain answer", "a1"),  # No reasoning content
+    ]
+    await compact.compact_input(initial)
+
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+    output = ModelOutput.from_content(model="mockllm/model", content="dummy")
+    output.usage = ModelUsage(input_tokens=100, output_tokens=10, total_tokens=110)
+    await compact.record_output(initial, output)
+
+    call_inputs: list[list[ChatMessage]] = []
+    real_count_tokens = model.count_tokens
+
+    async def tracking_count_tokens(input, config=None):
+        if isinstance(input, list):
+            call_inputs.append(list(input))
+        return await real_count_tokens(input, config)
+
+    monkeypatch.setattr(model, "count_tokens", tracking_count_tokens)
+
+    next_messages: list[ChatMessage] = initial + [
+        user_msg("Question 2", "u2"),
+    ]
+    await compact.compact_input(next_messages)
+
+    # The baseline shortcut path was taken: count_tokens was called with only
+    # the new message(s) since baseline, not the full list.
+    if call_inputs:
+        assert all(len(inp) <= 1 for inp in call_inputs), (
+            "Expected count_tokens to be called only on new_since_baseline "
+            f"(<= 1 message); call inputs were: {[len(inp) for inp in call_inputs]}"
+        )
