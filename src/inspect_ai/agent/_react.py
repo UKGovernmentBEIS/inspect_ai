@@ -494,7 +494,7 @@ async def _handle_overflow(
     # compaction.
     if compact is not None:
         try:
-            compacted, _c_message = await compact.compact_input(
+            compacted, c_message = await compact.compact_input(
                 previous_messages, force=True
             )
             # If compact_input returned successfully, _perform_compaction
@@ -502,18 +502,30 @@ async def _handle_overflow(
             # otherwise). Trust that; do not gate on length reduction
             # (CompactionEdit reduces content not message count).
             #
-            # For CompactionSummary the summary is the last element of
-            # compacted, so we don't append c_message again (would duplicate).
-            # For other strategies c_message is None.
+            # For the four built-in strategies c_message is either None
+            # (Trim/Edit/Native) or the same object as compacted[-1]
+            # (Summary), so no append is needed. Custom strategies may
+            # return a distinct c_message; append it so we don't silently
+            # drop it (the predictive path appends it via _react_loop).
             state.messages = compacted
+            if c_message is not None and (
+                not compacted or compacted[-1] is not c_message
+            ):
+                state.messages.append(c_message)
             transcript().info(
                 "Agent exceeded model context window, performing forced compaction and continuing."
             )
             return state, True
-        except Exception:
+        except Exception as ex:
             # Compaction failed (e.g., RuntimeError "compaction insufficient").
-            # Fall through to the overflow filter below.
-            pass
+            # Fall through to the overflow filter below. Emit a transcript
+            # info so operators see compaction was attempted (the
+            # CompactionEvent itself never fires when _perform_compaction
+            # raises before logging it).
+            transcript().info(
+                f"Forced compaction failed during overflow recovery: {ex}; "
+                "falling back to overflow filter."
+            )
 
     if overflow is not None:
         state.messages = await overflow(previous_messages)

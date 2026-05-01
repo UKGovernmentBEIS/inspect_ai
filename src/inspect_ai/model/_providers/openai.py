@@ -493,6 +493,18 @@ class OpenAIAPI(ModelAPI):
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
 
+    @override
+    def usage_input_tokens_complete(self) -> bool:
+        # Responses API may omit reasoning items from usage.input_tokens when
+        # encrypted reasoning is preserved across turns via
+        # `store=false` + `include=["reasoning.encrypted_content"]`. We don't
+        # try to inspect per-call config; conservatively return False whenever
+        # Responses mode is active. The cost of a false positive is at most
+        # one extra count_tokens call per turn.
+        if self.responses_api:
+            return False
+        return super().usage_input_tokens_complete()
+
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account
         # (needs to be a 'verified organization'). we do this by making a

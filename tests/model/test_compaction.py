@@ -865,10 +865,17 @@ async def test_redacted_reasoning_in_baseline_triggers_full_recount(
     When baseline messages contain redacted reasoning, count_tokens must be
     called on the full target_messages list (not just new_since_baseline).
     Regression guard for the OpenAI Responses + store=false +
-    include=encrypted_content blind spot.
+    include=encrypted_content blind spot. We patch
+    `usage_input_tokens_complete` to False to simulate an
+    OpenAI-Responses-style provider whose usage.input_tokens may omit
+    encrypted reasoning content.
     """
     strategy = CompactionTrim(threshold=10_000)
     model = get_model("mockllm/model")
+
+    # Simulate a provider that may omit reasoning content from usage.input_tokens
+    # (e.g. OpenAI Responses with store=false + include=encrypted_content).
+    monkeypatch.setattr(model.api, "usage_input_tokens_complete", lambda: False)
 
     prefix: list[ChatMessage] = []
     compact = compaction(strategy, prefix=prefix, tools=None, model=model)

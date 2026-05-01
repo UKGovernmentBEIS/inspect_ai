@@ -336,6 +336,22 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
+    def usage_input_tokens_complete(self) -> bool:
+        """Whether usage.input_tokens covers all tokens present in the request input.
+
+        Returns False for providers that may omit some content from the
+        `usage.input_tokens` they report. The known case is OpenAI Responses
+        when reasoning items are preserved across turns via
+        `store=false` + `include=["reasoning.encrypted_content"]`: the
+        encrypted reasoning items consume context window space but are not
+        reflected in usage.input_tokens.
+
+        Compaction uses this signal to decide whether the baseline-tokens
+        shortcut is safe when redacted reasoning content is present.
+        Conservative default: True (assume input_tokens is complete).
+        """
+        return True
+
     def should_retry(self, ex: Exception) -> bool:
         """Should this exception be retried?
 
