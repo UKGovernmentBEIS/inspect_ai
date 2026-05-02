@@ -225,6 +225,7 @@ class EvalRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
         async with AsyncFilesystem() as async_fs:
             # if the log is not stored in the local filesystem then download it
@@ -250,7 +251,9 @@ class EvalRecorder(FileRecorder):
                 read_location = temp_log or location
                 reader = AsyncZipReader(async_fs, read_location)
                 cd = await reader.entries()
-                log = await _read_log(reader, cd.entries, location, header_only)
+                log = await _read_log(
+                    reader, cd.entries, location, header_only, exclude_fields
+                )
 
                 if etag is not None:
                     log.etag = etag
@@ -720,6 +723,7 @@ async def _read_log(
     entries: list[ZipEntry],
     location: str,
     header_only: bool = False,
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     entry_names = {e.filename for e in entries}
 
@@ -742,7 +746,12 @@ async def _read_log(
             if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
                 ".json"
             ):
-                data = await _read_member_json(reader, entry.filename)
+                if exclude_fields:
+                    data = await _read_member_json_excluding(
+                        reader, entry.filename, exclude_fields
+                    )
+                else:
+                    data = await _read_member_json(reader, entry.filename)
                 samples.append(
                     EvalSample.model_validate(
                         data, context=get_deserializing_context()
