@@ -232,7 +232,7 @@ async def _dispatch_forked(
     from_span = current_span_id() or ""
 
     async with timeline_branch(
-        name=sa.name, from_span=from_span, from_message=from_message
+        name=sa.name, from_span=from_span, from_anchor=from_message
     ):
         return await _dispatch(agent, sa, input, span_id=span_id)
 

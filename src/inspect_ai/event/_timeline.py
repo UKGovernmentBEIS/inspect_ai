@@ -47,15 +47,14 @@ def _min_start_time(
 ) -> datetime:
     """Return the earliest start time among nodes.
 
-    Requires at least one node (all nodes have non-null start_time).
-
     Args:
-        nodes: Non-empty sequence of nodes to check.
+        nodes: Sequence of nodes to check.
 
     Returns:
-        The minimum start_time.
+        The minimum start_time, or ``datetime.max`` if empty (so empty
+        spans sort last and ``min()`` callers don't crash).
     """
-    return min(node.start_time() for node in nodes)
+    return min((node.start_time() for node in nodes), default=datetime.max)
 
 
 def _max_end_time(
@@ -535,14 +534,14 @@ def timeline_build(
 
 @contextlib.asynccontextmanager
 async def timeline_branch(
-    *, name: str, from_span: str, from_message: str, id: str | None = None
+    *, name: str, from_span: str, from_anchor: str, id: str | None = None
 ) -> AsyncIterator[None]:
     """Context manager for creating a timeline branch.
 
     Args:
         name (str): Name of branch span.
         from_span: Span where the branch originated.
-        from_message: Message id at the branch point.
+        from_anchor: Anchor id at the branch point.
         id (str | None): Optional span ID. Generated if not provided.
     """
     from inspect_ai.event._branch import BranchEvent
@@ -550,7 +549,7 @@ async def timeline_branch(
     from inspect_ai.util._span import span
 
     async with span(name=name, type="branch", id=id):
-        transcript()._event(BranchEvent(from_span=from_span, from_message=from_message))
+        transcript()._event(BranchEvent(from_span=from_span, from_anchor=from_anchor))
         yield
 
 
@@ -962,7 +961,7 @@ def _process_children(
                     id=span.id,
                     name=span.name or "branch",
                     span_type="branch",
-                    branched_from=branch_event.from_message,
+                    branched_from=branch_event.from_anchor,
                     content=branch_content,
                 )
             )
