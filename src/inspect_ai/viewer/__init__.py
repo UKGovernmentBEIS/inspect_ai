@@ -9,6 +9,8 @@ from inspect_ai.viewer._config import (
     MetadataField,
     ScannerResultField,
     ScannerResultView,
+    ScorePanelSort,
+    ScorePanelView,
     ViewerConfig,
 )
 
@@ -16,5 +18,7 @@ __all__ = [
     "MetadataField",
     "ScannerResultField",
     "ScannerResultView",
+    "ScorePanelSort",
+    "ScorePanelView",
     "ViewerConfig",
 ]

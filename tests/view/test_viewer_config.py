@@ -7,6 +7,8 @@ from inspect_ai.viewer import (
     MetadataField,
     ScannerResultField,
     ScannerResultView,
+    ScorePanelSort,
+    ScorePanelView,
     ViewerConfig,
 )
 
@@ -223,4 +225,84 @@ def test_dict_scanner_result_view_roundtrip() -> None:
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert isinstance(restored.scanner_result_view, dict)
+    assert restored == cfg
+
+
+# ---------------------------------------------------------------------------
+# Score panel view defaults: eval-author hint that pre-seeds the
+# chips/grid toggle and sort in the V2 sample-header score panel.
+# ---------------------------------------------------------------------------
+
+
+def test_score_panel_sort_defaults() -> None:
+    sort = ScorePanelSort()
+    assert sort.column is None
+    assert sort.dir == "asc"
+
+
+def test_score_panel_sort_rejects_unknown_column() -> None:
+    with pytest.raises(ValidationError):
+        ScorePanelSort(column="explanation")  # type: ignore[arg-type]
+
+
+def test_score_panel_sort_rejects_unknown_dir() -> None:
+    with pytest.raises(ValidationError):
+        ScorePanelSort(dir="up")  # type: ignore[arg-type]
+
+
+def test_score_panel_view_defaults() -> None:
+    view = ScorePanelView()
+    assert view.view is None
+    assert view.sort is None
+
+
+def test_score_panel_view_rejects_unknown_view() -> None:
+    with pytest.raises(ValidationError):
+        ScorePanelView(view="table")  # type: ignore[arg-type]
+
+
+def test_viewer_config_score_panel_view_defaults_to_none() -> None:
+    """Existing logs / unconfigured callers must keep working unchanged."""
+    cfg = ViewerConfig()
+    assert cfg.score_panel_view is None
+
+
+def test_score_panel_view_roundtrip() -> None:
+    cfg = ViewerConfig(
+        score_panel_view=ScorePanelView(
+            view="grid",
+            sort=ScorePanelSort(column="value", dir="desc"),
+        )
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert restored.score_panel_view is not None
+    assert restored.score_panel_view.view == "grid"
+    assert restored.score_panel_view.sort is not None
+    assert restored.score_panel_view.sort.column == "value"
+    assert restored.score_panel_view.sort.dir == "desc"
+
+
+def test_score_panel_view_partial_configs_roundtrip() -> None:
+    """View only, sort only, and both — each should serialize cleanly."""
+    view_only = ViewerConfig(score_panel_view=ScorePanelView(view="chips"))
+    sort_only = ViewerConfig(
+        score_panel_view=ScorePanelView(sort=ScorePanelSort(column="name"))
+    )
+    both = ViewerConfig(
+        score_panel_view=ScorePanelView(
+            view="grid", sort=ScorePanelSort(column="name", dir="asc")
+        )
+    )
+    for cfg in (view_only, sort_only, both):
+        assert ViewerConfig.model_validate_json(cfg.model_dump_json()) == cfg
+
+
+def test_score_panel_view_coexists_with_scanner_result_view() -> None:
+    """Both top-level fields can be set simultaneously without interaction."""
+    cfg = ViewerConfig(
+        scanner_result_view=ScannerResultView(fields=["value"]),
+        score_panel_view=ScorePanelView(view="grid"),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
