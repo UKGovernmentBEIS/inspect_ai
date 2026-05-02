@@ -387,10 +387,6 @@
             "title": "From Anchor",
             "type": "string"
           },
-          "from_span": {
-            "title": "From Span",
-            "type": "string"
-          },
           "metadata": {
             "anyOf": [
               {
@@ -449,7 +445,6 @@
           "timestamp",
           "working_start",
           "event",
-          "from_span",
           "from_anchor"
         ],
         "title": "BranchEvent",
