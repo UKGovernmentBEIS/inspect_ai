@@ -1,5 +1,6 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
+from ._anchor import AnchorEvent
 from ._approval import ApprovalEvent
 from ._branch import BranchEvent
 from ._compaction import CompactionEvent
@@ -44,6 +45,7 @@ from ._tree import (
 __all__ = [
     "Event",
     "ApprovalEvent",
+    "AnchorEvent",
     "BranchEvent",
     "ErrorEvent",
     "InfoEvent",

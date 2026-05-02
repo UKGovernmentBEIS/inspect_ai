@@ -1,6 +1,93 @@
 {
   "components": {
     "schemas": {
+      "AnchorEvent": {
+        "description": "Marks a rollback-able point in a replayable trajectory.\n\nEmitted by an orchestrator immediately after a step it can later roll\nback to (a staged message, a model generate, etc.). Carries no content;\n``anchor_id`` is the addressable identifier that ``TimelineSpan.branched_from``\nreferences. Hidden from the viewer transcript by default.",
+        "properties": {
+          "anchor_id": {
+            "title": "Anchor Id",
+            "type": "string"
+          },
+          "event": {
+            "const": "anchor",
+            "default": "anchor",
+            "title": "Event",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "anchor_id"
+        ],
+        "title": "AnchorEvent",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -288,7 +375,7 @@
         "type": "object"
       },
       "BranchEvent": {
-        "description": "Branch in conversation history.",
+        "description": "Marks where a branched trajectory's unique content begins.\n\nEmitted at the point where a branch transitions from replaying its\nparent's prefix to live execution. Events before this in the trajectory's\nspan are replay-phase re-execution; events after are the branch's\ngenuine new content.",
         "properties": {
           "event": {
             "const": "branch",
@@ -296,12 +383,8 @@
             "title": "Event",
             "type": "string"
           },
-          "from_message": {
-            "title": "From Message",
-            "type": "string"
-          },
-          "from_span": {
-            "title": "From Span",
+          "from_anchor": {
+            "title": "From Anchor",
             "type": "string"
           },
           "metadata": {
@@ -362,8 +445,7 @@
           "timestamp",
           "working_start",
           "event",
-          "from_span",
-          "from_message"
+          "from_anchor"
         ],
         "title": "BranchEvent",
         "type": "object"
@@ -2647,6 +2729,9 @@
                       "$ref": "#/components/schemas/ToolEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/AnchorEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/ApprovalEvent"
                     },
                     {
@@ -2838,6 +2923,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ToolEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/AnchorEvent"
                 },
                 {
                   "$ref": "#/components/schemas/ApprovalEvent"
@@ -4169,6 +4257,9 @@
           },
           {
             "$ref": "#/components/schemas/ToolEvent"
+          },
+          {
+            "$ref": "#/components/schemas/AnchorEvent"
           },
           {
             "$ref": "#/components/schemas/ApprovalEvent"
