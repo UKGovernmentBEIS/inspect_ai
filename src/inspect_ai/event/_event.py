@@ -2,6 +2,7 @@ from typing import TypeAlias, Union
 
 from inspect_ai.event._score_edit import ScoreEditEvent
 
+from ._anchor import AnchorEvent
 from ._approval import ApprovalEvent
 from ._branch import BranchEvent
 from ._compaction import CompactionEvent
@@ -29,6 +30,7 @@ Event: TypeAlias = Union[
     StoreEvent,
     ModelEvent,
     ToolEvent,
+    AnchorEvent,
     ApprovalEvent,
     BranchEvent,
     CompactionEvent,
