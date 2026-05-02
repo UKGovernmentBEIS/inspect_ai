@@ -181,9 +181,14 @@ async def get_or_create_semaphore(
 
     Delegates to the global _concurrency_registry.
     """
-    return await _concurrency_registry.get_or_create(
-        name, concurrency, key, visible, adaptive
-    )
+    if adaptive is None:
+        return await _concurrency_registry.get_or_create(
+            name, concurrency, key, visible
+        )
+    else:
+        return await _concurrency_registry.get_or_create(
+            name, concurrency, key, visible, adaptive
+        )
 
 
 @contextlib.asynccontextmanager
