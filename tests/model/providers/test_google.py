@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,7 +14,17 @@ from google.genai.types import (
     FunctionCallingConfigMode,
     GenerateContentResponse,
     JobState,
+    Language,
+    Outcome,
     Part,
+    ToolResponse,
+    ToolType,
+)
+from google.genai.types import (
+    Tool as GeminiTool,
+)
+from google.genai.types import (
+    ToolCall as GeminiToolCall,
 )
 from test_helpers.utils import skip_if_no_google
 
@@ -26,9 +37,11 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
 )
+from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model import ChatMessageAssistant, ChatMessageTool, ModelOutput
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers._google_citations import (
@@ -40,10 +53,22 @@ from inspect_ai.model._providers.google import (
     _malformed_function_retry,
     completion_choice_from_candidate,
     content,
+    gemini_native_tool_combination,
+    gemini_native_tool_combination_config,
+    parts_from_server_tool_use,
 )
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams, tool
+from inspect_ai.tool import (
+    Tool,
+    ToolCall,
+    ToolFunction,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    tool,
+    web_search,
+)
 
 
 @skip_if_no_google
@@ -627,6 +652,575 @@ def _create_test_tool() -> ToolInfo:
             required=["x"],
         ),
     )
+
+
+def _create_gemini_web_search_tool() -> ToolInfo:
+    """Create a Gemini-native web search tool for testing."""
+    return ToolInfo(
+        name="web_search",
+        description="Search the web",
+        options={"gemini": {}},
+    )
+
+
+def _create_google_code_execution_tool() -> ToolInfo:
+    """Create a Google-native code execution tool for testing."""
+    return ToolInfo(
+        name="code_execution",
+        description="Execute Python code",
+        options={"providers": {"google": {}}},
+    )
+
+
+def _create_record_result_tool() -> ToolInfo:
+    """Create a string-valued custom tool for live mixed-tool tests."""
+    return ToolInfo(
+        name="record_result",
+        description="Record an answer",
+        parameters=ToolParams(
+            type="object",
+            properties={
+                "answer": ToolParam(type="string", description="Answer summary")
+            },
+            required=["answer"],
+        ),
+    )
+
+
+def _create_days_in_year_tool() -> ToolInfo:
+    """Create a days-in-year custom tool for mixed native/custom replay tests."""
+    return ToolInfo(
+        name="days_in_year",
+        description="Return the number of days in a year.",
+        parameters=ToolParams(
+            type="object",
+            properties={
+                "year": ToolParam(type="integer", description="The year to check.")
+            },
+            required=["year"],
+        ),
+    )
+
+
+def _days_in_year_tool() -> Tool:
+    @tool
+    def days_in_year() -> Tool:
+        async def execute(year: int) -> str:
+            """Return the number of days in a year.
+
+            Args:
+                year: The year to check.
+            """
+            leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+            return f"{year} has {366 if leap else 365} days."
+
+        return execute
+
+    return days_in_year()
+
+
+def test_gemini_3_native_search_can_combine_with_function_declarations() -> None:
+    api = GoogleGenAIAPI(
+        model_name="gemini-3.1-pro-preview",
+        base_url=None,
+        api_key="test-key",
+    )
+
+    has_native_tools, gemini_tools = api.chat_tools(
+        [_create_gemini_web_search_tool(), _create_test_tool()]
+    )
+
+    assert has_native_tools is True
+    assert gemini_native_tool_combination(gemini_tools)
+    assert len(gemini_tools) == 2
+    assert isinstance(gemini_tools[0], GeminiTool)
+    assert isinstance(gemini_tools[1], GeminiTool)
+    assert gemini_tools[0].function_declarations is not None
+    assert gemini_tools[0].function_declarations[0].name == "my_tool"
+    assert gemini_tools[1].google_search is not None
+
+
+def test_gemini_3_native_code_execution_can_combine_with_functions() -> None:
+    api = GoogleGenAIAPI(
+        model_name="gemini-3.1-pro-preview",
+        base_url=None,
+        api_key="test-key",
+    )
+
+    has_native_tools, gemini_tools = api.chat_tools(
+        [_create_google_code_execution_tool(), _create_test_tool()]
+    )
+
+    assert has_native_tools is True
+    assert gemini_native_tool_combination(gemini_tools)
+    assert len(gemini_tools) == 2
+    assert isinstance(gemini_tools[0], GeminiTool)
+    assert isinstance(gemini_tools[1], GeminiTool)
+    assert gemini_tools[0].function_declarations is not None
+    assert gemini_tools[0].function_declarations[0].name == "my_tool"
+    assert gemini_tools[1].code_execution is not None
+
+
+def test_gemini_2_5_native_search_still_rejects_function_declarations() -> None:
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.5-pro",
+        base_url=None,
+        api_key="test-key",
+    )
+
+    with pytest.raises(ValueError, match="requires Gemini 3 or later"):
+        api.chat_tools([_create_gemini_web_search_tool(), _create_test_tool()])
+
+
+def test_gemini_2_5_native_code_execution_still_rejects_function_declarations() -> None:
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.5-pro",
+        base_url=None,
+        api_key="test-key",
+    )
+
+    with pytest.raises(ValueError, match="code execution"):
+        api.chat_tools([_create_google_code_execution_tool(), _create_test_tool()])
+
+
+def test_gemini_native_tool_combination_config_respects_tool_choice() -> None:
+    auto_config = gemini_native_tool_combination_config("auto")
+    assert auto_config.function_calling_config is not None
+    assert (
+        auto_config.function_calling_config.mode == FunctionCallingConfigMode.VALIDATED
+    )
+
+    any_config = gemini_native_tool_combination_config("any")
+    assert any_config.function_calling_config is not None
+    assert any_config.function_calling_config.mode == FunctionCallingConfigMode.ANY
+
+    none_config = gemini_native_tool_combination_config("none")
+    assert none_config.function_calling_config is not None
+    assert none_config.function_calling_config.mode == FunctionCallingConfigMode.NONE
+
+    function_config = gemini_native_tool_combination_config(
+        ToolFunction(name="my_tool")
+    )
+    assert function_config.function_calling_config is not None
+    assert function_config.function_calling_config.mode == FunctionCallingConfigMode.ANY
+    assert function_config.function_calling_config.allowed_function_names == ["my_tool"]
+
+
+@pytest.mark.anyio
+async def test_gemini_3_tool_combination_uses_server_side_tool_invocations() -> None:
+    mock_generate = AsyncMock(
+        return_value=GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    finish_reason=FinishReason.STOP,
+                    content=Content(role="model", parts=[Part(text="done")]),
+                )
+            ],
+            usage_metadata=None,
+        )
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-3.1-pro-preview",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Search and call my_tool")],
+            tools=[_create_gemini_web_search_tool(), _create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.tool_config == gemini_native_tool_combination_config("auto")
+    assert config.tool_config.include_server_side_tool_invocations is True
+    assert config.tool_config.function_calling_config.mode == (
+        FunctionCallingConfigMode.VALIDATED
+    )
+
+
+@pytest.mark.anyio
+async def test_gemini_3_code_exec_combo_uses_server_invocations() -> None:
+    mock_generate = AsyncMock(
+        return_value=GenerateContentResponse(
+            candidates=[
+                Candidate(
+                    finish_reason=FinishReason.STOP,
+                    content=Content(role="model", parts=[Part(text="done")]),
+                )
+            ],
+            usage_metadata=None,
+        )
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-3.1-pro-preview",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Run code and call my_tool")],
+            tools=[_create_google_code_execution_tool(), _create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+    config = mock_generate.call_args.kwargs["config"]
+    assert config.tool_config == gemini_native_tool_combination_config("auto")
+    assert config.tool_config.include_server_side_tool_invocations is True
+    assert config.tools is not None
+    assert isinstance(config.tools[0], GeminiTool)
+    assert isinstance(config.tools[1], GeminiTool)
+    assert config.tools[0].function_declarations is not None
+    assert config.tools[0].function_declarations[0].name == "my_tool"
+    assert config.tools[1].code_execution is not None
+
+
+def test_gemini_server_tool_call_round_trips_for_replay() -> None:
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    thought_signature=b"search-context",
+                    tool_call=GeminiToolCall(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        args={"queries": ["current Gemini API tool combination docs"]},
+                    ),
+                ),
+                Part(
+                    thought_signature=b"search-context-response",
+                    tool_response=ToolResponse(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        response={"search_suggestions": ["Gemini tool combination"]},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+
+    assert isinstance(choice.message.content, list)
+    assert isinstance(choice.message.content[0], ContentToolUse)
+    tool_use = choice.message.content[0]
+    replayed_parts = parts_from_server_tool_use(tool_use)
+    assert replayed_parts[0].tool_call is not None
+    assert replayed_parts[0].tool_call.id == "search-1"
+    assert replayed_parts[0].thought_signature == b"search-context"
+    assert replayed_parts[1].tool_response is not None
+    assert replayed_parts[1].tool_response.id == "search-1"
+    assert replayed_parts[1].thought_signature == b"search-context-response"
+
+
+def test_gemini_server_tool_call_without_signature_is_omitted_for_replay() -> None:
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    tool_call=GeminiToolCall(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        args={"queries": ["current Gemini API tool combination docs"]},
+                    ),
+                ),
+                Part(
+                    tool_response=ToolResponse(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        response={"search_suggestions": ["Gemini tool combination"]},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+
+    assert isinstance(choice.message.content, list)
+    assert isinstance(choice.message.content[0], ContentToolUse)
+    tool_use = choice.message.content[0]
+    assert parts_from_server_tool_use(tool_use) == []
+
+
+@pytest.mark.anyio
+async def test_gemini_signed_function_call_replays_before_server_tool() -> None:
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(text="Plan", thought=True),
+                Part(
+                    thought_signature=b"days-signature",
+                    function_call=FunctionCall(
+                        id="days-1",
+                        name="days_in_year",
+                        args={"year": 2024},
+                    ),
+                ),
+                Part(
+                    thought_signature=b"search-signature",
+                    tool_call=GeminiToolCall(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        args={"queries": ["most populous country"]},
+                    ),
+                ),
+                Part(
+                    thought_signature=b"search-response-signature",
+                    tool_response=ToolResponse(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        response={"search_suggestions": ["India population"]},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+    google_content = await content(MagicMock(), choice.message, emulate_reasoning=False)
+
+    assert google_content.parts is not None
+    assert google_content.parts[0].text == "Plan"
+    assert google_content.parts[0].thought is True
+    assert google_content.parts[1].function_call is not None
+    assert google_content.parts[1].function_call.id == "days-1"
+    assert google_content.parts[1].thought_signature == b"days-signature"
+    assert google_content.parts[2].tool_call is not None
+    assert google_content.parts[2].tool_call.id == "search-1"
+    assert google_content.parts[2].thought_signature == b"search-signature"
+    assert google_content.parts[3].tool_response is not None
+    assert google_content.parts[3].tool_response.id == "search-1"
+
+
+@pytest.mark.anyio
+async def test_gemini_unsigned_function_call_uses_server_tool_signature() -> None:
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(text="Plan", thought=True),
+                Part(
+                    thought_signature=b"search-signature",
+                    tool_call=GeminiToolCall(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        args={"queries": ["most populous country"]},
+                    ),
+                ),
+                Part(
+                    thought_signature=b"search-response-signature",
+                    tool_response=ToolResponse(
+                        id="search-1",
+                        tool_type=ToolType.GOOGLE_SEARCH_WEB,
+                        response={"search_suggestions": ["India population"]},
+                    ),
+                ),
+                Part(
+                    function_call=FunctionCall(
+                        id="days-1",
+                        name="days_in_year",
+                        args={"year": 2024},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+    google_content = await content(MagicMock(), choice.message, emulate_reasoning=False)
+
+    assert google_content.parts is not None
+    assert google_content.parts[0].text == "Plan"
+    assert google_content.parts[1].tool_call is not None
+    assert google_content.parts[1].thought_signature == b"search-signature"
+    assert google_content.parts[2].tool_response is not None
+    assert google_content.parts[3].function_call is not None
+    assert google_content.parts[3].function_call.id == "days-1"
+    assert google_content.parts[3].thought_signature == b"search-signature"
+
+
+def test_gemini_unsupported_server_tool_call_is_omitted() -> None:
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    thought_signature=b"url-context",
+                    tool_call=GeminiToolCall(
+                        id="url-context-1",
+                        tool_type=ToolType.URL_CONTEXT,
+                        args={"urls": ["https://example.com"]},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+
+    assert choice.message.content == ""
+
+
+def test_gemini_code_execution_round_trips_for_replay() -> None:
+    candidate = Candidate(
+        finish_reason=FinishReason.STOP,
+        content=Content(
+            role="model",
+            parts=[
+                Part.from_executable_code(
+                    code="print(6 * 7)",
+                    language=Language.PYTHON,
+                ),
+                Part.from_code_execution_result(
+                    outcome=Outcome.OUTCOME_OK,
+                    output="42\n",
+                ),
+            ],
+        ),
+    )
+
+    choice = completion_choice_from_candidate("gemini-3.1-pro-preview", candidate)
+
+    assert isinstance(choice.message.content, list)
+    assert isinstance(choice.message.content[0], ContentToolUse)
+    tool_use = choice.message.content[0]
+    assert tool_use.tool_type == "code_execution"
+    assert tool_use.name == Language.PYTHON
+    assert tool_use.arguments == "print(6 * 7)"
+    assert tool_use.result == "42\n"
+
+    replayed_parts = parts_from_server_tool_use(tool_use)
+    assert replayed_parts[0].executable_code is not None
+    assert replayed_parts[0].executable_code.language == Language.PYTHON
+    assert replayed_parts[0].executable_code.code == "print(6 * 7)"
+    assert replayed_parts[1].code_execution_result is not None
+    assert replayed_parts[1].code_execution_result.outcome == Outcome.OUTCOME_OK
+    assert replayed_parts[1].code_execution_result.output == "42\n"
+
+
+@pytest.mark.anyio
+async def test_gemini_function_response_preserves_tool_call_id() -> None:
+    message = ChatMessageTool(
+        content="42",
+        tool_call_id="call-123",
+        function="my_tool",
+    )
+
+    google_content = await content(MagicMock(), message, emulate_reasoning=False)
+
+    assert google_content.parts is not None
+    assert google_content.parts[0].function_response is not None
+    assert google_content.parts[0].function_response.id == "call-123"
+
+
+@pytest.mark.anyio
+async def test_gemini_function_call_preserves_tool_call_id() -> None:
+    message = ChatMessageAssistant(
+        content=[],
+        tool_calls=[
+            ToolCall(
+                id="call-123",
+                function="my_tool",
+                arguments={"x": 42},
+            )
+        ],
+    )
+
+    google_content = await content(MagicMock(), message, emulate_reasoning=False)
+
+    assert google_content.parts is not None
+    assert google_content.parts[0].function_call is not None
+    assert google_content.parts[0].function_call.id == "call-123"
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_gemini_3_native_search_with_function_tool_replays() -> None:
+    api = GoogleGenAIAPI(
+        model_name="gemini-3.1-pro-preview",
+        base_url=None,
+        api_key=os.environ["GOOGLE_API_KEY"],
+    )
+    user = ChatMessageUser(
+        content=(
+            "Use days_in_year(2024) AND web search 'most populous country'. "
+            "Then a 1-line answer."
+        )
+    )
+
+    first_output, _ = await api.generate(
+        input=[user],
+        tools=[_create_gemini_web_search_tool(), _create_days_in_year_tool()],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=2048),
+    )
+    assert isinstance(first_output, ModelOutput)
+    assistant = first_output.choices[0].message
+
+    assert isinstance(assistant.content, list)
+    assert any(isinstance(item, ContentToolUse) for item in assistant.content)
+    assert assistant.tool_calls is not None
+    assert len(assistant.tool_calls) > 0
+
+    tool_call = assistant.tool_calls[0]
+    tool_result = ChatMessageTool(
+        content="2024 has 366 days.",
+        tool_call_id=tool_call.id,
+        function=tool_call.function,
+    )
+
+    second_output, _ = await api.generate(
+        input=[user, assistant, tool_result],
+        tools=[_create_gemini_web_search_tool(), _create_days_in_year_tool()],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=2048),
+    )
+    assert isinstance(second_output, ModelOutput)
+
+    assert second_output.choices[0].stop_reason == "stop"
+    assert second_output.choices[0].message.text is not None
+
+
+@skip_if_no_google
+def test_gemini_3_native_search_with_function_tool_react_loop() -> None:
+    result = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input=(
+                        "Use days_in_year(2024) AND web search 'most populous "
+                        "country'. Then submit a one-line summary."
+                    )
+                )
+            ],
+            solver=react(tools=[web_search(providers="gemini"), _days_in_year_tool()]),
+        ),
+        model="google/gemini-3.1-pro-preview",
+        message_limit=10,
+        max_tokens=4096,
+        fail_on_error=False,
+    )[0]
+
+    assert result.status == "success"
+    assert result.samples
+    assert result.samples[0].output is not None
 
 
 @pytest.mark.anyio
