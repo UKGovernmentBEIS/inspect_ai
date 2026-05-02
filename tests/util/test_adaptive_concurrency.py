@@ -26,11 +26,12 @@ def _saturated_successes(
 ) -> None:
     """Run n successful completions with the current limit fully saturated.
 
-    notify_success samples the limiter's `borrowed_tokens` (in-flight count)
-    to track per-round saturation; tests that don't actually acquire slots
-    would otherwise see zero saturation and never trigger scale-up. This
-    helper pre-sets the high-water mark before each call so growth-testing
-    code paths run as if the limit was binding. Defaults to one full round
+    The controller's per-round saturation high-water mark is updated by the
+    semaphore wrapper on each acquire. Tests that call notify_success
+    directly (without going through the semaphore) would otherwise leave
+    the mark at zero and never trigger scale-up. This helper pre-sets the
+    mark before each call so growth-testing code paths run as if the limit
+    was binding. Defaults to one full round
     (`max(concurrency, ROUND_SIZE_FLOOR)` successes).
     """
     n = n if n is not None else max(c.concurrency, c.ROUND_SIZE_FLOOR)
