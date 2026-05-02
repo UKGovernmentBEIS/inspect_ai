@@ -1,6 +1,15 @@
 grok:
   display_name: xAI
   models:
+    grok-4.3:
+      display_name: "Grok 4.3"
+      release_date: 2026-04-30
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 1000000
+      reasoning: True
+      versions:
+        grok-4.3:
+          snapshot: latest
     grok-4:
       display_name: "Grok 4"
       release_date: 2025-07-09
