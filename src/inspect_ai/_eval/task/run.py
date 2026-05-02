@@ -1494,13 +1494,15 @@ def create_sample_semaphore(
         # would fire for nearly every deliberate max_samples setting
         return anyio.Semaphore(config.max_samples)
     elif (
-        generate_config.adaptive_connections and generate_config.max_connections is None
+        generate_config.adaptive_connections
+        and generate_config.max_connections is None
+        and not generate_config.batch
     ):
         # adaptive: dynamic limiter that tracks the controller(s) — sample
         # concurrency grows with the controller's current limit so setup work
         # (sandboxes etc.) stays proportional to actual model concurrency.
-        # Explicit max_connections wins silently (matches the precedence in
-        # Model._connection_concurrency).
+        # Both explicit max_connections and batch mode silently override
+        # adaptive (matches the precedence in Model._connection_concurrency).
         adaptive = (
             generate_config.adaptive_connections
             if isinstance(generate_config.adaptive_connections, AdaptiveConcurrency)

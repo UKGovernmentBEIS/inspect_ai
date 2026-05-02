@@ -138,6 +138,33 @@ async def test_explicit_max_connections_wins_over_adaptive() -> None:
 
 
 @pytest.mark.anyio
+async def test_batch_mode_disables_adaptive() -> None:
+    """Batch mode silently overrides adaptive_connections.
+
+    Batch APIs run on a separate quota, the per-request concurrency model
+    doesn't bind, and the batch worker's background-task ContextVars don't
+    propagate retry/success signals back to awaiting generates — so adaptive
+    accounting would be incorrect even if we did set up the controller.
+    """
+    from inspect_ai.model._generate_config import BatchConfig
+
+    init_concurrency()
+    fn = _capture_controller_during_generate()
+    model = get_model("mockllm/model", custom_outputs=fn)
+    await model.generate(
+        "hello",
+        config=GenerateConfig(
+            adaptive_connections=True,
+            batch=BatchConfig(),
+        ),
+    )
+    captures = fn.captures  # type: ignore[attr-defined]
+    # static path was taken: no controller active during generate
+    assert captures == [(None, False)]
+    assert adaptive_controllers() == []
+
+
+@pytest.mark.anyio
 async def test_report_http_retry_signals_active_controller() -> None:
     """When called inside generate, report_http_retry sets had_retry and notifies controller."""
     init_concurrency()
@@ -377,6 +404,34 @@ def test_sample_semaphore_static_path_unchanged() -> None:
         modelapi=None,
     )
     assert isinstance(sem, _anyio.Semaphore)
+
+
+def test_sample_semaphore_batch_mode_disables_adaptive() -> None:
+    """Batch mode silently overrides adaptive_connections at the sample limiter layer too.
+
+    Without this, a batched eval with adaptive_connections=True would create
+    a DynamicSampleLimiter that tracks a controller no one is feeding signals
+    to (since Model._connection_concurrency takes the static path in batch
+    mode).
+    """
+    import anyio as _anyio
+
+    from inspect_ai._eval.task.run import create_sample_semaphore
+    from inspect_ai.log._log import EvalConfig
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.util._concurrency import DynamicSampleLimiter, init_concurrency
+
+    init_concurrency()
+    sem = create_sample_semaphore(
+        config=EvalConfig(),
+        generate_config=GenerateConfig(
+            adaptive_connections=True,
+            batch=BatchConfig(),
+        ),
+        modelapi=None,
+    )
+    assert isinstance(sem, _anyio.Semaphore)
+    assert not isinstance(sem, DynamicSampleLimiter)
 
 
 # ---------- Rate-limit vs transient classification (end-to-end) ----------

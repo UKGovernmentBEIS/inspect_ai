@@ -1263,11 +1263,21 @@ class Model:
         model_name = ModelName(self)
         key = f"Model{self.api.connection_key()}"
 
-        # adaptive path: controller-managed CapacityLimiter. Explicit
-        # max_connections wins silently — anticipating adaptive_connections
-        # becoming default-on, in which case any deliberate max_connections
-        # setting must continue to be honored.
-        if config.adaptive_connections and config.max_connections is None:
+        # adaptive path: controller-managed CapacityLimiter. Two precedence
+        # rules — both silent — anticipating adaptive_connections becoming
+        # default-on, in which case any deliberate override must keep working:
+        #   * Explicit max_connections wins (existing behavior).
+        #   * Batch mode wins. Batch APIs run on a separate quota, the per-
+        #     request concurrency model doesn't bind (DEFAULT_MAX_CONNECTIONS_BATCH
+        #     is a sentinel ceiling), and the worker's background-task
+        #     ContextVars don't propagate retry/success signals back to
+        #     awaiting generates — so adaptive's success/retry accounting
+        #     would be incorrect anyway. See docs/parallelism.qmd.
+        if (
+            config.adaptive_connections
+            and config.max_connections is None
+            and not config.batch
+        ):
             adaptive = (
                 config.adaptive_connections
                 if isinstance(config.adaptive_connections, AdaptiveConcurrency)

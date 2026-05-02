@@ -121,7 +121,7 @@ eval(
 ```
 
 ::: {.callout-note appearance="simple"}
-**Explicit caps always win.** If you set `--max-connections` together with `--adaptive-connections`, the static cap takes precedence and adaptive scaling is disabled. Likewise, an explicit `max_samples` overrides the dynamic sample limiter. This makes it safe to leave adaptive connections enabled in shared configs while still pinning specific evaluations to fixed values when needed.
+**Explicit caps always win.** If you set `--max-connections` together with `--adaptive-connections`, the static cap takes precedence and adaptive scaling is disabled. Likewise, an explicit `max_samples` overrides the dynamic sample limiter. **Batch mode also silently disables adaptive concurrency** — batch APIs run on a separate quota, the per-request concurrency model doesn't bind, and the batch worker's accounting boundary makes adaptive's success/retry signals unreliable; batch evaluations always use the static `max_connections` path. These rules together make it safe to leave adaptive connections enabled in shared configs while still pinning specific evaluations to fixed values when needed.
 :::
 
 When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (with a small buffer), so sample setup work — like creating sandbox containers — stays proportional to the actual model concurrency rather than the maximum bound.
