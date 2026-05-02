@@ -36,8 +36,10 @@ from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
+    has_registry_params,
     is_registry_object,
     registry_log_name,
+    registry_params,
     registry_unqualified_name,
 )
 from inspect_ai._util.working import (
@@ -1170,6 +1172,14 @@ async def task_run_sample(
                                                         ScoreEvent(
                                                             score=score_result,
                                                             target=sample.target,
+                                                            scorer=scorer_name,
+                                                            scorer_args=registry_params(
+                                                                scorer
+                                                            )
+                                                            if has_registry_params(
+                                                                scorer
+                                                            )
+                                                            else None,
                                                             model_usage=sample_model_usage()
                                                             or None,
                                                             role_usage=sample_role_usage()
@@ -1192,6 +1202,7 @@ async def task_run_sample(
                                         ScoreEvent(
                                             score=score,
                                             target=sample.target,
+                                            scorer=name,
                                             model_usage=sample_model_usage() or None,
                                             role_usage=sample_role_usage() or None,
                                         )

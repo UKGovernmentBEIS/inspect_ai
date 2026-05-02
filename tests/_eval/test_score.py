@@ -528,7 +528,7 @@ async def test_score_preserves_model_usage_in_score_event():
 
     # Simple scorer that returns a score
     @scorer(metrics=[accuracy()])
-    def simple_scorer() -> Scorer:
+    def simple_scorer(threshold: float = 0.5) -> Scorer:
         async def score(state: TaskState, target: Target) -> Score:
             return Score(value=1.0 if state.output.completion == target.text else 0.0)
 
@@ -538,7 +538,7 @@ async def test_score_preserves_model_usage_in_score_event():
     results, _ = await _run_score_task(
         log_header=log_header,
         sample=sample,
-        scorers=[simple_scorer()],
+        scorers=[simple_scorer(threshold=0.75)],
         action="append",
     )
 
@@ -546,3 +546,5 @@ async def test_score_preserves_model_usage_in_score_event():
     score_events = [e for e in sample.events if isinstance(e, ScoreEvent)]
     assert len(score_events) == 1
     assert score_events[0].model_usage == sample_model_usage
+    assert score_events[0].scorer == "simple_scorer"
+    assert score_events[0].scorer_args == {"threshold": 0.75}
