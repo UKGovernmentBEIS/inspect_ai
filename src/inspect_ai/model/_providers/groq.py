@@ -46,7 +46,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
@@ -240,13 +240,17 @@ class GroqAPI(ModelAPI):
         ]
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            retry_after = _groq_retry_after(ex)
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        if isinstance(ex, APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -426,3 +430,17 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(url=BASE_64_DATA_REMOVED)
     return value
+
+
+def _groq_retry_after(ex: APIStatusError) -> float | None:
+    """Extract Retry-After / x-ratelimit-reset-* from a Groq APIStatusError."""
+    from inspect_ai._util.http import parse_retry_after
+
+    response = getattr(ex, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    try:
+        return parse_retry_after(headers)
+    except Exception:
+        return None

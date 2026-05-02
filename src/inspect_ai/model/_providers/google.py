@@ -91,7 +91,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
-from inspect_ai.model._model import log_model_retry
+from inspect_ai.model._model import RetryDecision, log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -669,11 +669,22 @@ class GoogleGenAIAPI(ModelAPI):
         ) and "-pro" in self.service_model_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # HTTP 429 is always a rate-limit signal regardless of SDK status text.
+        # 503 needs a guard: Google sometimes returns 503 RESOURCE_EXHAUSTED
+        # for sustained capacity pressure on Gemini (rate-limit), while plain
+        # 503 UNAVAILABLE is infra unavailability (transient).
         if isinstance(ex, APIError) and ex.code is not None:
-            return is_retryable_http_status(ex.code)
-        else:
-            return False
+            if not is_retryable_http_status(ex.code):
+                return RetryDecision.no()
+            retry_after = _google_retry_after(ex)
+            if ex.code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            status = getattr(ex, "status", "") or ""
+            if ex.code == 503 and "RESOURCE_EXHAUSTED" in status.upper():
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -1816,3 +1827,17 @@ def _malformed_function_message(candidate: Candidate | GenerateContentResponse) 
         return candidate.finish_message
     else:
         return DEFAULT_FINISH_MESSAGE
+
+
+def _google_retry_after(ex: APIError) -> float | None:
+    """Extract Retry-After / x-ratelimit-reset-* from an APIError's response."""
+    from inspect_ai._util.http import parse_retry_after
+
+    response = getattr(ex, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    try:
+        return parse_retry_after(headers)
+    except Exception:
+        return None

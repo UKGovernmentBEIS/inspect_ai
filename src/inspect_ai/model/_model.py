@@ -1,5 +1,6 @@
 import abc
 import contextlib
+import dataclasses
 import functools
 import json
 import logging
@@ -125,6 +126,56 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
+
+
+@dataclasses.dataclass(frozen=True)
+class RetryDecision:
+    """Classification of a retryable exception for `ModelAPI.should_retry`.
+
+    `should_retry()` may return either a plain `bool` (legacy: any True
+    is treated as a generic transient retry) or a `RetryDecision` to
+    additionally classify the retry kind and pass server-suggested wait
+    times to the adaptive concurrency controller.
+
+    `RetryDecision` is truthy iff `retry` is True, so existing callers
+    written against the `bool` return (`if api.should_retry(ex): ...`)
+    keep working unchanged.
+
+    Use the `no()`, `transient()`, and `rate_limit()` factory methods
+    rather than constructing directly.
+    """
+
+    retry: bool
+    """Whether to retry the request."""
+
+    kind: Literal["rate_limit", "transient"] = "transient"
+    """How to account for the retry against the adaptive controller.
+
+    `rate_limit` triggers a scale-down. `transient` (5xx, timeouts,
+    network errors) only marks the request as retried so the eventual
+    success won't count toward scale-up — it does not shrink the limit.
+    """
+
+    retry_after: float | None = None
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+
+    def __bool__(self) -> bool:
+        return self.retry
+
+    @classmethod
+    def no(cls) -> "RetryDecision":
+        """Don't retry."""
+        return cls(retry=False)
+
+    @classmethod
+    def transient(cls, retry_after: float | None = None) -> "RetryDecision":
+        """Retry as a transient error (pauses scale-up but doesn't scale down)."""
+        return cls(retry=True, kind="transient", retry_after=retry_after)
+
+    @classmethod
+    def rate_limit(cls, retry_after: float | None = None) -> "RetryDecision":
+        """Retry as a rate-limit error (scales the adaptive controller down)."""
+        return cls(retry=True, kind="rate_limit", retry_after=retry_after)
 
 
 class ModelAPI(abc.ABC):
@@ -336,8 +387,15 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         """Should this exception be retried?
+
+        Returns either a plain `bool` (any True is treated as a transient
+        retry by the adaptive controller) or a `RetryDecision` to
+        additionally classify the retry as `rate_limit` vs `transient`
+        and to pass through any server-suggested `retry_after`. Built-in
+        providers return `RetryDecision` so the adaptive controller scales
+        only on real rate-limit signals.
 
         Args:
            ex: Exception to check for retry
@@ -1119,28 +1177,31 @@ class Model:
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
             # attempt timeout is always retried (we rely on `timeout`
-            # and/or `max_retries` for termination)
+            # and/or `max_retries` for termination). Classified as transient:
+            # _request_had_retry still flips so the eventual success won't
+            # count toward adaptive scale-up, but the controller doesn't
+            # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
-                # report so the global retry counter, ModelEvent.retries,
-                # _request_had_retry, and the adaptive controller all see
-                # this as a retry — otherwise a request that timed out one
-                # or more attempts and then succeeded would count as a clean
-                # adaptive success and could drive the controller upward
-                # under timeout pressure.
                 report_http_retry()
                 return True
 
-            # check standard should_retry() method
-            retry = self.api.should_retry(ex)
-            if retry:
+            # check standard should_retry() method — may return bool or RetryDecision
+            decision = self.api.should_retry(ex)
+            if isinstance(decision, RetryDecision):
+                if decision.retry:
+                    report_http_retry(
+                        kind=decision.kind, retry_after=decision.retry_after
+                    )
+                    return True
+            elif decision:
+                # legacy bool-True path: provider didn't classify, treat as transient
                 report_http_retry()
                 return True
 
             from inspect_ai.hooks._hooks import has_api_key_override
 
             if has_api_key_override():
-                retry = self.api.is_auth_failure(ex)
-                if retry:
+                if self.api.is_auth_failure(ex):
                     report_http_retry()
                     return True
 
@@ -1152,9 +1213,9 @@ class Model:
                     f"provider '{self.name}' implements deprecated is_rate_limit() method, "
                     + "please change to should_retry()",
                 )
-                retry = cast(bool, is_rate_limit(ex))
-                if retry:
-                    report_http_retry()
+                if cast(bool, is_rate_limit(ex)):
+                    # legacy method's name says it all — treat as rate-limit
+                    report_http_retry(kind="rate_limit")
                     return True
 
         # no retry

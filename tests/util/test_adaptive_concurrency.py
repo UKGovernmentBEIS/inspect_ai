@@ -199,6 +199,162 @@ def test_history_bounded() -> None:
     assert len(c.history) == c.HISTORY_LIMIT
 
 
+def test_default_bounds() -> None:
+    """Defaults are min=4, start=20, max=100 — tightened from the original 1/20/200."""
+    cfg = AdaptiveConcurrency()
+    assert cfg.min == 4
+    assert cfg.start == 20
+    assert cfg.max == 100
+
+
+def test_advanced_fields_default_to_documented_values() -> None:
+    cfg = AdaptiveConcurrency()
+    assert cfg.cooldown_seconds == 15.0
+    assert cfg.decrease_factor == 0.8
+    assert cfg.scale_up_percent == 0.05
+
+
+def test_advanced_fields_validate_ranges() -> None:
+    with pytest.raises(ValueError, match="cooldown_seconds"):
+        AdaptiveConcurrency(cooldown_seconds=-1)
+    with pytest.raises(ValueError, match="decrease_factor"):
+        AdaptiveConcurrency(decrease_factor=0)
+    with pytest.raises(ValueError, match="decrease_factor"):
+        AdaptiveConcurrency(decrease_factor=1)
+    with pytest.raises(ValueError, match="scale_up_percent"):
+        AdaptiveConcurrency(scale_up_percent=0)
+    with pytest.raises(ValueError, match="scale_up_percent"):
+        AdaptiveConcurrency(scale_up_percent=1.5)
+
+
+def test_advanced_fields_override_controller_behavior() -> None:
+    # custom decrease_factor of 0.5 cuts harder than default 0.8
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, decrease_factor=0.5)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    c.notify_retry()
+    # 40 * 0.5 = 20, floor_to_nice(20) = 20
+    assert c.concurrency == 20
+
+    # custom scale_up_percent of 0.5 grows faster than default 5%
+    cfg2 = AdaptiveConcurrency(min=1, max=200, start=20, scale_up_percent=0.5)
+    c2 = AdaptiveConcurrencyController("t", cfg2, visible=True)
+    c2._first_retry_seen = True  # skip slow-start
+    for _ in range(20):
+        c2.notify_success()
+    # 20 + max(1, round(20 * 0.5)) = 30, ceil_to_nice(30) = 30
+    assert c2.concurrency == 30
+
+
+def test_retry_after_extends_cooldown() -> None:
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=5.0)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    before = time.monotonic()
+    c.notify_retry(retry_after=60.0)
+    # cooldown should be at least 60 seconds out, even though default is 5
+    assert c._cooldown_until >= before + 60.0
+
+
+def test_longer_retry_after_during_cooldown_extends_horizon() -> None:
+    """A second 429 with a longer Retry-After should extend cooldown, not be discarded.
+
+    Regression: the early-return for cooldown previously dropped the new
+    retry_after entirely, so a 60s server hint inside an existing 15s
+    cooldown was ignored.
+    """
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=15.0)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    # First retry — establishes a 15s cooldown
+    c.notify_retry()
+    cooldown_after_first = c._cooldown_until
+    # Limit was cut once
+    assert c.concurrency < 40
+    cut_concurrency = c.concurrency
+
+    # Second retry inside the cooldown window with a longer server hint
+    c.notify_retry(retry_after=60.0)
+    # Limit must NOT have been cut again (debounce)
+    assert c.concurrency == cut_concurrency
+    # But cooldown must have been extended past the 15s floor
+    assert c._cooldown_until > cooldown_after_first
+    # And honor the 60s server hint
+    assert c._cooldown_until >= time.monotonic() + 50  # ~60s, allow scheduling slack
+
+
+def test_shorter_retry_after_during_cooldown_does_not_shrink_horizon() -> None:
+    """A subsequent shorter Retry-After must not pull the cooldown horizon back in."""
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=15.0)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    c.notify_retry(retry_after=60.0)  # establishes a 60s cooldown
+    long_horizon = c._cooldown_until
+    c.notify_retry(retry_after=5.0)  # shorter — must not pull horizon in
+    assert c._cooldown_until == long_horizon
+
+
+def test_retry_after_smaller_than_cooldown_uses_floor() -> None:
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=15.0)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    before = time.monotonic()
+    c.notify_retry(retry_after=2.0)
+    # cooldown should be the configured floor (15s), not the smaller server hint
+    assert c._cooldown_until >= before + 15.0
+    assert c._cooldown_until < before + 60.0
+
+
+def test_retry_after_none_falls_back_to_cooldown() -> None:
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=10.0)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    before = time.monotonic()
+    c.notify_retry(retry_after=None)
+    assert c._cooldown_until >= before + 10.0
+
+
+def test_report_http_retry_transient_does_not_scale_down() -> None:
+    """report_http_retry(kind='transient') marks request as retried but doesn't notify controller."""
+    from inspect_ai._util.retry import report_http_retry
+
+    init_concurrency()
+
+    # set up a controller as the active one (mimics what _connection_concurrency does)
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    token_c = _active_controller.set(c)
+    token_r = _request_had_retry.set(False)
+    try:
+        report_http_retry()  # default kind="transient"
+        # no scale-down occurred
+        assert c.concurrency == 40
+        assert c.history == []
+        # but the request IS marked as retried (so success-after-retry won't count)
+        assert _request_had_retry.get() is True
+    finally:
+        _active_controller.reset(token_c)
+        _request_had_retry.reset(token_r)
+
+
+def test_report_http_retry_rate_limit_scales_down() -> None:
+    from inspect_ai._util.retry import report_http_retry
+
+    init_concurrency()
+
+    cfg = AdaptiveConcurrency(min=1, max=200, start=40, cooldown_seconds=15.0)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+    token_c = _active_controller.set(c)
+    token_r = _request_had_retry.set(False)
+    try:
+        report_http_retry(kind="rate_limit", retry_after=30.0)
+        # 40 * 0.8 = 32, floor_to_nice(32) = 30
+        assert c.concurrency == 30
+        # history records it as a rate_limit cut
+        assert len(c.history) == 1
+        assert c.history[0][4] == "rate_limit"
+        # cooldown extended by retry_after (30s > default 15s)
+        before = time.monotonic()
+        assert c._cooldown_until >= before + 25.0  # ~30s minus a bit
+    finally:
+        _active_controller.reset(token_c)
+        _request_had_retry.reset(token_r)
+
+
 @pytest.mark.anyio
 async def test_concurrency_creates_adaptive_controller() -> None:
     init_concurrency()

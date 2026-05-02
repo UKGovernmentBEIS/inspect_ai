@@ -47,15 +47,30 @@ You should experiment with various values for max connections at different times
 
 ### Adaptive Connections
 
-Tuning `--max-connections` by hand is awkward: you have to guess a value, watch for rate-limit retries, and re-tune for different times of day or different rate-limit tiers. The `--adaptive-connections` option lets Inspect tune it for you automatically — starting conservatively and scaling up until rate-limit retries are observed, then backing off.
+Tuning `--max-connections` by hand is awkward: you have to guess a value, watch for rate-limit retries, and re-tune for different times of day or different rate-limit tiers. The `--adaptive-connections` option lets Inspect tune it for you automatically — starting at a moderate concurrency, growing until rate-limit retries are observed, then backing off.
 
 ``` bash
 $ inspect eval --model openai/gpt-4o --adaptive-connections true
 ```
 
-When enabled, a per-model controller starts at 20 concurrent connections, doubles until the first rate-limit retry (slow-start), then settles into additive-increase / multiplicative-decrease behaviour: each clean window of requests adds roughly 5%, and each rate-limit episode multiplies the limit by 0.8. Scale-down is debounced for 15 seconds so a single rate-limit burst doesn't cause repeated cuts.
+A per-model controller starts at `start = 20` concurrent connections and scales between `min = 4` and `max = 100` (the defaults). These bounds are designed for typical paid (non-enterprise) tiers; users on enterprise tiers can raise `max` explicitly, and users with very tight tiers can lower it.
 
-To customise the bounds, pass a string shorthand. `min-max` constrains the controller's range (start defaults to 20):
+#### How it responds to errors
+
+The controller distinguishes between two kinds of retries:
+
+- **Rate-limit retries.** HTTP 429, plus per-provider equivalents — Bedrock `ThrottlingException`, Google `503 RESOURCE_EXHAUSTED`. These shrink the limit by `decrease_factor` (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.
+- **Transient retries.** 5xx, timeouts, and network errors. These *pause* scale-up — the in-flight request's eventual success won't count toward growth — but they do **not** shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn't help a provider-side outage. (Each provider's `should_retry()` method classifies its own errors by returning a `RetryDecision`, so genuinely-rate-limited 5xx codes for that provider are still counted as rate-limit signals.)
+
+After a rate-limit cut, the controller observes a cooldown of at least `cooldown_seconds` (default 15s) before another cut is allowed. If the response carries a `Retry-After` header, the cooldown is extended to honor it. When `Retry-After` is absent, Inspect falls back to provider-specific reset-window headers — `x-ratelimit-reset-requests` / `x-ratelimit-reset-tokens` (OpenAI / Groq / Azure OpenAI) and `anthropic-ratelimit-*-reset` (Anthropic) — so the controller still benefits from server-suggested wait times whenever they're available.
+
+Cache hits and successful-after-retry calls are neutral — they neither grow the limit nor shrink it.
+
+#### Tuning the bounds
+
+The bounds — `min`, `start`, `max` — are the everyday tuning knobs. `start` is where the controller begins (it doubles aggressively from there during slow-start until the first rate-limit episode). `max` is the ceiling.
+
+Pass a string shorthand: `min-max` constrains the controller's range (`start` defaults to 20, clamped into the range):
 
 ``` bash
 $ inspect eval --model openai/gpt-4o --adaptive-connections "4-80"
@@ -79,13 +94,41 @@ eval(
 )
 ```
 
+A reasonable rule of thumb for `max` is roughly *(your tier RPM × average request seconds) ÷ 60* — so on a 60 RPM tier with 3-second requests, a `max` near 3 is enough; on a 4,000 RPM tier with 1.5-second requests, a `max` around 100 starts to make sense.
+
+#### Advanced tuning
+
+The response curve is also tunable, with sensible defaults for typical evaluation workloads. These fields are Python-only (CLI shorthand stays at `min-max` / `min-start-max`):
+
+- **`cooldown_seconds`** (default 15) — minimum debounce between scale-down cuts. Larger for long-running agent loops where each rate-limit episode takes longer to clear; smaller for short request workloads.
+- **`decrease_factor`** (default 0.8) — multiplicative cut on each rate-limit episode. More aggressive (e.g. 0.5) for volatile tiers where overshoots are common; gentler (default) when tiers are stable.
+- **`scale_up_percent`** (default 0.05) — additive growth per clean round in steady state. Increase for short evals where a slow ramp-up doesn't have time to converge.
+
+``` python
+from inspect_ai.util import AdaptiveConcurrency
+
+eval(
+    "task.py",
+    model="openai/gpt-4o",
+    adaptive_connections=AdaptiveConcurrency(
+        min=4,
+        max=80,
+        cooldown_seconds=30,
+        decrease_factor=0.5,
+        scale_up_percent=0.1,
+    ),
+)
+```
+
 ::: {.callout-note appearance="simple"}
-**`max_connections` always wins.** If you set both `--max-connections` and `--adaptive-connections`, the explicit static cap takes precedence and adaptive scaling is disabled. This makes it safe to leave adaptive connections enabled by default in shared configs while still letting individual evaluations pin a fixed value when needed.
+**Explicit caps always win.** If you set `--max-connections` together with `--adaptive-connections`, the static cap takes precedence and adaptive scaling is disabled. Likewise, an explicit `max_samples` overrides the dynamic sample limiter. This makes it safe to leave adaptive connections enabled in shared configs while still pinning specific evaluations to fixed values when needed.
 :::
 
 When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (with a small buffer), so sample setup work — like creating sandbox containers — stays proportional to the actual model concurrency rather than the maximum bound.
 
-The full history of scale changes is captured in the eval log under `stats.connection_limit_history` (each entry records the timestamp, model, old/new limits, and reason). You can see these changes via the trace log:
+#### What's recorded
+
+The full history of scale changes is captured in the eval log under `stats.connection_limit_history`. Each entry records the timestamp, model, old/new limits, and a `reason` of `slow_start`, `steady_state_up`, or `rate_limit` — only `rate_limit` reflects an actual scale-down (transient infra noise no longer appears here). You can stream the same events live in the trace log:
 
 ``` bash
 inspect trace dump --filter "[connections]"

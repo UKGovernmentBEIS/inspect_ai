@@ -150,7 +150,7 @@ from inspect_ai.util._json import (
     set_additional_properties_false,
 )
 
-from ..._util.httpx import httpx_should_retry
+from ..._util.httpx import httpx_classify_retry
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -158,7 +158,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
@@ -999,14 +999,15 @@ class AnthropicAPI(ModelAPI):
             return self.canonical_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
+            retry_after = _anthropic_retry_after(ex)
             # when streaming, anthropic does not set status_code == 529
             # for overloaded or internal server errors so we check for them explicitly
             if isinstance(ex.body, dict):
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
-                    return True
+                    return RetryDecision.transient(retry_after=retry_after)
                 # TCP interruptions can truncate large request bodies in transit,
                 # causing a 400 even though json.dumps() produced valid JSON.
                 if (
@@ -1014,16 +1015,21 @@ class AnthropicAPI(ModelAPI):
                     and "not valid json" in body_str
                     and "unexpected end of data" in body_str
                 ):
-                    return True
+                    return RetryDecision.transient(retry_after=retry_after)
 
             # standard http status code checking
-            return is_retryable_http_status(ex.status_code)
-        elif httpx_should_retry(ex):
-            return True
-        elif isinstance(ex, APIConnectionError | APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+
+        decision = httpx_classify_retry(ex)
+        if decision is not None:
+            return decision
+        if isinstance(ex, APIConnectionError | APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -3097,3 +3103,17 @@ def is_image_type(media_type: str) -> bool:
 
 def anthropic_extra_body_fields() -> list[str]:
     return ["metadata", "service_tier"]
+
+
+def _anthropic_retry_after(ex: APIStatusError) -> float | None:
+    """Extract Retry-After / x-ratelimit-reset-* from an Anthropic APIStatusError."""
+    from inspect_ai._util.http import parse_retry_after
+
+    response = getattr(ex, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    try:
+        return parse_retry_after(headers)
+    except Exception:
+        return None

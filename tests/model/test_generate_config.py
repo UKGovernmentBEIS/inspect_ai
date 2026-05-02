@@ -29,9 +29,15 @@ def test_generate_config_merge_copies_nested_override_values() -> None:
 
 def test_adaptive_connections_defaults() -> None:
     a = AdaptiveConcurrency()
-    assert a.min == 1
-    assert a.max == 200
+    # tightened from the original 1/200/20 in 2026 to bound at realistic
+    # (non-enterprise) tier sizes by default
+    assert a.min == 4
+    assert a.max == 100
     assert a.start == 20
+    # advanced tuning fields default to documented values
+    assert a.cooldown_seconds == 15.0
+    assert a.decrease_factor == 0.8
+    assert a.scale_up_percent == 0.05
 
 
 def test_adaptive_connections_struct() -> None:
@@ -124,6 +130,25 @@ def test_generate_config_round_trip_adaptive_connections() -> None:
     assert restored.adaptive_connections.min == 4
     assert restored.adaptive_connections.max == 80
     assert restored.adaptive_connections.start == 20
+
+
+def test_generate_config_round_trip_adaptive_advanced_fields() -> None:
+    cfg = GenerateConfig(
+        adaptive_connections=AdaptiveConcurrency(
+            min=2,
+            max=50,
+            start=10,
+            cooldown_seconds=30.0,
+            decrease_factor=0.5,
+            scale_up_percent=0.1,
+        )
+    )
+    restored = GenerateConfig.model_validate(cfg.model_dump())
+    a = restored.adaptive_connections
+    assert isinstance(a, AdaptiveConcurrency)
+    assert a.cooldown_seconds == 30.0
+    assert a.decrease_factor == 0.5
+    assert a.scale_up_percent == 0.1
 
 
 def test_generate_config_old_log_no_adaptive_connections_field() -> None:

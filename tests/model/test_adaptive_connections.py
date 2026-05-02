@@ -150,8 +150,8 @@ async def test_report_http_retry_signals_active_controller() -> None:
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
-        # simulate provider-level retry signal during the generate call
-        report_http_retry()
+        # simulate provider-level rate-limit signal during the generate call
+        report_http_retry(kind="rate_limit")
         saw_controller.append(_active_controller.get())
         return ModelOutput.from_content(model="mockllm", content="ok")
 
@@ -195,7 +195,7 @@ async def test_connection_limit_history_captured_in_eval_stats() -> None:
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
-        report_http_retry()
+        report_http_retry(kind="rate_limit")
         return ModelOutput.from_content(model="mockllm", content="ok")
 
     model = get_model("mockllm/model", custom_outputs=out)
@@ -377,3 +377,61 @@ def test_sample_semaphore_static_path_unchanged() -> None:
         modelapi=None,
     )
     assert isinstance(sem, _anyio.Semaphore)
+
+
+# ---------- Rate-limit vs transient classification (end-to-end) ----------
+
+
+@pytest.mark.anyio
+async def test_transient_retries_do_not_scale_controller_down() -> None:
+    """5xx / timeout retries during generate must not shrink the adaptive controller.
+
+    Earlier code conflated all retries with rate-limit signals; the fix is for
+    transients to pause scale-up only.
+    """
+    init_concurrency()
+
+    def out(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        report_http_retry()  # default: kind="transient"
+        return ModelOutput.from_content(model="mockllm", content="ok")
+
+    model = get_model("mockllm/model", custom_outputs=out)
+    await model.generate("hello", config=GenerateConfig(adaptive_connections=True))
+
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+    # transient retry must not have produced any scale-down history
+    assert all(entry[4] != "rate_limit" for entry in ctrls[0].history)
+
+
+@pytest.mark.anyio
+async def test_transient_retry_blocks_success_counting() -> None:
+    """A transient retry during generate prevents that success from counting toward scale-up."""
+    init_concurrency()
+
+    def out(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        report_http_retry()  # transient
+        return ModelOutput.from_content(model="mockllm", content="ok")
+
+    model = get_model("mockllm/model", custom_outputs=out)
+    cfg = GenerateConfig(
+        adaptive_connections=AdaptiveConcurrency(min=1, max=200, start=4)
+    )
+    # 4 generates would normally complete a slow-start round (round_size=max(4,4)=4)
+    for _ in range(4):
+        await model.generate("hello", config=cfg)
+
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+    # because each generate had a transient retry, none counted as a clean success
+    assert ctrls[0].concurrency == 4

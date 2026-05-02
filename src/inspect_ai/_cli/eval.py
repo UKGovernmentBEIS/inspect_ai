@@ -82,7 +82,7 @@ MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (
 ADAPTIVE_CONNECTIONS_HELP = (
     "Enable adaptive concurrency for Model API connections, automatically "
     "scaling between bounds based on rate-limit feedback. Pass `true` for "
-    "defaults (min=1, start=20, max=200), `false` to explicitly disable, or "
+    "defaults (min=4, start=20, max=100), `false` to explicitly disable, or "
     'bounds as "min-max" (e.g. "4-80") or "min-start-max" (e.g. "4-20-80").'
 )
 MAX_RETRIES_HELP = (

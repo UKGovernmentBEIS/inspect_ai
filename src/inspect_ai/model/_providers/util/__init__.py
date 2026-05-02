@@ -10,6 +10,7 @@ from .chatapi import (
     ChatAPIMessage,
     chat_api_input,
     chat_api_request,
+    classify_chat_api_error,
     should_retry_chat_api_error,
 )
 from .hf_handler import HFHandler
@@ -22,6 +23,7 @@ __all__ = [
     "chat_api_request",
     "chat_api_input",
     "should_retry_chat_api_error",
+    "classify_chat_api_error",
     "model_base_url",
     "parse_tool_call",
     "require_azure_base_url",

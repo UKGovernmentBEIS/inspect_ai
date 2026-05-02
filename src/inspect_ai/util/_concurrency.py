@@ -14,33 +14,47 @@ from inspect_ai._util.working import sample_waiting_for
 logger = getLogger(__name__)
 
 
-class AdaptiveConcurrency(BaseModel):
-    """Bounds for an adaptive concurrency controller.
+_DEFAULT_MIN = 4
+_DEFAULT_START = 20
+_DEFAULT_MAX = 100
 
-    Configures the bounds within which an adaptive controller is allowed to
-    scale: starting at `start`, growing up to `max`, and never falling below
-    `min`. Accepts a string shorthand ("min-max" or "min-start-max") for use
-    in CLI flags and config files.
+
+class AdaptiveConcurrency(BaseModel):
+    """Bounds and tuning for an adaptive concurrency controller.
+
+    Basic fields (`min`, `start`, `max`) bound the range the controller will
+    scale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,
+    `scale_up_percent`) tune the response curve and have sensible defaults
+    for typical evaluation workloads — see the parallelism docs for guidance.
+    Accepts a string shorthand ("min-max" or "min-start-max") for use in CLI
+    flags and config files; advanced fields are Python-only.
     """
 
-    min: int = Field(default=1)
+    min: int = Field(default=_DEFAULT_MIN)
     """Minimum concurrency (must be >= 1)."""
 
-    max: int = Field(default=200)
+    max: int = Field(default=_DEFAULT_MAX)
     """Maximum concurrency."""
 
-    start: int = Field(default=20)
+    start: int = Field(default=_DEFAULT_START)
     """Starting concurrency (must be within [min, max])."""
+
+    cooldown_seconds: float = Field(default=15.0)
+    """Minimum seconds between scale-down cuts. The server's `Retry-After` header (or the `x-ratelimit-reset-*` family as a fallback) extends this when larger."""
+
+    decrease_factor: float = Field(default=0.8)
+    """Multiplicative cut applied on each rate-limit episode (must be in (0, 1))."""
+
+    scale_up_percent: float = Field(default=0.05)
+    """Steady-state additive growth per clean round, as a fraction of current limit (must be in (0, 1])."""
 
     @model_validator(mode="before")
     @classmethod
     def parse_shorthand(cls, data: Any) -> Any:
         # Accept "min-max" or "min-start-max" string shorthand, and clamp the
-        # implicit start (= field default of 20) into [min, max] when start is
-        # not explicitly provided. Without clamping, AdaptiveConcurrency(min=1, max=15)
+        # implicit start (= field default) into [min, max] when start is not
+        # explicitly provided. Without clamping, AdaptiveConcurrency(min=1, max=15)
         # would fail bounds validation because the default start exceeds max.
-        DEFAULT_START = 20
-
         if isinstance(data, str):
             parts = data.split("-")
             try:
@@ -55,7 +69,7 @@ class AdaptiveConcurrency(BaseModel):
                 return {
                     "min": min_val,
                     "max": max_val,
-                    "start": max(min_val, min(DEFAULT_START, max_val)),
+                    "start": max(min_val, min(_DEFAULT_START, max_val)),
                 }
             elif len(ints) == 3:
                 return {"min": ints[0], "start": ints[1], "max": ints[2]}
@@ -68,11 +82,11 @@ class AdaptiveConcurrency(BaseModel):
         # struct form: clamp implicit start when min/max are provided but
         # start is not, so AdaptiveConcurrency(min=1, max=15) just works
         if isinstance(data, dict) and "start" not in data:
-            min_val = data.get("min", 1)
-            max_val = data.get("max", 200)
+            min_val = data.get("min", _DEFAULT_MIN)
+            max_val = data.get("max", _DEFAULT_MAX)
             if isinstance(min_val, int) and isinstance(max_val, int):
                 data = dict(data)
-                data["start"] = max(min_val, min(DEFAULT_START, max_val))
+                data["start"] = max(min_val, min(_DEFAULT_START, max_val))
 
         return data
 
@@ -88,6 +102,21 @@ class AdaptiveConcurrency(BaseModel):
             raise ValueError(
                 f"AdaptiveConcurrency start ({self.start}) must be within "
                 f"[min={self.min}, max={self.max}]"
+            )
+        if self.cooldown_seconds < 0:
+            raise ValueError(
+                f"AdaptiveConcurrency cooldown_seconds must be >= 0 "
+                f"(got {self.cooldown_seconds})"
+            )
+        if not (0 < self.decrease_factor < 1):
+            raise ValueError(
+                f"AdaptiveConcurrency decrease_factor must be in (0, 1) "
+                f"(got {self.decrease_factor})"
+            )
+        if not (0 < self.scale_up_percent <= 1):
+            raise ValueError(
+                f"AdaptiveConcurrency scale_up_percent must be in (0, 1] "
+                f"(got {self.scale_up_percent})"
             )
         return self
 
@@ -356,21 +385,18 @@ LimitChangeRecord = tuple[float, str, int, int, str]
 class AdaptiveConcurrencyController:
     """Adaptive concurrency controller using anyio.CapacityLimiter.
 
-    Implements slow-start + AIMD based on retry signals:
-      * notify_success(): one logical request completed without retries
-      * notify_retry(): a rate-limit / transient error retry occurred
+    Implements slow-start + AIMD based on retry signals. Only rate-limit
+    retries scale down — provider 5xx and network blips pause scale-up
+    (the in-flight success won't count) but don't shrink the limit. See
+    `ModelAPI.should_retry()` and the `RetryDecision` it returns for the
+    per-provider classification.
 
-    Tuning constants:
-      * DECREASE_FACTOR (0.8): multiplicative decrease on retry episode
-      * COOLDOWN_SECONDS (15): debounce between scale-down events
-      * ROUND_SIZE_FLOOR (4): minimum successes before evaluating scale-up
-      * SCALE_UP_PERCENT (0.05): steady-state additive increase as % of current
+    Behavioral tunables come from the `AdaptiveConcurrency` config
+    (`cooldown_seconds`, `decrease_factor`, `scale_up_percent`).
+    `ROUND_SIZE_FLOOR` and `HISTORY_LIMIT` are internal class constants.
     """
 
-    DECREASE_FACTOR = 0.8
-    COOLDOWN_SECONDS = 15.0
     ROUND_SIZE_FLOOR = 4
-    SCALE_UP_PERCENT = 0.05
     HISTORY_LIMIT = 200
 
     def __init__(
@@ -440,37 +466,56 @@ class AdaptiveConcurrencyController:
             new = min(old * 2, self._config.max)
             reason = "slow_start"
         else:
-            increment = max(1, round(old * self.SCALE_UP_PERCENT))
+            increment = max(1, round(old * self._config.scale_up_percent))
             new = min(_ceil_to_nice(old + increment), self._config.max)
             reason = "steady_state_up"
         if new != old:
             self._set_limit(new, reason)
 
-    def notify_retry(self) -> None:
-        """Record a retry signal (rate-limit or transient error).
+    def notify_retry(self, retry_after: float | None = None) -> None:
+        """Record a rate-limit retry signal.
+
+        Only called for retries the provider classifies as rate-limit
+        (HTTP 429 or provider-specific equivalents like Bedrock
+        `ThrottlingException` or Google `503 RESOURCE_EXHAUSTED`).
+        Other retries don't reach this method.
 
         Cooldown debounces the *limit cut* — a single rate-limit episode
         produces multiple retries (Inspect-level + SDK-internal) and we
-        cut at most once per episode. But success-counting is reset on
-        every retry signal regardless of cooldown, so a debounced retry
-        still invalidates the in-progress clean window. Without this,
-        under high throughput the controller could climb to a scale-up
+        cut at most once per episode. Success-counting is reset on every
+        call regardless of cooldown, so a debounced retry still
+        invalidates the in-progress clean window — without this, under
+        high throughput the controller could climb to a scale-up
         immediately after a suppressed retry.
+
+        If `retry_after` is provided (from the server's `Retry-After`
+        header or the `x-ratelimit-reset-*` fallback), the cooldown is
+        extended to honor it when larger than the configured floor.
         """
         # always reset success accounting on any retry signal (even debounced)
         self._success_count = 0
         self._first_retry_seen = True
 
-        # debounce the limit cut itself
         now = time.monotonic()
+
+        # already in cooldown from a previous cut?
         if now < self._cooldown_until:
+            # don't cut again — but a longer server hint should still push
+            # the cooldown horizon out so a subsequent 429 within the same
+            # window can't trip a second cut, and so success-counting stays
+            # suppressed for the full server-recommended wait.
+            if retry_after is not None and retry_after > 0:
+                extended = now + retry_after
+                if extended > self._cooldown_until:
+                    self._cooldown_until = extended
             return
 
         old = self.concurrency
-        target = int(old * self.DECREASE_FACTOR)
+        target = int(old * self._config.decrease_factor)
         new = _floor_to_nice(target)
         new = max(new, self._config.min, 1)
-        self._cooldown_until = now + self.COOLDOWN_SECONDS
+        cooldown = max(retry_after or 0.0, self._config.cooldown_seconds)
+        self._cooldown_until = now + cooldown
         if new != old:
             self._set_limit(new, "rate_limit")
 
@@ -545,7 +590,9 @@ class DynamicSampleLimiter:
         # limiter created after a controller has already scaled would sit at
         # `start + BUFFER` until the next scale change
         if existing:
-            self._on_controller_change(0, 0)  # args ignored; recomputes from controllers
+            self._on_controller_change(
+                0, 0
+            )  # args ignored; recomputes from controllers
         # register for future controllers — fired by the registry on creation
         add_controller_created_observer(self._on_controller_created)
 

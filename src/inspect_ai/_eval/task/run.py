@@ -1494,8 +1494,7 @@ def create_sample_semaphore(
         # would fire for nearly every deliberate max_samples setting
         return anyio.Semaphore(config.max_samples)
     elif (
-        generate_config.adaptive_connections
-        and generate_config.max_connections is None
+        generate_config.adaptive_connections and generate_config.max_connections is None
     ):
         # adaptive: dynamic limiter that tracks the controller(s) — sample
         # concurrency grows with the controller's current limit so setup work
