@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Support Gemini 3+ native web search and code execution alongside function tools.
 - Add `score_on_error` option to score samples that error rather than failing the task (errors are still counted toward the `fail_on_error` threshold).
 - Add `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
 - Add `download()` and `gdrive_download()` helpers for fetching external files with SHA256 verification, caching, and transient-error retry. `gdrive_download()` requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.

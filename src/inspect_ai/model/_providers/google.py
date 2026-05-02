@@ -24,6 +24,7 @@ from google.genai.types import (
     ExecutableCode,
     File,
     FinishReason,
+    FunctionCall,
     FunctionCallingConfig,
     FunctionCallingConfigMode,
     FunctionDeclaration,
@@ -310,11 +311,12 @@ class GoogleGenAIAPI(ModelAPI):
             has_native_tools, gemini_tools = (
                 self.chat_tools(tools) if len(tools) > 0 else (False, None)
             )
-            gemini_tool_config = (
-                chat_tool_config(tool_choice)
-                if not has_native_tools and len(tools) > 0
-                else None
-            )
+            if gemini_native_tool_combination(gemini_tools):
+                gemini_tool_config = gemini_native_tool_combination_config(tool_choice)
+            elif not has_native_tools and len(tools) > 0:
+                gemini_tool_config = chat_tool_config(tool_choice)
+            else:
+                gemini_tool_config = None
             system_instruction = await extract_system_message_as_parts(
                 client, input, tools, include_function_calling_hint=not has_native_tools
             )
@@ -873,11 +875,23 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
-        # native search/code execution tools (cannot mix with function declarations)
+        # native search/code execution tools
         if google_search or code_execution:
             if function_declarations:
-                raise ValueError(
-                    "Gemini does not yet support native web search or code execution concurrently with other tools."
+                if not self.is_gemini_3_plus():
+                    raise ValueError(
+                        f"Combining native web search or code execution with custom function tools requires Gemini 3 or later. The model '{self.model_name}' does not support this combination."
+                    )
+                combined_native_tools: ToolListUnion = [
+                    Tool(function_declarations=function_declarations)
+                ]
+                if google_search:
+                    combined_native_tools.append(Tool(google_search=google_search))
+                if code_execution:
+                    combined_native_tools.append(Tool(code_execution=code_execution))
+                return (
+                    True,
+                    combined_native_tools,
                 )
             native_tools: ToolListUnion = []
             if google_search:
@@ -1044,6 +1058,42 @@ async def content(
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
+        emitted_tool_call_ids: set[str] = set()
+        server_tool_signature: bytes | None = None
+
+        def part_from_tool_call(tool_call: ToolCall) -> Part:
+            if tool_call.function == "computer":
+                action_name = (
+                    tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
+                )
+                _, action_args = gemini_action_from_tool_call(tool_call)
+                return Part(
+                    function_call=FunctionCall(
+                        id=tool_call.id,
+                        name=action_name,
+                        args=action_args,
+                    )
+                )
+            else:
+                return Part(
+                    function_call=FunctionCall(
+                        id=tool_call.id,
+                        name=tool_call.function,
+                        args=tool_call.arguments,
+                    )
+                )
+
+        def apply_reasoning_signature(
+            part: Part, reasoning_block: ContentReasoning
+        ) -> None:
+            if reasoning_block.reasoning is not None and reasoning_block.redacted:
+                part.thought_signature = base64.b64decode(
+                    reasoning_block.reasoning.encode()
+                )
+            else:
+                logger.warning(
+                    "Reasoning block must have a reasoning signature to set thought_signature."
+                )
 
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
@@ -1056,6 +1106,30 @@ async def content(
                         # if this is encrypted reasoning, save it for applying the thought_signature
                         # to the next part (don't emit a separate thought part during replay)
                         if content.redacted:
+                            function_call_id = (
+                                content.internal.get("gemini_function_call_id")
+                                if isinstance(content.internal, dict)
+                                else None
+                            )
+                            if (
+                                isinstance(function_call_id, str)
+                                and message.tool_calls is not None
+                            ):
+                                tool_call = next(
+                                    (
+                                        tool_call
+                                        for tool_call in message.tool_calls
+                                        if tool_call.id == function_call_id
+                                    ),
+                                    None,
+                                )
+                                if tool_call is not None:
+                                    part = part_from_tool_call(tool_call)
+                                    apply_reasoning_signature(part, content)
+                                    content_parts.append(part)
+                                    emitted_tool_call_ids.add(tool_call.id)
+                                    working_reasoning_block = None
+                                    continue
                             working_reasoning_block = content
                         else:
                             # unencrypted reasoning (for older models or debugging)
@@ -1067,10 +1141,25 @@ async def content(
                     # server side tool use
                     if isinstance(content, ContentToolUse):
                         parts_to_append = parts_from_server_tool_use(content)
+                        if (
+                            message.tool_calls is not None
+                            and server_tool_signature is None
+                        ):
+                            server_tool_signature = next(
+                                (
+                                    part.thought_signature
+                                    for part in parts_to_append
+                                    if part.thought_signature is not None
+                                ),
+                                None,
+                            )
 
                     # other content
                     else:
                         parts_to_append = [await content_part(client, content)]
+
+                    if not parts_to_append:
+                        continue
 
                     # If previously there was a reasoning block, we need to set the "thought_signature"
                     # using the reasoning from that block.
@@ -1105,36 +1194,24 @@ async def content(
             # The loop below applies the signature to the first tool call (when working_reasoning_block
             # is not None), then clears it so subsequent tool calls don't get it.
             for tool_call in message.tool_calls:
-                if tool_call.function == "computer":
-                    action_name = (
-                        tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
-                    )
-                    _, action_args = gemini_action_from_tool_call(tool_call)
-                    part = Part.from_function_call(
-                        name=action_name,
-                        args=action_args,
-                    )
-                else:
-                    part = Part.from_function_call(
-                        name=tool_call.function,
-                        args=tool_call.arguments,
-                    )
+                if tool_call.id in emitted_tool_call_ids:
+                    continue
+
+                part = part_from_tool_call(tool_call)
 
                 # handle reasoning block if available
                 if working_reasoning_block is not None:
                     # tool call reasoning should always use a thought_signature
-                    if (
-                        working_reasoning_block.reasoning is not None
-                        and working_reasoning_block.redacted
-                    ):
-                        part.thought_signature = base64.b64decode(
-                            working_reasoning_block.reasoning.encode()
-                        )
-                    else:
-                        logger.warning(
-                            "Reasoning block must have a reasoning signature to set thought_signature."
-                        )
+                    apply_reasoning_signature(part, working_reasoning_block)
                     working_reasoning_block = None
+                elif server_tool_signature is not None:
+                    # Gemini can omit a signature on a client function_call when
+                    # the same step also includes signed server-side tool calls.
+                    # On replay, Gemini still validates the client function_call,
+                    # so use the step's server-side signature for the first
+                    # unsigned client function_call.
+                    part.thought_signature = server_tool_signature
+                    server_tool_signature = None
 
                 content_parts.append(part)
         return Content(role="model", parts=content_parts)
@@ -1160,6 +1237,7 @@ async def content(
             response_name = message.function or ""
             fn_response_parts = None
         response = FunctionResponse(
+            id=message.tool_call_id,
             name=response_name,
             response=response_dict,
             parts=fn_response_parts,
@@ -1275,6 +1353,44 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
         )
 
 
+def gemini_native_tool_combination(tools: ToolListUnion | None) -> bool:
+    """Check whether Gemini tools combine function declarations and native tools."""
+    if tools is None:
+        return False
+    has_function_declarations = any(
+        isinstance(tool, Tool) and bool(tool.function_declarations) for tool in tools
+    )
+    has_builtin_tool = any(
+        isinstance(tool, Tool)
+        and (tool.google_search is not None or tool.code_execution is not None)
+        for tool in tools
+    )
+    return has_function_declarations and has_builtin_tool
+
+
+def gemini_native_tool_combination_config(tool_choice: ToolChoice) -> ToolConfig:
+    """Build ToolConfig for Gemini 3 native tools plus function declarations."""
+    if isinstance(tool_choice, ToolFunction):
+        function_calling_config = FunctionCallingConfig(
+            mode=FunctionCallingConfigMode.ANY,
+            allowed_function_names=[tool_choice.name],
+        )
+    else:
+        # Gemini 3 requires VALIDATED rather than AUTO when a request combines
+        # native server-side tools with custom function declarations.
+        function_calling_config = FunctionCallingConfig(
+            mode=(
+                FunctionCallingConfigMode.VALIDATED
+                if tool_choice == "auto"
+                else cast(FunctionCallingConfigMode, tool_choice.upper())
+            )
+        )
+    return ToolConfig(
+        include_server_side_tool_invocations=True,
+        function_calling_config=function_calling_config,
+    )
+
+
 def _consolidate_thought_signature(
     signature: bytes,
     working_reasoning_block: ContentReasoning | None,
@@ -1326,6 +1442,7 @@ def completion_choice_from_candidate(
     # content parts -- we need to consolidate this into a single ContentReasoning
     # to match our schema (we'll unroll it back into parts on replay)
     working_reasoning_block: ContentReasoning | None = None
+    function_call_ids: dict[int, str] = {}
 
     # content can be None when the finish_reason is SAFETY
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
@@ -1333,6 +1450,42 @@ def completion_choice_from_candidate(
         # traverse parts
         parts = candidate.content.parts
         for i, part in enumerate(parts):
+            if part.tool_response is not None:
+                continue  # We pickup tool responses with part.tool_call
+
+            if part.function_call is not None:
+                if part.thought_signature is not None and part.function_call.name:
+                    function_call_id = part.function_call.id or (
+                        f"{part.function_call.name}_{uuid()}"
+                    )
+                    function_call_ids[i] = function_call_id
+                    content.append(
+                        ContentReasoning(
+                            reasoning=base64.b64encode(part.thought_signature).decode(),
+                            redacted=True,
+                            internal={"gemini_function_call_id": function_call_id},
+                        )
+                    )
+                    working_reasoning_block = None
+                continue
+
+            if part.tool_call is not None:
+                tool_response_part = next(
+                    (
+                        candidate_part
+                        for candidate_part in parts[i + 1 :]
+                        if candidate_part.tool_response is not None
+                        and candidate_part.tool_response.id == part.tool_call.id
+                    ),
+                    None,
+                )
+                server_tool_use = server_tool_use_from_tool_call(
+                    part, tool_response_part
+                )
+                if server_tool_use is not None:
+                    content.append(server_tool_use)
+                continue
+
             if part.text is None and part.executable_code is None:
                 # Handle inline_data parts (images, audio)
                 if part.inline_data is not None:
@@ -1415,7 +1568,7 @@ def completion_choice_from_candidate(
     # now tool calls
     tool_calls: list[ToolCall] = []
     if candidate.content is not None and candidate.content.parts is not None:
-        for part in candidate.content.parts:
+        for i, part in enumerate(candidate.content.parts):
             if part.function_call:
                 if (
                     part.function_call is None
@@ -1425,16 +1578,22 @@ def completion_choice_from_candidate(
                     raise ValueError(f"Incomplete function call: {part.function_call}")
 
                 # If the part has a thought_signature, try and associate it with the previous working block
-                if part.thought_signature:
+                if part.thought_signature and i not in function_call_ids:
+                    function_call_reasoning = ContentReasoning(
+                        reasoning=base64.b64encode(part.thought_signature).decode(),
+                        redacted=True,
+                    )
                     if working_reasoning_block is None:
                         # We make the assumption that tool calls don't have independent reasoning
                         # blocks unless they are preceded by a reasoning block.
-                        reasoning_block = ContentReasoning(
-                            reasoning=base64.b64encode(part.thought_signature).decode(),
-                            redacted=True,
-                        )
-
-                        content.append(reasoning_block)
+                        content.append(function_call_reasoning)
+                    elif not working_reasoning_block.redacted:
+                        # Preserve visible thought text as a thought part on replay.
+                        # The function_call signature still needs to be returned
+                        # with the function_call part itself, so store it as a
+                        # separate redacted reasoning carrier.
+                        content.append(function_call_reasoning)
+                        working_reasoning_block = None
                     else:
                         # attach the thought_signature to the previous reasoning block
                         working_reasoning_block.summary = (
@@ -1467,9 +1626,12 @@ def completion_choice_from_candidate(
                 else:
                     if part.function_call.args:
                         part.function_call.args.pop("safety_decision", None)
+                    function_call_id = function_call_ids.get(i) or (
+                        part.function_call.id or f"{part.function_call.name}_{uuid()}"
+                    )
                     tool_calls.append(
                         ToolCall(
-                            id=f"{part.function_call.name}_{uuid()}",
+                            id=function_call_id,
                             function=part.function_call.name,
                             arguments=part.function_call.args,
                         )
@@ -1630,18 +1792,74 @@ def server_tool_use_from_executable_code(
     )
 
 
+def server_tool_use_from_tool_call(
+    tool_call_part: Part, tool_response_part: Part | None
+) -> ContentToolUse | None:
+    """Convert a Gemini server-side tool call into Inspect content."""
+    assert tool_call_part.tool_call is not None
+    tool_call = tool_call_part.tool_call
+    tool_response = (
+        tool_response_part.tool_response if tool_response_part is not None else None
+    )
+    internal_parts = [
+        tool_call_part.model_dump(exclude_none=True, by_alias=True, mode="json")
+    ]
+    if tool_response_part is not None:
+        internal_parts.append(
+            tool_response_part.model_dump(exclude_none=True, by_alias=True, mode="json")
+        )
+    tool_type = str(tool_call.tool_type or "")
+    if "SEARCH" not in tool_type:
+        warn_once(
+            logger,
+            f"Skipping unsupported Google server-side tool call type: {tool_type}.",
+        )
+        return None
+    return ContentToolUse(
+        tool_type="web_search",
+        id=tool_call.id or "",
+        name=tool_type,
+        arguments=json.dumps(tool_call.args or {}),
+        result=json.dumps(tool_response.response if tool_response else {}),
+        internal={"gemini_parts": cast(JsonValue, internal_parts)},
+    )
+
+
 def parts_from_server_tool_use(tool: ContentToolUse) -> list[Part]:
-    parts: list[Part] = [
+    """Reconstruct Gemini request parts from server-side tool use."""
+    if tool.tool_type == "web_search":
+        if (
+            isinstance(tool.internal, dict)
+            and (gemini_parts := tool.internal.get("gemini_parts")) is not None
+            and isinstance(gemini_parts, list)
+        ):
+            gemini_request_parts = [Part.model_validate(part) for part in gemini_parts]
+            missing_signature = any(
+                part.tool_call is not None and part.thought_signature is None
+                for part in gemini_request_parts
+            )
+            if not missing_signature:
+                return gemini_request_parts
+            warn_once(
+                logger,
+                "Skipping Gemini server-side web search replay because the saved tool call is missing a thought_signature.",
+            )
+        return []
+
+    if tool.tool_type != "code_execution":
+        return []
+
+    code_execution_parts: list[Part] = [
         Part.from_executable_code(code=tool.arguments, language=Language(tool.name))
     ]
     if tool.result or tool.error:
-        parts.append(
+        code_execution_parts.append(
             Part.from_code_execution_result(
                 outcome=Outcome(tool.error) if tool.error else Outcome.OUTCOME_OK,
                 output=tool.result,
             )
         )
-    return parts
+    return code_execution_parts
 
 
 def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
