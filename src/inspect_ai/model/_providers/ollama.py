@@ -26,6 +26,18 @@ class OllamaAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def connection_key(self) -> str:
+        """Scope max_connections per Ollama endpoint.
+
+        Override the OpenAI-compatible default (which keys by api_key) since
+        Ollama is a local server: the rate-limit boundary is the endpoint URL,
+        not the credential (which defaults to the literal `"ollama"` for all
+        instances). Without this override two Ollama servers on different
+        hosts/ports would collapse to one concurrency slot.
+        """
+        return self.base_url or "ollama"
+
+    @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
 

@@ -302,6 +302,15 @@ class GrokAPI(ModelAPI):
             and ex.code() == grpc.StatusCode.UNAUTHENTICATED
         )
 
+    @override
+    def connection_key(self) -> str:
+        """Scope max_connections per API key.
+
+        Without this override Grok would inherit the default `"default"` and
+        every Grok request would globally share one concurrency slot.
+        """
+        return str(self.api_key)
+
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, grpc.RpcError):
             code = ex.code()

@@ -384,6 +384,18 @@ class VLLMAPI(OpenAICompatibleAPI):
         return list(tokens)
 
     @override
+    def connection_key(self) -> str:
+        """Scope max_connections per vLLM endpoint.
+
+        Override the OpenAI-compatible default (which keys by api_key) since
+        vLLM is a local server: the rate-limit boundary is the endpoint URL,
+        not the credential. Multiple vLLM servers on different hosts/ports
+        are independent concurrency scopes, but all default to the same
+        api_key (`"inspectai"`) and would otherwise collapse to one slot.
+        """
+        return self.base_url or "vllm"
+
+    @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if _is_fatal_vllm_error(ex):
             logger.error(
