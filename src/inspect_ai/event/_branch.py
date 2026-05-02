@@ -17,8 +17,5 @@ class BranchEvent(BaseEvent):
     event: Literal["branch"] = Field(default="branch")
     """Event type."""
 
-    from_span: str
-    """Span where the branch originated (parent trajectory's span_id)."""
-
     from_anchor: str
     """Anchor at the branch point (matches an ``AnchorEvent.anchor_id`` in the parent)."""

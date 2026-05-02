@@ -434,9 +434,6 @@ def timeline_build(
             root=TimelineSpan(id="root", name="main", span_type=None),
         )
 
-    # Build branch span_id → from_span mapping for relocation
-    from_spans = _build_from_spans(events)
-
     # Use event_tree to get hierarchical structure
     tree = event_tree(events)
 
@@ -499,7 +496,7 @@ def timeline_build(
         if agent_node is not None:
             agent_node.name = "main"
 
-            _classify_spans(agent_node, from_spans)
+            _classify_spans(agent_node)
 
             # Prepend init span to agent content
             if init_span_obj:
@@ -527,20 +524,19 @@ def timeline_build(
     else:
         # No phase spans - treat entire tree as agent
         root = _build_agent_from_tree(tree)
-        _classify_spans(root, from_spans)
+        _classify_spans(root)
 
     return Timeline(name=name, description=description, root=root)
 
 
 @contextlib.asynccontextmanager
 async def timeline_branch(
-    *, name: str, from_span: str, from_anchor: str, id: str | None = None
+    *, name: str, from_anchor: str, id: str | None = None
 ) -> AsyncIterator[None]:
     """Context manager for creating a timeline branch.
 
     Args:
         name (str): Name of branch span.
-        from_span: Span where the branch originated.
         from_anchor: Anchor id at the branch point.
         id (str | None): Optional span ID. Generated if not provided.
     """
@@ -549,19 +545,15 @@ async def timeline_branch(
     from inspect_ai.util._span import span
 
     async with span(name=name, type="branch", id=id):
-        transcript()._event(BranchEvent(from_span=from_span, from_anchor=from_anchor))
+        transcript()._event(BranchEvent(from_anchor=from_anchor))
         yield
 
 
-def _classify_spans(root: TimelineSpan, from_spans: dict[str, str]) -> None:
-    """Run all span classification passes on a root span.
-
-    Classifies utility agents, branch structure, and relocates branches.
-    """
+def _classify_spans(root: TimelineSpan) -> None:
+    """Run all span classification passes on a root span."""
     _wrap_utility_events(root)
     _classify_utility_agents(root)
     _classify_branches(root)
-    _relocate_branches(root, from_spans)
     _extract_agent_results(root)
 
 
@@ -906,7 +898,6 @@ def _unroll_span(
 
 def _process_children(
     children: list[TreeItem],
-    from_spans: dict[str, str] | None = None,
 ) -> tuple[list[TimelineEvent | TimelineSpan], list[TimelineSpan]]:
     """Process a span's children with branch awareness.
 
@@ -916,8 +907,6 @@ def _process_children(
 
     Args:
         children: List of tree items to process.
-        from_spans: Optional dict to accumulate branch span_id → from_span
-            mappings for later relocation.
 
     Returns:
         Tuple of (content nodes, branch list).
@@ -954,8 +943,6 @@ def _process_children(
                     branch_content.append(node)
             if not branch_content:
                 continue
-            if from_spans is not None:
-                from_spans[span.id] = branch_event.from_span
             result.append(
                 TimelineSpan(
                     id=span.id,
@@ -1042,88 +1029,6 @@ def _classify_branches(agent: TimelineSpan) -> None:
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _classify_branches(item)
-
-
-# =============================================================================
-# Branch Relocation
-# =============================================================================
-
-
-def _build_from_spans(events: Sequence[Event]) -> dict[str, str]:
-    """Build branch span_id → from_span mapping from BranchEvents.
-
-    Each BranchEvent's span_id identifies the branch span it belongs to,
-    and from_span identifies the span it was forked from.
-
-    Args:
-        events: Flat list of Events from a transcript.
-
-    Returns:
-        Dict mapping branch span_id to the from_span value.
-    """
-    from_spans: dict[str, str] = {}
-    for e in events:
-        if isinstance(e, BranchEvent) and e.span_id:
-            from_spans[e.span_id] = e.from_span
-    return from_spans
-
-
-def _collect_spans(span: TimelineSpan, span_map: dict[str, TimelineSpan]) -> None:
-    """Recursively collect all TimelineSpans into a span_id → span map."""
-    span_map[span.id] = span
-    for item in span.content:
-        if isinstance(item, TimelineSpan):
-            _collect_spans(item, span_map)
-    for branch in span.branches:
-        _collect_spans(branch, span_map)
-
-
-def _relocate_branches(root: TimelineSpan, from_spans: dict[str, str]) -> None:
-    """Relocate branches to the span identified by from_span.
-
-    After initial discovery, all branches from the same _process_children
-    call are flat siblings. If a branch's from_span points to a span
-    inside a sibling branch, move it there.
-
-    Args:
-        root: The root TimelineSpan to process.
-        from_spans: Mapping of branch span_id → from_span (target span_id).
-    """
-    if not from_spans:
-        return
-
-    # Build span_id → TimelineSpan map from entire tree
-    span_map: dict[str, TimelineSpan] = {}
-    _collect_spans(root, span_map)
-
-    # Relocate branches depth-first
-    _do_relocate(root, span_map, from_spans)
-
-
-def _do_relocate(
-    span: TimelineSpan,
-    span_map: dict[str, TimelineSpan],
-    from_spans: dict[str, str],
-) -> None:
-    """Recursively relocate branches in a span and its children."""
-    # Recurse into child spans first (depth-first)
-    for item in span.content:
-        if isinstance(item, TimelineSpan):
-            _do_relocate(item, span_map, from_spans)
-    for branch in span.branches:
-        _do_relocate(branch, span_map, from_spans)
-
-    # Check each branch's from_span and relocate if needed
-    remaining: list[TimelineSpan] = []
-    for branch in span.branches:
-        target_id = from_spans.get(branch.id)
-        target_span = span_map.get(target_id) if target_id else None
-        if target_span is not None and target_span is not span:
-            # Move branch to the target span
-            target_span.branches.append(branch)
-        else:
-            remaining.append(branch)
-    span.branches = remaining
 
 
 # =============================================================================

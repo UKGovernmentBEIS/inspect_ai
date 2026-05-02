@@ -330,8 +330,6 @@ def render_info_event(event: InfoEvent) -> EventDisplay:
 
 def render_branch_event(event: BranchEvent) -> EventDisplay:
     branch: dict[str, JsonValue] = {}
-    if event.from_span is not None:
-        branch["from_span"] = event.from_span
     if event.from_anchor is not None:
         branch["from_anchor"] = event.from_anchor
     if event.metadata:
