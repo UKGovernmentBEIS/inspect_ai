@@ -283,6 +283,66 @@ def test_saturation_gate_resets_on_rate_limit_cut() -> None:
     assert c._max_borrowed_this_round == 0
 
 
+@pytest.mark.anyio
+async def test_saturation_at_low_limits_via_real_limiter() -> None:
+    """At low limits, the high-water mark must include the just-acquired slot.
+
+    If we sampled `borrowed_tokens` after release (in notify_success), at
+    limit=4 with full saturation every sample would observe at most 3 —
+    blocking growth even under maximum load. The wrapper records on acquire,
+    when the just-borrowed slot is still counted, so peak correctly reaches 4.
+    Exercises real limiter acquire/release rather than the test helper.
+    """
+    cfg = AdaptiveConcurrency(min=1, max=200, start=4)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+
+    holders_entered = anyio.Event()
+    release = anyio.Event()
+    entered = 0
+
+    async def holder() -> None:
+        nonlocal entered
+        async with c.semaphore:
+            entered += 1
+            if entered == 4:
+                holders_entered.set()
+            await release.wait()
+        c.notify_success()
+
+    async with anyio.create_task_group() as tg:
+        for _ in range(4):
+            tg.start_soon(holder)
+        with anyio.fail_after(1):
+            await holders_entered.wait()
+        # all 4 slots borrowed simultaneously now; peak should be 4
+        release.set()
+
+    # ROUND_SIZE_FLOOR=4, so 4 successes complete a round. Saturation 4/4=1.0
+    # ≥ 0.8 → scale up via slow-start
+    assert c.concurrency == 8
+    assert c.history[-1][4] == "slow_start"
+
+
+@pytest.mark.anyio
+async def test_serial_workload_at_low_limit_does_not_grow() -> None:
+    """A serial workload (one in flight at a time) shouldn't grow.
+
+    Even when notifications accumulate to a full round at low limit:
+    real acquire/release with peak=1 against limit=10 = 10% saturation,
+    well below the 0.8 threshold.
+    """
+    cfg = AdaptiveConcurrency(min=1, max=200, start=10)
+    c = AdaptiveConcurrencyController("t", cfg, visible=True)
+
+    for _ in range(10):
+        async with c.semaphore:
+            pass
+        c.notify_success()
+
+    assert c.concurrency == 10  # never grew
+    assert c.history == []
+
+
 def test_default_bounds() -> None:
     """Defaults are min=4, start=20, max=200."""
     cfg = AdaptiveConcurrency()

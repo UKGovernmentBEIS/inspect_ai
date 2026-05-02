@@ -387,6 +387,32 @@ LimitChangeRecord = tuple[float, str, int, int, str]
 """(timestamp, model_name, old_limit, new_limit, reason)."""
 
 
+class _SaturationTrackingLimiter:
+    """Wraps a CapacityLimiter to record peak in-flight count on each acquire.
+
+    Recording on release would undercount: at success-completion time the
+    just-borrowed slot has already been returned to the limiter, so
+    `borrowed_tokens` reflects only OTHER in-flight requests. At low limits
+    (e.g. limit=4 with full saturation), every sample would observe at most
+    3 — below the 0.8 saturation threshold — and growth would never trigger.
+    Recording on acquire, when the slot is still counted, captures the true
+    high-water mark across the round.
+    """
+
+    def __init__(self, controller: "AdaptiveConcurrencyController") -> None:
+        self._controller = controller
+
+    async def __aenter__(self) -> None:
+        c = self._controller
+        await c._limiter.acquire()
+        borrowed = int(c._limiter.borrowed_tokens)
+        if borrowed > c._max_borrowed_this_round:
+            c._max_borrowed_this_round = borrowed
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self._controller._limiter.release()
+
+
 class AdaptiveConcurrencyController:
     """Adaptive concurrency controller using anyio.CapacityLimiter.
 
@@ -423,16 +449,23 @@ class AdaptiveConcurrencyController:
         self._config = config
         self.visible = visible
         self._limiter = anyio.CapacityLimiter(config.start)
-        self.semaphore: contextlib.AbstractAsyncContextManager[Any] = self._limiter
         # `concurrency` mirrors the limiter's `total_tokens` (kept in sync via
         # _set_limit). It's a plain attribute to satisfy the ConcurrencySemaphore
         # Protocol (which expects a settable int).
         self.concurrency: int = config.start
         self._success_count = 0
         # high-water mark of in-flight (borrowed) requests within the current
-        # round; reset at end of round and on rate-limit cut. Used by the
-        # saturation gate in notify_success.
+        # round; reset at end of round and on rate-limit cut. Updated on each
+        # acquire via the wrapping context manager below — sampling on acquire
+        # captures the just-borrowed slot, where sampling on release would
+        # undercount by one (and at low limits like 4, every sample would
+        # observe peak=3, blocking growth even under full saturation).
         self._max_borrowed_this_round = 0
+        # Wrap the underlying limiter so each acquire records its borrowed
+        # count toward the round's high-water mark.
+        self.semaphore: contextlib.AbstractAsyncContextManager[Any] = (
+            _SaturationTrackingLimiter(self)
+        )
         self._first_retry_seen = False
         self._cooldown_until = 0.0
         self._history: list[LimitChangeRecord] = []
@@ -473,13 +506,8 @@ class AdaptiveConcurrencyController:
         if time.monotonic() < self._cooldown_until:
             return
 
-        # Sample saturation: track the high-water mark of in-flight requests
-        # observed during this round. `borrowed_tokens` at success-completion
-        # time is off-by-one (the just-completed request is no longer counted),
-        # but for a peak-across-the-round metric the off-by-one is negligible.
-        borrowed = int(self._limiter.borrowed_tokens)
-        if borrowed > self._max_borrowed_this_round:
-            self._max_borrowed_this_round = borrowed
+        # `_max_borrowed_this_round` is updated on each acquire via the
+        # _SaturationTrackingLimiter wrapper — no need to sample here.
 
         self._success_count += 1
         old = self.concurrency
