@@ -21,6 +21,27 @@ from inspect_ai.util._concurrency import (
 )
 
 
+def _saturated_successes(
+    c: AdaptiveConcurrencyController, n: int | None = None
+) -> None:
+    """Run n successful completions with the current limit fully saturated.
+
+    notify_success samples the limiter's `borrowed_tokens` (in-flight count)
+    to track per-round saturation; tests that don't actually acquire slots
+    would otherwise see zero saturation and never trigger scale-up. This
+    helper pre-sets the high-water mark before each call so growth-testing
+    code paths run as if the limit was binding. Defaults to one full round
+    (`max(concurrency, ROUND_SIZE_FLOOR)` successes).
+    """
+    n = n if n is not None else max(c.concurrency, c.ROUND_SIZE_FLOOR)
+    for _ in range(n):
+        # set the high-water mark each iteration: notify_success resets it
+        # to 0 at end-of-round, so a later round in the same test needs the
+        # mark re-established.
+        c._max_borrowed_this_round = c.concurrency
+        c.notify_success()
+
+
 def test_ceil_to_nice() -> None:
     # below 10: just the value
     assert _ceil_to_nice(1) == 1
@@ -59,17 +80,14 @@ def test_slow_start_doubles_until_first_retry() -> None:
     c = AdaptiveConcurrencyController(
         "t", AdaptiveConcurrency(min=1, max=200, start=10), visible=True
     )
-    # round_size starts at max(10, 4) = 10. Need 10 successes for first scale-up.
-    for _ in range(10):
-        c.notify_success()
+    # round_size starts at max(10, 4) = 10. Need 10 saturated successes.
+    _saturated_successes(c, 10)
     assert c.concurrency == 20
     # next round: 20 successes
-    for _ in range(20):
-        c.notify_success()
+    _saturated_successes(c, 20)
     assert c.concurrency == 40
     # one more: 40 successes
-    for _ in range(40):
-        c.notify_success()
+    _saturated_successes(c, 40)
     assert c.concurrency == 80
     # entries should all be slow_start
     assert all(entry[4] == "slow_start" for entry in c.history)
@@ -92,8 +110,7 @@ def test_aimd_after_first_retry() -> None:
     c._cooldown_until = time.monotonic() - 1
 
     # successful round: round_size = max(30, 4) = 30. +max(1, 30*0.05) = +2 → ceil_to_nice(32) = 35
-    for _ in range(30):
-        c.notify_success()
+    _saturated_successes(c, 30)
     assert c.concurrency == 35
     assert c.history[-1][4] == "steady_state_up"
 
@@ -125,10 +142,9 @@ def test_no_success_accounting_during_cooldown() -> None:
     assert c.concurrency == 80  # debounced
     assert c._success_count == 0
 
-    # advance past cooldown — fresh successes should now count
+    # advance past cooldown — fresh saturated successes should now count
     c._cooldown_until = time.monotonic() - 1
-    for _ in range(80):
-        c.notify_success()
+    _saturated_successes(c, 80)
     # 80 successes = round_size; +max(1, 80*0.05) = +4 → ceil_to_nice(84) = 85
     assert c.concurrency == 85
 
@@ -154,8 +170,7 @@ def test_bounds_clamping() -> None:
     c = AdaptiveConcurrencyController(
         "t", AdaptiveConcurrency(min=1, max=15, start=10), visible=True
     )
-    for _ in range(10):
-        c.notify_success()
+    _saturated_successes(c, 10)
     # would double to 20, capped at 15
     assert c.concurrency == 15
 
@@ -173,8 +188,7 @@ def test_steady_state_up_does_not_exceed_max() -> None:
         "t", AdaptiveConcurrency(min=1, max=20, start=20), visible=True
     )
     c._first_retry_seen = True
-    for _ in range(20):
-        c.notify_success()
+    _saturated_successes(c, 20)
     assert c.concurrency == 20  # would be 25 with ceil_to_nice, capped at 20
 
 
@@ -183,11 +197,9 @@ def test_round_size_floor_at_low_limits() -> None:
         "t", AdaptiveConcurrency(min=1, max=200, start=2), visible=True
     )
     # round_size = max(2, 4) = 4 (not 2)
-    c.notify_success()
-    c.notify_success()
+    _saturated_successes(c, 2)
     assert c.concurrency == 2  # still at start
-    c.notify_success()
-    c.notify_success()
+    _saturated_successes(c, 2)
     assert c.concurrency == 4  # 2*2=4
 
 
@@ -198,6 +210,77 @@ def test_history_bounded() -> None:
     for _ in range(c.HISTORY_LIMIT + 50):
         c._set_limit(c.concurrency + 1, "test")
     assert len(c.history) == c.HISTORY_LIMIT
+
+
+# ---------- saturation gate ----------
+
+
+def test_growth_blocked_when_saturation_below_threshold() -> None:
+    """A round of clean successes that didn't exercise the limit shouldn't grow it.
+
+    Without the saturation gate the controller would treat any round-sized
+    batch of successes as proof the limit is binding, even when peak
+    in-flight was well below it (e.g. the 250-of-500 case where work just
+    isn't there to fill the cap). Growing in that case gives untested
+    headroom that may exceed the provider's actual rate limit later.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=200, start=10), visible=True
+    )
+    # 50% saturation (peak 5 of limit 10) — below 0.8 threshold
+    c._max_borrowed_this_round = 5
+    for _ in range(10):
+        c.notify_success()
+    assert c.concurrency == 10  # no growth
+    assert c.history == []
+    # high-water mark resets at end of round so the next round must re-prove
+    assert c._max_borrowed_this_round == 0
+
+
+def test_growth_unblocked_at_saturation_threshold() -> None:
+    """Saturation exactly at the threshold should still permit scale-up."""
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=200, start=10), visible=True
+    )
+    # 80% saturation (peak 8 of limit 10) — exactly the threshold
+    c._max_borrowed_this_round = 8
+    for _ in range(10):
+        c.notify_success()
+    assert c.concurrency == 20  # scaled up
+    assert c.history[-1][4] == "slow_start"
+
+
+def test_small_workload_stays_at_start() -> None:
+    """A workload too small to fill `start` doesn't trigger slow-start.
+
+    With start=20 and a workload that only ever has a handful of in-flight
+    requests, the controller should stay at 20 forever — no point growing
+    the cap when we aren't using what we have.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=200, start=20), visible=True
+    )
+    # Many rounds of "successes" but peak in-flight is only 3 (15% saturation)
+    for _ in range(5):
+        c._max_borrowed_this_round = 3
+        for _ in range(20):
+            c.notify_success()
+    assert c.concurrency == 20  # never grew
+    assert c.history == []
+
+
+def test_saturation_gate_resets_on_rate_limit_cut() -> None:
+    """A rate-limit cut clears the high-water mark.
+
+    Peak in-flight observed before the cut is no longer relevant evidence
+    at the new (lower) limit — the next round must re-establish saturation.
+    """
+    c = AdaptiveConcurrencyController(
+        "t", AdaptiveConcurrency(min=1, max=200, start=40), visible=True
+    )
+    c._max_borrowed_this_round = 35
+    c.notify_retry()  # cut — should reset the mark
+    assert c._max_borrowed_this_round == 0
 
 
 def test_default_bounds() -> None:
@@ -240,8 +323,7 @@ def test_advanced_fields_override_controller_behavior() -> None:
     cfg2 = AdaptiveConcurrency(min=1, max=200, start=20, scale_up_percent=0.5)
     c2 = AdaptiveConcurrencyController("t", cfg2, visible=True)
     c2._first_retry_seen = True  # skip slow-start
-    for _ in range(20):
-        c2.notify_success()
+    _saturated_successes(c2, 20)
     # 20 + max(1, round(20 * 0.5)) = 30, ceil_to_nice(30) = 30
     assert c2.concurrency == 30
 
@@ -395,8 +477,7 @@ def test_observer_called_on_scale_change() -> None:
     events2: list[tuple[int, int]] = []
     c.add_observer(lambda old, new: events.append((old, new)))
     c.add_observer(lambda old, new: events2.append((old, new)))
-    for _ in range(10):
-        c.notify_success()
+    _saturated_successes(c, 10)
     assert events == [(10, 20)]
     assert events2 == [(10, 20)]
 
@@ -451,9 +532,8 @@ async def test_dynamic_sample_limiter_grows_with_controller() -> None:
         pass
     ctrls = adaptive_controllers()
     assert len(ctrls) == 1
-    # scale ctrl from 10 to 20 (one full slow-start round)
-    for _ in range(10):
-        ctrls[0].notify_success()
+    # scale ctrl from 10 to 20 (one full saturated slow-start round)
+    _saturated_successes(ctrls[0], 10)
     assert ctrls[0].concurrency == 20
     # limiter should track: 20 + 5 = 25
     assert lim.total_tokens == 25
@@ -545,13 +625,11 @@ async def test_dynamic_sample_limiter_caps_at_adaptive_max_plus_buffer() -> None
         pass
     ctrls = adaptive_controllers()
     # scale to ctrl.max (20) — limiter capped at 20 + 5 = 25
-    for _ in range(10):
-        ctrls[0].notify_success()
+    _saturated_successes(ctrls[0], 10)
     assert ctrls[0].concurrency == 20
     assert lim.total_tokens == 25
     # further successes don't grow ctrl past max, limiter stays at cap
-    for _ in range(20):
-        ctrls[0].notify_success()
+    _saturated_successes(ctrls[0], 20)
     assert lim.total_tokens == 25
 
 
@@ -565,8 +643,7 @@ async def test_dynamic_sample_limiter_catches_up_to_existing_controllers() -> No
         pass
     ctrls = adaptive_controllers()
     assert len(ctrls) == 1
-    for _ in range(10):
-        ctrls[0].notify_success()
+    _saturated_successes(ctrls[0], 10)
     assert ctrls[0].concurrency == 20  # scaled up via slow-start
 
     # now create a DynamicSampleLimiter — it should catch up to 20 + buffer
@@ -615,8 +692,7 @@ async def test_dynamic_sample_limiter_multi_controller() -> None:
     assert len(ctrls) == 2
     # scale m2 only
     target = next(c for c in ctrls if c.name == "m2")
-    for _ in range(10):
-        target.notify_success()
+    _saturated_successes(target, 10)
     assert target.concurrency == 20
     # limiter tracks max across controllers (= 20)
     assert lim.total_tokens == 25

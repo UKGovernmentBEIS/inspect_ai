@@ -403,6 +403,15 @@ class AdaptiveConcurrencyController:
 
     ROUND_SIZE_FLOOR = 4
     HISTORY_LIMIT = 200
+    # Minimum saturation (peak-borrowed / current-limit) within a round
+    # required to scale up. Without this gate, the controller would treat any
+    # round-sized batch of successes as proof the limit is binding, even when
+    # peak in-flight was well below the limit (e.g. running 250 in flight at
+    # a 500 cap because the work simply isn't there to fill it). Growing in
+    # that case is incorrect: the next time work surges to the new higher
+    # limit, we may exceed the provider's actual rate limit since we never
+    # validated capacity beyond the peak we actually hit.
+    SATURATION_THRESHOLD = 0.8
 
     def __init__(
         self,
@@ -420,6 +429,10 @@ class AdaptiveConcurrencyController:
         # Protocol (which expects a settable int).
         self.concurrency: int = config.start
         self._success_count = 0
+        # high-water mark of in-flight (borrowed) requests within the current
+        # round; reset at end of round and on rate-limit cut. Used by the
+        # saturation gate in notify_success.
+        self._max_borrowed_this_round = 0
         self._first_retry_seen = False
         self._cooldown_until = 0.0
         self._history: list[LimitChangeRecord] = []
@@ -460,13 +473,30 @@ class AdaptiveConcurrencyController:
         if time.monotonic() < self._cooldown_until:
             return
 
+        # Sample saturation: track the high-water mark of in-flight requests
+        # observed during this round. `borrowed_tokens` at success-completion
+        # time is off-by-one (the just-completed request is no longer counted),
+        # but for a peak-across-the-round metric the off-by-one is negligible.
+        borrowed = int(self._limiter.borrowed_tokens)
+        if borrowed > self._max_borrowed_this_round:
+            self._max_borrowed_this_round = borrowed
+
         self._success_count += 1
         old = self.concurrency
         round_size = max(old, self.ROUND_SIZE_FLOOR)
         if self._success_count < round_size:
             return
 
+        # End of round. Only scale up if we observed real saturation —
+        # otherwise the current limit isn't binding, and growing it gives us
+        # untested headroom that may exceed the provider's actual rate limit
+        # the next time work surges enough to fill it.
+        peak_borrowed = self._max_borrowed_this_round
+        self._max_borrowed_this_round = 0
         self._success_count = 0
+        if old > 0 and peak_borrowed < self.SATURATION_THRESHOLD * old:
+            return
+
         if not self._first_retry_seen:
             new = min(old * 2, self._config.max)
             reason = "slow_start"
@@ -497,8 +527,11 @@ class AdaptiveConcurrencyController:
         header or the `x-ratelimit-reset-*` fallback), the cooldown is
         extended to honor it when larger than the configured floor.
         """
-        # always reset success accounting on any retry signal (even debounced)
+        # always reset success accounting on any retry signal (even debounced).
+        # Also reset the saturation high-water mark — peak in-flight observed
+        # before the cut is no longer relevant evidence at the new (lower) limit.
         self._success_count = 0
+        self._max_borrowed_this_round = 0
         self._first_retry_seen = True
 
         now = time.monotonic()
