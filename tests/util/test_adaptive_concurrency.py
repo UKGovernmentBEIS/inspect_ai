@@ -2,6 +2,7 @@
 
 import time
 
+import anyio
 import pytest
 
 from inspect_ai.util._concurrency import (
@@ -472,6 +473,67 @@ async def test_dynamic_sample_limiter_shrinks_with_controller() -> None:
     # ctrl drops to floor_to_nice(40*0.8=32) = 30; limiter = 30 + 5 = 35
     assert ctrls[0].concurrency == 30
     assert lim.total_tokens == 35
+
+
+@pytest.mark.anyio
+async def test_dynamic_sample_limiter_recovers_after_shrinking_below_borrowed() -> None:
+    """Shrinking below borrowed tokens should block new samples, not deadlock."""
+    init_concurrency()
+    lim = DynamicSampleLimiter(AdaptiveConcurrency(min=1, max=80, start=10))
+    cfg = AdaptiveConcurrency(min=1, max=80, start=10)
+    async with concurrency(name="m", concurrency=10, key="k", adaptive=cfg):
+        pass
+    ctrl = adaptive_controllers()[0]
+
+    initial_tokens = 10 + DynamicSampleLimiter.BUFFER
+    release_events = [anyio.Event() for _ in range(initial_tokens)]
+    all_holders_entered = anyio.Event()
+    extra_started = anyio.Event()
+    extra_entered = anyio.Event()
+    entered_holders = 0
+
+    async def holder(index: int) -> None:
+        nonlocal entered_holders
+        async with lim:
+            entered_holders += 1
+            if entered_holders == initial_tokens:
+                all_holders_entered.set()
+            await release_events[index].wait()
+
+    async def extra_holder() -> None:
+        extra_started.set()
+        async with lim:
+            extra_entered.set()
+
+    async with anyio.create_task_group() as tg:
+        try:
+            for i in range(initial_tokens):
+                tg.start_soon(holder, i)
+            with anyio.fail_after(1):
+                await all_holders_entered.wait()
+
+            ctrl.notify_retry()
+            assert ctrl.concurrency == 8
+            assert lim.total_tokens == 8 + DynamicSampleLimiter.BUFFER
+
+            tg.start_soon(extra_holder)
+            await extra_started.wait()
+            await anyio.sleep(0)
+            assert not extra_entered.is_set()
+
+            # Releasing only down to the new capacity should not admit another
+            # sample. CapacityLimiter wakes waiters only once borrowed < total.
+            release_events[0].set()
+            release_events[1].set()
+            await anyio.sleep(0)
+            assert not extra_entered.is_set()
+
+            release_events[2].set()
+            with anyio.fail_after(1):
+                await extra_entered.wait()
+        finally:
+            for event in release_events:
+                event.set()
 
 
 @pytest.mark.anyio
