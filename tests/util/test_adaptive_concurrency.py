@@ -201,11 +201,11 @@ def test_history_bounded() -> None:
 
 
 def test_default_bounds() -> None:
-    """Defaults are min=4, start=20, max=100 — tightened from the original 1/20/200."""
+    """Defaults are min=4, start=20, max=200."""
     cfg = AdaptiveConcurrency()
     assert cfg.min == 4
     assert cfg.start == 20
-    assert cfg.max == 100
+    assert cfg.max == 200
 
 
 def test_advanced_fields_default_to_documented_values() -> None:

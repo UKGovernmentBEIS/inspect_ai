@@ -85,7 +85,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
     adaptive_connections: bool | AdaptiveConcurrency | None
-    """Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=100), or pass `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency."""
+    """Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=200), or pass `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency."""
 
     system_message: str | None
     """Override the default system message."""
@@ -199,7 +199,7 @@ class GenerateConfig(BaseModel):
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
     adaptive_connections: bool | AdaptiveConcurrency | None = Field(default=None)
-    """Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=100), or pass `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency."""
+    """Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=200), or pass `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency."""
 
     system_message: str | None = Field(default=None)
     """Override the default system message."""

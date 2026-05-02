@@ -29,11 +29,9 @@ def test_generate_config_merge_copies_nested_override_values() -> None:
 
 def test_adaptive_connections_defaults() -> None:
     a = AdaptiveConcurrency()
-    # tightened from the original 1/200/20 in 2026 to bound at realistic
-    # (non-enterprise) tier sizes by default
     assert a.min == 4
-    assert a.max == 100
     assert a.start == 20
+    assert a.max == 200
     # advanced tuning fields default to documented values
     assert a.cooldown_seconds == 15.0
     assert a.decrease_factor == 0.8

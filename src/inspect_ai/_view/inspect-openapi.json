@@ -15,7 +15,7 @@
             "type": "number"
           },
           "max": {
-            "default": 100,
+            "default": 200,
             "title": "Max",
             "type": "integer"
           },

@@ -934,7 +934,7 @@ def eval_retry(
             Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections:
             Enable adaptive concurrency for Model API connections. `True` for defaults
-            (min=4, start=20, max=100), or pass an `AdaptiveConcurrency` to customize
+            (min=4, start=20, max=200), or pass an `AdaptiveConcurrency` to customize
             bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent).
             An explicit `max_connections` overrides this and uses static concurrency.
 
@@ -1060,7 +1060,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
-        adaptive_connections: Enable adaptive concurrency for Model API connections. `True` for defaults (min=4, start=20, max=100), or pass an `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency.
+        adaptive_connections: Enable adaptive concurrency for Model API connections. `True` for defaults (min=4, start=20, max=200), or pass an `AdaptiveConcurrency` to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency.
 
     Returns:
         List of EvalLog (one for each task)

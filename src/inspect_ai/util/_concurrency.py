@@ -16,7 +16,7 @@ logger = getLogger(__name__)
 
 _DEFAULT_MIN = 4
 _DEFAULT_START = 20
-_DEFAULT_MAX = 100
+_DEFAULT_MAX = 200
 
 
 class AdaptiveConcurrency(BaseModel):

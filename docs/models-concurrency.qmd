@@ -55,7 +55,7 @@ Tuning `--max-connections` by hand is awkward: you have to guess a value, watch 
 $ inspect eval --model openai/gpt-4o --adaptive-connections true
 ```
 
-By default a per-model controller starts at 20 concurrent connections and scales between 4 and 100. These bounds suit typical paid (non-enterprise) tiers; raise `max` for enterprise tiers, lower it for tighter ones.
+By default a per-model controller starts at 20 concurrent connections and scales between 4 and 200. The controller scales down on rate-limit retries, so a high `max` is harmless for low-tier accounts (they'll never reach it) and useful for high-tier accounts where Inspect would otherwise leave capacity on the floor.
 
 When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (with a small buffer), so sample setup work like creating sandbox containers stays proportional to actual model concurrency rather than the maximum bound.
 
