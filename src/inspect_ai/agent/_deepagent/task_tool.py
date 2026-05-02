@@ -227,13 +227,8 @@ async def _dispatch_forked(
     span_id: str | None = None,
 ) -> str:
     from inspect_ai.event._timeline import timeline_branch
-    from inspect_ai.util._span import current_span_id
 
-    from_span = current_span_id() or ""
-
-    async with timeline_branch(
-        name=sa.name, from_span=from_span, from_anchor=from_message
-    ):
+    async with timeline_branch(name=sa.name, from_anchor=from_message):
         return await _dispatch(agent, sa, input, span_id=span_id)
 
 
