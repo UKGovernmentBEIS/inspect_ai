@@ -68,7 +68,10 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -677,7 +680,7 @@ class GoogleGenAIAPI(ModelAPI):
         if isinstance(ex, APIError) and ex.code is not None:
             if not is_retryable_http_status(ex.code):
                 return RetryDecision.no()
-            retry_after = _google_retry_after(ex)
+            retry_after = parse_retry_after_from_exception(ex)
             if ex.code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             status = getattr(ex, "status", "") or ""
@@ -1827,17 +1830,3 @@ def _malformed_function_message(candidate: Candidate | GenerateContentResponse) 
         return candidate.finish_message
     else:
         return DEFAULT_FINISH_MESSAGE
-
-
-def _google_retry_after(ex: APIError) -> float | None:
-    """Extract Retry-After / x-ratelimit-reset-* from an APIError's response."""
-    from inspect_ai._util.http import parse_retry_after
-
-    response = getattr(ex, "response", None)
-    headers = getattr(response, "headers", None)
-    if headers is None:
-        return None
-    try:
-        return parse_retry_after(headers)
-    except Exception:
-        return None

@@ -405,9 +405,16 @@ class _SaturationTrackingLimiter:
     async def __aenter__(self) -> None:
         c = self._controller
         await c._limiter.acquire()
-        borrowed = int(c._limiter.borrowed_tokens)
-        if borrowed > c._max_borrowed_this_round:
-            c._max_borrowed_this_round = borrowed
+        # Skip the saturation update during a post-cut cooldown. notify_retry
+        # already reset the mark to 0; in-flight acquires arriving while the
+        # cooldown is active are pre-cut traffic at the new (lower) limit, so
+        # they're not relevant evidence for the next round's growth decision.
+        # Without this gate, the first post-cooldown round can pass the 0.8
+        # saturation threshold from peaks observed during cooldown alone.
+        if time.monotonic() >= c._cooldown_until:
+            borrowed = int(c._limiter.borrowed_tokens)
+            if borrowed > c._max_borrowed_this_round:
+                c._max_borrowed_this_round = borrowed
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self._controller._limiter.release()
@@ -478,12 +485,16 @@ class AdaptiveConcurrencyController:
 
     @property
     def value(self) -> int:
-        """Tokens currently available (== limit - borrowed).
+        """Tokens currently available (== limit - borrowed), clamped to >= 0.
 
         Status display computes `concurrency - value` to show borrowed count,
-        matching the Semaphore-based path.
+        matching the Semaphore-based path. Clamped because `notify_retry` may
+        lower `total_tokens` below current `borrowed_tokens` (CapacityLimiter
+        accepts this and blocks new acquires until in-flight drains); without
+        the clamp, `value` would go negative and the status display would
+        render in-flight as exceeding the cap.
         """
-        return int(self._limiter.total_tokens - self._limiter.borrowed_tokens)
+        return max(0, int(self._limiter.total_tokens - self._limiter.borrowed_tokens))
 
     @property
     def history(self) -> list[LimitChangeRecord]:

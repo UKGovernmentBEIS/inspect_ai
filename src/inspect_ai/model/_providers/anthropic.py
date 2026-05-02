@@ -122,7 +122,10 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data, file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -1001,7 +1004,7 @@ class AnthropicAPI(ModelAPI):
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
-            retry_after = _anthropic_retry_after(ex)
+            retry_after = parse_retry_after_from_exception(ex)
             # when streaming, anthropic does not set status_code == 529
             # for overloaded or internal server errors so we check for them explicitly
             if isinstance(ex.body, dict):
@@ -3103,17 +3106,3 @@ def is_image_type(media_type: str) -> bool:
 
 def anthropic_extra_body_fields() -> list[str]:
     return ["metadata", "service_tier"]
-
-
-def _anthropic_retry_after(ex: APIStatusError) -> float | None:
-    """Extract Retry-After / x-ratelimit-reset-* from an Anthropic APIStatusError."""
-    from inspect_ai._util.http import parse_retry_after
-
-    response = getattr(ex, "response", None)
-    headers = getattr(response, "headers", None)
-    if headers is None:
-        return None
-    try:
-        return parse_retry_after(headers)
-    except Exception:
-        return None

@@ -757,3 +757,88 @@ async def test_dynamic_sample_limiter_multi_controller() -> None:
     assert target.concurrency == 20
     # limiter tracks max across controllers (= 20)
     assert lim.total_tokens == 25
+
+
+@pytest.mark.anyio
+async def test_max_borrowed_not_inflated_during_cooldown() -> None:
+    """Acquires during the post-cut cooldown must not raise the saturation mark.
+
+    notify_retry resets _max_borrowed_this_round to 0 on cut. Without the
+    cooldown gate in __aenter__, in-flight acquires that arrive during the
+    cooldown window would re-raise the mark — and the first post-cooldown
+    round would pass the 0.8 saturation threshold based on stale evidence
+    from before the cooldown ended.
+    """
+    cfg = AdaptiveConcurrency(min=1, max=200, start=10, cooldown_seconds=15.0)
+    c = AdaptiveConcurrencyController("t-cooldown", cfg, visible=True)
+    c.notify_retry()  # cut → 8, cooldown begins
+    assert c.concurrency == 8
+    assert c._max_borrowed_this_round == 0
+
+    # acquires during cooldown — mark must stay at 0
+    for _ in range(3):
+        async with c.semaphore:
+            pass
+    assert c._max_borrowed_this_round == 0
+
+    # advance past cooldown — fresh acquires should now update the mark
+    c._cooldown_until = time.monotonic() - 1
+    async with c.semaphore:
+        pass
+    assert c._max_borrowed_this_round == 1
+
+
+@pytest.mark.anyio
+async def test_value_clamped_when_borrowed_exceeds_total() -> None:
+    """After a cut, total_tokens may be below borrowed_tokens; value must be >= 0.
+
+    notify_retry lowers total_tokens; CapacityLimiter accepts the inversion and
+    blocks future acquires until in-flight drains. Without clamping, `value`
+    would be negative and `concurrency_status_display`'s `concurrency - value`
+    would exceed `concurrency`, rendering as e.g. "10 / 6" in the UI.
+    """
+    from inspect_ai.util._concurrency import concurrency_status_display
+
+    init_concurrency()
+    cfg = AdaptiveConcurrency(min=1, max=80, start=10, decrease_factor=0.5)
+    # register via concurrency() so status display sees it
+    async with concurrency(name="m-clamp", concurrency=10, key="kc", adaptive=cfg):
+        pass
+    c = next(x for x in adaptive_controllers() if x.name == "m-clamp")
+
+    holders = 8
+    release = anyio.Event()
+    all_in = anyio.Event()
+    in_flight = 0
+
+    async def holder() -> None:
+        nonlocal in_flight
+        async with c.semaphore:
+            in_flight += 1
+            if in_flight == holders:
+                all_in.set()
+            await release.wait()
+
+    async with anyio.create_task_group() as tg:
+        try:
+            for _ in range(holders):
+                tg.start_soon(holder)
+            with anyio.fail_after(1):
+                await all_in.wait()
+            # Cut to below in-flight: 10 * 0.5 = 5, floor_to_nice(5) = 5,
+            # but 8 are currently borrowed.
+            c.notify_retry()
+            assert c.concurrency == 5
+            assert c._limiter.borrowed_tokens == 8
+            # value clamped to 0, not negative
+            assert c.value == 0
+            # status display: used not exceeding total
+            status = concurrency_status_display()
+            entry = status.get("m-clamp") or next(
+                v for k, v in status.items() if "m-clamp" in k
+            )
+            used, total = entry
+            assert total == 5
+            assert used == 5  # 5 - max(0, value) = 5 - 0 = 5, not 13
+        finally:
+            release.set()

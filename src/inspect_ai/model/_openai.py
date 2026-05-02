@@ -57,7 +57,10 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
@@ -929,10 +932,12 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     from inspect_ai.model._model import RetryDecision
 
     if isinstance(ex, RateLimitError):
-        return RetryDecision.rate_limit(retry_after=_response_retry_after(ex))
+        return RetryDecision.rate_limit(
+            retry_after=parse_retry_after_from_exception(ex)
+        )
     if isinstance(ex, APIStatusError):
         status = ex.status_code
-        retry_after = _response_retry_after(ex)
+        retry_after = parse_retry_after_from_exception(ex)
         if status == 429:
             return RetryDecision.rate_limit(retry_after=retry_after)
         if is_retryable_http_status(status):
@@ -950,20 +955,6 @@ def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
     if isinstance(ex, APIConnectionError | APITimeoutError):
         return RetryDecision.transient()
     return None
-
-
-def _response_retry_after(ex: APIStatusError) -> float | None:
-    """Best-effort Retry-After / x-ratelimit-reset-* extraction from an OpenAI exception."""
-    from inspect_ai._util.http import parse_retry_after
-
-    response = getattr(ex, "response", None)
-    headers = getattr(response, "headers", None)
-    if headers is None:
-        return None
-    try:
-        return parse_retry_after(headers)
-    except Exception:
-        return None
 
 
 def openai_handle_bad_request(

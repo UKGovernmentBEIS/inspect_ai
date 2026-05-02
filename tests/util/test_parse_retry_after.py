@@ -1,9 +1,12 @@
-"""Tests for parse_retry_after()."""
+"""Tests for parse_retry_after() and parse_retry_after_from_exception()."""
 
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 
-from inspect_ai._util.http import parse_retry_after
+from inspect_ai._util.http import (
+    parse_retry_after,
+    parse_retry_after_from_exception,
+)
 
 
 def test_retry_after_delta_seconds() -> None:
@@ -126,3 +129,58 @@ def test_anthropic_reset_headers_recognized() -> None:
     seconds = parse_retry_after({"anthropic-ratelimit-tokens-reset": future})
     assert seconds is not None
     assert 20 < seconds <= 30
+
+
+# ---------- parse_retry_after_from_exception ----------
+
+
+class _FakeResponse:
+    def __init__(self, headers: dict[str, str]) -> None:
+        self.headers = headers
+
+
+class _FakeError(Exception):
+    def __init__(self, response: _FakeResponse | None) -> None:
+        self.response = response
+
+
+def test_from_exception_with_retry_after_header() -> None:
+    ex = _FakeError(_FakeResponse({"Retry-After": "30"}))
+    assert parse_retry_after_from_exception(ex) == 30.0
+
+
+def test_from_exception_without_response_returns_none() -> None:
+    ex = Exception("no response attr")
+    assert parse_retry_after_from_exception(ex) is None
+
+
+def test_from_exception_with_response_but_no_headers_returns_none() -> None:
+    class _NoHeaders:
+        pass
+
+    ex = _FakeError(_NoHeaders())  # type: ignore[arg-type]
+    assert parse_retry_after_from_exception(ex) is None
+
+
+def test_from_exception_with_none_response_returns_none() -> None:
+    ex = _FakeError(None)
+    assert parse_retry_after_from_exception(ex) is None
+
+
+def test_from_exception_swallows_parse_errors() -> None:
+    """If parse_retry_after itself raises, we return None rather than propagating.
+
+    The caller is in a retry-classification fast path; an unparseable header
+    shouldn't break the retry decision.
+    """
+
+    # build a "headers" object that raises when iterated/looked up
+    class _BadHeaders:
+        def __iter__(self) -> object:
+            raise RuntimeError("malformed headers")
+
+        def items(self) -> object:
+            raise RuntimeError("malformed headers")
+
+    ex = _FakeError(_FakeResponse(headers=_BadHeaders()))  # type: ignore[arg-type]
+    assert parse_retry_after_from_exception(ex) is None

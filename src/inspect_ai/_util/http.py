@@ -73,6 +73,22 @@ def parse_retry_after(headers: Mapping[str, str]) -> float | None:
     return None
 
 
+def parse_retry_after_from_exception(ex: BaseException) -> float | None:
+    """Best-effort Retry-After / x-ratelimit-reset-* extraction from an exception.
+
+    Walks `ex.response.headers` if present and delegates to `parse_retry_after`.
+    Returns None on any failure (missing attributes, parse error). Used by
+    every provider's `should_retry` → `RetryDecision.rate_limit` path.
+    """
+    headers = getattr(getattr(ex, "response", None), "headers", None)
+    if headers is None:
+        return None
+    try:
+        return parse_retry_after(headers)
+    except Exception:
+        return None
+
+
 def _parse_retry_after_value(value: str) -> float | None:
     """Parse a single header value into seconds-from-now.
 

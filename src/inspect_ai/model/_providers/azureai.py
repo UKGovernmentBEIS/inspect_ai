@@ -38,7 +38,10 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -292,7 +295,7 @@ class AzureAIAPI(ModelAPI):
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
             if not is_retryable_http_status(ex.status_code):
                 return RetryDecision.no()
-            retry_after = _azure_retry_after(ex)
+            retry_after = parse_retry_after_from_exception(ex)
             if ex.status_code == 429:
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
@@ -605,17 +608,3 @@ def chat_completion_stop_reason(reason: str) -> StopReason:
 
         case _:
             return "unknown"
-
-
-def _azure_retry_after(ex: HttpResponseError) -> float | None:
-    """Extract Retry-After / x-ratelimit-reset-* from an azure-core HttpResponseError."""
-    from inspect_ai._util.http import parse_retry_after
-
-    response = getattr(ex, "response", None)
-    headers = getattr(response, "headers", None)
-    if headers is None:
-        return None
-    try:
-        return parse_retry_after(headers)
-    except Exception:
-        return None
