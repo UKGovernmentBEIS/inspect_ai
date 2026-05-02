@@ -1,6 +1,6 @@
 ---
 title: Parallelism
-llms-description: Tuning Inspect's parallel async architecture for optimal throughput while respecting rate limits.
+llms-description: Running multiple tasks and models in parallel, sandbox concurrency, and writing parallel custom code.
 aliases:
   - eval-tuning.html
 ---
@@ -11,159 +11,16 @@ Inspect runs evaluations using a parallel async architecture, eagerly executing 
 
 There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Below we'll cover the following:
 
-1.  Model API connection concurrency.
-2.  Evaluating multiple models in parallel.
-3.  Evaluating multiple tasks in parallel. 
+1.  Evaluating multiple models in parallel.
+2.  Evaluating multiple tasks in parallel.
 3.  Sandbox environment concurrency.
 4.  Writing parallel code in custom tools, solvers, and scorers.
 
+::: {.callout-note appearance="simple"}
+For tuning model API connection limits and rate-limit handling (`max_connections`, adaptive connections, retries) see [Model Concurrency](models-concurrency.qmd).
+:::
+
 Inspect uses [asyncio](https://docs.python.org/3/library/asyncio.html) as its async backend by default, but can also be configured to run against [trio](https://trio.readthedocs.io/en/stable/). See the section on [Async Backends](#async-backends) for additional details.
-
-## Model Connections
-
-### Max Connections
-
-Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather *rate limits* imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:
-
-``` bash
-$ inspect eval --model openai/gpt-4 --max-connections 20
-```
-
-The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
-
-::: {.callout-note appearance="simple"}
-Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
-:::
-
-### Rate Limits
-
-When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
-
-![](images/rate-limit.png){fig-alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."}
-
-Here we've set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
-
-You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
-
-### Adaptive Connections
-
-Tuning `--max-connections` by hand is awkward: you have to guess a value, watch for rate-limit retries, and re-tune for different times of day or different rate-limit tiers. The `--adaptive-connections` option lets Inspect tune it for you automatically — starting at a moderate concurrency, growing until rate-limit retries are observed, then backing off.
-
-``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections true
-```
-
-A per-model controller starts at `start = 20` concurrent connections and scales between `min = 4` and `max = 100` (the defaults). These bounds are designed for typical paid (non-enterprise) tiers; users on enterprise tiers can raise `max` explicitly, and users with very tight tiers can lower it.
-
-#### How it responds to errors
-
-The controller distinguishes between two kinds of retries:
-
-- **Rate-limit retries.** HTTP 429, plus per-provider equivalents — Bedrock `ThrottlingException`, Google `503 RESOURCE_EXHAUSTED`. These shrink the limit by `decrease_factor` (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.
-- **Transient retries.** 5xx, timeouts, and network errors. These *pause* scale-up — the in-flight request's eventual success won't count toward growth — but they do **not** shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn't help a provider-side outage. (Each provider's `should_retry()` method classifies its own errors by returning a `RetryDecision`, so genuinely-rate-limited 5xx codes for that provider are still counted as rate-limit signals.)
-
-After a rate-limit cut, the controller observes a cooldown of at least `cooldown_seconds` (default 15s) before another cut is allowed. If the response carries a `Retry-After` header, the cooldown is extended to honor it. When `Retry-After` is absent, Inspect falls back to provider-specific reset-window headers — `x-ratelimit-reset-requests` / `x-ratelimit-reset-tokens` (OpenAI / Groq / Azure OpenAI) and `anthropic-ratelimit-*-reset` (Anthropic) — so the controller still benefits from server-suggested wait times whenever they're available.
-
-Cache hits and successful-after-retry calls are neutral — they neither grow the limit nor shrink it.
-
-#### Tuning the bounds
-
-The bounds — `min`, `start`, `max` — are the everyday tuning knobs. `start` is where the controller begins (it doubles aggressively from there during slow-start until the first rate-limit episode). `max` is the ceiling.
-
-Pass a string shorthand: `min-max` constrains the controller's range (`start` defaults to 20, clamped into the range):
-
-``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections "4-80"
-```
-
-`min-start-max` also sets the starting value:
-
-``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections "4-40-80"
-```
-
-In Python, pass `True` for defaults or an `AdaptiveConcurrency` config to customise:
-
-``` python
-from inspect_ai.util import AdaptiveConcurrency
-
-eval(
-    "task.py",
-    model="openai/gpt-4o",
-    adaptive_connections=AdaptiveConcurrency(min=4, max=80),
-)
-```
-
-A reasonable rule of thumb for `max` is roughly *(your tier RPM × average request seconds) ÷ 60* — so on a 60 RPM tier with 3-second requests, a `max` near 3 is enough; on a 4,000 RPM tier with 1.5-second requests, a `max` around 100 starts to make sense.
-
-#### Advanced tuning
-
-The response curve is also tunable, with sensible defaults for typical evaluation workloads. These fields are Python-only (CLI shorthand stays at `min-max` / `min-start-max`):
-
-- **`cooldown_seconds`** (default 15) — minimum debounce between scale-down cuts. Larger for long-running agent loops where each rate-limit episode takes longer to clear; smaller for short request workloads.
-- **`decrease_factor`** (default 0.8) — multiplicative cut on each rate-limit episode. More aggressive (e.g. 0.5) for volatile tiers where overshoots are common; gentler (default) when tiers are stable.
-- **`scale_up_percent`** (default 0.05) — additive growth per clean round in steady state. Increase for short evals where a slow ramp-up doesn't have time to converge.
-
-``` python
-from inspect_ai.util import AdaptiveConcurrency
-
-eval(
-    "task.py",
-    model="openai/gpt-4o",
-    adaptive_connections=AdaptiveConcurrency(
-        min=4,
-        max=80,
-        cooldown_seconds=30,
-        decrease_factor=0.5,
-        scale_up_percent=0.1,
-    ),
-)
-```
-
-::: {.callout-note appearance="simple"}
-**Explicit caps always win.** If you set `--max-connections` together with `--adaptive-connections`, the static cap takes precedence and adaptive scaling is disabled. Likewise, an explicit `max_samples` overrides the dynamic sample limiter. **Batch mode also silently disables adaptive concurrency** — batch APIs run on a separate quota, the per-request concurrency model doesn't bind, and the batch worker's accounting boundary makes adaptive's success/retry signals unreliable; batch evaluations always use the static `max_connections` path. These rules together make it safe to leave adaptive connections enabled in shared configs while still pinning specific evaluations to fixed values when needed.
-:::
-
-When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (with a small buffer), so sample setup work — like creating sandbox containers — stays proportional to the actual model concurrency rather than the maximum bound.
-
-#### What's recorded
-
-The full history of scale changes is captured in the eval log under `stats.connection_limit_history`. Each entry records the timestamp, model, old/new limits, and a `reason` of `slow_start`, `steady_state_up`, or `rate_limit` — only `rate_limit` reflects an actual scale-down (transient infra noise no longer appears here). You can stream the same events live in the trace log:
-
-``` bash
-inspect trace dump --filter "[connections]"
-```
-
-### Limiting Retries
-
-By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect's retries using the `--max-retries` option:
-
-``` bash
-inspect eval --model openai/gpt-4 --max-retries 10
-```
-
-Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
-
-You can put a limit on the total time for retries using the `--timeout` option:
-
-``` bash
-inspect eval --model openai/gpt-4 --timeout 600 
-```
-
-### Debugging Retries
-
-If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
-
-``` bash
-inspect eval --model openai/gpt-4 --log-level=http
-```
-
-You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
-
-``` bash
-inspect trace http           # show all http requests
-inspect trace http --failed  # show only failed requests
-```
 
 ## Multiple Models {#sec-multiple-models}
 
@@ -179,7 +36,7 @@ eval("mathematics.py", model=[
 
 ![](images/inspect-multiple-models.png){fig-alt="An evaluation task display showing the progress for 3 different models."}
 
-Since each model provider has its own `max_connections` they don't contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.
+Since each model provider has its own `max_connections` they don't contend with each other for resources (see [Model Concurrency](models-concurrency.qmd) for per-model tuning). If you need to evaluate multiple models, doing so concurrently is highly recommended.
 
 If you want to specify multiple models when using the `--model` CLI argument or `INSPECT_EVAL_MODEL` environment variable, just separate the model names with commas. For example:
 
