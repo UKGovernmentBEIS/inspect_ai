@@ -45,6 +45,52 @@ Here we've set a higher max connections than the default (30). While you might b
 
 You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
 
+### Adaptive Connections
+
+Tuning `--max-connections` by hand is awkward: you have to guess a value, watch for rate-limit retries, and re-tune for different times of day or different rate-limit tiers. The `--adaptive-connections` option lets Inspect tune it for you automatically — starting conservatively and scaling up until rate-limit retries are observed, then backing off.
+
+``` bash
+$ inspect eval --model openai/gpt-4o --adaptive-connections true
+```
+
+When enabled, a per-model controller starts at 20 concurrent connections, doubles until the first rate-limit retry (slow-start), then settles into additive-increase / multiplicative-decrease behaviour: each clean window of requests adds roughly 5%, and each rate-limit episode multiplies the limit by 0.8. Scale-down is debounced for 15 seconds so a single rate-limit burst doesn't cause repeated cuts.
+
+To customise the bounds, pass a string shorthand. `min-max` constrains the controller's range (start defaults to 20):
+
+``` bash
+$ inspect eval --model openai/gpt-4o --adaptive-connections "4-80"
+```
+
+`min-start-max` also sets the starting value:
+
+``` bash
+$ inspect eval --model openai/gpt-4o --adaptive-connections "4-40-80"
+```
+
+In Python, pass `True` for defaults or an `AdaptiveConcurrency` config to customise:
+
+``` python
+from inspect_ai.util import AdaptiveConcurrency
+
+eval(
+    "task.py",
+    model="openai/gpt-4o",
+    adaptive_connections=AdaptiveConcurrency(min=4, max=80),
+)
+```
+
+::: {.callout-note appearance="simple"}
+**`max_connections` always wins.** If you set both `--max-connections` and `--adaptive-connections`, the explicit static cap takes precedence and adaptive scaling is disabled. This makes it safe to leave adaptive connections enabled by default in shared configs while still letting individual evaluations pin a fixed value when needed.
+:::
+
+When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (with a small buffer), so sample setup work — like creating sandbox containers — stays proportional to the actual model concurrency rather than the maximum bound.
+
+The full history of scale changes is captured in the eval log under `stats.connection_limit_history` (each entry records the timestamp, model, old/new limits, and reason). You can see these changes via the trace log:
+
+``` bash
+inspect trace dump --filter "[connections]"
+```
+
 ### Limiting Retries
 
 By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect's retries using the `--max-retries` option:

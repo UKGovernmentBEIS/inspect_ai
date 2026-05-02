@@ -69,6 +69,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._display import (
     DisplayType,
     display_type,
@@ -871,6 +872,7 @@ def eval_retry(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    adaptive_connections: bool | AdaptiveConcurrency | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -930,6 +932,10 @@ def eval_retry(
             Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
+        adaptive_connections:
+            Enable adaptive concurrency for Model API connections. `True` for defaults
+            (min=1, max=200, start=20), or pass an `AdaptiveConcurrency` to customize bounds.
+            An explicit `max_connections` overrides this and uses static concurrency.
 
     Returns:
         List of EvalLog (one for each task)
@@ -970,6 +976,7 @@ def eval_retry(
             timeout=timeout,
             attempt_timeout=attempt_timeout,
             max_connections=max_connections,
+            adaptive_connections=adaptive_connections,
         )
 
     return task_display().run_task_app(with_async_fs(run_task_app))
@@ -1004,6 +1011,7 @@ async def eval_retry_async(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    adaptive_connections: bool | AdaptiveConcurrency | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1051,6 +1059,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
+        adaptive_connections: Enable adaptive concurrency for Model API connections. `True` for defaults (min=1, max=200, start=20), or pass an `AdaptiveConcurrency` to customize bounds. An explicit `max_connections` overrides this and uses static concurrency.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1246,6 +1255,8 @@ async def eval_retry_async(
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections
+        if adaptive_connections is not None:
+            config.adaptive_connections = adaptive_connections
 
         # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
         initial_model_usage = (

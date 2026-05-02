@@ -375,6 +375,19 @@ def eval_set(
     # resolve some parameters
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
+    # adaptive_connections subsumes retry_connections — the controller manages
+    # scale-down internally on retry signals. Force retry_connections to 1.0
+    # silently (rather than warning), so that this stays quiet when adaptive
+    # eventually becomes default-on. Only fires when adaptive will actually be
+    # active: explicit max_connections takes precedence (per the precedence
+    # rule in Model._connection_concurrency), and in that case retry_connections
+    # decay should still apply to the static cap.
+    adaptive_will_be_active = (
+        bool(kwargs.get("adaptive_connections"))
+        and kwargs.get("max_connections") is None
+    )
+    if adaptive_will_be_active:
+        retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
     max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
     log_dir_allow_dirty = log_dir_allow_dirty is True
@@ -385,10 +398,22 @@ def eval_set(
 
     # before sleep
     def before_sleep(retry_state: RetryCallState) -> None:
-        # compute/update next max_connections
+        # Compute/update next max_connections, but only inject into kwargs when
+        # retry_connections actually decays (!= 1.0). Reasons:
+        #   1. If adaptive will be active at eval-set level, retry_connections
+        #      was already forced to 1.0 above (controller handles scale-down).
+        #   2. With default retry_connections=1.0, the "decayed" value equals
+        #      the original — injecting would be a no-op for static behavior
+        #      but would silently override any task-level adaptive_connections
+        #      (since any non-None max_connections disables adaptive per the
+        #      precedence rule in Model._connection_concurrency).
+        # When the user explicitly opts into decay (retry_connections != 1.0),
+        # we inject — this preserves the long-standing static behavior, with
+        # the trade-off that task-level adaptive yields to the explicit decay.
         nonlocal max_connections
-        max_connections = max(round(max_connections * retry_connections), 1)
-        kwargs["max_connections"] = max_connections
+        if retry_connections != 1.0:
+            max_connections = max(round(max_connections * retry_connections), 1)
+            kwargs["max_connections"] = max_connections
 
         # print waiting status
         msg = (

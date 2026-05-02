@@ -10,6 +10,7 @@ _http_retries_count: int = 0
 
 def report_http_retry() -> None:
     from inspect_ai.log._samples import report_active_sample_retry
+    from inspect_ai.util._concurrency import _active_controller, _request_had_retry
 
     # bump global counter
     global _http_retries_count
@@ -17,6 +18,12 @@ def report_http_retry() -> None:
 
     # report sample retry
     report_active_sample_retry()
+
+    # signal adaptive controller (if any) and mark request as retried
+    _request_had_retry.set(True)
+    controller = _active_controller.get()
+    if controller is not None:
+        controller.notify_retry()
 
 
 def http_retries_count() -> int:

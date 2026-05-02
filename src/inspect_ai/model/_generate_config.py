@@ -7,6 +7,7 @@ from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
 from inspect_ai.model._cache import CachePolicy
+from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._json import JSONSchema
 
 
@@ -82,6 +83,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
+
+    adaptive_connections: bool | AdaptiveConcurrency | None
+    """Enable adaptive concurrency for model API connections. `True` for defaults (min=1, max=200, start=20), or pass `AdaptiveConcurrency` to customize bounds. An explicit `max_connections` overrides this and uses static concurrency."""
 
     system_message: str | None
     """Override the default system message."""
@@ -193,6 +197,9 @@ class GenerateConfig(BaseModel):
 
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""
+
+    adaptive_connections: bool | AdaptiveConcurrency | None = Field(default=None)
+    """Enable adaptive concurrency for model API connections. `True` for defaults (min=1, max=200, start=20), or pass `AdaptiveConcurrency` to customize bounds. An explicit `max_connections` overrides this and uses static concurrency."""
 
     system_message: str | None = Field(default=None)
     """Override the default system message."""

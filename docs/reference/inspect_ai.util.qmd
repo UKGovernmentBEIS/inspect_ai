@@ -30,6 +30,7 @@ description: Miscellaneous utility functions.
 ### concurrency
 ### subprocess
 ### ExecResult
+### AdaptiveConcurrency
 
 ## Display
 

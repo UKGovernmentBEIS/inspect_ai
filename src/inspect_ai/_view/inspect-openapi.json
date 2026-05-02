@@ -1,6 +1,33 @@
 {
   "components": {
     "schemas": {
+      "AdaptiveConcurrency": {
+        "description": "Bounds for an adaptive concurrency controller.\n\nConfigures the bounds within which an adaptive controller is allowed to\nscale: starting at `start`, growing up to `max`, and never falling below\n`min`. Accepts a string shorthand (\"min-max\" or \"min-start-max\") for use\nin CLI flags and config files.",
+        "properties": {
+          "max": {
+            "default": 200,
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "default": 1,
+            "title": "Min",
+            "type": "integer"
+          },
+          "start": {
+            "default": 20,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "start"
+        ],
+        "title": "AdaptiveConcurrency",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -1082,6 +1109,45 @@
           "type"
         ],
         "title": "CompactionEvent",
+        "type": "object"
+      },
+      "ConnectionLimitChange": {
+        "description": "Record of an adaptive-connections controller scale change.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "new_limit": {
+            "title": "New Limit",
+            "type": "integer"
+          },
+          "old_limit": {
+            "title": "Old Limit",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "slow_start",
+              "steady_state_up",
+              "rate_limit"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "model",
+          "old_limit",
+          "new_limit",
+          "reason"
+        ],
+        "title": "ConnectionLimitChange",
         "type": "object"
       },
       "Content": {
@@ -4111,6 +4177,13 @@
             ],
             "title": "Completed At"
           },
+          "connection_limit_history": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionLimitChange"
+            },
+            "title": "Connection Limit History",
+            "type": "array"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -4142,7 +4215,8 @@
           "started_at",
           "completed_at",
           "model_usage",
-          "role_usage"
+          "role_usage",
+          "connection_limit_history"
         ],
         "title": "EvalStats",
         "type": "object"
@@ -4289,6 +4363,20 @@
       "GenerateConfig": {
         "description": "Model generation options.",
         "properties": {
+          "adaptive_connections": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveConcurrency"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adaptive Connections"
+          },
           "attempt_timeout": {
             "anyOf": [
               {

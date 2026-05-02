@@ -951,6 +951,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # mark this request as a cache hit so the post-call
+                    # adaptive-controller success notification is suppressed —
+                    # cache hits don't exercise the rate limit
+                    from inspect_ai.util._concurrency import _request_was_cache_hit
+
+                    _request_was_cache_hit.set(True)
                     if existing.usage:
                         await emit_model_cache_usage(
                             model_name=str(self), usage=existing.usage
@@ -1076,6 +1082,24 @@ class Model:
         time_start = time.monotonic()
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
+
+        # notify the adaptive controller of a clean success (no retries during
+        # this logical request, AND not a cache hit since cache hits don't
+        # exercise the rate limit). Successful-after-retry and cache hits are
+        # both treated as neutral.
+        from inspect_ai.util._concurrency import (
+            _active_controller,
+            _request_had_retry,
+            _request_was_cache_hit,
+        )
+
+        controller = _active_controller.get()
+        if (
+            controller is not None
+            and not _request_had_retry.get()
+            and not _request_was_cache_hit.get()
+        ):
+            controller.notify_success()
         if model_output.time:
             # we've already reported some of the waiting time in tenacity callbacks
             # any remaining waiting time will have been due to internal retry within
@@ -1097,6 +1121,13 @@ class Model:
             # attempt timeout is always retried (we rely on `timeout`
             # and/or `max_retries` for termination)
             if isinstance(ex, AttemptTimeoutError):
+                # report so the global retry counter, ModelEvent.retries,
+                # _request_had_retry, and the adaptive controller all see
+                # this as a retry — otherwise a request that timed out one
+                # or more attempts and then succeeded would count as a clean
+                # adaptive success and could drive the controller upward
+                # under timeout pressure.
+                report_http_retry()
                 return True
 
             # check standard should_retry() method
@@ -1160,20 +1191,58 @@ class Model:
         self, config: GenerateConfig
     ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
-        max_connections = (
-            config.max_connections
-            if config.max_connections
-            else DEFAULT_MAX_CONNECTIONS_BATCH
-            if config.batch
-            else self.api.max_connections()
+        from inspect_ai.util._concurrency import (
+            AdaptiveConcurrency,
+            AdaptiveConcurrencyController,
+            _active_controller,
+            _request_had_retry,
+            _request_was_cache_hit,
         )
+
         model_name = ModelName(self)
-        async with concurrency(
-            name=str(model_name),
-            concurrency=max_connections,
-            key=f"Model{self.api.connection_key()}",
-        ):
-            yield
+        key = f"Model{self.api.connection_key()}"
+
+        # adaptive path: controller-managed CapacityLimiter. Explicit
+        # max_connections wins silently — anticipating adaptive_connections
+        # becoming default-on, in which case any deliberate max_connections
+        # setting must continue to be honored.
+        if config.adaptive_connections and config.max_connections is None:
+            adaptive = (
+                config.adaptive_connections
+                if isinstance(config.adaptive_connections, AdaptiveConcurrency)
+                else AdaptiveConcurrency()
+            )
+            async with concurrency(
+                name=str(model_name),
+                concurrency=adaptive.start,
+                key=key,
+                adaptive=adaptive,
+            ) as sem:
+                assert isinstance(sem, AdaptiveConcurrencyController)
+                token_c = _active_controller.set(sem)
+                token_r = _request_had_retry.set(False)
+                token_h = _request_was_cache_hit.set(False)
+                try:
+                    yield
+                finally:
+                    _active_controller.reset(token_c)
+                    _request_had_retry.reset(token_r)
+                    _request_was_cache_hit.reset(token_h)
+        else:
+            # static path (existing behavior, unchanged)
+            max_connections = (
+                config.max_connections
+                if config.max_connections
+                else DEFAULT_MAX_CONNECTIONS_BATCH
+                if config.batch
+                else self.api.max_connections()
+            )
+            async with concurrency(
+                name=str(model_name),
+                concurrency=max_connections,
+                key=key,
+            ):
+                yield
 
     def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
         # base config for this model
@@ -1189,6 +1258,7 @@ class Model:
             base_config = base_config.merge(
                 GenerateConfig(
                     max_connections=active_config.max_connections,
+                    adaptive_connections=active_config.adaptive_connections,
                     max_retries=active_config.max_retries,
                     timeout=active_config.timeout,
                 )

@@ -142,6 +142,7 @@ def _cache_key(entry: CacheEntry) -> str:
             exclude=set(
                 [
                     "max_connections",
+                    "adaptive_connections",
                     "max_retries",
                     "timeout",
                     "cache",

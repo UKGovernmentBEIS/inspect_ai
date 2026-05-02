@@ -376,10 +376,31 @@ async def log_start(
 
 
 def collect_eval_data(stats: EvalStats) -> None:
+    from inspect_ai.log._log import ConnectionLimitChange
+    from inspect_ai.util._concurrency import adaptive_controllers
+
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
     stats.role_usage = role_usage()
+
+    # capture adaptive-connections controller history. The tuple's second
+    # element is the controller's display name (model name), NOT the underlying
+    # connection_key (which often contains an api_key) — see _set_limit.
+    history: list[ConnectionLimitChange] = []
+    for controller in adaptive_controllers():
+        for ts, model, old, new, reason in controller.history:
+            history.append(
+                ConnectionLimitChange(
+                    timestamp=ts,
+                    model=model,
+                    old_limit=old,
+                    new_limit=new,
+                    reason=reason,  # type: ignore[arg-type]
+                )
+            )
+    history.sort(key=lambda e: e.timestamp)
+    stats.connection_limit_history = history
 
 
 def resolve_eval_metrics(
