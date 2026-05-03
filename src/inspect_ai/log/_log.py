@@ -993,6 +993,25 @@ def eval_error(
     )
 
 
+class ConnectionLimitChange(BaseModel):
+    """Record of an adaptive-connections controller scale change."""
+
+    timestamp: float
+    """Unix timestamp (seconds since epoch) of the change."""
+
+    model: str
+    """Display name of the model whose connection limit changed (e.g. `openai/gpt-4o`)."""
+
+    old_limit: int
+    """Concurrency limit before the change."""
+
+    new_limit: int
+    """Concurrency limit after the change."""
+
+    reason: Literal["slow_start", "steady_state_up", "rate_limit"]
+    """Why the change occurred."""
+
+
 class EvalStats(BaseModel):
     """Timing and usage statistics."""
 
@@ -1007,6 +1026,9 @@ class EvalStats(BaseModel):
 
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for evaluation."""
+
+    connection_limit_history: list[ConnectionLimitChange] = Field(default_factory=list)
+    """History of adaptive-connections controller scale changes (empty unless `adaptive_connections` was enabled)."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())

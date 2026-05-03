@@ -32,6 +32,7 @@ from ._file import (
     write_log_dir_manifest,
 )
 from ._log import (
+    ConnectionLimitChange,
     EvalConfig,
     EvalDataset,
     EvalLog,
@@ -123,6 +124,7 @@ __all__ = [
     "recoverable_eval_logs",
     "RecoverableEvalLog",
     "RecoveryNotAvailable",
+    "ConnectionLimitChange",
 ]
 
 

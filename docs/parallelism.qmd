@@ -1,6 +1,6 @@
 ---
 title: Parallelism
-llms-description: Tuning Inspect's parallel async architecture for optimal throughput while respecting rate limits.
+llms-description: Running multiple tasks and models in parallel, sandbox concurrency, and writing parallel custom code.
 aliases:
   - eval-tuning.html
 ---
@@ -11,70 +11,16 @@ Inspect runs evaluations using a parallel async architecture, eagerly executing 
 
 There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Below we'll cover the following:
 
-1.  Model API connection concurrency.
-2.  Evaluating multiple models in parallel.
-3.  Evaluating multiple tasks in parallel. 
+1.  Evaluating multiple models in parallel.
+2.  Evaluating multiple tasks in parallel.
 3.  Sandbox environment concurrency.
 4.  Writing parallel code in custom tools, solvers, and scorers.
 
-Inspect uses [asyncio](https://docs.python.org/3/library/asyncio.html) as its async backend by default, but can also be configured to run against [trio](https://trio.readthedocs.io/en/stable/). See the section on [Async Backends](#async-backends) for additional details.
-
-## Model Connections
-
-### Max Connections
-
-Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather *rate limits* imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:
-
-``` bash
-$ inspect eval --model openai/gpt-4 --max-connections 20
-```
-
-The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
-
 ::: {.callout-note appearance="simple"}
-Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
+For tuning model API connection limits and rate-limit handling (`max_connections`, adaptive connections, retries) see [Model Concurrency](models-concurrency.qmd).
 :::
 
-### Rate Limits
-
-When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
-
-![](images/rate-limit.png){fig-alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."}
-
-Here we've set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
-
-You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
-
-### Limiting Retries
-
-By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect's retries using the `--max-retries` option:
-
-``` bash
-inspect eval --model openai/gpt-4 --max-retries 10
-```
-
-Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
-
-You can put a limit on the total time for retries using the `--timeout` option:
-
-``` bash
-inspect eval --model openai/gpt-4 --timeout 600 
-```
-
-### Debugging Retries
-
-If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
-
-``` bash
-inspect eval --model openai/gpt-4 --log-level=http
-```
-
-You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
-
-``` bash
-inspect trace http           # show all http requests
-inspect trace http --failed  # show only failed requests
-```
+Inspect uses [asyncio](https://docs.python.org/3/library/asyncio.html) as its async backend by default, but can also be configured to run against [trio](https://trio.readthedocs.io/en/stable/). See the section on [Async Backends](#async-backends) for additional details.
 
 ## Multiple Models {#sec-multiple-models}
 
@@ -90,7 +36,7 @@ eval("mathematics.py", model=[
 
 ![](images/inspect-multiple-models.png){fig-alt="An evaluation task display showing the progress for 3 different models."}
 
-Since each model provider has its own `max_connections` they don't contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.
+Since each model provider has its own `max_connections` they don't contend with each other for resources (see [Model Concurrency](models-concurrency.qmd) for per-model tuning). If you need to evaluate multiple models, doing so concurrently is highly recommended.
 
 If you want to specify multiple models when using the `--model` CLI argument or `INSPECT_EVAL_MODEL` environment variable, just separate the model names with commas. For example:
 

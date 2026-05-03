@@ -1,6 +1,51 @@
 {
   "components": {
     "schemas": {
+      "AdaptiveConcurrency": {
+        "description": "Bounds and tuning for an adaptive concurrency controller.\n\nBasic fields (`min`, `start`, `max`) bound the range the controller will\nscale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,\n`scale_up_percent`) tune the response curve and have sensible defaults\nfor typical evaluation workloads \u2014 see the parallelism docs for guidance.\nAccepts a string shorthand (\"min-max\" or \"min-start-max\") for use in CLI\nflags and config files; advanced fields are Python-only.",
+        "properties": {
+          "cooldown_seconds": {
+            "default": 15.0,
+            "title": "Cooldown Seconds",
+            "type": "number"
+          },
+          "decrease_factor": {
+            "default": 0.8,
+            "title": "Decrease Factor",
+            "type": "number"
+          },
+          "max": {
+            "default": 200,
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "default": 4,
+            "title": "Min",
+            "type": "integer"
+          },
+          "scale_up_percent": {
+            "default": 0.05,
+            "title": "Scale Up Percent",
+            "type": "number"
+          },
+          "start": {
+            "default": 20,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "start",
+          "cooldown_seconds",
+          "decrease_factor",
+          "scale_up_percent"
+        ],
+        "title": "AdaptiveConcurrency",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -1082,6 +1127,45 @@
           "type"
         ],
         "title": "CompactionEvent",
+        "type": "object"
+      },
+      "ConnectionLimitChange": {
+        "description": "Record of an adaptive-connections controller scale change.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "new_limit": {
+            "title": "New Limit",
+            "type": "integer"
+          },
+          "old_limit": {
+            "title": "Old Limit",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "slow_start",
+              "steady_state_up",
+              "rate_limit"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "model",
+          "old_limit",
+          "new_limit",
+          "reason"
+        ],
+        "title": "ConnectionLimitChange",
         "type": "object"
       },
       "Content": {
@@ -4111,6 +4195,13 @@
             ],
             "title": "Completed At"
           },
+          "connection_limit_history": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionLimitChange"
+            },
+            "title": "Connection Limit History",
+            "type": "array"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -4142,7 +4233,8 @@
           "started_at",
           "completed_at",
           "model_usage",
-          "role_usage"
+          "role_usage",
+          "connection_limit_history"
         ],
         "title": "EvalStats",
         "type": "object"
@@ -4289,6 +4381,20 @@
       "GenerateConfig": {
         "description": "Model generation options.",
         "properties": {
+          "adaptive_connections": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveConcurrency"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adaptive Connections"
+          },
           "attempt_timeout": {
             "anyOf": [
               {

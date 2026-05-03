@@ -31,6 +31,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
@@ -383,24 +384,37 @@ class VLLMAPI(OpenAICompatibleAPI):
         return list(tokens)
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def connection_key(self) -> str:
+        """Scope max_connections per vLLM endpoint.
+
+        Override the OpenAI-compatible default (which keys by api_key) since
+        vLLM is a local server: the rate-limit boundary is the endpoint URL,
+        not the credential. Multiple vLLM servers on different hosts/ports
+        are independent concurrency scopes, but all default to the same
+        api_key (`"inspectai"`) and would otherwise collapse to one slot.
+        """
+        return self.base_url or "vllm"
+
+    @override
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if _is_fatal_vllm_error(ex):
             logger.error(
                 "Detected fatal vLLM error (OOM/illegal CUDA state); not retrying."
             )
-            return False
+            return RetryDecision.no()
 
         if _is_dead_local_vllm_endpoint(ex, self.base_url):
             logger.error(
                 "vLLM endpoint %s is unreachable. Failing fast.",
                 self.base_url,
             )
-            return False
+            return RetryDecision.no()
 
         if self._server.process is not None and not self.server_is_running:
             logger.error("Inspect-managed vLLM server process exited; not retrying.")
-            return False
+            return RetryDecision.no()
 
+        # Defer to the OpenAI-compatible classifier inherited from the base.
         return super().should_retry(ex)
 
     # -- generation ----------------------------------------------------------
