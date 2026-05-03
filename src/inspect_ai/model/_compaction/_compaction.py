@@ -109,6 +109,7 @@ def compaction(
 
     async def compact_fn(
         messages: list[ChatMessage],
+        force: bool = False,
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         from inspect_ai.event._compaction import CompactionEvent
 
@@ -158,7 +159,7 @@ def compaction(
                 message_tokens = await target_model.count_tokens(target_messages)
                 total_tokens = tool_tokens + message_tokens
 
-            if total_tokens > threshold:
+            if force or total_tokens > threshold:
                 # perform compaction (with iteration if needed)
                 c_input, c_message = await _perform_compaction(
                     strategy=strategy,
@@ -208,6 +209,7 @@ def compaction(
                             "strategy": strategy.__class__.__name__,
                             "messages_before": len(target_messages),
                             "messages_after": len(compacted_input),
+                            "trigger": "forced" if force else "threshold",
                         },
                     )
                 )
@@ -247,9 +249,11 @@ def compaction(
 
     class _CompactHandler:
         async def compact_input(
-            self, messages: list[ChatMessage]
+            self,
+            messages: list[ChatMessage],
+            force: bool = False,
         ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
-            return await compact_fn(messages)
+            return await compact_fn(messages, force=force)
 
         async def record_output(
             self, input: list[ChatMessage], output: ModelOutput
