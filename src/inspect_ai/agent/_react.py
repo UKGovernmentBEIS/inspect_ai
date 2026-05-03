@@ -213,7 +213,7 @@ def react(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow)
+                    state, handled = await _handle_overflow(state, overflow, compact)
                     if handled:
                         continue
                     else:
@@ -381,7 +381,7 @@ def react_no_submit(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow)
+                    state, handled = await _handle_overflow(state, overflow, compact)
                     if handled:
                         continue
                     else:
@@ -476,12 +476,46 @@ def _resolve_overflow(
 
 
 async def _handle_overflow(
-    state: AgentState, overflow: MessageFilter | None
+    state: AgentState,
+    overflow: MessageFilter | None,
+    compact: Compact | None = None,
 ) -> tuple[AgentState, bool]:
     from inspect_ai.log._transcript import transcript
 
+    # Drop the failed assistant turn appended by _model_generate; it has no
+    # usable content and the next iteration will generate a fresh one.
+    previous_messages = state.messages[:-1]
+
+    # Try forced compaction first: preserves intent via the same strategy
+    # used for predictive compaction; the overflow filter only truncates.
+    # The success path emits a CompactionEvent (with metadata.trigger='forced')
+    # via compact_fn — no extra transcript().info() needed here.
+    if compact is not None:
+        try:
+            compacted, c_message = await compact.compact_input(
+                previous_messages, force=True
+            )
+            # A successful return means _perform_compaction validated
+            # total_compacted <= threshold, so don't gate on length
+            # (CompactionEdit reduces content, not count).
+            state.messages = compacted
+            # CompactionSummary returns its summary as compacted[-1] AND
+            # as c_message (same object); Trim/Edit/Native return None.
+            # Append only for custom strategies that return a distinct one.
+            if c_message is not None and (
+                not compacted or compacted[-1] is not c_message
+            ):
+                state.messages.append(c_message)
+            return state, True
+        except Exception as ex:
+            # Falling back from configured compaction to the lossy overflow
+            # filter is a real degradation — surface to operator stderr.
+            logger.warning(
+                f"Forced compaction failed during overflow recovery: {ex}; "
+                "falling back to overflow filter."
+            )
+
     if overflow is not None:
-        previous_messages = state.messages[:-1]
         state.messages = await overflow(previous_messages)
         if len(state.messages) < len(previous_messages):
             transcript().info(
@@ -582,6 +616,9 @@ def _model_generate(
             # update the compaction baseline with the actual input token
             # count from the generate call (most accurate source of truth)
             if compact is not None:
+                # On stop_reason='model_length' the recorded baseline may
+                # exceed the context window; _handle_overflow's forced
+                # compaction (if any) resets it during housekeeping.
                 await compact.record_output(input_messages, output)
 
             break
