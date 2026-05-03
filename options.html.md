@@ -134,6 +134,8 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |----|----|
 | `--fail-on-error` | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
 | `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples) |
+| `--retry-on-error` | Retry samples if they encounter errors (no retries by default). Specify `--retry-on-error` to retry once, or `--retry-on-error=N` to retry N times. |
+| `--score-on-error` | Score samples that error rather than failing the eval mid-run. Errors still count toward the `--fail-on-error` threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted. |
 | `--message-limit` | Limit on total messages used for each sample. |
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |

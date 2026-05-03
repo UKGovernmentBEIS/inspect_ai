@@ -191,6 +191,7 @@ The table below shows every overridable parameter and which layers support it:
 | `fail_on_error` | yes | yes | yes | `--fail-on-error` |
 | `continue_on_fail` | yes | yes | yes | `--continue-on-fail` |
 | `retry_on_error` |  |  | yes | `--retry-on-error` |
+| `score_on_error` | yes | yes | yes | `--score-on-error` |
 | `debug_errors` |  |  | yes | `--debug-errors` |
 | **Environment** |  |  |  |  |
 | `sandbox` | yes | yes | yes | `--sandbox` |

@@ -1506,6 +1506,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#retrydecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RetryDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#chatmessage" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ChatMessage</span></a>
   </div>
@@ -2689,6 +2695,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#adaptiveconcurrency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">AdaptiveConcurrency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#display_counter" class="sidebar-item-text sidebar-link">
  <span class="menu-text">display_counter</span></a>
   </div>
@@ -2731,12 +2743,6 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
- <span class="menu-text">resource</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#throttle" class="sidebar-item-text sidebar-link">
  <span class="menu-text">throttle</span></a>
   </div>
@@ -2757,6 +2763,30 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#trace_message" class="sidebar-item-text sidebar-link">
  <span class="menu-text">trace_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#media_resolver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">media_resolver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">resource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#download" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">download</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#gdrive_download" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">gdrive_download</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3176,63 +3206,75 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="even">
+<td><code>--score-on-error</code></td>
+<td>boolean</td>
+<td>Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
 <td><code>--no-log-samples</code></td>
 <td>boolean</td>
 <td>Do not include samples in the log file.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-log-realtime</code></td>
 <td>boolean</td>
 <td>Do not log events in realtime (affects live viewing of samples in inspect view)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-images</code> / <code>--no-log-images</code></td>
 <td>boolean</td>
 <td>Include base64 encoded versions of filename or URL based images in the log file.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-model-api</code> / <code>--no-log-model-api</code></td>
 <td>boolean</td>
 <td>Log raw model api requests and responses. Note that error requests/responses are always logged.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-refusals</code> / <code>--no-log-refusals</code></td>
 <td>boolean</td>
 <td>Log warnings for model refusals.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-shared</code></td>
 <td>text</td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every <code>n</code> seconds).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-score</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-score-display</code></td>
 <td>boolean</td>
 <td>Do not display scoring metrics in realtime.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
+<td>None</td>
+</tr>
+<tr class="odd">
+<td><code>--adaptive-connections</code></td>
+<td>text</td>
+<td>Enable adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback. Pass <code>true</code> for defaults (min=4, start=20, max=200), <code>false</code> to explicitly disable, or bounds as “min-max” (e.g.&nbsp;“4-80”) or “min-start-max” (e.g.&nbsp;“4-20-80”).</td>
 <td>None</td>
 </tr>
 <tr class="even">

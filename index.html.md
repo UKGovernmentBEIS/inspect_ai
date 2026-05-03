@@ -215,6 +215,8 @@ These sections cover how to use various language models with Inspect:
 
 - [Batch Mode](./models-batch.html.md) covers using batch processing APIs for model inference.
 
+- [Model Concurrency](./models-concurrency.html.md) covers tuning model API connection limits, adaptive concurrency, and rate-limit handling.
+
 - [Structured Output](./structured.html.md) explains how to constrain model output to a particular JSON schema.
 
 These sections describe how to create agent evaluations with Inspect:
@@ -251,7 +253,7 @@ These sections discuss more advanced features and workflows. You don’t need to
 
 - [Caching](./caching.html.md) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
-- [Parallelism](./parallelism.html.md) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture—here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
+- [Parallelism](./parallelism.html.md) covers running multiple models or tasks in parallel, sandbox container concurrency, and writing parallel custom code (tools, solvers, scorers). For tuning model API connection limits and rate-limit handling, see [Model Concurrency](./models-concurrency.html.md).
 
 - [Interactivity](./interactivity.html.md) covers various ways to introduce user interaction into the implementation of tasks (for example, prompting the model dynamically based on the trajectory of the evaluation).
 

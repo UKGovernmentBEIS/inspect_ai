@@ -1,5 +1,14 @@
 # changelog – Inspect
 
+## Unreleased
+
+- Add `--adaptive-connections` option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.
+- Add `score_on_error` option to score samples that error rather than failing the task (errors are still counted toward the `fail_on_error` threshold).
+- Add [media_resolver()](./reference/inspect_ai.util.html.md#media_resolver) context manager for scoped URI resolution for media reading (images, audio, etc.).
+- Add [download()](./reference/inspect_ai.util.html.md#download) and [gdrive_download()](./reference/inspect_ai.util.html.md#gdrive_download) helpers for fetching external files with SHA256 verification, caching, and transient-error retry. [gdrive_download()](./reference/inspect_ai.util.html.md#gdrive_download) requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
+- Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Analysis: Fix wrong `working_time` path in [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary) columns.
+
 ## 0.3.216 (01 May 2026)
 
 - OpenRouter: Escape signature attribute in tag round-trip.
@@ -8,6 +17,7 @@
 - Inspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)
 - Inspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)
 - Inspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)
+- Model database: Fix incorrect `input_tokens` for `gpt-5.4`, `gpt-5.4-pro`, `gpt-5.5`, `gpt-5.5-pro` (was 778000, now 922000 = 1,050,000 context − 128,000 output).
 
 ## 0.3.215 (30 April 2026)
 

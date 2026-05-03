@@ -151,7 +151,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#may-2026" id="toc-may-2026" class="nav-link active" data-scroll-target="#may-2026">0.3.216 (01 May 2026)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#may-2026" id="toc-may-2026" class="nav-link" data-scroll-target="#may-2026">0.3.216 (01 May 2026)</a></li>
   <li><a href="#april-2026" id="toc-april-2026" class="nav-link" data-scroll-target="#april-2026">0.3.215 (30 April 2026)</a></li>
   <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.214 (29 April 2026)</a></li>
   <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.213 (27 April 2026)</a></li>
@@ -373,6 +374,17 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Add <code>--adaptive-connections</code> option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.</li>
+<li>Add <code>score_on_error</code> option to score samples that error rather than failing the task (errors are still counted toward the <code>fail_on_error</code> threshold).</li>
+<li>Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#media_resolver">media_resolver()</a></span> context manager for scoped URI resolution for media reading (images, audio, etc.).</li>
+<li>Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#download">download()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#gdrive_download">gdrive_download()</a></span> helpers for fetching external files with SHA256 verification, caching, and transient-error retry. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#gdrive_download">gdrive_download()</a></span> requires the optional <code>gdown</code> dependency, installed via <code>pip install inspect_ai[gdown]</code>.</li>
+<li>Compaction: Lock Compact handler against concurrent AgentBridge calls.</li>
+<li>Analysis: Fix wrong <code>working_time</code> path in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span> columns.</li>
+</ul>
+</section>
 <section id="may-2026" class="level2">
 <h2 class="anchored" data-anchor-id="may-2026">0.3.216 (01 May 2026)</h2>
 <ul>
@@ -382,6 +394,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)</li>
 <li>Inspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)</li>
 <li>Inspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)</li>
+<li>Model database: Fix incorrect <code>input_tokens</code> for <code>gpt-5.4</code>, <code>gpt-5.4-pro</code>, <code>gpt-5.5</code>, <code>gpt-5.5-pro</code> (was 778000, now 922000 = 1,050,000 context − 128,000 output).</li>
 </ul>
 </section>
 <section id="april-2026" class="level2">

@@ -104,6 +104,36 @@ If a sample is retried, the original error(s) that induced the retries will be r
 >
 > Consequently, when enabling `retry_on_error` you should do some post-hoc analysis to ensure that retried samples don’t have significantly different results than samples which are not retried.
 
+## Scoring Errored Samples
+
+Some evaluations are designed so that an error during the agent run is itself a meaningful (often failing) outcome — for example, a tool-using agent that crashes after producing partial state, or a benchmark where “the model errored” should count as a scoreable result rather than as missing data.
+
+The `score_on_error` option causes errored samples to be scored anyway (using whatever [TaskState](./reference/inspect_ai.solver.html.md#taskstate) was reached before the error), and prevents `fail_on_error` from crashing the eval mid-run:
+
+``` bash
+inspect eval ctf.py --score-on-error
+```
+
+Or from Python:
+
+``` python
+eval("ctf.py", score_on_error=True)
+```
+
+When enabled:
+
+- Each errored sample is recorded with both its `error` (so the viewer’s per-sample display, traceback, and error indicators behave exactly as before) **and** its `scores` (so the sample contributes to metrics).
+
+- `score_on_error` only fires after retries (if any) are exhausted, so it composes with `retry_on_error` — intermediate failed retries are not scored, only the final attempt is.
+
+- Errors are still counted toward the `fail_on_error` threshold for marking the eval log status. So `--score-on-error --fail-on-error=0.1` will score every errored sample but mark the log as `"error"` if more than 10% of samples errored. `--score-on-error --no-fail-on-error` always finalises as `"success"`.
+
+- When used inside [eval_set()](./reference/inspect_ai.html.md#eval_set), errored-but-scored samples are still re-run on task-level retries (the previously-successful samples are reused as usual).
+
+> **NOTE:**
+>
+> Your scorer must be able to run on a partial [TaskState](./reference/inspect_ai.solver.html.md#taskstate). The state passed to scorers reflects whatever was populated before the error was raised — it may not have a model output, may have an incomplete message history, etc. If your scorer would itself raise on a partial state, the sample will end up with an error and no score (the same as if `score_on_error` were off).
+
 ## Crash Recovery
 
 When an eval process dies unexpectedly (out-of-memory, segfault, `kill`, power failure, etc.), the eval log is left in an incomplete state:

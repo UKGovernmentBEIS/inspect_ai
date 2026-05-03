@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Typing – Inspect</title>
+<title>Model Concurrency – Inspect</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -68,8 +68,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./tracing.html" rel="next">
-<link href="./setting-limits.html" rel="prev">
+<link href="./compaction.html" rel="next">
+<link href="./models-batch.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -81,6 +81,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -183,7 +186,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./typing.html">Typing</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./models-concurrency.html">Concurrency</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -312,7 +315,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link">
+  <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Concurrency</span></a>
   </div>
 </li>
@@ -494,7 +497,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./typing.html" class="sidebar-item-text sidebar-link active">
+  <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
 </li>
@@ -541,18 +544,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#typed-store" id="toc-typed-store" class="nav-link" data-scroll-target="#typed-store">Typed Store</a></li>
-  <li><a href="#typed-metadata" id="toc-typed-metadata" class="nav-link" data-scroll-target="#typed-metadata">Typed Metadata</a></li>
-  <li><a href="#log-samples" id="toc-log-samples" class="nav-link" data-scroll-target="#log-samples">Log Samples</a></li>
+  <li><a href="#max-connections" id="toc-max-connections" class="nav-link" data-scroll-target="#max-connections">Max Connections</a></li>
+  <li><a href="#rate-limits" id="toc-rate-limits" class="nav-link" data-scroll-target="#rate-limits">Rate Limits</a></li>
+  <li><a href="#adaptive-connections" id="toc-adaptive-connections" class="nav-link" data-scroll-target="#adaptive-connections">Adaptive Connections</a>
+  <ul class="collapse">
+  <li><a href="#bounds-tuning" id="toc-bounds-tuning" class="nav-link" data-scroll-target="#bounds-tuning">Bounds Tuning</a></li>
+  <li><a href="#retry-types" id="toc-retry-types" class="nav-link" data-scroll-target="#retry-types">Retry Types</a></li>
+  <li><a href="#advanced-tuning" id="toc-advanced-tuning" class="nav-link" data-scroll-target="#advanced-tuning">Advanced Tuning</a></li>
+  <li><a href="#limit-history" id="toc-limit-history" class="nav-link" data-scroll-target="#limit-history">Limit History</a></li>
+  </ul></li>
+  <li><a href="#limiting-retries" id="toc-limiting-retries" class="nav-link" data-scroll-target="#limiting-retries">Limiting Retries</a></li>
+  <li><a href="#debugging-retries" id="toc-debugging-retries" class="nav-link" data-scroll-target="#debugging-retries">Debugging Retries</a></li>
+  <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./typing.html">Typing</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./models-concurrency.html">Concurrency</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Typing</h1>
+<h1 class="title">Model Concurrency</h1>
 </div>
 
 
@@ -571,90 +583,131 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect codebase is written using strict <a href="https://mypy-lang.org/">MyPy</a> type-checking—if you enable the same for your project along with installing the <a href="https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker">MyPy VS Code Extension</a> you’ll benefit from all of these type definitions.</p>
-<p>The sample store and sample metadata interfaces are weakly typed to accommodate arbitrary user data structures. Below, we describe how to implement a <a href="#typed-store">typed store</a> and <a href="#typed-metadata">typed metadata</a> using Pydantic models.</p>
+<p>Model API rate limits typically constrain evaluation throughput more than anything else. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limit and transient errors.</p>
+<p>Two modes are available:</p>
+<ul>
+<li><p>Static. Set a fixed <code>--max-connections</code> value. You need to know the right number for your tier.</p></li>
+<li><p>Adaptive. Use <code>--adaptive-connections</code> to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.</p></li>
+</ul>
+<p>This page covers both modes, plus retry tuning and debugging. For other forms of parallelism (multiple tasks, sandbox containers, custom code), see <a href="./parallelism.html">Parallelism</a>. For provider-side batch APIs, which run on a separate quota and use a different concurrency model, see <a href="./models-batch.html">Batch Mode</a>.</p>
 </section>
-<section id="typed-store" class="level2">
-<h2 class="anchored" data-anchor-id="typed-store">Typed Store</h2>
-<p>If you prefer a typesafe interface to the sample store, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> which reads and writes values into the store. There are several benefits to using Pydantic models for store access:</p>
-<ol type="1">
-<li>You can provide type annotations and validation rules for all fields.</li>
-<li>Default values for all fields are declared using standard Pydantic syntax.</li>
-<li>Store names are automatically namespaced (to prevent conflicts between multiple store accessors).</li>
-</ol>
-<section id="definition" class="level4">
-<h4 class="anchored" data-anchor-id="definition">Definition</h4>
-<p>First, derive a class from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> (which in turn derives from Pydantic <code>BaseModel</code>):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Activity(StoreModel):</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    active: <span class="bu">bool</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    tries: <span class="bu">int</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    actions: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> Field(default_factory<span class="op">=</span><span class="bu">list</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that we define defaults for all fields. This is generally required so that you can initialise your Pydantic model from an empty store. For collections (<code>list</code> and <code>dict</code>) you should use <code>default_factory</code> so that each instance gets its own default.</p>
-<p>There are two special field names that you cannot use in your <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span>: the <code>store</code> field is used as a reference to the underlying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> and the optional <code>instance</code> field is used to provide a scope for use of multiple instances of a store model within a sample.</p>
+<section id="max-connections" class="level2">
+<h2 class="anchored" data-anchor-id="max-connections">Max Connections</h2>
+<p>Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather <em>rate limits</em> imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get <em>worse</em> performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).</p>
+</div>
+</div>
+</div>
 </section>
-<section id="usage" class="level4">
-<h4 class="anchored" data-anchor-id="usage">Usage</h4>
-<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function to get a typesafe interface to the store based on your model:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># typed interface to store from state</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> state.store_as(Activity)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>activity.active <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>activity.tries <span class="op">+=</span> <span class="dv">1</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># global store_as() function (e.g. for use from tools)</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store_as</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> store_as(Activity)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that all instances of <code>Activity</code> created within a running sample share the same sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> so can see each other’s changes. For example, you can call <code>state.store_as()</code> in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance.</p>
-<p>The names used in the underlying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> are namespaced to prevent collisions with other <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> accessors. For example, the <code>active</code> field in the <code>Activity</code> class is written to the store with the name <code>Activity:active</code>.</p>
+<section id="rate-limits" class="level2">
+<h2 class="anchored" data-anchor-id="rate-limits">Rate Limits</h2>
+<p>When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):</p>
+<p><a href="images/rate-limit.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/rate-limit.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."></a></p>
+<p>Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using <a href="https://en.wikipedia.org/wiki/Exponential_backoff">exponential backoff</a>, and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.</p>
+<p>You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.</p>
 </section>
-<section id="namespaces" class="level4">
-<h4 class="anchored" data-anchor-id="namespaces">Namespaces</h4>
-<p>If you need to create multiple instances of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> within a sample, you can use the <code>instance</code> parameter to deliniate multiple named instances. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>red_activity <span class="op">=</span> state.store_as(Activity, instance<span class="op">=</span><span class="st">"red_team"</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>blue_activity <span class="op">=</span> state.store_as(Activity, instance<span class="op">=</span><span class="st">"blue_team"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="adaptive-connections" class="level2">
+<h2 class="anchored" data-anchor-id="adaptive-connections">Adaptive Connections</h2>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The adaptive connections feature described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p>Tuning <code>--max-connections</code> by hand is awkward: you have to guess a value, watch for retries, and re-tune for different times of day or different rate-limit tiers. The <code>--adaptive-connections</code> option does this for you. It starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4o <span class="at">--adaptive-connections</span> true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>By default a per-model controller starts at 20 concurrent connections and scales between 4 and 200. The controller scales down on rate-limit retries, so a high <code>max</code> is harmless for low-tier accounts (they’ll never reach it) and useful for high-tier accounts where Inspect would otherwise leave capacity on the floor.</p>
+<p>When adaptive connections is in effect, <code>max_samples</code> automatically tracks the controller’s current limit (with a small buffer), so sample setup work like creating sandbox containers stays proportional to actual model concurrency rather than the maximum bound.</p>
+<section id="bounds-tuning" class="level3">
+<h3 class="anchored" data-anchor-id="bounds-tuning">Bounds Tuning</h3>
+<p>The bounds (<code>min</code>, <code>start</code>, <code>max</code>) are the everyday tuning knobs. <code>start</code> is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and <code>max</code> is the ceiling.</p>
+<p>Pass a string shorthand. <code>min-max</code> constrains the range (<code>start</code> defaults to 20, clamped into the range):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4o <span class="at">--adaptive-connections</span> <span class="st">"4-80"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>min-start-max</code> also sets the starting value:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4o <span class="at">--adaptive-connections</span> <span class="st">"4-40-80"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>In Python, pass <code>True</code> for defaults or an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#adaptiveconcurrency">AdaptiveConcurrency</a></span> to customize:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> AdaptiveConcurrency</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task.py"</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(<span class="bu">min</span><span class="op">=</span><span class="dv">4</span>, <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>),</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>A rule of thumb for <code>max</code> is <em>(tier RPM × average request seconds) ÷ 60</em>. On a 60 RPM tier with 3-second requests, a <code>max</code> near 3 is enough; on a 4,000 RPM tier with 1.5-second requests, a <code>max</code> around 100 starts to make sense.</p>
 </section>
-<section id="explicit-store" class="level4">
-<h4 class="anchored" data-anchor-id="explicit-store">Explicit Store</h4>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function automatically binds to the current sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>. You can alternatively create an explicit <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> and pass it directly to the model (e.g.&nbsp;for testing purposes):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Store</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>store <span class="op">=</span> Store()</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> Activity(store<span class="op">=</span>store)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="retry-types" class="level3">
+<h3 class="anchored" data-anchor-id="retry-types">Retry Types</h3>
+<p>The controller distinguishes two kinds of retries.</p>
+<ul>
+<li><p>Rate-limit retries: HTTP 429, plus per-provider equivalents like Bedrock <code>ThrottlingException</code> and Google <code>503 RESOURCE_EXHAUSTED</code>. These shrink the limit by <code>decrease_factor</code> (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.</p></li>
+<li><p>Transient retries: 5xx, timeouts, and network errors. These pause scale-up (the eventual success won’t count toward growth) but do not shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn’t help an upstream outage. Each provider’s <code>should_retry()</code> classifies its own errors via a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#retrydecision">RetryDecision</a></span>, so genuinely-rate-limited 5xx codes are still counted as rate-limit signals where applicable.</p></li>
+</ul>
+<p>After a rate-limit cut, the controller waits at least <code>cooldown_seconds</code> (default 15s) before allowing another cut. If the response carries a <code>Retry-After</code> header, the cooldown extends to honor it. When <code>Retry-After</code> is absent, Inspect falls back to provider-specific reset-window headers: <code>x-ratelimit-reset-requests</code> and <code>x-ratelimit-reset-tokens</code> (OpenAI, Groq, Azure OpenAI), and <code>anthropic-ratelimit-*-reset</code> (Anthropic).</p>
+<p>Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.</p>
+</section>
+<section id="advanced-tuning" class="level3">
+<h3 class="anchored" data-anchor-id="advanced-tuning">Advanced Tuning</h3>
+<p>The response curve is also tunable. These fields are Python-only (CLI shorthand stays at <code>min-max</code> / <code>min-start-max</code>):</p>
+<ul>
+<li><p><code>cooldown_seconds</code> (default 15): minimum debounce between scale-down cuts. Larger for long-running agent loops where each rate-limit episode takes longer to clear; smaller for short request workloads.</p></li>
+<li><p><code>decrease_factor</code> (default 0.8): multiplicative cut on each rate-limit episode. More aggressive (e.g.&nbsp;0.5) for volatile tiers where overshoots are common; gentler when tiers are stable.</p></li>
+<li><p><code>scale_up_percent</code> (default 0.05): additive growth per clean round in steady state. Increase for short evals where slow ramp-up doesn’t have time to converge.</p></li>
+</ul>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> AdaptiveConcurrency</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task.py"</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">min</span><span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        cooldown_seconds<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        decrease_factor<span class="op">=</span><span class="fl">0.5</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        scale_up_percent<span class="op">=</span><span class="fl">0.1</span>,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="limit-history" class="level3">
+<h3 class="anchored" data-anchor-id="limit-history">Limit History</h3>
+<p>The full history of scale changes is captured in the eval log under <code>stats.connection_limit_history</code>. Each entry records the timestamp, model, old and new limits, and a <code>reason</code> of <code>slow_start</code>, <code>steady_state_up</code>, or <code>rate_limit</code>. Only <code>rate_limit</code> reflects an actual scale-down (transient infra noise no longer appears here). You can stream the same events live in the trace log:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace dump <span class="at">--filter</span> <span class="st">"[connections]"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
-<section id="typed-metadata" class="level2">
-<h2 class="anchored" data-anchor-id="typed-metadata">Typed Metadata</h2>
-<p>If you want a more strongly typed interface to sample metadata, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> and use it to both validate and read metadata.</p>
-<p>For validation, pass a <code>BaseModel</code> derived class in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span>. The interface to metadata is read-only so you must also specify <code>frozen=True</code>. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PopularityMetadata(BaseModel, frozen<span class="op">=</span><span class="va">True</span>):</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    category: <span class="bu">str</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    label_confidence: <span class="bu">float</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"popularity.jsonl"</span>,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    FieldSpec(</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"question"</span>,</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"answer_matching_behavior"</span>,</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        <span class="bu">id</span><span class="op">=</span><span class="st">"question_id"</span>,</span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>PopularityMetadata,</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>To read metadata in a typesafe fashion, use the <code>metadata_as()</code> method on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> state.metadata_as(PopularityMetadata)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note again that the intended semantics of <code>metadata</code> are read-only, so attempting to write into the returned metadata will raise a Pydantic <code>FrozenInstanceError</code>.</p>
-<p>If you need per-sample mutable data, use the <a href="./agent-custom.html#sample-store">sample store</a>, which also supports <a href="./agent-custom.html#store-typing">typing</a> using Pydantic models.</p>
+<section id="limiting-retries" class="level2">
+<h2 class="anchored" data-anchor-id="limiting-retries">Limiting Retries</h2>
+<p>By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect’s retries using the <code>--max-retries</code> option:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-retries</span> 10</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Note that model interfaces themselves may have internal retry behavior (for example, the <code>openai</code> and <code>anthropic</code> packages both retry twice by default).</p>
+<p>You can put a limit on the total time for retries using the <code>--timeout</code> option:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--timeout</span> 600</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
-<section id="log-samples" class="level2">
-<h2 class="anchored" data-anchor-id="log-samples">Log Samples</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> and <code>metadata_as()</code> typed accessors are also available when reading samples from the eval log. Continuing from the examples above, you access typed interfaces as follows from an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># typed store</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> log.samples[<span class="dv">0</span>].store_as(Activity)</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># typed metadata</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> log.samples[<span class="dv">0</span>].metadata_as(PopularityMetadata)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="debugging-retries" class="level2">
+<h2 class="anchored" data-anchor-id="debugging-retries">Debugging Retries</h2>
+<p>If you want more insight into Model API connections and retries, specify <code>log_level=http</code>. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--log-level</span><span class="op">=</span>http</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You can also view all of the HTTP requests for the current (or most recent) evaluation run using the <code>inspect trace http</code> command. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http           <span class="co"># show all http requests</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http <span class="at">--failed</span>  <span class="co"># show only failed requests</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="learning-more" class="level2">
+<h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
+<ul>
+<li><p><a href="./parallelism.html">Parallelism</a>: running multiple tasks or models in parallel, sandbox container concurrency, and writing parallel custom code.</p></li>
+<li><p><a href="./models-batch.html">Batch Mode</a>: provider-side batch APIs (separate quota, longer turnaround, lower per-token cost).</p></li>
+</ul>
 
 
 </section>
@@ -1171,13 +1224,13 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./setting-limits.html" class="pagination-link" aria-label="Setting Limits">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Setting Limits</span>
+      <a href="./models-batch.html" class="pagination-link" aria-label="Batch Mode">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Batch Mode</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tracing.html" class="pagination-link" aria-label="Tracing">
-        <span class="nav-page-text">Tracing</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./compaction.html" class="pagination-link" aria-label="Compaction">
+        <span class="nav-page-text">Compaction</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1235,6 +1288,38 @@ document.addEventListener("DOMContentLoaded", function () {
     </div>
   </div>
 </footer>
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
 
 
 

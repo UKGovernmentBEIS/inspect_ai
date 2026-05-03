@@ -1506,6 +1506,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#retrydecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RetryDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#chatmessage" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ChatMessage</span></a>
   </div>
@@ -2689,6 +2695,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#adaptiveconcurrency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">AdaptiveConcurrency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#display_counter" class="sidebar-item-text sidebar-link">
  <span class="menu-text">display_counter</span></a>
   </div>
@@ -2731,12 +2743,6 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
- <span class="menu-text">resource</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#throttle" class="sidebar-item-text sidebar-link">
  <span class="menu-text">throttle</span></a>
   </div>
@@ -2757,6 +2763,30 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#trace_message" class="sidebar-item-text sidebar-link">
  <span class="menu-text">trace_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#media_resolver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">media_resolver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">resource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#download" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">download</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#gdrive_download" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">gdrive_download</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3315,112 +3345,124 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="odd">
+<td><code>--adaptive-connections</code></td>
+<td>text</td>
+<td>Enable adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback. Pass <code>true</code> for defaults (min=4, start=20, max=200), <code>false</code> to explicitly disable, or bounds as “min-max” (e.g.&nbsp;“4-80”) or “min-start-max” (e.g.&nbsp;“4-20-80”).</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--attempt-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-samples</code></td>
 <td>integer</td>
 <td>Maximum number of samples to run in parallel (default is running all samples in parallel)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-dataset-memory</code></td>
 <td>integer range (<code>0</code> and above)</td>
 <td>Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
 <td>Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-subprocesses</code></td>
 <td>integer</td>
 <td>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-sandboxes</code></td>
 <td>integer</td>
 <td>Maximum number of sandboxes (per-provider) to run in parallel.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--message-limit</code></td>
 <td>integer</td>
 <td>Limit on total messages used for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--token-limit</code></td>
 <td>integer</td>
 <td>Limit on total tokens used for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--cost-limit</code></td>
 <td>float</td>
 <td>Limit on total cost (in dollars) for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--model-cost-config</code></td>
 <td>text</td>
 <td>YAML or JSON file with model prices for cost tracking.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--time-limit</code></td>
 <td>integer</td>
 <td>Limit on total running time for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--working-limit</code></td>
 <td>integer</td>
 <td>Limit on total working time (e.g.&nbsp;model generation, tool calls, etc.) for each sample.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--fail-on-error</code></td>
 <td>float</td>
 <td>Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-fail-on-error</code></td>
 <td>boolean</td>
 <td>Do not fail the eval if errors occur within samples (instead, continue running other samples)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--continue-on-fail</code></td>
 <td>boolean</td>
 <td>Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--retry-on-error</code></td>
 <td>text</td>
 <td>Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g.&nbsp;<code>--retry-on-error=3</code> to retry multiple times.</td>
 <td>None</td>
+</tr>
+<tr class="even">
+<td><code>--score-on-error</code></td>
+<td>boolean</td>
+<td>Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted.</td>
+<td><code>False</code></td>
 </tr>
 <tr class="odd">
 <td><code>--no-log-samples</code></td>

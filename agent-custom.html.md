@@ -170,7 +170,7 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
                 state.messages.append(state.output.message)
 
 3                # record output for token calibration
-                compact.record_output(state.output)
+                await compact.record_output(input, state.output)
 
                 # make tool calls or terminate if there are none
                 if state.output.message.tool_calls:
@@ -197,7 +197,7 @@ Call `record_output()` after `model.generate()` to calibrate token estimation us
 
 > **NOTE: Note**
 >
-> The returned `compact` handler maintains internal state and is designed for sequential use within a single conversation’s agent loop. Do not call it concurrently.
+> The returned `compact` handler maintains internal state for a single growing conversation history. Concurrent calls within the same conversation are safe, but do not share one handler across divergent message histories — the compacted result mixes them.
 
 There are various configurable compaction strategies available—see the [Compaction](./compaction.html.md) documentation for details.
 

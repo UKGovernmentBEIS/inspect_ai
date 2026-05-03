@@ -34,6 +34,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--epochs-reducer` | text | Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least\_{n}’. | None |
 | `--no-epochs-reducer` | boolean | Do not reduce per-epoch sample scores. | `False` |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
+| `--adaptive-connections` | text | Enable adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback. Pass `true` for defaults (min=4, start=20, max=200), `false` to explicitly disable, or bounds as “min-max” (e.g. “4-80”) or “min-start-max” (e.g. “4-20-80”). | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
 | `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
@@ -52,6 +53,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--no-fail-on-error` | boolean | Do not fail the eval if errors occur within samples (instead, continue running other samples) | `False` |
 | `--continue-on-fail` | boolean | Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval). | `False` |
 | `--retry-on-error` | text | Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times. | None |
+| `--score-on-error` | boolean | Score samples that error rather than failing the eval mid-run. Errors still count toward the –fail-on-error threshold for marking the log as ‘error’. Only fires after retries (if any) are exhausted. | `False` |
 | `--no-log-samples` | boolean | Do not include samples in the log file. | `False` |
 | `--no-log-realtime` | boolean | Do not log events in realtime (affects live viewing of samples in inspect view) | `False` |
 | `--log-images` / `--no-log-images` | boolean | Include base64 encoded versions of filename or URL based images in the log file. | `True` |

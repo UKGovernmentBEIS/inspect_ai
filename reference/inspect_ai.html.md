@@ -6,7 +6,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/eval.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/eval.py#L90)
 
 ``` python
 def eval(
@@ -35,6 +35,7 @@ def eval(
     fail_on_error: bool | float | None = ...,
     continue_on_fail: bool | None = ...,
     retry_on_error: int | None = ...,
+    score_on_error: bool | None = ...,
     debug_errors: bool | None = ...,
     message_limit: int | None = ...,
     token_limit: int | None = ...,
@@ -65,6 +66,7 @@ def eval(
     timeout: int | None = ...,
     attempt_timeout: int | None = ...,
     max_connections: int | None = ...,
+    adaptive_connections: bool | AdaptiveConcurrency | None = ...,
     system_message: str | None = ...,
     max_tokens: int | None = ...,
     top_p: float | None = ...,
@@ -174,6 +176,9 @@ Epochs to repeat samples for and optional score reducer function(s) used to comb
 `retry_on_error` int \| None  
 Number of times to retry samples if they encounter errors (by default, no retries occur).
 
+`score_on_error` bool \| None  
+Score samples that error rather than failing the eval mid-run. Errors still count toward the `fail_on_error` threshold for marking the eval log as ‘error’. Only takes effect after retries (if any) are exhausted.
+
 `debug_errors` bool \| None  
 Raise task errors (rather than logging them) so they can be debugged (defaults to False).
 
@@ -260,6 +265,9 @@ Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt an
 
 `max_connections` int \| None  
 Maximum number of concurrent connections to Model API (default is model specific).
+
+`adaptive_connections` bool \| [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) \| None  
+Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=200), or pass [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency.
 
 `system_message` str \| None  
 Override the default system message.
@@ -358,7 +366,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/eval.py#L831)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/eval.py#L844)
 
 ``` python
 def eval_retry(
@@ -377,6 +385,7 @@ def eval_retry(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
@@ -391,6 +400,7 @@ def eval_retry(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    adaptive_connections: bool | AdaptiveConcurrency | None = None,
 ) -> list[EvalLog]
 ```
 
@@ -439,6 +449,9 @@ Task display type (defaults to ‘full’).
 `retry_on_error` int \| None  
 Number of times to retry samples if they encounter errors (by default, no retries occur).
 
+`score_on_error` bool \| None  
+Score samples that error rather than failing the eval mid-run. Errors still count toward the `fail_on_error` threshold for marking the eval log as ‘error’. Only takes effect after retries (if any) are exhausted.
+
 `debug_errors` bool \| None  
 Raise task errors (rather than logging them) so they can be debugged (defaults to False).
 
@@ -481,11 +494,14 @@ Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt an
 `max_connections` int \| None  
 Maximum number of concurrent connections to Model API (default is per Model API)
 
+`adaptive_connections` bool \| [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) \| None  
+Enable adaptive concurrency for Model API connections. `True` for defaults (min=4, start=20, max=200), or pass an [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency.
+
 ### eval_set
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/evalset.py#L100)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/evalset.py#L100)
 
 ``` python
 def eval_set(
@@ -520,6 +536,7 @@ def eval_set(
     fail_on_error: bool | float | None = ...,
     continue_on_fail: bool | None = ...,
     retry_on_error: int | None = ...,
+    score_on_error: bool | None = ...,
     debug_errors: bool | None = ...,
     message_limit: int | None = ...,
     token_limit: int | None = ...,
@@ -549,6 +566,7 @@ def eval_set(
     timeout: int | None = ...,
     attempt_timeout: int | None = ...,
     max_connections: int | None = ...,
+    adaptive_connections: bool | AdaptiveConcurrency | None = ...,
     system_message: str | None = ...,
     max_tokens: int | None = ...,
     top_p: float | None = ...,
@@ -676,6 +694,9 @@ Epochs to repeat samples for and optional score reducer function(s) used to comb
 `retry_on_error` int \| None  
 Number of times to retry samples if they encounter errors (by default, no retries occur).
 
+`score_on_error` bool \| None  
+Score samples that error rather than failing the eval mid-run. Errors still count toward the `fail_on_error` threshold for marking the eval log as ‘error’. Only takes effect after retries (if any) are exhausted.
+
 `debug_errors` bool \| None  
 Raise task errors (rather than logging them) so they can be debugged (defaults to False).
 
@@ -759,6 +780,9 @@ Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt an
 
 `max_connections` int \| None  
 Maximum number of concurrent connections to Model API (default is model specific).
+
+`adaptive_connections` bool \| [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) \| None  
+Enable adaptive concurrency for model API connections. `True` for defaults (min=4, start=20, max=200), or pass [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` overrides this and uses static concurrency.
 
 `system_message` str \| None  
 Override the default system message.
@@ -857,7 +881,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/score.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/score.py#L70)
 
 ``` python
 def score(
@@ -902,7 +926,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/task.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/task.py#L60)
 
 ``` python
 class Task
@@ -913,7 +937,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/task.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/task.py#L66)
 
 ``` python
 def __init__(
@@ -932,6 +956,7 @@ def __init__(
     epochs: int | Epochs | None = ...,
     fail_on_error: bool | float | None = ...,
     continue_on_fail: bool | None = ...,
+    score_on_error: bool | None = ...,
     message_limit: int | None = ...,
     token_limit: int | None = ...,
     time_limit: int | None = ...,
@@ -994,6 +1019,9 @@ Epochs to repeat samples for and optional score reducer function(s) used to comb
 `continue_on_fail` bool \| None  
 `True` to continue running and only fail at the end if the `fail_on_error` condition is met. `False` to fail eval immediately when the `fail_on_error` condition is met (default).
 
+`score_on_error` bool \| None  
+`True` to score samples that error rather than failing the eval mid-run. Errors still count toward the `fail_on_error` threshold for marking the eval log as ‘error’. Only takes effect after retries (if any) are exhausted.
+
 `message_limit` int \| None  
 Limit on total messages used for each sample.
 
@@ -1044,7 +1072,7 @@ Task adapted with alternate values for one or more options.
 
 This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using [task_with()](../reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/task.py#L231)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/task.py#L236)
 
 ``` python
 def task_with(
@@ -1071,6 +1099,7 @@ def task_with(
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
+    score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
@@ -1130,6 +1159,9 @@ Epochs to repeat samples for and optional score reducer function(s) used to comb
 `continue_on_fail` bool \| None \| NotGiven  
 `True` to continue running and only fail at the end if the `fail_on_error` condition is met. `False` to fail eval immediately when the `fail_on_error` condition is met (default).
 
+`score_on_error` bool \| None \| NotGiven  
+`True` to score samples that error rather than failing the eval mid-run. Errors still count toward the `fail_on_error` threshold for marking the eval log as ‘error’. Only takes effect after retries (if any) are exhausted.
+
 `message_limit` int \| None \| NotGiven  
 Limit on total messages used for each sample.
 
@@ -1169,7 +1201,7 @@ Task epochs.
 
 Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -1185,7 +1217,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -1201,7 +1233,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/task.py#L377)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/task.py#L388)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -1224,7 +1256,7 @@ One or more tasks.
 
 Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1253,7 +1285,7 @@ Tasks: TypeAlias = (
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_view/view.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_view/view.py#L25)
 
 ``` python
 def view(
@@ -1294,7 +1326,7 @@ Additional arguments to pass through to the filesystem provider (e.g. `S3FileSy
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a4257f7045c7e4a8915d9aff7af064ceb4bf2618/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any
