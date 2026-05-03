@@ -19,6 +19,10 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
+from inspect_ai.model._compaction._compat import (
+    compact_input_compat,
+    record_output_compat,
+)
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._trim import trim_messages
 from inspect_ai.scorer._score import score
@@ -492,8 +496,8 @@ async def _handle_overflow(
     # via compact_fn — no extra transcript().info() needed here.
     if compact is not None:
         try:
-            compacted, c_message = await compact.compact_input(
-                previous_messages, force=True
+            compacted, c_message = await compact_input_compat(
+                compact, previous_messages, force=True
             )
             # A successful return means _perform_compaction validated
             # total_compacted <= threshold, so don't gate on length
@@ -592,7 +596,9 @@ def _model_generate(
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
         # optionally perform compaction on the input
         if compact is not None:
-            input_messages, c_message = await compact.compact_input(state.messages)
+            input_messages, c_message = await compact_input_compat(
+                compact, state.messages
+            )
             if c_message is not None:
                 state.messages.append(c_message)
         else:
@@ -619,7 +625,7 @@ def _model_generate(
                 # On stop_reason='model_length' the recorded baseline may
                 # exceed the context window; _handle_overflow's forced
                 # compaction (if any) resets it during housekeeping.
-                await compact.record_output(input_messages, output)
+                await record_output_compat(compact, input_messages, output)
 
             break
         return state

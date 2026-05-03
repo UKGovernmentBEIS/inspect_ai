@@ -6,6 +6,10 @@ from typing_extensions import TypeIs
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._compaction._compat import (
+    compact_input_compat,
+    record_output_compat,
+)
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
     GenerateFilter,
@@ -75,7 +79,7 @@ async def bridge_generate(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        input_messages, c_message = await compact.compact_input(input)
+        input_messages, c_message = await compact_input_compat(compact, input)
     else:
         input_messages = input
         c_message = None
@@ -127,7 +131,7 @@ async def bridge_generate(
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)
         if compact is not None:
-            await compact.record_output(input_messages, output)
+            await record_output_compat(compact, input_messages, output)
 
         # Check for refusal and retry if needed
         if (

@@ -840,3 +840,175 @@ async def test_force_compaction_skips_threshold() -> None:
         f"force=True should trigger compaction (trim with preserve=0.5); "
         f"got {len(result_forced)} vs {len(messages)} messages"
     )
+
+
+# ==============================================================================
+# Backward-compat shim tests (compat helpers in _compaction/_compat.py)
+# ==============================================================================
+async def test_legacy_compact_input_without_force() -> None:
+    """A legacy `compact_input(messages)` (no `force`) is still callable."""
+    from inspect_ai.model._compaction import _compat
+    from inspect_ai.model._compaction._compat import compact_input_compat
+    from inspect_ai.model._model_output import ModelOutput
+
+    _compat._sig_cache.clear()
+
+    received: dict[str, object] = {}
+
+    class LegacyCompact:
+        async def compact_input(
+            self, messages: list[ChatMessage]
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            received["messages"] = messages
+            return messages, None
+
+        async def record_output(
+            self, input: list[ChatMessage], output: ModelOutput
+        ) -> None:
+            pass
+
+    compact = LegacyCompact()
+    msgs: list[ChatMessage] = [user_msg("hello", "u1")]
+
+    # Even with force=True, legacy impls should still be invoked (without force).
+    # The fake intentionally lacks `force`; the helper falls back at runtime.
+    result, summary = await compact_input_compat(compact, msgs, force=True)  # type: ignore[arg-type]
+    assert result == msgs
+    assert summary is None
+    assert received["messages"] is msgs
+
+
+async def test_legacy_record_output_sync_single_arg() -> None:
+    """A legacy sync `record_output(output)` is awaited without raising."""
+    from inspect_ai.model._compaction import _compat
+    from inspect_ai.model._compaction._compat import record_output_compat
+    from inspect_ai.model._model_output import ModelOutput
+
+    _compat._sig_cache.clear()
+
+    calls: list[tuple[object, ...]] = []
+
+    class LegacySyncCompact:
+        async def compact_input(
+            self, messages: list[ChatMessage], force: bool = False
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            return messages, None
+
+        def record_output(self, output: ModelOutput) -> None:
+            calls.append((output,))
+
+    compact = LegacySyncCompact()
+    output = ModelOutput()
+    msgs: list[ChatMessage] = [user_msg("hi", "u1")]
+
+    # Fake intentionally has the legacy single-arg sync record_output.
+    await record_output_compat(compact, msgs, output)  # type: ignore[arg-type]
+    assert calls == [(output,)]
+
+
+async def test_legacy_record_output_async_single_arg() -> None:
+    """A legacy `async def record_output(output)` is awaited correctly."""
+    from inspect_ai.model._compaction import _compat
+    from inspect_ai.model._compaction._compat import record_output_compat
+    from inspect_ai.model._model_output import ModelOutput
+
+    _compat._sig_cache.clear()
+
+    calls: list[tuple[object, ...]] = []
+
+    class LegacyAsyncCompact:
+        async def compact_input(
+            self, messages: list[ChatMessage], force: bool = False
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            return messages, None
+
+        async def record_output(self, output: ModelOutput) -> None:
+            calls.append((output,))
+
+    compact = LegacyAsyncCompact()
+    output = ModelOutput()
+    msgs: list[ChatMessage] = [user_msg("hi", "u1")]
+
+    # Fake intentionally has the legacy single-arg async record_output.
+    await record_output_compat(compact, msgs, output)  # type: ignore[arg-type]
+    assert calls == [(output,)]
+
+
+async def test_modern_record_output_passes_input() -> None:
+    """A modern `record_output(input, output)` receives both arguments."""
+    from inspect_ai.model._compaction import _compat
+    from inspect_ai.model._compaction._compat import record_output_compat
+    from inspect_ai.model._model_output import ModelOutput
+
+    _compat._sig_cache.clear()
+
+    calls: list[tuple[object, object]] = []
+
+    class ModernCompact:
+        async def compact_input(
+            self, messages: list[ChatMessage], force: bool = False
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            return messages, None
+
+        async def record_output(
+            self, input: list[ChatMessage], output: ModelOutput
+        ) -> None:
+            calls.append((input, output))
+
+    compact = ModernCompact()
+    output = ModelOutput()
+    msgs: list[ChatMessage] = [user_msg("hi", "u1")]
+
+    await record_output_compat(compact, msgs, output)
+    assert calls == [(msgs, output)]
+
+
+async def test_compat_signature_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`inspect.signature` is invoked at most once per underlying function."""
+    import inspect as _inspect
+    from typing import Any
+
+    from inspect_ai.model._compaction import _compat
+    from inspect_ai.model._compaction._compat import (
+        compact_input_compat,
+        record_output_compat,
+    )
+    from inspect_ai.model._model_output import ModelOutput
+
+    _compat._sig_cache.clear()
+
+    class ModernCompact:
+        async def compact_input(
+            self, messages: list[ChatMessage], force: bool = False
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            return messages, None
+
+        async def record_output(
+            self, input: list[ChatMessage], output: ModelOutput
+        ) -> None:
+            pass
+
+    real_signature = _inspect.signature
+    call_count = {"n": 0}
+
+    def counting_signature(*args: Any, **kwargs: Any) -> _inspect.Signature:
+        call_count["n"] += 1
+        return real_signature(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "inspect_ai.model._compaction._compat.inspect.signature",
+        counting_signature,
+    )
+
+    compact = ModernCompact()
+    output = ModelOutput()
+    msgs: list[ChatMessage] = [user_msg("hi", "u1")]
+
+    # Exercise each helper twice — should hit the cache the second time.
+    await compact_input_compat(compact, msgs)
+    await compact_input_compat(compact, msgs)
+    await record_output_compat(compact, msgs, output)
+    await record_output_compat(compact, msgs, output)
+
+    # One miss per distinct method (compact_input + record_output) = 2.
+    assert call_count["n"] == 2

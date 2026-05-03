@@ -1,3 +1,7 @@
+## Unreleased
+
+- Add backwards compatibility shim for implementors of first iteration of `Compact` protocol.
+
 ## 0.3.217 (03 May 2026)
 
 - Add [adaptive connections](https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections) option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.
