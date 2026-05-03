@@ -380,11 +380,18 @@ def eval_set(
     # silently (rather than warning), so that this stays quiet when adaptive
     # eventually becomes default-on. Only fires when adaptive will actually be
     # active: explicit max_connections takes precedence (per the precedence
-    # rule in Model._connection_concurrency), and in that case retry_connections
-    # decay should still apply to the static cap.
+    # rule in Model._connection_concurrency), batch mode disables adaptive
+    # entirely (worker tasks don't propagate retry signals), and in those
+    # cases retry_connections decay should still apply to the static cap.
+    # The predicate must match Model._connection_concurrency and
+    # create_sample_semaphore exactly — otherwise a user passing
+    # batch=True + adaptive_connections=True + retry_connections=0.5 would
+    # silently lose decay (evalset suppresses it, but the model path goes
+    # static and never sets up an adaptive controller).
     adaptive_will_be_active = (
         bool(kwargs.get("adaptive_connections"))
         and kwargs.get("max_connections") is None
+        and not kwargs.get("batch")
     )
     if adaptive_will_be_active:
         retry_connections = 1.0
