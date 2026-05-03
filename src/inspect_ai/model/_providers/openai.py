@@ -491,6 +491,14 @@ class OpenAIAPI(ModelAPI):
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
 
+    @override
+    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
+        # Responses API with store=false + include=encrypted_content re-injects
+        # encrypted reasoning blocks on every turn but excludes them from
+        # usage.input_tokens. Compaction's threshold check needs the count
+        # added back. Chat Completions is unaffected.
+        return self.responses_api
+
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account
         # (needs to be a 'verified organization'). we do this by making a
