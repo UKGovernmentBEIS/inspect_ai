@@ -250,47 +250,47 @@ def test_score_panel_sort_rejects_unknown_dir() -> None:
         SampleScoreViewSort(dir="up")  # type: ignore[arg-type]
 
 
-def test_score_panel_view_defaults() -> None:
+def test_sample_score_view_defaults() -> None:
     view = SampleScoreView()
     assert view.view is None
     assert view.sort is None
 
 
-def test_score_panel_view_rejects_unknown_view() -> None:
+def test_sample_score_view_rejects_unknown_view() -> None:
     with pytest.raises(ValidationError):
         SampleScoreView(view="table")  # type: ignore[arg-type]
 
 
-def test_viewer_config_score_panel_view_defaults_to_none() -> None:
+def test_viewer_config_sample_score_view_defaults_to_none() -> None:
     """Existing logs / unconfigured callers must keep working unchanged."""
     cfg = ViewerConfig()
-    assert cfg.score_panel_view is None
+    assert cfg.sample_score_view is None
 
 
-def test_score_panel_view_roundtrip() -> None:
+def test_sample_score_view_roundtrip() -> None:
     cfg = ViewerConfig(
-        score_panel_view=SampleScoreView(
+        sample_score_view=SampleScoreView(
             view="grid",
             sort=SampleScoreViewSort(column="value", dir="desc"),
         )
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
-    assert restored.score_panel_view is not None
-    assert restored.score_panel_view.view == "grid"
-    assert restored.score_panel_view.sort is not None
-    assert restored.score_panel_view.sort.column == "value"
-    assert restored.score_panel_view.sort.dir == "desc"
+    assert restored.sample_score_view is not None
+    assert restored.sample_score_view.view == "grid"
+    assert restored.sample_score_view.sort is not None
+    assert restored.sample_score_view.sort.column == "value"
+    assert restored.sample_score_view.sort.dir == "desc"
 
 
-def test_score_panel_view_partial_configs_roundtrip() -> None:
+def test_sample_score_view_partial_configs_roundtrip() -> None:
     """View only, sort only, and both — each should serialize cleanly."""
-    view_only = ViewerConfig(score_panel_view=SampleScoreView(view="chips"))
+    view_only = ViewerConfig(sample_score_view=SampleScoreView(view="chips"))
     sort_only = ViewerConfig(
-        score_panel_view=SampleScoreView(sort=SampleScoreViewSort(column="name"))
+        sample_score_view=SampleScoreView(sort=SampleScoreViewSort(column="name"))
     )
     both = ViewerConfig(
-        score_panel_view=SampleScoreView(
+        sample_score_view=SampleScoreView(
             view="grid", sort=SampleScoreViewSort(column="name", dir="asc")
         )
     )
@@ -298,11 +298,11 @@ def test_score_panel_view_partial_configs_roundtrip() -> None:
         assert ViewerConfig.model_validate_json(cfg.model_dump_json()) == cfg
 
 
-def test_score_panel_view_coexists_with_scanner_result_view() -> None:
+def test_sample_score_view_coexists_with_scanner_result_view() -> None:
     """Both top-level fields can be set simultaneously without interaction."""
     cfg = ViewerConfig(
         scanner_result_view=ScannerResultView(fields=["value"]),
-        score_panel_view=SampleScoreView(view="grid"),
+        sample_score_view=SampleScoreView(view="grid"),
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg

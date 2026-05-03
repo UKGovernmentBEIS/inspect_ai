@@ -91,6 +91,6 @@ class ViewerConfig(BaseModel):
     """Glob-keyed map from scanner name pattern to its sidebar config. May also
     be a bare `ScannerResultView`."""
 
-    score_panel_view: SampleScoreView | None = None
+    sample_score_view: SampleScoreView | None = None
     """Defaults for the sample-header score panel. Honoured only when the
     user has not explicitly overridden the view or sort in their browser."""
