@@ -38,14 +38,6 @@ You should experiment with various values for max connections at different times
 
 ## Adaptive Connections
 
-> **NOTE:**
->
-> The adaptive connections feature described below is available only in the development version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Tuning `--max-connections` by hand is awkward: you have to guess a value, watch for retries, and re-tune for different times of day or different rate-limit tiers. The `--adaptive-connections` option does this for you. It starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.
 
 ``` bash

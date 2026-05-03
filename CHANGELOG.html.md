@@ -1,12 +1,13 @@
 # changelog – Inspect
 
-## Unreleased
+## 0.3.217 (03 May 2026)
 
-- Add `--adaptive-connections` option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.
-- Add `score_on_error` option to score samples that error rather than failing the task (errors are still counted toward the `fail_on_error` threshold).
+- Add [adaptive connections](https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections) option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.
+- Add [score on error](https://inspect.aisi.org.uk/handling-errors.html#scoring-errored-samples) option to score samples that error rather than failing the task (errors are still counted toward the `fail_on_error` threshold).
 - Add [media_resolver()](./reference/inspect_ai.util.html.md#media_resolver) context manager for scoped URI resolution for media reading (images, audio, etc.).
 - Add [download()](./reference/inspect_ai.util.html.md#download) and [gdrive_download()](./reference/inspect_ai.util.html.md#gdrive_download) helpers for fetching external files with SHA256 verification, caching, and transient-error retry. [gdrive_download()](./reference/inspect_ai.util.html.md#gdrive_download) requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Compaction: On `stop_reason='model_length'` in [react()](./reference/inspect_ai.agent.html.md#react) agent, force-compact before falling through to the overflow filter.
 - Analysis: Fix wrong `working_time` path in [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary) columns.
 
 ## 0.3.216 (01 May 2026)

@@ -438,6 +438,8 @@
   "ComposeHealthcheck": "inspect_ai.util.qmd#composehealthcheck",
   "ViewerConfig": "inspect_ai.viewer.qmd#viewerconfig",
   "ScannerResultView": "inspect_ai.viewer.qmd#scannerresultview",
+  "SampleScoreView": "inspect_ai.viewer.qmd#samplescoreview",
+  "SampleScoreViewSort": "inspect_ai.viewer.qmd#samplescoreviewsort",
   "MetadataField": "inspect_ai.viewer.qmd#metadatafield",
   "ScannerResultField": "inspect_ai.viewer.qmd#scannerresultfield"
 }

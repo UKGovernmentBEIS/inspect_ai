@@ -3035,6 +3035,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.viewer.html#samplescoreview" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleScoreView</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.viewer.html#samplescoreviewsort" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleScoreViewSort</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.viewer.html#metadatafield" class="sidebar-item-text sidebar-link">
  <span class="menu-text">MetadataField</span></a>
   </div>
@@ -3144,6 +3156,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#scannerresultview" id="toc-scannerresultview" class="nav-link" data-scroll-target="#scannerresultview">ScannerResultView</a></li>
   </ul></li>
+  <li><a href="#sample-score-view" id="toc-sample-score-view" class="nav-link" data-scroll-target="#sample-score-view">Sample Score View</a>
+  <ul class="collapse">
+  <li><a href="#samplescoreview" id="toc-samplescoreview" class="nav-link" data-scroll-target="#samplescoreview">SampleScoreView</a></li>
+  <li><a href="#samplescoreviewsort" id="toc-samplescoreviewsort" class="nav-link" data-scroll-target="#samplescoreviewsort">SampleScoreViewSort</a></li>
+  </ul></li>
   <li><a href="#fields" id="toc-fields" class="nav-link" data-scroll-target="#fields">Fields</a>
   <ul class="collapse">
   <li><a href="#metadatafield" id="toc-metadatafield" class="nav-link" data-scroll-target="#metadatafield">MetadataField</a></li>
@@ -3186,7 +3203,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Top-level viewer configuration.</p>
 <p><code>scanner_result_view</code> keys are fnmatch-style glob patterns (<code>"*"</code>, <code>"audit_*"</code>, exact names). Pass a ScannerResultView to apply a single configuration to every scanner.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/viewer/_config.py#L58">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L80">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ViewerConfig(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3195,6 +3212,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dt><code class="ref-definition">scanner_result_view</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.viewer.html#scannerresultview">ScannerResultView</a></span> | dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.viewer.html#scannerresultview">ScannerResultView</a></span>]</span></dt>
 <dd>
 <p>Glob-keyed map from scanner name pattern to its sidebar config. May also be a bare <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.viewer.html#scannerresultview">ScannerResultView</a></span>.</p>
+</dd>
+<dt><code class="ref-definition">sample_score_view</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.viewer.html#samplescoreview">SampleScoreView</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Defaults for the sample-header score panel. Honoured only when the user has not explicitly overridden the view or sort in their browser.</p>
 </dd>
 </dl>
 </section>
@@ -3206,7 +3227,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="scannerresultview">ScannerResultView</h3>
 <p>How the scann results should render the results.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/viewer/_config.py#L43">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L43">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerResultView(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3224,15 +3245,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 </section>
 </section>
+<section id="sample-score-view" class="level2">
+<h2 class="anchored" data-anchor-id="sample-score-view">Sample Score View</h2>
+<section id="samplescoreview" class="level3">
+<h3 class="anchored" data-anchor-id="samplescoreview">SampleScoreView</h3>
+<p>How the sample-header score panel should render when there are 3 or more scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L69">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleScoreView(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">view</code> <span class="element-type"><span class="element-type-name">Literal</span>['chips', 'grid'] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Default rendering mode. <code>chips</code> = wrapping pills; <code>grid</code> = sortable table. When None, the viewer picks based on score count.</p>
+</dd>
+<dt><code class="ref-definition">sort</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.viewer.html#samplescoreviewsort">SampleScoreViewSort</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Default sort. When None, scores render in their natural order.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="samplescoreviewsort" class="level3">
+<h3 class="anchored" data-anchor-id="samplescoreviewsort">SampleScoreViewSort</h3>
+<p>Default sort applied to the sample-header score panel.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L58">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleScoreViewSort(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">column</code> <span class="element-type"><span class="element-type-name">Literal</span>['name', 'value'] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Column to sort by. <code>name</code> = scorer name; <code>value</code> = score value. <code>None</code> means no sort (display order).</p>
+</dd>
+<dt><code class="ref-definition">dir</code> <span class="element-type"><span class="element-type-name">Literal</span>['asc', 'desc']</span></dt>
+<dd>
+<p>Sort direction.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
 <section id="fields" class="level2">
 <h2 class="anchored" data-anchor-id="fields">Fields</h2>
 <section id="metadatafield" class="level3">
 <h3 class="anchored" data-anchor-id="metadatafield">MetadataField</h3>
 <p>A metadata key promoted out of metadata into a top level value.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/viewer/_config.py#L28">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L28">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MetadataField(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MetadataField(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -3255,9 +3321,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="scannerresultfield">ScannerResultField</h3>
 <p>A built-in scanner-result section (e.g.&nbsp;<code>value</code>, <code>explanation</code>).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/0a0d144bea54f07b2bf383e0efdebb0749b5e9de/src/inspect_ai/viewer/_config.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L6">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerResultField(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerResultField(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
