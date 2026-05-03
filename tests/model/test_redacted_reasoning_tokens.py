@@ -152,6 +152,15 @@ def test_default_flag_is_false() -> None:
 # ---- Live API end-to-end ----
 
 
+OPENAI_REASONING_MODEL = "openai/gpt-5-mini"
+OPENAI_REASONING_CONFIG = GenerateConfig(reasoning_effort="high")
+OPENAI_REASONING_PROMPT = (
+    "Compute the exact final integer for this expression: "
+    "(137 * 241) - (89 * 173) + (4567 * 13) - 42. "
+    "Return only the integer."
+)
+
+
 @skip_if_no_openai
 @pytest.mark.slow
 async def test_openai_responses_stamps_redacted_reasoning_tokens_e2e() -> None:
@@ -161,16 +170,16 @@ async def test_openai_responses_stamps_redacted_reasoning_tokens_e2e() -> None:
     metadata stamp ran with the value from `usage.reasoning_tokens`. This
     is the test the original PR was missing — without it, a regression in
     the stamp logic would only surface on real workloads with compaction
-    enabled. Use a small reasoning effort and a tiny prompt to keep the
-    cost minimal.
+    enabled. Use a small multi-step prompt with high reasoning effort so
+    the live API reliably reports non-zero reasoning tokens.
     """
     model = get_model(
-        "openai/gpt-5-mini",
-        config=GenerateConfig(reasoning_effort="low"),
+        OPENAI_REASONING_MODEL,
+        config=OPENAI_REASONING_CONFIG,
     )
 
     # Sanity-check the test is actually exercising the path under test:
-    # the OpenAI override should report True for Responses API. If gpt-5-mini
+    # the OpenAI override should report True for Responses API. If the model
     # ever stops defaulting to Responses, this assertion catches the silent
     # change.
     assert model.api.apply_redacted_reasoning_tokens_to_input(), (
@@ -178,7 +187,7 @@ async def test_openai_responses_stamps_redacted_reasoning_tokens_e2e() -> None:
         "wrong code path otherwise"
     )
 
-    output = await model.generate("What is 2 plus 5? Answer in one word.")
+    output = await model.generate(OPENAI_REASONING_PROMPT)
 
     assert output.usage is not None
     assert output.usage.reasoning_tokens, (
@@ -221,14 +230,14 @@ async def test_compaction_counts_redacted_reasoning_tokens_e2e(monkeypatch) -> N
     )
 
     model = get_model(
-        "openai/gpt-5-mini",
-        config=GenerateConfig(reasoning_effort="low"),
+        OPENAI_REASONING_MODEL,
+        config=OPENAI_REASONING_CONFIG,
     )
     assert model.api.apply_redacted_reasoning_tokens_to_input(), (
         "expected the OpenAI Responses API path"
     )
 
-    prompt = "What is 2 plus 5? Answer in one word."
+    prompt = OPENAI_REASONING_PROMPT
     output = await model.generate(prompt)
     assert output.usage is not None
     assert output.usage.reasoning_tokens
