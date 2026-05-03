@@ -55,7 +55,7 @@ class ScannerResultView(BaseModel):
     additionally removed from the generic `metadata` section's dump."""
 
 
-class ScorePanelSort(BaseModel):
+class SampleScoreViewSort(BaseModel):
     """Default sort applied to the sample-header score panel."""
 
     column: Literal["name", "value"] | None = None
@@ -66,14 +66,14 @@ class ScorePanelSort(BaseModel):
     """Sort direction."""
 
 
-class ScorePanelView(BaseModel):
+class SampleScoreView(BaseModel):
     """How the sample-header score panel should render when there are 3 or more scores."""
 
     view: Literal["chips", "grid"] | None = None
     """Default rendering mode. `chips` = wrapping pills; `grid` = sortable
     table. When None, the viewer picks based on score count."""
 
-    sort: ScorePanelSort | None = None
+    sort: SampleScoreViewSort | None = None
     """Default sort. When None, scores render in their natural order."""
 
 
@@ -91,6 +91,6 @@ class ViewerConfig(BaseModel):
     """Glob-keyed map from scanner name pattern to its sidebar config. May also
     be a bare `ScannerResultView`."""
 
-    score_panel_view: ScorePanelView | None = None
+    score_panel_view: SampleScoreView | None = None
     """Defaults for the sample-header score panel. Honoured only when the
     user has not explicitly overridden the view or sort in their browser."""

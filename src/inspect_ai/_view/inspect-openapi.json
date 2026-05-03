@@ -6778,6 +6778,72 @@
         "title": "SampleLimitEvent",
         "type": "object"
       },
+      "SampleScoreView": {
+        "description": "How the sample-header score panel should render when there are 3 or more scores.",
+        "properties": {
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreViewSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "view": {
+            "anyOf": [
+              {
+                "enum": [
+                  "chips",
+                  "grid"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          }
+        },
+        "title": "SampleScoreView",
+        "type": "object"
+      },
+      "SampleScoreViewSort": {
+        "description": "Default sort applied to the sample-header score panel.",
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "enum": [
+                  "name",
+                  "value"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dir"
+        ],
+        "title": "SampleScoreViewSort",
+        "type": "object"
+      },
       "Samples": {
         "properties": {
           "etag": {
@@ -7532,72 +7598,6 @@
           "intermediate"
         ],
         "title": "ScoreEvent",
-        "type": "object"
-      },
-      "ScorePanelSort": {
-        "description": "Default sort applied to the sample-header score panel.",
-        "properties": {
-          "column": {
-            "anyOf": [
-              {
-                "enum": [
-                  "name",
-                  "value"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Column"
-          },
-          "dir": {
-            "default": "asc",
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "title": "Dir",
-            "type": "string"
-          }
-        },
-        "required": [
-          "dir"
-        ],
-        "title": "ScorePanelSort",
-        "type": "object"
-      },
-      "ScorePanelView": {
-        "description": "How the sample-header score panel should render when there are 3 or more scores.",
-        "properties": {
-          "sort": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ScorePanelSort"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "view": {
-            "anyOf": [
-              {
-                "enum": [
-                  "chips",
-                  "grid"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
-          }
-        },
-        "title": "ScorePanelView",
         "type": "object"
       },
       "SpanBeginEvent": {
@@ -9085,7 +9085,7 @@
           "score_panel_view": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ScorePanelView"
+                "$ref": "#/components/schemas/SampleScoreView"
               },
               {
                 "type": "null"

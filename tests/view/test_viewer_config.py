@@ -5,10 +5,10 @@ from pydantic import ValidationError
 
 from inspect_ai.viewer import (
     MetadataField,
+    SampleScoreView,
+    SampleScoreViewSort,
     ScannerResultField,
     ScannerResultView,
-    ScorePanelSort,
-    ScorePanelView,
     ViewerConfig,
 )
 
@@ -235,30 +235,30 @@ def test_dict_scanner_result_view_roundtrip() -> None:
 
 
 def test_score_panel_sort_defaults() -> None:
-    sort = ScorePanelSort()
+    sort = SampleScoreViewSort()
     assert sort.column is None
     assert sort.dir == "asc"
 
 
 def test_score_panel_sort_rejects_unknown_column() -> None:
     with pytest.raises(ValidationError):
-        ScorePanelSort(column="explanation")  # type: ignore[arg-type]
+        SampleScoreViewSort(column="explanation")  # type: ignore[arg-type]
 
 
 def test_score_panel_sort_rejects_unknown_dir() -> None:
     with pytest.raises(ValidationError):
-        ScorePanelSort(dir="up")  # type: ignore[arg-type]
+        SampleScoreViewSort(dir="up")  # type: ignore[arg-type]
 
 
 def test_score_panel_view_defaults() -> None:
-    view = ScorePanelView()
+    view = SampleScoreView()
     assert view.view is None
     assert view.sort is None
 
 
 def test_score_panel_view_rejects_unknown_view() -> None:
     with pytest.raises(ValidationError):
-        ScorePanelView(view="table")  # type: ignore[arg-type]
+        SampleScoreView(view="table")  # type: ignore[arg-type]
 
 
 def test_viewer_config_score_panel_view_defaults_to_none() -> None:
@@ -269,9 +269,9 @@ def test_viewer_config_score_panel_view_defaults_to_none() -> None:
 
 def test_score_panel_view_roundtrip() -> None:
     cfg = ViewerConfig(
-        score_panel_view=ScorePanelView(
+        score_panel_view=SampleScoreView(
             view="grid",
-            sort=ScorePanelSort(column="value", dir="desc"),
+            sort=SampleScoreViewSort(column="value", dir="desc"),
         )
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
@@ -285,13 +285,13 @@ def test_score_panel_view_roundtrip() -> None:
 
 def test_score_panel_view_partial_configs_roundtrip() -> None:
     """View only, sort only, and both — each should serialize cleanly."""
-    view_only = ViewerConfig(score_panel_view=ScorePanelView(view="chips"))
+    view_only = ViewerConfig(score_panel_view=SampleScoreView(view="chips"))
     sort_only = ViewerConfig(
-        score_panel_view=ScorePanelView(sort=ScorePanelSort(column="name"))
+        score_panel_view=SampleScoreView(sort=SampleScoreViewSort(column="name"))
     )
     both = ViewerConfig(
-        score_panel_view=ScorePanelView(
-            view="grid", sort=ScorePanelSort(column="name", dir="asc")
+        score_panel_view=SampleScoreView(
+            view="grid", sort=SampleScoreViewSort(column="name", dir="asc")
         )
     )
     for cfg in (view_only, sort_only, both):
@@ -302,7 +302,7 @@ def test_score_panel_view_coexists_with_scanner_result_view() -> None:
     """Both top-level fields can be set simultaneously without interaction."""
     cfg = ViewerConfig(
         scanner_result_view=ScannerResultView(fields=["value"]),
-        score_panel_view=ScorePanelView(view="grid"),
+        score_panel_view=SampleScoreView(view="grid"),
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg

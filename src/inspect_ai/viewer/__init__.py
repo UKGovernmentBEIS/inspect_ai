@@ -7,10 +7,10 @@ output in the sidebar.
 
 from inspect_ai.viewer._config import (
     MetadataField,
+    SampleScoreView,
+    SampleScoreViewSort,
     ScannerResultField,
     ScannerResultView,
-    ScorePanelSort,
-    ScorePanelView,
     ViewerConfig,
 )
 
@@ -18,7 +18,7 @@ __all__ = [
     "MetadataField",
     "ScannerResultField",
     "ScannerResultView",
-    "ScorePanelSort",
-    "ScorePanelView",
+    "SampleScoreViewSort",
+    "SampleScoreView",
     "ViewerConfig",
 ]
