@@ -5,11 +5,12 @@ from typing import Sequence
 
 import anyio
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
-from .._chat_message import ChatMessage, ChatMessageUser
-from .._model import Model, get_model
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
+from .._model import REDACTED_REASONING_TOKENS_METADATA_KEY, Model, get_model
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
@@ -136,6 +137,17 @@ def compaction(
             # estimate total tokens using the most accurate method available
             target_messages = compacted_input + unprocessed
             target_message_ids = {message_id(m) for m in target_messages}
+
+            # On providers whose usage.input_tokens omits redacted reasoning
+            # content (e.g., OpenAI Responses with encrypted reasoning), sum
+            # the per-message redacted_reasoning_tokens stamped at generate
+            # time and add it back to the total. Compaction is automatic: if
+            # a strategy drops messages, those entries fall out of
+            # target_messages and stop contributing.
+            hidden_reasoning_tokens = _redacted_reasoning_tokens_total(
+                target_messages, target_model
+            )
+
             if baseline_tokens is not None and baseline_message_ids.issubset(
                 target_message_ids
             ):
@@ -153,11 +165,11 @@ def compaction(
                     if new_since_baseline
                     else 0
                 )
-                total_tokens = baseline_tokens + new_tokens
+                total_tokens = baseline_tokens + new_tokens + hidden_reasoning_tokens
             else:
                 # No baseline yet (first call). Fall back to per-message counting.
                 message_tokens = await target_model.count_tokens(target_messages)
-                total_tokens = tool_tokens + message_tokens
+                total_tokens = tool_tokens + message_tokens + hidden_reasoning_tokens
 
             if force or total_tokens > threshold:
                 # perform compaction (with iteration if needed)
@@ -199,12 +211,15 @@ def compaction(
 
                 # log compaction
                 compacted_tokens = await target_model.count_tokens(compacted_input)
+                compacted_hidden = _redacted_reasoning_tokens_total(
+                    compacted_input, target_model
+                )
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
                         source="inspect",
                         tokens_before=total_tokens,
-                        tokens_after=compacted_tokens,
+                        tokens_after=compacted_tokens + compacted_hidden,
                         metadata={
                             "strategy": strategy.__class__.__name__,
                             "messages_before": len(target_messages),
@@ -263,6 +278,83 @@ def compaction(
     return _CompactHandler()
 
 
+def _effective_reasoning_history(model: Model) -> str:
+    """Resolve the reasoning_history mode that will apply at re-injection time.
+
+    Mirrors the resolution in `resolve_reasoning_history` so compaction
+    accounts for the same filter generate will apply.
+    """
+    history: str = model.config.reasoning_history or "auto"
+    force = model.api.force_reasoning_history()
+    if force is not None:
+        return force
+    if history == "auto":
+        return model.api.auto_reasoning_history()
+    return history
+
+
+def _has_redacted_reasoning(message: ChatMessageAssistant) -> bool:
+    return isinstance(message.content, list) and any(
+        isinstance(c, ContentReasoning) and c.redacted for c in message.content
+    )
+
+
+def _has_any_reasoning(message: ChatMessageAssistant) -> bool:
+    return isinstance(message.content, list) and any(
+        isinstance(c, ContentReasoning) for c in message.content
+    )
+
+
+def _redacted_reasoning_tokens_total(messages: list[ChatMessage], model: Model) -> int:
+    """Sum stamped `redacted_reasoning_tokens` across assistant messages.
+
+    Returns 0 unless the target model's provider declares (via
+    `apply_redacted_reasoning_tokens_to_input()`) that its
+    `usage.input_tokens` omits redacted reasoning content on re-injection.
+
+    Compaction-aware on three axes:
+      - Messages dropped by a strategy fall out of the iteration.
+      - Messages whose redacted ContentReasoning has been stripped (e.g.
+        CompactionEdit clears reasoning content but preserves metadata)
+        no longer contribute, since the metadata describes a cost that
+        only applies while the redacted content is still present.
+      - The model's resolved `reasoning_history` mode gates which messages
+        survive re-injection. With "none", all reasoning is stripped before
+        generate, so nothing contributes. With "last", only the most
+        recently reasoning-bearing assistant message survives.
+    """
+    if not model.api.apply_redacted_reasoning_tokens_to_input():
+        return 0
+
+    history_mode = _effective_reasoning_history(model)
+    if history_mode == "none":
+        return 0
+
+    assistants = [m for m in messages if isinstance(m, ChatMessageAssistant)]
+
+    if history_mode == "last":
+        # Match resolve_reasoning_history: only the most recent assistant
+        # message that bears any reasoning keeps it. If that message also
+        # has redacted reasoning + stamped metadata, count it; otherwise 0.
+        for m in reversed(assistants):
+            if _has_any_reasoning(m):
+                if _has_redacted_reasoning(m):
+                    return int(
+                        (m.metadata or {}).get(
+                            REDACTED_REASONING_TOKENS_METADATA_KEY, 0
+                        )
+                    )
+                return 0
+        return 0
+
+    # "all" (or any future mode that preserves reasoning)
+    return sum(
+        (m.metadata or {}).get(REDACTED_REASONING_TOKENS_METADATA_KEY, 0)
+        for m in assistants
+        if _has_redacted_reasoning(m)
+    )
+
+
 DEFAULT_CONTEXT_WINDOW = 128_000
 
 
@@ -295,21 +387,26 @@ async def _perform_compaction(
     MAX_ITERATIONS = 3
     c_input, c_message = await strategy.compact(model, messages, tools)
     compacted_tokens = await model.count_tokens(c_input)
-    total_compacted = tool_tokens + compacted_tokens
+    # Surviving messages may still carry redacted-reasoning cost that
+    # `count_tokens` (and `usage.input_tokens`) doesn't see; include it
+    # so the threshold check reflects the model's effective context.
+    hidden_tokens = _redacted_reasoning_tokens_total(c_input, model)
+    total_compacted = tool_tokens + compacted_tokens + hidden_tokens
 
     for _ in range(MAX_ITERATIONS):
         if total_compacted <= threshold:
             break  # Success
 
-        prev_tokens = compacted_tokens
+        prev_total = total_compacted
 
         # Try compacting again
         c_input, c_message = await strategy.compact(model, list(c_input), tools)
         compacted_tokens = await model.count_tokens(c_input)
-        total_compacted = tool_tokens + compacted_tokens
+        hidden_tokens = _redacted_reasoning_tokens_total(c_input, model)
+        total_compacted = tool_tokens + compacted_tokens + hidden_tokens
 
         # Stop if no progress (can't reduce further)
-        if compacted_tokens >= prev_tokens:
+        if total_compacted >= prev_total:
             break
 
     # Final validation
@@ -318,7 +415,8 @@ async def _perform_compaction(
             f"Compaction insufficient: {total_compacted:,} tokens "
             f"still exceeds threshold of {threshold:,} "
             f"(tools: {tool_tokens:,}, prefix: {prefix_tokens:,}, "
-            f"messages: {compacted_tokens:,}). "
+            f"messages: {compacted_tokens:,}, "
+            f"hidden_reasoning: {hidden_tokens:,}). "
             f"Consider using a lower compaction threshold to accommodate "
             f"tool definitions and prefix."
         )

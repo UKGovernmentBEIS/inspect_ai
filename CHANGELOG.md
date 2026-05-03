@@ -6,6 +6,7 @@
 - Add `download()` and `gdrive_download()` helpers for fetching external files with SHA256 verification, caching, and transient-error retry. `gdrive_download()` requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
 - Compaction: On `stop_reason='model_length'` in `react()` agent, force-compact before falling through to the overflow filter.
+- Compaction: Account for redacted-reasoning input cost on providers that exclude it from `usage.input_tokens` (currently OpenAI Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
 - Analysis: Fix wrong `working_time` path in `SampleSummary` columns.
 
 ## 0.3.216 (01 May 2026)
