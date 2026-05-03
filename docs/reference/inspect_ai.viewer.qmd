@@ -9,9 +9,9 @@ description: Customize Inspect view behavior.
 ## Scanner Results
 ### ScannerResultView
 
-## Score Panel
-### ScorePanelView
-### ScorePanelSort
+## Sample Score View
+### SampleScoreView
+### SampleScoreViewSort
 
 ## Fields
 ### MetadataField
