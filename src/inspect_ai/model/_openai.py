@@ -4,7 +4,10 @@ import logging
 import re
 from copy import copy
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model import RetryDecision
 
 import httpx
 from openai import (
@@ -54,7 +57,10 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
@@ -913,16 +919,42 @@ def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
 
 
 def openai_should_retry(ex: BaseException) -> bool:
+    return openai_classify_retry(ex) is not None
+
+
+def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
+    """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
+
+    Returns None when the exception isn't retryable. Reads `Retry-After` and
+    `x-ratelimit-reset-*` from the response headers when available so the
+    adaptive controller can honor server-suggested wait times.
+    """
+    from inspect_ai.model._model import RetryDecision
+
     if isinstance(ex, RateLimitError):
-        return True
-    elif isinstance(ex, APIStatusError):
-        return is_retryable_http_status(ex.status_code)
-    elif isinstance(ex, OpenAIResponseError):
-        return ex.code in ["rate_limit_exceeded", "server_error"]
-    elif isinstance(ex, APIConnectionError | APITimeoutError):
-        return True
-    else:
-        return False
+        return RetryDecision.rate_limit(
+            retry_after=parse_retry_after_from_exception(ex)
+        )
+    if isinstance(ex, APIStatusError):
+        status = ex.status_code
+        retry_after = parse_retry_after_from_exception(ex)
+        if status == 429:
+            return RetryDecision.rate_limit(retry_after=retry_after)
+        if is_retryable_http_status(status):
+            return RetryDecision.transient(retry_after=retry_after)
+        return None
+    if isinstance(ex, OpenAIResponseError):
+        # OpenAIResponseError is the structured error from the Responses API.
+        # `rate_limit_exceeded` is the explicit rate-limit code; `server_error`
+        # is a generic backend failure (treat as transient).
+        if ex.code == "rate_limit_exceeded":
+            return RetryDecision.rate_limit()
+        if ex.code == "server_error":
+            return RetryDecision.transient()
+        return None
+    if isinstance(ex, APIConnectionError | APITimeoutError):
+        return RetryDecision.transient()
+    return None
 
 
 def openai_handle_bad_request(

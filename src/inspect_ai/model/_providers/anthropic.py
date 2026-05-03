@@ -122,7 +122,10 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data, file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -150,7 +153,7 @@ from inspect_ai.util._json import (
     set_additional_properties_false,
 )
 
-from ..._util.httpx import httpx_should_retry
+from ..._util.httpx import httpx_classify_retry
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -158,7 +161,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
@@ -999,14 +1002,15 @@ class AnthropicAPI(ModelAPI):
             return self.canonical_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
+            retry_after = parse_retry_after_from_exception(ex)
             # when streaming, anthropic does not set status_code == 529
             # for overloaded or internal server errors so we check for them explicitly
             if isinstance(ex.body, dict):
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
-                    return True
+                    return RetryDecision.transient(retry_after=retry_after)
                 # TCP interruptions can truncate large request bodies in transit,
                 # causing a 400 even though json.dumps() produced valid JSON.
                 if (
@@ -1014,16 +1018,21 @@ class AnthropicAPI(ModelAPI):
                     and "not valid json" in body_str
                     and "unexpected end of data" in body_str
                 ):
-                    return True
+                    return RetryDecision.transient(retry_after=retry_after)
 
             # standard http status code checking
-            return is_retryable_http_status(ex.status_code)
-        elif httpx_should_retry(ex):
-            return True
-        elif isinstance(ex, APIConnectionError | APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+
+        decision = httpx_classify_retry(ex)
+        if decision is not None:
+            return decision
+        if isinstance(ex, APIConnectionError | APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

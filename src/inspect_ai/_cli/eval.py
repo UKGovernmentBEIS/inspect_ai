@@ -34,6 +34,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._resource import resource
 
 from .common import (
@@ -78,6 +79,12 @@ NO_SCORE_HELP = (
 )
 NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
+ADAPTIVE_CONNECTIONS_HELP = (
+    "Enable adaptive concurrency for Model API connections, automatically "
+    "scaling between bounds based on rate-limit feedback. Pass `true` for "
+    "defaults (min=4, start=20, max=200), `false` to explicitly disable, or "
+    'bounds as "min-max" (e.g. "4-80") or "min-start-max" (e.g. "4-20-80").'
+)
 MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
@@ -238,6 +245,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=MAX_CONNECTIONS_HELP,
         envvar="INSPECT_EVAL_MAX_CONNECTIONS",
+    )
+    @click.option(
+        "--adaptive-connections",
+        type=str,
+        default=None,
+        help=ADAPTIVE_CONNECTIONS_HELP,
+        envvar="INSPECT_EVAL_ADAPTIVE_CONNECTIONS",
     )
     @click.option(
         "--max-retries",
@@ -668,6 +682,7 @@ def eval_command(
     timeout: int | None,
     attempt_timeout: int | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_tokens: int | None,
     system_message: str | None,
     best_of: int | None,
@@ -897,6 +912,7 @@ def eval_set_command(
     timeout: int | None,
     attempt_timeout: int | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_tokens: int | None,
     system_message: str | None,
     best_of: int | None,
@@ -1240,6 +1256,34 @@ def eval_exec(
         return True
 
 
+def _parse_adaptive_connections_cli(
+    value: str | None,
+) -> bool | AdaptiveConcurrency | None:
+    """Parse a CLI string into an adaptive_connections value.
+
+    Accepts: None (passthrough), bool keywords ("true"/"false"/"1"/"0"/"yes"/"no",
+    case-insensitive), or shorthand like "4-80" / "4-20-80" delegated to
+    AdaptiveConcurrency's parser. Raises `click.BadParameter` on invalid input
+    so the CLI surfaces a clean usage message instead of a raw pydantic
+    ValidationError.
+    """
+    if value is None:
+        return None
+    v = value.strip().lower()
+    if v in ("true", "1", "yes"):
+        return True
+    if v in ("false", "0", "no"):
+        return False
+    try:
+        return AdaptiveConcurrency.model_validate(value)
+    except Exception as ex:
+        raise click.BadParameter(
+            f"{value!r} is not a valid value. Expected `true`, `false`, or "
+            f"bounds shorthand like `4-80` or `4-20-80`.",
+            param_hint="--adaptive-connections",
+        ) from ex
+
+
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
     # start with config file if specified
     adapter = TypeAdapter(GenerateConfigArgs)
@@ -1300,6 +1344,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 match value:
                     case str():
                         value = BatchConfig.model_validate(resolve_args(value))
+
+            if key == "adaptive_connections" and isinstance(value, str):
+                value = _parse_adaptive_connections_cli(value)
 
             if key == "modalities":
                 value = parse_modalities(value)
@@ -1501,6 +1548,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_MAX_CONNECTIONS",
 )
 @click.option(
+    "--adaptive-connections",
+    type=str,
+    default=None,
+    help=ADAPTIVE_CONNECTIONS_HELP,
+    envvar="INSPECT_EVAL_ADAPTIVE_CONNECTIONS",
+)
+@click.option(
     "--max-retries", type=int, help=MAX_RETRIES_HELP, envvar="INSPECT_EVAL_MAX_RETRIES"
 )
 @click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
@@ -1544,6 +1598,7 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -1578,6 +1633,9 @@ def eval_retry_command(
         log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
     ]
 
+    # parse adaptive_connections (str → bool | AdaptiveConcurrency)
+    adaptive_connections_value = _parse_adaptive_connections_cli(adaptive_connections)
+
     # retry
     eval_retry(
         retry_log_files,
@@ -1608,4 +1666,5 @@ def eval_retry_command(
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_connections=max_connections,
+        adaptive_connections=adaptive_connections_value,
     )

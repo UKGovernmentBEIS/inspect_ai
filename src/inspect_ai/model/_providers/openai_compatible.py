@@ -20,7 +20,7 @@ from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._openai import chat_choices_from_openai, openai_classify_retry
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.chatapi import (
@@ -35,7 +35,7 @@ from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
@@ -49,7 +49,6 @@ from .._openai import (
     openai_completion_params,
     openai_handle_bad_request,
     openai_media_filter,
-    openai_should_retry,
 )
 from .util import environment_prerequisite_error, model_base_url
 
@@ -314,8 +313,9 @@ class OpenAICompatibleAPI(ModelAPI):
         return self.service_model_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
-        return openai_should_retry(ex)
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        decision = openai_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:

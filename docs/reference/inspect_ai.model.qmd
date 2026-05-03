@@ -21,6 +21,7 @@ description: Model interface and providers.
 ### ChatCompletionChoice
 ### OutputModality
 ### ImageOutput
+### RetryDecision
 
 ## Messages
 

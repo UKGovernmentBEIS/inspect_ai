@@ -1,5 +1,5 @@
 import logging
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import httpcore
 import httpx
@@ -7,7 +7,10 @@ from httpx import HTTPStatusError
 from tenacity import RetryCallState
 
 from inspect_ai._util.constants import HTTP
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import is_retryable_http_status, parse_retry_after
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model import RetryDecision
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,27 @@ def httpx_should_retry(ex: BaseException) -> bool:
     # don't retry
     else:
         return False
+
+
+def httpx_classify_retry(ex: BaseException) -> "RetryDecision | None":
+    """Classify an httpx-based exception as rate_limit / transient / not retryable.
+
+    Returns None when the exception isn't retryable (mirrors `httpx_should_retry == False`).
+    Reads `Retry-After` and `x-ratelimit-reset-*` from the response headers when available.
+    """
+    from inspect_ai.model._model import RetryDecision
+
+    if isinstance(ex, HTTPStatusError):
+        status = ex.response.status_code
+        retry_after = parse_retry_after(ex.response.headers)
+        if status == 429:
+            return RetryDecision.rate_limit(retry_after=retry_after)
+        if is_retryable_http_status(status):
+            return RetryDecision.transient(retry_after=retry_after)
+        return None
+    if httpx_should_retry_no_status_code(ex):
+        return RetryDecision.transient()
+    return None
 
 
 def log_httpx_retry_attempt(context: str) -> Callable[[RetryCallState], None]:

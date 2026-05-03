@@ -16,7 +16,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -33,9 +33,8 @@ from .util import (
     chat_api_input,
     chat_api_request,
     model_base_url,
-    should_retry_chat_api_error,
 )
-from .util.chatapi import ChatAPIHandler
+from .util.chatapi import ChatAPIHandler, classify_chat_api_error
 
 
 def chat_choices_from_response_together(
@@ -289,8 +288,9 @@ class TogetherRESTAPI(ModelAPI):
             return ModelOutput(model=model, choices=choices, usage=usage)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
-        return should_retry_chat_api_error(ex)
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        decision = classify_chat_api_error(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

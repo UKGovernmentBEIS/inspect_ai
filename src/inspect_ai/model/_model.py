@@ -1,5 +1,6 @@
 import abc
 import contextlib
+import dataclasses
 import functools
 import json
 import logging
@@ -125,6 +126,56 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
+
+
+@dataclasses.dataclass(frozen=True)
+class RetryDecision:
+    """Classification of a retryable exception for `ModelAPI.should_retry`.
+
+    `should_retry()` may return either a plain `bool` (legacy: any True
+    is treated as a generic transient retry) or a `RetryDecision` to
+    additionally classify the retry kind and pass server-suggested wait
+    times to the adaptive concurrency controller.
+
+    `RetryDecision` is truthy iff `retry` is True, so existing callers
+    written against the `bool` return (`if api.should_retry(ex): ...`)
+    keep working unchanged.
+
+    Use the `no()`, `transient()`, and `rate_limit()` factory methods
+    rather than constructing directly.
+    """
+
+    retry: bool
+    """Whether to retry the request."""
+
+    kind: Literal["rate_limit", "transient"] = "transient"
+    """How to account for the retry against the adaptive controller.
+
+    `rate_limit` triggers a scale-down. `transient` (5xx, timeouts,
+    network errors) only marks the request as retried so the eventual
+    success won't count toward scale-up — it does not shrink the limit.
+    """
+
+    retry_after: float | None = None
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+
+    def __bool__(self) -> bool:
+        return self.retry
+
+    @classmethod
+    def no(cls) -> "RetryDecision":
+        """Don't retry."""
+        return cls(retry=False)
+
+    @classmethod
+    def transient(cls, retry_after: float | None = None) -> "RetryDecision":
+        """Retry as a transient error (pauses scale-up but doesn't scale down)."""
+        return cls(retry=True, kind="transient", retry_after=retry_after)
+
+    @classmethod
+    def rate_limit(cls, retry_after: float | None = None) -> "RetryDecision":
+        """Retry as a rate-limit error (scales the adaptive controller down)."""
+        return cls(retry=True, kind="rate_limit", retry_after=retry_after)
 
 
 class ModelAPI(abc.ABC):
@@ -336,8 +387,15 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         """Should this exception be retried?
+
+        Returns either a plain `bool` (any True is treated as a transient
+        retry by the adaptive controller) or a `RetryDecision` to
+        additionally classify the retry as `rate_limit` vs `transient`
+        and to pass through any server-suggested `retry_after`. Built-in
+        providers return `RetryDecision` so the adaptive controller scales
+        only on real rate-limit signals.
 
         Args:
            ex: Exception to check for retry
@@ -951,6 +1009,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # mark this request as a cache hit so the post-call
+                    # adaptive-controller success notification is suppressed —
+                    # cache hits don't exercise the rate limit
+                    from inspect_ai.util._concurrency import _request_was_cache_hit
+
+                    _request_was_cache_hit.set(True)
                     if existing.usage:
                         await emit_model_cache_usage(
                             model_name=str(self), usage=existing.usage
@@ -1076,6 +1140,24 @@ class Model:
         time_start = time.monotonic()
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
+
+        # notify the adaptive controller of a clean success (no retries during
+        # this logical request, AND not a cache hit since cache hits don't
+        # exercise the rate limit). Successful-after-retry and cache hits are
+        # both treated as neutral.
+        from inspect_ai.util._concurrency import (
+            _active_controller,
+            _request_had_retry,
+            _request_was_cache_hit,
+        )
+
+        controller = _active_controller.get()
+        if (
+            controller is not None
+            and not _request_had_retry.get()
+            and not _request_was_cache_hit.get()
+        ):
+            controller.notify_success()
         if model_output.time:
             # we've already reported some of the waiting time in tenacity callbacks
             # any remaining waiting time will have been due to internal retry within
@@ -1095,21 +1177,31 @@ class Model:
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
             # attempt timeout is always retried (we rely on `timeout`
-            # and/or `max_retries` for termination)
+            # and/or `max_retries` for termination). Classified as transient:
+            # _request_had_retry still flips so the eventual success won't
+            # count toward adaptive scale-up, but the controller doesn't
+            # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
+                report_http_retry()
                 return True
 
-            # check standard should_retry() method
-            retry = self.api.should_retry(ex)
-            if retry:
+            # check standard should_retry() method — may return bool or RetryDecision
+            decision = self.api.should_retry(ex)
+            if isinstance(decision, RetryDecision):
+                if decision.retry:
+                    report_http_retry(
+                        kind=decision.kind, retry_after=decision.retry_after
+                    )
+                    return True
+            elif decision:
+                # legacy bool-True path: provider didn't classify, treat as transient
                 report_http_retry()
                 return True
 
             from inspect_ai.hooks._hooks import has_api_key_override
 
             if has_api_key_override():
-                retry = self.api.is_auth_failure(ex)
-                if retry:
+                if self.api.is_auth_failure(ex):
                     report_http_retry()
                     return True
 
@@ -1121,9 +1213,9 @@ class Model:
                     f"provider '{self.name}' implements deprecated is_rate_limit() method, "
                     + "please change to should_retry()",
                 )
-                retry = cast(bool, is_rate_limit(ex))
-                if retry:
-                    report_http_retry()
+                if cast(bool, is_rate_limit(ex)):
+                    # legacy method's name says it all — treat as rate-limit
+                    report_http_retry(kind="rate_limit")
                     return True
 
         # no retry
@@ -1160,20 +1252,68 @@ class Model:
         self, config: GenerateConfig
     ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
-        max_connections = (
-            config.max_connections
-            if config.max_connections
-            else DEFAULT_MAX_CONNECTIONS_BATCH
-            if config.batch
-            else self.api.max_connections()
+        from inspect_ai.util._concurrency import (
+            AdaptiveConcurrency,
+            AdaptiveConcurrencyController,
+            _active_controller,
+            _request_had_retry,
+            _request_was_cache_hit,
         )
+
         model_name = ModelName(self)
-        async with concurrency(
-            name=str(model_name),
-            concurrency=max_connections,
-            key=f"Model{self.api.connection_key()}",
+        key = f"Model{self.api.connection_key()}"
+
+        # adaptive path: controller-managed CapacityLimiter. Two precedence
+        # rules — both silent — anticipating adaptive_connections becoming
+        # default-on, in which case any deliberate override must keep working:
+        #   * Explicit max_connections wins (existing behavior).
+        #   * Batch mode wins. Batch APIs run on a separate quota, the per-
+        #     request concurrency model doesn't bind (DEFAULT_MAX_CONNECTIONS_BATCH
+        #     is a sentinel ceiling), and the worker's background-task
+        #     ContextVars don't propagate retry/success signals back to
+        #     awaiting generates — so adaptive's success/retry accounting
+        #     would be incorrect anyway. See docs/parallelism.qmd.
+        if (
+            config.adaptive_connections
+            and config.max_connections is None
+            and not config.batch
         ):
-            yield
+            adaptive = (
+                config.adaptive_connections
+                if isinstance(config.adaptive_connections, AdaptiveConcurrency)
+                else AdaptiveConcurrency()
+            )
+            async with concurrency(
+                name=str(model_name),
+                concurrency=adaptive.start,
+                key=key,
+                adaptive=adaptive,
+            ) as sem:
+                assert isinstance(sem, AdaptiveConcurrencyController)
+                token_c = _active_controller.set(sem)
+                token_r = _request_had_retry.set(False)
+                token_h = _request_was_cache_hit.set(False)
+                try:
+                    yield
+                finally:
+                    _active_controller.reset(token_c)
+                    _request_had_retry.reset(token_r)
+                    _request_was_cache_hit.reset(token_h)
+        else:
+            # static path (existing behavior, unchanged)
+            max_connections = (
+                config.max_connections
+                if config.max_connections
+                else DEFAULT_MAX_CONNECTIONS_BATCH
+                if config.batch
+                else self.api.max_connections()
+            )
+            async with concurrency(
+                name=str(model_name),
+                concurrency=max_connections,
+                key=key,
+            ):
+                yield
 
     def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
         # base config for this model
@@ -1189,6 +1329,7 @@ class Model:
             base_config = base_config.merge(
                 GenerateConfig(
                     max_connections=active_config.max_connections,
+                    adaptive_connections=active_config.adaptive_connections,
                     max_retries=active_config.max_retries,
                     timeout=active_config.timeout,
                 )

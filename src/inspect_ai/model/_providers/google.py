@@ -68,7 +68,10 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -91,7 +94,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
-from inspect_ai.model._model import log_model_retry
+from inspect_ai.model._model import RetryDecision, log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -669,11 +672,22 @@ class GoogleGenAIAPI(ModelAPI):
         ) and "-pro" in self.service_model_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # HTTP 429 is always a rate-limit signal regardless of SDK status text.
+        # 503 needs a guard: Google sometimes returns 503 RESOURCE_EXHAUSTED
+        # for sustained capacity pressure on Gemini (rate-limit), while plain
+        # 503 UNAVAILABLE is infra unavailability (transient).
         if isinstance(ex, APIError) and ex.code is not None:
-            return is_retryable_http_status(ex.code)
-        else:
-            return False
+            if not is_retryable_http_status(ex.code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            status = getattr(ex, "status", "") or ""
+            if ex.code == 503 and "RESOURCE_EXHAUSTED" in status.upper():
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
