@@ -20,6 +20,7 @@
 
 ## 0.3.215 (30 April 2026)
 
+- Agent bridge: Treat the system prompt as a single slot per conversation so `ChatMessageSystem.id` stays stable when scaffolds mutate the prompt mid-conversation (Gemini CLI's plan-mode toggle, skill activation, etc.). Previously each mutation minted a fresh id and forked downstream transcript trees per mutation.
 - Handle split UTF-16 "lone surrogate" in log message condensation.
 - Inspect View: Collapse the LogView title bar on scroll
 - Inspect View: Add additional column support when viewing task samples.

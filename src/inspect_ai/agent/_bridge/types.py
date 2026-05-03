@@ -41,6 +41,7 @@ class AgentBridge:
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
         self._message_ids = {}
+        self._system_message_id = None
         self._last_message_count = 0
 
     state: AgentState
@@ -111,7 +112,16 @@ class AgentBridge:
         # return the id
         return message_id
 
+    def _id_for_system_message(self) -> str:
+        # treat the system prompt as a single slot per bridge: the same id is
+        # returned across content mutations (plan-mode toggles, skill activation,
+        # etc.) so downstream consumers don't see N parallel transcript roots.
+        if self._system_message_id is None:
+            self._system_message_id = uuid()
+        return self._system_message_id
+
     _message_ids: dict[str, list[str]]
+    _system_message_id: str | None
 
     def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
         # automatically track agent state based on observing generations made through
