@@ -264,3 +264,121 @@ async def test_compaction_counts_redacted_reasoning_tokens_e2e(monkeypatch) -> N
         model.api, "apply_redacted_reasoning_tokens_to_input", lambda: False
     )
     assert _redacted_reasoning_tokens_total(messages, model) == 0
+
+
+@skip_if_no_openai
+@pytest.mark.slow
+async def test_compaction_threshold_trips_on_baseline_plus_redacted_e2e() -> None:
+    """End-to-end: baseline shortcut + redacted correction trips threshold.
+
+    Runs `compact.compact_input(...)` against a real OpenAI Responses turn
+    and asserts that compaction trips at a threshold that's strictly between
+    `baseline_tokens` alone (would not trip) and `baseline_tokens +
+    redacted_reasoning_tokens` (does trip). Then re-runs with the provider
+    flag patched off and asserts the same workload does NOT trip — proving
+    the trip in the first run is driven specifically by the redacted-
+    reasoning correction in the baseline-shortcut branch.
+
+    Uses try/finally instead of pytest's `monkeypatch` because flaky_retry
+    re-invokes the test function on failure but `monkeypatch` only undoes
+    on test teardown — leaking patched state across retries. The pattern
+    here cleans up at the end of each attempt.
+
+    Complements the synthetic
+    `test_baseline_shortcut_trips_only_with_redacted_reasoning_correction`:
+    one extra real generate, catches API-shape changes the synthetic test
+    can't see.
+    """
+    from inspect_ai.model._compaction._compaction import compaction
+    from inspect_ai.model._compaction.trim import CompactionTrim
+
+    model = get_model(
+        "openai/gpt-5-mini",
+        config=GenerateConfig(reasoning_effort="low"),
+    )
+
+    # Prompt chosen to reliably produce non-trivial reasoning_tokens.
+    # Trivial prompts ("2+5") sometimes return reasoning_tokens=0 because
+    # the model elects not to reason; this would break the threshold-trip
+    # arithmetic below.
+    prompt = (
+        "Find three positive integers a < b < c with a + b + c = 12 and "
+        "a * b * c = 36. Show your reasoning briefly."
+    )
+    output = await model.generate(prompt)
+    assert output.usage is not None
+    if not output.usage.reasoning_tokens:
+        pytest.skip(
+            "Model returned reasoning_tokens=0 for a reasoning-heavy prompt; "
+            "the threshold-trip arithmetic depends on a non-zero count."
+        )
+
+    baseline_input_tokens = output.usage.input_tokens
+    redacted = output.usage.reasoning_tokens
+
+    # Threshold strictly between baseline alone and baseline + redacted.
+    # With the correction off: total ≈ baseline + small + 0 < threshold → no trip.
+    # With the correction on:  total ≈ baseline + small + redacted > threshold → trip.
+    threshold = baseline_input_tokens + redacted // 2
+
+    api = model.api
+
+    def patch_flag(value: bool) -> None:
+        api.apply_redacted_reasoning_tokens_to_input = lambda: value  # type: ignore[method-assign]
+
+    def restore_flag() -> None:
+        # Remove instance-level shadow; the class-level method takes over again.
+        api.__dict__.pop("apply_redacted_reasoning_tokens_to_input", None)
+
+    async def run_and_check_trip(*, expect_trip: bool) -> None:
+        compact = compaction(
+            CompactionTrim(threshold=threshold, preserve=0.5),
+            prefix=[],
+            tools=None,
+            model=model,
+        )
+        # Install the real baseline directly via record_output. Doing this
+        # without first calling compact_input keeps the test focused on
+        # the baseline-shortcut branch and avoids a count-tokens-path call
+        # whose `count_tokens([user, assistant_full_response])` can itself
+        # exceed threshold (because the assistant text is substantial)
+        # and confuse the assertion below.
+        initial: list[ChatMessage] = [
+            ChatMessageUser(content=prompt),
+            output.message,
+        ]
+        await compact.record_output(initial, output)
+
+        # Add a tiny new user message and run compaction. With baseline set
+        # and baseline_ids ⊆ target_ids, this hits the baseline-shortcut
+        # branch. With correction on:  total ≈ baseline + small + redacted
+        # > threshold → trip. With correction off: total ≈ baseline + small
+        # < threshold → no trip.
+        followup: list[ChatMessage] = initial + [ChatMessageUser(content="Why?")]
+        result, _ = await compact.compact_input(followup)
+
+        if expect_trip:
+            assert len(result) < len(followup), (
+                f"expected compaction to trip at threshold={threshold}: "
+                f"baseline_input_tokens={baseline_input_tokens}, "
+                f"redacted_reasoning_tokens={redacted}; "
+                f"got {len(result)} messages from {len(followup)} input"
+            )
+        else:
+            assert len(result) == len(followup), (
+                f"expected NO compaction with correction off; "
+                f"got {len(result)} messages from {len(followup)} input"
+            )
+
+    try:
+        # First pass: correction on (matches OpenAI Responses default).
+        patch_flag(True)
+        await run_and_check_trip(expect_trip=True)
+
+        # Second pass: correction off → must not trip. This proves the
+        # trip in the first pass was driven by the redacted_reasoning_tokens
+        # correction, not by the plain baseline + new-user-message tokens.
+        patch_flag(False)
+        await run_and_check_trip(expect_trip=False)
+    finally:
+        restore_flag()
