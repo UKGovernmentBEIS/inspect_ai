@@ -1174,3 +1174,85 @@ async def test_redacted_reasoning_total_last_mode_respects_reasoning_position(
         _redacted_reasoning_tokens_total([earlier_redacted, latest_visible_only], model)
         == 0
     )
+
+
+async def test_baseline_shortcut_trips_only_with_redacted_reasoning_correction(
+    monkeypatch,
+) -> None:
+    """Baseline shortcut + redacted_reasoning_tokens correction trips threshold.
+
+    Targets the missing test the original PR review flagged: a workload where
+    `baseline_tokens` from `record_output` is well under threshold, but
+    `baseline_tokens + Σ redacted_reasoning_tokens` exceeds it. Without the
+    correction, compaction would never trip even though the actual context
+    on the wire is over the limit.
+
+    This exercises the baseline-shortcut branch specifically, complementing
+    `test_redacted_reasoning_metadata_pushes_threshold_over` (which exercises
+    the count-tokens fallback branch).
+    """
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+    strategy = CompactionTrim(threshold=2000, preserve=0.5)
+
+    # Initial conversation: two assistant turns, each carrying 400 redacted
+    # reasoning tokens. The plain text content is tiny (a few tokens each).
+    def build_messages() -> list[ChatMessage]:
+        msgs: list[ChatMessage] = []
+        for i in range(2):
+            msgs.append(user_msg(f"q{i}", f"u{i}"))
+            msgs.append(
+                _assistant_with_redacted_reasoning_tokens(
+                    f"answer {i}", f"a{i}", redacted_tokens=400
+                )
+            )
+        return msgs
+
+    async def run_with_flag(flag: bool) -> tuple[int, int]:
+        """Prime baseline at 1500 tokens, add a small message, run compaction.
+
+        Returns (n_messages_in, n_messages_out).
+        """
+        model = get_model("mockllm/model")
+        monkeypatch.setattr(
+            model.api, "apply_redacted_reasoning_tokens_to_input", lambda: flag
+        )
+
+        compact = compaction(strategy, prefix=[], tools=None, model=model)
+
+        initial = build_messages()
+        # First call processes initial messages (no baseline yet → count_tokens
+        # path; total well under threshold, no compaction).
+        await compact.compact_input(initial)
+
+        # Synthesize record_output to install baseline_tokens=1500 (under
+        # threshold of 2000) covering the initial set.
+        output = ModelOutput.from_message(initial[-1])
+        output.usage = ModelUsage(
+            input_tokens=1500, output_tokens=10, total_tokens=1510
+        )
+        await compact.record_output(initial, output)
+
+        # Add a tiny new user message and re-run compaction. This call hits
+        # the baseline-shortcut branch (baseline_tokens set, baseline ids
+        # subset of target). Without the correction:
+        #   total = 1500 + ~few + 0 = ~1500 < 2000 → no trip
+        # With the correction:
+        #   total = 1500 + ~few + 800 = ~2300 > 2000 → trip
+        next_messages = initial + [user_msg("q-new", "u-new")]
+        result, _ = await compact.compact_input(next_messages)
+        return len(next_messages), len(result)
+
+    # Flag off: baseline shortcut alone keeps total under threshold → no trip
+    n_in, n_out = await run_with_flag(False)
+    assert n_out == n_in, (
+        f"flag off: baseline alone is under threshold; expected no compaction "
+        f"({n_in} messages), got {n_out}"
+    )
+
+    # Flag on: redacted_reasoning_tokens correction pushes total over → trip
+    n_in, n_out = await run_with_flag(True)
+    assert n_out < n_in, (
+        f"flag on: baseline + redacted_reasoning_tokens should exceed threshold "
+        f"and trigger compaction; expected fewer than {n_in} messages, got {n_out}"
+    )
