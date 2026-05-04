@@ -25,7 +25,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 if TYPE_CHECKING:
-    from inspect_scout import Scanner, Transcript
+    from inspect_scout import Scanners
 
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
@@ -99,7 +99,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -328,7 +328,7 @@ async def eval_async(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -534,7 +534,7 @@ async def _eval_async_inner(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,

@@ -21,7 +21,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 if TYPE_CHECKING:
-    from inspect_scout import Scanner, Transcript
+    from inspect_scout import Scanners
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
@@ -77,6 +77,7 @@ from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
+from .task.scan import scan_eval_set_context
 from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
 
@@ -116,7 +117,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanner[Transcript] | list[Scanner[Transcript]] | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -530,7 +531,10 @@ def eval_set(
         before=before,
     )
 
-    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
+    with (
+        _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
+        scan_eval_set_context(scanner, eval_set_id=eval_set_id, log_dir=log_dir),
+    ):
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 

@@ -15,8 +15,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 if TYPE_CHECKING:
-    from inspect_scout import Scanner
-    from inspect_scout import Transcript as ScoutTranscript
+    from inspect_scout import Scanners
 
 from inspect_ai._display import (
     TaskCancelled,
@@ -166,9 +165,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
-    scanner: "Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None" = field(
-        default=None
-    )
+    scanner: "Scanners | None" = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -736,7 +733,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
-    scanner: "Scanner[ScoutTranscript] | list[Scanner[ScoutTranscript]] | None",
+    scanner: "Scanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -1261,7 +1258,14 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
-                    await scan_eval_sample(eval_sample, scanner)
+                    await scan_eval_sample(
+                        eval_sample,
+                        scanner,
+                        eval_set_id=eval_set_id,
+                        eval_id=task_id,
+                        log_location=log_location,
+                        model=str(state.model),
+                    )
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
