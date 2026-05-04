@@ -225,6 +225,16 @@ In-process scope is sufficient because all per-sample scans within an `eval_set`
 - **Scanner errors.** Captured by scout's existing error handling (`Error` records). Scanner errors do not fail the sample.
 - **Crash mid-eval.** Per-transcript parquets are durable in the buffer. If `eval_set` crashes before `finalize()`, a manual `scan_complete <scan_dir>` reproduces the canonical layout. The `scan_eval_set_finalize` runs in a `finally` to maximize the chance it executes.
 
+### `complete=True` on every finalize
+
+`scan_eval_set_finalize` always passes `complete=True` to `FileRecorder.sync`, regardless of whether the eval_set succeeded. This is deliberate.
+
+Scout's `complete` flag means "the scan run is no longer in progress" — not "the user's job succeeded". Each `eval_set` call is, from scout's perspective, a complete unit of scanning work: records have been collected, the buffer has been compacted into the scan dir, and the run is exiting. The summary's `scans` / `results` / `errors` counts already reflect actual state; users who want to know whether the underlying eval succeeded can read the inspect_ai eval logs.
+
+Passing `complete=False` on failure would be semantically tempting but interacts badly with our `extra_inputs` merge: scout's `complete=False` skips buffer cleanup, so on a subsequent resume the buffer would still hold call-1's per-transcript parquets while the existing compacted scan-dir parquet would *also* hold call-1's data — the next compaction would double-count call-1.
+
+If we ever want stronger fidelity, the cleaner fix is **dedupe by `transcript_id` in `scanner_table`** (scout-side): the compaction keeps one copy per id regardless of how many input sources contain the row. That makes `complete=False` safe to use and is also defensive against any other future double-write source. See "Future Work" below.
+
 ## Out of Scope (Initial Cut)
 
 - Embedding scanner results into the inspect_ai `EvalLog`.
@@ -245,6 +255,18 @@ The current design keeps scout's existing buffer behavior — per-sample parquet
 - **Crash recovery.** If `eval_set` crashes before `sync()`, the buffer parquets remain in cache; the user must run `scan_complete <scan_dir>` (or know about the cache dir) to materialize them.
 
 A natural improvement is to co-locate the buffer with the scan dir — `<scan_dir>/scanner=<name>/<transcript_id>.parquet` directly. The reason this isn't in the initial cut is S3 write performance under per-sample load, which we haven't measured. Once we've measured, we can decide whether to co-locate or eliminate the buffer entirely. This is a separable change from scanner-in-eval-set.
+
+### Dedupe by `transcript_id` in `scanner_table`
+
+`FileRecorder.sync`'s compaction (`scanner_table` in scout) reads from the buffer plus an optional `extra_inputs` list (used to merge in the previously-compacted parquet on resume). It does not currently deduplicate rows. Today's design relies on the buffer being cleaned between eval_set calls — when that holds, the buffer and the existing parquet are disjoint sets of `transcript_id`s, so the union is row-correct.
+
+If `scanner_table` deduplicated by `transcript_id` (keep one copy, e.g. latest by `timestamp`), the design would be more robust:
+
+- `complete=False` on failure becomes safe (no double-count even if the buffer survives across calls).
+- Defensive against any future double-write source.
+- Simplifies reasoning about the merge contract — it's an idempotent set-union rather than an "I know these are disjoint" optimization.
+
+This is purely a scout-side change and doesn't affect inspect_ai's call sites.
 
 ## Open Questions
 
