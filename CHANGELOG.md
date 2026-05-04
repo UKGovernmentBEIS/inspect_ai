@@ -11,6 +11,7 @@
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
 - Compaction: On `stop_reason='model_length'` in `react()` agent, force-compact before falling through to the overflow filter.
 - Analysis: Fix wrong `working_time` path in `SampleSummary` columns.
+- Add `scorer` and `scorer_args` to ScoreEvent
 
 ## 0.3.216 (01 May 2026)
 

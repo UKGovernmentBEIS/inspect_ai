@@ -7542,6 +7542,29 @@
           "score": {
             "$ref": "#/components/schemas/Score"
           },
+          "scorer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer"
+          },
+          "scorer_args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer Args"
+          },
           "span_id": {
             "anyOf": [
               {
