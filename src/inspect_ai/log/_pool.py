@@ -16,7 +16,7 @@ content by definition).
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Final, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar
 
 from pydantic import JsonValue
 
@@ -25,7 +25,9 @@ from inspect_ai.model._chat_message import ChatMessage
 
 from ..event._event import Event
 from ..event._model import ModelEvent
-from ._log import EvalSample
+
+if TYPE_CHECKING:
+    from ._log import EvalSample
 
 
 def _msg_hash(msg: ChatMessage) -> str:
@@ -202,12 +204,7 @@ def resolve_model_event_calls(
     events: list[Event],
     call_pool: list[JsonValue],
 ) -> list[Event]:
-    """Restore call.request messages from call_pool references.
-
-    Mutates the events in place (so refs from e.g. ``sample.timelines`` stay
-    valid) but replaces ``event.call`` with a new object since the call may
-    be aliased from the caller's original sample.
-    """
+    """Restore call.request messages from call_pool references in place."""
     if not call_pool:
         return events
     for event in events:
@@ -228,11 +225,7 @@ def resolve_model_event_inputs(
     events: list[Event],
     message_pool: list[ChatMessage],
 ) -> list[Event]:
-    """Resolve ModelEvent input_refs back to full input lists (in place).
-
-    Mutates the events so any existing references (e.g. from
-    ``sample.timelines``) observe the resolved input.
-    """
+    """Resolve ModelEvent input_refs back to full input lists in place."""
     if not message_pool:
         return events
     for event in events:
@@ -242,11 +235,10 @@ def resolve_model_event_inputs(
     return events
 
 
-def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
-    """Resolve events_data pool references in model events (in place).
+def resolve_sample_events_data(sample: "EvalSample") -> "EvalSample":
+    """Resolve events_data pool references in model events in place.
 
-    Always called on read to ensure ModelEvent.input is populated,
-    regardless of the resolve_attachments setting.
+    Idempotent — no-op once `events_data` has been cleared.
     """
     if sample.events_data is None:
         return sample

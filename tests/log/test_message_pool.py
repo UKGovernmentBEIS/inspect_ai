@@ -243,13 +243,7 @@ def test_write_read_round_trip(
 
 
 def test_timeline_events_share_resolved_event_identity():
-    """sample.timelines must reference the same (resolved) Event objects as sample.events.
-
-    Regression: previously _resolve_timelines captured event refs during
-    pydantic validation, before resolve_sample_events_data created new
-    objects with input populated — leaving timeline refs pointing at
-    stale condensed copies with empty .input.
-    """
+    """sample.timelines must reference the same resolved Event objects as sample.events."""
     from inspect_ai.event import Timeline, TimelineEvent, TimelineSpan
 
     sample = _make_sample_with_repeated_inputs()
