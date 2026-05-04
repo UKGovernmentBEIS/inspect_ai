@@ -478,18 +478,14 @@ def resolve_scorers(
         ]
     # See if we can create scorers from the eval itself
     elif log.eval.scorers is not None:
-        return (
-            [
-                scorer_from_spec(
-                    spec=ScorerSpec(scorer=score.name),
-                    task_path=task_path,
-                    **(score.options or {}),
-                )
-                for score in log.eval.scorers
-            ]
-            if log.results
-            else []
-        )
+        return [
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=score.name),
+                task_path=task_path,
+                **(score.options or {}),
+            )
+            for score in log.eval.scorers
+        ]
 
     # Otherwise, perhaps we can re-create them from the results
     return (

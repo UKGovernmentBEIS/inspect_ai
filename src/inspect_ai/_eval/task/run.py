@@ -222,6 +222,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # track stats, results, and log
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
+    progress_results: list[dict[str, SampleScore]] = []
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
@@ -353,9 +354,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 sample_semaphore = create_sample_semaphore(
                     config, generate_config, model.api
                 )
-
-                # track when samples complete and update progress as we go
-                progress_results: list[dict[str, SampleScore]] = []
 
                 def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
                     td.update_metrics(metrics)
@@ -567,6 +565,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             with anyio.CancelScope(shield=True):
                 # collect eval data
                 collect_eval_data(stats)
+
+                # compute partial results from samples that completed
+                if len(progress_results) > 0:
+                    results, reductions = eval_results(
+                        samples=profile.samples,
+                        scores=progress_results,
+                        reducers=task.epochs_reducer,
+                        scorers=scorers,
+                        metrics=task.metrics,
+                        scorer_names=scorer_names,
+                    )
 
                 if task_cancel and task_cancel.cancel_type is not None:
                     # User-initiated cancel (abort/retry) — log as error so
