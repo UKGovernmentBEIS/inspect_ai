@@ -6,7 +6,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/eval.py#L90)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/eval.py#L90)
 
 ``` python
 def eval(
@@ -366,7 +366,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/eval.py#L844)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/eval.py#L844)
 
 ``` python
 def eval_retry(
@@ -501,7 +501,7 @@ Enable adaptive concurrency for Model API connections. `True` for defaults (min=
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/evalset.py#L100)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/evalset.py#L100)
 
 ``` python
 def eval_set(
@@ -881,7 +881,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/score.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/score.py#L75)
 
 ``` python
 def score(
@@ -926,7 +926,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/task.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/task.py#L60)
 
 ``` python
 class Task
@@ -937,7 +937,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/task.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/task.py#L66)
 
 ``` python
 def __init__(
@@ -1072,7 +1072,7 @@ Task adapted with alternate values for one or more options.
 
 This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using [task_with()](../reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/task.py#L236)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/task.py#L236)
 
 ``` python
 def task_with(
@@ -1201,7 +1201,7 @@ Task epochs.
 
 Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -1217,7 +1217,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -1233,7 +1233,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/task.py#L388)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/task.py#L388)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -1256,7 +1256,7 @@ One or more tasks.
 
 Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1285,7 +1285,7 @@ Tasks: TypeAlias = (
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_view/view.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_view/view.py#L25)
 
 ``` python
 def view(
@@ -1326,7 +1326,7 @@ Additional arguments to pass through to the filesystem provider (e.g. `S3FileSy
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any

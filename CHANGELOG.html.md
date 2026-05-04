@@ -1,5 +1,9 @@
 # changelog – Inspect
 
+## Unreleased
+
+- Compaction: Account for redacted-reasoning input cost on providers that exclude it from `usage.input_tokens` (currently OpenAI Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
+
 ## 0.3.217 (03 May 2026)
 
 - Add [adaptive connections](https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections) option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.
@@ -9,6 +13,7 @@
 - Compaction: Lock Compact handler against concurrent AgentBridge calls.
 - Compaction: On `stop_reason='model_length'` in [react()](./reference/inspect_ai.agent.html.md#react) agent, force-compact before falling through to the overflow filter.
 - Analysis: Fix wrong `working_time` path in [SampleSummary](./reference/inspect_ai.analysis.html.md#samplesummary) columns.
+- Add `scorer` and `scorer_args` to ScoreEvent
 
 ## 0.3.216 (01 May 2026)
 

@@ -8,7 +8,7 @@ Top-level viewer configuration.
 
 `scanner_result_view` keys are fnmatch-style glob patterns (`"*"`, `"audit_*"`, exact names). Pass a ScannerResultView to apply a single configuration to every scanner.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/viewer/_config.py#L80)
 
 ``` python
 class ViewerConfig(BaseModel)
@@ -28,7 +28,7 @@ Defaults for the sample-header score panel. Honoured only when the user has not 
 
 How the scann results should render the results.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L43)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/viewer/_config.py#L43)
 
 ``` python
 class ScannerResultView(BaseModel)
@@ -48,7 +48,7 @@ Fields to suppress. For a [ScannerResultField](../reference/inspect_ai.viewer.ht
 
 How the sample-header score panel should render when there are 3 or more scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L69)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/viewer/_config.py#L69)
 
 ``` python
 class SampleScoreView(BaseModel)
@@ -66,7 +66,7 @@ Default sort. When None, scores render in their natural order.
 
 Default sort applied to the sample-header score panel.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/viewer/_config.py#L58)
 
 ``` python
 class SampleScoreViewSort(BaseModel)
@@ -86,7 +86,7 @@ Sort direction.
 
 A metadata key promoted out of metadata into a top level value.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/viewer/_config.py#L28)
 
 ``` python
 class MetadataField(BaseModel)
@@ -107,7 +107,7 @@ Whether the field should be collapsed by default.
 
 A built-in scanner-result section (e.g. `value`, `explanation`).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/36eecc0b14b68251ce2dc513bcff43c82cef2555/src/inspect_ai/viewer/_config.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a8c7311381ac881c9bdbc9c28818349a4d8af9fd/src/inspect_ai/viewer/_config.py#L6)
 
 ``` python
 class ScannerResultField(BaseModel)
