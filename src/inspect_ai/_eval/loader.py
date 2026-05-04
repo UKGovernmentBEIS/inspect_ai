@@ -1,5 +1,6 @@
 import ast
 import contextlib
+import copy
 import inspect
 import os
 from dataclasses import replace
@@ -186,6 +187,16 @@ def resolve_previous_task(
     previous_task: PreviousTask,
     sequence: int,
 ) -> ResolvedTask:
+    # carry token usage forward from the prior log so cumulative totals stay
+    # accurate across retries. Deep-copy so the prior log is never mutated.
+    prior_stats = previous_task.log.stats
+    initial_model_usage = (
+        copy.deepcopy(prior_stats.model_usage) if prior_stats.model_usage else None
+    )
+    initial_role_usage = (
+        copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
+    )
+
     return ResolvedTask(
         task=loaded_task,
         task_args=loaded_task_args,
@@ -202,6 +213,8 @@ def resolve_previous_task(
         sample_source=eval_log_sample_source(
             previous_task.log, previous_task.log_info, loaded_task.dataset
         ),
+        initial_model_usage=initial_model_usage,
+        initial_role_usage=initial_role_usage,
     )
 
 

@@ -1,4 +1,3 @@
-import copy
 import logging
 import os
 import sys
@@ -61,8 +60,6 @@ from inspect_ai.model._model import (
     get_model,
     init_active_model,
     init_model_roles,
-    init_model_usage,
-    init_role_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -1259,22 +1256,9 @@ async def eval_retry_async(
         if adaptive_connections is not None:
             config.adaptive_connections = adaptive_connections
 
-        # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
-        initial_model_usage = (
-            copy.deepcopy(eval_log.stats.model_usage)
-            if eval_log.stats.model_usage
-            else None
-        )
-        if initial_model_usage:
-            init_model_usage(initial_model_usage)
-
-        initial_role_usage = (
-            copy.deepcopy(eval_log.stats.role_usage)
-            if eval_log.stats.role_usage
-            else None
-        )
-        if initial_role_usage:
-            init_role_usage(initial_role_usage)
+        # model_usage / role_usage are rolled forward per-task inside task_run
+        # via PreviousTask.log.stats -> ResolvedTask.initial_*_usage; nothing
+        # to seed here.
 
         # run the eval
         log = (

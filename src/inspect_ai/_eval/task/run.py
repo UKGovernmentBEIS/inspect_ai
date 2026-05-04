@@ -90,11 +90,14 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import (
+    init_model_usage,
+    init_role_usage,
     init_sample_model_usage,
     init_sample_role_usage,
     sample_model_usage,
     sample_role_usage,
 )
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -170,6 +173,8 @@ class TaskRunOptions:
     sample_source: EvalSampleSource | None = field(default=None)
     display_name: str | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
+    initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
+    initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -212,6 +217,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
+
+    # seed model/role usage from a prior log when this task is a retry
+    # (the deepcopy guards against shared dict mutation across attempts).
+    # init_task_context's no-arg init_model_usage/init_role_usage will leave
+    # these seeded values in place.
+    if options.initial_model_usage:
+        init_model_usage(deepcopy(options.initial_model_usage))
+    if options.initial_role_usage:
+        init_role_usage(deepcopy(options.initial_role_usage))
 
     # init task context
     init_task_context(
