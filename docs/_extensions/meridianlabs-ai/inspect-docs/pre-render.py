@@ -85,7 +85,9 @@ def main() -> None:
         "/_include.yml\n"
         "/reference/refs*.json\n"
         "**/*.quarto_ipynb*\n"
-        "**/*.excalidraw.svg\n",
+        "**/*.excalidraw.svg\n"
+        "/.venv/\n"
+        "**/__pycache__"
     )
 
     # symlink CHANGELOG.md from repo root if it exists
