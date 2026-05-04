@@ -6976,6 +6976,20 @@
             "title": "Name",
             "type": "string"
           },
+          "score_labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Labels"
+          },
           "sort": {
             "anyOf": [
               {

@@ -133,6 +133,13 @@ class SamplesView(BaseModel):
     columns with rotated 45° headers; False = standard-width columns
     with horizontal headers. None = viewer default (currently False)."""
 
+    score_labels: dict[str, str] | None = None
+    """Display labels for score columns, keyed by score (metric) name.
+    e.g. `{"audit_situational_awareness": "Situational Awareness"}`
+    causes the viewer to render that header as "Situational Awareness"
+    instead of the raw metric name. Lookup falls back to the metric
+    name itself when no override is set."""
+
 
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.

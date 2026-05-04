@@ -348,11 +348,56 @@ def test_samples_view_defaults() -> None:
     assert view.sort is None
     assert view.filter is None
     assert view.multiline is None
+    assert view.compact_scores is None
+    assert view.score_labels is None
 
 
 def test_samples_view_rejects_non_bool_multiline() -> None:
     with pytest.raises(ValidationError):
         SamplesView(name="Default", multiline="single")  # type: ignore[arg-type]
+
+
+def test_samples_view_rejects_non_bool_compact_scores() -> None:
+    with pytest.raises(ValidationError):
+        SamplesView(name="Default", compact_scores="narrow")  # type: ignore[arg-type]
+
+
+def test_samples_view_compact_scores_roundtrip() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(name="Compact", compact_scores=True),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert isinstance(restored.task_samples_view, SamplesView)
+    assert restored.task_samples_view.compact_scores is True
+
+
+def test_samples_view_score_labels_roundtrip() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Triage",
+            score_labels={
+                "audit_situational_awareness": "Situational Awareness",
+                "ascii-art": "ASCII Art",
+            },
+        ),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert isinstance(restored.task_samples_view, SamplesView)
+    assert restored.task_samples_view.score_labels == {
+        "audit_situational_awareness": "Situational Awareness",
+        "ascii-art": "ASCII Art",
+    }
+
+
+def test_samples_view_score_labels_rejects_non_string_value() -> None:
+    """Labels are display strings — non-string values should be rejected at parse."""
+    with pytest.raises(ValidationError):
+        SamplesView(
+            name="Default",
+            score_labels={"x": 1},  # type: ignore[dict-item]
+        )
 
 
 def test_samples_view_roundtrip_with_string_filter() -> None:
