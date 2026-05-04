@@ -127,7 +127,7 @@ class TestShouldRetry:
             {"Error": {"Code": "ModelError"}, "OriginalStatusCode": 503},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is True
+        assert api.should_retry(ex).retry is True
 
     def test_retry_on_504(self):
         api = _make_api()
@@ -135,7 +135,7 @@ class TestShouldRetry:
             {"Error": {"Code": "ModelError"}, "OriginalStatusCode": 504},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is True
+        assert api.should_retry(ex).retry is True
 
     def test_no_retry_on_400(self):
         api = _make_api()
@@ -143,7 +143,7 @@ class TestShouldRetry:
             {"Error": {"Code": "ModelError"}, "OriginalStatusCode": 400},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is False
+        assert api.should_retry(ex).retry is False
 
     def test_no_retry_on_non_model_error(self):
         api = _make_api()
@@ -151,11 +151,11 @@ class TestShouldRetry:
             {"Error": {"Code": "ValidationError"}, "OriginalStatusCode": 503},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is False
+        assert api.should_retry(ex).retry is False
 
     def test_no_retry_on_non_client_error(self):
         api = _make_api()
-        assert api.should_retry(RuntimeError("boom")) is False
+        assert api.should_retry(RuntimeError("boom")).retry is False
 
 
 # -- Request body building tests ---------------------------------------------

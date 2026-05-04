@@ -134,6 +134,7 @@ def eval_set(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -222,6 +223,9 @@ def eval_set(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
@@ -316,6 +320,7 @@ def eval_set(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -378,6 +383,26 @@ def eval_set(
     # resolve some parameters
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
+    # adaptive_connections subsumes retry_connections — the controller manages
+    # scale-down internally on retry signals. Force retry_connections to 1.0
+    # silently (rather than warning), so that this stays quiet when adaptive
+    # eventually becomes default-on. Only fires when adaptive will actually be
+    # active: explicit max_connections takes precedence (per the precedence
+    # rule in Model._connection_concurrency), batch mode disables adaptive
+    # entirely (worker tasks don't propagate retry signals), and in those
+    # cases retry_connections decay should still apply to the static cap.
+    # The predicate must match Model._connection_concurrency and
+    # create_sample_semaphore exactly — otherwise a user passing
+    # batch=True + adaptive_connections=True + retry_connections=0.5 would
+    # silently lose decay (evalset suppresses it, but the model path goes
+    # static and never sets up an adaptive controller).
+    adaptive_will_be_active = (
+        bool(kwargs.get("adaptive_connections"))
+        and kwargs.get("max_connections") is None
+        and not kwargs.get("batch")
+    )
+    if adaptive_will_be_active:
+        retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
     max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
     log_dir_allow_dirty = log_dir_allow_dirty is True
@@ -388,10 +413,22 @@ def eval_set(
 
     # before sleep
     def before_sleep(retry_state: RetryCallState) -> None:
-        # compute/update next max_connections
+        # Compute/update next max_connections, but only inject into kwargs when
+        # retry_connections actually decays (!= 1.0). Reasons:
+        #   1. If adaptive will be active at eval-set level, retry_connections
+        #      was already forced to 1.0 above (controller handles scale-down).
+        #   2. With default retry_connections=1.0, the "decayed" value equals
+        #      the original — injecting would be a no-op for static behavior
+        #      but would silently override any task-level adaptive_connections
+        #      (since any non-None max_connections disables adaptive per the
+        #      precedence rule in Model._connection_concurrency).
+        # When the user explicitly opts into decay (retry_connections != 1.0),
+        # we inject — this preserves the long-standing static behavior, with
+        # the trade-off that task-level adaptive yields to the explicit decay.
         nonlocal max_connections
-        max_connections = max(round(max_connections * retry_connections), 1)
-        kwargs["max_connections"] = max_connections
+        if retry_connections != 1.0:
+            max_connections = max(round(max_connections * retry_connections), 1)
+            kwargs["max_connections"] = max_connections
 
         # print waiting status
         msg = (

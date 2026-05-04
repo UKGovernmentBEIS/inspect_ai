@@ -7,6 +7,8 @@ output in the sidebar.
 
 from inspect_ai.viewer._config import (
     MetadataField,
+    SampleScoreView,
+    SampleScoreViewSort,
     ScannerResultField,
     ScannerResultView,
     ViewerConfig,
@@ -16,5 +18,7 @@ __all__ = [
     "MetadataField",
     "ScannerResultField",
     "ScannerResultView",
+    "SampleScoreViewSort",
+    "SampleScoreView",
     "ViewerConfig",
 ]

@@ -5,6 +5,8 @@ from pydantic import ValidationError
 
 from inspect_ai.viewer import (
     MetadataField,
+    SampleScoreView,
+    SampleScoreViewSort,
     ScannerResultField,
     ScannerResultView,
     ViewerConfig,
@@ -223,4 +225,84 @@ def test_dict_scanner_result_view_roundtrip() -> None:
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert isinstance(restored.scanner_result_view, dict)
+    assert restored == cfg
+
+
+# ---------------------------------------------------------------------------
+# Score panel view defaults: eval-author hint that pre-seeds the
+# chips/grid toggle and sort in the V2 sample-header score panel.
+# ---------------------------------------------------------------------------
+
+
+def test_score_panel_sort_defaults() -> None:
+    sort = SampleScoreViewSort()
+    assert sort.column is None
+    assert sort.dir == "asc"
+
+
+def test_score_panel_sort_rejects_unknown_column() -> None:
+    with pytest.raises(ValidationError):
+        SampleScoreViewSort(column="explanation")  # type: ignore[arg-type]
+
+
+def test_score_panel_sort_rejects_unknown_dir() -> None:
+    with pytest.raises(ValidationError):
+        SampleScoreViewSort(dir="up")  # type: ignore[arg-type]
+
+
+def test_sample_score_view_defaults() -> None:
+    view = SampleScoreView()
+    assert view.view is None
+    assert view.sort is None
+
+
+def test_sample_score_view_rejects_unknown_view() -> None:
+    with pytest.raises(ValidationError):
+        SampleScoreView(view="table")  # type: ignore[arg-type]
+
+
+def test_viewer_config_sample_score_view_defaults_to_none() -> None:
+    """Existing logs / unconfigured callers must keep working unchanged."""
+    cfg = ViewerConfig()
+    assert cfg.sample_score_view is None
+
+
+def test_sample_score_view_roundtrip() -> None:
+    cfg = ViewerConfig(
+        sample_score_view=SampleScoreView(
+            view="grid",
+            sort=SampleScoreViewSort(column="value", dir="desc"),
+        )
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert restored.sample_score_view is not None
+    assert restored.sample_score_view.view == "grid"
+    assert restored.sample_score_view.sort is not None
+    assert restored.sample_score_view.sort.column == "value"
+    assert restored.sample_score_view.sort.dir == "desc"
+
+
+def test_sample_score_view_partial_configs_roundtrip() -> None:
+    """View only, sort only, and both — each should serialize cleanly."""
+    view_only = ViewerConfig(sample_score_view=SampleScoreView(view="chips"))
+    sort_only = ViewerConfig(
+        sample_score_view=SampleScoreView(sort=SampleScoreViewSort(column="name"))
+    )
+    both = ViewerConfig(
+        sample_score_view=SampleScoreView(
+            view="grid", sort=SampleScoreViewSort(column="name", dir="asc")
+        )
+    )
+    for cfg in (view_only, sort_only, both):
+        assert ViewerConfig.model_validate_json(cfg.model_dump_json()) == cfg
+
+
+def test_sample_score_view_coexists_with_scanner_result_view() -> None:
+    """Both top-level fields can be set simultaneously without interaction."""
+    cfg = ViewerConfig(
+        scanner_result_view=ScannerResultView(fields=["value"]),
+        sample_score_view=SampleScoreView(view="grid"),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg

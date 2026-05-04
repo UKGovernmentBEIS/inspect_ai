@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from tenacity import RetryCallState
@@ -8,8 +8,19 @@ if TYPE_CHECKING:
 _http_retries_count: int = 0
 
 
-def report_http_retry() -> None:
+def report_http_retry(
+    kind: Literal["rate_limit", "transient"] = "transient",
+    retry_after: float | None = None,
+) -> None:
+    """Report an HTTP retry event.
+
+    `kind="rate_limit"` (HTTP 429 or provider-specific equivalents) signals
+    the adaptive controller to scale down. `kind="transient"` (default —
+    5xx, timeouts, network errors) only marks the request as retried,
+    pausing scale-up but not triggering a cut.
+    """
     from inspect_ai.log._samples import report_active_sample_retry
+    from inspect_ai.util._concurrency import _active_controller, _request_had_retry
 
     # bump global counter
     global _http_retries_count
@@ -17,6 +28,15 @@ def report_http_retry() -> None:
 
     # report sample retry
     report_active_sample_retry()
+
+    # mark request as retried so the eventual success won't count as scale-up
+    _request_had_retry.set(True)
+
+    # only rate-limit retries scale the controller down
+    if kind == "rate_limit":
+        controller = _active_controller.get()
+        if controller is not None:
+            controller.notify_retry(retry_after=retry_after)
 
 
 def http_retries_count() -> int:

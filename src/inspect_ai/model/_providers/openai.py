@@ -30,14 +30,14 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
     is_gpt_5_model,
     is_o_series_model,
-    openai_should_retry,
+    openai_classify_retry,
 )
 from .._openai_responses import (
     chat_messages_from_compact_response,
@@ -470,17 +470,15 @@ class OpenAIAPI(ModelAPI):
         return f"openai/{self.service_model_name()}"
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, RateLimitError):
-            # Do not retry on these rate limit errors
-            # The quota exceeded one is related to monthly account quotas.
+            # quota-exceeded is a permanent monthly-quota error, not a transient
+            # rate limit — do not retry.
             if "You exceeded your current quota" in ex.message:
                 warn_once(logger, f"OpenAI quota exceeded, not retrying: {ex.message}")
-                return False
-            else:
-                return True
-        else:
-            return openai_should_retry(ex)
+                return RetryDecision.no()
+        decision = openai_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -492,6 +490,14 @@ class OpenAIAPI(ModelAPI):
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
+
+    @override
+    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
+        # Responses API with store=false + include=encrypted_content re-injects
+        # encrypted reasoning blocks on every turn but excludes them from
+        # usage.input_tokens. Compaction's threshold check needs the count
+        # added back. Chat Completions is unaffected.
+        return self.responses_api
 
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account

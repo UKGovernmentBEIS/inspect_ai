@@ -50,7 +50,7 @@ async def test_openai_responses_logprobs() -> None:
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_logprobs() -> None:
-    response = await generate_with_logprobs("together/MiniMaxAI/MiniMax-M2.5")
+    response = await generate_with_logprobs("together/MiniMaxAI/MiniMax-M2.7")
     assert response.choices[0].logprobs is not None
     top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
     assert top_logprobs is not None

@@ -26,6 +26,13 @@ class ScoreEvent(BaseEvent):
     intermediate: bool = Field(default=False)
     """Was this an intermediate scoring?"""
 
+    scorer: str | None = Field(default=None)
+    """Name of the scorer that produced this score (unique within the task)."""
+
+    scorer_args: dict[str, Any] | None = Field(default=None)
+    """Arguments the scorer was instantiated with (`None` for scores set
+    directly by a solver via `state.scores`)."""
+
     model_usage: dict[str, ModelUsage] | None = Field(default=None)
     """Cumulative model usage at the time of this score."""
 
