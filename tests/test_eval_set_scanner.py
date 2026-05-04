@@ -57,6 +57,30 @@ def failing_scanner():
     return scan
 
 
+@scanner(messages="all", name="scanner_a")
+def scanner_a():
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value="A")
+
+    return scan
+
+
+@scanner(messages="all", name="scanner_b")
+def scanner_b():
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value="B")
+
+    return scan
+
+
+@scanner(messages="all", name="scanner_c")
+def scanner_c():
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value="C")
+
+    return scan
+
+
 # --- helpers ----------------------------------------------------------------
 
 
@@ -415,3 +439,81 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
         assert ss["scans"] == 2 * n, (
             f"expected accumulated scans across both runs ({2 * n}), got {ss['scans']}"
         )
+
+
+def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
+    """A second eval_set call must reject a changed scanner set up front.
+
+    Without validation, scout's `RecorderBuffer.record` would `KeyError`
+    on any scanner not in the on-disk spec; that error is caught by
+    `task_run_sample`'s sample-error handling and silently turns
+    successful samples into errors, corrupting the eval's success result.
+    `scan_eval_set_init` validates upfront and raises `PrerequisiteError`
+    before any samples run.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    n = 3
+    fails_first_time = _first_attempt_fails()
+
+    def make_task():
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
+            solver=[fails_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # call 1: scanners A and B
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[scanner_a(), scanner_b()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        # capture state we expect to be unchanged after the failed call 2
+        a_rows_before = _read_parquet(scan_dir / "scanner_a.parquet").metadata.num_rows
+        b_rows_before = _read_parquet(scan_dir / "scanner_b.parquet").metadata.num_rows
+        spec_before = json.loads((scan_dir / "_scan.json").read_text())
+
+        # call 2: scanner_a dropped, scanner_c added → must fail before
+        # running any samples
+        with pytest.raises(PrerequisiteError, match="Scanner set has changed"):
+            eval_set(
+                tasks=make_task(),
+                log_dir=log_dir,
+                scanner=[scanner_b(), scanner_c()],
+                model="mockllm/model",
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+
+        # the scan dir should be left untouched by the rejected call
+        assert (
+            _read_parquet(scan_dir / "scanner_a.parquet").metadata.num_rows
+            == a_rows_before
+        )
+        assert (
+            _read_parquet(scan_dir / "scanner_b.parquet").metadata.num_rows
+            == b_rows_before
+        )
+        assert not (scan_dir / "scanner_c.parquet").exists()
+        assert json.loads((scan_dir / "_scan.json").read_text()) == spec_before
+
+        # the solver's `seen` set should also be untouched (no sample re-ran),
+        # so `n` more failures' worth of state remains: a third call with the
+        # same scanner set as call 1 still completes successfully
+        success_3, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[scanner_a(), scanner_b()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_3

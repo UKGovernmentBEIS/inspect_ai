@@ -27,18 +27,38 @@ async def scan_eval_set_init(
     failure), the scan dir already exists. Use `resume()` so the
     accumulated `_summary.json` is preserved and extended; `init()` would
     wipe it via `reset=True`.
+
+    Validates that the scanner set passed on resume matches the one in
+    the on-disk spec. Scout's `RecorderBuffer.record` looks up scanner
+    metadata by name in the spec; any unknown scanner would `KeyError`
+    mid-sample, get caught as a sample error, and silently corrupt the
+    eval's success/failure result. We refuse upfront with a clear message.
     """
     from inspect_scout._recorder.file import FileRecorder
     from inspect_scout._scancontext import _spec_scanners
     from inspect_scout._scanspec import ScanOptions, ScanSpec
 
-    scan_dir = _scan_dir(log_dir, eval_set_id)
-    recorder = FileRecorder()
-    if exists(scan_dir):
-        await recorder.resume(scan_dir, concurrent_writers=True)
-        return
+    from inspect_ai._util.error import PrerequisiteError
 
     scanners_dict = _normalize_scanners(scanner)
+    scan_dir = _scan_dir(log_dir, eval_set_id)
+    recorder = FileRecorder()
+
+    if exists(scan_dir):
+        await recorder.resume(scan_dir, concurrent_writers=True)
+        existing_names = set(recorder.scan_spec.scanners.keys())
+        requested_names = set(scanners_dict.keys())
+        if existing_names != requested_names:
+            raise PrerequisiteError(
+                "Scanner set has changed from the prior eval_set call on "
+                "this log_dir.\n"
+                f"  Prior:     {sorted(existing_names)}\n"
+                f"  Requested: {sorted(requested_names)}\n"
+                "Either match the prior scanner set or use a different "
+                "log_dir / eval_set_id."
+            )
+        return
+
     spec = ScanSpec(
         scan_id=eval_set_id,
         scan_name="eval_set",
