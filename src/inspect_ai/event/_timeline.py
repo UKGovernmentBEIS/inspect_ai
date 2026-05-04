@@ -557,7 +557,6 @@ def _classify_spans(root: TimelineSpan) -> None:
     """Run all span classification passes on a root span."""
     _wrap_utility_events(root)
     _classify_utility_agents(root)
-    _classify_branches(root)
     _extract_agent_results(root)
 
 
@@ -1013,26 +1012,6 @@ def _process_span_as_content(
             if isinstance(node, TimelineSpan) and not node.content:
                 continue
             into.append(node)
-
-
-def _classify_branches(agent: TimelineSpan) -> None:
-    """Recursively classify branches in the agent tree.
-
-    Recurses into child spans in both content and branches.
-
-    Args:
-        agent: The span node to process.
-    """
-    # Recurse into child spans in content
-    for item in agent.content:
-        if isinstance(item, TimelineSpan):
-            _classify_branches(item)
-
-    # Recurse into spans within branches
-    for branch in agent.branches:
-        for item in branch.content:
-            if isinstance(item, TimelineSpan):
-                _classify_branches(item)
 
 
 # =============================================================================
