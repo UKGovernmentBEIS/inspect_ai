@@ -311,8 +311,9 @@ def view_server_app(
         await _validate_list(request, eval_set_dir)
 
         # return the eval set info for this directory
-        return read_eval_set_info(
-            await _map_file(request, eval_set_dir), fs_options=fs_options
+        mapped = await _map_file(request, eval_set_dir)
+        return await anyio.to_thread.run_sync(
+            lambda: read_eval_set_info(mapped, fs_options=fs_options)
         )
 
     @app.get("/flow")
@@ -334,13 +335,18 @@ def view_server_app(
         await _validate_list(request, flow_dir)
 
         mapped_dir = await _map_file(request, flow_dir)
-        fs = filesystem(mapped_dir)
-        flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
-        if fs.exists(flow_file):
-            bytes = fs.read_bytes(flow_file)
 
+        def _read_flow() -> bytes | None:
+            fs = filesystem(mapped_dir)
+            flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
+            return fs.read_bytes(flow_file) if fs.exists(flow_file) else None
+
+        content = await anyio.to_thread.run_sync(_read_flow)
+        if content is not None:
             return Response(
-                content=bytes.decode("utf-8"), status_code=200, media_type="text/yaml"
+                content=content.decode("utf-8"),
+                status_code=200,
+                media_type="text/yaml",
             )
         else:
             return Response(status_code=HTTP_404_NOT_FOUND)
@@ -387,8 +393,10 @@ def view_server_app(
 
         client_etag = request.headers.get("If-None-Match")
 
-        buffer = sample_buffer(await _map_file(request, file))
-        samples = buffer.get_samples(client_etag)
+        mapped = await _map_file(request, file)
+        samples = await anyio.to_thread.run_sync(
+            lambda: sample_buffer(mapped).get_samples(client_etag)
+        )
         if samples == "NotModified":
             return Response(status_code=HTTP_304_NOT_MODIFIED)
         elif samples is None:
@@ -427,14 +435,16 @@ def view_server_app(
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
 
-        buffer = sample_buffer(await _map_file(request, file))
-        sample_data = buffer.get_sample_data(
-            id=id,
-            epoch=epoch,
-            after_event_id=last_event_id,
-            after_attachment_id=after_attachment_id,
-            after_message_pool_id=after_message_pool_id,
-            after_call_pool_id=after_call_pool_id,
+        mapped = await _map_file(request, file)
+        sample_data = await anyio.to_thread.run_sync(
+            lambda: sample_buffer(mapped).get_sample_data(
+                id=id,
+                epoch=epoch,
+                after_event_id=last_event_id,
+                after_attachment_id=after_attachment_id,
+                after_message_pool_id=after_message_pool_id,
+                after_call_pool_id=after_call_pool_id,
+            )
         )
 
         if sample_data is None:
