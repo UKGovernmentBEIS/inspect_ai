@@ -102,6 +102,8 @@ def expand_events(
 ) -> list[Event]:
     """Reverse :func:`condense_events` — restore pooled content into events.
 
+    When `events` is a sequence (not a JSON string), the contained `ModelEvent` objects are mutated in place; the returned list aliases them.
+
     Args:
         events: Condensed events (with pool index references), or a JSON-serialized
             ``list[Event]``.
