@@ -41,31 +41,28 @@ You should experiment with various values for max connections at different times
 
 ## Adaptive Connections
 
-Tuning `--max-connections` by hand is awkward: you have to guess a value, watch for retries, and re-tune for different times of day or different rate-limit tiers. The `--adaptive-connections` option does this for you. It starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.
+Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.
 
 ``` bash
 $ inspect eval --model openai/gpt-4o --adaptive-connections true
 ```
 
-By default a per-model controller starts at 20 concurrent connections and scales between 4 and 200. The controller scales down on rate-limit retries, so a high `max` is harmless for low-tier accounts (they'll never reach it) and useful for high-tier accounts where Inspect would otherwise leave capacity on the floor.
-
-When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (with a small buffer), so sample setup work like creating sandbox containers stays proportional to actual model concurrency rather than the maximum bound.
-
+Adaptive connection works per-model, starting at 20 concurrent connections and attempting to scale up to 200. When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (set an explicit `max_samples` to override this behavior).
 
 ### Bounds Tuning
 
-The bounds (`min`, `start`, `max`) are the everyday tuning knobs. `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
+Bounds (`min`, `start`, `max`) can be used to tune the behavior of adaptive connections: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
 
 Pass a string shorthand. `min-max` constrains the range (`start` defaults to 20, clamped into the range):
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections "4-80"
+$ inspect eval --model openai/gpt-4o --adaptive-connections 4-80
 ```
 
 `min-start-max` also sets the starting value:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections "4-40-80"
+$ inspect eval --model openai/gpt-4o --adaptive-connections 4-40-80
 ```
 
 In Python, pass `True` for defaults or an `AdaptiveConcurrency` to customize:
@@ -80,19 +77,15 @@ eval(
 )
 ```
 
-A rule of thumb for `max` is *(tier RPM × average request seconds) ÷ 60*. On a 60 RPM tier with 3-second requests, a `max` near 3 is enough; on a 4,000 RPM tier with 1.5-second requests, a `max` around 100 starts to make sense.
-
 ### Retry Types
 
 The controller distinguishes two kinds of retries.
 
-- Rate-limit retries: HTTP 429, plus per-provider equivalents like Bedrock `ThrottlingException` and Google `503 RESOURCE_EXHAUSTED`. These shrink the limit by `decrease_factor` (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.
+- Rate-limit retries (HTTP 429). These shrink the limit by `decrease_factor` (default 0.8) per episode, with a debounce so a single rate-limit burst produces only one cut.
 
-- Transient retries: 5xx, timeouts, and network errors. These pause scale-up (the eventual success won't count toward growth) but do not shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn't help an upstream outage. Each provider's `should_retry()` classifies its own errors via a `RetryDecision`, so genuinely-rate-limited 5xx codes are still counted as rate-limit signals where applicable.
+- Transient retries (5xx, timeouts, and network errors). These pause scale-up (the eventual success won't count toward growth) but do not shrink the limit. Provider 5xx and network blips are usually infra noise unrelated to your concurrency, and lowering concurrency doesn't help an upstream outage.
 
-After a rate-limit cut, the controller waits at least `cooldown_seconds` (default 15s) before allowing another cut. If the response carries a `Retry-After` header, the cooldown extends to honor it. When `Retry-After` is absent, Inspect falls back to provider-specific reset-window headers: `x-ratelimit-reset-requests` and `x-ratelimit-reset-tokens` (OpenAI, Groq, Azure OpenAI), and `anthropic-ratelimit-*-reset` (Anthropic).
-
-Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.
+After a rate-limit cut, the controller waits at least `cooldown_seconds` (default 15s) before allowing another cut. If the response carries a `Retry-After` header, the cooldown extends to honor it. Cache hits and successful-after-retry calls are neutral: they neither grow nor shrink the limit.
 
 ### Advanced Tuning
 
