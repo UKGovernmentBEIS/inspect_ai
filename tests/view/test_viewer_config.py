@@ -5,8 +5,11 @@ from pydantic import ValidationError
 
 from inspect_ai.viewer import (
     MetadataField,
+    SamplesColumn,
     SampleScoreView,
     SampleScoreViewSort,
+    SamplesSort,
+    SamplesView,
     ScannerResultField,
     ScannerResultView,
     ViewerConfig,
@@ -306,3 +309,126 @@ def test_sample_score_view_coexists_with_scanner_result_view() -> None:
     )
     restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
     assert restored == cfg
+
+
+# ---------------------------------------------------------------------------
+# Samples view: defaults the eval author can set for the task's
+# Sample List grid (visible columns + order, sort, DSL filter, multiline).
+# Distinct from `sample_score_view`, which configures the score panel
+# inside an individual sample's detail view.
+# ---------------------------------------------------------------------------
+
+
+def test_samples_sort_defaults() -> None:
+    s = SamplesSort(column="tokens")
+    assert s.column == "tokens"
+    assert s.dir == "asc"
+
+
+def test_samples_sort_rejects_unknown_dir() -> None:
+    with pytest.raises(ValidationError):
+        SamplesSort(column="tokens", dir="up")  # type: ignore[arg-type]
+
+
+def test_samples_column_defaults() -> None:
+    c = SamplesColumn(id="input")
+    assert c.id == "input"
+    assert c.visible is True
+
+
+def test_samples_view_requires_name() -> None:
+    with pytest.raises(ValidationError):
+        SamplesView()  # type: ignore[call-arg]
+
+
+def test_samples_view_defaults() -> None:
+    view = SamplesView(name="Default")
+    assert view.name == "Default"
+    assert view.columns is None
+    assert view.sort is None
+    assert view.filter is None
+    assert view.multiline is None
+
+
+def test_samples_view_rejects_non_bool_multiline() -> None:
+    with pytest.raises(ValidationError):
+        SamplesView(name="Default", multiline="single")  # type: ignore[arg-type]
+
+
+def test_samples_view_roundtrip_with_string_filter() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Triage",
+            columns=[
+                SamplesColumn(id="status"),
+                SamplesColumn(id="input"),
+                SamplesColumn(id="target", visible=False),
+                SamplesColumn(id="tokens"),
+            ],
+            sort=[SamplesSort(column="tokens", dir="desc")],
+            filter="has_error or score < 0.5",
+            multiline=False,
+        )
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert isinstance(restored.task_samples_view, SamplesView)
+    assert restored.task_samples_view.filter == "has_error or score < 0.5"
+    assert restored.task_samples_view.multiline is False
+
+
+def test_samples_view_accepts_list() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=[
+            SamplesView(name="All"),
+            SamplesView(name="Errors", filter="has_error"),
+        ]
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert isinstance(restored.task_samples_view, list)
+    assert len(restored.task_samples_view) == 2
+    assert restored.task_samples_view[1].filter == "has_error"
+
+
+def test_viewer_config_task_samples_view_defaults_to_none() -> None:
+    """Existing logs / unconfigured callers must keep working unchanged."""
+    cfg = ViewerConfig()
+    assert cfg.task_samples_view is None
+
+
+def test_samples_view_coexists_with_other_top_level_fields() -> None:
+    cfg = ViewerConfig(
+        scanner_result_view=ScannerResultView(fields=["value"]),
+        sample_score_view=SampleScoreView(view="grid"),
+        task_samples_view=SamplesView(name="Default"),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+
+
+# ---------------------------------------------------------------------------
+# Filter is a raw DSL string. Authors write filtrex expressions directly;
+# there is no Python-side builder. Compound boolean predicates,
+# function-style predicates, and arithmetic all work because the field
+# is just `str | None`.
+# ---------------------------------------------------------------------------
+
+
+def test_samples_view_string_filter_passes_through_unchanged() -> None:
+    """Strings are stored as-is; nothing is parsed or normalized."""
+    view = SamplesView(name="Default", filter="score >= 0.8")
+    assert view.filter == "score >= 0.8"
+
+
+def test_samples_view_supports_compound_dsl_expressions() -> None:
+    """The filter is a raw DSL string, so anything filtrex parses works.
+
+    Compound boolean predicates, function predicates, and arithmetic
+    are all expressible.
+    """
+    view = SamplesView(
+        name="Errors or Low Scores",
+        filter='has_error or score < 0.5 or input_contains("urgent")',
+    )
+    assert view.filter == 'has_error or score < 0.5 or input_contains("urgent")'

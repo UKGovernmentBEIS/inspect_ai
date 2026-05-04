@@ -77,6 +77,58 @@ class SampleScoreView(BaseModel):
     """Default sort. When None, scores render in their natural order."""
 
 
+class SamplesSort(BaseModel):
+    """A single sort entry for the task's Sample List grid."""
+
+    column: str
+    """Column id (e.g. `"tokens"`, `"score__judge__correctness"`)."""
+
+    dir: Literal["asc", "desc"] = "asc"
+    """Sort direction."""
+
+
+class SamplesColumn(BaseModel):
+    """A column entry in the task's Sample List view."""
+
+    id: str
+    """Column id."""
+
+    visible: bool = True
+    """Whether the column is visible by default."""
+
+
+class SamplesView(BaseModel):
+    """Default configuration for the task's Sample List grid.
+
+    Configures the list of samples shown in a task's eval-log view —
+    distinct from `sample_score_view`, which configures the score panel
+    within an individual sample's detail view.
+
+    The viewer applies `SamplesView` only when the user has not
+    explicitly overridden the view in their browser. User overrides
+    shadow the eval-author default; the resolution priority is
+    `user > eval default > built-in`.
+    """
+
+    name: str
+    """Display name. Surfaced in the future view switcher."""
+
+    columns: list[SamplesColumn] | None = None
+    """Ordered list of columns. None = use the viewer's built-in defaults
+    for this log's column shape."""
+
+    sort: list[SamplesSort] | None = None
+    """Sort order. None = no eval-author default (viewer default applies)."""
+
+    filter: str | None = None
+    """DSL filter expression applied by default (e.g.
+    `"has_error or score < 0.5"`, `"input_contains(\\"abc\\")"`)."""
+
+    multiline: bool | None = None
+    """Default row layout. True = list-style multi-line rows; False =
+    compact single-line rows. None = viewer default (currently True)."""
+
+
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
 
@@ -94,3 +146,10 @@ class ViewerConfig(BaseModel):
     sample_score_view: SampleScoreView | None = None
     """Defaults for the sample-header score panel. Honoured only when the
     user has not explicitly overridden the view or sort in their browser."""
+
+    task_samples_view: SamplesView | list[SamplesView] | None = None
+    """Default configuration for the task's Sample List grid (the list of
+    samples shown in a task's eval-log view). When a list is supplied,
+    the first entry is the default for now; multi-view selection UI may
+    land later. Honoured only when the user has not explicitly
+    overridden the view in their browser."""
