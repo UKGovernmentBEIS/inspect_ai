@@ -3,6 +3,7 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._basic_agent import basic_agent
 from ._bridge import bridge
 from ._chain import chain
+from ._completions_prompt_logprobs import completions_prompt_logprobs
 from ._critique import self_critique
 from ._fork import fork
 from ._human_agent import human_agent
@@ -44,6 +45,7 @@ __all__ = [
     "TaskState",
     "Generate",
     "MultipleChoiceTemplate",
+    "completions_prompt_logprobs",
 ]
 
 

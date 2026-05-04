@@ -105,18 +105,28 @@ Both scorers provide two built-in metrics:
 -   `perplexity_per_token()` — standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
 -   `perplexity_per_seq()` — equal weight per sample regardless of length (geometric mean of per-sample perplexities).
 
-### Example
+### Choosing a solver
+
+There are two solver options for perplexity evaluation:
+
+-   **`generate()`** — uses the standard chat completions path (`/v1/chat/completions`). The model's chat template is applied, which injects role markers and special tokens around the input. This is appropriate for instruction-tuned models where the chat template is part of the intended evaluation setup.
+
+-   **`completions_prompt_logprobs()`** — calls the `/v1/completions` endpoint directly, sending raw text without any chat template. This is the correct choice for perplexity benchmarks where the chat template would contaminate logprob-based metrics.
+
+The solver auto-detects the server URL and model name from the active model, so no additional configuration is needed.
+
+### Examples
 
 ``` python
 from inspect_ai import Task
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import perplexity, target_perplexity
-from inspect_ai.solver import generate
+from inspect_ai.solver import completions_prompt_logprobs
 
 # Full-text perplexity (WikiText, C4)
 Task(
     dataset=dataset,
-    solver=generate(max_tokens=1, prompt_logprobs=1),
+    solver=completions_prompt_logprobs(max_tokens=1, prompt_logprobs=1),
     scorer=perplexity(),
 )
 
@@ -129,7 +139,7 @@ Task(
             metadata={"num_target_tokens": 1},
         ),
     ]),
-    solver=generate(max_tokens=1, prompt_logprobs=1),
+    solver=completions_prompt_logprobs(max_tokens=1, prompt_logprobs=1),
     scorer=target_perplexity(),
 )
 ```

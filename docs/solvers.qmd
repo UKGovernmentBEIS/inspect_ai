@@ -145,6 +145,10 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
     As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `solver` is specified.
 
+-   `completions_prompt_logprobs()`
+
+    Calls the `/v1/completions` endpoint directly, bypassing the chat completions path. Designed for perplexity benchmarks where the chat template would inject role markers and special tokens that contaminate logprob-based metrics. Auto-detects the server URL and model name from the active model. See [Perplexity](scorers.qmd#perplexity) for usage examples.
+
 -   `self_critique()`
 
     Prompts the model to critique the results of a previous call to `generate()` (note that this need not be the same model as they one you are evaluating—use the `model` parameter to choose another model). Makes use of `{question}` and `{completion}` template variables. Also automatically substitutes any variables defined in sample `metadata`
