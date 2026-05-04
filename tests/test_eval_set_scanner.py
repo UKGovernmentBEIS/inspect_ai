@@ -81,6 +81,58 @@ def scanner_c():
     return scan
 
 
+# Module-level counter so scan_resume's freshly-instantiated scanner
+# (rebuilt from the on-disk spec, not the original closure) still
+# increments the same counter we observe from the test.
+_picky_call_count = 0
+
+
+@scanner(messages="all", name="picky_scanner")
+def picky_scanner():
+    """Errors on even sample ids, succeeds on odd — partial-failure case."""
+
+    async def scan(transcript: Transcript) -> Result:
+        global _picky_call_count
+        _picky_call_count += 1
+        sample_id = int(transcript.task_id or "0")
+        if sample_id % 2 == 0:
+            raise RuntimeError(f"refusing sample {sample_id}")
+        return Result(value=f"ok:{sample_id}")
+
+    return scan
+
+
+# File path used by `flaky_scanner` to track which transcripts it has seen.
+# Module-level state would not survive scout's `load_scanner_file` re-import,
+# so we use the filesystem instead. Tests reset the file before each run.
+_FLAKY_MARKER = Path(tempfile.gettempdir()) / "inspect_ai_test_flaky_scanner_seen.txt"
+
+
+@scanner(messages="all", name="flaky_scanner")
+def flaky_scanner():
+    """Errors when the marker file lists the transcript_id, else succeeds.
+
+    Uses a file at `_FLAKY_MARKER` so state survives across module re-imports
+    (scout's `load_scanner_file` re-imports the file the scanner was defined
+    in when reconstructing scanners on `scan_resume`, giving any module-level
+    state a fresh empty value — see `load_module` in `inspect_ai._util.module`).
+    """
+
+    async def scan(transcript: Transcript) -> Result:
+        tid = transcript.transcript_id
+        marker = _FLAKY_MARKER
+        seen: set[str] = set()
+        if marker.exists():
+            seen = set(marker.read_text().splitlines()) - {""}
+        if tid not in seen:
+            seen.add(tid)
+            marker.write_text("\n".join(sorted(seen)))
+            raise RuntimeError(f"first attempt failure for {tid}")
+        return Result(value=f"ok:{tid}")
+
+    return scan
+
+
 # --- helpers ----------------------------------------------------------------
 
 
@@ -107,7 +159,13 @@ def _scan_dir(log_dir: str) -> UPath:
 
 
 def _read_parquet(path: UPath) -> "pq.ParquetFile":
-    # read into BytesIO so this works against both local files and S3
+    # read into BytesIO so this works against both local files and S3.
+    # invalidate the fsspec metadata cache for this path first: scout's
+    # `sync` rewrites the parquet via `mv`, and s3fs would otherwise
+    # raise FileExpired if it has a cached etag from a prior read.
+    fs = path.fs
+    if hasattr(fs, "invalidate_cache"):
+        fs.invalidate_cache(path.as_posix())
     return pq.ParquetFile(io.BytesIO(path.read_bytes()))
 
 
@@ -517,3 +575,120 @@ def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
             display="none",
         )
         assert success_3
+
+
+def test_scanner_partial_errors_recorded() -> None:
+    """A scanner that errors on some samples records those failures.
+
+    The eval itself is unaffected — sample outcomes are determined by the
+    solver, not by scanner success. Scanner failures land as `Error`
+    records in the compacted parquet's `scan_error` column and as counts
+    in `_summary.json`.
+
+    Finalize marks the scan `complete=False` when any scanner error is
+    present so scout's `scan_resume` can re-run only the failed scans.
+    See `test_scout_scan_resume_reruns_failed_scans` for the resume path.
+    """
+    n = 4  # ids 1..4: scanner errors on 2 and 4, succeeds on 1 and 3
+    expected_errors = n // 2
+    expected_results = n - expected_errors
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=_task(n),
+            log_dir=log_dir,
+            scanner=[picky_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        # the eval succeeds — scanner failures are isolated from sample state
+        assert success
+
+        scan_dir = _scan_dir(log_dir)
+
+        # summary tracks per-scanner success/error counts across all samples
+        summary = _read_summary(scan_dir)
+        ss = summary["scanners"]["picky_scanner"]
+        assert ss["scans"] == n
+        assert ss["errors"] == expected_errors
+        assert ss["results"] == expected_results
+        # scanner errors leave the scan resumable
+        assert summary["complete"] is False
+
+        # the compacted parquet has one row per sample, with `scan_error`
+        # populated for failed scans and null for successful ones
+        pf = _read_parquet(scan_dir / "picky_scanner.parquet")
+        assert pf.metadata.num_rows == n
+        scan_errors = pf.read(columns=["scan_error"]).column("scan_error").to_pylist()
+        assert sum(1 for e in scan_errors if e is not None) == expected_errors
+        assert sum(1 for e in scan_errors if e is None) == expected_results
+
+        # `_errors.jsonl` accumulates across samples — `FileRecorder.attach`
+        # preserves the errors file rather than truncating it (unlike
+        # `resume`, which is for scout's retry-errored model)
+        errors_jsonl = (scan_dir / "_errors.jsonl").read_text().strip()
+        error_lines = [line for line in errors_jsonl.split("\n") if line]
+        assert len(error_lines) == expected_errors
+        for line in error_lines:
+            err = json.loads(line)
+            assert err["scanner"] == "picky_scanner"
+            assert "refusing sample" in err["error"]
+
+
+def test_scout_scan_resume_reruns_failed_scans() -> None:
+    """Scout's `scan_resume` re-runs scans that errored in eval_set.
+
+    The eval_set finalize leaves `complete=False` when there are scanner
+    errors and writes a `spec.transcripts` snapshot to `_scan.json`.
+    Together those let scout's `scan_resume` pick up the scan, identify
+    transcripts whose per-scanner parquet has a non-null `scan_error`
+    (via `is_recorded`), and re-run only those scanners.
+
+    Uses `flaky_scanner` which errors on its first call per transcript
+    and succeeds afterwards. The resume re-runs every transcript and
+    they all succeed, so the scan ends `complete=True`. The summary
+    accumulates totals across both runs (scout's behavior — it's a
+    running tally of every scanner invocation).
+    """
+    from inspect_scout import scan_resume
+
+    if _FLAKY_MARKER.exists():
+        _FLAKY_MARKER.unlink()
+
+    n = 4
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(n),
+            log_dir=log_dir,
+            scanner=[flaky_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+
+        # all n samples errored on the first scanner attempt
+        summary_1 = _read_summary(scan_dir)
+        ss_1 = summary_1["scanners"]["flaky_scanner"]
+        assert ss_1["scans"] == n
+        assert ss_1["errors"] == n
+        assert ss_1["results"] == 0
+        # errors → scan is left resumable
+        assert summary_1["complete"] is False
+
+        # resume picks up where eval_set left off; flaky_scanner now
+        # succeeds on every retry. The errors file is truncated by
+        # scout's resume(), and no new errors land, so the scan is
+        # marked complete.
+        status = scan_resume(str(scan_dir), display="none")
+        assert status.complete
+        assert status.errors == []
+
+        summary_2 = _read_summary(scan_dir)
+        ss_2 = summary_2["scanners"]["flaky_scanner"]
+        # totals accumulate: original n errors + n successful retries
+        assert ss_2["scans"] == 2 * n
+        assert ss_2["errors"] == n
+        assert ss_2["results"] == n
+        assert summary_2["complete"] is True

@@ -54,7 +54,7 @@ Per-sample scans share a single scan directory keyed by `eval_set_id`:
 
 `scan_id` matches `eval_set_id` so eval_set retries write into the same scan directory.
 
-During the eval, per-transcript parquets accumulate in scout's existing buffer (a hashed cache dir under `inspect_data_dir("scout_scanbuffer")`). At end of `eval_set`, `FileRecorder.sync(scan_dir, complete=True)` compacts the buffer into `<scanner>.parquet` files in the scan dir.
+During the eval, per-transcript parquets accumulate in scout's existing buffer (a hashed cache dir under `inspect_data_dir("scout_scanbuffer")`). At end of `eval_set`, `FileRecorder.sync` compacts the buffer into `<scanner>.parquet` files in the scan dir; whether the scan is marked `complete` depends on whether any scanner errors are present (see "complete reflects whether scanner errors are present" below).
 
 ## Lifecycle in `eval_set`
 
@@ -135,7 +135,14 @@ async def scan_eval_set_finalize(eval_set_id, log_dir):
     state = _scan_states.pop(eval_set_id, None)
     if state is None:
         return
-    await FileRecorder.sync(state.scan_dir, complete=True)
+    # only mark complete if no scanner errors — otherwise leave the scan
+    # resumable so scout's scan_resume can re-run the failed scans
+    status = await FileRecorder.status(state.scan_dir)
+    await FileRecorder.sync(state.scan_dir, complete=not status.errors)
+    # write spec.transcripts snapshot for scan_resume
+    snapshot = _snapshot_from_compacted(state.scan_dir, log_dir=log_dir)
+    if snapshot:
+        _write_snapshot_to_scan_spec(state.scan_dir, snapshot)
 ```
 
 ## Recorder lifecycle
@@ -207,7 +214,7 @@ In-process scope is sufficient because all per-sample scans within an `eval_set`
 
 `is_recorded()` checks the per-transcript parquet directly. `RecorderBuffer.__init__(reset=True)` only resets the summary and errors files — it does **not** touch transcript parquets. So per-transcript artifacts are durable across re-init.
 
-`FileRecorder.sync(scan_location, complete=True)` already compacts buffer parquets into `<scanner>.parquet` and copies summary/errors to the scan dir. We use this unchanged at end-of-evalset.
+`FileRecorder.sync(scan_location, complete=...)` already compacts buffer parquets into `<scanner>.parquet` and copies summary/errors to the scan dir. We use this at end-of-evalset, passing `complete=False` when there are scanner errors so scout's `scan_resume` can pick the scan up.
 
 ## Required scout changes
 
@@ -225,15 +232,15 @@ In-process scope is sufficient because all per-sample scans within an `eval_set`
 - **Scanner errors.** Captured by scout's existing error handling (`Error` records). Scanner errors do not fail the sample.
 - **Crash mid-eval.** Per-transcript parquets are durable in the buffer. If `eval_set` crashes before `finalize()`, a manual `scan_complete <scan_dir>` reproduces the canonical layout. The `scan_eval_set_finalize` runs in a `finally` to maximize the chance it executes.
 
-### `complete=True` on every finalize
+### `complete` reflects whether scanner errors are present
 
-`scan_eval_set_finalize` always passes `complete=True` to `FileRecorder.sync`, regardless of whether the eval_set succeeded. This is deliberate.
+`scan_eval_set_finalize` reads `FileRecorder.status(scan_dir).errors` before calling `FileRecorder.sync`, and passes `complete = not errors`. With no scanner errors the scan is marked complete; with any scanner error the scan is left resumable so scout's `scan_resume` can re-run only the failed (transcript, scanner) pairs.
 
-Scout's `complete` flag means "the scan run is no longer in progress" — not "the user's job succeeded". Each `eval_set` call is, from scout's perspective, a complete unit of scanning work: records have been collected, the buffer has been compacted into the scan dir, and the run is exiting. The summary's `scans` / `results` / `errors` counts already reflect actual state; users who want to know whether the underlying eval succeeded can read the inspect_ai eval logs.
+A `complete=True` scan still has its buffer cleaned up by sync (the canonical compacted parquet now holds the full record). A `complete=False` scan keeps the buffer; both `RecorderBuffer.is_recorded` (used by `scan_resume` to skip succeeded scans) and the per-transcript parquets it consults live there.
 
-Passing `complete=False` on failure would be semantically tempting but interacts badly with our `extra_inputs` merge: scout's `complete=False` skips buffer cleanup, so on a subsequent resume the buffer would still hold call-1's per-transcript parquets while the existing compacted scan-dir parquet would *also* hold call-1's data — the next compaction would double-count call-1.
+We snapshot `spec.transcripts` at finalize by reading `transcript_id` / `transcript_source_uri` from the post-sync compacted parquet (built from every scanner sees every transcript, so any one parquet is a complete index). The snapshot is what `scan_resume` uses to know which transcripts existed in the scan.
 
-If we ever want stronger fidelity, the cleaner fix is **dedupe by `transcript_id` in `scanner_table`** (scout-side): the compaction keeps one copy per id regardless of how many input sources contain the row. That makes `complete=False` safe to use and is also defensive against any other future double-write source. See "Future Work" below.
+Together these mean: a finalized eval_set scan with errors is directly resumable via `scan_resume(scan_dir)`, and a clean run is sealed and read-only. See `test_scout_scan_resume_reruns_failed_scans`.
 
 ## Out of Scope (Initial Cut)
 
@@ -258,13 +265,14 @@ A natural improvement is to co-locate the buffer with the scan dir — `<scan_di
 
 ### Dedupe by `transcript_id` in `scanner_table`
 
-`FileRecorder.sync`'s compaction (`scanner_table` in scout) reads from the buffer plus an optional `extra_inputs` list (used to merge in the previously-compacted parquet on resume). It does not currently deduplicate rows. Today's design relies on the buffer being cleaned between eval_set calls — when that holds, the buffer and the existing parquet are disjoint sets of `transcript_id`s, so the union is row-correct.
+`FileRecorder.sync`'s compaction (`scanner_table` in scout) reads from the buffer plus an optional `extra_inputs` list (used to merge in the previously-compacted parquet on resume). It does not currently deduplicate rows.
+
+Today's design relies on **either** the buffer being cleaned (`complete=True` path) **or** every buffer per-transcript parquet being a fresh write of the same transcript_id (`complete=False` resume path — `record()` overwrites the per-transcript file, so the buffer and the existing compacted parquet have a 1:1 transcript_id overlap and the merge is union-with-replacement-by-construction). When neither invariant holds, double-counting becomes possible.
 
 If `scanner_table` deduplicated by `transcript_id` (keep one copy, e.g. latest by `timestamp`), the design would be more robust:
 
-- `complete=False` on failure becomes safe (no double-count even if the buffer survives across calls).
 - Defensive against any future double-write source.
-- Simplifies reasoning about the merge contract — it's an idempotent set-union rather than an "I know these are disjoint" optimization.
+- Simplifies reasoning about the merge contract — it's an idempotent set-union rather than an "I know these are disjoint or overwriting" optimization.
 
 This is purely a scout-side change and doesn't affect inspect_ai's call sites.
 

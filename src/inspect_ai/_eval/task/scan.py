@@ -45,7 +45,7 @@ async def scan_eval_set_init(
     recorder = FileRecorder()
 
     if exists(scan_dir):
-        await recorder.resume(scan_dir, concurrent_writers=True)
+        await recorder.attach(scan_dir, concurrent_writers=True)
         existing_names = set(recorder.scan_spec.scanners.keys())
         requested_names = set(scanners_dict.keys())
         if existing_names != requested_names:
@@ -108,7 +108,7 @@ async def scan_eval_sample(
         )
         reports = await _scan_one(job)
         recorder = FileRecorder()
-        await recorder.resume(scan_dir, concurrent_writers=True)
+        await recorder.attach(scan_dir, concurrent_writers=True)
         await recorder.record(info, name, reports, metrics=None)
 
 
@@ -117,14 +117,108 @@ async def scan_eval_set_finalize(
     eval_set_id: str,
     log_dir: str,
 ) -> None:
-    """Compact buffer parquets into canonical `<scanner>.parquet` files."""
+    """Compact buffer parquets and snapshot the recorded transcripts.
+
+    The transcripts snapshot is what scout's `scan_resume` uses to know
+    which transcripts existed in the scan. We sync first — that merges
+    this call's buffer with the previously-compacted parquet (via
+    `extra_inputs`) into the canonical output. The post-sync compacted
+    parquet contains every transcript ever recorded for this eval_set
+    across all calls; we read its `transcript_id` /
+    `transcript_source_uri` columns to build the snapshot, then write it
+    into `scan.json`. Errored scans show up too: their per-transcript row
+    has `scan_error` populated and `is_recorded` will return False on
+    resume, marking them for retry.
+
+    The snapshot is written by reading and re-writing `scan.json`
+    directly rather than via `recorder.attach() + snapshot_transcripts`,
+    because `attach` recreates the buffer dir (which `sync(complete=True)`
+    just cleaned up) and would leave the scan looking "in progress".
+
+    `complete` is True only when no scanner errors are present; with
+    errors we leave the scan resumable so scout's `scan_resume` can
+    re-run just the failed scans.
+    """
     scan_dir = _scan_dir(log_dir, eval_set_id)
     if not exists(scan_dir):
         return
 
     from inspect_scout._recorder.file import FileRecorder
 
-    await FileRecorder.sync(scan_dir, complete=True)
+    # only mark complete if no scanner errors — otherwise leave the scan
+    # in an "incomplete" state so scout's `scan_resume` can pick up the
+    # failed scans. status() reads errors from the buffer dir while it
+    # still exists (cleanup happens inside sync when complete=True).
+    pre_sync_status = await FileRecorder.status(scan_dir)
+    complete = not pre_sync_status.errors
+
+    # sync so the compacted parquet has the union of all calls
+    await FileRecorder.sync(scan_dir, complete=complete)
+
+    # build snapshot from the compacted output and write into scan.json
+    from upath import UPath
+
+    snapshot = _snapshot_from_compacted(UPath(scan_dir), log_dir=log_dir)
+    if snapshot is None:
+        return
+    _write_snapshot_to_scan_spec(UPath(scan_dir), snapshot)
+
+
+def _write_snapshot_to_scan_spec(scan_dir: Any, snapshot: Any) -> None:
+    """Read the on-disk scan spec, attach the snapshot, write it back.
+
+    Bypasses `FileRecorder.attach` so we don't recreate the buffer dir
+    that `sync(complete=True)` just removed — keeping the scan in the
+    "complete" state for `FileRecorder.status`.
+    """
+    from inspect_scout._recorder.file import SCAN_JSON
+    from inspect_scout._scanspec import ScanSpec
+
+    from inspect_ai._util.file import file
+    from inspect_ai._util.json import to_json_str_safe
+
+    scan_json = (scan_dir / SCAN_JSON).as_posix()
+    with file(scan_json, "r") as f:
+        spec = ScanSpec.model_validate_json(f.read())
+    spec.transcripts = snapshot
+    with file(scan_json, "w") as f:
+        f.write(to_json_str_safe(spec))
+
+
+def _snapshot_from_compacted(scan_dir: Any, *, log_dir: str) -> Any:
+    """Build a `ScanTranscripts` from the post-sync compacted parquet.
+
+    Reads `transcript_id` + `transcript_source_uri` from any scanner's
+    compacted output — every scanner sees every transcript, so any one
+    is a complete index. Returns None if no scanner parquets exist (e.g.
+    scan ran with no samples).
+    """
+    import io
+
+    import pyarrow.parquet as pq
+    from inspect_scout._scanspec import ScanTranscripts
+
+    parquets = sorted(p for p in scan_dir.iterdir() if p.suffix == ".parquet")
+    if not parquets:
+        return None
+
+    pf = pq.ParquetFile(io.BytesIO(parquets[0].read_bytes()))
+    table = pf.read(columns=["transcript_id", "transcript_source_uri"])
+    transcript_ids: dict[str, str | None] = {}
+    for tid, uri in zip(
+        table.column("transcript_id").to_pylist(),
+        table.column("transcript_source_uri").to_pylist(),
+    ):
+        if tid is not None and tid not in transcript_ids:
+            transcript_ids[tid] = uri
+
+    if not transcript_ids:
+        return None
+    return ScanTranscripts(
+        type="eval_log",
+        location=log_dir,
+        transcript_ids=transcript_ids,
+    )
 
 
 @contextlib.contextmanager
@@ -172,8 +266,15 @@ def _transcript_info(
 ) -> Any:
     from inspect_scout import TranscriptInfo
 
+    from inspect_ai.analysis._dataframe.samples.extract import auto_sample_id
+
+    # use the same id derivation as inspect_ai's samples_df (which scout's
+    # EvalLogTranscripts reads): `sample.uuid` if present, else a stable
+    # hash of (eval_id, sample.id, sample.epoch). Aligning with that
+    # convention is what lets scout's tooling cross-reference our records
+    # against the same transcripts read out of the eval logs.
     return TranscriptInfo(
-        transcript_id=eval_sample.uuid or f"{eval_sample.id}_{eval_sample.epoch}",
+        transcript_id=eval_sample.uuid or auto_sample_id(eval_id, eval_sample),
         source_type="eval_sample",
         source_id=eval_id,
         source_uri=log_location,
