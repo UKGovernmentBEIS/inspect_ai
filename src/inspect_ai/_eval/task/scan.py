@@ -21,10 +21,22 @@ async def scan_eval_set_init(
     eval_set_id: str,
     log_dir: str,
 ) -> None:
-    """Lay down the scan dir + initial summary for an eval_set."""
+    """Lay down the scan dir + initial summary for an eval_set.
+
+    On second-and-later `eval_set` calls (e.g. resume after a partial
+    failure), the scan dir already exists. Use `resume()` so the
+    accumulated `_summary.json` is preserved and extended; `init()` would
+    wipe it via `reset=True`.
+    """
     from inspect_scout._recorder.file import FileRecorder
     from inspect_scout._scancontext import _spec_scanners
     from inspect_scout._scanspec import ScanOptions, ScanSpec
+
+    scan_dir = _scan_dir(log_dir, eval_set_id)
+    recorder = FileRecorder()
+    if exists(scan_dir):
+        await recorder.resume(scan_dir, concurrent_writers=True)
+        return
 
     scanners_dict = _normalize_scanners(scanner)
     spec = ScanSpec(
@@ -33,8 +45,6 @@ async def scan_eval_set_init(
         scanners=_spec_scanners(scanners_dict),
         options=ScanOptions(),
     )
-
-    recorder = FileRecorder()
     await recorder.init(spec, _scans_location(log_dir), concurrent_writers=True)
 
 
