@@ -683,6 +683,43 @@ Concurrency for REST API based models is managed using the `max_connections` opt
 
 The default batch size for Hugging Face is 32, but you should tune your `max_connections` to maximise performance and ensure that batches don't exceed available GPU memory. The [Pipeline Batching](https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching) section of the transformers documentation is a helpful guide to the ways batch size and performance interact.
 
+### Continuous Batching (Experimental)
+
+::: {.callout-note}
+## Status: In Development
+
+Continuous batching support is planned but not yet fully implemented. This section documents the intended API for when the feature is complete.
+:::
+
+For improved memory efficiency and dynamic request handling, you can enable continuous batching with the `continuous_batching` model argument:
+
+``` bash
+inspect eval task.py \
+  --model hf/meta-llama/Llama-3.1-8B-Instruct \
+  -M continuous_batching=true \
+  -M num_blocks=2048 \
+  -M max_batch_tokens=4096
+```
+
+**Benefits:**
+- Shared KV cache across requests (lower memory usage)
+- Dynamic scheduling (add/remove requests on-the-fly)
+- Better GPU utilization
+- Prefix sharing for common prompts
+
+**Requirements:**
+- transformers >= 4.38.0
+- Model must support paged attention
+- GPU recommended (CPU supported but slower)
+
+**Configuration:**
+- `continuous_batching`: Enable feature (default: False)
+- `num_blocks`: Number of cache blocks (auto-detected if not specified)
+- `max_batch_tokens`: Total token budget across all requests
+- `scheduler`: "fifo" or "prefill_first" scheduling policy
+
+**Note:** This feature uses transformers' `generate_batch()` API with `PagedAttentionCache`. Not all models support this feature. For now, the standard batching implementation will be used when enabled.
+
 ### Device
 
 The PyTorch `cuda` device will be used automatically if CUDA is available (as will the Mac OS `mps` device). If you want to override the device used, use the `device` model argument. For example:
