@@ -1,6 +1,6 @@
 import contextlib
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar
 from logging import getLogger
 from typing import AsyncIterator
@@ -9,7 +9,8 @@ from shortuuid import uuid as shortuuid
 
 logger = getLogger(__name__)
 
-SpanIdProvider = Callable[[str, str | None], Awaitable[str]]
+SpanIdProvider = Callable[[str, str | None, str | None], Awaitable[str]]
+"""``await provider(name, parent_id, requested_id)`` → span id."""
 """Signature for a span-ID provider: ``async (name, parent_id) -> id``.
 
 Set via `set_span_id_provider` to make `span()` use orchestrator-supplied IDs
@@ -37,12 +38,11 @@ async def span(
     )
 
     # span id
-    if id is None:
-        provider = _span_id_provider.get()
-        if provider is not None:
-            id = await provider(name, _current_span_id.get())
-        else:
-            id = shortuuid()
+    provider = _span_id_provider.get()
+    if provider is not None:
+        id = await provider(name, _current_span_id.get(), id)
+    elif id is None:
+        id = shortuuid()
 
     # capture parent id
     parent_id = _current_span_id.get()
@@ -84,7 +84,7 @@ def current_span_id() -> str | None:
 
 
 @contextlib.contextmanager
-def set_span_id_provider(provider: SpanIdProvider | None):
+def set_span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 
     When set, `span()` calls without an explicit ``id`` consult

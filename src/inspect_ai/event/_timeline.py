@@ -216,7 +216,7 @@ class TimelineSpan(BaseModel):
     type: Literal["span"] = "span"
     id: str
     name: str
-    span_type: str | None
+    span_type: str | None = None
     content: list[TimelineContentItem] = Field(default_factory=list)
     branches: list["TimelineSpan"] = Field(default_factory=list)
     branched_from: str | None = Field(default=None)
