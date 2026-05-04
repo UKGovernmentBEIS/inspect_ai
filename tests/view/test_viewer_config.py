@@ -400,6 +400,75 @@ def test_samples_view_score_labels_rejects_non_string_value() -> None:
         )
 
 
+def test_samples_view_score_color_scales_named_palette_roundtrip() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Heat",
+            score_color_scales={
+                "accuracy": "good-high",
+                "harm_score": "good-low",
+                "alpha_count": "neutral",
+                "delta": "diverging",
+            },
+        ),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    assert isinstance(restored.task_samples_view, SamplesView)
+    assert restored.task_samples_view.score_color_scales == {
+        "accuracy": "good-high",
+        "harm_score": "good-low",
+        "alpha_count": "neutral",
+        "delta": "diverging",
+    }
+
+
+def test_samples_view_score_color_scales_categorical_roundtrip() -> None:
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Heat",
+            score_color_scales={
+                "verdict": {"yes": "bad", "no": "good", "maybe": "warn"},
+            },
+        ),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+
+
+def test_samples_view_score_color_scales_mixed_roundtrip() -> None:
+    """A single config can mix numeric palettes and categorical maps."""
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Heat",
+            score_color_scales={
+                "accuracy": "good-high",
+                "verdict": {"yes": "bad", "no": "good"},
+            },
+        ),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+
+
+def test_samples_view_score_color_scales_rejects_unknown_palette() -> None:
+    with pytest.raises(ValidationError):
+        SamplesView(
+            name="Default",
+            score_color_scales={"accuracy": "rainbow"},  # type: ignore[dict-item]
+        )
+
+
+def test_samples_view_score_color_scales_rejects_unknown_role() -> None:
+    with pytest.raises(ValidationError):
+        SamplesView(
+            name="Default",
+            score_color_scales={
+                "verdict": {"yes": "amazing"},  # type: ignore[dict-item]
+            },
+        )
+
+
 def test_samples_view_roundtrip_with_string_filter() -> None:
     cfg = ViewerConfig(
         task_samples_view=SamplesView(

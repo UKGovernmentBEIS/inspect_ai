@@ -140,6 +140,40 @@ class SamplesView(BaseModel):
     instead of the raw metric name. Lookup falls back to the metric
     name itself when no override is set."""
 
+    score_color_scales: (
+        dict[
+            str,
+            Literal["good-high", "good-low", "neutral", "diverging"]
+            | dict[str, Literal["good", "bad", "warn", "info", "muted"]],
+        ]
+        | None
+    ) = None
+    """Background-colour scales for score cells, keyed by score (metric)
+    name. Each entry is either a named palette (numeric scores) or a
+    map from value to semantic role (categorical scores). Both forms
+    resolve to theme-aware Bootstrap subtle colours so light and dark
+    modes stay legible without hand-rolled colour pairs.
+
+    Numeric palettes:
+    - `good-high`: low → red, high → green (typical "accuracy" metric)
+    - `good-low`:  low → green, high → red (typical "danger" / "loss" metric)
+    - `neutral`:   transparent → blue (magnitude only, no good/bad signal)
+    - `diverging`: red ↔ green centred on the midpoint of min / max
+
+    Categorical roles (`good` / `bad` / `warn` / `info` / `muted`)
+    resolve to Bootstrap `*-bg-subtle` CSS variables.
+
+    Numeric example: `{"accuracy": "good-high"}` paints high values
+    green and low values red, anchored at the descriptor's auto-detected
+    min/max.
+
+    Categorical example: `{"verdict": {"yes": "bad", "no": "good"}}`
+    paints `yes` cells red and `no` cells green.
+
+    Pass/fail and boolean scores ignore this config — their pre-coloured
+    pills already encode the semantic. Scores not in the map render
+    with no background."""
+
 
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
