@@ -3,12 +3,17 @@
 See `design/eval-set-scanners.md` for the design.
 """
 
+import io
 import json
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pyarrow.parquet as pq
 import pytest
+from shortuuid import uuid
+from upath import UPath
 
 from inspect_ai import Task, eval_set
 from inspect_ai.dataset import Sample
@@ -64,21 +69,43 @@ def _task(n_samples: int = 2) -> Task:
     )
 
 
-def _scan_dir(log_dir: str) -> Path:
-    """Locate the single `scan_id=...` directory under log_dir/scans."""
-    scans = list((Path(log_dir) / "scans").iterdir())
+def _scan_dir(log_dir: str) -> UPath:
+    """Locate the single `scan_id=...` directory under log_dir/scans.
+
+    Returns a UPath so the same helper works against both local
+    `tempfile.TemporaryDirectory` paths and `s3://...` URLs.
+    """
+    scans = list((UPath(log_dir) / "scans").iterdir())
     assert len(scans) == 1, (
         f"expected exactly one scan dir, found {[p.name for p in scans]}"
     )
     return scans[0]
 
 
-def _read_parquet(path: Path) -> "pq.ParquetFile":
-    return pq.ParquetFile(str(path))
+def _read_parquet(path: UPath) -> "pq.ParquetFile":
+    # read into BytesIO so this works against both local files and S3
+    return pq.ParquetFile(io.BytesIO(path.read_bytes()))
 
 
-def _read_summary(scan_dir: Path) -> dict:
+def _read_summary(scan_dir: UPath) -> dict:
     return json.loads((scan_dir / "_summary.json").read_text())
+
+
+@contextmanager
+def _log_dir(backend: str) -> Iterator[str]:
+    """Yield a log dir suitable for `eval_set(log_dir=...)`.
+
+    `backend="local"`: a `tempfile.TemporaryDirectory`.
+    `backend="s3"`: a unique prefix on the moto-mocked test bucket.
+    """
+    if backend == "s3":
+        # the `mock_s3` fixture creates the bucket; per-test prefix isolates
+        # parametrized invocations from each other within a module-scoped
+        # bucket
+        yield f"s3://test-bucket/{uuid()}"
+        return
+    with tempfile.TemporaryDirectory() as d:
+        yield d
 
 
 # --- tests ------------------------------------------------------------------
@@ -309,14 +336,24 @@ def test_scanner_buffer_cleaned_up_after_eval_set() -> None:
         )
 
 
-def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples() -> None:
+@pytest.mark.parametrize("backend", ["local", "s3"])
+def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
+    backend: str, request: pytest.FixtureRequest
+) -> None:
     """A second `eval_set` call on the same `log_dir` resumes:
 
     * Previously successful samples short-circuit and are not re-scanned.
     * Previously errored samples re-run and are scanned again.
     * `_summary.json` reflects the *union* of scans across both runs (it is
       not wiped on the second call).
+
+    Runs against both a local temp dir and an S3-mocked log dir to cover
+    the local `os.replace` path and the fsspec `mv` (copy+delete) path
+    that scout's `sync` falls back to for object stores.
     """
+    if backend == "s3":
+        request.getfixturevalue("mock_s3")
+
     n = 3
     # one solver instance, reused across both calls — its closure state
     # remembers which samples have already been attempted
@@ -328,14 +365,19 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples() -> No
             solver=[fails_first_time, generate()],
         )
 
-    with tempfile.TemporaryDirectory() as log_dir:
-        # call 1: every sample fails on its first attempt
+    with _log_dir(backend) as log_dir:
+        # call 1: every sample fails on its first attempt. continue_on_fail
+        # ensures all N samples run and log/scan their error before the eval
+        # is marked as failed (without it, the eval aborts on the first error
+        # and only some samples would scan, racing with cross-sample
+        # parallelism — the local case happened to win that race, S3 didn't).
         success_1, _ = eval_set(
             tasks=make_task(),
             log_dir=log_dir,
             scanner=[echo_scanner()],
             model="mockllm/model",
             retry_attempts=0,
+            continue_on_fail=True,
             display="none",
         )
         assert not success_1
@@ -355,6 +397,7 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples() -> No
             scanner=[echo_scanner()],
             model="mockllm/model",
             retry_attempts=0,
+            continue_on_fail=True,
             display="none",
         )
         assert success_2
