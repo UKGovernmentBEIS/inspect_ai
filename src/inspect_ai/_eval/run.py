@@ -269,6 +269,8 @@ async def eval_run(
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
                         kwargs=kwargs,
+                        initial_model_usage=resolved_task.initial_model_usage,
+                        initial_role_usage=resolved_task.initial_role_usage,
                     )
                 )
 
