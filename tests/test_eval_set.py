@@ -365,6 +365,9 @@ def test_eval_set_preserves_token_usage():
     # attempt records baseline_tokens (generate ran before the failure), and
     # the retry records baseline_tokens again — so a final log with token
     # rollover wired up should exceed baseline_tokens.
+    #
+    # This exercises legacy batch-retry mode (retry_immediate=False), where each
+    # retry produces a fresh eval log and usage is rolled forward across logs.
     @solver
     def fail_first_after_generate() -> Solver:
         counter = {"value": 0}
@@ -387,6 +390,7 @@ def test_eval_set_preserves_token_usage():
             log_dir=log_dir,
             retry_attempts=2,
             retry_wait=0.1,
+            retry_immediate=False,
             model="mockllm/model",
         )
         assert success
@@ -1484,7 +1488,8 @@ def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
                 )
 
 
-def test_eval_set_retry_immediate() -> None:
+@pytest.mark.parametrize("retry_immediate", [True, None])
+def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
     """Test that retry_immediate retries a failed task reusing completed samples.
 
     Task A has 2 samples. On the first run, sample 1 completes and sample 2
@@ -1493,6 +1498,10 @@ def test_eval_set_retry_immediate() -> None:
 
     Task B waits until Task A's retry has completed before returning, ensuring
     deterministic ordering.
+
+    Parameterized over `retry_immediate=True` (explicit) and `retry_immediate=None`
+    (omitted) to verify both produce the immediate-retry behavior — `None` is the
+    sentinel that resolves to the new default of True.
     """
     import anyio
 
@@ -1562,7 +1571,7 @@ def test_eval_set_retry_immediate() -> None:
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=1,
-            retry_immediate=True,
+            retry_immediate=retry_immediate,
             max_tasks=2,
             max_samples=1,
         )

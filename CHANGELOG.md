@@ -1,7 +1,8 @@
 ## Unreleased
-
+.
 - Google: Support Gemini 3+ native web search and code execution alongside function tools.
 - HuggingFace: Add `trust_remote_code` model argument (defaults to `False`).
+- Eval Set: `retry_immediate` now defaults to True. Pass `retry_immediate=False` (or `--no-retry-immediate`) to restore the previous batch-retry behavior.
 - Eval Set: Roll forward `model_usage` and `role_usage` from previous log when performing retries (matches existing `eval-retry` behavior).
 - Compaction: Account for redacted-reasoning input cost on providers that exclude it from `usage.input_tokens` (currently OpenAI Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
 
