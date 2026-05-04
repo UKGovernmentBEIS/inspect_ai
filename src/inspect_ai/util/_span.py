@@ -87,10 +87,7 @@ def current_span_id() -> str | None:
 def set_span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 
-    When set, `span()` calls without an explicit ``id`` consult
-    ``await provider(name, parent_id)`` instead of generating a fresh UUID.
-    Used by orchestrators that need deterministic span identity across
-    replayed runs (e.g. petri's branching trajectories).
+    When set, every `span()` call consults ``await provider(name, parent_id, requested_id)`` to determine the span id (any explicit ``id`` argument is passed through as ``requested_id``).
     """
     token = _span_id_provider.set(provider)
     try:
