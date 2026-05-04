@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 from test_helpers.utils import (
     skip_if_github_action,
@@ -83,6 +85,82 @@ async def test_hf_api_fails(model) -> None:
             await model.generate(input=[message])
     finally:
         model.config.temperature = temp_before
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_trust_remote_code_default_false(monkeypatch) -> None:
+    """trust_remote_code must default to False on both model and tokenizer calls."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    calls: list[dict] = []
+
+    def fake_from_pretrained(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return MagicMock()
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_from_pretrained
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", fake_from_pretrained
+    )
+
+    HuggingFaceAPI(model_name="EleutherAI/pythia-70m")
+
+    assert len(calls) == 2
+    for call in calls:
+        assert call["kwargs"].get("trust_remote_code") is False
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_trust_remote_code_explicit_true(monkeypatch) -> None:
+    """An explicit trust_remote_code=True must reach both from_pretrained calls."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    calls: list[dict] = []
+
+    def fake_from_pretrained(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return MagicMock()
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_from_pretrained
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", fake_from_pretrained
+    )
+
+    HuggingFaceAPI(model_name="EleutherAI/pythia-70m", trust_remote_code=True)
+
+    assert len(calls) == 2
+    for call in calls:
+        assert call["kwargs"].get("trust_remote_code") is True
+    # trust_remote_code must be consumed, not also smuggled through **model_args
+    # (it must appear exactly once per call, not duplicated as a positional/extra kwarg)
+    for call in calls:
+        kwargs = call["kwargs"]
+        # only the explicit kwarg we passed; no duplicate via passthrough
+        assert sum(1 for k in kwargs if k == "trust_remote_code") == 1
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_trust_remote_code_rejects_non_bool(monkeypatch) -> None:
+    """Non-bool trust_remote_code (e.g. a string from a malformed config) must be rejected."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained",
+        lambda *a, **k: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained", lambda *a, **k: MagicMock()
+    )
+
+    with pytest.raises(ValueError, match="trust_remote_code must be a bool"):
+        HuggingFaceAPI(model_name="EleutherAI/pythia-70m", trust_remote_code="true")
 
 
 @skip_if_no_transformers

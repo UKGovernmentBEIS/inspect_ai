@@ -102,6 +102,11 @@ class HuggingFaceAPI(ModelAPI):
         self.hidden_states = collect_model_arg("hidden_states")
         do_sample = collect_model_arg("do_sample")
         self.do_sample: bool = do_sample if do_sample is not None else True
+        trust_remote_code = collect_model_arg("trust_remote_code")
+        if trust_remote_code is None:
+            trust_remote_code = False
+        if not isinstance(trust_remote_code, bool):
+            raise ValueError("trust_remote_code must be a bool")
 
         # device
         if device:
@@ -116,23 +121,39 @@ class HuggingFaceAPI(ModelAPI):
         # model
         if model_path:
             self.model: Any = AutoModelForCausalLM.from_pretrained(
-                model_path, device_map=self.device, token=self.api_key, **model_args
+                model_path,
+                device_map=self.device,
+                token=self.api_key,
+                trust_remote_code=trust_remote_code,
+                **model_args,
             )
         else:
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_name, device_map=self.device, token=self.api_key, **model_args
+                model_name,
+                device_map=self.device,
+                token=self.api_key,
+                trust_remote_code=trust_remote_code,
+                **model_args,
             )
 
         # tokenizer
         if tokenizer:
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)  # type: ignore[no-untyped-call]
+            self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                tokenizer, trust_remote_code=trust_remote_code
+            )
         elif model_path:
             if tokenizer_path:
-                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)  # type: ignore[no-untyped-call]
+                self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                    tokenizer_path, trust_remote_code=trust_remote_code
+                )
             else:
-                self.tokenizer = AutoTokenizer.from_pretrained(model_path)  # type: ignore[no-untyped-call]
+                self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                    model_path, trust_remote_code=trust_remote_code
+                )
         else:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)  # type: ignore[no-untyped-call]
+            self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+                model_name, trust_remote_code=trust_remote_code
+            )
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
@@ -140,7 +161,7 @@ class HuggingFaceAPI(ModelAPI):
     @override
     def close(self) -> None:
         self.model = None
-        self.tokenizer = None
+        self.tokenizer = None  # type: ignore[assignment]
         gc.collect()
 
     async def generate(
@@ -160,7 +181,7 @@ class HuggingFaceAPI(ModelAPI):
 
         assert isinstance(self.tokenizer_call_args, dict)
         # prepare tokenizer
-        tokenizer = functools.partial(
+        tokenizer = functools.partial(  # type: ignore[misc]
             self.tokenizer,
             return_tensors="pt",
             padding=True,
@@ -322,7 +343,7 @@ class HuggingFaceAPI(ModelAPI):
                 return cast(
                     str,
                     self.tokenizer.apply_chat_template(
-                        hf_messages,
+                        hf_messages,  # type: ignore[arg-type]
                         chat_template=chat_template,
                         **template_args,
                     ),
@@ -335,7 +356,7 @@ class HuggingFaceAPI(ModelAPI):
                     return cast(
                         str,
                         self.tokenizer.apply_chat_template(
-                            hf_messages,
+                            hf_messages,  # type: ignore[arg-type]
                             **template_args,
                         ),
                     )
@@ -345,7 +366,7 @@ class HuggingFaceAPI(ModelAPI):
         return cast(
             str,
             self.tokenizer.apply_chat_template(
-                hf_messages,
+                hf_messages,  # type: ignore[arg-type]
                 **template_args,
             ),
         )
@@ -622,7 +643,7 @@ def extract_logprobs(
             token_str = tokenizer.convert_ids_to_tokens(tok.item())
             top_logprobs.append(
                 TopLogprob(
-                    token=token_str,
+                    token=token_str,  # type: ignore[arg-type]
                     logprob=val,
                     bytes=list(map(ord, token_str)),
                 )
