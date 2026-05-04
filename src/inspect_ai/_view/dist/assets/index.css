@@ -14485,6 +14485,9 @@ body[class^="vscode-"] {
   --bs-card-border-color: var(--vscode-editorGroup-border);
   --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
   --bs-warning-text-emphasis: var(--vscode-input-foreground);
+  --bs-success-bg-subtle: var(--vscode-diffEditor-insertedTextBackground);
+  --bs-danger-bg-subtle: var(--vscode-diffEditor-removedTextBackground);
+  --bs-info-bg-subtle: var(--vscode-inputValidation-infoBackground);
   --bs-breadcrumb-divider-color: var(--vscode-foreground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
@@ -15857,16 +15860,17 @@ li > ul {
   padding: 0 0.2rem;
   background-color: var(--bs-body-bg);
 }
-.btn._toolButton_dd6ny_1 {
+.btn._toolButton_13erz_1 {
   background-color: var(--bs-light-border-subtle);
+  border: 1px solid var(--bs-border-color);
   white-space: nowrap;
 }
 
-._marginRight_dd6ny_6 {
+._marginRight_13erz_7 {
   margin-right: 0.5em;
 }
 
-._toolButton_dd6ny_1:focus {
+._toolButton_13erz_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -15874,15 +15878,16 @@ li > ul {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._latched_dd6ny_18,
-._latched_dd6ny_18:hover {
+.btn._toolButton_13erz_1._subtle_13erz_19 {
+  background-color: var(--bs-light);
+}
+
+.btn._toolButton_13erz_1._latched_13erz_23,
+.btn._toolButton_13erz_1._latched_13erz_23:hover {
+  background-color: var(--bs-secondary-bg);
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.btn._toolButton_dd6ny_1._subtle_dd6ny_25 {
-  background-color: var(--bs-light);
 }
 ._headerContainer_gh2j2_1 {
   display: grid;
@@ -17354,24 +17359,22 @@ button._segment_13qph_10._compact_13qph_31 i {
   text-decoration-style: solid;
   background-color: var(--bs-primary-bg-subtle);
 }
-._circle_qymy9_1 {
-  font-family: "Consola Regular";
-  width: 40px;
-  height: 30px;
+._circle_17gxn_1 {
+  width: 36px;
+  height: 22px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  border-radius: 15px;
-  padding-top: 1px;
+  border-radius: 11px;
 }
 
-._green_qymy9_12 {
+._green_17gxn_10 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_qymy9_18 {
+._red_17gxn_16 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
@@ -17474,30 +17477,28 @@ button._segment_13qph_10._compact_13qph_31 i {
 ._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
-._circle_1iagp_1 {
-  font-family: "Consola Regular";
-  width: 20px;
-  height: 20px;
+._circle_1seo2_1 {
+  width: 18px;
+  height: 18px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   border-radius: 50%;
-  padding-top: 1px;
 }
 
-._green_1iagp_12 {
+._green_1seo2_10 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_1iagp_18 {
+._red_1seo2_16 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
 }
 
-._orange_1iagp_24 {
+._orange_1seo2_22 {
   background-color: var(--bs-orange);
   border-color: var(--bs-orange);
   color: var(--bs-body-bg);
@@ -17978,13 +17979,13 @@ button._segment_13qph_10._compact_13qph_31 i {
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
 }
-._gridWrapper_gp0n4_1 {
+._gridWrapper_yfmzu_1 {
   height: 100%;
   width: 100%;
   position: relative;
 }
 
-._gridContainer_gp0n4_7 {
+._gridContainer_yfmzu_7 {
   position: absolute;
   top: 0;
   left: 0;
@@ -17995,7 +17996,8 @@ button._segment_13qph_10._compact_13qph_31 i {
 /* Shared chrome — applied to all sample/log grids. Other ag-grids in the
  * app (e.g. the small score-summary table in title-view) intentionally opt
  * out by not adding this class. */
-._gridChrome_gp0n4_18 .ag-row {
+
+._gridChrome_yfmzu_19 .ag-row {
   cursor: pointer;
   border-bottom: 1px solid var(--bs-border-color);
   background-color: var(--bs-body-bg);
@@ -18007,15 +18009,27 @@ button._segment_13qph_10._compact_13qph_31 i {
 
 /* Match container so rows' min-width: 100% has the full viewport to
  * stretch into. Pinned containers are unaffected. */
-._gridChrome_gp0n4_18 .ag-center-cols-container {
+._gridChrome_yfmzu_19 .ag-center-cols-container {
   min-width: 100%;
 }
 
-._gridChrome_gp0n4_18 .ag-row.ag-row-selected {
-  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
+._gridChrome_yfmzu_19 {
+  --ag-row-selected-color: transparent;
+  --ag-selected-row-background-color: transparent;
 }
 
-._gridChrome_gp0n4_18 .ag-header-cell {
+/* Pseudo-element overlay so the selection ring sits above per-cell
+ * backgrounds set by the colour-scale heatmap. */
+._gridChrome_yfmzu_19 .ag-row.ag-row-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
+  z-index: 1;
+}
+
+._gridChrome_yfmzu_19 .ag-header-cell {
   /* Right gutter gives the active-filter icon (sibling of the header
    * label inside `.ag-cell-label-container`) breathing room from the
    * column boundary. Left padding is handled via the `::before` flex
@@ -18023,58 +18037,160 @@ button._segment_13qph_10._compact_13qph_31 i {
   padding: 0 4px 0 0;
 }
 
-._gridChrome_gp0n4_18 .ag-header-cell-label::before {
+._gridChrome_yfmzu_19 .ag-header-cell-label::before {
   content: "";
   flex: 0 1 var(--ag-cell-horizontal-padding);
 }
 
-._gridChrome_gp0n4_18 .ag-header-cell-text {
+._gridChrome_yfmzu_19 .ag-header-cell-text {
   font-size: var(--inspect-font-size-smallestest);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 400;
 }
 
-._gridChrome_gp0n4_18 .ag-sort-order {
+/* Rotated header — opt-in via `headerClass: styles.rotatedHeader` +
+ * `headerComponent: RotatedHeader` in a ColDef. SamplesGrid auto-bumps
+ * `headerHeight` to kRotatedHeaderHeight when any column has this class
+ * so the rotated label has room to fan up-and-to-the-right without
+ * getting clipped by the header viewport. */
+._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 {
+  /* Default ag-grid `.ag-header-cell` clips overflow; the rotated
+   * parallelogram pivots out of the cell box and would disappear
+   * without this. */
+  overflow: visible;
+  /* Suppress Balham's vertical column separator on rotated cells —
+   * a vertical line through a 45° label clashes. The angled divider
+   * inside `RotatedHeader` takes its place. */
+  --ag-header-column-border: transparent;
+  /* Override the regular-cell right-gutter padding so the rotated
+   * label's `left: 100%` anchor lands on the actual cell boundary
+   * (matching the colour-scale background) instead of the inset
+   * content edge. The gutter exists for the default filter icon,
+   * which rotated cells don't render. */
+  padding-right: 0;
+}
+
+/* Compact-mode trailing spacer column — no header content, no
+ * separator. The spacer only exists to extend the scrollable extent
+ * so the rightmost rotated label has room past the last data column;
+ * a vertical divider on it would visually fence off that breathing
+ * room and look like a grid edge. */
+._gridChrome_yfmzu_19 ._spacerHeader_yfmzu_98 {
+  --ag-header-column-border: transparent;
+}
+
+/* Each rotated label extends past its own cell into the next
+ * column's space, so the next cell's content wrapper would
+ * otherwise intercept clicks on the overflowing label tip. Make the
+ * wrapper transparent to pointer events; the label inside opts back
+ * in via `pointer-events: auto` (see RotatedHeader.module.css). */
+._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 .ag-header-cell-comp-wrapper {
+  pointer-events: none;
+}
+
+/* When any column has a rotated header, the header row is tall
+ * enough that center-aligned labels look adrift. Bottom-align all
+ * header content so non-rotated labels line up visually with the
+ * rotated labels (which are anchored at the cell's bottom-left).
+ * The cell, label-container, and label are each independent flex
+ * boxes that all default to center alignment, so all three need
+ * the override for the text to actually drop to the bottom. */
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell,
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-cell-label-container,
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
+  align-items: flex-end;
+}
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
+  padding-bottom: 4px;
+}
+
+/* Bottom-anchor the vertical column separator on regular cells when
+ * the header row is tall (rotated-mode). Balham's `::after` separator
+ * defaults to vertically-centered and 50% height, which floats far
+ * above the bottom-aligned text and looks orphaned. Drop it down so
+ * it sits next to the text. */
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell::after {
+  top: auto;
+  bottom: 0;
+  height: 22px;
+}
+
+/* Hide ag-grid's default header-filter button (funnel) until the
+ * user hovers the column header. Stays visible when the filter is
+ * active so users always see *which* columns are filtering. Applies
+ * to all sample/log grids — quieter at rest, full affordance on
+ * intent. */
+._gridChrome_yfmzu_19 .ag-header-cell-filter-button {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+._gridChrome_yfmzu_19
+  .ag-header-cell:hover
+  .ag-header-cell-filter-button,
+._gridChrome_yfmzu_19
+  .ag-header-cell.ag-header-cell-filtered
+  .ag-header-cell-filter-button {
+  opacity: 1;
+}
+
+._gridChrome_yfmzu_19 .ag-sort-order {
   font-size: var(--inspect-font-size-smallestest);
   align-self: center;
   margin-right: -10px;
 }
 
-/* List mode — multi-line wrapping cells with vertical padding. */
-._listMode_gp0n4_65 .ag-cell {
-  align-items: flex-start;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+/* List mode — multi-line wrapping cells, top-aligned. ag-grid Balham
+ * stretches line-height to match row-height (so single-line text
+ * visually centers in inline-block cells); reset to a normal
+ * line-height so all cells (plain text, MarkdownCellDiv, ScoreCellDiv)
+ * sit at the top together. */
+._listMode_yfmzu_167 .ag-cell {
+  line-height: var(--bs-body-line-height);
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
   white-space: normal;
 }
 
-/* Grid mode — vertically centered cells; column renderers handle ellipsis. */
-._gridMode_gp0n4_73 .ag-cell {
+/* Grid mode — let ag-grid's default row-height line-height vertically
+ * center single-line plain text. Custom renderers (ScoreCellDiv) need
+ * explicit centering — see the `.gridMode .score` rule below. */
+._gridMode_yfmzu_176 .ag-cell {
   align-items: center;
 }
 
 /* Cell helpers exposed for column renderers. */
-._cell_gp0n4_78 {
+._cell_yfmzu_182 {
   line-height: var(--bs-body-line-height);
 }
 
-._wrapAnywhere_gp0n4_82 {
+._wrapAnywhere_yfmzu_186 {
   overflow-wrap: break-word;
 }
 
-._noLeft_gp0n4_86 {
+._noLeft_yfmzu_190 {
   padding-left: 0;
 }
 
-._score_gp0n4_90 {
+._score_yfmzu_176 {
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-._centered_gp0n4_97 {
+/* Compact mode: fill the cell so the inner content centers vertically
+ * regardless of the cell's natural inline-block layout. `.ag-cell` is
+ * `position: absolute` in ag-grid's base CSS, so `inset: 0` resolves. */
+._gridMode_yfmzu_176 ._score_yfmzu_176 {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+._centered_yfmzu_212 {
   display: flex;
   justify-content: center;
 }
@@ -21367,17 +21483,25 @@ pre._value_8citi_25 {
   display: flex;
   justify-content: center;
 }
-._label_jbrqc_1 {
+._root_k7p3l_1 {
+  display: flex;
+  /* Pin the inherited font-size so the CodeMirror editor (which uses
+     `font-size: inherit`) matches the navbar's 0.7rem instead of
+     picking up whatever the surrounding container computes to. */
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._label_k7p3l_9 {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
 
-._input_jbrqc_7 {
+._input_k7p3l_15 {
   width: 300px;
 }
 
-._help_jbrqc_11 {
+._help_k7p3l_19 {
   position: relative;
   margin-left: 0.5em;
   cursor: help;
@@ -21438,6 +21562,126 @@ pre._value_8citi_25 {
 
 ._bodyColorButton_uvlpz_54 {
   background-color: var(--bs-body-bg);
+}
+/* Rotated parallelogram label, anchored to the cell's bottom-left
+ * corner so the column can be much narrower than the label. The
+ * containing `.ag-header-cell` must allow overflow:visible — see the
+ * `.rotatedHeader` rule in SamplesGrid.module.css. */
+._label_1w6d0_5 {
+  position: absolute;
+  bottom: 0;
+  /* Anchor flush with the column's right edge so the rotated label
+   * — and the diagonal divider drawn as its bottom border — sits
+   * exactly on the column boundary, acting as the column's right
+   * separator. */
+  left: 100%;
+  height: 18px;
+  /* Bottom border doubles as the column-divider line: after rotation
+   * it lies along the diagonal lower edge of the label parallelogram,
+   * forming a clean separator between adjacent rotated headers in the
+   * same `--ag-border-color` Balham uses for vertical separators. */
+  border-bottom: 1px solid var(--ag-border-color, var(--bs-border-color));
+  /* Fixed width so every rotated label has the same parallelogram
+   * length. The text inside stretches via `flex: 1` and ellipses if
+   * it overflows. */
+  width: 130px;
+  padding: 0 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  /* Opt back into pointer events — parent wrapper sets
+   * pointer-events:none so adjacent rotated labels don't shadow ours. */
+  pointer-events: auto;
+  /* Rotate from the column's bottom-left corner so the label fans
+   * up-and-to-the-right. */
+  transform: rotate(-45deg);
+  transform-origin: bottom left;
+}
+
+._label_1w6d0_5:hover {
+  /* Subtle highlight on hover — and lift above neighboring rotated
+   * labels so the hovered text is fully readable. */
+  background: var(--bs-tertiary-bg);
+  z-index: 2;
+}
+
+._text_1w6d0_46 {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--inspect-font-size-smallestest);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._sortIcon_1w6d0_57 {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Filter button lives at the end of the rotated label (after the
+ * text + sort icon), so it sits at the upper-right tip of the
+ * parallelogram — the natural reading-order spot for an action.
+ * The column-menu popup is anchored to a separate hidden element
+ * (`.menuAnchor`) so it appears under the real column. */
+._filterBtn_1w6d0_67 {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  color: inherit;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Show the filter button only when the user is over this rotated
+ * label specifically. Hovering the cell's narrow vertical strip is
+ * misleading because the rotated label (and the filter button at its
+ * end) is offset 3-ish columns up-and-right of that strip — keying
+ * off the label keeps the affordance under the cursor instead of
+ * flashing several columns away. */
+._label_1w6d0_5:hover ._filterBtn_1w6d0_67 {
+  opacity: 1;
+}
+
+._filterBtn_1w6d0_67._filterBtnActive_1w6d0_91 {
+  opacity: 1;
+}
+
+/* Active-filter dot — small affordance at the upper-right of the
+ * funnel, matching ag-grid's convention of indicating active filters. */
+._filterBtn_1w6d0_67._filterBtnActive_1w6d0_91::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bs-primary);
+}
+
+/* Invisible anchor for the column-menu popup. ag-grid positions the
+ * menu relative to whatever element you hand `showColumnMenu` — by
+ * pointing it at this un-rotated bottom-right anchor (rather than the
+ * visible filter button on the rotated parallelogram) the popup lands
+ * directly under the column instead of offset diagonally up-and-right. */
+._menuAnchor_1w6d0_66 {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
 }
 ._panel_1yknn_1 {
   width: 100%;

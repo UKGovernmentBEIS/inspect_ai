@@ -6939,6 +6939,17 @@
             ],
             "title": "Columns"
           },
+          "compact_scores": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compact Scores"
+          },
           "filter": {
             "anyOf": [
               {

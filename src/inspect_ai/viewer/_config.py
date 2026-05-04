@@ -128,6 +128,11 @@ class SamplesView(BaseModel):
     """Default row layout. True = list-style multi-line rows; False =
     compact single-line rows. None = viewer default (currently True)."""
 
+    compact_scores: bool | None = None
+    """Default presentation for score columns. True = compact narrow
+    columns with rotated 45° headers; False = standard-width columns
+    with horizontal headers. None = viewer default (currently False)."""
+
 
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
