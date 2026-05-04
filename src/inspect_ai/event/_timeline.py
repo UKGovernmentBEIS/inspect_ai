@@ -535,15 +535,19 @@ async def timeline_branch(
 ) -> AsyncIterator[None]:
     """Context manager for creating a timeline branch.
 
+    Emits an `AnchorEvent` in the current (parent) span so the viewer can resolve `from_anchor` to a position, then opens a ``type="branch"`` span and emits a `BranchEvent` inside it.
+
     Args:
         name (str): Name of branch span.
         from_anchor: Anchor id at the branch point.
         id (str | None): Optional span ID. Generated if not provided.
     """
+    from inspect_ai.event._anchor import AnchorEvent
     from inspect_ai.event._branch import BranchEvent
     from inspect_ai.log._transcript import transcript
     from inspect_ai.util._span import span
 
+    transcript()._event(AnchorEvent(anchor_id=from_anchor))
     async with span(name=name, type="branch", id=id):
         transcript()._event(BranchEvent(from_anchor=from_anchor))
         yield
