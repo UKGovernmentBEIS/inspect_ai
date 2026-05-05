@@ -14,6 +14,7 @@ from inspect_ai.viewer._config import (
     SamplesView,
     ScannerResultField,
     ScannerResultView,
+    ScoreColorScale,
     ViewerConfig,
 )
 
@@ -26,5 +27,6 @@ __all__ = [
     "SamplesColumn",
     "SamplesSort",
     "SamplesView",
+    "ScoreColorScale",
     "ViewerConfig",
 ]

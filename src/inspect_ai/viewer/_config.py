@@ -97,6 +97,29 @@ class SamplesColumn(BaseModel):
     """Whether the column is visible by default."""
 
 
+class ScoreColorScale(BaseModel):
+    """A numeric `score_color_scales` entry with an explicit value range.
+
+    By default the viewer anchors a named palette at the descriptor's
+    auto-detected min/max, which is the *observed* range across the
+    log's samples. When the metric has a known *conceptual* range —
+    e.g. an alignment-judge dimension that's always graded 1..10 —
+    pin it via `min`/`max` so middling values don't get paint-clamped
+    to the extremes when the observed data happens to cluster at one
+    end. Either bound can be omitted to fall back to the descriptor's
+    detection for that side.
+    """
+
+    palette: Literal["good-high", "good-low", "neutral", "diverging"]
+    """Named palette (same options as the string-shorthand form)."""
+
+    min: float | None = None
+    """Lower anchor for the gradient. None = descriptor's auto-detected min."""
+
+    max: float | None = None
+    """Upper anchor for the gradient. None = descriptor's auto-detected max."""
+
+
 class SamplesView(BaseModel):
     """Default configuration for the task's Sample List grid.
 
@@ -144,15 +167,24 @@ class SamplesView(BaseModel):
         dict[
             str,
             Literal["good-high", "good-low", "neutral", "diverging"]
+            | ScoreColorScale
             | dict[str, Literal["good", "bad", "warn", "info", "muted"]],
         ]
         | None
     ) = None
     """Background-colour scales for score cells, keyed by score (metric)
-    name. Each entry is either a named palette (numeric scores) or a
-    map from value to semantic role (categorical scores). Both forms
-    resolve to theme-aware Bootstrap subtle colours so light and dark
-    modes stay legible without hand-rolled colour pairs.
+    name. Each entry is one of:
+
+    - a named palette string (numeric scores; gradient anchored at
+      the descriptor's auto-detected min/max);
+    - a `ScoreColorScale` with the same palette name plus optional
+      `min`/`max` overrides (numeric scores with a known *conceptual*
+      range that may not match the observed data range);
+    - a map from value to semantic role (categorical scores).
+
+    All three forms resolve to theme-aware Bootstrap subtle colours
+    so light and dark modes stay legible without hand-rolled colour
+    pairs.
 
     Numeric palettes:
     - `good-high`: low → red, high → green (typical "accuracy" metric)
@@ -166,6 +198,11 @@ class SamplesView(BaseModel):
     Numeric example: `{"accuracy": "good-high"}` paints high values
     green and low values red, anchored at the descriptor's auto-detected
     min/max.
+
+    Pinned-range example: `{"concerning": ScoreColorScale(palette=
+    "good-low", min=1, max=10)}` paints against a fixed 1..10 range
+    so a sample scoring 5 lands at the gradient midpoint regardless
+    of how the rest of the log scored.
 
     Categorical example: `{"verdict": {"yes": "bad", "no": "good"}}`
     paints `yes` cells red and `no` cells green.

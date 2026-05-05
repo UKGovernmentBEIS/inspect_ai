@@ -6991,6 +6991,9 @@
                       "type": "string"
                     },
                     {
+                      "$ref": "#/components/schemas/ScoreColorScale"
+                    },
+                    {
                       "additionalProperties": {
                         "enum": [
                           "good",
@@ -7432,6 +7435,48 @@
           "history"
         ],
         "title": "Score",
+        "type": "object"
+      },
+      "ScoreColorScale": {
+        "description": "A numeric `score_color_scales` entry with an explicit value range.\n\nBy default the viewer anchors a named palette at the descriptor's\nauto-detected min/max, which is the *observed* range across the\nlog's samples. When the metric has a known *conceptual* range \u2014\ne.g. an alignment-judge dimension that's always graded 1..10 \u2014\npin it via `min`/`max` so middling values don't get paint-clamped\nto the extremes when the observed data happens to cluster at one\nend. Either bound can be omitted to fall back to the descriptor's\ndetection for that side.",
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "palette": {
+            "enum": [
+              "good-high",
+              "good-low",
+              "neutral",
+              "diverging"
+            ],
+            "title": "Palette",
+            "type": "string"
+          }
+        },
+        "required": [
+          "palette"
+        ],
+        "title": "ScoreColorScale",
         "type": "object"
       },
       "ScoreEdit": {

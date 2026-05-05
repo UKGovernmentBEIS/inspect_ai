@@ -12,6 +12,7 @@ from inspect_ai.viewer import (
     SamplesView,
     ScannerResultField,
     ScannerResultView,
+    ScoreColorScale,
     ViewerConfig,
 )
 
@@ -467,6 +468,54 @@ def test_samples_view_score_color_scales_rejects_unknown_role() -> None:
                 "verdict": {"yes": "amazing"},  # type: ignore[dict-item]
             },
         )
+
+
+def test_samples_view_score_color_scales_object_form_roundtrip() -> None:
+    """`ScoreColorScale` lets authors pin the conceptual range.
+
+    E.g. a 1..10 rubric — so middling values aren't paint-clamped to
+    the extremes when the observed data happens to cluster at one end.
+    """
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Heat",
+            score_color_scales={
+                "concerning": ScoreColorScale(palette="good-low", min=1, max=10),
+                "admirable": "good-high",  # string shorthand still works
+            },
+        ),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    view = restored.task_samples_view
+    assert isinstance(view, SamplesView)
+    assert view.score_color_scales is not None
+    pinned = view.score_color_scales["concerning"]
+    assert isinstance(pinned, ScoreColorScale)
+    assert pinned.palette == "good-low"
+    assert pinned.min == 1
+    assert pinned.max == 10
+    assert view.score_color_scales["admirable"] == "good-high"
+
+
+def test_score_color_scale_partial_bounds() -> None:
+    """Either bound can be omitted on `ScoreColorScale`.
+
+    The resolver falls back to the descriptor's auto-detection for
+    the missing side.
+    """
+    only_min = ScoreColorScale(palette="good-high", min=0)
+    only_max = ScoreColorScale(palette="good-low", max=10)
+    assert only_min.max is None
+    assert only_max.min is None
+    # Both round-trip cleanly.
+    for s in (only_min, only_max):
+        assert ScoreColorScale.model_validate_json(s.model_dump_json()) == s
+
+
+def test_score_color_scale_rejects_unknown_palette() -> None:
+    with pytest.raises(ValidationError):
+        ScoreColorScale(palette="rainbow", min=1, max=10)  # type: ignore[arg-type]
 
 
 def test_samples_view_roundtrip_with_string_filter() -> None:
