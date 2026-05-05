@@ -268,6 +268,96 @@ def test_eval_set_s3(mock_s3) -> None:
     assert logs[0].status == "success"
 
 
+def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:
+    """The retry's log must not collide with the failed log's filename.
+
+    A second `eval_set` call within the same wall-clock second as the
+    first must not write the retry's log to the same path as the failed
+    log it's reusing samples from.
+
+    Without `TaskLogger._bump_created_past_existing_logs`, the new
+    logger's filename collides (same `iso_now()` second + same
+    `task_id` carried via `PreviousTask`) and overwrites the failed log
+    in place — concurrently with `eval_log_sample_source.read_from_file`
+    reading it. Successful samples 1, 2 then look "missing" to the
+    sample source and get re-run alongside the actually-failed 3, 4.
+
+    We exercise this by running two `eval_set` calls back-to-back with a
+    solver that fails first attempt only on ids 3, 4, and asserting the
+    second call's solver is invoked only for those ids.
+    """
+    from inspect_ai.solver import Generate, TaskState, generate, solver
+
+    seen: set[tuple[int | str, int]] = set()
+    target_ids: set[int] = {3, 4}
+    run_2_solver_calls: list[int | str] = []
+    in_run_2 = False
+
+    @solver
+    def fails_3_4_first_time():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if in_run_2:
+                run_2_solver_calls.append(state.sample_id)
+            if state.sample_id in target_ids:
+                key = (state.sample_id, state.epoch)
+                if key not in seen:
+                    seen.add(key)
+                    raise ValueError(f"first attempt for sample {state.sample_id}")
+            return state
+
+        return solve
+
+    fails_solver = fails_3_4_first_time()
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 5)],
+            solver=[fails_solver, generate()],
+        )
+
+    # The bug fires whenever both runs land in the same wall-clock
+    # second — observed at >90% per iteration before the fix, so 5 is
+    # plenty for regression coverage.
+    n_iterations = 5
+    failures: list[tuple[int, list[int | str]]] = []
+    with tempfile.TemporaryDirectory() as base_dir:
+        for it in range(n_iterations):
+            log_dir = Path(base_dir) / f"iter_{it}"
+            log_dir.mkdir()
+            seen.clear()
+            run_2_solver_calls.clear()
+
+            in_run_2 = False
+            eval_set(
+                tasks=make_task(),
+                log_dir=str(log_dir),
+                model="mockllm/model",
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+
+            in_run_2 = True
+            eval_set(
+                tasks=make_task(),
+                log_dir=str(log_dir),
+                model="mockllm/model",
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+            in_run_2 = False
+
+            unexpected = [s for s in run_2_solver_calls if s not in target_ids]
+            if unexpected:
+                failures.append((it, sorted(run_2_solver_calls)))
+
+    assert not failures, (
+        f"{len(failures)}/{n_iterations} iterations re-ran samples that should "
+        f"have been reused from the prior log: {failures[:3]}"
+    )
+
+
 def test_eval_zero_retries() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         success, logs = eval_set(
