@@ -84,7 +84,7 @@ def current_span_id() -> str | None:
 
 
 @contextlib.contextmanager
-def set_span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
+def span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 
     When set, every `span()` call consults ``await provider(name, parent_id, requested_id)`` to determine the span id (any explicit ``id`` argument is passed through as ``requested_id``).
