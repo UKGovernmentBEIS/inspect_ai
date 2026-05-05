@@ -41,7 +41,6 @@ from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import Event
-from ._pool import resolve_sample_events_data
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
@@ -554,17 +553,14 @@ class EvalSample(BaseModel):
 
     @model_validator(mode="wrap")
     @classmethod
-    def _resolve_references(
+    def _resolve_timelines(
         cls, data: Any, handler: Any, info: ValidationInfo
     ) -> "EvalSample":
-        """Resolve message-pool refs in events, then hydrate timeline event uuids."""
         raw_timelines = None
         if isinstance(data, dict) and data.get("timelines"):
             raw_timelines = data.pop("timelines")
 
         sample: EvalSample = handler(data)
-
-        resolve_sample_events_data(sample)
 
         if raw_timelines:
             events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}
