@@ -314,16 +314,41 @@ def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
     return None
 
 
+_REJECTED_SCAN_FIELDS: dict[str, str] = {
+    "transcripts": (
+        "eval_set scans the eval's own samples; an external transcripts "
+        "source would override that."
+    ),
+    "worklist": (
+        "the per-sample dispatch in eval_set is the source of truth for "
+        "what gets scanned."
+    ),
+    "limit": "sample selection belongs to the eval (use `eval_set(limit=...)`).",
+    "shuffle": (
+        "sample ordering belongs to the eval (shuffle the dataset at the eval level)."
+    ),
+    "max_processes": (
+        "concurrency belongs to the eval (use `eval_set(max_samples=...)` / "
+        "`eval_set(max_tasks=...)`)."
+    ),
+    "validation": (
+        "validation cases match by transcript_id, but eval_set generates "
+        "transcripts at run time so there is no labelled ground truth to "
+        "attach in advance."
+    ),
+    "log_level": (
+        "scout uses `log_level` to (re)init the process-wide logger; "
+        "eval_set already owns logging — use `eval_set(log_level=...)`."
+    ),
+}
+
+
 def _validate_scan_config(scanner: "Scanners | None") -> None:
     """Reject `ScanJob`/`ScanJobConfig` fields that conflict with eval_set.
 
-    - `transcripts` / `worklist`: would override the per-sample dispatch
-      that's the whole point of the integration.
-    - `limit` / `shuffle` / `max_processes`: sample-selection / concurrency
-      knobs that belong to the eval, not the scan layered on top of it.
-    - `validation`: validation cases match by `transcript_id`, but
-      eval_set generates transcripts at run time so there's no labelled
-      ground truth to attach in advance.
+    See `_REJECTED_SCAN_FIELDS` for the field→reason map; each rejected
+    field is reported with its own reason so the user sees exactly what
+    to remove.
     """
     from inspect_scout import ScanJob, ScanJobConfig
 
@@ -333,27 +358,14 @@ def _validate_scan_config(scanner: "Scanners | None") -> None:
         return
 
     rejected: list[str] = []
-    for field in (
-        "transcripts",
-        "worklist",
-        "limit",
-        "shuffle",
-        "max_processes",
-        "validation",
-    ):
-        value = getattr(scanner, field, None)
-        if value is not None:
-            rejected.append(field)
+    for field, reason in _REJECTED_SCAN_FIELDS.items():
+        if getattr(scanner, field, None) is not None:
+            rejected.append(f"  - {field!r}: {reason}")
 
     if rejected:
         raise PrerequisiteError(
-            "The following ScanJob/ScanJobConfig fields are not supported "
-            "when passing a scanner to eval_set: "
-            f"{rejected}. eval_set scans the eval's own samples; "
-            "external transcripts, worklists, sample-selection knobs "
-            "(limit / shuffle / max_processes), and validation against "
-            "labelled ground truth belong to the eval itself, not the "
-            "scan layered on top of it."
+            "ScanJob/ScanJobConfig has fields that are not supported when "
+            "passing a scanner to eval_set:\n" + "\n".join(rejected)
         )
 
 

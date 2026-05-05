@@ -692,6 +692,7 @@ def _validation_kwarg() -> dict[str, object]:
         ("shuffle", True),
         ("max_processes", 2),
         ("validation", _validation_kwarg()),
+        ("log_level", "debug"),
     ],
 )
 def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) -> None:
@@ -726,6 +727,7 @@ def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) ->
         ("shuffle", True),
         ("max_processes", 2),
         ("validation", _validation_kwarg()),
+        ("log_level", "debug"),
     ],
 )
 def test_scanjob_rejects_unsupported_fields(field: str, value: object) -> None:
