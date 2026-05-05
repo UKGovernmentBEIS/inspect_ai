@@ -1,5 +1,6 @@
 ## Unreleased
 .
+- Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
 - Google: Support Gemini 3+ native web search and code execution alongside function tools.
 - HuggingFace: Add `trust_remote_code` model argument (defaults to `False`).
 - Eval Set: `retry_immediate` now defaults to True. Pass `retry_immediate=False` (or `--no-retry-immediate`) to restore the previous batch-retry behavior.

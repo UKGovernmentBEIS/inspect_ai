@@ -208,6 +208,8 @@ dataset=hf_dataset("openai_humaneval",
 
 Under the hood, the `hf_dataset()` function is calling the [load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset) function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to `load_dataset()` by including them in the call to `hf_dataset()`. For example `hf_dataset(..., cache_dir="~/my-cache-dir")`.
 
+By default, `hf_dataset()` retries transient Hugging Face errors (rate limits, timeouts, and Hub-unreachable cache misses) with exponential backoff. Pass `retry=False` to disable.
+
 ## Amazon S3
 
 Inspect has integrated support for storing datasets on [Amazon S3](https://aws.amazon.com/pm/serv-s3/). Compared to storing data on the local file-system, using S3 can provide more flexible sharing and access control, and a more reliable long term store than local files.
