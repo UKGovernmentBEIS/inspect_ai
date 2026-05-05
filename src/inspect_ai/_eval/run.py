@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, NamedTuple, Set, cast
+from typing import Any, Awaitable, Callable, NamedTuple, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
@@ -19,15 +19,13 @@ import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
-if TYPE_CHECKING:
-    from inspect_scout import Scanners
-
 from inspect_ai._display import display
 from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
+from inspect_ai._eval.task.scan import EvalSetScanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset
@@ -75,7 +73,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
-    scanner: "Scanners | None" = None,
+    scanner: "EvalSetScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,

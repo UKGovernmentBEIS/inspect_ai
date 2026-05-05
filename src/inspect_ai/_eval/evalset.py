@@ -4,7 +4,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, cast
+from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic import BaseModel
@@ -20,13 +20,11 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
-if TYPE_CHECKING:
-    from inspect_scout import Scanners
-
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
+from inspect_ai._eval.task.scan import EvalSetScanners
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -117,7 +115,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanners | None" = None,
+    scanner: "EvalSetScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,

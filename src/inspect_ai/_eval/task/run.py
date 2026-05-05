@@ -8,14 +8,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
-
-if TYPE_CHECKING:
-    from inspect_scout import Scanners
 
 from inspect_ai._display import (
     TaskCancelled,
@@ -25,6 +22,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
+from inspect_ai._eval.task.scan import EvalSetScanners
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -170,7 +168,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
-    scanner: "Scanners | None" = field(default=None)
+    scanner: "EvalSetScanners | None" = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -756,7 +754,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
-    scanner: "Scanners | None",
+    scanner: "EvalSetScanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],

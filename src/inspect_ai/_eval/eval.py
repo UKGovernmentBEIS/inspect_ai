@@ -3,7 +3,7 @@ import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import Any, Literal, cast
 
 import anyio
 from anyio.abc import TaskGroup
@@ -23,12 +23,10 @@ if sys.version_info < (3, 11):
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-if TYPE_CHECKING:
-    from inspect_scout import Scanners
-
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
+from inspect_ai._eval.task.scan import EvalSetScanners
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
@@ -97,7 +95,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanners | None" = None,
+    scanner: "EvalSetScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -331,7 +329,7 @@ async def eval_async(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanners | None" = None,
+    scanner: "EvalSetScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -542,7 +540,7 @@ async def _eval_async_inner(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "Scanners | None" = None,
+    scanner: "EvalSetScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,

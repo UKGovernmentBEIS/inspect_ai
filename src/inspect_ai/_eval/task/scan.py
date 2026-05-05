@@ -4,19 +4,92 @@ See `design/eval-set-scanners.md` for the full design.
 """
 
 import contextlib
-from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterator, Sequence
+from typing import TYPE_CHECKING, Any, TypeAlias
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import absolute_file_path, dirname, exists
 from inspect_ai.log._log import EvalSample
 
 if TYPE_CHECKING:
-    from inspect_scout import Scanner, Scanners
+    from inspect_scout import Scanner
+
+
+class EvalSetScannerConfig(BaseModel):
+    """Configure scanners attached to an `eval_set` run.
+
+    A subset of scout's `ScanJob` / `ScanJobConfig` schema, narrowed to
+    the fields that make sense when `eval_set` is generating the
+    transcripts.
+    """
+
+    # Fields from scout's `ScanJob` / `ScanJobConfig` are intentionally
+    # omitted (rather than rejected at runtime) when they don't fit
+    # eval_set's per-sample dispatch model:
+    # - `transcripts` / `worklist`: would fight per-sample dispatch.
+    # - `limit` / `shuffle` / `max_processes` / `max_transcripts`:
+    #   sample-selection and concurrency knobs that belong to the eval.
+    # - `validation`: needs labelled ground truth, which eval-generated
+    #   transcripts don't have.
+    # - `log_level`: collides with `eval_set`'s own logging setup.
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    scanners: Any
+    """Scanners to run.
+
+    `Sequence[Scanner | tuple[str, Scanner]]` for direct construction,
+    `dict[str, Scanner]` for named scanners, or scout `ScannerSpec`
+    references when loading from YAML/JSON config.
+    """
+
+    name: str | None = Field(default=None)
+    """Override the scan name written to `_scan.json` (defaults to
+    "eval_set")."""
+
+    scans: str | None = Field(default=None)
+    """Override scan output location. Defaults to `<log_dir>/scans/`."""
+
+    tags: list[str] | None = Field(default=None)
+    """Tags written to the scan spec."""
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Metadata written to the scan spec."""
+
+    filter: str | list[str] = Field(default_factory=list)
+    """SQL WHERE clause(s) applied per-sample to skip transcripts that
+    don't match (e.g. `"error = ''"` to scan only successful samples).
+    Mirrors scout's `Transcripts.where(...)` semantics."""
+
+    model: Any = Field(default=None)
+    """Model used by scanners' `get_model()`. Overrides the eval's
+    active model just for the scanner call. `str | Model | None`."""
+
+    model_base_url: str | None = Field(default=None)
+    """Base URL for the scanner-side model API."""
+
+    model_args: dict[str, Any] | None = Field(default=None)
+    """Model creation args forwarded to scout."""
+
+    generate_config: Any = Field(default=None)
+    """`GenerateConfig` for scanner model calls."""
+
+    model_roles: dict[str, Any] | None = Field(default=None)
+    """Named roles available to scanners via `get_model(role=...)`."""
+
+
+EvalSetScanners: TypeAlias = (
+    "Sequence[Scanner[Any] | tuple[str, Scanner[Any]]] "
+    "| dict[str, Scanner[Any]] "
+    "| EvalSetScannerConfig"
+)
+"""Argument shape accepted by `eval_set(scanner=...)`."""
 
 
 async def scan_eval_set_init(
-    scanner: "Scanners",
+    scanner: "EvalSetScanners",
     *,
     eval_set_id: str,
     log_dir: str,
@@ -40,7 +113,6 @@ async def scan_eval_set_init(
 
     from inspect_ai._util.error import PrerequisiteError
 
-    _validate_scan_config(scanner)
     scanners_dict = _normalize_scanners(scanner)
     scan_dir = _scan_dir(log_dir, eval_set_id, scanner)
     recorder = FileRecorder()
@@ -75,7 +147,7 @@ async def scan_eval_set_init(
 
 async def scan_eval_sample(
     eval_sample: EvalSample,
-    scanner: "Scanners | None",
+    scanner: "EvalSetScanners | None",
     *,
     eval_set_id: str | None,
     eval_id: str,
@@ -130,7 +202,7 @@ async def scan_eval_set_finalize(
     *,
     eval_set_id: str,
     log_dir: str,
-    scanner: "Scanners | None" = None,
+    scanner: "EvalSetScanners | None" = None,
 ) -> None:
     """Compact buffer parquets and snapshot the recorded transcripts.
 
@@ -238,7 +310,7 @@ def _snapshot_from_compacted(scan_dir: Any, *, log_dir: str) -> Any:
 
 @contextlib.contextmanager
 def scan_eval_set_context(
-    scanner: "Scanners | None",
+    scanner: "EvalSetScanners | None",
     *,
     eval_set_id: str,
     log_dir: str,
@@ -258,7 +330,7 @@ def scan_eval_set_context(
         )
 
 
-def _scans_location(log_dir: str, scanner: "Scanners | None" = None) -> str:
+def _scans_location(log_dir: str, scanner: "EvalSetScanners | None" = None) -> str:
     """Where scan outputs land.
 
     Defaults to `<log_dir>/scans/`. A `ScanJob`/`ScanJobConfig` may
@@ -270,64 +342,56 @@ def _scans_location(log_dir: str, scanner: "Scanners | None" = None) -> str:
     return base.rstrip("/")
 
 
-def _scan_dir(log_dir: str, eval_set_id: str, scanner: "Scanners | None" = None) -> str:
+def _scan_dir(
+    log_dir: str, eval_set_id: str, scanner: "EvalSetScanners | None" = None
+) -> str:
     return f"{_scans_location(log_dir, scanner)}/scan_id={eval_set_id}"
 
 
 def _normalize_scanners(
-    scanner: "Scanners | None",
+    scanner: "EvalSetScanners | None",
 ) -> "dict[str, Scanner[Any]]":
-    from inspect_scout import ScanJob, ScanJobConfig
+    from inspect_scout import ScanJob
 
     if scanner is None:
         return {}
-    if isinstance(scanner, ScanJob):
-        return scanner._scanners
-    if isinstance(scanner, ScanJobConfig):
-        return ScanJob.from_config(scanner)._scanners
+    if isinstance(scanner, EvalSetScannerConfig):
+        return ScanJob(scanners=scanner.scanners)._scanners
     return ScanJob(scanners=scanner)._scanners
 
 
-def _normalize_scans(scanner: "Scanners | None") -> str | None:
+def _normalize_scans(scanner: "EvalSetScanners | None") -> str | None:
     """Extract the scan-output-location override (`scans`), if any."""
-    from inspect_scout import ScanJob, ScanJobConfig
-
-    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+    if isinstance(scanner, EvalSetScannerConfig):
         return scanner.scans
     return None
 
 
-def _normalize_tags(scanner: "Scanners | None") -> list[str] | None:
-    """Tags carried on `ScanJob`/`ScanJobConfig`, written into the scan spec."""
-    from inspect_scout import ScanJob, ScanJobConfig
-
-    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+def _normalize_tags(scanner: "EvalSetScanners | None") -> list[str] | None:
+    """Tags carried on `EvalSetScannerConfig`, written into the scan spec."""
+    if isinstance(scanner, EvalSetScannerConfig):
         return scanner.tags
     return None
 
 
-def _normalize_scan_name(scanner: "Scanners | None") -> str:
-    """Scan-name override from `ScanJob`/`ScanJobConfig`, else "eval_set"."""
-    from inspect_scout import ScanJob, ScanJobConfig
-
-    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+def _normalize_scan_name(scanner: "EvalSetScanners | None") -> str:
+    """Scan-name override from `EvalSetScannerConfig`, else "eval_set"."""
+    if isinstance(scanner, EvalSetScannerConfig):
         return scanner.name or "eval_set"
     return "eval_set"
 
 
-def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
-    """Metadata carried on `ScanJob`/`ScanJobConfig`, written into the scan spec."""
-    from inspect_scout import ScanJob, ScanJobConfig
-
-    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+def _normalize_metadata(scanner: "EvalSetScanners | None") -> "dict[str, Any] | None":
+    """Metadata carried on `EvalSetScannerConfig`, written into the scan spec."""
+    if isinstance(scanner, EvalSetScannerConfig):
         return scanner.metadata
     return None
 
 
-def _install_scan_model_context(scanner: "Scanners | None") -> None:
+def _install_scan_model_context(scanner: "EvalSetScanners | None") -> None:
     """Install scout's scan-time model context for this sample, if set.
 
-    When a `ScanJob`/`ScanJobConfig` carries `model` (or related
+    When `EvalSetScannerConfig` carries `model` (or related
     `model_base_url` / `model_args` / `generate_config` / `model_roles`),
     call scout's `init_scan_model_context` so the scanner's
     `get_model()` resolves to the scan-side model rather than the eval's
@@ -338,10 +402,9 @@ def _install_scan_model_context(scanner: "Scanners | None") -> None:
     snapshotted into `EvalSample` before `scan_eval_sample` is called.)
     No-op when nothing's set, so the scanner inherits the eval's model.
     """
-    from inspect_scout import ScanJob, ScanJobConfig
     from inspect_scout._scan import init_scan_model_context
 
-    if not isinstance(scanner, (ScanJob, ScanJobConfig)):
+    if not isinstance(scanner, EvalSetScannerConfig):
         return
 
     kwargs: dict[str, Any] = {}
@@ -360,77 +423,15 @@ def _install_scan_model_context(scanner: "Scanners | None") -> None:
         init_scan_model_context(**kwargs)
 
 
-_REJECTED_SCAN_FIELDS: dict[str, str] = {
-    "transcripts": (
-        "eval_set scans the eval's own samples; an external transcripts "
-        "source would override that."
-    ),
-    "worklist": (
-        "the per-sample dispatch in eval_set is the source of truth for "
-        "what gets scanned."
-    ),
-    "limit": "sample selection belongs to the eval (use `eval_set(limit=...)`).",
-    "shuffle": (
-        "sample ordering belongs to the eval (shuffle the dataset at the eval level)."
-    ),
-    "max_processes": (
-        "concurrency belongs to the eval (use `eval_set(max_samples=...)` / "
-        "`eval_set(max_tasks=...)`)."
-    ),
-    "max_transcripts": (
-        "scout uses this for batch transcript concurrency, but eval_set "
-        "dispatches scanners per-sample as the eval emits them; per-sample "
-        "concurrency is set at the eval layer (`eval_set(max_samples=...)`)."
-    ),
-    "validation": (
-        "validation cases match by transcript_id, but eval_set generates "
-        "transcripts at run time so there is no labelled ground truth to "
-        "attach in advance."
-    ),
-    "log_level": (
-        "scout uses `log_level` to (re)init the process-wide logger; "
-        "eval_set already owns logging — use `eval_set(log_level=...)`."
-    ),
-}
-
-
-def _validate_scan_config(scanner: "Scanners | None") -> None:
-    """Reject `ScanJob`/`ScanJobConfig` fields that conflict with eval_set.
-
-    See `_REJECTED_SCAN_FIELDS` for the field→reason map; each rejected
-    field is reported with its own reason so the user sees exactly what
-    to remove.
-    """
-    from inspect_scout import ScanJob, ScanJobConfig
-
-    from inspect_ai._util.error import PrerequisiteError
-
-    if not isinstance(scanner, (ScanJob, ScanJobConfig)):
-        return
-
-    rejected: list[str] = []
-    for field, reason in _REJECTED_SCAN_FIELDS.items():
-        if getattr(scanner, field, None) is not None:
-            rejected.append(f"  - {field!r}: {reason}")
-
-    if rejected:
-        raise PrerequisiteError(
-            "ScanJob/ScanJobConfig has fields that are not supported when "
-            "passing a scanner to eval_set:\n" + "\n".join(rejected)
-        )
-
-
-def _normalize_filters(scanner: "Scanners | None") -> list[str]:
+def _normalize_filters(scanner: "EvalSetScanners | None") -> list[str]:
     """Extract SQL filter clauses from the scanner argument.
 
-    `ScanJobConfig.filter` is the user-facing surface — a string or list
-    of SQL WHERE clauses applied to the transcripts to scan. Scout's
-    direct scan path applies these via `Transcripts.where(...)`; we lift
-    them out and apply per-sample in `scan_eval_sample`.
+    `EvalSetScannerConfig.filter` is the user-facing surface — a string
+    or list of SQL WHERE clauses applied to the transcripts to scan.
+    Scout's direct scan path applies these via `Transcripts.where(...)`;
+    we lift them out and apply per-sample in `scan_eval_sample`.
     """
-    from inspect_scout import ScanJobConfig
-
-    if not isinstance(scanner, ScanJobConfig):
+    if not isinstance(scanner, EvalSetScannerConfig):
         return []
     raw = scanner.filter
     if isinstance(raw, list):

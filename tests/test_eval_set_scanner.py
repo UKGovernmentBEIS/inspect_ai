@@ -9,6 +9,7 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pyarrow.parquet as pq
 import pytest
@@ -622,8 +623,7 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
     the message string). Only the eval-successful samples (1, 2) should
     be scanned — samples 3, 4 are skipped before the scanner runs.
     """
-    from inspect_scout import ScanJobConfig
-    from inspect_scout._scanspec import ScannerSpec
+    from inspect_ai import EvalSetScannerConfig
 
     n = 4
     fails_3_4_first_time = _first_attempt_fails_for(3, 4)
@@ -634,8 +634,8 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
             solver=[fails_3_4_first_time, generate()],
         )
 
-    config = ScanJobConfig(
-        scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
+    config = EvalSetScannerConfig(
+        scanners=[echo_scanner()],
         filter="error = ''",
     )
 
@@ -671,92 +671,32 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
         assert ss["results"] == 2
 
 
-def _validation_kwarg() -> dict[str, object]:
-    """Build a minimal `validation` kwarg for ScanJobConfig."""
-    from inspect_scout._validation.types import ValidationCase, ValidationSet
-
-    return {
-        "echo_scanner": ValidationSet(
-            cases=[ValidationCase(id="any-id", target="any-target")],
-            predicate="eq",
-        )
-    }
-
-
 @pytest.mark.parametrize(
-    "field, value",
+    "field",
     [
-        ("transcripts", "some/external/logs"),
-        ("worklist", [{"scanner": "echo_scanner", "transcripts": ["abc"]}]),
-        ("limit", 5),
-        ("shuffle", True),
-        ("max_processes", 2),
-        ("max_transcripts", 10),
-        ("validation", _validation_kwarg()),
-        ("log_level", "debug"),
+        "transcripts",
+        "worklist",
+        "limit",
+        "shuffle",
+        "max_processes",
+        "max_transcripts",
+        "validation",
+        "log_level",
     ],
 )
-def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) -> None:
-    """Reject ScanJobConfig fields that conflict with eval_set."""
-    from inspect_scout import ScanJobConfig
-    from inspect_scout._scanspec import ScannerSpec
+def test_eval_set_scanner_config_rejects_unsupported_fields(field: str) -> None:
+    """`EvalSetScannerConfig` rejects scout fields that conflict with eval_set.
 
-    from inspect_ai._util.error import PrerequisiteError
-
-    config_kwargs: dict[str, object] = {
-        "scanners": [ScannerSpec(name="echo_scanner", file=__file__)],
-    }
-    config_kwargs[field] = value
-    config = ScanJobConfig(**config_kwargs)  # type: ignore[arg-type]
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        with pytest.raises(PrerequisiteError, match=field):
-            eval_set(
-                tasks=_task(2),
-                log_dir=log_dir,
-                scanner=config,
-                model="mockllm/model",
-                retry_attempts=0,
-                display="none",
-            )
-
-
-@pytest.mark.parametrize(
-    "field, value",
-    [
-        ("limit", 5),
-        ("shuffle", True),
-        ("max_processes", 2),
-        ("max_transcripts", 10),
-        ("validation", _validation_kwarg()),
-        ("log_level", "debug"),
-    ],
-)
-def test_scanjob_rejects_unsupported_fields(field: str, value: object) -> None:
-    """Same validation must hit the `ScanJob` instance path.
-
-    `ScanJob` exposes these as `@property` accessors backed by
-    `_field` attributes, while `ScanJobConfig` has them as direct
-    Pydantic fields. The validator uses `getattr`, so they share a
-    code path — but a rename or default-change on either side could
-    break only one without this dual coverage.
+    Pydantic enforces this via `extra="forbid"` so misuse fails at
+    construction time rather than mid-eval.
     """
-    from inspect_scout import ScanJob
+    from pydantic import ValidationError
 
-    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai import EvalSetScannerConfig
 
-    job = ScanJob(scanners=[echo_scanner()], **{field: value})
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        with pytest.raises(PrerequisiteError, match=field):
-            eval_set(
-                tasks=_task(2),
-                log_dir=log_dir,
-                scanner=job,
-                model="mockllm/model",
-                retry_attempts=0,
-                display="none",
-            )
+    kwargs: dict[str, Any] = {field: "anything"}
+    with pytest.raises(ValidationError, match=field):
+        EvalSetScannerConfig(scanners=[echo_scanner()], **kwargs)
 
 
 def test_scanjob_config_scans_overrides_output_location() -> None:
@@ -767,13 +707,12 @@ def test_scanjob_config_scans_overrides_output_location() -> None:
     setting `scans` on the config — useful when scan results should
     live separately from the eval logs.
     """
-    from inspect_scout import ScanJobConfig
-    from inspect_scout._scanspec import ScannerSpec
+    from inspect_ai import EvalSetScannerConfig
 
     with tempfile.TemporaryDirectory() as log_dir:
         with tempfile.TemporaryDirectory() as scans_dir:
-            config = ScanJobConfig(
-                scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
+            config = EvalSetScannerConfig(
+                scanners=[echo_scanner()],
                 scans=scans_dir,
             )
             success, _ = eval_set(
@@ -816,26 +755,17 @@ def test_scan_name_defaults_to_eval_set() -> None:
         assert spec["scan_name"] == "eval_set"
 
 
-@pytest.mark.parametrize("scanner_kind", ["scanjob", "scanjob_config"])
-def test_scan_name_override_from_scan_job(scanner_kind: str) -> None:
-    """`ScanJob`/`ScanJobConfig` `name` overrides the default scan_name."""
-    from inspect_scout import ScanJob, ScanJobConfig
-    from inspect_scout._scanspec import ScannerSpec
+def test_scan_name_override_from_scan_job() -> None:
+    """`EvalSetScannerConfig.name` overrides the default `scan_name`."""
+    from inspect_ai import EvalSetScannerConfig
 
-    scanner: object
-    if scanner_kind == "scanjob_config":
-        scanner = ScanJobConfig(
-            scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
-            name="my-custom-scan",
-        )
-    else:
-        scanner = ScanJob(scanners=[echo_scanner()], name="my-custom-scan")
+    scanner = EvalSetScannerConfig(scanners=[echo_scanner()], name="my-custom-scan")
 
     with tempfile.TemporaryDirectory() as log_dir:
         eval_set(
             tasks=_task(2),
             log_dir=log_dir,
-            scanner=scanner,  # type: ignore[arg-type]
+            scanner=scanner,
             model="mockllm/model",
             retry_attempts=0,
             display="none",
@@ -845,39 +775,21 @@ def test_scan_name_override_from_scan_job(scanner_kind: str) -> None:
         assert spec["scan_name"] == "my-custom-scan"
 
 
-@pytest.mark.parametrize("scanner_kind", ["scanjob", "scanjob_config"])
-def test_tags_and_metadata_written_to_scan_spec(scanner_kind: str) -> None:
-    """`tags` and `metadata` on `ScanJob`/`ScanJobConfig` land in scan.json.
-
-    Both fields are stored on the `ScanSpec` that scout writes to
-    `_scan.json` at scan-init time. We extract them in `scan_eval_set_init`
-    when constructing the spec, so they appear verbatim on disk.
-    """
-    from inspect_scout import ScanJob, ScanJobConfig
-    from inspect_scout._scanspec import ScannerSpec
+def test_tags_and_metadata_written_to_scan_spec() -> None:
+    """`tags` and `metadata` on `EvalSetScannerConfig` land in scan.json."""
+    from inspect_ai import EvalSetScannerConfig
 
     tags = ["nightly", "experiment-42"]
     metadata = {"owner": "team-x", "iteration": 3}
-
-    scanner: object
-    if scanner_kind == "scanjob_config":
-        scanner = ScanJobConfig(
-            scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
-            tags=tags,
-            metadata=metadata,
-        )
-    else:
-        scanner = ScanJob(
-            scanners=[echo_scanner()],
-            tags=tags,
-            metadata=metadata,
-        )
+    scanner = EvalSetScannerConfig(
+        scanners=[echo_scanner()], tags=tags, metadata=metadata
+    )
 
     with tempfile.TemporaryDirectory() as log_dir:
         success, _ = eval_set(
             tasks=_task(2),
             log_dir=log_dir,
-            scanner=scanner,  # type: ignore[arg-type]
+            scanner=scanner,
             model="mockllm/model",
             retry_attempts=0,
             display="none",
@@ -928,49 +840,6 @@ def test_llm_scanner_inherits_eval_set_model_when_unspecified() -> None:
         assert ss["results"] == 0
 
 
-def test_scan_job_config_model_string_overrides_eval_model() -> None:
-    """`ScanJobConfig.model` (string) is resolved and applied per-sample.
-
-    Exercises the string→Model resolution path: `ScanJobConfig.model`
-    is a `str` field that flows verbatim into
-    `init_scan_model_context(model=<str>)`, which calls scout's
-    `resolve_models` to instantiate the model. The `ScanJob` variant
-    skips this — `ScanJob.__init__` already runs `get_model()` so
-    `scanner.model` is a `Model` instance by the time we read it.
-    """
-    from inspect_scout import ScanJobConfig
-    from inspect_scout._scanspec import ScannerSpec
-
-    config = ScanJobConfig(
-        scanners=[
-            ScannerSpec(
-                name="inspect_scout/llm_scanner",
-                params={
-                    "question": "Did anything happen?",
-                    "answer": "boolean",
-                },
-            )
-        ],
-        model="mockllm/scan-model",
-    )
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        eval_set(
-            tasks=_task(2),
-            log_dir=log_dir,
-            scanner=config,
-            model="mockllm/eval-model",
-            retry_attempts=0,
-            display="none",
-        )
-        scan_dir = _scan_dir(log_dir)
-        summary = _read_summary(scan_dir)
-        ss = next(iter(summary["scanners"].values()))
-        # scanner used the scan-model from the string, not the eval-model
-        assert "mockllm/scan-model" in ss["model_usage"]
-        assert "mockllm/eval-model" not in ss["model_usage"]
-
-
 def test_install_scan_model_context_forwards_all_model_kwargs() -> None:
     """All model-related ScanJob fields are forwarded to scout.
 
@@ -983,11 +852,10 @@ def test_install_scan_model_context_forwards_all_model_kwargs() -> None:
     """
     from unittest.mock import patch
 
-    from inspect_scout import ScanJob
-
+    from inspect_ai import EvalSetScannerConfig
     from inspect_ai.model import GenerateConfig
 
-    job = ScanJob(
+    job = EvalSetScannerConfig(
         scanners=[echo_scanner()],
         model="mockllm/scan-model",
         model_base_url="https://example.test/api",
@@ -1033,10 +901,12 @@ def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
     `init_scan_model_context` to override the active model just for the
     scanner call (not for the eval's solver/generate calls).
     """
-    from inspect_scout import ScanJob, llm_scanner
+    from inspect_scout import llm_scanner
+
+    from inspect_ai import EvalSetScannerConfig
 
     scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
-    job = ScanJob(scanners=[scanner_fn], model="mockllm/scan-model")
+    job = EvalSetScannerConfig(scanners=[scanner_fn], model="mockllm/scan-model")
 
     with tempfile.TemporaryDirectory() as log_dir:
         eval_set(
@@ -1077,8 +947,9 @@ def test_eval_and_scan_model_usage_are_partitioned() -> None:
     mistakes where the override lands in the parent task's context
     show up here.
     """
-    from inspect_scout import ScanJob, llm_scanner
+    from inspect_scout import llm_scanner
 
+    from inspect_ai import EvalSetScannerConfig
     from inspect_ai.log import read_eval_log
 
     model_name = "mockllm/model"
@@ -1105,7 +976,7 @@ def test_eval_and_scan_model_usage_are_partitioned() -> None:
 
     # ---- run with scanner ----
     scanner_fn = llm_scanner(question="Did anything happen?", answer="boolean")
-    job = ScanJob(scanners=[scanner_fn], model=model_name)
+    job = EvalSetScannerConfig(scanners=[scanner_fn], model=model_name)
     scanned_log_dir = _run(job)
     log = read_eval_log(str(next(scanned_log_dir.glob("*.eval"))))
     assert log.samples is not None
