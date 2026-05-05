@@ -260,3 +260,20 @@ def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
             "events_data": None,
         }
     )
+
+
+def rebind_sample_timelines(sample: EvalSample) -> EvalSample:
+    """Rebind timelines to the sample's current event objects."""
+    if not sample.timelines:
+        return sample
+
+    from inspect_ai.event._timeline import timeline_dump, timeline_load
+
+    return sample.model_copy(
+        update={
+            "timelines": [
+                timeline_load(timeline_dump(timeline), sample.events)
+                for timeline in sample.timelines
+            ],
+        }
+    )
