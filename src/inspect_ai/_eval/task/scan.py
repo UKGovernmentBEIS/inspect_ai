@@ -297,10 +297,13 @@ def _normalize_scans(scanner: "Scanners | None") -> str | None:
 def _validate_scan_config(scanner: "Scanners | None") -> None:
     """Reject `ScanJob`/`ScanJobConfig` fields that conflict with eval_set.
 
-    `transcripts` and `worklist` would override the per-sample dispatch
-    that's the whole point of the integration. `limit`, `shuffle`, and
-    `max_processes` are sample-selection / concurrency knobs that
-    belong to the eval, not to the scan layered on top of it.
+    - `transcripts` / `worklist`: would override the per-sample dispatch
+      that's the whole point of the integration.
+    - `limit` / `shuffle` / `max_processes`: sample-selection / concurrency
+      knobs that belong to the eval, not the scan layered on top of it.
+    - `validation`: validation cases match by `transcript_id`, but
+      eval_set generates transcripts at run time so there's no labelled
+      ground truth to attach in advance.
     """
     from inspect_scout import ScanJob, ScanJobConfig
 
@@ -310,12 +313,15 @@ def _validate_scan_config(scanner: "Scanners | None") -> None:
         return
 
     rejected: list[str] = []
-    for field in ("transcripts", "worklist", "limit", "shuffle", "max_processes"):
+    for field in (
+        "transcripts",
+        "worklist",
+        "limit",
+        "shuffle",
+        "max_processes",
+        "validation",
+    ):
         value = getattr(scanner, field, None)
-        # ScanJob exposes these as @property; ScanJobConfig as Pydantic
-        # fields. Both yield None when unset — except `worklist`, which
-        # defaults to None, and `transcripts`, which defaults to None on
-        # the config but to whatever was passed in on ScanJob.
         if value is not None:
             rejected.append(field)
 
@@ -324,9 +330,10 @@ def _validate_scan_config(scanner: "Scanners | None") -> None:
             "The following ScanJob/ScanJobConfig fields are not supported "
             "when passing a scanner to eval_set: "
             f"{rejected}. eval_set scans the eval's own samples; "
-            "external transcripts, worklists, and sample-selection knobs "
-            "(limit / shuffle / max_processes) belong to the eval itself, "
-            "not the scan layered on top of it."
+            "external transcripts, worklists, sample-selection knobs "
+            "(limit / shuffle / max_processes), and validation against "
+            "labelled ground truth belong to the eval itself, not the "
+            "scan layered on top of it."
         )
 
 

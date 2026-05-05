@@ -671,6 +671,18 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
         assert ss["results"] == 2
 
 
+def _validation_kwarg() -> dict[str, object]:
+    """Build a minimal `validation` kwarg for ScanJobConfig."""
+    from inspect_scout._validation.types import ValidationCase, ValidationSet
+
+    return {
+        "echo_scanner": ValidationSet(
+            cases=[ValidationCase(id="any-id", target="any-target")],
+            predicate="eq",
+        )
+    }
+
+
 @pytest.mark.parametrize(
     "field, value",
     [
@@ -679,6 +691,7 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
         ("limit", 5),
         ("shuffle", True),
         ("max_processes", 2),
+        ("validation", _validation_kwarg()),
     ],
 )
 def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) -> None:
@@ -707,7 +720,13 @@ def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) ->
 
 
 @pytest.mark.parametrize(
-    "field, value", [("limit", 5), ("shuffle", True), ("max_processes", 2)]
+    "field, value",
+    [
+        ("limit", 5),
+        ("shuffle", True),
+        ("max_processes", 2),
+        ("validation", _validation_kwarg()),
+    ],
 )
 def test_scanjob_rejects_unsupported_fields(field: str, value: object) -> None:
     """Same validation must hit the `ScanJob` instance path.
