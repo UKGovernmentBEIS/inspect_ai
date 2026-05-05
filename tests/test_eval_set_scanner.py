@@ -613,6 +613,147 @@ def test_eval_set_resume_only_rescans_rerun_samples_keeps_run1_errors() -> None:
         assert summary_2["complete"] is False
 
 
+def test_eval_set_resume_does_not_rescan_completed_unscanned_samples() -> None:
+    """Resume does not re-scan samples whose scans didn't complete on the first run.
+
+    Pins down current — not ideal — behavior. eval_set's resume only
+    re-runs samples without a successful eval log; scanning is wired
+    into per-sample completion. Once a sample's log is written, the
+    scan side has only one chance — at the moment that sample finishes.
+
+    There are two distinct on-disk shapes for "logged but not fully
+    scanned", and resume treats both the same (skip):
+
+    1. **Scan started, errored** — scanner ran and raised; scout
+       captures the failure into the parquet's `scan_error` column.
+       Parquet HAS a row (with error). Counted in `summary.errors`.
+    2. **Scan never started** — the eval crashed in the narrow window
+       between `log_sample` and `scan_eval_sample`. Parquet has NO row
+       for that sample.
+
+    Setup (5 samples, ids 1..5, `max_samples=1`, scan filter
+    `"error = ''"` so the scanner skips eval-errored transcripts):
+    - Solver fails first attempt for ids 4, 5 (so they're "not yet
+      properly run" after run 1; resume re-runs them).
+    - Scanner errors on sample id "2".
+    - `scan_eval_sample` is monkey-patched to no-op for id "3" (crash
+      in the log → scan window).
+
+    Run 1:
+    - 1: solver OK + scan OK → parquet row (success)
+    - 2: solver OK + scan started + errored → parquet row (with error)
+    - 3: solver OK + patched scan returns early → no parquet row
+    - 4, 5: solver errored → filter skips scan → no parquet rows
+
+    Run 2 (no patch):
+    - 1, 2, 3: eval log OK, eval_set skips entirely (id 3 never gets
+      a second chance to scan — the gap)
+    - 4, 5: previously errored → re-run, solver OK, scan OK
+
+    Final state — parquet rows: [1, 2 (error), 4, 5]; id 3 absent.
+    """
+    import inspect_ai._eval.task.run as run_mod
+    from inspect_ai import EvalScannerConfig
+
+    n = 5
+    orig_scan_eval_sample = run_mod.scan_eval_sample
+
+    async def skip_sample_3(eval_sample, scanner, **kwargs):  # type: ignore[no-untyped-def]
+        # simulate a crash in the window between log_sample and
+        # scan_eval_sample for sample id 3 — log is durable, scan
+        # never starts (no parquet row created for that sample)
+        if str(eval_sample.id) == "3":
+            return
+        return await orig_scan_eval_sample(eval_sample, scanner, **kwargs)
+
+    fails_4_5_first_time = _first_attempt_fails_for(4, 5)
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=[fails_4_5_first_time, generate()],
+        )
+
+    config = EvalScannerConfig(
+        scanners=[id2_only_scanner()],
+        filter="error = ''",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: monkey-patch makes id 3's scan a no-op (the "scan
+        # never started" gap); scanner naturally errors on id 2 (the
+        # "scan started, errored" case); ids 4, 5 fail solver and are
+        # filtered out of scanning entirely.
+        run_mod.scan_eval_sample = skip_sample_3
+        try:
+            eval_set(
+                tasks=make_task(),
+                log_dir=log_dir,
+                scanner=config,
+                model="mockllm/model",
+                max_samples=1,
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+        finally:
+            run_mod.scan_eval_sample = orig_scan_eval_sample
+
+        scan_dir = _scan_dir(log_dir)
+        summary_1 = _read_summary(scan_dir)
+        ss_1 = summary_1["scanners"]["id2_only_scanner"]
+        # 2 scan rows recorded after run 1: id 1 (ok) + id 2 (error).
+        # id 3 has no row (patch skipped). ids 4, 5 are filtered out.
+        assert ss_1["scans"] == 2, f"expected 2 scans after run 1, got {ss_1}"
+        assert ss_1["errors"] == 1  # only id 2 errored
+        assert ss_1["results"] == 1  # id 1
+
+        # run 2: no patch. eval_set re-runs samples that previously
+        # errored at the eval level (4, 5) and skips samples that
+        # already have successful logs (1, 2, 3). Sample 3 in
+        # particular never gets a second chance to scan — the gap.
+        success_2, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=config,
+            model="mockllm/model",
+            max_samples=1,
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_2
+
+        summary_2 = _read_summary(scan_dir)
+        ss_2 = summary_2["scanners"]["id2_only_scanner"]
+        # 4 scan rows total: 1 (ok), 2 (error from run 1) + 4, 5 (ok
+        # from run 2 — solver succeeds on retry, filter passes). id 3
+        # is NOT in the parquet — the gap.
+        assert ss_2["scans"] == 4, (
+            f"expected 4 scans (ids 1, 2, 4, 5); id 3 stays absent. got {ss_2}"
+        )
+        assert ss_2["errors"] == 1  # still just id 2
+        assert ss_2["results"] == 3  # 1, 4, 5
+
+        pf = _read_parquet(scan_dir / "id2_only_scanner.parquet")
+        df = pf.read().to_pandas()
+        # set of scanned ids (sync currently double-counts buffer rows
+        # against the previously-compacted parquet, so individual ids
+        # may appear more than once — check membership instead)
+        scanned_ids = set(df["transcript_task_id"].astype(str).tolist())
+        assert scanned_ids == {"1", "2", "4", "5"}, (
+            f"id 3 should be missing from parquet; got {scanned_ids}"
+        )
+
+        # confirm the two distinct unscanned shapes look different on
+        # disk: id 2 has a row with `scan_error` populated; id 3 has
+        # no row at all.
+        id2_rows = df[df["transcript_task_id"] == "2"]
+        assert len(id2_rows) >= 1
+        assert id2_rows.iloc[0]["scan_error"]
+        assert "3" not in scanned_ids
+
+
 def test_scanjob_config_filter_skips_unmatched_samples() -> None:
     """A SQL `filter` on `ScanJobConfig` excludes non-matching samples.
 
