@@ -928,6 +928,49 @@ def test_llm_scanner_inherits_eval_set_model_when_unspecified() -> None:
         assert ss["results"] == 0
 
 
+def test_scan_job_config_model_string_overrides_eval_model() -> None:
+    """`ScanJobConfig.model` (string) is resolved and applied per-sample.
+
+    Exercises the string→Model resolution path: `ScanJobConfig.model`
+    is a `str` field that flows verbatim into
+    `init_scan_model_context(model=<str>)`, which calls scout's
+    `resolve_models` to instantiate the model. The `ScanJob` variant
+    skips this — `ScanJob.__init__` already runs `get_model()` so
+    `scanner.model` is a `Model` instance by the time we read it.
+    """
+    from inspect_scout import ScanJobConfig
+    from inspect_scout._scanspec import ScannerSpec
+
+    config = ScanJobConfig(
+        scanners=[
+            ScannerSpec(
+                name="inspect_scout/llm_scanner",
+                params={
+                    "question": "Did anything happen?",
+                    "answer": "boolean",
+                },
+            )
+        ],
+        model="mockllm/scan-model",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=config,
+            model="mockllm/eval-model",
+            retry_attempts=0,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        summary = _read_summary(scan_dir)
+        ss = next(iter(summary["scanners"].values()))
+        # scanner used the scan-model from the string, not the eval-model
+        assert "mockllm/scan-model" in ss["model_usage"]
+        assert "mockllm/eval-model" not in ss["model_usage"]
+
+
 def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
     """`ScanJob.model` is honored: the scanner uses it instead of the eval model.
 
@@ -956,6 +999,62 @@ def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
         summary = _read_summary(scan_dir)
         ss = next(iter(summary["scanners"].values()))
         # scanner used the scan-model, not the eval-model
+        assert "mockllm/scan-model" in ss["model_usage"]
+        assert "mockllm/eval-model" not in ss["model_usage"]
+
+
+def test_scan_model_override_does_not_leak_into_eval_model_usage() -> None:
+    """Concurrent-sample test: scan-model override is sample-scoped.
+
+    Per-sample model context override hinges on each sample running in
+    its own anyio task (a copied context). If the override accidentally
+    landed in the parent task's context — or if `init_model_usage()`'s
+    reset bled outward — the eval's `model_usage` for sibling samples
+    would either show the scan-model under the eval row or get zeroed.
+
+    This test runs multiple samples concurrently and asserts:
+
+    - every per-sample `EvalSample.model_usage` shows only the
+      `mockllm/eval-model` (the eval's solver), no `mockllm/scan-model`
+    - the scan summary's `model_usage` shows only the scan-model
+    """
+    from inspect_scout import ScanJob, llm_scanner
+
+    from inspect_ai.log import read_eval_log
+
+    scanner_fn = llm_scanner(question="Did anything happen?", answer="boolean")
+    job = ScanJob(scanners=[scanner_fn], model="mockllm/scan-model")
+
+    n_samples = 4
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(n_samples),
+            log_dir=log_dir,
+            scanner=job,
+            model="mockllm/eval-model",
+            retry_attempts=0,
+            max_samples=n_samples,  # force concurrent dispatch
+            display="none",
+        )
+
+        # eval-side: every sample's model_usage shows only eval-model
+        eval_files = list(Path(log_dir).glob("*.eval"))
+        assert len(eval_files) == 1
+        log = read_eval_log(str(eval_files[0]))
+        assert log.samples is not None
+        assert len(log.samples) == n_samples
+        for s in log.samples:
+            assert "mockllm/eval-model" in s.model_usage, (
+                f"sample {s.id}: expected eval-model in usage, got {s.model_usage}"
+            )
+            assert "mockllm/scan-model" not in s.model_usage, (
+                f"sample {s.id}: scan-model leaked into eval usage: {s.model_usage}"
+            )
+
+        # scan-side: scanner used only the scan-model
+        scan_dir = _scan_dir(log_dir)
+        summary = _read_summary(scan_dir)
+        ss = next(iter(summary["scanners"].values()))
         assert "mockllm/scan-model" in ss["model_usage"]
         assert "mockllm/eval-model" not in ss["model_usage"]
 
