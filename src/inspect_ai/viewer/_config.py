@@ -77,6 +77,149 @@ class SampleScoreView(BaseModel):
     """Default sort. When None, scores render in their natural order."""
 
 
+class SamplesSort(BaseModel):
+    """A single sort entry for the task's Sample List grid."""
+
+    column: str
+    """Column id (e.g. `"tokens"`, `"score__judge__correctness"`)."""
+
+    dir: Literal["asc", "desc"] = "asc"
+    """Sort direction."""
+
+
+class SamplesColumn(BaseModel):
+    """A column entry in the task's Sample List view."""
+
+    id: str
+    """Column id."""
+
+    visible: bool = True
+    """Whether the column is visible by default."""
+
+
+class ScoreColorScale(BaseModel):
+    """A numeric `score_color_scales` entry with an explicit value range.
+
+    By default the viewer anchors a named palette at the descriptor's
+    auto-detected min/max, which is the *observed* range across the
+    log's samples. When the metric has a known *conceptual* range —
+    e.g. an alignment-judge dimension that's always graded 1..10 —
+    pin it via `min`/`max` so middling values don't get paint-clamped
+    to the extremes when the observed data happens to cluster at one
+    end. Either bound can be omitted to fall back to the descriptor's
+    detection for that side.
+    """
+
+    palette: Literal["good-high", "good-low", "neutral", "diverging"]
+    """Named palette (same options as the string-shorthand form)."""
+
+    min: float | None = None
+    """Lower anchor for the gradient. None = descriptor's auto-detected min."""
+
+    max: float | None = None
+    """Upper anchor for the gradient. None = descriptor's auto-detected max."""
+
+
+class SamplesView(BaseModel):
+    """Default configuration for the task's Sample List grid.
+
+    Configures the list of samples shown in a task's eval-log view —
+    distinct from `sample_score_view`, which configures the score panel
+    within an individual sample's detail view.
+
+    The viewer applies `SamplesView` only when the user has not
+    explicitly overridden the view in their browser. User overrides
+    shadow the eval-author default; the resolution priority is
+    `user > eval default > built-in`.
+    """
+
+    name: str
+    """Display name. Surfaced in the future view switcher."""
+
+    columns: list[SamplesColumn] | None = None
+    """Ordered list of columns. None = use the viewer's built-in defaults
+    for this log's column shape."""
+
+    sort: list[SamplesSort] | None = None
+    """Sort order. None = no eval-author default (viewer default applies)."""
+
+    filter: str | None = None
+    """DSL filter expression applied by default (e.g.
+    `"has_error or score < 0.5"`, `"input_contains(\\"abc\\")"`)."""
+
+    multiline: bool | None = None
+    """Default row layout. True = list-style multi-line rows; False =
+    compact single-line rows. None = viewer default (currently True)."""
+
+    compact_scores: bool | None = None
+    """Default presentation for score columns. True = compact narrow
+    columns with rotated 45° headers; False = standard-width columns
+    with horizontal headers. None = viewer default (currently False)."""
+
+    score_labels: dict[str, str] | None = None
+    """Display labels for score columns, keyed by score (metric) name.
+    e.g. `{"audit_situational_awareness": "Situational Awareness"}`
+    causes the viewer to render that header as "Situational Awareness"
+    instead of the raw metric name. Lookup falls back to the metric
+    name itself when no override is set."""
+
+    score_color_scales: (
+        dict[
+            str,
+            Literal["good-high", "good-low", "neutral", "diverging"]
+            | ScoreColorScale
+            | dict[str, Literal["good", "bad", "warn", "info", "muted"]],
+        ]
+        | None
+    ) = None
+    """Background-colour scales for score cells, keyed by score (metric)
+    name. Each entry is one of:
+
+    - a named palette string (numeric scores; gradient anchored at
+      the descriptor's auto-detected min/max);
+    - a `ScoreColorScale` with the same palette name plus optional
+      `min`/`max` overrides (numeric scores with a known *conceptual*
+      range that may not match the observed data range);
+    - a map from value to semantic role (categorical scores).
+
+    All three forms resolve to theme-aware Bootstrap subtle colours
+    so light and dark modes stay legible without hand-rolled colour
+    pairs.
+
+    Numeric palettes:
+    - `good-high`: low → red, high → green (typical "accuracy" metric)
+    - `good-low`:  low → green, high → red (typical "danger" / "loss" metric)
+    - `neutral`:   transparent → blue (magnitude only, no good/bad signal)
+    - `diverging`: red ↔ green centred on the midpoint of min / max
+
+    Categorical roles (`good` / `bad` / `warn` / `info` / `muted`)
+    resolve to Bootstrap `*-bg-subtle` CSS variables.
+
+    Numeric example: `{"accuracy": "good-high"}` paints high values
+    green and low values red, anchored at the descriptor's auto-detected
+    min/max.
+
+    Pinned-range example: `{"concerning": ScoreColorScale(palette=
+    "good-low", min=1, max=10)}` paints against a fixed 1..10 range
+    so a sample scoring 5 lands at the gradient midpoint regardless
+    of how the rest of the log scored.
+
+    Categorical example: `{"verdict": {"yes": "bad", "no": "good"}}`
+    paints `yes` cells red and `no` cells green.
+
+    Pass/fail and boolean scores ignore this config — their pre-coloured
+    pills already encode the semantic. Scores not in the map render
+    with no background."""
+
+    color_scales_enabled: bool | None = None
+    """Whether the score-cell colour-scale heatmap is on by default.
+    The viewer's toolbar exposes a toggle when `score_color_scales`
+    has any entries; this field seeds the toggle's initial value.
+    None = viewer default (currently True). Has no effect when
+    `score_color_scales` is empty — the toggle hides itself in that
+    case since there's nothing to colour."""
+
+
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.
 
@@ -94,3 +237,10 @@ class ViewerConfig(BaseModel):
     sample_score_view: SampleScoreView | None = None
     """Defaults for the sample-header score panel. Honoured only when the
     user has not explicitly overridden the view or sort in their browser."""
+
+    task_samples_view: SamplesView | list[SamplesView] | None = None
+    """Default configuration for the task's Sample List grid (the list of
+    samples shown in a task's eval-log view). When a list is supplied,
+    the first entry is the default for now; multi-view selection UI may
+    land later. Honoured only when the user has not explicitly
+    overridden the view in their browser."""

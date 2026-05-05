@@ -13,6 +13,11 @@ description: Customize Inspect view behavior.
 ### SampleScoreView
 ### SampleScoreViewSort
 
+## Samples View
+### SamplesView
+### SamplesColumn
+### SamplesSort
+
 ## Fields
 ### MetadataField
 ### ScannerResultField
