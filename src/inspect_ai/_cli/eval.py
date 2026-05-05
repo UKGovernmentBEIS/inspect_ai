@@ -43,6 +43,7 @@ from .common import (
     process_common_options,
 )
 from .util import (
+    SectionedCommand,
     int_bool_or_str_flag_callback,
     int_or_bool_flag_callback,
     parse_cli_args,
@@ -50,6 +51,29 @@ from .util import (
     parse_model_role_cli_args,
     parse_sandbox,
 )
+
+_SCANNER_OPTION_NAMES = {
+    "scanner",
+    "scanner_arg",
+    "scans",
+    "scan_name",
+    "scan_tags",
+    "scan_metadata",
+    "scan_filter",
+    "scan_model",
+    "scan_model_base_url",
+    "scan_model_arg",
+    "scan_model_config",
+    "scan_model_role",
+    "scan_generate_config",
+}
+
+
+class EvalCommand(SectionedCommand):
+    """`inspect eval` / `inspect eval-set` command with grouped help output."""
+
+    SECTIONS = {"Scanner Options": _SCANNER_OPTION_NAMES}
+
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)"
@@ -157,6 +181,103 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_SOLVER_CONFIG",
         help="YAML or JSON config file with solver arguments.",
+    )
+    @click.option(
+        "--scanner",
+        type=str,
+        envvar="INSPECT_EVAL_SCANNER",
+        help=(
+            "Scanner(s) to apply after each sample. Pass a YAML/JSON "
+            "config file (EvalSetScannerConfig schema), a Python file "
+            "with @scanner functions (use file.py@func to pick one), "
+            "or a registry reference (pkg/name)."
+        ),
+    )
+    @click.option(
+        "--scanner-arg",
+        "scanner_arg",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCANNER_ARGS",
+        help="One or more scanner arguments (e.g. --scanner-arg key=value).",
+    )
+    @click.option(
+        "--scans",
+        type=str,
+        envvar="INSPECT_EVAL_SCANS",
+        help="Location to write scan results to (defaults to <log-dir>/scans/).",
+    )
+    @click.option(
+        "--scan-name",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_NAME",
+        help='Scan name written to _scan.json (defaults to "eval_set").',
+    )
+    @click.option(
+        "--scan-tags",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_TAGS",
+        help="Comma-separated tags written to the scan spec.",
+    )
+    @click.option(
+        "--scan-metadata",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_METADATA",
+        help="Metadata written to the scan spec (e.g. --scan-metadata key=value).",
+    )
+    @click.option(
+        "-F",
+        "--scan-filter",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_FILTER",
+        help=(
+            "SQL WHERE clause(s) applied per-sample to skip transcripts that "
+            "don't match (e.g. -F \"error = ''\")."
+        ),
+    )
+    @click.option(
+        "--scan-model",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL",
+        help="Model used by scanners' get_model() (overrides the eval model).",
+    )
+    @click.option(
+        "--scan-model-base-url",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_BASE_URL",
+        help="Base URL for the scanner-side model API.",
+    )
+    @click.option(
+        "--scan-model-arg",
+        "scan_model_arg",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_ARGS",
+        help="One or more scanner-side model arguments (e.g. --scan-model-arg key=value).",
+    )
+    @click.option(
+        "--scan-model-config",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_CONFIG",
+        help="YAML or JSON config file with scanner-side model arguments.",
+    )
+    @click.option(
+        "--scan-model-role",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
+        help=(
+            "Named scanner-side model role with model name or YAML/JSON config "
+            "(e.g. --scan-model-role grader=mockllm/model)."
+        ),
+    )
+    @click.option(
+        "--scan-generate-config",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_GENERATE_CONFIG",
+        help="YAML or JSON config file with GenerateConfig for scanner model calls.",
     )
     @click.option(
         "--tags",
@@ -650,7 +771,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-@click.command("eval")
+@click.command("eval", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
 @eval_options
 def eval_command(
@@ -665,6 +786,19 @@ def eval_command(
     task_config: str | None,
     s: tuple[str, ...] | None,
     solver_config: str | None,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     tags: str | None,
     metadata: tuple[str, ...] | None,
     trace: bool | None,
@@ -765,6 +899,19 @@ def eval_command(
         task_config=task_config,
         s=s,
         solver_config=solver_config,
+        scanner=scanner,
+        scanner_arg=scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
         tags=tags,
         metadata=metadata,
         trace=trace,
@@ -808,7 +955,7 @@ def eval_command(
     )
 
 
-@click.command("eval-set")
+@click.command("eval-set", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
 @click.option(
     "--retry-attempts",
@@ -897,6 +1044,19 @@ def eval_set_command(
     task_config: str | None,
     s: tuple[str, ...] | None,
     solver_config: str | None,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     tags: str | None,
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
@@ -1003,6 +1163,19 @@ def eval_set_command(
         task_config=task_config,
         s=s,
         solver_config=solver_config,
+        scanner=scanner,
+        scanner_arg=scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
         tags=tags,
         metadata=metadata,
         trace=trace,
@@ -1075,6 +1248,19 @@ def eval_exec(
     task_config: str | None,
     s: tuple[str, ...] | None,
     solver_config: str | None,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     tags: str | None,
     metadata: tuple[str, ...] | None,
     trace: bool | None,
@@ -1130,6 +1316,25 @@ def eval_exec(
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+
+    # resolve scanner spec
+    from ._scanner import resolve_cli_scanner
+
+    eval_scanner = resolve_cli_scanner(
+        scanner,
+        scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
+    )
 
     # parse model roles
     eval_model_roles = parse_model_role_cli_args(model_role)
@@ -1193,6 +1398,7 @@ def eval_exec(
             model_roles=eval_model_roles,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args, solver_args) if solver else None,
+            scanner=eval_scanner,
             tags=eval_tags,
             metadata=eval_metadata,
             trace=trace,

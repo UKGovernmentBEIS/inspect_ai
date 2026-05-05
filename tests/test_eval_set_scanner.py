@@ -1390,6 +1390,264 @@ def test_from_file_config_runs_in_eval_set() -> None:
             assert spec["tags"] == ["loaded-from-disk"]
 
 
+# --- CLI integration --------------------------------------------------------
+
+
+def test_cli_resolve_yaml_config() -> None:
+    """`--scanner foo.yaml` loads the YAML via `EvalSetScannerConfig.from_file`."""
+    import yaml
+
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    body = yaml.safe_dump({"name": "cli_yaml", "scanners": [{"name": "echo_scanner"}]})
+    with tempfile.TemporaryDirectory() as d:
+        cfg_path = Path(d) / "scanner.yaml"
+        cfg_path.write_text(body)
+
+        result = resolve_cli_scanner(str(cfg_path), scanner_arg=())
+
+    from inspect_ai import EvalSetScannerConfig
+
+    assert isinstance(result, EvalSetScannerConfig)
+    assert result.name == "cli_yaml"
+
+
+def test_cli_resolve_python_file() -> None:
+    """`--scanner foo.py` loads @scanner-decorated functions from a Python file."""
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    py_body = """\
+from inspect_scout import Result, Transcript, scanner
+
+
+@scanner(messages="all", name="cli_py_scanner")
+def cli_py_scanner():
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value=transcript.transcript_id)
+    return scan
+"""
+    with tempfile.TemporaryDirectory() as d:
+        py_path = Path(d) / "scanners.py"
+        py_path.write_text(py_body)
+
+        result = resolve_cli_scanner(str(py_path), scanner_arg=())
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert callable(result[0])
+
+
+def test_cli_resolve_registry_ref() -> None:
+    """`--scanner pkg/name` resolves a registered scanner by name."""
+    from inspect_scout._scanner.scanner import scanner_create  # noqa: F401
+
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    # `scanner_a` is registered at module-load time as a bare name.
+    # Scout's `scanner_create` requires a "/" qualified name, so this
+    # path uses scout's built-in `inspect_scout/llm_scanner` instead.
+    result = resolve_cli_scanner(
+        "inspect_scout/llm_scanner",
+        scanner_arg=("question=anything?", "answer=boolean"),
+    )
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert callable(result[0])
+
+
+def test_cli_resolve_unknown_spec_raises() -> None:
+    """A spec that doesn't match any pattern raises `click.UsageError`.
+
+    CLI-arg shape errors should surface as click usage errors so the
+    process exits with code 2 and click prints "Usage: ..." rather than
+    a Python traceback.
+    """
+    import click
+
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    with pytest.raises(click.UsageError, match="Could not resolve --scanner"):
+        resolve_cli_scanner("not_a_file_or_ref", scanner_arg=())
+
+
+def test_cli_resolve_none() -> None:
+    """No `--scanner` flag returns None (no scanner runs)."""
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    assert resolve_cli_scanner(None, scanner_arg=()) is None
+
+
+def test_cli_overrides_promote_list_to_config() -> None:
+    """CLI scan-* flags wrap a bare scanner list into `EvalSetScannerConfig`.
+
+    A registry-ref scanner alone returns a list; once any override
+    (e.g. `--scan-tags`) is set, the resolver wraps it so the override
+    has a place to land.
+    """
+    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    result = resolve_cli_scanner(
+        "inspect_scout/llm_scanner",
+        scanner_arg=("question=anything?", "answer=boolean"),
+        scan_tags="alpha,beta",
+        scan_name="cli_scan",
+        scans="/tmp/scan-out",
+        scan_metadata=("env=ci", "owner=team"),
+        scan_filter=("error = ''",),
+        scan_model="mockllm/model",
+        scan_model_base_url="http://localhost:1234",
+        scan_model_arg=("api_key=abc",),
+        scan_model_role=("grader=mockllm/model",),
+    )
+
+    assert isinstance(result, EvalSetScannerConfig)
+    assert result.name == "cli_scan"
+    assert result.scans == "/tmp/scan-out"
+    assert result.tags == ["alpha", "beta"]
+    assert result.metadata == {"env": "ci", "owner": "team"}
+    assert result.filter == ["error = ''"]
+    assert result.model == "mockllm/model"
+    assert result.model_base_url == "http://localhost:1234"
+    assert result.model_args == {"api_key": "abc"}
+    assert "grader" in (result.model_roles or {})
+
+
+def test_cli_overrides_win_over_yaml_config() -> None:
+    """CLI scan-* flags override values from a YAML config file.
+
+    Otherwise users would have to edit the YAML for a one-off run.
+    """
+    import yaml
+
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    body = yaml.safe_dump(
+        {
+            "name": "from_yaml",
+            "scanners": [{"name": "echo_scanner"}],
+            "tags": ["yaml-tag"],
+            "model": "yaml-model/x",
+        }
+    )
+    with tempfile.TemporaryDirectory() as d:
+        cfg_path = Path(d) / "scanner.yaml"
+        cfg_path.write_text(body)
+
+        result = resolve_cli_scanner(
+            str(cfg_path),
+            scanner_arg=(),
+            scan_name="cli-name",
+            scan_tags="cli-tag",
+            scan_model="cli-model/x",
+        )
+
+    from inspect_ai import EvalSetScannerConfig
+
+    assert isinstance(result, EvalSetScannerConfig)
+    # CLI values won
+    assert result.name == "cli-name"
+    assert result.tags == ["cli-tag"]
+    assert result.model == "cli-model/x"
+
+
+def test_cli_overrides_without_scanner_raise() -> None:
+    """Setting `--scan-*` overrides without `--scanner` is a usage error."""
+    import click
+
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+
+    with pytest.raises(click.UsageError, match="require --scanner"):
+        resolve_cli_scanner(None, scanner_arg=(), scan_model="mockllm/model")
+
+
+def test_cli_scan_generate_config_loads_from_file() -> None:
+    """`--scan-generate-config FILE` loads a `GenerateConfig` from YAML/JSON."""
+    import yaml
+
+    from inspect_ai._cli._scanner import resolve_cli_scanner
+    from inspect_ai.model import GenerateConfig
+
+    gen_body = yaml.safe_dump({"max_tokens": 42, "temperature": 0.3})
+    with tempfile.TemporaryDirectory() as d:
+        gen_path = Path(d) / "generate.yaml"
+        gen_path.write_text(gen_body)
+
+        result = resolve_cli_scanner(
+            "inspect_scout/llm_scanner",
+            scanner_arg=("question=anything?", "answer=boolean"),
+            scan_generate_config=str(gen_path),
+        )
+
+    from inspect_ai import EvalSetScannerConfig
+
+    assert isinstance(result, EvalSetScannerConfig)
+    assert isinstance(result.generate_config, GenerateConfig)
+    assert result.generate_config.max_tokens == 42
+    assert result.generate_config.temperature == 0.3
+
+
+def test_cli_eval_set_command_with_scanner_yaml() -> None:
+    """End-to-end: `inspect eval-set --scanner foo.yaml` runs scanners.
+
+    Drives the click command with `CliRunner.isolated_filesystem()` so
+    relative task/config paths resolve under a temporary working dir
+    (eval-set's task loader globs from the cwd). Verifies the eval
+    succeeded and the scan parquet landed.
+    """
+    import yaml
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_set_command
+
+    task_body = """\
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate
+
+
+@task
+def hello_task() -> Task:
+    return Task(
+        dataset=[Sample(input="hi", target="hi")],
+        solver=generate(),
+    )
+"""
+    body = yaml.safe_dump({"name": "cli_e2e", "scanners": [{"name": "echo_scanner"}]})
+
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        Path("hello_task.py").write_text(task_body)
+        Path("scanner.yaml").write_text(body)
+
+        result = runner.invoke(
+            eval_set_command,
+            [
+                "hello_task.py",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                "logs",
+                "--scanner",
+                "scanner.yaml",
+                "--retry-attempts",
+                "0",
+                "--display",
+                "none",
+            ],
+        )
+
+        assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
+        scan_dir = _scan_dir("logs")
+        assert (scan_dir / "echo_scanner.parquet").exists()
+        spec = json.loads((scan_dir / "_scan.json").read_text())
+        assert spec["scan_name"] == "cli_e2e"
+
+
+# --- end CLI integration ----------------------------------------------------
+
+
 def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
     """`max_connections` caps total in-flight calls across eval + scanner.
 

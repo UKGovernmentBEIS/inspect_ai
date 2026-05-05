@@ -181,6 +181,47 @@ def parse_model_role_cli_args(
     return parsed_args
 
 
+class SectionedCommand(click.Command):
+    """Click command that renders options grouped into named sections.
+
+    Each option can be tagged with a section by calling
+    `mark_section(option_name, section)` after registration. Tagged
+    options render together under a separate header in `--help`;
+    untagged options render under the default "Options" header.
+    """
+
+    SECTIONS: dict[str, set[str]] = {}
+    """Subclasses populate as `{section_title: {option_name, ...}}`."""
+
+    def format_options(
+        self, ctx: click.Context, formatter: click.HelpFormatter
+    ) -> None:
+        # bucket each param into its section (or the default group)
+        default: list[tuple[str, str]] = []
+        sectioned: dict[str, list[tuple[str, str]]] = {
+            title: [] for title in self.SECTIONS
+        }
+
+        for param in self.get_params(ctx):
+            record = param.get_help_record(ctx)
+            if record is None:
+                continue
+            for title, names in self.SECTIONS.items():
+                if param.name in names:
+                    sectioned[title].append(record)
+                    break
+            else:
+                default.append(record)
+
+        if default:
+            with formatter.section("Options"):
+                formatter.write_dl(default)
+        for title, records in sectioned.items():
+            if records:
+                with formatter.section(title):
+                    formatter.write_dl(records)
+
+
 def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:
     if sandbox is not None:
         parts = sandbox.split(":", maxsplit=1)
