@@ -27,6 +27,7 @@ from inspect_ai.model import (
     ChatMessageUser,
 )
 
+from ._anchor import AnchorEvent
 from ._branch import BranchEvent
 from ._event import Event
 from ._model import ModelEvent
@@ -60,17 +61,8 @@ def _min_start_time(
 def _max_end_time(
     nodes: Sequence[TimelineEvent | TimelineSpan],
 ) -> datetime:
-    """Return the latest end time among nodes.
-
-    Requires at least one node (all nodes have non-null end_time).
-
-    Args:
-        nodes: Non-empty sequence of nodes to check.
-
-    Returns:
-        The maximum end_time.
-    """
-    return max(node.end_time() for node in nodes)
+    """Return the latest end time among nodes (``datetime.min`` when empty)."""
+    return max((node.end_time() for node in nodes), default=datetime.min)
 
 
 def _sum_tokens(
@@ -409,10 +401,8 @@ def timeline_build(
 
     **Phase 3 — Post-processing passes:**
 
-    - Auto-branch detection (re-rolled ModelEvents with identical inputs)
     - Utility agent classification (single-turn agents with different
       system prompts)
-    - Recursive branch classification
 
     Args:
         events: Flat list of Events from a transcript.
@@ -542,8 +532,6 @@ async def timeline_branch(
         from_anchor: Anchor id at the branch point.
         id (str | None): Optional span ID. Generated if not provided.
     """
-    from inspect_ai.event._anchor import AnchorEvent
-    from inspect_ai.event._branch import BranchEvent
     from inspect_ai.log._transcript import transcript
     from inspect_ai.util._span import span
 

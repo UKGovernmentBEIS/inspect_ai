@@ -41,7 +41,7 @@ from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import Event
-from ._pool import resolve_model_event_calls, resolve_model_event_inputs
+from ._pool import resolve_sample_events_data
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
@@ -564,12 +564,7 @@ class EvalSample(BaseModel):
 
         sample: EvalSample = handler(data)
 
-        if sample.events_data is not None:
-            resolve_model_event_inputs(
-                sample.events, sample.events_data["messages"]
-            )
-            resolve_model_event_calls(sample.events, sample.events_data["calls"])
-            sample.events_data = None
+        resolve_sample_events_data(sample)
 
         if raw_timelines:
             events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}

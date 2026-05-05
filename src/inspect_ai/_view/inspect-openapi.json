@@ -429,6 +429,7 @@
             "type": "string"
           },
           "from_anchor": {
+            "default": "",
             "title": "From Anchor",
             "type": "string"
           },

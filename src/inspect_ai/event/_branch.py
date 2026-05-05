@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from inspect_ai.event._base import BaseEvent
 
@@ -17,5 +17,14 @@ class BranchEvent(BaseEvent):
     event: Literal["branch"] = Field(default="branch")
     """Event type."""
 
-    from_anchor: str
+    from_anchor: str = ""
     """Anchor at the branch point (matches an ``AnchorEvent.anchor_id`` in the parent)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data.pop("from_span", None)
+            if "from_anchor" not in data and "from_message" in data:
+                data["from_anchor"] = data.pop("from_message") or ""
+        return data

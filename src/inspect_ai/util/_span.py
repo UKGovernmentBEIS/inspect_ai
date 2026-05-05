@@ -10,8 +10,7 @@ from shortuuid import uuid as shortuuid
 logger = getLogger(__name__)
 
 SpanIdProvider = Callable[[str, str | None, str | None], Awaitable[str]]
-"""``await provider(name, parent_id, requested_id)`` → span id."""
-"""Signature for a span-ID provider: ``async (name, parent_id) -> id``.
+"""Signature for a span-ID provider: ``await provider(name, parent_id, requested_id)`` → span id.
 
 Set via `set_span_id_provider` to make `span()` use orchestrator-supplied IDs
 (e.g. for replay-deterministic span identity across branched trajectories).
@@ -29,7 +28,8 @@ async def span(
         type (str | None): Optional span type.
         id (str | None): Optional span ID. Generated if not provided. If a
             span-ID provider is active (`set_span_id_provider`), it is
-            consulted with ``(name, parent_id)`` instead of generating a UUID.
+            consulted with ``(name, parent_id, requested_id)`` instead of
+            generating a UUID.
     """
     from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
     from inspect_ai.log._transcript import (
@@ -37,15 +37,15 @@ async def span(
         transcript,
     )
 
+    # capture parent id
+    parent_id = _current_span_id.get()
+
     # span id
     provider = _span_id_provider.get()
     if provider is not None:
-        id = await provider(name, _current_span_id.get(), id)
+        id = await provider(name, parent_id, id)
     elif id is None:
         id = shortuuid()
-
-    # capture parent id
-    parent_id = _current_span_id.get()
 
     # set new current span (reset at the end)
     token = _current_span_id.set(id)
