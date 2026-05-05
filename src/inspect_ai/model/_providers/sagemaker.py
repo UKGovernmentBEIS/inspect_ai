@@ -26,7 +26,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 
@@ -133,19 +133,19 @@ class SagemakerAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        # Sagemaker's retryable codes are all infrastructure transients
+        # (container timeout, ServiceUnavailable, GatewayTimeout) — none are
+        # rate-limit signals — so they all classify as transient.
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
             status_code = ex.response.get("OriginalStatusCode", -1)
-
-            should_retry_ = (
+            if (
                 error_code == "ModelError"
                 and status_code in SAGEMAKER_RETRY_ERROR_CODES
-            )
-
-            return should_retry_
-        else:
-            return False
+            ):
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:

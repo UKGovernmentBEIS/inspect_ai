@@ -49,7 +49,7 @@ from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
-from inspect_ai.solver import Solver, generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -426,6 +426,68 @@ def test_eval_set_retry_started():
         # re-run the eval set and confirm status 'succes'
         run_eval_set()
         assert eval_log_status() == "success"
+
+
+def test_eval_set_preserves_token_usage():
+    # baseline: a single-sample task that succeeds first try
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(input="hello", target="hello")],
+                solver=[generate()],
+                scorer=exact(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            model="mockllm/model",
+        )
+        assert success
+        baseline_log = read_eval_log(logs[0].location)
+        assert baseline_log.stats.model_usage
+        model_name = list(baseline_log.stats.model_usage.keys())[0]
+        baseline_tokens = baseline_log.stats.model_usage[model_name].total_tokens
+        assert baseline_tokens > 0
+
+    # retry scenario: a single-sample task where the solver runs generate() and
+    # then raises on the first call. The same Task instance is reused across
+    # eval_set retries, so the closure-bound counter survives. The first
+    # attempt records baseline_tokens (generate ran before the failure), and
+    # the retry records baseline_tokens again — so a final log with token
+    # rollover wired up should exceed baseline_tokens.
+    #
+    # This exercises legacy batch-retry mode (retry_immediate=False), where each
+    # retry produces a fresh eval log and usage is rolled forward across logs.
+    @solver
+    def fail_first_after_generate() -> Solver:
+        counter = {"value": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            counter["value"] += 1
+            if counter["value"] == 1:
+                raise ValueError("first call fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(input="hello", target="hello")],
+                solver=[generate(), fail_first_after_generate()],
+                scorer=exact(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=False,
+            model="mockllm/model",
+        )
+        assert success
+        retried_log = read_eval_log(logs[0].location)
+        retried_tokens = retried_log.stats.model_usage[model_name].total_tokens
+
+    assert retried_tokens > baseline_tokens
 
 
 def test_eval_set_header_only() -> None:
@@ -1516,7 +1578,8 @@ def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
                 )
 
 
-def test_eval_set_retry_immediate() -> None:
+@pytest.mark.parametrize("retry_immediate", [True, None])
+def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
     """Test that retry_immediate retries a failed task reusing completed samples.
 
     Task A has 2 samples. On the first run, sample 1 completes and sample 2
@@ -1525,6 +1588,10 @@ def test_eval_set_retry_immediate() -> None:
 
     Task B waits until Task A's retry has completed before returning, ensuring
     deterministic ordering.
+
+    Parameterized over `retry_immediate=True` (explicit) and `retry_immediate=None`
+    (omitted) to verify both produce the immediate-retry behavior — `None` is the
+    sentinel that resolves to the new default of True.
     """
     import anyio
 
@@ -1594,7 +1661,7 @@ def test_eval_set_retry_immediate() -> None:
             log_dir=log_dir,
             model="mockllm/model",
             retry_attempts=1,
-            retry_immediate=True,
+            retry_immediate=retry_immediate,
             max_tasks=2,
             max_samples=1,
         )

@@ -560,7 +560,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.5
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -749,6 +749,22 @@ Pass the `do_sample` model arg to override the default sampling behavior (which 
 ``` bash
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
 ```
+
+### Trust Remote Code
+
+Some Hugging Face models ship custom Python code in their repositories that the `transformers` library will execute on load when `trust_remote_code=True`. Because executing remote code is a security risk (the model author can run arbitrary code in your evaluation process), Inspect defaults `trust_remote_code` to `False` and will not forward `trust_remote_code` from generic `model_args`. To opt in for a specific model you trust, pass it explicitly:
+
+``` bash
+inspect eval arc.py --model hf/some-org/custom-arch-model -M trust_remote_code=true
+```
+
+Or from Python:
+
+``` python
+eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remote_code=True))
+```
+
+The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
 ### Local Models
 

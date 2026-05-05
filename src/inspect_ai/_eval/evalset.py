@@ -129,6 +129,7 @@ def eval_set(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -164,14 +165,16 @@ def eval_set(
             (required to ensure that a unique storage scope is assigned for the set).
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
-        retry_wait: Time to wait between attempts, increased exponentially.
-            (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
-            per-retry will in no case by longer than 1 hour.
+        retry_wait: Time to wait between attempts when `retry_immediate=False`,
+            increased exponentially (defaults to 30, resulting in waits of 30, 60,
+            120, 240, etc.). Wait time per-retry will in no case be longer than 1
+            hour. Ignored when `retry_immediate=True`.
         retry_connections: Reduce max_connections at this rate with each retry
-            (defaults to 1.0, which results in no reduction).
+            when `retry_immediate=False` (defaults to 1.0, which results in no
+            reduction). Ignored when `retry_immediate=True`.
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
+        retry_immediate: If True (the default), immediately retry tasks as they fail without waiting for all tasks to complete; completed samples are reused from logs on retry. If False, wait for all tasks to complete before retrying any tasks (legacy batch-retry behavior). When True, `retry_wait` and `retry_connections` are ignored.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -215,6 +218,9 @@ def eval_set(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
@@ -232,7 +238,7 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 4 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -266,6 +272,8 @@ def eval_set(
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    if retry_immediate is None:
+        retry_immediate = True
     task_retry_attempts = num_retry_attempts if retry_immediate else 0
 
     if retry_immediate and num_retry_attempts == 0:
@@ -308,6 +316,7 @@ def eval_set(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -370,8 +379,28 @@ def eval_set(
     # resolve some parameters
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
+    # adaptive_connections subsumes retry_connections — the controller manages
+    # scale-down internally on retry signals. Force retry_connections to 1.0
+    # silently (rather than warning), so that this stays quiet when adaptive
+    # eventually becomes default-on. Only fires when adaptive will actually be
+    # active: explicit max_connections takes precedence (per the precedence
+    # rule in Model._connection_concurrency), batch mode disables adaptive
+    # entirely (worker tasks don't propagate retry signals), and in those
+    # cases retry_connections decay should still apply to the static cap.
+    # The predicate must match Model._connection_concurrency and
+    # create_sample_semaphore exactly — otherwise a user passing
+    # batch=True + adaptive_connections=True + retry_connections=0.5 would
+    # silently lose decay (evalset suppresses it, but the model path goes
+    # static and never sets up an adaptive controller).
+    adaptive_will_be_active = (
+        bool(kwargs.get("adaptive_connections"))
+        and kwargs.get("max_connections") is None
+        and not kwargs.get("batch")
+    )
+    if adaptive_will_be_active:
+        retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 10)
     log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status
@@ -380,10 +409,22 @@ def eval_set(
 
     # before sleep
     def before_sleep(retry_state: RetryCallState) -> None:
-        # compute/update next max_connections
+        # Compute/update next max_connections, but only inject into kwargs when
+        # retry_connections actually decays (!= 1.0). Reasons:
+        #   1. If adaptive will be active at eval-set level, retry_connections
+        #      was already forced to 1.0 above (controller handles scale-down).
+        #   2. With default retry_connections=1.0, the "decayed" value equals
+        #      the original — injecting would be a no-op for static behavior
+        #      but would silently override any task-level adaptive_connections
+        #      (since any non-None max_connections disables adaptive per the
+        #      precedence rule in Model._connection_concurrency).
+        # When the user explicitly opts into decay (retry_connections != 1.0),
+        # we inject — this preserves the long-standing static behavior, with
+        # the trade-off that task-level adaptive yields to the explicit decay.
         nonlocal max_connections
-        max_connections = max(round(max_connections * retry_connections), 1)
-        kwargs["max_connections"] = max_connections
+        if retry_connections != 1.0:
+            max_connections = max(round(max_connections * retry_connections), 1)
+            kwargs["max_connections"] = max_connections
 
         # print waiting status
         msg = (

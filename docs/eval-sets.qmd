@@ -60,7 +60,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Concurrency
 
-By default, `eval_set()` will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
+By default, `eval_set()` will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
 
 Use the `max_tasks` option to override the default behavior:
 
@@ -110,9 +110,9 @@ There are a number of options that control the retry behaviour of eval sets:
 | **Option** | Description |
 |------------------------------------|------------------------------------|
 | `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
-| `--retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. |
-| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction) |
+| `--retry-immediate` / `--no-retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass `--no-retry-immediate` for legacy batch-retry behavior. When in effect, `--retry-wait` and `--retry-connections` are ignored. |
+| `--retry-wait` | Time to wait between attempts when `--no-retry-immediate` is set, increased exponentially (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Ignored under the default `--retry-immediate` mode. |
+| `--retry-connections` | Reduce max connections at this rate with each retry when `--no-retry-immediate` is set (defaults to 1.0, which results in no reduction). Ignored under the default `--retry-immediate` mode. |
 | `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 : {tbl-colwidths=\[40,60\]}

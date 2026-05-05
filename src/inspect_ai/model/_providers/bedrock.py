@@ -31,7 +31,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
@@ -325,27 +325,43 @@ class BedrockAPI(ModelAPI):
         else:
             return DEFAULT_MAX_TOKENS
 
+    # Bedrock returns AWS-specific error codes; the throttling-family codes
+    # are documented as the 429 equivalent and indicate true capacity
+    # throttling. The infra-family codes (RequestTimeout, ServiceUnavailable)
+    # are retryable but represent AWS-side issues, not client over-saturation —
+    # so they're classified as transient (pause scale-up, don't scale down).
+    _BEDROCK_THROTTLE_CODES = frozenset(
+        [
+            "ThrottlingException",
+            "RequestLimitExceeded",
+            "Throttling",
+            "RequestThrottled",
+            "TooManyRequestsException",
+            "ProvisionedThroughputExceededException",
+        ]
+    )
+    _BEDROCK_TRANSIENT_CODES = frozenset(
+        [
+            "TransactionInProgressException",
+            "RequestTimeout",
+            "ServiceUnavailable",
+            "ServiceUnavailableException",
+        ]
+    )
+
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         from botocore.exceptions import ClientError
 
-        # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
-            return error_code in [
-                "ThrottlingException",
-                "RequestLimitExceeded",
-                "Throttling",
-                "RequestThrottled",
-                "TooManyRequestsException",
-                "ProvisionedThroughputExceededException",
-                "TransactionInProgressException",
-                "RequestTimeout",
-                "ServiceUnavailable",
-                "ServiceUnavailableException",
-            ]
-        else:
-            return False
+            if error_code in self._BEDROCK_THROTTLE_CODES:
+                # AWS doesn't include Retry-After on ThrottlingException — fall
+                # back to the controller's configured cooldown floor.
+                return RetryDecision.rate_limit()
+            if error_code in self._BEDROCK_TRANSIENT_CODES:
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:

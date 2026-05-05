@@ -34,6 +34,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._resource import resource
 
 from .common import (
@@ -51,7 +52,7 @@ from .util import (
 )
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
-MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)"
+MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
@@ -65,6 +66,7 @@ NO_LOG_REALTIME_HELP = (
 NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (instead, continue running other samples)"
 CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval)."
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
+SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
@@ -77,6 +79,12 @@ NO_SCORE_HELP = (
 )
 NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
+ADAPTIVE_CONNECTIONS_HELP = (
+    "Enable adaptive concurrency for Model API connections, automatically "
+    "scaling between bounds based on rate-limit feedback. Pass `true` for "
+    "defaults (min=4, start=20, max=200), `false` to explicitly disable, or "
+    'bounds as "min-max" (e.g. "4-80") or "min-start-max" (e.g. "4-20-80").'
+)
 MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
@@ -239,6 +247,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_CONNECTIONS",
     )
     @click.option(
+        "--adaptive-connections",
+        type=str,
+        default=None,
+        help=ADAPTIVE_CONNECTIONS_HELP,
+        envvar="INSPECT_EVAL_ADAPTIVE_CONNECTIONS",
+    )
+    @click.option(
         "--max-retries",
         type=int,
         help=MAX_RETRIES_HELP,
@@ -348,6 +363,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         callback=int_or_bool_flag_callback(DEFAULT_RETRY_ON_ERROR),
         help=RETRY_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_RETRY_ON_ERROR",
+    )
+    @click.option(
+        "--score-on-error",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help=SCORE_ON_ERROR_HELP,
+        envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
     @click.option(
         "--no-log-samples",
@@ -659,6 +682,7 @@ def eval_command(
     timeout: int | None,
     attempt_timeout: int | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_tokens: int | None,
     system_message: str | None,
     best_of: int | None,
@@ -703,6 +727,7 @@ def eval_command(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -767,6 +792,7 @@ def eval_command(
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
+        score_on_error=score_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
@@ -791,11 +817,10 @@ def eval_command(
     envvar="INSPECT_EVAL_RETRY_ATTEMPS",
 )
 @click.option(
-    "--retry-immediate",
+    "--retry-immediate/--no-retry-immediate",
     type=bool,
-    is_flag=True,
-    default=False,
-    help="Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored.",
+    default=None,
+    help="Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass --no-retry-immediate for the legacy behavior of waiting for all tasks to complete before retrying. When --retry-immediate is in effect, --retry-wait and --retry-connections are ignored.",
     envvar="INSPECT_EVAL_RETRY_IMMEDIATE",
 )
 @click.option(
@@ -803,13 +828,14 @@ def eval_command(
     type=int,
     help="Time in seconds wait between attempts, increased exponentially. "
     + "(defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time "
-    + "per-retry will in no case by longer than 1 hour.",
+    + "per-retry will in no case by longer than 1 hour. "
+    + "Only applies when --no-retry-immediate is set; otherwise ignored.",
     envvar="INSPECT_EVAL_RETRY_WAIT",
 )
 @click.option(
     "--retry-connections",
     type=float,
-    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).",
+    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). Only applies when --no-retry-immediate is set; otherwise ignored.",
     envvar="INSPECT_EVAL_RETRY_CONNECTIONS",
 )
 @click.option(
@@ -886,6 +912,7 @@ def eval_set_command(
     timeout: int | None,
     attempt_timeout: int | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_tokens: int | None,
     system_message: str | None,
     best_of: int | None,
@@ -930,6 +957,7 @@ def eval_set_command(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -1002,6 +1030,7 @@ def eval_set_command(
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
+        score_on_error=score_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
@@ -1073,6 +1102,7 @@ def eval_exec(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     debug_errors: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
@@ -1180,6 +1210,7 @@ def eval_exec(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -1223,6 +1254,34 @@ def eval_exec(
         params["log_header_only"] = True  # cli invocation doesn't need full log
         eval(**params)
         return True
+
+
+def _parse_adaptive_connections_cli(
+    value: str | None,
+) -> bool | AdaptiveConcurrency | None:
+    """Parse a CLI string into an adaptive_connections value.
+
+    Accepts: None (passthrough), bool keywords ("true"/"false"/"1"/"0"/"yes"/"no",
+    case-insensitive), or shorthand like "4-80" / "4-20-80" delegated to
+    AdaptiveConcurrency's parser. Raises `click.BadParameter` on invalid input
+    so the CLI surfaces a clean usage message instead of a raw pydantic
+    ValidationError.
+    """
+    if value is None:
+        return None
+    v = value.strip().lower()
+    if v in ("true", "1", "yes"):
+        return True
+    if v in ("false", "0", "no"):
+        return False
+    try:
+        return AdaptiveConcurrency.model_validate(value)
+    except Exception as ex:
+        raise click.BadParameter(
+            f"{value!r} is not a valid value. Expected `true`, `false`, or "
+            f"bounds shorthand like `4-80` or `4-20-80`.",
+            param_hint="--adaptive-connections",
+        ) from ex
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
@@ -1285,6 +1344,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 match value:
                     case str():
                         value = BatchConfig.model_validate(resolve_args(value))
+
+            if key == "adaptive_connections" and isinstance(value, str):
+                value = _parse_adaptive_connections_cli(value)
 
             if key == "modalities":
                 value = parse_modalities(value)
@@ -1408,6 +1470,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_RETRY_ON_ERROR",
 )
 @click.option(
+    "--score-on-error",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help=SCORE_ON_ERROR_HELP,
+    envvar="INSPECT_EVAL_SCORE_ON_ERROR",
+)
+@click.option(
     "--no-log-samples",
     type=bool,
     is_flag=True,
@@ -1478,6 +1548,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_MAX_CONNECTIONS",
 )
 @click.option(
+    "--adaptive-connections",
+    type=str,
+    default=None,
+    help=ADAPTIVE_CONNECTIONS_HELP,
+    envvar="INSPECT_EVAL_ADAPTIVE_CONNECTIONS",
+)
+@click.option(
     "--max-retries", type=int, help=MAX_RETRIES_HELP, envvar="INSPECT_EVAL_MAX_RETRIES"
 )
 @click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
@@ -1510,6 +1587,7 @@ def eval_retry_command(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -1520,6 +1598,7 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
@@ -1554,6 +1633,9 @@ def eval_retry_command(
         log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
     ]
 
+    # parse adaptive_connections (str → bool | AdaptiveConcurrency)
+    adaptive_connections_value = _parse_adaptive_connections_cli(adaptive_connections)
+
     # retry
     eval_retry(
         retry_log_files,
@@ -1569,6 +1651,7 @@ def eval_retry_command(
         fail_on_error=fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
+        score_on_error=score_on_error,
         debug_errors=common["debug_errors"],
         log_samples=log_samples,
         log_realtime=log_realtime,
@@ -1583,4 +1666,5 @@ def eval_retry_command(
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_connections=max_connections,
+        adaptive_connections=adaptive_connections_value,
     )

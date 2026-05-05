@@ -26,7 +26,12 @@ from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
-from inspect_ai._util.registry import registry_create, registry_unqualified_name
+from inspect_ai._util.registry import (
+    has_registry_params,
+    registry_create,
+    registry_params,
+    registry_unqualified_name,
+)
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
@@ -391,6 +396,10 @@ async def _run_score_task(
                         ScoreEvent(
                             score=score_result,
                             target=target.target,
+                            scorer=scorer_name,
+                            scorer_args=registry_params(scorer)
+                            if has_registry_params(scorer)
+                            else None,
                             model_usage=sample.model_usage or None,
                             role_usage=sample.role_usage or None,
                         )

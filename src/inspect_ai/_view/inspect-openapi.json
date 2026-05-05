@@ -1,6 +1,51 @@
 {
   "components": {
     "schemas": {
+      "AdaptiveConcurrency": {
+        "description": "Bounds and tuning for an adaptive concurrency controller.\n\nBasic fields (`min`, `start`, `max`) bound the range the controller will\nscale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,\n`scale_up_percent`) tune the response curve and have sensible defaults\nfor typical evaluation workloads \u2014 see the parallelism docs for guidance.\nAccepts a string shorthand (\"min-max\" or \"min-start-max\") for use in CLI\nflags and config files; advanced fields are Python-only.",
+        "properties": {
+          "cooldown_seconds": {
+            "default": 15.0,
+            "title": "Cooldown Seconds",
+            "type": "number"
+          },
+          "decrease_factor": {
+            "default": 0.8,
+            "title": "Decrease Factor",
+            "type": "number"
+          },
+          "max": {
+            "default": 200,
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "default": 4,
+            "title": "Min",
+            "type": "integer"
+          },
+          "scale_up_percent": {
+            "default": 0.05,
+            "title": "Scale Up Percent",
+            "type": "number"
+          },
+          "start": {
+            "default": 20,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "start",
+          "cooldown_seconds",
+          "decrease_factor",
+          "scale_up_percent"
+        ],
+        "title": "AdaptiveConcurrency",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -1084,6 +1129,45 @@
         "title": "CompactionEvent",
         "type": "object"
       },
+      "ConnectionLimitChange": {
+        "description": "Record of an adaptive-connections controller scale change.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "new_limit": {
+            "title": "New Limit",
+            "type": "integer"
+          },
+          "old_limit": {
+            "title": "Old Limit",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "slow_start",
+              "steady_state_up",
+              "rate_limit"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "model",
+          "old_limit",
+          "new_limit",
+          "reason"
+        ],
+        "title": "ConnectionLimitChange",
+        "type": "object"
+      },
       "Content": {
         "anyOf": [
           {
@@ -2153,6 +2237,17 @@
               }
             ],
             "title": "Score Display"
+          },
+          "score_on_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score On Error"
           },
           "time_limit": {
             "anyOf": [
@@ -4100,6 +4195,13 @@
             ],
             "title": "Completed At"
           },
+          "connection_limit_history": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionLimitChange"
+            },
+            "title": "Connection Limit History",
+            "type": "array"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -4131,7 +4233,8 @@
           "started_at",
           "completed_at",
           "model_usage",
-          "role_usage"
+          "role_usage",
+          "connection_limit_history"
         ],
         "title": "EvalStats",
         "type": "object"
@@ -4278,6 +4381,20 @@
       "GenerateConfig": {
         "description": "Model generation options.",
         "properties": {
+          "adaptive_connections": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveConcurrency"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adaptive Connections"
+          },
           "attempt_timeout": {
             "anyOf": [
               {
@@ -6661,6 +6778,72 @@
         "title": "SampleLimitEvent",
         "type": "object"
       },
+      "SampleScoreView": {
+        "description": "How the sample-header score panel should render when there are 3 or more scores.",
+        "properties": {
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreViewSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "view": {
+            "anyOf": [
+              {
+                "enum": [
+                  "chips",
+                  "grid"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          }
+        },
+        "title": "SampleScoreView",
+        "type": "object"
+      },
+      "SampleScoreViewSort": {
+        "description": "Default sort applied to the sample-header score panel.",
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "enum": [
+                  "name",
+                  "value"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dir"
+        ],
+        "title": "SampleScoreViewSort",
+        "type": "object"
+      },
       "Samples": {
         "properties": {
           "etag": {
@@ -7358,6 +7541,29 @@
           },
           "score": {
             "$ref": "#/components/schemas/Score"
+          },
+          "scorer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer"
+          },
+          "scorer_args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer Args"
           },
           "span_id": {
             "anyOf": [
@@ -8885,6 +9091,16 @@
       "ViewerConfig": {
         "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
         "properties": {
+          "sample_score_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "scanner_result_view": {
             "anyOf": [
               {
