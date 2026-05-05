@@ -791,6 +791,51 @@ def test_scanjob_config_scans_overrides_output_location() -> None:
             assert (override_scans[0] / "echo_scanner.parquet").exists()
 
 
+@pytest.mark.parametrize("scanner_kind", ["scanjob", "scanjob_config"])
+def test_tags_and_metadata_written_to_scan_spec(scanner_kind: str) -> None:
+    """`tags` and `metadata` on `ScanJob`/`ScanJobConfig` land in scan.json.
+
+    Both fields are stored on the `ScanSpec` that scout writes to
+    `_scan.json` at scan-init time. We extract them in `scan_eval_set_init`
+    when constructing the spec, so they appear verbatim on disk.
+    """
+    from inspect_scout import ScanJob, ScanJobConfig
+    from inspect_scout._scanspec import ScannerSpec
+
+    tags = ["nightly", "experiment-42"]
+    metadata = {"owner": "team-x", "iteration": 3}
+
+    scanner: object
+    if scanner_kind == "scanjob_config":
+        scanner = ScanJobConfig(
+            scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
+            tags=tags,
+            metadata=metadata,
+        )
+    else:
+        scanner = ScanJob(
+            scanners=[echo_scanner()],
+            tags=tags,
+            metadata=metadata,
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=scanner,  # type: ignore[arg-type]
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+
+        scan_dir = _scan_dir(log_dir)
+        spec = json.loads((scan_dir / "_scan.json").read_text())
+        assert spec["tags"] == tags
+        assert spec["metadata"] == metadata
+
+
 def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
     """A second eval_set call must reject a changed scanner set up front.
 

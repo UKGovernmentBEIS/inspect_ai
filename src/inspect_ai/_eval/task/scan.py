@@ -65,6 +65,8 @@ async def scan_eval_set_init(
         scan_name="eval_set",
         scanners=_spec_scanners(scanners_dict),
         options=ScanOptions(),
+        tags=_normalize_tags(scanner),
+        metadata=_normalize_metadata(scanner),
     )
     await recorder.init(
         spec, _scans_location(log_dir, scanner), concurrent_writers=True
@@ -291,6 +293,24 @@ def _normalize_scans(scanner: "Scanners | None") -> str | None:
 
     if isinstance(scanner, (ScanJob, ScanJobConfig)):
         return scanner.scans
+    return None
+
+
+def _normalize_tags(scanner: "Scanners | None") -> list[str] | None:
+    """Tags carried on `ScanJob`/`ScanJobConfig`, written into the scan spec."""
+    from inspect_scout import ScanJob, ScanJobConfig
+
+    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+        return scanner.tags
+    return None
+
+
+def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
+    """Metadata carried on `ScanJob`/`ScanJobConfig`, written into the scan spec."""
+    from inspect_scout import ScanJob, ScanJobConfig
+
+    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+        return scanner.metadata
     return None
 
 
