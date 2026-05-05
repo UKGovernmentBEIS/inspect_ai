@@ -17020,23 +17020,23 @@ button._segment_13qph_10._compact_13qph_31 i {
 ._dropdownItem_1swkv_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_1wfac_1 {
+._tabs_85ts4_1 {
   align-items: center;
 }
 
-._tabContents_1wfac_5 {
+._tabContents_85ts4_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_1wfac_5._scrollable_1wfac_11 {
+._tabContents_85ts4_5._scrollable_85ts4_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_1wfac_1 {
+._tab_85ts4_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17046,30 +17046,34 @@ button._segment_13qph_10._compact_13qph_31 i {
   margin-bottom: -1px;
 }
 
-._tabItem_1wfac_27 {
+._tabItem_85ts4_27 {
   align-self: end;
 }
 
-._pillSmallContainer_1wfac_31 {
+._pillSmallContainer_85ts4_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_1wfac_31 {
+._pillSmall_85ts4_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_1wfac_39 {
+._tabIcon_85ts4_39 {
   margin-right: 0.5em;
 }
 
-._tabSpacer_1wfac_43 {
+._tabSpacer_85ts4_43 {
   flex: 1 1 0;
   min-width: 0;
   list-style: none;
 }
 
-._tabTools_1wfac_49 {
-  flex-basis: auto;
+._tabTools_85ts4_49 {
+  /* Grow alongside the spacer so flex children inside (e.g. a filter
+     input) can claim leftover horizontal space rather than being
+     content-sized. `justify-content: end` keeps non-growing tools
+     pinned to the right edge as before. */
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: end;
@@ -17078,20 +17082,20 @@ button._segment_13qph_10._compact_13qph_31 i {
   column-gap: 0.5rem;
 }
 
-._tabStyle_1wfac_59 {
+._tabStyle_85ts4_63 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_1wfac_49 > * {
+._tabTools_85ts4_49 > * {
   flex: 0 1 auto;
 }
 
-._tabTools_1wfac_49 input {
+._tabTools_85ts4_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_1wfac_49 .btn {
+._tabTools_85ts4_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
@@ -19266,7 +19270,7 @@ a._citationLink_1ggvf_9:hover {
 ._dropdownItemActive_djjmp_74 {
   font-weight: 600;
 }
-._swimlane_16dh6_1 {
+._swimlane_1itnu_1 {
   --swimlane-row-height: 18px;
   --swimlane-minimap-height: 24px;
   --swimlane-grid-columns: auto 1fr auto;
@@ -19282,7 +19286,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Pinned section: minimap + parent row — always visible */
-._pinnedSection_16dh6_17 {
+._pinnedSection_1itnu_17 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19290,7 +19294,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Scrollable section: child rows */
-._scrollSection_16dh6_25 {
+._scrollSection_1itnu_25 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19299,13 +19303,13 @@ a._citationLink_1ggvf_9:hover {
   overflow-y: auto;
 }
 
-._swimlane_16dh6_1:focus-visible {
+._swimlane_1itnu_1:focus-visible {
   box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
 /* Collapsible rows — fade + slide animation */
 
-._collapsibleSection_16dh6_40 {
+._collapsibleSection_1itnu_40 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19318,7 +19322,7 @@ a._citationLink_1ggvf_9:hover {
   opacity: 1;
 }
 
-._collapsibleCollapsed_16dh6_53 {
+._collapsibleCollapsed_1itnu_53 {
   grid-template-rows: 0fr;
   padding-bottom: 0;
   opacity: 0;
@@ -19328,11 +19332,11 @@ a._citationLink_1ggvf_9:hover {
    Note: avoid margin-top:-1px here — it causes the content to overflow
    the StickyScroll wrapper, inflating stickySwimLaneHeight by 1px and
    leaving a gap between the swimlane and the event card headers. */
-._swimlaneSticky_16dh6_63 {
+._swimlaneSticky_1itnu_63 {
   background-color: var(--bs-body-bg);
 }
 
-._collapsibleInner_16dh6_67 {
+._collapsibleInner_1itnu_67 {
   grid-column: 1 / -1;
   overflow: hidden;
   display: grid;
@@ -19342,7 +19346,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Collapse toggle — hangs below the bottom border, centered */
 
-._collapseToggle_16dh6_77 {
+._collapseToggle_1itnu_77 {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -19363,20 +19367,20 @@ a._citationLink_1ggvf_9:hover {
   line-height: 1;
 }
 
-._collapseToggle_16dh6_77:hover {
+._collapseToggle_1itnu_77:hover {
   color: var(--vscode-foreground);
   background-color: var(--bs-secondary-bg);
 }
 
 /* Row — display:contents so all rows share the parent grid columns */
 
-._row_16dh6_105 {
+._row_1itnu_105 {
   display: contents;
 }
 
 /* Label cell */
 
-._label_16dh6_111 {
+._label_1itnu_111 {
   padding: 0 0.5rem 0 1.45rem;
   white-space: nowrap;
   font-size: var(--inspect-font-size-smallest);
@@ -19390,23 +19394,23 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._label_16dh6_111:hover {
+._label_1itnu_111:hover {
   color: var(--vscode-textLink-foreground);
 }
 
-._labelSelected_16dh6_129 {
+._labelSelected_1itnu_129 {
   color: var(--vscode-textLink-foreground);
 }
 
 /* Ancestor rows of the selected branch — subtler than selected */
-._labelHighlighted_16dh6_134 {
+._labelHighlighted_1itnu_134 {
   color: var(--vscode-textLink-foreground);
   opacity: 0.6;
 }
 
 /* Expand/collapse chevron in label */
 
-._chevron_16dh6_141 {
+._chevron_1itnu_141 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -19417,31 +19421,70 @@ a._citationLink_1ggvf_9:hover {
   font-size: 8px;
 }
 
-._chevron_16dh6_141:hover {
+._chevron_1itnu_141:hover {
   color: var(--vscode-foreground);
 }
 
-._chevronSpacer_16dh6_156 {
+._chevronSpacer_1itnu_156 {
   display: inline-block;
   width: 12px;
   flex-shrink: 0;
 }
 
+._punchDownBtn_1itnu_162 {
+  margin-left: auto;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  font-size: 9px;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground, #717171);
+  opacity: 0;
+}
+
+._label_1itnu_111:hover ._punchDownBtn_1itnu_162,
+._labelSelected_1itnu_129 ._punchDownBtn_1itnu_162 {
+  opacity: 1;
+}
+
+._punchDownBtn_1itnu_162:hover {
+  color: var(--vscode-foreground);
+}
+
+._viewStackBack_1itnu_184 {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  background: transparent;
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+._viewStackBack_1itnu_184:hover {
+  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.05));
+}
+
 /* Bar area */
 
-._barArea_16dh6_164 {
+._barArea_1itnu_203 {
   height: var(--swimlane-row-height);
   border-left: 1px solid var(--bs-border-color);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._barInner_16dh6_170 {
+._barInner_1itnu_209 {
   position: relative;
   height: 100%;
   margin: 0 4px;
 }
 
-._fill_16dh6_176 {
+._fill_1itnu_215 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19455,15 +19498,15 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._fill_16dh6_176:hover {
+._fill_1itnu_215:hover {
   opacity: 0.5;
 }
 
-._fillParent_16dh6_194 {
+._fillParent_1itnu_233 {
   opacity: 0.2;
 }
 
-._fillSelected_16dh6_198 {
+._fillSelected_1itnu_237 {
   opacity: 0.7;
   box-shadow: inset 0 0 0 1px var(--bs-primary);
 }
@@ -19471,7 +19514,7 @@ a._citationLink_1ggvf_9:hover {
 /* Partial highlight overlay — sibling of .fill in barInner.
    Shows the "active" portion of a bar (e.g. parent bar up to fork point
    when a branch is selected). Independent opacity, not stacked with .fill. */
-._fillHighlight_16dh6_206 {
+._fillHighlight_1itnu_245 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19482,14 +19525,14 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Row is selected but a different span within the row is focused */
-._fillDimmed_16dh6_217 {
+._fillDimmed_1itnu_256 {
   opacity: 0.15;
 }
 
 /* Region segment — same as .fill but without :hover (hover is managed via JS).
    Does NOT set opacity here — opacity comes from .fill-style state classes
    (.fillParent, .fillSelected, .fillDimmed) or from .regionHover/.regionDefault. */
-._regionSegment_16dh6_224 {
+._regionSegment_1itnu_263 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19499,36 +19542,36 @@ a._citationLink_1ggvf_9:hover {
 
 /* Default opacity for region segments — slightly dimmed vs hover
    to give a subtle highlight without making unhovered segments look faded. */
-._regionDefault_16dh6_223 {
+._regionDefault_1itnu_262 {
   opacity: 0.25;
 }
 
 /* Applied via React state when the segment (or whole bar) should show hover */
-._regionHover_16dh6_223 {
+._regionHover_1itnu_262 {
   opacity: 0.45;
 }
 
 /* Region segments — partial border-radius for segmented bars */
-._regionFirst_16dh6_244 {
+._regionFirst_1itnu_283 {
   border-radius: 2px 0 0 2px;
 }
 
-._regionLast_16dh6_248 {
+._regionLast_1itnu_287 {
   border-radius: 0 2px 2px 0;
 }
 
-._regionMiddle_16dh6_252 {
+._regionMiddle_1itnu_291 {
   border-radius: 0;
 }
 
-._parallelBadge_16dh6_256 {
+._parallelBadge_1itnu_295 {
   font-size: var(--inspect-font-size-smallest);
   color: var(--vscode-descriptionForeground, #717171);
 }
 
 /* Markers */
 
-._marker_16dh6_263 {
+._marker_1itnu_302 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -19542,7 +19585,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* White disc behind branch icon so transparent cutouts don't bleed bar color */
-._markerBranch_16dh6_277::before {
+._markerBranch_1itnu_316::before {
   content: "";
   position: absolute;
   width: 6px;
@@ -19552,11 +19595,11 @@ a._citationLink_1ggvf_9:hover {
   z-index: -1;
 }
 
-._marker_16dh6_263 > * {
+._marker_1itnu_302 > * {
   pointer-events: none;
 }
 
-._markerError_16dh6_291 {
+._markerError_1itnu_330 {
   top: 1px;
   bottom: 1px;
   height: auto;
@@ -19567,7 +19610,7 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerError_16dh6_291::after {
+._markerError_1itnu_330::after {
   content: "";
   position: absolute;
   top: 0;
@@ -19577,7 +19620,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--vscode-errorForeground, #f44747);
 }
 
-._markerCompaction_16dh6_312 {
+._markerCompaction_1itnu_351 {
   color: var(--bs-body-bg);
   rotate: none;
   font-size: 16px;
@@ -19591,13 +19634,13 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerBranch_16dh6_277 {
+._markerBranch_1itnu_316 {
   color: var(--vscode-foreground);
   cursor: pointer;
 }
 
 /* Branch connector line from parent marker to branch bar */
-._branchConnector_16dh6_332 {
+._branchConnector_1itnu_371 {
   position: absolute;
   top: 0;
   left: 0;
@@ -19608,7 +19651,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Right-pointing arrowhead for branch connectors (CSS border triangle) */
-._connectorArrow_16dh6_343 {
+._connectorArrow_1itnu_382 {
   position: absolute;
   top: 50%;
   transform: translate(-1px, -50%);
@@ -19621,7 +19664,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Horizontal line extending back from arrowhead to the SVG horizontal endpoint */
-._connectorArrow_16dh6_343::before {
+._connectorArrow_1itnu_382::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -19636,7 +19679,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Breadcrumb row */
 
-._breadcrumbRow_16dh6_371 {
+._breadcrumbRow_1itnu_410 {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
@@ -19645,7 +19688,7 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._optionsButton_16dh6_380 {
+._optionsButton_1itnu_419 {
   background: none;
   border: 1px solid var(--vscode-widget-border, var(--bs-border-color));
   border-radius: 50%;
@@ -19663,13 +19706,13 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0.6;
 }
 
-._optionsButton_16dh6_380:hover {
+._optionsButton_1itnu_419:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);
   opacity: 1;
 }
 
-._breadcrumbTrail_16dh6_404 {
+._breadcrumbTrail_1itnu_443 {
   display: flex;
   align-items: center;
   gap: 0;
@@ -19677,13 +19720,13 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._breadcrumbSegment_16dh6_412 {
+._breadcrumbSegment_1itnu_451 {
   display: flex;
   align-items: center;
   white-space: nowrap;
 }
 
-._breadcrumbDivider_16dh6_418 {
+._breadcrumbDivider_1itnu_457 {
   color: var(--vscode-descriptionForeground, #717171);
   font-size: var(--inspect-font-size-smallest);
   padding: 0 2px;
@@ -19691,7 +19734,7 @@ a._citationLink_1ggvf_9:hover {
   user-select: none;
 }
 
-._breadcrumbLink_16dh6_426 {
+._breadcrumbLink_1itnu_465 {
   background: none;
   border: none;
   cursor: pointer;
@@ -19700,12 +19743,12 @@ a._citationLink_1ggvf_9:hover {
   padding: 0 2px;
 }
 
-._breadcrumbLink_16dh6_426:hover {
+._breadcrumbLink_1itnu_465:hover {
   color: var(--vscode-foreground);
   text-decoration: underline;
 }
 
-._breadcrumbCurrent_16dh6_440 {
+._breadcrumbCurrent_1itnu_479 {
   background: none;
   border: none;
   color: var(--vscode-foreground);
@@ -19716,7 +19759,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Token cell */
 
-._tokens_16dh6_451 {
+._tokens_1itnu_490 {
   padding: 0 0.75rem 0 0.5rem;
   font-size: var(--inspect-font-size-smallest);
   line-height: var(--swimlane-row-height);
@@ -19940,6 +19983,43 @@ a._citationLink_1ggvf_9:hover {
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
+}
+._nav_1t82s_1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  margin: 4px 0;
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--vscode-descriptionForeground, #717171);
+  border-left: 2px solid var(--bs-border-color);
+  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.02));
+}
+
+._btn_1t82s_13 {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 10px;
+  border-radius: 3px;
+}
+
+._btn_1t82s_13:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(0, 0, 0, 0.08));
+  color: var(--vscode-foreground);
+}
+
+._count_1t82s_28 {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5em;
+  text-align: center;
+}
+
+._label_1t82s_34 {
+  font-weight: 500;
+  color: var(--vscode-foreground);
 }
 ._panel_vz394_1 {
   margin: 0.2em 0;
@@ -21483,25 +21563,50 @@ pre._value_8citi_25 {
   display: flex;
   justify-content: center;
 }
-._root_k7p3l_1 {
+._container_1tduz_1 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
+  min-width: 10rem;
+}
+
+._row_1tduz_8 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+._checkbox_1tduz_15 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+._root_1dunz_1 {
   display: flex;
   /* Pin the inherited font-size so the CodeMirror editor (which uses
      `font-size: inherit`) matches the navbar's 0.7rem instead of
      picking up whatever the surrounding container computes to. */
   font-size: var(--inspect-font-size-smallest);
+  /* Claim leftover horizontal space (basis 0) but keep enough room for
+     the editor to be usable. min-width covers label + ~100px input +
+     help + their margins; below that the tab-tools row wraps. */
+  flex: 1 1 0;
+  min-width: 170px;
+  max-width: 500px;
 }
 
-._label_k7p3l_9 {
+._label_1dunz_15 {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
 
-._input_k7p3l_15 {
-  width: 300px;
+._input_1dunz_21 {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-._help_k7p3l_19 {
+._help_1dunz_26 {
   position: relative;
   margin-left: 0.5em;
   cursor: help;
