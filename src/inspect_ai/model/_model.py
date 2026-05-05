@@ -438,6 +438,10 @@ class ModelAPI(abc.ABC):
         """Collapse consecutive assistant messages into a single message."""
         return False
 
+    def collapse_system_messages(self) -> bool:
+        """Collapse consecutive system messages into a single message."""
+        return False
+
     def tools_required(self) -> bool:
         """Any tool use in a message stream means that tools must be passed."""
         return False
@@ -1002,6 +1006,9 @@ class Model:
 
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
+
+        if self.api.collapse_system_messages():
+            input = collapse_consecutive_system_messages(input)
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -2032,6 +2039,15 @@ def collapse_consecutive_assistant_messages(
     return functools.reduce(assistant_message_reducer, messages, [])
 
 
+# Functions to reduce consecutive system messages to a single system message ->
+# required for OpenRouter inference providers (e.g. AkashML, Parasail) that
+# reject requests containing more than one system message.
+def collapse_consecutive_system_messages(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    return functools.reduce(system_message_reducer, messages, [])
+
+
 def user_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
@@ -2044,6 +2060,13 @@ def assistant_message_reducer(
     message: ChatMessage,
 ) -> list[ChatMessage]:
     return consecutive_message_reducer(messages, message, ChatMessageAssistant)
+
+
+def system_message_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+) -> list[ChatMessage]:
+    return consecutive_message_reducer(messages, message, ChatMessageSystem)
 
 
 def consecutive_message_reducer(
