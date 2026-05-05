@@ -64,6 +64,7 @@ def samples_df(
     strict: Literal[True] = True,
     parallel: bool | int = False,
     quiet: bool | None = None,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame": ...
 
 
@@ -75,6 +76,7 @@ def samples_df(
     strict: Literal[False] = False,
     parallel: bool | int = False,
     quiet: bool | None = None,
+    exclude_fields: set[str] | None = None,
 ) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
@@ -85,6 +87,7 @@ def samples_df(
     strict: bool = True,
     parallel: bool | int = False,
     quiet: bool | None = None,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing samples from a set of evals.
 
@@ -105,6 +108,9 @@ def samples_df(
           do not read in parallel.
        quiet: If `True`, do not show any output or progress. Defaults to `False`
           for terminal environments, and `True` for notebooks.
+       exclude_fields: Set of EvalSample field names to skip when loading
+          samples (e.g. {"messages", "events", "store", "attachments"}).
+
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -123,6 +129,7 @@ def samples_df(
         strict=strict,
         progress=not quiet,
         parallel=parallel,
+        exclude_fields=exclude_fields,
     )
 
 
@@ -149,6 +156,7 @@ def _read_samples_df(
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
     parallel: bool | int = False,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     import pandas as pd
 
@@ -185,6 +193,7 @@ def _read_samples_df(
                         strict=strict,
                         detail=detail,
                         progress=False,
+                        exclude_fields=exclude_fields,
                     ): idx
                     for idx, log_path in enumerate(log_paths)
                 }
@@ -236,6 +245,7 @@ def _read_samples_df(
             strict=strict,
             detail=detail,
             progress=progress,
+            exclude_fields=exclude_fields,
         )
 
 
@@ -247,6 +257,7 @@ def _read_samples_df_serial(
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
+    exclude_fields: set[str] | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     # split columns by type
     columns_eval: list[Column] = []
@@ -318,7 +329,9 @@ def _read_samples_df_serial(
                 samples: Iterable[EvalSample | EvalSampleSummary] = eval_log.samples
             elif require_full_samples:
                 full_log = await read_eval_log_async(
-                    eval_log.location, resolve_attachments=True
+                    eval_log.location,
+                    resolve_attachments=True,
+                    exclude_fields=exclude_fields,
                 )
                 samples = full_log.samples or []
             else:
