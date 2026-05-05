@@ -17020,23 +17020,23 @@ button._segment_13qph_10._compact_13qph_31 i {
 ._dropdownItem_1swkv_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_1wfac_1 {
+._tabs_85ts4_1 {
   align-items: center;
 }
 
-._tabContents_1wfac_5 {
+._tabContents_85ts4_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_1wfac_5._scrollable_1wfac_11 {
+._tabContents_85ts4_5._scrollable_85ts4_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_1wfac_1 {
+._tab_85ts4_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17046,30 +17046,34 @@ button._segment_13qph_10._compact_13qph_31 i {
   margin-bottom: -1px;
 }
 
-._tabItem_1wfac_27 {
+._tabItem_85ts4_27 {
   align-self: end;
 }
 
-._pillSmallContainer_1wfac_31 {
+._pillSmallContainer_85ts4_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_1wfac_31 {
+._pillSmall_85ts4_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_1wfac_39 {
+._tabIcon_85ts4_39 {
   margin-right: 0.5em;
 }
 
-._tabSpacer_1wfac_43 {
+._tabSpacer_85ts4_43 {
   flex: 1 1 0;
   min-width: 0;
   list-style: none;
 }
 
-._tabTools_1wfac_49 {
-  flex-basis: auto;
+._tabTools_85ts4_49 {
+  /* Grow alongside the spacer so flex children inside (e.g. a filter
+     input) can claim leftover horizontal space rather than being
+     content-sized. `justify-content: end` keeps non-growing tools
+     pinned to the right edge as before. */
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: end;
@@ -17078,20 +17082,20 @@ button._segment_13qph_10._compact_13qph_31 i {
   column-gap: 0.5rem;
 }
 
-._tabStyle_1wfac_59 {
+._tabStyle_85ts4_63 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_1wfac_49 > * {
+._tabTools_85ts4_49 > * {
   flex: 0 1 auto;
 }
 
-._tabTools_1wfac_49 input {
+._tabTools_85ts4_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_1wfac_49 .btn {
+._tabTools_85ts4_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
@@ -21559,25 +21563,50 @@ pre._value_8citi_25 {
   display: flex;
   justify-content: center;
 }
-._root_k7p3l_1 {
+._container_1tduz_1 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
+  min-width: 10rem;
+}
+
+._row_1tduz_8 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+._checkbox_1tduz_15 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+._root_1dunz_1 {
   display: flex;
   /* Pin the inherited font-size so the CodeMirror editor (which uses
      `font-size: inherit`) matches the navbar's 0.7rem instead of
      picking up whatever the surrounding container computes to. */
   font-size: var(--inspect-font-size-smallest);
+  /* Claim leftover horizontal space (basis 0) but keep enough room for
+     the editor to be usable. min-width covers label + ~100px input +
+     help + their margins; below that the tab-tools row wraps. */
+  flex: 1 1 0;
+  min-width: 170px;
+  max-width: 500px;
 }
 
-._label_k7p3l_9 {
+._label_1dunz_15 {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
 
-._input_k7p3l_15 {
-  width: 300px;
+._input_1dunz_21 {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-._help_k7p3l_19 {
+._help_1dunz_26 {
   position: relative;
   margin-left: 0.5em;
   cursor: help;
