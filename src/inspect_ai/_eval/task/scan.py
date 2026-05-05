@@ -79,6 +79,65 @@ class EvalSetScannerConfig(BaseModel):
     model_roles: dict[str, Any] | None = Field(default=None)
     """Named roles available to scanners via `get_model(role=...)`."""
 
+    @classmethod
+    def from_file(cls, path: str) -> "EvalSetScannerConfig":
+        """Load an `EvalSetScannerConfig` from a YAML or JSON config file.
+
+        Scanner entries in the file are written as `ScannerSpec` references
+        (a registry `name` plus optional `params` and `file`). They are
+        resolved to live `Scanner` objects via scout's registry, loading
+        any referenced `file` modules. `model_args` may also be a path to
+        a separate YAML/JSON file, which is read and inlined.
+
+        Args:
+            path: Path or URL (e.g. `s3://...`) to a YAML or JSON file.
+
+        Returns:
+            A populated `EvalSetScannerConfig` ready to pass as
+            `eval_set(scanner=...)`.
+        """
+        from inspect_ai._util.config import read_config_object, resolve_args
+        from inspect_ai._util.error import PrerequisiteError
+        from inspect_ai._util.file import file as open_fs_file
+        from inspect_ai._util.file import filesystem
+        from inspect_ai._util.path import pretty_path
+
+        if not filesystem(path).exists(path):
+            raise PrerequisiteError(
+                f"Scanner config file '{pretty_path(path)}' does not exist."
+            )
+
+        with open_fs_file(path, "r") as f:
+            raw = read_config_object(f.read())
+
+        config = cls.model_validate(raw)
+
+        # realize scanners from ScannerSpec form (list or dict of dicts)
+        config.scanners = _realize_scanner_specs(config.scanners)
+
+        # realize model_args if it points to a file
+        if isinstance(config.model_args, str):
+            config.model_args = resolve_args(config.model_args)
+
+        return config
+
+
+def _realize_scanner_specs(scanners: Any) -> Any:
+    """Convert `ScannerSpec` entries (file form) to live `Scanner` objects."""
+    from inspect_scout._scancontext import (
+        scanners_from_spec_dict,
+        scanners_from_spec_list,
+    )
+    from inspect_scout._scanspec import ScannerSpec
+
+    if isinstance(scanners, dict):
+        specs = {k: ScannerSpec.model_validate(v) for k, v in scanners.items()}
+        return scanners_from_spec_dict(specs)
+    if isinstance(scanners, list):
+        spec_list = [ScannerSpec.model_validate(v) for v in scanners]
+        return scanners_from_spec_list(spec_list)
+    return scanners
+
 
 EvalSetScanners: TypeAlias = (
     "Sequence[Scanner[Any] | tuple[str, Scanner[Any]]] "

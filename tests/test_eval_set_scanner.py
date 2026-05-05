@@ -1259,3 +1259,132 @@ def test_scout_scan_resume_reruns_failed_scans() -> None:
         assert ss_2["errors"] == n
         assert ss_2["results"] == n
         assert summary_2["complete"] is True
+
+
+# --- config file loading ----------------------------------------------------
+
+
+def test_from_file_loads_yaml_with_scanner_specs() -> None:
+    """`EvalSetScannerConfig.from_file` resolves `ScannerSpec` entries.
+
+    Reads a YAML file and turns `ScannerSpec` entries (registry name +
+    params) into live `Scanner` objects suitable for use in
+    `eval_set(scanner=...)`.
+    """
+    import yaml
+
+    from inspect_ai import EvalSetScannerConfig
+
+    yaml_body = yaml.safe_dump(
+        {
+            "name": "from_yaml",
+            "scanners": [{"name": "echo_scanner"}],
+            "tags": ["yaml-loaded"],
+        }
+    )
+    with tempfile.TemporaryDirectory() as d:
+        cfg_path = Path(d) / "config.yaml"
+        cfg_path.write_text(yaml_body)
+
+        config = EvalSetScannerConfig.from_file(str(cfg_path))
+
+    assert config.name == "from_yaml"
+    assert config.tags == ["yaml-loaded"]
+    # scanners realized — list of callables, not list of dicts
+    assert isinstance(config.scanners, list)
+    assert len(config.scanners) == 1
+    assert callable(config.scanners[0])
+
+
+def test_from_file_loads_json_with_dict_scanners() -> None:
+    """`from_file` accepts JSON files and the dict-of-specs form."""
+    from inspect_ai import EvalSetScannerConfig
+
+    body = json.dumps(
+        {
+            "scanners": {
+                "alpha": {"name": "scanner_a"},
+                "beta": {"name": "scanner_b"},
+            }
+        }
+    )
+    with tempfile.TemporaryDirectory() as d:
+        cfg_path = Path(d) / "config.json"
+        cfg_path.write_text(body)
+
+        config = EvalSetScannerConfig.from_file(str(cfg_path))
+
+    assert isinstance(config.scanners, dict)
+    assert set(config.scanners.keys()) == {"alpha", "beta"}
+    assert all(callable(s) for s in config.scanners.values())
+
+
+def test_from_file_rejects_unsupported_field() -> None:
+    """File-loaded configs are validated the same way as direct construction.
+
+    Pydantic's `extra="forbid"` catches unsupported scout fields (e.g.
+    `limit`) at file-load time, mirroring direct constructor behavior.
+    """
+    import yaml
+    from pydantic import ValidationError
+
+    from inspect_ai import EvalSetScannerConfig
+
+    yaml_body = yaml.safe_dump({"scanners": [{"name": "echo_scanner"}], "limit": 10})
+    with tempfile.TemporaryDirectory() as d:
+        cfg_path = Path(d) / "config.yaml"
+        cfg_path.write_text(yaml_body)
+
+        with pytest.raises(ValidationError, match="limit"):
+            EvalSetScannerConfig.from_file(str(cfg_path))
+
+
+def test_from_file_missing_path_raises() -> None:
+    """A missing config file raises `PrerequisiteError`.
+
+    This is a clear failure mode rather than a downstream filesystem
+    traceback that would obscure the cause.
+    """
+    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai._util.error import PrerequisiteError
+
+    with tempfile.TemporaryDirectory() as d:
+        missing = Path(d) / "does_not_exist.yaml"
+        with pytest.raises(PrerequisiteError, match="does not exist"):
+            EvalSetScannerConfig.from_file(str(missing))
+
+
+def test_from_file_config_runs_in_eval_set() -> None:
+    """End-to-end: a YAML-loaded config drives a real `eval_set` run."""
+    import yaml
+
+    from inspect_ai import EvalSetScannerConfig
+
+    yaml_body = yaml.safe_dump(
+        {
+            "name": "yaml_run",
+            "scanners": [{"name": "echo_scanner"}],
+            "tags": ["loaded-from-disk"],
+        }
+    )
+    with tempfile.TemporaryDirectory() as d:
+        cfg_path = Path(d) / "config.yaml"
+        cfg_path.write_text(yaml_body)
+
+        config = EvalSetScannerConfig.from_file(str(cfg_path))
+
+        with tempfile.TemporaryDirectory() as log_dir:
+            success, _ = eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=config,
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+            assert success
+            scan_dir = _scan_dir(log_dir)
+            assert (scan_dir / "echo_scanner.parquet").exists()
+            spec = json.loads((scan_dir / "_scan.json").read_text())
+            assert spec["scan_name"] == "yaml_run"
+            assert spec["tags"] == ["loaded-from-disk"]
