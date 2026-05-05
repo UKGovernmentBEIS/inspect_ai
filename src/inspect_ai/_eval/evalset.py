@@ -24,7 +24,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
-from inspect_ai._eval.task.scan import EvalSetScanners
+from inspect_ai._eval.task.scan import EvalScanners
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -75,7 +75,7 @@ from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
-from .task.scan import scan_eval_set_context
+from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
 
@@ -115,7 +115,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalSetScanners | None" = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -568,7 +568,7 @@ def eval_set(
 
     with (
         _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
-        scan_eval_set_context(scanner, eval_set_id=eval_set_id, log_dir=log_dir),
+        scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
     ):
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))

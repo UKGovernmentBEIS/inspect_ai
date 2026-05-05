@@ -22,7 +22,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
-from inspect_ai._eval.task.scan import EvalSetScanners
+from inspect_ai._eval.task.scan import EvalScanners
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -168,7 +168,8 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
-    scanner: "EvalSetScanners | None" = field(default=None)
+    scanner: "EvalScanners | None" = field(default=None)
+    scan_id: str | None = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -518,6 +519,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
+                        scan_id=options.scan_id,
                     )
 
                 sample_results = await tg_collect(
@@ -754,7 +756,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
-    scanner: "EvalSetScanners | None",
+    scanner: "EvalScanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -776,6 +778,7 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
+    scan_id: str | None = None,
     sample_uuid: str | None = None,
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.event import Event
@@ -1308,7 +1311,7 @@ async def task_run_sample(
                     await scan_eval_sample(
                         eval_sample,
                         scanner,
-                        eval_set_id=eval_set_id,
+                        scan_id=scan_id,
                         eval_id=task_id,
                         log_location=log_location,
                         model=str(state.model),
@@ -1361,6 +1364,7 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
+            scan_id=scan_id,
             sample_uuid=state.uuid,
         )
 

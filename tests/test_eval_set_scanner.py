@@ -623,7 +623,7 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
     the message string). Only the eval-successful samples (1, 2) should
     be scanned — samples 3, 4 are skipped before the scanner runs.
     """
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     n = 4
     fails_3_4_first_time = _first_attempt_fails_for(3, 4)
@@ -634,7 +634,7 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
             solver=[fails_3_4_first_time, generate()],
         )
 
-    config = EvalSetScannerConfig(
+    config = EvalScannerConfig(
         scanners=[echo_scanner()],
         filter="error = ''",
     )
@@ -685,18 +685,18 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
     ],
 )
 def test_eval_set_scanner_config_rejects_unsupported_fields(field: str) -> None:
-    """`EvalSetScannerConfig` rejects scout fields that conflict with eval_set.
+    """`EvalScannerConfig` rejects scout fields that conflict with eval_set.
 
     Pydantic enforces this via `extra="forbid"` so misuse fails at
     construction time rather than mid-eval.
     """
     from pydantic import ValidationError
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     kwargs: dict[str, Any] = {field: "anything"}
     with pytest.raises(ValidationError, match=field):
-        EvalSetScannerConfig(scanners=[echo_scanner()], **kwargs)
+        EvalScannerConfig(scanners=[echo_scanner()], **kwargs)
 
 
 def test_scanjob_config_scans_overrides_output_location() -> None:
@@ -707,11 +707,11 @@ def test_scanjob_config_scans_overrides_output_location() -> None:
     setting `scans` on the config — useful when scan results should
     live separately from the eval logs.
     """
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     with tempfile.TemporaryDirectory() as log_dir:
         with tempfile.TemporaryDirectory() as scans_dir:
-            config = EvalSetScannerConfig(
+            config = EvalScannerConfig(
                 scanners=[echo_scanner()],
                 scans=scans_dir,
             )
@@ -756,10 +756,10 @@ def test_scan_name_defaults_to_eval_set() -> None:
 
 
 def test_scan_name_override_from_scan_job() -> None:
-    """`EvalSetScannerConfig.name` overrides the default `scan_name`."""
-    from inspect_ai import EvalSetScannerConfig
+    """`EvalScannerConfig.name` overrides the default `scan_name`."""
+    from inspect_ai import EvalScannerConfig
 
-    scanner = EvalSetScannerConfig(scanners=[echo_scanner()], name="my-custom-scan")
+    scanner = EvalScannerConfig(scanners=[echo_scanner()], name="my-custom-scan")
 
     with tempfile.TemporaryDirectory() as log_dir:
         eval_set(
@@ -776,14 +776,12 @@ def test_scan_name_override_from_scan_job() -> None:
 
 
 def test_tags_and_metadata_written_to_scan_spec() -> None:
-    """`tags` and `metadata` on `EvalSetScannerConfig` land in scan.json."""
-    from inspect_ai import EvalSetScannerConfig
+    """`tags` and `metadata` on `EvalScannerConfig` land in scan.json."""
+    from inspect_ai import EvalScannerConfig
 
     tags = ["nightly", "experiment-42"]
     metadata = {"owner": "team-x", "iteration": 3}
-    scanner = EvalSetScannerConfig(
-        scanners=[echo_scanner()], tags=tags, metadata=metadata
-    )
+    scanner = EvalScannerConfig(scanners=[echo_scanner()], tags=tags, metadata=metadata)
 
     with tempfile.TemporaryDirectory() as log_dir:
         success, _ = eval_set(
@@ -852,10 +850,10 @@ def test_install_scan_model_context_forwards_all_model_kwargs() -> None:
     """
     from unittest.mock import patch
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
     from inspect_ai.model import GenerateConfig
 
-    job = EvalSetScannerConfig(
+    job = EvalScannerConfig(
         scanners=[echo_scanner()],
         model="mockllm/scan-model",
         model_base_url="https://example.test/api",
@@ -903,10 +901,10 @@ def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
     """
     from inspect_scout import llm_scanner
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
-    job = EvalSetScannerConfig(scanners=[scanner_fn], model="mockllm/scan-model")
+    job = EvalScannerConfig(scanners=[scanner_fn], model="mockllm/scan-model")
 
     with tempfile.TemporaryDirectory() as log_dir:
         eval_set(
@@ -949,7 +947,7 @@ def test_eval_and_scan_model_usage_are_partitioned() -> None:
     """
     from inspect_scout import llm_scanner
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
     from inspect_ai.log import read_eval_log
 
     model_name = "mockllm/model"
@@ -976,7 +974,7 @@ def test_eval_and_scan_model_usage_are_partitioned() -> None:
 
     # ---- run with scanner ----
     scanner_fn = llm_scanner(question="Did anything happen?", answer="boolean")
-    job = EvalSetScannerConfig(scanners=[scanner_fn], model=model_name)
+    job = EvalScannerConfig(scanners=[scanner_fn], model=model_name)
     scanned_log_dir = _run(job)
     log = read_eval_log(str(next(scanned_log_dir.glob("*.eval"))))
     assert log.samples is not None
@@ -1073,7 +1071,7 @@ def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
     on any scanner not in the on-disk spec; that error is caught by
     `task_run_sample`'s sample-error handling and silently turns
     successful samples into errors, corrupting the eval's success result.
-    `scan_eval_set_init` validates upfront and raises `PrerequisiteError`
+    `scan_init` validates upfront and raises `PrerequisiteError`
     before any samples run.
     """
     from inspect_ai._util.error import PrerequisiteError
@@ -1265,7 +1263,7 @@ def test_scout_scan_resume_reruns_failed_scans() -> None:
 
 
 def test_from_file_loads_yaml_with_scanner_specs() -> None:
-    """`EvalSetScannerConfig.from_file` resolves `ScannerSpec` entries.
+    """`EvalScannerConfig.from_file` resolves `ScannerSpec` entries.
 
     Reads a YAML file and turns `ScannerSpec` entries (registry name +
     params) into live `Scanner` objects suitable for use in
@@ -1273,7 +1271,7 @@ def test_from_file_loads_yaml_with_scanner_specs() -> None:
     """
     import yaml
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     yaml_body = yaml.safe_dump(
         {
@@ -1286,7 +1284,7 @@ def test_from_file_loads_yaml_with_scanner_specs() -> None:
         cfg_path = Path(d) / "config.yaml"
         cfg_path.write_text(yaml_body)
 
-        config = EvalSetScannerConfig.from_file(str(cfg_path))
+        config = EvalScannerConfig.from_file(str(cfg_path))
 
     assert config.name == "from_yaml"
     assert config.tags == ["yaml-loaded"]
@@ -1298,7 +1296,7 @@ def test_from_file_loads_yaml_with_scanner_specs() -> None:
 
 def test_from_file_loads_json_with_dict_scanners() -> None:
     """`from_file` accepts JSON files and the dict-of-specs form."""
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     body = json.dumps(
         {
@@ -1312,7 +1310,7 @@ def test_from_file_loads_json_with_dict_scanners() -> None:
         cfg_path = Path(d) / "config.json"
         cfg_path.write_text(body)
 
-        config = EvalSetScannerConfig.from_file(str(cfg_path))
+        config = EvalScannerConfig.from_file(str(cfg_path))
 
     assert isinstance(config.scanners, dict)
     assert set(config.scanners.keys()) == {"alpha", "beta"}
@@ -1328,7 +1326,7 @@ def test_from_file_rejects_unsupported_field() -> None:
     import yaml
     from pydantic import ValidationError
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     yaml_body = yaml.safe_dump({"scanners": [{"name": "echo_scanner"}], "limit": 10})
     with tempfile.TemporaryDirectory() as d:
@@ -1336,7 +1334,7 @@ def test_from_file_rejects_unsupported_field() -> None:
         cfg_path.write_text(yaml_body)
 
         with pytest.raises(ValidationError, match="limit"):
-            EvalSetScannerConfig.from_file(str(cfg_path))
+            EvalScannerConfig.from_file(str(cfg_path))
 
 
 def test_from_file_missing_path_raises() -> None:
@@ -1345,20 +1343,20 @@ def test_from_file_missing_path_raises() -> None:
     This is a clear failure mode rather than a downstream filesystem
     traceback that would obscure the cause.
     """
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
     from inspect_ai._util.error import PrerequisiteError
 
     with tempfile.TemporaryDirectory() as d:
         missing = Path(d) / "does_not_exist.yaml"
         with pytest.raises(PrerequisiteError, match="does not exist"):
-            EvalSetScannerConfig.from_file(str(missing))
+            EvalScannerConfig.from_file(str(missing))
 
 
 def test_from_file_config_runs_in_eval_set() -> None:
     """End-to-end: a YAML-loaded config drives a real `eval_set` run."""
     import yaml
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
     yaml_body = yaml.safe_dump(
         {
@@ -1371,7 +1369,7 @@ def test_from_file_config_runs_in_eval_set() -> None:
         cfg_path = Path(d) / "config.yaml"
         cfg_path.write_text(yaml_body)
 
-        config = EvalSetScannerConfig.from_file(str(cfg_path))
+        config = EvalScannerConfig.from_file(str(cfg_path))
 
         with tempfile.TemporaryDirectory() as log_dir:
             success, _ = eval_set(
@@ -1390,11 +1388,56 @@ def test_from_file_config_runs_in_eval_set() -> None:
             assert spec["tags"] == ["loaded-from-disk"]
 
 
+# --- standalone eval() ------------------------------------------------------
+
+
+def test_eval_scanner_produces_complete_scan_dir() -> None:
+    """`eval()` (no eval_set) writes a complete scan dir under log_dir/scans/.
+
+    Confirms scan_init and scan_finalize fire for plain eval too — the
+    final `_summary.json` lands at the canonical location and `complete`
+    is True when no scanner errored.
+    """
+    from inspect_ai import eval
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        assert (scan_dir / "echo_scanner.parquet").exists()
+        # _summary.json sits at the final scan dir (only written there
+        # by sync at finalize)
+        summary = _read_summary(scan_dir)
+        assert summary["complete"] is True
+        ss = summary["scanners"]["echo_scanner"]
+        assert ss["scans"] == 2
+        assert ss["errors"] == 0
+
+
+def test_eval_no_scanner_no_scan_dir() -> None:
+    """`eval()` without a scanner doesn't touch the scans/ tree."""
+    from inspect_ai import eval
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval(
+            tasks=_task(2),
+            log_dir=log_dir,
+            model="mockllm/model",
+            display="none",
+        )
+        assert not (Path(log_dir) / "scans").exists()
+
+
 # --- CLI integration --------------------------------------------------------
 
 
 def test_cli_resolve_yaml_config() -> None:
-    """`--scanner foo.yaml` loads the YAML via `EvalSetScannerConfig.from_file`."""
+    """`--scanner foo.yaml` loads the YAML via `EvalScannerConfig.from_file`."""
     import yaml
 
     from inspect_ai._cli._scanner import resolve_cli_scanner
@@ -1406,9 +1449,9 @@ def test_cli_resolve_yaml_config() -> None:
 
         result = resolve_cli_scanner(str(cfg_path), scanner_arg=())
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
-    assert isinstance(result, EvalSetScannerConfig)
+    assert isinstance(result, EvalScannerConfig)
     assert result.name == "cli_yaml"
 
 
@@ -1479,13 +1522,13 @@ def test_cli_resolve_none() -> None:
 
 
 def test_cli_overrides_promote_list_to_config() -> None:
-    """CLI scan-* flags wrap a bare scanner list into `EvalSetScannerConfig`.
+    """CLI scan-* flags wrap a bare scanner list into `EvalScannerConfig`.
 
     A registry-ref scanner alone returns a list; once any override
     (e.g. `--scan-tags`) is set, the resolver wraps it so the override
     has a place to land.
     """
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
     from inspect_ai._cli._scanner import resolve_cli_scanner
 
     result = resolve_cli_scanner(
@@ -1502,7 +1545,7 @@ def test_cli_overrides_promote_list_to_config() -> None:
         scan_model_role=("grader=mockllm/model",),
     )
 
-    assert isinstance(result, EvalSetScannerConfig)
+    assert isinstance(result, EvalScannerConfig)
     assert result.name == "cli_scan"
     assert result.scans == "/tmp/scan-out"
     assert result.tags == ["alpha", "beta"]
@@ -1543,9 +1586,9 @@ def test_cli_overrides_win_over_yaml_config() -> None:
             scan_model="cli-model/x",
         )
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
-    assert isinstance(result, EvalSetScannerConfig)
+    assert isinstance(result, EvalScannerConfig)
     # CLI values won
     assert result.name == "cli-name"
     assert result.tags == ["cli-tag"]
@@ -1580,9 +1623,9 @@ def test_cli_scan_generate_config_loads_from_file() -> None:
             scan_generate_config=str(gen_path),
         )
 
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
-    assert isinstance(result, EvalSetScannerConfig)
+    assert isinstance(result, EvalScannerConfig)
     assert isinstance(result.generate_config, GenerateConfig)
     assert result.generate_config.max_tokens == 42
     assert result.generate_config.temperature == 0.3

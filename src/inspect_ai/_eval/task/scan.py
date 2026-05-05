@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from inspect_scout import Scanner
 
 
-class EvalSetScannerConfig(BaseModel):
+class EvalScannerConfig(BaseModel):
     """Configure scanners attached to an `eval_set` run.
 
     A subset of scout's `ScanJob` / `ScanJobConfig` schema, narrowed to
@@ -80,8 +80,8 @@ class EvalSetScannerConfig(BaseModel):
     """Named roles available to scanners via `get_model(role=...)`."""
 
     @classmethod
-    def from_file(cls, path: str) -> "EvalSetScannerConfig":
-        """Load an `EvalSetScannerConfig` from a YAML or JSON config file.
+    def from_file(cls, path: str) -> "EvalScannerConfig":
+        """Load an `EvalScannerConfig` from a YAML or JSON config file.
 
         Scanner entries in the file are written as `ScannerSpec` references
         (a registry `name` plus optional `params` and `file`). They are
@@ -93,7 +93,7 @@ class EvalSetScannerConfig(BaseModel):
             path: Path or URL (e.g. `s3://...`) to a YAML or JSON file.
 
         Returns:
-            A populated `EvalSetScannerConfig` ready to pass as
+            A populated `EvalScannerConfig` ready to pass as
             `eval_set(scanner=...)`.
         """
         from inspect_ai._util.config import read_config_object, resolve_args
@@ -139,26 +139,26 @@ def _realize_scanner_specs(scanners: Any) -> Any:
     return scanners
 
 
-EvalSetScanners: TypeAlias = (
+EvalScanners: TypeAlias = (
     "Sequence[Scanner[Any] | tuple[str, Scanner[Any]]] "
     "| dict[str, Scanner[Any]] "
-    "| EvalSetScannerConfig"
+    "| EvalScannerConfig"
 )
 """Argument shape accepted by `eval_set(scanner=...)`."""
 
 
-async def scan_eval_set_init(
-    scanner: "EvalSetScanners",
+async def scan_init(
+    scanner: "EvalScanners",
     *,
-    eval_set_id: str,
+    scan_id: str,
     log_dir: str,
 ) -> None:
-    """Lay down the scan dir + initial summary for an eval_set.
+    """Lay down the scan dir + initial summary for an eval run.
 
-    On second-and-later `eval_set` calls (e.g. resume after a partial
-    failure), the scan dir already exists. Use `resume()` so the
-    accumulated `_summary.json` is preserved and extended; `init()` would
-    wipe it via `reset=True`.
+    On second-and-later runs against the same `scan_id` (e.g. eval_set
+    resume after a partial failure), the scan dir already exists. Use
+    `resume()` so the accumulated `_summary.json` is preserved and
+    extended; `init()` would wipe it via `reset=True`.
 
     Validates that the scanner set passed on resume matches the one in
     the on-disk spec. Scout's `RecorderBuffer.record` looks up scanner
@@ -173,7 +173,7 @@ async def scan_eval_set_init(
     from inspect_ai._util.error import PrerequisiteError
 
     scanners_dict = _normalize_scanners(scanner)
-    scan_dir = _scan_dir(log_dir, eval_set_id, scanner)
+    scan_dir = _scan_dir(log_dir, scan_id, scanner)
     recorder = FileRecorder()
 
     if exists(scan_dir):
@@ -182,17 +182,17 @@ async def scan_eval_set_init(
         requested_names = set(scanners_dict.keys())
         if existing_names != requested_names:
             raise PrerequisiteError(
-                "Scanner set has changed from the prior eval_set call on "
-                "this log_dir.\n"
+                "Scanner set has changed from the prior run on this "
+                "log_dir.\n"
                 f"  Prior:     {sorted(existing_names)}\n"
                 f"  Requested: {sorted(requested_names)}\n"
                 "Either match the prior scanner set or use a different "
-                "log_dir / eval_set_id."
+                "log_dir / scan_id."
             )
         return
 
     spec = ScanSpec(
-        scan_id=eval_set_id,
+        scan_id=scan_id,
         scan_name=_normalize_scan_name(scanner),
         scanners=_spec_scanners(scanners_dict),
         options=ScanOptions(),
@@ -206,9 +206,9 @@ async def scan_eval_set_init(
 
 async def scan_eval_sample(
     eval_sample: EvalSample,
-    scanner: "EvalSetScanners | None",
+    scanner: "EvalScanners | None",
     *,
-    eval_set_id: str | None,
+    scan_id: str | None,
     eval_id: str,
     log_location: str,
     model: str | None = None,
@@ -217,12 +217,12 @@ async def scan_eval_sample(
 
     `log_location` may be relative (the value passed to `task_run_sample`
     is relative-to-eval_wd in the common case); resolved here to absolute
-    so the derived scan dir matches the one registered by `scan_eval_set_init`.
+    so the derived scan dir matches the one registered by `scan_init`.
     """
-    if scanner is None or eval_set_id is None:
+    if scanner is None or scan_id is None:
         return
     log_location = absolute_file_path(log_location)
-    scan_dir = _scan_dir(dirname(log_location), eval_set_id, scanner)
+    scan_dir = _scan_dir(dirname(log_location), scan_id, scanner)
     if not exists(scan_dir):
         return
 
@@ -257,11 +257,11 @@ async def scan_eval_sample(
         await recorder.record(info, name, reports, metrics=None)
 
 
-async def scan_eval_set_finalize(
+async def scan_finalize(
     *,
-    eval_set_id: str,
+    scan_id: str,
     log_dir: str,
-    scanner: "EvalSetScanners | None" = None,
+    scanner: "EvalScanners | None" = None,
 ) -> None:
     """Compact buffer parquets and snapshot the recorded transcripts.
 
@@ -269,7 +269,7 @@ async def scan_eval_set_finalize(
     which transcripts existed in the scan. We sync first — that merges
     this call's buffer with the previously-compacted parquet (via
     `extra_inputs`) into the canonical output. The post-sync compacted
-    parquet contains every transcript ever recorded for this eval_set
+    parquet contains every transcript ever recorded for this scan
     across all calls; we read its `transcript_id` /
     `transcript_source_uri` columns to build the snapshot, then write it
     into `scan.json`. Errored scans show up too: their per-transcript row
@@ -285,7 +285,7 @@ async def scan_eval_set_finalize(
     errors we leave the scan resumable so scout's `scan_resume` can
     re-run just the failed scans.
     """
-    scan_dir = _scan_dir(log_dir, eval_set_id, scanner)
+    scan_dir = _scan_dir(log_dir, scan_id, scanner)
     if not exists(scan_dir):
         return
 
@@ -368,28 +368,24 @@ def _snapshot_from_compacted(scan_dir: Any, *, log_dir: str) -> Any:
 
 
 @contextlib.contextmanager
-def scan_eval_set_context(
-    scanner: "EvalSetScanners | None",
+def scan_context(
+    scanner: "EvalScanners | None",
     *,
-    eval_set_id: str,
+    scan_id: str,
     log_dir: str,
 ) -> Iterator[None]:
     """Initialize scan state on enter, compact on exit. No-op when scanner is None."""
     if scanner is None:
         yield
         return
-    run_coroutine(scan_eval_set_init(scanner, eval_set_id=eval_set_id, log_dir=log_dir))
+    run_coroutine(scan_init(scanner, scan_id=scan_id, log_dir=log_dir))
     try:
         yield
     finally:
-        run_coroutine(
-            scan_eval_set_finalize(
-                eval_set_id=eval_set_id, log_dir=log_dir, scanner=scanner
-            )
-        )
+        run_coroutine(scan_finalize(scan_id=scan_id, log_dir=log_dir, scanner=scanner))
 
 
-def _scans_location(log_dir: str, scanner: "EvalSetScanners | None" = None) -> str:
+def _scans_location(log_dir: str, scanner: "EvalScanners | None" = None) -> str:
     """Where scan outputs land.
 
     Defaults to `<log_dir>/scans/`. A `ScanJob`/`ScanJobConfig` may
@@ -401,56 +397,54 @@ def _scans_location(log_dir: str, scanner: "EvalSetScanners | None" = None) -> s
     return base.rstrip("/")
 
 
-def _scan_dir(
-    log_dir: str, eval_set_id: str, scanner: "EvalSetScanners | None" = None
-) -> str:
-    return f"{_scans_location(log_dir, scanner)}/scan_id={eval_set_id}"
+def _scan_dir(log_dir: str, scan_id: str, scanner: "EvalScanners | None" = None) -> str:
+    return f"{_scans_location(log_dir, scanner)}/scan_id={scan_id}"
 
 
 def _normalize_scanners(
-    scanner: "EvalSetScanners | None",
+    scanner: "EvalScanners | None",
 ) -> "dict[str, Scanner[Any]]":
     from inspect_scout import ScanJob
 
     if scanner is None:
         return {}
-    if isinstance(scanner, EvalSetScannerConfig):
+    if isinstance(scanner, EvalScannerConfig):
         return ScanJob(scanners=scanner.scanners)._scanners
     return ScanJob(scanners=scanner)._scanners
 
 
-def _normalize_scans(scanner: "EvalSetScanners | None") -> str | None:
+def _normalize_scans(scanner: "EvalScanners | None") -> str | None:
     """Extract the scan-output-location override (`scans`), if any."""
-    if isinstance(scanner, EvalSetScannerConfig):
+    if isinstance(scanner, EvalScannerConfig):
         return scanner.scans
     return None
 
 
-def _normalize_tags(scanner: "EvalSetScanners | None") -> list[str] | None:
-    """Tags carried on `EvalSetScannerConfig`, written into the scan spec."""
-    if isinstance(scanner, EvalSetScannerConfig):
+def _normalize_tags(scanner: "EvalScanners | None") -> list[str] | None:
+    """Tags carried on `EvalScannerConfig`, written into the scan spec."""
+    if isinstance(scanner, EvalScannerConfig):
         return scanner.tags
     return None
 
 
-def _normalize_scan_name(scanner: "EvalSetScanners | None") -> str:
-    """Scan-name override from `EvalSetScannerConfig`, else "eval_set"."""
-    if isinstance(scanner, EvalSetScannerConfig):
+def _normalize_scan_name(scanner: "EvalScanners | None") -> str:
+    """Scan-name override from `EvalScannerConfig`, else "eval_set"."""
+    if isinstance(scanner, EvalScannerConfig):
         return scanner.name or "eval_set"
     return "eval_set"
 
 
-def _normalize_metadata(scanner: "EvalSetScanners | None") -> "dict[str, Any] | None":
-    """Metadata carried on `EvalSetScannerConfig`, written into the scan spec."""
-    if isinstance(scanner, EvalSetScannerConfig):
+def _normalize_metadata(scanner: "EvalScanners | None") -> "dict[str, Any] | None":
+    """Metadata carried on `EvalScannerConfig`, written into the scan spec."""
+    if isinstance(scanner, EvalScannerConfig):
         return scanner.metadata
     return None
 
 
-def _install_scan_model_context(scanner: "EvalSetScanners | None") -> None:
+def _install_scan_model_context(scanner: "EvalScanners | None") -> None:
     """Install scout's scan-time model context for this sample, if set.
 
-    When `EvalSetScannerConfig` carries `model` (or related
+    When `EvalScannerConfig` carries `model` (or related
     `model_base_url` / `model_args` / `generate_config` / `model_roles`),
     call scout's `init_scan_model_context` so the scanner's
     `get_model()` resolves to the scan-side model rather than the eval's
@@ -463,7 +457,7 @@ def _install_scan_model_context(scanner: "EvalSetScanners | None") -> None:
     """
     from inspect_scout._scan import init_scan_model_context
 
-    if not isinstance(scanner, EvalSetScannerConfig):
+    if not isinstance(scanner, EvalScannerConfig):
         return
 
     kwargs: dict[str, Any] = {}
@@ -482,15 +476,15 @@ def _install_scan_model_context(scanner: "EvalSetScanners | None") -> None:
         init_scan_model_context(**kwargs)
 
 
-def _normalize_filters(scanner: "EvalSetScanners | None") -> list[str]:
+def _normalize_filters(scanner: "EvalScanners | None") -> list[str]:
     """Extract SQL filter clauses from the scanner argument.
 
-    `EvalSetScannerConfig.filter` is the user-facing surface — a string
+    `EvalScannerConfig.filter` is the user-facing surface — a string
     or list of SQL WHERE clauses applied to the transcripts to scan.
     Scout's direct scan path applies these via `Transcripts.where(...)`;
     we lift them out and apply per-sample in `scan_eval_sample`.
     """
-    if not isinstance(scanner, EvalSetScannerConfig):
+    if not isinstance(scanner, EvalScannerConfig):
         return []
     raw = scanner.filter
     if isinstance(raw, list):

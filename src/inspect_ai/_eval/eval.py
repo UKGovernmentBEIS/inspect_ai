@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import sys
@@ -26,7 +27,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
-from inspect_ai._eval.task.scan import EvalSetScanners
+from inspect_ai._eval.task.scan import EvalScanners, scan_context
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
@@ -95,7 +96,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalSetScanners | None" = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -329,7 +330,7 @@ async def eval_async(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalSetScanners | None" = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -540,7 +541,7 @@ async def _eval_async_inner(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalSetScanners | None" = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -772,64 +773,79 @@ async def _eval_async_inner(
         )
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
-        # single task definition (could be multi-model) or max_tasks capped to 1
-        if parallel == 1:
-            results: list[EvalLog] = []
-            for sequence in sorted(set(t.sequence for t in resolved_tasks)):
-                task_batch = list(
-                    filter(lambda t: t.sequence == sequence, resolved_tasks)
-                )
-                results.extend(
-                    await eval_run(
-                        eval_set_id=eval_set_id,
-                        run_id=run_id,
-                        tasks=task_batch,
-                        parallel=parallel,
-                        eval_config=eval_config,
-                        eval_sandbox=sandbox,
-                        recorder=recorder,
-                        header_only=log_header_only,
-                        epochs_reducer=epochs_reducer,
-                        solver=solver,
-                        scanner=scanner,
-                        tags=tags,
-                        metadata=metadata,
-                        run_samples=run_samples,
-                        score=score,
-                        debug_errors=debug_errors is True,
-                        task_retry_attempts=task_retry_attempts,
-                        **kwargs,
-                    )
-                )
-                # exit the loop if there was a cancellation
-                if any([result.status == "cancelled" for result in results]):
-                    break
-
-            # return list of eval logs
-            logs = EvalLogs(results)
-
-        # multiple task definitions AND tasks not capped at 1
-        else:
-            results = await eval_run(
-                eval_set_id=eval_set_id,
-                run_id=run_id,
-                tasks=resolved_tasks,
-                parallel=parallel,
-                eval_config=eval_config,
-                eval_sandbox=sandbox,
-                recorder=recorder,
-                header_only=log_header_only,
-                epochs_reducer=epochs_reducer,
-                solver=solver,
-                scanner=scanner,
-                tags=tags,
-                metadata=metadata,
-                run_samples=run_samples,
-                score=score,
-                task_retry_attempts=task_retry_attempts,
-                **kwargs,
+        # scan_id is the eval_set_id when called from eval_set, else
+        # this run's id when eval() is called standalone. eval_set
+        # already wraps the run loop in scan_context, so skip the
+        # wrap here when eval_set_id is set to avoid double init/finalize.
+        scan_id = eval_set_id or run_id
+        if scanner is not None and eval_set_id is None:
+            scan_cm: contextlib.AbstractContextManager[None] = scan_context(
+                scanner, scan_id=scan_id, log_dir=log_dir
             )
-            logs = EvalLogs(results)
+        else:
+            scan_cm = contextlib.nullcontext()
+
+        with scan_cm:
+            # single task definition (could be multi-model) or max_tasks capped to 1
+            if parallel == 1:
+                results: list[EvalLog] = []
+                for sequence in sorted(set(t.sequence for t in resolved_tasks)):
+                    task_batch = list(
+                        filter(lambda t: t.sequence == sequence, resolved_tasks)
+                    )
+                    results.extend(
+                        await eval_run(
+                            eval_set_id=eval_set_id,
+                            run_id=run_id,
+                            tasks=task_batch,
+                            parallel=parallel,
+                            eval_config=eval_config,
+                            eval_sandbox=sandbox,
+                            recorder=recorder,
+                            header_only=log_header_only,
+                            epochs_reducer=epochs_reducer,
+                            solver=solver,
+                            scanner=scanner,
+                            scan_id=scan_id,
+                            tags=tags,
+                            metadata=metadata,
+                            run_samples=run_samples,
+                            score=score,
+                            debug_errors=debug_errors is True,
+                            task_retry_attempts=task_retry_attempts,
+                            **kwargs,
+                        )
+                    )
+                    # exit the loop if there was a cancellation
+                    if any([result.status == "cancelled" for result in results]):
+                        break
+
+                # return list of eval logs
+                logs = EvalLogs(results)
+
+            # multiple task definitions AND tasks not capped at 1
+            else:
+                results = await eval_run(
+                    eval_set_id=eval_set_id,
+                    run_id=run_id,
+                    tasks=resolved_tasks,
+                    parallel=parallel,
+                    eval_config=eval_config,
+                    eval_sandbox=sandbox,
+                    recorder=recorder,
+                    header_only=log_header_only,
+                    epochs_reducer=epochs_reducer,
+                    solver=solver,
+                    scanner=scanner,
+                    scan_id=scan_id,
+                    tags=tags,
+                    metadata=metadata,
+                    run_samples=run_samples,
+                    score=score,
+                    task_retry_attempts=task_retry_attempts,
+                    **kwargs,
+                )
+                logs = EvalLogs(results)
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)

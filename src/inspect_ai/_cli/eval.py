@@ -188,7 +188,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCANNER",
         help=(
             "Scanner(s) to apply after each sample. Pass a YAML/JSON "
-            "config file (EvalSetScannerConfig schema), a Python file "
+            "config file (EvalScannerConfig schema), a Python file "
             "with @scanner functions (use file.py@func to pick one), "
             "or a registry reference (pkg/name)."
         ),

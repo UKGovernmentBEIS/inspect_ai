@@ -1,7 +1,7 @@
 """CLI helpers for resolving `--scanner` specs into eval_set inputs."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import click
 
@@ -10,10 +10,8 @@ from inspect_ai._cli.util import (
     parse_cli_config,
     parse_model_role_cli_args,
 )
+from inspect_ai._eval.task.scan import EvalScanners
 from inspect_ai._util.registry import registry_lookup
-
-if TYPE_CHECKING:
-    from inspect_ai._eval.task.scan import EvalSetScanners
 
 
 def _parse_comma_separated(value: str | None) -> list[str] | None:
@@ -37,13 +35,13 @@ def resolve_cli_scanner(
     scan_model_config: str | None = None,
     scan_model_role: tuple[str, ...] | None = None,
     scan_generate_config: str | None = None,
-) -> "EvalSetScanners | None":
-    """Resolve a CLI `--scanner` spec into an `EvalSetScanners` argument.
+) -> "EvalScanners | None":
+    """Resolve a CLI `--scanner` spec into an `EvalScanners` argument.
 
     Mirrors the input formats accepted by `scout scan`:
 
     - YAML/JSON config file (`.yaml`/`.yml`/`.json`) → loaded via
-      `EvalSetScannerConfig.from_file` (carries scanners + tags /
+      `EvalScannerConfig.from_file` (carries scanners + tags /
       metadata / filter / model overrides).
     - Python file (`.py`, optionally `file.py@func` to pick one) → all
       `@scanner`-decorated functions in the file.
@@ -56,7 +54,7 @@ def resolve_cli_scanner(
 
     Any of the `scan_*` overrides set on the CLI are applied to the
     resolved config (a base list of scanners is wrapped in
-    `EvalSetScannerConfig`). CLI flags take precedence over equivalent
+    `EvalScannerConfig`). CLI flags take precedence over equivalent
     fields in a YAML/JSON config so quick overrides work without
     editing the file.
     """
@@ -93,14 +91,14 @@ def resolve_cli_scanner(
 def _resolve_base_scanner(
     scanner: str,
     scanner_arg: tuple[str, ...] | None,
-) -> "EvalSetScanners":
-    from inspect_ai import EvalSetScannerConfig
+) -> "EvalScanners":
+    from inspect_ai import EvalScannerConfig
 
     args = parse_cli_args(scanner_arg) if scanner_arg else {}
 
     # YAML/JSON config file
     if scanner.endswith((".yaml", ".yml", ".json")):
-        return EvalSetScannerConfig.from_file(scanner)
+        return EvalScannerConfig.from_file(scanner)
 
     # Python file with @scanner-decorated functions (optionally @func)
     file_part = scanner.split("@", 1)[0]
@@ -186,18 +184,18 @@ def _build_overrides(
 
 
 def _apply_overrides(
-    base: "EvalSetScanners",
+    base: "EvalScanners",
     overrides: dict[str, Any],
-) -> "EvalSetScanners":
+) -> "EvalScanners":
     """Apply CLI overrides to the resolved scanner.
 
-    Promotes a bare list-of-scanners to an `EvalSetScannerConfig` so
+    Promotes a bare list-of-scanners to an `EvalScannerConfig` so
     overrides have somewhere to land. CLI-set fields win over fields
     that came from a YAML/JSON config (or were left at default).
     """
-    from inspect_ai import EvalSetScannerConfig
+    from inspect_ai import EvalScannerConfig
 
-    if isinstance(base, EvalSetScannerConfig):
+    if isinstance(base, EvalScannerConfig):
         return base.model_copy(update=overrides)
 
-    return EvalSetScannerConfig(scanners=base, **overrides)
+    return EvalScannerConfig(scanners=base, **overrides)
