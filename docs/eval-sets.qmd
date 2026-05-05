@@ -60,7 +60,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Concurrency
 
-By default, `eval_set()` will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
+By default, `eval_set()` will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
 
 Use the `max_tasks` option to override the default behavior:
 

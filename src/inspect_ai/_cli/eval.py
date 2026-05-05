@@ -52,7 +52,7 @@ from .util import (
 )
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
-MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)"
+MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )

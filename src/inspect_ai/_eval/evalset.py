@@ -238,7 +238,7 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 4 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -400,7 +400,7 @@ def eval_set(
     if adaptive_will_be_active:
         retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 10)
     log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status
