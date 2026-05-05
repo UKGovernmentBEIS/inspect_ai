@@ -62,7 +62,7 @@ async def scan_eval_set_init(
 
     spec = ScanSpec(
         scan_id=eval_set_id,
-        scan_name="eval_set",
+        scan_name=_normalize_scan_name(scanner),
         scanners=_spec_scanners(scanners_dict),
         options=ScanOptions(),
         tags=_normalize_tags(scanner),
@@ -306,6 +306,15 @@ def _normalize_tags(scanner: "Scanners | None") -> list[str] | None:
     return None
 
 
+def _normalize_scan_name(scanner: "Scanners | None") -> str:
+    """Scan-name override from `ScanJob`/`ScanJobConfig`, else "eval_set"."""
+    from inspect_scout import ScanJob, ScanJobConfig
+
+    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+        return scanner.name or "eval_set"
+    return "eval_set"
+
+
 def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
     """Metadata carried on `ScanJob`/`ScanJobConfig`, written into the scan spec."""
     from inspect_scout import ScanJob, ScanJobConfig
@@ -367,6 +376,11 @@ _REJECTED_SCAN_FIELDS: dict[str, str] = {
     "max_processes": (
         "concurrency belongs to the eval (use `eval_set(max_samples=...)` / "
         "`eval_set(max_tasks=...)`)."
+    ),
+    "max_transcripts": (
+        "scout uses this for batch transcript concurrency, but eval_set "
+        "dispatches scanners per-sample as the eval emits them; per-sample "
+        "concurrency is set at the eval layer (`eval_set(max_samples=...)`)."
     ),
     "validation": (
         "validation cases match by transcript_id, but eval_set generates "

@@ -691,6 +691,7 @@ def _validation_kwarg() -> dict[str, object]:
         ("limit", 5),
         ("shuffle", True),
         ("max_processes", 2),
+        ("max_transcripts", 10),
         ("validation", _validation_kwarg()),
         ("log_level", "debug"),
     ],
@@ -726,6 +727,7 @@ def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) ->
         ("limit", 5),
         ("shuffle", True),
         ("max_processes", 2),
+        ("max_transcripts", 10),
         ("validation", _validation_kwarg()),
         ("log_level", "debug"),
     ],
@@ -791,6 +793,56 @@ def test_scanjob_config_scans_overrides_output_location() -> None:
             override_scans = list((Path(scans_dir)).glob("scan_id=*"))
             assert len(override_scans) == 1
             assert (override_scans[0] / "echo_scanner.parquet").exists()
+
+
+def test_scan_name_defaults_to_eval_set() -> None:
+    """`scan_name` defaults to "eval_set" when no override is provided.
+
+    When the scanner is a plain list of Scanner objects (no
+    ScanJob/ScanJobConfig wrapping), the scan spec's `scan_name` field
+    falls back to the default "eval_set".
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        spec = json.loads((scan_dir / "_scan.json").read_text())
+        assert spec["scan_name"] == "eval_set"
+
+
+@pytest.mark.parametrize("scanner_kind", ["scanjob", "scanjob_config"])
+def test_scan_name_override_from_scan_job(scanner_kind: str) -> None:
+    """`ScanJob`/`ScanJobConfig` `name` overrides the default scan_name."""
+    from inspect_scout import ScanJob, ScanJobConfig
+    from inspect_scout._scanspec import ScannerSpec
+
+    scanner: object
+    if scanner_kind == "scanjob_config":
+        scanner = ScanJobConfig(
+            scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
+            name="my-custom-scan",
+        )
+    else:
+        scanner = ScanJob(scanners=[echo_scanner()], name="my-custom-scan")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=scanner,  # type: ignore[arg-type]
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        spec = json.loads((scan_dir / "_scan.json").read_text())
+        assert spec["scan_name"] == "my-custom-scan"
 
 
 @pytest.mark.parametrize("scanner_kind", ["scanjob", "scanjob_config"])
