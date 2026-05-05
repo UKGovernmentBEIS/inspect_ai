@@ -211,6 +211,14 @@ class SamplesView(BaseModel):
     pills already encode the semantic. Scores not in the map render
     with no background."""
 
+    color_scales_enabled: bool | None = None
+    """Whether the score-cell colour-scale heatmap is on by default.
+    The viewer's toolbar exposes a toggle when `score_color_scales`
+    has any entries; this field seeds the toggle's initial value.
+    None = viewer default (currently True). Has no effect when
+    `score_color_scales` is empty — the toggle hides itself in that
+    case since there's nothing to colour."""
+
 
 class ViewerConfig(BaseModel):
     """Top-level viewer configuration.

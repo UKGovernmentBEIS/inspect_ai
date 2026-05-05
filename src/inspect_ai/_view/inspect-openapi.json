@@ -6925,6 +6925,17 @@
       "SamplesView": {
         "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view \u2014\ndistinct from `sample_score_view`, which configures the score panel\nwithin an individual sample's detail view.\n\nThe viewer applies `SamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
         "properties": {
+          "color_scales_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Scales Enabled"
+          },
           "columns": {
             "anyOf": [
               {

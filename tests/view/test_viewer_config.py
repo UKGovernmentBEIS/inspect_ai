@@ -518,6 +518,28 @@ def test_score_color_scale_rejects_unknown_palette() -> None:
         ScoreColorScale(palette="rainbow", min=1, max=10)  # type: ignore[arg-type]
 
 
+def test_samples_view_color_scales_enabled_roundtrip() -> None:
+    """Eval authors can seed the colour-scale toolbar toggle's initial value."""
+    cfg = ViewerConfig(
+        task_samples_view=SamplesView(
+            name="Heat",
+            score_color_scales={"accuracy": "good-high"},
+            color_scales_enabled=False,
+        ),
+    )
+    restored = ViewerConfig.model_validate_json(cfg.model_dump_json())
+    assert restored == cfg
+    view = restored.task_samples_view
+    assert isinstance(view, SamplesView)
+    assert view.color_scales_enabled is False
+
+
+def test_samples_view_color_scales_enabled_defaults_to_none() -> None:
+    """Like the other view defaults: None means "viewer default applies"."""
+    view = SamplesView(name="Default")
+    assert view.color_scales_enabled is None
+
+
 def test_samples_view_roundtrip_with_string_filter() -> None:
     cfg = ViewerConfig(
         task_samples_view=SamplesView(
