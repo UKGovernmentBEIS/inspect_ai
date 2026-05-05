@@ -1388,3 +1388,122 @@ def test_from_file_config_runs_in_eval_set() -> None:
             spec = json.loads((scan_dir / "_scan.json").read_text())
             assert spec["scan_name"] == "yaml_run"
             assert spec["tags"] == ["loaded-from-disk"]
+
+
+def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
+    """`max_connections` caps total in-flight calls across eval + scanner.
+
+    When the scanner inherits the eval's model (no `model` field on the
+    config), both sides reach the same `ModelAPI`. Inspect's connection
+    semaphore is keyed by `connection_key()`, so a single semaphore
+    governs both — `max_connections` should bound the *combined* peak.
+
+    Approach: register a tracking `ModelAPI` whose `generate` increments
+    a counter on entry, sleeps briefly so other tasks can pile up, then
+    decrements on exit. Run an `eval_set` with N samples (each makes
+    one solver `generate`) plus a scanner that makes one `generate` per
+    sample, for `2N` total calls. Without the cap, peak would reach
+    `min(2N, max_samples)`. With the cap, peak must stay ≤
+    `max_connections`. We also assert peak ≥ 2 to confirm the test
+    actually exercises concurrency (otherwise the cap is meaningless).
+    """
+    import anyio
+
+    from inspect_ai._util.registry import _registry
+    from inspect_ai.model import ModelAPI, ModelOutput
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._registry import modelapi
+    from inspect_ai.tool import ToolChoice, ToolInfo
+
+    state = {"in_flight": 0, "peak": 0, "total_calls": 0}
+
+    class _TrackingAPI(ModelAPI):
+        def __init__(
+            self,
+            model_name: str,
+            base_url: str | None = None,
+            api_key: str | None = None,
+            config: GenerateConfig = GenerateConfig(),
+            **model_args: Any,
+        ) -> None:
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+            )
+
+        async def generate(
+            self,
+            input: list,
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice,
+            config: GenerateConfig,
+        ) -> ModelOutput:
+            # increment + peak update happen without an intervening
+            # await, so they're atomic on the single event loop
+            state["in_flight"] += 1
+            state["peak"] = max(state["peak"], state["in_flight"])
+            state["total_calls"] += 1
+            try:
+                # hold the call long enough for sibling tasks to pile up
+                await anyio.sleep(0.05)
+                return ModelOutput.from_content(self.model_name, "ok")
+            finally:
+                state["in_flight"] -= 1
+
+        def connection_key(self) -> str:
+            # isolate this API's semaphore from any other ModelAPI
+            return self.model_name
+
+    @modelapi(name="trackapi")
+    def _trackapi() -> type[ModelAPI]:
+        return _TrackingAPI
+
+    @scanner(messages="all", name="generate_calling_scanner")
+    def generate_calling_scanner():
+        from inspect_ai.model import get_model
+
+        async def scan(transcript: Transcript) -> Result:
+            await get_model().generate("hello")
+            return Result(value="ok")
+
+        return scan
+
+    n_samples = 8
+    max_conn = 2
+    try:
+        with tempfile.TemporaryDirectory() as log_dir:
+            success, _ = eval_set(
+                tasks=_task(n_samples),
+                log_dir=log_dir,
+                scanner=[generate_calling_scanner()],
+                model="trackapi/test",
+                max_connections=max_conn,
+                # let many samples run at once so the cap (not the
+                # sample fan-out) is the limiting factor
+                max_samples=n_samples,
+                retry_attempts=0,
+                display="none",
+            )
+            assert success
+
+        # sanity: actual concurrency happened, otherwise the cap is
+        # vacuously satisfied and proves nothing
+        assert state["peak"] >= 2, (
+            f"no concurrency observed (peak={state['peak']}); "
+            "test cannot validate the cap"
+        )
+        # the cap held — combined eval + scanner peak respected it
+        assert state["peak"] <= max_conn, (
+            f"peak in-flight {state['peak']} exceeded max_connections "
+            f"{max_conn} — eval and scanner do not share the pool"
+        )
+        # both sides reached the API: n solver calls + n scanner calls
+        assert state["total_calls"] == 2 * n_samples, (
+            f"expected {2 * n_samples} total generate calls "
+            f"(eval + scanner), got {state['total_calls']}"
+        )
+    finally:
+        # clean up so other tests don't see the registered API
+        _registry.pop("modelapi:trackapi", None)
