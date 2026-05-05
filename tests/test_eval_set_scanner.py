@@ -971,6 +971,59 @@ def test_scan_job_config_model_string_overrides_eval_model() -> None:
         assert "mockllm/eval-model" not in ss["model_usage"]
 
 
+def test_install_scan_model_context_forwards_all_model_kwargs() -> None:
+    """All model-related ScanJob fields are forwarded to scout.
+
+    `model` / `model_base_url` / `model_args` / `generate_config` /
+    `model_roles` are silent pass-throughs into scout's
+    `init_scan_model_context`. Spy on that function via monkeypatch
+    (no need for end-to-end mockllm runs that don't visibly differ
+    by these fields) and assert the kwargs match what the ScanJob
+    carries.
+    """
+    from unittest.mock import patch
+
+    from inspect_scout import ScanJob
+
+    from inspect_ai.model import GenerateConfig
+
+    job = ScanJob(
+        scanners=[echo_scanner()],
+        model="mockllm/scan-model",
+        model_base_url="https://example.test/api",
+        model_args={"api_key": "redacted"},
+        generate_config=GenerateConfig(temperature=0.5),
+        model_roles={"grader": "mockllm/grader"},
+    )
+
+    captured: list[dict] = []
+
+    def fake_init(**kwargs):
+        captured.append(kwargs)
+        # return value isn't read by our caller
+        return (None, {}, None)
+
+    with patch("inspect_scout._scan.init_scan_model_context", side_effect=fake_init):
+        with tempfile.TemporaryDirectory() as log_dir:
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=job,
+                model="mockllm/eval-model",
+                retry_attempts=0,
+                display="none",
+            )
+
+    # one call per scan_eval_sample dispatch (one per sample)
+    assert len(captured) == 2
+    for kwargs in captured:
+        assert kwargs.get("model") == job.model
+        assert kwargs.get("model_base_url") == "https://example.test/api"
+        assert kwargs.get("model_args") == {"api_key": "redacted"}
+        assert kwargs.get("model_config") == GenerateConfig(temperature=0.5)
+        assert kwargs.get("model_roles") == job.model_roles
+
+
 def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
     """`ScanJob.model` is honored: the scanner uses it instead of the eval model.
 
