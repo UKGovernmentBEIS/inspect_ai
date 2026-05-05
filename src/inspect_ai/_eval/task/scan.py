@@ -90,6 +90,14 @@ async def scan_eval_sample(
     if not exists(scan_dir):
         return
 
+    # honor any SQL filter on a `ScanJobConfig` — samples that don't
+    # match are not scanned at all (no parquet row, no entry in the
+    # snapshot). Mirrors how scout's direct scan path filters via
+    # `Transcripts.where(...)`, applied here per-sample because we
+    # dispatch per-sample rather than reading from a query.
+    if not _sample_matches_filters(eval_sample, _normalize_filters(scanner)):
+        return
+
     from inspect_scout._concurrency.common import ScannerJob
     from inspect_scout._recorder.file import FileRecorder
     from inspect_scout._scan import _scan_one
@@ -255,6 +263,70 @@ def _normalize_scanners(scanner: "Scanners") -> "dict[str, Scanner[Any]]":
     if isinstance(scanner, ScanJobConfig):
         return ScanJob.from_config(scanner)._scanners
     return ScanJob(scanners=scanner)._scanners
+
+
+def _normalize_filters(scanner: "Scanners") -> list[str]:
+    """Extract SQL filter clauses from the scanner argument.
+
+    `ScanJobConfig.filter` is the user-facing surface — a string or list
+    of SQL WHERE clauses applied to the transcripts to scan. Scout's
+    direct scan path applies these via `Transcripts.where(...)`; we lift
+    them out and apply per-sample in `scan_eval_sample`.
+    """
+    from inspect_scout import ScanJobConfig
+
+    if isinstance(scanner, ScanJobConfig):
+        if isinstance(scanner.filter, list):
+            return [f for f in scanner.filter if f]
+        return [scanner.filter] if scanner.filter else []
+    return []
+
+
+def _sample_matches_filters(eval_sample: EvalSample, filters: list[str]) -> bool:
+    """Return True if all SQL filter clauses match this sample.
+
+    Filters are parsed and emitted as parameterized SQLite SQL via
+    scout's `condition_from_sql` / `condition_as_sql` so the same
+    column conventions (e.g. `error = ''`, JSON-path shorthand on
+    `metadata.*`) work here as in scout's direct scan path. We then
+    evaluate against a one-row in-memory sqlite table built from a
+    small set of eval-sample fields scout exposes as standard
+    transcript columns.
+    """
+    if not filters:
+        return True
+
+    import sqlite3
+    from contextlib import closing
+
+    from inspect_scout._query import condition_as_sql, condition_from_sql
+
+    error_msg = eval_sample.error.message if eval_sample.error is not None else ""
+    score_val = _score_value(eval_sample)
+    success = _score_success(eval_sample)
+    row: dict[str, Any] = {
+        "error": error_msg,
+        "task_id": str(eval_sample.id),
+        "id": str(eval_sample.id),
+        "task_repeat": eval_sample.epoch,
+        "epoch": eval_sample.epoch,
+        "score": score_val if isinstance(score_val, (int, float)) else None,
+        "success": int(success) if isinstance(success, bool) else None,
+        "message_count": len(eval_sample.messages),
+        "total_time": eval_sample.total_time,
+    }
+
+    with closing(sqlite3.connect(":memory:")) as conn:
+        cols_def = ", ".join(f'"{k}"' for k in row.keys())
+        conn.execute(f"CREATE TABLE t ({cols_def})")
+        placeholders = ", ".join(["?"] * len(row))
+        conn.execute(f"INSERT INTO t VALUES ({placeholders})", list(row.values()))
+        for clause in filters:
+            where_sql, params = condition_as_sql(condition_from_sql(clause), "sqlite")
+            cursor = conn.execute(f"SELECT 1 FROM t WHERE {where_sql}", params)
+            if cursor.fetchone() is None:
+                return False
+    return True
 
 
 def _transcript_info(

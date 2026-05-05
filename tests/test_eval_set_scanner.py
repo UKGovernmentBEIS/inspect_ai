@@ -133,6 +133,18 @@ def flaky_scanner():
     return scan
 
 
+@scanner(messages="all", name="id2_only_scanner")
+def id2_only_scanner():
+    """Errors only on sample id "2", passes on every other sample."""
+
+    async def scan(transcript: Transcript) -> Result:
+        if transcript.task_id == "2":
+            raise RuntimeError("refusing sample id 2")
+        return Result(value=f"ok:{transcript.task_id}")
+
+    return scan
+
+
 # --- helpers ----------------------------------------------------------------
 
 
@@ -348,6 +360,26 @@ def _first_attempt_fails():
     return factory()
 
 
+def _first_attempt_fails_for(*sample_ids: int | str):
+    """Solver that fails on first attempt only for the given sample ids."""
+    seen: set[tuple[int | str, int]] = set()
+    target_ids = set(sample_ids)
+
+    @solver
+    def factory():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id in target_ids:
+                key = (state.sample_id, state.epoch)
+                if key not in seen:
+                    seen.add(key)
+                    raise ValueError(f"first attempt for sample {state.sample_id}")
+            return state
+
+        return solve
+
+    return factory()
+
+
 def test_scanner_consistent_state_after_failure() -> None:
     """When eval_set fails partway, finalize produces a consistent scan dir.
 
@@ -497,6 +529,146 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
         assert ss["scans"] == 2 * n, (
             f"expected accumulated scans across both runs ({2 * n}), got {ss['scans']}"
         )
+
+
+def test_eval_set_resume_only_rescans_rerun_samples_keeps_run1_errors() -> None:
+    """A second `eval_set` call only re-scans the samples eval_set re-runs.
+
+    Setup — 4 samples (ids 1..4):
+    - Solver: succeeds for ids 1, 2; fails first attempt for ids 3, 4.
+    - Scanner: errors only on sample id "2", passes on every other id.
+
+    Run 1:
+    - Sample 1 → eval succeeds, scanner passes.
+    - Sample 2 → eval succeeds, scanner errors (refuses id 2).
+    - Samples 3, 4 → eval errors first attempt; scan_eval_sample still
+      runs and records each errored transcript. Scanner passes on each
+      (no id-2 match).
+    - Total: 4 scans, 1 scanner error (id 2), `complete=False`.
+
+    Run 2:
+    - eval_set sees samples 1, 2 already succeeded — they are NOT re-run
+      and therefore NOT re-scanned (so id 2's run-1 error stays on disk).
+    - eval_set retries the failing task; samples 3, 4 succeed this time.
+      Those retries have new uuids → new `transcript_id`s, so they look
+      like brand new transcripts to the scan dir. Scanner passes on both.
+    - Total: 6 scans, still 1 scanner error from run 1, `complete=False`
+      because that lone id-2 error is still present.
+    """
+    n = 4
+    fails_3_4_first_time = _first_attempt_fails_for(3, 4)
+
+    def make_task():
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=[fails_3_4_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: 1, 2 succeed; 3, 4 error first attempt; scanner refuses id 2
+        success_1, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert not success_1
+
+        scan_dir = _scan_dir(log_dir)
+        summary_1 = _read_summary(scan_dir)
+        ss_1 = summary_1["scanners"]["id2_only_scanner"]
+        assert ss_1["scans"] == n
+        assert ss_1["errors"] == 1  # only id 2
+        assert ss_1["results"] == n - 1
+        assert summary_1["complete"] is False
+
+        # run 2: only the previously-failed eval samples (3, 4) re-run.
+        # 1 and 2 already succeeded, so they aren't re-scanned. The
+        # retried 3, 4 succeed now and the scanner passes on each (no
+        # id-2 match).
+        success_2, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_2
+
+        summary_2 = _read_summary(scan_dir)
+        ss_2 = summary_2["scanners"]["id2_only_scanner"]
+        # run 2 added exactly 2 new scans (samples 3, 4 retried)
+        assert ss_2["scans"] == n + 2
+        # the lone id-2 error from run 1 is still the only scanner error
+        assert ss_2["errors"] == 1
+        # results: (n-1) from run 1 + 2 from run 2
+        assert ss_2["results"] == (n - 1) + 2
+        # complete stays False because the id-2 error persists across runs
+        assert summary_2["complete"] is False
+
+
+def test_scanjob_config_filter_skips_unmatched_samples() -> None:
+    """A SQL `filter` on `ScanJobConfig` excludes non-matching samples.
+
+    Setup — 4 samples (ids 1..4), solver fails first attempt for 3, 4
+    so they end up logged with `transcript.error` set. Pass the scanner
+    via `ScanJobConfig` with `filter="error = ''"` (scout's convention:
+    successful samples have empty-string error, errored samples have
+    the message string). Only the eval-successful samples (1, 2) should
+    be scanned — samples 3, 4 are skipped before the scanner runs.
+    """
+    from inspect_scout import ScanJobConfig
+    from inspect_scout._scanspec import ScannerSpec
+
+    n = 4
+    fails_3_4_first_time = _first_attempt_fails_for(3, 4)
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=[fails_3_4_first_time, generate()],
+        )
+
+    config = ScanJobConfig(
+        scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
+        filter="error = ''",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=config,
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        # only samples 1, 2 succeeded → only those scanned
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        assert pf.metadata.num_rows == 2
+
+        scanned_ids = sorted(
+            tid
+            for tid in pf.read(columns=["transcript_task_id"])
+            .column("transcript_task_id")
+            .to_pylist()
+            if tid is not None
+        )
+        assert scanned_ids == ["1", "2"]
+
+        summary = _read_summary(scan_dir)
+        ss = summary["scanners"]["echo_scanner"]
+        assert ss["scans"] == 2
+        assert ss["errors"] == 0
+        assert ss["results"] == 2
 
 
 def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
