@@ -41,7 +41,7 @@ class MetadataField(BaseModel):
 
 
 class ScannerResultView(BaseModel):
-    """How the scann results should render the results."""
+    """Customizes the rendering of scanner results."""
 
     fields: list[ScannerResultField | MetadataField | str] | None = None
     """Ordered list of sections to render. List order is render order; `None` means fall back to the built-in default order."""
@@ -102,7 +102,7 @@ class ScoreColorScale(BaseModel):
 
     By default the viewer anchors a named palette at the descriptor's
     auto-detected min/max, which is the *observed* range across the
-    log's samples. When the metric has a known *conceptual* range —
+    log's samples. When the score has a known *conceptual* range —
     e.g. an alignment-judge dimension that's always graded 1..10 —
     pin it via `min`/`max` so middling values don't get paint-clamped
     to the extremes when the observed data happens to cluster at one
@@ -157,10 +157,10 @@ class SamplesView(BaseModel):
     with horizontal headers. None = viewer default (currently False)."""
 
     score_labels: dict[str, str] | None = None
-    """Display labels for score columns, keyed by score (metric) name.
+    """Display labels for score columns, keyed by score name.
     e.g. `{"audit_situational_awareness": "Situational Awareness"}`
     causes the viewer to render that header as "Situational Awareness"
-    instead of the raw metric name. Lookup falls back to the metric
+    instead of the raw scorer name. Lookup falls back to the scorer
     name itself when no override is set."""
 
     score_color_scales: (
@@ -172,7 +172,7 @@ class SamplesView(BaseModel):
         ]
         | None
     ) = None
-    """Background-colour scales for score cells, keyed by score (metric)
+    """Background-colour scales for score cells, keyed by score
     name. Each entry is one of:
 
     - a named palette string (numeric scores; gradient anchored at
@@ -182,42 +182,21 @@ class SamplesView(BaseModel):
       range that may not match the observed data range);
     - a map from value to semantic role (categorical scores).
 
-    All three forms resolve to theme-aware Bootstrap subtle colours
-    so light and dark modes stay legible without hand-rolled colour
-    pairs.
-
     Numeric palettes:
-    - `good-high`: low → red, high → green (typical "accuracy" metric)
-    - `good-low`:  low → green, high → red (typical "danger" / "loss" metric)
+    - `good-high`: low → red, high → green
+    - `good-low`:  low → green, high → red
     - `neutral`:   transparent → blue (magnitude only, no good/bad signal)
     - `diverging`: red ↔ green centred on the midpoint of min / max
 
     Categorical roles (`good` / `bad` / `warn` / `info` / `muted`)
-    resolve to Bootstrap `*-bg-subtle` CSS variables.
-
-    Numeric example: `{"accuracy": "good-high"}` paints high values
-    green and low values red, anchored at the descriptor's auto-detected
-    min/max.
-
-    Pinned-range example: `{"concerning": ScoreColorScale(palette=
-    "good-low", min=1, max=10)}` paints against a fixed 1..10 range
-    so a sample scoring 5 lands at the gradient midpoint regardless
-    of how the rest of the log scored.
-
-    Categorical example: `{"verdict": {"yes": "bad", "no": "good"}}`
-    paints `yes` cells red and `no` cells green.
+    resolve to appropriate colors for the category.
 
     Pass/fail and boolean scores ignore this config — their pre-coloured
     pills already encode the semantic. Scores not in the map render
     with no background."""
 
     color_scales_enabled: bool | None = None
-    """Whether the score-cell colour-scale heatmap is on by default.
-    The viewer's toolbar exposes a toggle when `score_color_scales`
-    has any entries; this field seeds the toggle's initial value.
-    None = viewer default (currently True). Has no effect when
-    `score_color_scales` is empty — the toggle hides itself in that
-    case since there's nothing to colour."""
+    """Whether the score-cell color-scale heatmap is on by default."""
 
 
 class ViewerConfig(BaseModel):
