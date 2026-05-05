@@ -52,7 +52,6 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
-from .._pool import resolve_sample_events_data
 from .file import FileRecorder
 
 logger = getLogger(__name__)
@@ -781,7 +780,7 @@ def _read_log_from_bytes(
                             ),
                         )
             sort_samples(samples_list)
-            eval_log.samples = [resolve_sample_events_data(s) for s in samples_list]
+            eval_log.samples = samples_list
         return eval_log
 
 

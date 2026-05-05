@@ -102,6 +102,8 @@ def expand_events(
 ) -> list[Event]:
     """Reverse :func:`condense_events` — restore pooled content into events.
 
+    `ModelEvent` objects in `events` are mutated in place.
+
     Args:
         events: Condensed events (with pool index references), or a JSON-serialized
             ``list[Event]``.

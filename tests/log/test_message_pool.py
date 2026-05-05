@@ -242,6 +242,56 @@ def test_write_read_round_trip(
             assert event.input_refs is None
 
 
+def test_timeline_events_share_resolved_event_identity():
+    """sample.timelines must reference the same resolved Event objects as sample.events."""
+    from inspect_ai.event import Timeline, TimelineEvent, TimelineSpan
+
+    sample = _make_sample_with_repeated_inputs()
+    sample.timelines = [
+        Timeline(
+            name="t",
+            description="",
+            root=TimelineSpan(
+                id="root",
+                name="root",
+                span_type="branch",
+                content=[TimelineEvent(event=e) for e in sample.events],
+            ),
+        )
+    ]
+    log = EvalLog(
+        version=LOG_SCHEMA_VERSION,
+        status="success",
+        eval=EvalSpec(
+            task="t",
+            task_version=0,
+            task_id="t",
+            model="m",
+            dataset=EvalDataset(name="t", samples=1),
+            config=EvalConfig(),
+            created="2025-01-01T00:00:00Z",
+        ),
+        plan=EvalPlan(),
+        results=EvalResults(total_samples=1, completed_samples=1),
+        stats=EvalStats(
+            started_at="2025-01-01T00:00:00Z", completed_at="2025-01-01T00:01:00Z"
+        ),
+        samples=[condense_sample(sample)],
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "test.eval")
+        write_eval_log(log, path)
+        read = read_eval_log(path)
+
+    s = read.samples[0]
+    by_uuid = {e.uuid: e for e in s.events}
+    tl_events = [it.event for it in s.timelines[0].root.content]
+    for te in tl_events:
+        assert te is by_uuid[te.uuid], "timeline event must be the resolved object"
+        assert isinstance(te, ModelEvent) and len(te.input) > 0
+
+
 def test_write_eval_log_applies_condensing():
     """write_eval_log should apply condense_sample even when given uncondensed samples."""
     sample = _make_sample_with_repeated_inputs()

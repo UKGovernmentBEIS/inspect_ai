@@ -16,7 +16,7 @@ content by definition).
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Final, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar
 
 from pydantic import JsonValue
 
@@ -25,7 +25,9 @@ from inspect_ai.model._chat_message import ChatMessage
 
 from ..event._event import Event
 from ..event._model import ModelEvent
-from ._log import EvalSample
+
+if TYPE_CHECKING:
+    from ._log import EvalSample
 
 
 def _msg_hash(msg: ChatMessage) -> str:
@@ -202,61 +204,45 @@ def resolve_model_event_calls(
     events: list[Event],
     call_pool: list[JsonValue],
 ) -> list[Event]:
-    """Restore call.request messages from call_pool references."""
+    """Restore call.request messages from call_pool references in place."""
     if not call_pool:
         return events
-    result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.call and event.call.call_refs:
             msgs = _expand_refs(event.call.call_refs, call_pool)
             msg_key = event.call.call_key or "messages"
-            new_request = dict(event.call.request)
-            new_request[msg_key] = msgs
-            new_call = event.call.model_copy(
+            event.call = event.call.model_copy(
                 update={
-                    "request": new_request,
+                    "request": {**event.call.request, msg_key: msgs},
                     "call_refs": None,
                     "call_key": None,
                 }
             )
-            event = event.model_copy(update={"call": new_call})
-        result.append(event)
-    return result
+    return events
 
 
 def resolve_model_event_inputs(
     events: list[Event],
     message_pool: list[ChatMessage],
 ) -> list[Event]:
-    """Resolve ModelEvent input_refs back to full input lists."""
+    """Resolve ModelEvent input_refs back to full input lists in place."""
     if not message_pool:
         return events
-    result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.input_refs is not None:
-            resolved_input = _expand_refs(event.input_refs, message_pool)
-            event = event.model_copy(
-                update={"input": resolved_input, "input_refs": None}
-            )
-        result.append(event)
-    return result
+            event.input = _expand_refs(event.input_refs, message_pool)
+            event.input_refs = None
+    return events
 
 
-def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
-    """Resolve events_data pool references in model events.
+def resolve_sample_events_data(sample: "EvalSample") -> "EvalSample":
+    """Resolve events_data pool references in model events in place.
 
-    Always called on read to ensure ModelEvent.input is populated,
-    regardless of the resolve_attachments setting.
+    Idempotent — no-op once `events_data` has been cleared.
     """
     if sample.events_data is None:
         return sample
-    msg_pool = sample.events_data["messages"]
-    call_pool = sample.events_data["calls"]
-    resolved_events = resolve_model_event_inputs(sample.events, msg_pool)
-    resolved_events = resolve_model_event_calls(resolved_events, call_pool)
-    return sample.model_copy(
-        update={
-            "events": resolved_events,
-            "events_data": None,
-        }
-    )
+    resolve_model_event_inputs(sample.events, sample.events_data["messages"])
+    resolve_model_event_calls(sample.events, sample.events_data["calls"])
+    sample.events_data = None
+    return sample
