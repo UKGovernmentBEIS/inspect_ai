@@ -107,6 +107,7 @@ async def scan_eval_sample(
     from inspect_scout._recorder.file import FileRecorder
     from inspect_scout._scan import _scan_one
 
+    _install_scan_model_context(scanner)
     scanners_dict = _normalize_scanners(scanner)
     info = _transcript_info(
         eval_sample, eval_id=eval_id, model=model, log_location=log_location
@@ -312,6 +313,42 @@ def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
     if isinstance(scanner, (ScanJob, ScanJobConfig)):
         return scanner.metadata
     return None
+
+
+def _install_scan_model_context(scanner: "Scanners | None") -> None:
+    """Install scout's scan-time model context for this sample, if set.
+
+    When a `ScanJob`/`ScanJobConfig` carries `model` (or related
+    `model_base_url` / `model_args` / `generate_config` / `model_roles`),
+    call scout's `init_scan_model_context` so the scanner's
+    `get_model()` resolves to the scan-side model rather than the eval's
+    active model. The override lives on the per-sample async context —
+    each sample inherits a fresh copy of the task's context, so setting
+    it here does not leak to other samples or back into the eval's
+    solver path. (The eval's `model_usage` for this sample is already
+    snapshotted into `EvalSample` before `scan_eval_sample` is called.)
+    No-op when nothing's set, so the scanner inherits the eval's model.
+    """
+    from inspect_scout import ScanJob, ScanJobConfig
+    from inspect_scout._scan import init_scan_model_context
+
+    if not isinstance(scanner, (ScanJob, ScanJobConfig)):
+        return
+
+    kwargs: dict[str, Any] = {}
+    if scanner.model is not None:
+        kwargs["model"] = scanner.model
+    if scanner.generate_config is not None:
+        kwargs["model_config"] = scanner.generate_config
+    if scanner.model_base_url is not None:
+        kwargs["model_base_url"] = scanner.model_base_url
+    if scanner.model_args is not None:
+        kwargs["model_args"] = scanner.model_args
+    if scanner.model_roles is not None:
+        kwargs["model_roles"] = scanner.model_roles
+
+    if kwargs:
+        init_scan_model_context(**kwargs)
 
 
 _REJECTED_SCAN_FIELDS: dict[str, str] = {

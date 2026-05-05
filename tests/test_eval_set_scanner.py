@@ -838,6 +838,113 @@ def test_tags_and_metadata_written_to_scan_spec(scanner_kind: str) -> None:
         assert spec["metadata"] == metadata
 
 
+def test_llm_scanner_inherits_eval_set_model_when_unspecified() -> None:
+    """Scanner falls back to the eval's active model when no scan-side model is set.
+
+    With no `ScanJob`/`ScanJobConfig` (just a list of scanners), there's
+    nothing for `_install_scan_model_context` to override, so the
+    scanner's `get_model()` resolves to whichever model
+    `eval_set(model=...)` installed via inspect_ai's model context.
+    Using mockllm here — which can't produce parseable boolean answers —
+    so `results == 0`; the point is to confirm the model was reachable
+    (`tokens > 0` and `mockllm/model` in `model_usage`).
+    """
+    from inspect_scout import llm_scanner
+
+    scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[scanner_fn],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        summary = _read_summary(scan_dir)
+        assert len(summary["scanners"]) == 1
+        ss = next(iter(summary["scanners"].values()))
+        assert ss["scans"] >= 2
+        # mockllm responded — non-zero token usage proves a model was
+        # available to the scanner via the inspect_ai context.
+        assert ss["tokens"] > 0
+        assert "mockllm/model" in ss["model_usage"]
+        # but no parseable boolean answer → no usable results.
+        assert ss["results"] == 0
+
+
+def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
+    """`ScanJob.model` is honored: the scanner uses it instead of the eval model.
+
+    eval_set runs with `mockllm/eval-model`; the ScanJob carries
+    `mockllm/scan-model`. The scanner's `model_usage` should show only
+    the scan-model — confirming our integration calls scout's
+    `init_scan_model_context` to override the active model just for the
+    scanner call (not for the eval's solver/generate calls).
+    """
+    from inspect_scout import ScanJob, llm_scanner
+
+    scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
+    job = ScanJob(scanners=[scanner_fn], model="mockllm/scan-model")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=job,
+            model="mockllm/eval-model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        summary = _read_summary(scan_dir)
+        ss = next(iter(summary["scanners"].values()))
+        # scanner used the scan-model, not the eval-model
+        assert "mockllm/scan-model" in ss["model_usage"]
+        assert "mockllm/eval-model" not in ss["model_usage"]
+
+
+def test_llm_scanner_inherits_task_model_when_eval_set_model_omitted() -> None:
+    """Scanner picks up the task's model when eval_set's model is omitted.
+
+    Same fallback as above, but the model lives on `Task(model=...)`
+    instead of `eval_set(model=...)`. Inspect_ai's per-task model
+    populates the model context for the task's samples, and the
+    scanner's `get_model()` returns it.
+    """
+    from inspect_scout import llm_scanner
+
+    scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # model on the Task; no `model=` on eval_set — the eval-level
+        # default is overridden by the task-level one for any task that
+        # specifies it.
+        task = Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(2)],
+            solver=generate(),
+            model="mockllm/model",
+        )
+        eval_set(
+            tasks=task,
+            log_dir=log_dir,
+            scanner=[scanner_fn],
+            retry_attempts=0,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        summary = _read_summary(scan_dir)
+        ss = next(iter(summary["scanners"].values()))
+        assert ss["tokens"] > 0
+        assert "mockllm/model" in ss["model_usage"]
+        assert ss["results"] == 0
+
+
 def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
     """A second eval_set call must reject a changed scanner set up front.
 
