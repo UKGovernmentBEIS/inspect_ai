@@ -671,6 +671,107 @@ def test_scanjob_config_filter_skips_unmatched_samples() -> None:
         assert ss["results"] == 2
 
 
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("transcripts", "some/external/logs"),
+        ("worklist", [{"scanner": "echo_scanner", "transcripts": ["abc"]}]),
+        ("limit", 5),
+        ("shuffle", True),
+        ("max_processes", 2),
+    ],
+)
+def test_scanjob_config_rejects_unsupported_fields(field: str, value: object) -> None:
+    """Reject ScanJobConfig fields that conflict with eval_set."""
+    from inspect_scout import ScanJobConfig
+    from inspect_scout._scanspec import ScannerSpec
+
+    from inspect_ai._util.error import PrerequisiteError
+
+    config_kwargs: dict[str, object] = {
+        "scanners": [ScannerSpec(name="echo_scanner", file=__file__)],
+    }
+    config_kwargs[field] = value
+    config = ScanJobConfig(**config_kwargs)  # type: ignore[arg-type]
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with pytest.raises(PrerequisiteError, match=field):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=config,
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+@pytest.mark.parametrize(
+    "field, value", [("limit", 5), ("shuffle", True), ("max_processes", 2)]
+)
+def test_scanjob_rejects_unsupported_fields(field: str, value: object) -> None:
+    """Same validation must hit the `ScanJob` instance path.
+
+    `ScanJob` exposes these as `@property` accessors backed by
+    `_field` attributes, while `ScanJobConfig` has them as direct
+    Pydantic fields. The validator uses `getattr`, so they share a
+    code path — but a rename or default-change on either side could
+    break only one without this dual coverage.
+    """
+    from inspect_scout import ScanJob
+
+    from inspect_ai._util.error import PrerequisiteError
+
+    job = ScanJob(scanners=[echo_scanner()], **{field: value})
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with pytest.raises(PrerequisiteError, match=field):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=job,
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanjob_config_scans_overrides_output_location() -> None:
+    """`ScanJobConfig.scans` overrides where scan output is written.
+
+    By default scan output lands at `<log_dir>/scans/scan_id=<id>/`. A
+    user can redirect to an arbitrary location (e.g. an S3 bucket) by
+    setting `scans` on the config — useful when scan results should
+    live separately from the eval logs.
+    """
+    from inspect_scout import ScanJobConfig
+    from inspect_scout._scanspec import ScannerSpec
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with tempfile.TemporaryDirectory() as scans_dir:
+            config = ScanJobConfig(
+                scanners=[ScannerSpec(name="echo_scanner", file=__file__)],
+                scans=scans_dir,
+            )
+            success, _ = eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=config,
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+            assert success
+
+            # default location should be empty (no scans dir under log_dir)
+            assert not (Path(log_dir) / "scans").exists()
+
+            # the override location holds the scan dir + parquet
+            override_scans = list((Path(scans_dir)).glob("scan_id=*"))
+            assert len(override_scans) == 1
+            assert (override_scans[0] / "echo_scanner.parquet").exists()
+
+
 def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
     """A second eval_set call must reject a changed scanner set up front.
 

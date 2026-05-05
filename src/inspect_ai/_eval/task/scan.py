@@ -40,8 +40,9 @@ async def scan_eval_set_init(
 
     from inspect_ai._util.error import PrerequisiteError
 
+    _validate_scan_config(scanner)
     scanners_dict = _normalize_scanners(scanner)
-    scan_dir = _scan_dir(log_dir, eval_set_id)
+    scan_dir = _scan_dir(log_dir, eval_set_id, scanner)
     recorder = FileRecorder()
 
     if exists(scan_dir):
@@ -65,7 +66,9 @@ async def scan_eval_set_init(
         scanners=_spec_scanners(scanners_dict),
         options=ScanOptions(),
     )
-    await recorder.init(spec, _scans_location(log_dir), concurrent_writers=True)
+    await recorder.init(
+        spec, _scans_location(log_dir, scanner), concurrent_writers=True
+    )
 
 
 async def scan_eval_sample(
@@ -86,7 +89,7 @@ async def scan_eval_sample(
     if scanner is None or eval_set_id is None:
         return
     log_location = absolute_file_path(log_location)
-    scan_dir = _scan_dir(dirname(log_location), eval_set_id)
+    scan_dir = _scan_dir(dirname(log_location), eval_set_id, scanner)
     if not exists(scan_dir):
         return
 
@@ -124,6 +127,7 @@ async def scan_eval_set_finalize(
     *,
     eval_set_id: str,
     log_dir: str,
+    scanner: "Scanners | None" = None,
 ) -> None:
     """Compact buffer parquets and snapshot the recorded transcripts.
 
@@ -147,7 +151,7 @@ async def scan_eval_set_finalize(
     errors we leave the scan resumable so scout's `scan_resume` can
     re-run just the failed scans.
     """
-    scan_dir = _scan_dir(log_dir, eval_set_id)
+    scan_dir = _scan_dir(log_dir, eval_set_id, scanner)
     if not exists(scan_dir):
         return
 
@@ -244,20 +248,36 @@ def scan_eval_set_context(
     try:
         yield
     finally:
-        run_coroutine(scan_eval_set_finalize(eval_set_id=eval_set_id, log_dir=log_dir))
+        run_coroutine(
+            scan_eval_set_finalize(
+                eval_set_id=eval_set_id, log_dir=log_dir, scanner=scanner
+            )
+        )
 
 
-def _scans_location(log_dir: str) -> str:
-    return f"{log_dir.rstrip('/')}/scans"
+def _scans_location(log_dir: str, scanner: "Scanners | None" = None) -> str:
+    """Where scan outputs land.
+
+    Defaults to `<log_dir>/scans/`. A `ScanJob`/`ScanJobConfig` may
+    override via its `scans` field — that gets used as the location
+    directly so the user can write scan results to a different
+    filesystem (e.g. an S3 bucket) than the eval logs.
+    """
+    base = _normalize_scans(scanner) or f"{log_dir.rstrip('/')}/scans"
+    return base.rstrip("/")
 
 
-def _scan_dir(log_dir: str, eval_set_id: str) -> str:
-    return f"{_scans_location(log_dir)}/scan_id={eval_set_id}"
+def _scan_dir(log_dir: str, eval_set_id: str, scanner: "Scanners | None" = None) -> str:
+    return f"{_scans_location(log_dir, scanner)}/scan_id={eval_set_id}"
 
 
-def _normalize_scanners(scanner: "Scanners") -> "dict[str, Scanner[Any]]":
+def _normalize_scanners(
+    scanner: "Scanners | None",
+) -> "dict[str, Scanner[Any]]":
     from inspect_scout import ScanJob, ScanJobConfig
 
+    if scanner is None:
+        return {}
     if isinstance(scanner, ScanJob):
         return scanner._scanners
     if isinstance(scanner, ScanJobConfig):
@@ -265,7 +285,52 @@ def _normalize_scanners(scanner: "Scanners") -> "dict[str, Scanner[Any]]":
     return ScanJob(scanners=scanner)._scanners
 
 
-def _normalize_filters(scanner: "Scanners") -> list[str]:
+def _normalize_scans(scanner: "Scanners | None") -> str | None:
+    """Extract the scan-output-location override (`scans`), if any."""
+    from inspect_scout import ScanJob, ScanJobConfig
+
+    if isinstance(scanner, (ScanJob, ScanJobConfig)):
+        return scanner.scans
+    return None
+
+
+def _validate_scan_config(scanner: "Scanners | None") -> None:
+    """Reject `ScanJob`/`ScanJobConfig` fields that conflict with eval_set.
+
+    `transcripts` and `worklist` would override the per-sample dispatch
+    that's the whole point of the integration. `limit`, `shuffle`, and
+    `max_processes` are sample-selection / concurrency knobs that
+    belong to the eval, not to the scan layered on top of it.
+    """
+    from inspect_scout import ScanJob, ScanJobConfig
+
+    from inspect_ai._util.error import PrerequisiteError
+
+    if not isinstance(scanner, (ScanJob, ScanJobConfig)):
+        return
+
+    rejected: list[str] = []
+    for field in ("transcripts", "worklist", "limit", "shuffle", "max_processes"):
+        value = getattr(scanner, field, None)
+        # ScanJob exposes these as @property; ScanJobConfig as Pydantic
+        # fields. Both yield None when unset — except `worklist`, which
+        # defaults to None, and `transcripts`, which defaults to None on
+        # the config but to whatever was passed in on ScanJob.
+        if value is not None:
+            rejected.append(field)
+
+    if rejected:
+        raise PrerequisiteError(
+            "The following ScanJob/ScanJobConfig fields are not supported "
+            "when passing a scanner to eval_set: "
+            f"{rejected}. eval_set scans the eval's own samples; "
+            "external transcripts, worklists, and sample-selection knobs "
+            "(limit / shuffle / max_processes) belong to the eval itself, "
+            "not the scan layered on top of it."
+        )
+
+
+def _normalize_filters(scanner: "Scanners | None") -> list[str]:
     """Extract SQL filter clauses from the scanner argument.
 
     `ScanJobConfig.filter` is the user-facing surface — a string or list
@@ -275,11 +340,12 @@ def _normalize_filters(scanner: "Scanners") -> list[str]:
     """
     from inspect_scout import ScanJobConfig
 
-    if isinstance(scanner, ScanJobConfig):
-        if isinstance(scanner.filter, list):
-            return [f for f in scanner.filter if f]
-        return [scanner.filter] if scanner.filter else []
-    return []
+    if not isinstance(scanner, ScanJobConfig):
+        return []
+    raw = scanner.filter
+    if isinstance(raw, list):
+        return [f for f in raw if f]
+    return [raw] if raw else []
 
 
 def _sample_matches_filters(eval_sample: EvalSample, filters: list[str]) -> bool:
