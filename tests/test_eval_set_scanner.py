@@ -1003,60 +1003,106 @@ def test_scan_job_model_overrides_eval_model_for_scanner() -> None:
         assert "mockllm/eval-model" not in ss["model_usage"]
 
 
-def test_scan_model_override_does_not_leak_into_eval_model_usage() -> None:
-    """Concurrent-sample test: scan-model override is sample-scoped.
+def test_eval_and_scan_model_usage_are_partitioned() -> None:
+    """Eval and scan usage track separately even when sharing a model.
 
-    Per-sample model context override hinges on each sample running in
-    its own anyio task (a copied context). If the override accidentally
-    landed in the parent task's context — or if `init_model_usage()`'s
-    reset bled outward — the eval's `model_usage` for sibling samples
-    would either show the scan-model under the eval row or get zeroed.
+    Sharing one model name forces a value-level check rather than a
+    key-level one: contamination doesn't introduce a new key, just
+    inflates existing totals.
 
-    This test runs multiple samples concurrently and asserts:
+    Approach: run the same eval twice — once *without* a scanner
+    (baseline solver-only token counts) and once *with* a scanner —
+    and assert the eval log's stats are byte-for-byte identical
+    between runs. mockllm's outputs are deterministic given identical
+    inputs, so any drift means the scanner contributed to the eval's
+    tracker. We then check the additivity invariant
+    (`log.stats == sum(per-sample)`) as a defense-in-depth signal that
+    catches the simpler one-sided contamination case, and verify the
+    scan summary captured the scanner's own usage independently.
 
-    - every per-sample `EvalSample.model_usage` shows only the
-      `mockllm/eval-model` (the eval's solver), no `mockllm/scan-model`
-    - the scan summary's `model_usage` shows only the scan-model
+    Runs multiple samples concurrently (`max_samples=n`) so structural
+    mistakes where the override lands in the parent task's context
+    show up here.
     """
     from inspect_scout import ScanJob, llm_scanner
 
     from inspect_ai.log import read_eval_log
 
-    scanner_fn = llm_scanner(question="Did anything happen?", answer="boolean")
-    job = ScanJob(scanners=[scanner_fn], model="mockllm/scan-model")
-
+    model_name = "mockllm/model"
     n_samples = 4
-    with tempfile.TemporaryDirectory() as log_dir:
+
+    def _run(scanner: object | None) -> Path:
+        log_dir = tempfile.mkdtemp()
         eval_set(
             tasks=_task(n_samples),
             log_dir=log_dir,
-            scanner=job,
-            model="mockllm/eval-model",
+            scanner=scanner,  # type: ignore[arg-type]
+            model=model_name,
             retry_attempts=0,
-            max_samples=n_samples,  # force concurrent dispatch
+            max_samples=n_samples,
             display="none",
         )
+        return Path(log_dir)
 
-        # eval-side: every sample's model_usage shows only eval-model
-        eval_files = list(Path(log_dir).glob("*.eval"))
-        assert len(eval_files) == 1
-        log = read_eval_log(str(eval_files[0]))
-        assert log.samples is not None
-        assert len(log.samples) == n_samples
-        for s in log.samples:
-            assert "mockllm/eval-model" in s.model_usage, (
-                f"sample {s.id}: expected eval-model in usage, got {s.model_usage}"
-            )
-            assert "mockllm/scan-model" not in s.model_usage, (
-                f"sample {s.id}: scan-model leaked into eval usage: {s.model_usage}"
-            )
+    # ---- baseline run (no scanner) ----
+    baseline_log_dir = _run(None)
+    baseline_log = read_eval_log(str(next(baseline_log_dir.glob("*.eval"))))
+    assert baseline_log.samples is not None
+    baseline_usage = baseline_log.stats.model_usage[model_name]
 
-        # scan-side: scanner used only the scan-model
-        scan_dir = _scan_dir(log_dir)
-        summary = _read_summary(scan_dir)
-        ss = next(iter(summary["scanners"].values()))
-        assert "mockllm/scan-model" in ss["model_usage"]
-        assert "mockllm/eval-model" not in ss["model_usage"]
+    # ---- run with scanner ----
+    scanner_fn = llm_scanner(question="Did anything happen?", answer="boolean")
+    job = ScanJob(scanners=[scanner_fn], model=model_name)
+    scanned_log_dir = _run(job)
+    log = read_eval_log(str(next(scanned_log_dir.glob("*.eval"))))
+    assert log.samples is not None
+    assert len(log.samples) == n_samples
+
+    # only the shared model appears
+    assert set(log.stats.model_usage.keys()) == {model_name}
+
+    # eval log stats match the no-scanner baseline exactly. With the
+    # same model on both sides, this is the load-bearing assertion:
+    # any contamination of either the per-sample tracker or the
+    # eval-level tracker by scanner tokens would inflate these
+    # numbers above the baseline.
+    log_usage = log.stats.model_usage[model_name]
+    assert log_usage.input_tokens == baseline_usage.input_tokens, (
+        f"input_tokens={log_usage.input_tokens} != "
+        f"baseline {baseline_usage.input_tokens} — scanner tokens leaked"
+    )
+    assert log_usage.output_tokens == baseline_usage.output_tokens, (
+        f"output_tokens={log_usage.output_tokens} != "
+        f"baseline {baseline_usage.output_tokens} — scanner tokens leaked"
+    )
+
+    # additivity sanity check: log stats == sum of per-sample.
+    sample_total_input = sum(
+        s.model_usage[model_name].input_tokens for s in log.samples
+    )
+    sample_total_output = sum(
+        s.model_usage[model_name].output_tokens for s in log.samples
+    )
+    assert log_usage.input_tokens == sample_total_input
+    assert log_usage.output_tokens == sample_total_output
+    assert sample_total_input > 0
+    assert sample_total_output > 0
+
+    # ---- scan side ----
+    scan_dir = _scan_dir(str(scanned_log_dir))
+    summary = _read_summary(scan_dir)
+    ss = next(iter(summary["scanners"].values()))
+
+    # only the shared model appears on the scan side too
+    assert set(ss["model_usage"].keys()) == {model_name}
+
+    # scanner consumed real tokens via the scan tracker
+    scan_usage = ss["model_usage"][model_name]
+    assert scan_usage["input_tokens"] > 0
+    assert scan_usage["output_tokens"] > 0
+    # the scan summary's `tokens` counter equals the scanner's
+    # aggregated total_tokens for its sole model
+    assert ss["tokens"] == scan_usage["total_tokens"]
 
 
 def test_llm_scanner_inherits_task_model_when_eval_set_model_omitted() -> None:
