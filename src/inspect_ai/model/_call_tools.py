@@ -328,6 +328,10 @@ async def _execute_tools_impl(
                         result_exception,
                     ) = await receive_stream.receive()
 
+            # track where this call's result message(s) start so that we
+            # can associate the event with its own ChatMessageTool (rather
+            # than always pointing at the first tool call's message)
+            result_start = len(result_messages)
             if event.cancelled:
                 tool_message = ChatMessageTool(
                     content="",
@@ -364,7 +368,9 @@ async def _execute_tools_impl(
                 waiting_time=waiting_time_end - waiting_time_start,
                 agent=result_event.agent,
                 failed=True if result_exception else None,
-                message_id=result_messages[0].id if len(result_messages) > 0 else None,
+                message_id=result_messages[result_start].id
+                if len(result_messages) > result_start
+                else None,
                 agent_span_id=result_event.agent_span_id,
             )
             transcript()._event_updated(event)

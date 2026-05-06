@@ -15,6 +15,7 @@
 - Inspect View: Ensure tool output wraps for rendered text.
 - Inspect View: Improve scrolling behavior when moving to next scroll result.
 - Bugfix: Don't skip sandbox init skipped when first task has no sandbox.
+- Bugfix: Fix `ToolEvent.message_id` to reference the correct `ChatMessageTool` when multiple tool calls occur in one assistant turn.
 
 ## 0.3.199 (17 March 2026)
 
