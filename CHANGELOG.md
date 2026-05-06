@@ -1,3 +1,9 @@
+## Unreleased
+
+- Inspect View: Fix extraneous console errors
+- Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.
+- Inspect View: Task samples - perserve sort and other state in VS Code.
+
 ## 0.3.218 (06 May 2026)
 
 - Google: Support Gemini 3+ native web search and code execution alongside function tools.
