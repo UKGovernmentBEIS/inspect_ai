@@ -37,7 +37,7 @@ If you use VS Code, you should be sure to have installed the recommended extensi
 
 The web UI lives in a git submodule at `src/inspect_ai/_view/ts-mono/`. **These steps are only needed if you plan to work on the TypeScript/React frontend** — Python-only contributors can skip this entirely.
 
-Initialize the submodule and install dependencies — see the [one-time setup guide](src/inspect_ai/_view/ts-mono/docs/submodule-guide.md#one-time-setup).
+Initialize the submodule and install dependencies — see the [one-time setup guide](https://github.com/meridianlabs-ai/ts-mono/blob/main/docs/submodule-guide.md#one-time-setup).
 
 ### Documentation
 
