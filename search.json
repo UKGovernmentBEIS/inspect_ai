@@ -2666,25 +2666,32 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Google: Support Gemini 3+ native web search and code execution alongside function tools.\nHuggingFace: Add trust_remote_code model argument (defaults to False).\nVLLM: New vllm-completions model provider that uses completions rather than chat endpoint.\nOpenRouter: Coalesce adjacent system messages before request.\nBedrock: Preserve maxTokens when reasoning effort is less than “high”.\nEval Set: retry_immediate now defaults to True. Pass retry_immediate=False (or --no-retry-immediate) to restore the previous batch-retry behavior.\nEval Set: max_tasks now defaults to the greater of 10 and the number of models being evaluated (was previously 4).\nEval Set: Roll forward model_usage and role_usage from previous log when performing retries (matches existing eval-retry behavior).\nCompaction: Account for redacted-reasoning input cost on providers that exclude it from usage.input_tokens (currently OpenAI Responses with store=false + include=[\"reasoning.encrypted_content\"]).\nBugfix: Fix ToolEvent.message_id to reference the correct ChatMessageTool when multiple tool calls occur in one assistant turn."
+    "text": "Inspect View: Fix extraneous console errors\nInspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.\nInspect View: Task samples - preserve sort and other state in VS Code."
   },
   {
     "objectID": "CHANGELOG.html#may-2026",
     "href": "CHANGELOG.html#may-2026",
     "title": "Inspect",
     "section": "",
-    "text": "Google: Support Gemini 3+ native web search and code execution alongside function tools.\nHuggingFace: Add trust_remote_code model argument (defaults to False).\nVLLM: New vllm-completions model provider that uses completions rather than chat endpoint.\nOpenRouter: Coalesce adjacent system messages before request.\nBedrock: Preserve maxTokens when reasoning effort is less than “high”.\nEval Set: retry_immediate now defaults to True. Pass retry_immediate=False (or --no-retry-immediate) to restore the previous batch-retry behavior.\nEval Set: max_tasks now defaults to the greater of 10 and the number of models being evaluated (was previously 4).\nEval Set: Roll forward model_usage and role_usage from previous log when performing retries (matches existing eval-retry behavior).\nCompaction: Account for redacted-reasoning input cost on providers that exclude it from usage.input_tokens (currently OpenAI Responses with store=false + include=[\"reasoning.encrypted_content\"]).\nBugfix: Fix ToolEvent.message_id to reference the correct ChatMessageTool when multiple tool calls occur in one assistant turn."
+    "text": "Inspect View: Fix extraneous console errors\nInspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.\nInspect View: Task samples - preserve sort and other state in VS Code."
   },
   {
     "objectID": "CHANGELOG.html#may-2026-1",
     "href": "CHANGELOG.html#may-2026-1",
     "title": "Inspect",
-    "section": "0.3.217 (03 May 2026)",
-    "text": "0.3.217 (03 May 2026)\n\nAdd adaptive connections option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.\nAdd score on error option to score samples that error rather than failing the task (errors are still counted toward the fail_on_error threshold).\nAdd media_resolver() context manager for scoped URI resolution for media reading (images, audio, etc.).\nAdd download() and gdrive_download() helpers for fetching external files with SHA256 verification, caching, and transient-error retry. gdrive_download() requires the optional gdown dependency, installed via pip install inspect_ai[gdown].\nCompaction: Lock Compact handler against concurrent AgentBridge calls.\nCompaction: On stop_reason='model_length' in react() agent, force-compact before falling through to the overflow filter.\nAnalysis: Fix wrong working_time path in SampleSummary columns.\nAdd scorer and scorer_args to ScoreEvent"
+    "section": "0.3.218 (06 May 2026)",
+    "text": "0.3.218 (06 May 2026)\n\nGoogle: Support Gemini 3+ native web search and code execution alongside function tools.\nHuggingFace: Add trust_remote_code model argument (defaults to False).\nVLLM: New vllm-completions model provider that uses completions rather than chat endpoint.\nOpenRouter: Coalesce adjacent system messages before request.\nBedrock: Preserve maxTokens when reasoning effort is less than “high”.\nEval Set: retry_immediate now defaults to True. Pass retry_immediate=False (or --no-retry-immediate) to restore the previous batch-retry behavior.\nEval Set: max_tasks now defaults to the greater of 10 and the number of models being evaluated (was previously 4).\nEval Set: Roll forward model_usage and role_usage from previous log when performing retries (matches existing eval-retry behavior).\nCompaction: Account for redacted-reasoning input cost on providers that exclude it from usage.input_tokens (currently OpenAI Responses with store=false + include=[\"reasoning.encrypted_content\"]).\nBugfix: Fix ToolEvent.message_id to reference the correct ChatMessageTool when multiple tool calls occur in one assistant turn."
   },
   {
     "objectID": "CHANGELOG.html#may-2026-2",
     "href": "CHANGELOG.html#may-2026-2",
+    "title": "Inspect",
+    "section": "0.3.217 (03 May 2026)",
+    "text": "0.3.217 (03 May 2026)\n\nAdd adaptive connections option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.\nAdd score on error option to score samples that error rather than failing the task (errors are still counted toward the fail_on_error threshold).\nAdd media_resolver() context manager for scoped URI resolution for media reading (images, audio, etc.).\nAdd download() and gdrive_download() helpers for fetching external files with SHA256 verification, caching, and transient-error retry. gdrive_download() requires the optional gdown dependency, installed via pip install inspect_ai[gdown].\nCompaction: Lock Compact handler against concurrent AgentBridge calls.\nCompaction: On stop_reason='model_length' in react() agent, force-compact before falling through to the overflow filter.\nAnalysis: Fix wrong working_time path in SampleSummary columns.\nAdd scorer and scorer_args to ScoreEvent"
+  },
+  {
+    "objectID": "CHANGELOG.html#may-2026-3",
+    "href": "CHANGELOG.html#may-2026-3",
     "title": "Inspect",
     "section": "0.3.216 (01 May 2026)",
     "text": "0.3.216 (01 May 2026)\n\nOpenRouter: Escape signature attribute in  tag round-trip.\nLogging: Add sample id, epoch, and task name to log records.\nDocker: Skip docker pull for service images already present in the local Docker daemon.\nInspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)\nInspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)\nInspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)\nModel database: Fix incorrect input_tokens for gpt-5.4, gpt-5.4-pro, gpt-5.5, gpt-5.5-pro (was 778000, now 922000 = 1,050,000 context − 128,000 output)."
