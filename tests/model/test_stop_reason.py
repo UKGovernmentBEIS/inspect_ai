@@ -54,7 +54,7 @@ async def test_openai_responses_stop_reason() -> None:
 @skip_if_no_anthropic
 @skip_if_trio
 async def test_anthropic_stop_reason() -> None:
-    await check_stop_reason("anthropic/claude-3-haiku-20240307")
+    await check_stop_reason("anthropic/claude-haiku-4-5")
 
 
 @pytest.mark.flaky
@@ -67,4 +67,4 @@ async def test_grok_stop_reason() -> None:
 @skip_if_no_together
 @skip_if_trio
 async def test_together_stop_reason() -> None:
-    await check_stop_reason("together/MiniMaxAI/MiniMax-M2.5")
+    await check_stop_reason("together/MiniMaxAI/MiniMax-M2.7")

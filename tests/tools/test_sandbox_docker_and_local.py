@@ -18,7 +18,13 @@ async def test_self_check_local(request) -> None:
         task_name=task_name, config=None, metadata={}
     )
 
-    known_failures = ["test_exec_as_user", "test_exec_as_nonexistent_user"]
+    known_failures = [
+        "test_exec_as_user",
+        "test_exec_as_nonexistent_user",
+        # local sandbox doesn't wrap commands with in-container `timeout`,
+        # so the signal exit code semantics differ (returns -15 not 143)
+        "test_exec_timeout_not_raised_on_fast_signal_death",
+    ]
 
     return await check_results_of_self_check(task_name, envs_dict, known_failures)
 

@@ -1,5 +1,6 @@
 import abc
 import contextlib
+import dataclasses
 import functools
 import json
 import logging
@@ -50,7 +51,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -125,6 +126,56 @@ class GenerateInput(NamedTuple):
 
     config: GenerateConfig
     """Model configuration."""
+
+
+@dataclasses.dataclass(frozen=True)
+class RetryDecision:
+    """Classification of a retryable exception for `ModelAPI.should_retry`.
+
+    `should_retry()` may return either a plain `bool` (legacy: any True
+    is treated as a generic transient retry) or a `RetryDecision` to
+    additionally classify the retry kind and pass server-suggested wait
+    times to the adaptive concurrency controller.
+
+    `RetryDecision` is truthy iff `retry` is True, so existing callers
+    written against the `bool` return (`if api.should_retry(ex): ...`)
+    keep working unchanged.
+
+    Use the `no()`, `transient()`, and `rate_limit()` factory methods
+    rather than constructing directly.
+    """
+
+    retry: bool
+    """Whether to retry the request."""
+
+    kind: Literal["rate_limit", "transient"] = "transient"
+    """How to account for the retry against the adaptive controller.
+
+    `rate_limit` triggers a scale-down. `transient` (5xx, timeouts,
+    network errors) only marks the request as retried so the eventual
+    success won't count toward scale-up — it does not shrink the limit.
+    """
+
+    retry_after: float | None = None
+    """Recommended seconds to wait before retrying, if the server provided one (e.g. via `Retry-After`)."""
+
+    def __bool__(self) -> bool:
+        return self.retry
+
+    @classmethod
+    def no(cls) -> "RetryDecision":
+        """Don't retry."""
+        return cls(retry=False)
+
+    @classmethod
+    def transient(cls, retry_after: float | None = None) -> "RetryDecision":
+        """Retry as a transient error (pauses scale-up but doesn't scale down)."""
+        return cls(retry=True, kind="transient", retry_after=retry_after)
+
+    @classmethod
+    def rate_limit(cls, retry_after: float | None = None) -> "RetryDecision":
+        """Retry as a rate-limit error (scales the adaptive controller down)."""
+        return cls(retry=True, kind="rate_limit", retry_after=retry_after)
 
 
 class ModelAPI(abc.ABC):
@@ -295,6 +346,24 @@ class ModelAPI(abc.ABC):
         """
         return count_media_tokens(media)
 
+    async def tokenize(self, text: str) -> list[int]:
+        """Tokenize text into token IDs using the model's tokenizer.
+
+        Override in providers that support server-side tokenization
+        (e.g. vLLM's ``/tokenize`` endpoint).
+
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            List of token IDs.
+
+        Raises:
+            NotImplementedError: If the provider does not support
+                tokenization.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tokenize().")
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -318,8 +387,29 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
-    def should_retry(self, ex: Exception) -> bool:
+    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
+        """Whether compaction should add `redacted_reasoning_tokens` to its input estimate.
+
+        Override and return True for providers whose `usage.input_tokens`
+        omits redacted reasoning content on re-injection (e.g., OpenAI
+        Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
+
+        Note: bridge-mediated workloads (`agent_bridge`) reconstruct messages
+        from provider-native input and lose this metadata, so the predictive
+        correction does not apply there. Bridge users rely on the reactive
+        `model_length` recovery.
+        """
+        return False
+
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         """Should this exception be retried?
+
+        Returns either a plain `bool` (any True is treated as a transient
+        retry by the adaptive controller) or a `RetryDecision` to
+        additionally classify the retry as `rate_limit` vs `transient`
+        and to pass through any server-suggested `retry_after`. Built-in
+        providers return `RetryDecision` so the adaptive controller scales
+        only on real rate-limit signals.
 
         Args:
            ex: Exception to check for retry
@@ -346,6 +436,10 @@ class ModelAPI(abc.ABC):
 
     def collapse_assistant_messages(self) -> bool:
         """Collapse consecutive assistant messages into a single message."""
+        return False
+
+    def collapse_system_messages(self) -> bool:
+        """Collapse consecutive system messages into a single message."""
         return False
 
     def tools_required(self) -> bool:
@@ -412,6 +506,41 @@ class ModelAPI(abc.ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support native compaction."
         )
+
+
+REDACTED_REASONING_TOKENS_METADATA_KEY = "redacted_reasoning_tokens"
+"""Metadata key for the per-message reasoning token count that an
+all-redacted-reasoning response contributes to context on re-injection but
+is omitted from `usage.input_tokens` by some providers (e.g., OpenAI
+Responses with encrypted reasoning preservation). Compaction reads this
+to correct its threshold estimate."""
+
+
+def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
+    """Stamp `redacted_reasoning_tokens` onto an assistant message's metadata.
+
+    Only stamps when ALL reasoning blocks in the response are redacted; mixed
+    responses (some visible, some redacted) can't be split from a single
+    `usage.reasoning_tokens` figure, and responses with only visible reasoning
+    don't have the input-counting blind spot the metadata is meant to correct.
+    """
+    if not (
+        output.usage
+        and output.usage.reasoning_tokens
+        and isinstance(output.message.content, list)
+    ):
+        return
+
+    reasoning_blocks = [
+        c for c in output.message.content if isinstance(c, ContentReasoning)
+    ]
+    if not reasoning_blocks or not all(c.redacted for c in reasoning_blocks):
+        return
+
+    output.message.metadata = {
+        **(output.message.metadata or {}),
+        REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
+    }
 
 
 class Model:
@@ -614,6 +743,8 @@ class Model:
                 else (completed - start_time).total_seconds()
             )
 
+            _stamp_redacted_reasoning_tokens(output)
+
             # return output
             return output
 
@@ -741,7 +872,6 @@ class Model:
         Args:
           input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
           tools: Tools available for the model to call.
-          config: Model configuration.
           instructions: Additional instructions to give the model about compaction
                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
@@ -800,7 +930,11 @@ class Model:
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
-        from inspect_ai.hooks._hooks import emit_model_cache_usage, emit_model_usage
+        from inspect_ai.hooks._hooks import (
+            emit_before_model_generate,
+            emit_model_cache_usage,
+            emit_model_usage,
+        )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import track_active_model_event
@@ -873,6 +1007,9 @@ class Model:
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
 
+        if self.api.collapse_system_messages():
+            input = collapse_consecutive_system_messages(input)
+
         # resolve cache policy
         if isinstance(cache, NotGiven):
             cache_policy: bool | CachePolicy | None = config.cache
@@ -930,6 +1067,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # mark this request as a cache hit so the post-call
+                    # adaptive-controller success notification is suppressed —
+                    # cache hits don't exercise the rate limit
+                    from inspect_ai.util._concurrency import _request_was_cache_hit
+
+                    _request_was_cache_hit.set(True)
                     if existing.usage:
                         await emit_model_cache_usage(
                             model_name=str(self), usage=existing.usage
@@ -944,6 +1087,16 @@ class Model:
             # record the interaction before the call to generate
             # (we'll update it with the results once we have them)
             complete, event = self._record_model_interaction(
+                input=input,
+                tools=tools_info,
+                tool_choice=tool_choice,
+                config=config,
+                cache="write" if cache else None,
+            )
+
+            # emit before-generate hook
+            await emit_before_model_generate(
+                model_name=str(self),
                 input=input,
                 tools=tools_info,
                 tool_choice=tool_choice,
@@ -1045,6 +1198,24 @@ class Model:
         time_start = time.monotonic()
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
+
+        # notify the adaptive controller of a clean success (no retries during
+        # this logical request, AND not a cache hit since cache hits don't
+        # exercise the rate limit). Successful-after-retry and cache hits are
+        # both treated as neutral.
+        from inspect_ai.util._concurrency import (
+            _active_controller,
+            _request_had_retry,
+            _request_was_cache_hit,
+        )
+
+        controller = _active_controller.get()
+        if (
+            controller is not None
+            and not _request_had_retry.get()
+            and not _request_was_cache_hit.get()
+        ):
+            controller.notify_success()
         if model_output.time:
             # we've already reported some of the waiting time in tenacity callbacks
             # any remaining waiting time will have been due to internal retry within
@@ -1064,21 +1235,31 @@ class Model:
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
             # attempt timeout is always retried (we rely on `timeout`
-            # and/or `max_retries` for termination)
+            # and/or `max_retries` for termination). Classified as transient:
+            # _request_had_retry still flips so the eventual success won't
+            # count toward adaptive scale-up, but the controller doesn't
+            # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
+                report_http_retry()
                 return True
 
-            # check standard should_retry() method
-            retry = self.api.should_retry(ex)
-            if retry:
+            # check standard should_retry() method — may return bool or RetryDecision
+            decision = self.api.should_retry(ex)
+            if isinstance(decision, RetryDecision):
+                if decision.retry:
+                    report_http_retry(
+                        kind=decision.kind, retry_after=decision.retry_after
+                    )
+                    return True
+            elif decision:
+                # legacy bool-True path: provider didn't classify, treat as transient
                 report_http_retry()
                 return True
 
             from inspect_ai.hooks._hooks import has_api_key_override
 
             if has_api_key_override():
-                retry = self.api.is_auth_failure(ex)
-                if retry:
+                if self.api.is_auth_failure(ex):
                     report_http_retry()
                     return True
 
@@ -1090,9 +1271,9 @@ class Model:
                     f"provider '{self.name}' implements deprecated is_rate_limit() method, "
                     + "please change to should_retry()",
                 )
-                retry = cast(bool, is_rate_limit(ex))
-                if retry:
-                    report_http_retry()
+                if cast(bool, is_rate_limit(ex)):
+                    # legacy method's name says it all — treat as rate-limit
+                    report_http_retry(kind="rate_limit")
                     return True
 
         # no retry
@@ -1129,20 +1310,68 @@ class Model:
         self, config: GenerateConfig
     ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
-        max_connections = (
-            config.max_connections
-            if config.max_connections
-            else DEFAULT_MAX_CONNECTIONS_BATCH
-            if config.batch
-            else self.api.max_connections()
+        from inspect_ai.util._concurrency import (
+            AdaptiveConcurrency,
+            AdaptiveConcurrencyController,
+            _active_controller,
+            _request_had_retry,
+            _request_was_cache_hit,
         )
+
         model_name = ModelName(self)
-        async with concurrency(
-            name=str(model_name),
-            concurrency=max_connections,
-            key=f"Model{self.api.connection_key()}",
+        key = f"Model{self.api.connection_key()}"
+
+        # adaptive path: controller-managed CapacityLimiter. Two precedence
+        # rules — both silent — anticipating adaptive_connections becoming
+        # default-on, in which case any deliberate override must keep working:
+        #   * Explicit max_connections wins (existing behavior).
+        #   * Batch mode wins. Batch APIs run on a separate quota, the per-
+        #     request concurrency model doesn't bind (DEFAULT_MAX_CONNECTIONS_BATCH
+        #     is a sentinel ceiling), and the worker's background-task
+        #     ContextVars don't propagate retry/success signals back to
+        #     awaiting generates — so adaptive's success/retry accounting
+        #     would be incorrect anyway. See docs/parallelism.qmd.
+        if (
+            config.adaptive_connections
+            and config.max_connections is None
+            and not config.batch
         ):
-            yield
+            adaptive = (
+                config.adaptive_connections
+                if isinstance(config.adaptive_connections, AdaptiveConcurrency)
+                else AdaptiveConcurrency()
+            )
+            async with concurrency(
+                name=str(model_name),
+                concurrency=adaptive.start,
+                key=key,
+                adaptive=adaptive,
+            ) as sem:
+                assert isinstance(sem, AdaptiveConcurrencyController)
+                token_c = _active_controller.set(sem)
+                token_r = _request_had_retry.set(False)
+                token_h = _request_was_cache_hit.set(False)
+                try:
+                    yield
+                finally:
+                    _active_controller.reset(token_c)
+                    _request_had_retry.reset(token_r)
+                    _request_was_cache_hit.reset(token_h)
+        else:
+            # static path (existing behavior, unchanged)
+            max_connections = (
+                config.max_connections
+                if config.max_connections
+                else DEFAULT_MAX_CONNECTIONS_BATCH
+                if config.batch
+                else self.api.max_connections()
+            )
+            async with concurrency(
+                name=str(model_name),
+                concurrency=max_connections,
+                key=key,
+            ):
+                yield
 
     def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
         # base config for this model
@@ -1158,6 +1387,7 @@ class Model:
             base_config = base_config.merge(
                 GenerateConfig(
                     max_connections=active_config.max_connections,
+                    adaptive_connections=active_config.adaptive_connections,
                     max_retries=active_config.max_retries,
                     timeout=active_config.timeout,
                 )
@@ -1331,6 +1561,7 @@ def get_model(
     model: str | Model | None = None,
     *,
     role: str | None = None,
+    required: bool = False,
     default: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
@@ -1365,6 +1596,10 @@ def get_model(
        role: Optional named role for model (e.g. for roles specified
           at the task or eval level). Provide a `default` as a fallback
           in the case where the `role` hasn't been externally specified.
+          Pass `required` to raise an error if the role has not been specified.
+       required: If a model role is specified, is it required? If required
+          and not present, an error is raised. Otherwise, the current
+          default model is returned.
        default: Optional. Fallback model in case the specified
           `model` or `role` is not found.
        config: Configuration for model.
@@ -1395,11 +1630,20 @@ def get_model(
         if model_for_role is not None:
             return model_for_role
 
+        # raise if required and not found
+        elif required is True and default is None:
+            raise PrerequisiteError(
+                f"Model role '{role}' is required and was not specified."
+            )
+
     # if a default was specified then use it as the model if
     # no model was passed
     if model is None:
         if isinstance(default, Model):
             if role is not None:
+                # shallow-copy so we don't mutate the caller's Model
+                # (e.g. a shared instance held in model_roles())
+                default = copy(default)
                 default._set_role(role)
             return default
         else:
@@ -1654,7 +1898,7 @@ def resolve_tool_model_input(
         return messages
 
     # don't mutate the original messages
-    messages = deepcopy(messages)
+    messages = [m.model_copy() for m in messages]
 
     # extract tool messages
     tool_messages = [
@@ -1669,11 +1913,11 @@ def resolve_tool_model_input(
         ]
         # call the function for each tool, passing the index, total, and content
         for index, message in enumerate(tdef_tool_messages):
-            original_content = message.content
-            message.content = tdef.model_input(
+            model_input_content = tdef.model_input(
                 index, len(tool_messages), message.content, hints
             )
-            if message.content is not original_content:
+            if model_input_content is not message.content:
+                message.content = model_input_content
                 message.id = uuid()
 
     # return modified messages
@@ -1795,6 +2039,15 @@ def collapse_consecutive_assistant_messages(
     return functools.reduce(assistant_message_reducer, messages, [])
 
 
+# Functions to reduce consecutive system messages to a single system message ->
+# required for OpenRouter inference providers (e.g. AkashML, Parasail) that
+# reject requests containing more than one system message.
+def collapse_consecutive_system_messages(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    return functools.reduce(system_message_reducer, messages, [])
+
+
 def user_message_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
@@ -1807,6 +2060,13 @@ def assistant_message_reducer(
     message: ChatMessage,
 ) -> list[ChatMessage]:
     return consecutive_message_reducer(messages, message, ChatMessageAssistant)
+
+
+def system_message_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+) -> list[ChatMessage]:
+    return consecutive_message_reducer(messages, message, ChatMessageSystem)
 
 
 def consecutive_message_reducer(
@@ -1828,38 +2088,66 @@ def consecutive_message_reducer(
 def combine_messages(
     a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
 ) -> ChatMessage:
-    # TODO: Although unlikely to happen based on the current call sites, these
-    # fabricated messages drop interesting fields from the source messages -
-    # such as `internal_name`, `tool_calls`, etc.
-    # To be more specific, since all `ChatMessageXxx` fields other than `id` and
-    # `content` have default values, it's more the case that they're reset to
-    # default values rather than dropped.
-
-    # track combination
-    metadata = {"combined_from": [a.id, b.id]}
-
+    # merge content
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
+        content: str | list[Content] = f"{a.content}\n{b.content}"
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content, metadata=metadata)
+        content = a.content + b.content
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(
-            content=[ContentText(text=a.content), *b.content], metadata=metadata
-        )
+        content = [ContentText(text=a.content), *b.content]
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(
-            content=a.content + [ContentText(text=b.content)], metadata=metadata
-        )
+        content = a.content + [ContentText(text=b.content)]
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
         )
 
+    # merge metadata (later message wins on conflicts)
+    merged_metadata: dict[str, Any] = {}
+    if a.metadata:
+        merged_metadata.update(a.metadata)
+    if b.metadata:
+        merged_metadata.update(b.metadata)
+
+    # track which messages were combined
+    merged_metadata["combined_from"] = [a.id, b.id]
+
+    # type-specific field merging
+    if isinstance(a, ChatMessageAssistant) and isinstance(b, ChatMessageAssistant):
+        merged_tool_calls = (a.tool_calls or []) + (b.tool_calls or [])
+        return ChatMessageAssistant(
+            content=content,
+            tool_calls=merged_tool_calls or None,
+            model=b.model or a.model,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    elif isinstance(a, ChatMessageUser) and isinstance(b, ChatMessageUser):
+        merged_tool_call_id = (a.tool_call_id or []) + (b.tool_call_id or [])
+        return ChatMessageUser(
+            content=content,
+            tool_call_id=merged_tool_call_id or None,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+    else:
+        return message_type(
+            content=content,
+            source=b.source or a.source,
+            metadata=merged_metadata or None,
+        )
+
 
 def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+    from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
+
+    prefix = sample_context_prefix()
+    error = retry_error_summary(retry_state)
+    level = logging.WARNING if retry_state.upcoming_sleep >= (60 * 20) else HTTP
     logger.log(
-        HTTP,
-        f"-> {model_name} retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
+        level,
+        f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
+        f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
     )
 
 
@@ -1882,6 +2170,10 @@ def init_model_roles(roles: dict[str, Model]) -> None:
 
 
 def model_roles() -> dict[str, Model]:
+    """Model roles.
+
+    Get the model roles defined for the current task. Call this method only within a running solver or agent execution (it's not available during task construction).
+    """
     return _model_roles.get()
 
 

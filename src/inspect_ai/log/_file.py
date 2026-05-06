@@ -24,7 +24,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.log._pool import resolve_sample_events_data
+from inspect_ai.log._pool import rebind_sample_timelines, resolve_sample_events_data
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -77,6 +77,7 @@ class LogOverview(BaseModel):
     error: EvalError | None = Field(default=None)
 
     model: str
+    model_roles: dict[str, str] | None = Field(default=None)
 
     started_at: UtcDatetimeStr | Literal[""]
     completed_at: UtcDatetimeStr | Literal[""]
@@ -137,6 +138,7 @@ def write_eval_log(
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
+    header_only: bool = False,
 ) -> None:
     """Write an evaluation log.
 
@@ -147,6 +149,9 @@ def write_eval_log(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+       header_only (bool): If True, only write the header to the log file.
+          For .eval files, this appends the header to the existing zip
+          without rewriting samples. Defaults to False.
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -160,7 +165,11 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(write_eval_log_async(log, location, format, if_match_etag))
+    run_coroutine(
+        write_eval_log_async(
+            log, location, format, if_match_etag, header_only=header_only
+        )
+    )
 
 
 async def write_eval_log_async(
@@ -168,6 +177,7 @@ async def write_eval_log_async(
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
+    header_only: bool = False,
 ) -> None:
     """Write an evaluation log.
 
@@ -178,6 +188,9 @@ async def write_eval_log_async(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+       header_only (bool): If True, only write the header to the log file.
+          For .eval files, this appends the header to the existing zip
+          without rewriting samples. Defaults to False.
     """
     # resolve location
     if location is None:
@@ -202,7 +215,7 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log, if_match_etag)
+    await recorder_type.write_log(location, log, if_match_etag, header_only=header_only)
 
     logger.debug(f"Writing eval log to {location} completed")
 
@@ -338,14 +351,11 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_format(format)
         log = await recorder_type.read_log(log_file, header_only)
 
-    # always resolve message pool refs so ModelEvent.input is populated
     if log.samples:
-        log.samples = [resolve_sample_events_data(sample) for sample in log.samples]
-        if resolve_attachments:
-            log.samples = [
-                resolve_sample_attachments(sample, resolve_attachments)
-                for sample in log.samples
-            ]
+        log.samples = [
+            _resolve_sample_for_read(sample, resolve_attachments)
+            for sample in log.samples
+        ]
 
     # provide sample ids if they aren't there
     if log.eval.dataset.sample_ids is None and log.samples is not None:
@@ -410,10 +420,10 @@ def read_eval_log_sample(
     Args:
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read. Optional, alternatively
-         specify `uuid` (you must specify `id` or `uuid`)
+          specify `uuid` (you must specify `id` or `uuid`)
        epoch (int): Epoch for sample id (defaults to 1)
        uuid: Sample uuid to read. Optional, alternatively specify
-         `id` and `epoch` (you must specify either `uuid` or `id`)
+          `id` and `epoch` (you must specify either `uuid` or `id`)
        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -524,12 +534,7 @@ async def read_eval_log_sample_async(
         log_file, id, epoch, uuid, exclude_fields, reader
     )
 
-    # always resolve message pool refs so ModelEvent.input is populated
-    sample = resolve_sample_events_data(sample)
-    if resolve_attachments:
-        sample = resolve_sample_attachments(sample, resolve_attachments)
-
-    return sample
+    return _resolve_sample_for_read(sample, resolve_attachments)
 
 
 def read_eval_log_sample_summaries(
@@ -749,6 +754,7 @@ def eval_log_json_str(log: EvalLog) -> str:
 def write_log_listing(
     log_dir: str,
     *,
+    logs: list[EvalLogInfo] | None = None,
     filename: str = "listing.json",
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
@@ -759,6 +765,7 @@ def write_log_listing(
 
     Args:
       log_dir (str): Log directory to write overview for.
+      logs (list[EvalLogInfo] | None): Pre-fetched log list (defaults to listing log_dir).
       filename (str): Manifest filename (defaults to "overview.json")
       output_dir (str | None): Output directory for manifest (defaults to log_dir)
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
@@ -769,7 +776,8 @@ def write_log_listing(
     log_dir = fs.info(log_dir).name
 
     # list eval logs
-    logs = list_eval_logs(log_dir)
+    if logs is None:
+        logs = list_eval_logs(log_dir)
 
     # resolve to overview (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
@@ -798,6 +806,12 @@ def to_overview(header: EvalLog) -> LogOverview:
     ):
         primary_metric = next(iter(first_scorer.metrics.values()))
 
+    model_roles = (
+        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        if header.eval.model_roles
+        else None
+    )
+
     return LogOverview(
         eval_id=header.eval.eval_id,
         run_id=header.eval.run_id,
@@ -809,7 +823,19 @@ def to_overview(header: EvalLog) -> LogOverview:
         invalidated=header.invalidated,
         error=header.error,
         model=header.eval.model,
+        model_roles=model_roles,
         started_at=header.stats.started_at,
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def _resolve_sample_for_read(
+    sample: "EvalSample",
+    resolve_attachments: bool | Literal["full", "core"],
+) -> "EvalSample":
+    """Apply read-time event resolution and bind timelines to final events."""
+    sample = resolve_sample_events_data(sample)
+    if resolve_attachments:
+        sample = resolve_sample_attachments(sample, resolve_attachments)
+    return rebind_sample_timelines(sample)

@@ -18,6 +18,7 @@ DETECTION_METHODS = [
     "is_claude_4_1",
     "is_claude_4_5",
     "is_claude_4_6",
+    "is_claude_4_7",
     "is_claude_4_opus",
     "is_thinking_model",
     "is_claude_latest",
@@ -70,6 +71,7 @@ _CLAUDE_3 = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": False,
     "is_claude_latest": False,
@@ -84,6 +86,7 @@ _CLAUDE_3_5 = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": False,
     "is_claude_latest": False,
@@ -98,6 +101,7 @@ _CLAUDE_3_7 = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -112,6 +116,7 @@ _CLAUDE_4_0_SONNET = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -126,6 +131,7 @@ _CLAUDE_4_0_OPUS = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -140,6 +146,7 @@ _CLAUDE_4_1_OPUS = {
     "is_claude_4_1": True,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -154,6 +161,7 @@ _CLAUDE_4_5_SONNET = {
     "is_claude_4_1": False,
     "is_claude_4_5": True,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -168,6 +176,7 @@ _CLAUDE_4_5_OPUS = {
     "is_claude_4_1": False,
     "is_claude_4_5": True,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -182,6 +191,7 @@ _CLAUDE_4_5_HAIKU = {
     "is_claude_4_1": False,
     "is_claude_4_5": True,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -196,6 +206,7 @@ _CLAUDE_4_6_SONNET = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": True,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": False,
@@ -210,9 +221,30 @@ _CLAUDE_4_6_OPUS = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": True,
+    "is_claude_4_7": False,
     "is_claude_4_opus": True,
     "is_thinking_model": True,
     "is_claude_latest": False,
+}
+
+_CLAUDE_4_7_OPUS = {
+    "is_claude_3": False,
+    "is_claude_3_5": False,
+    "is_claude_3_7": False,
+    "is_claude_4": True,
+    "is_claude_4_0": False,
+    "is_claude_4_1": False,
+    "is_claude_4_5": False,
+    "is_claude_4_6": False,
+    "is_claude_4_7": True,
+    "is_claude_4_opus": True,
+    "is_thinking_model": True,
+    "is_claude_latest": False,
+}
+
+_CLAUDE_4_7_NON_OPUS = {
+    **_CLAUDE_4_7_OPUS,
+    "is_claude_4_opus": False,
 }
 
 _CLAUDE_FUTURE = {
@@ -224,6 +256,7 @@ _CLAUDE_FUTURE = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": True,
@@ -238,6 +271,7 @@ _CLAUDE_FUTURE_4_MINOR = {
     "is_claude_4_1": False,
     "is_claude_4_5": False,
     "is_claude_4_6": False,
+    "is_claude_4_7": False,
     "is_claude_4_opus": False,
     "is_thinking_model": True,
     "is_claude_latest": True,
@@ -467,7 +501,7 @@ def test_future_major_version(model_name: str) -> None:
     "model_name",
     [
         # Future 4.x minor version (non-opus)
-        "claude-sonnet-4-7-20260101",
+        "claude-sonnet-4-9-20260301",
         "claude-haiku-4-8",
     ],
 )
@@ -484,6 +518,40 @@ def test_future_4_minor_version(model_name: str) -> None:
 )
 def test_future_4_minor_version_opus(model_name: str) -> None:
     _check_model(model_name, _CLAUDE_FUTURE_4_MINOR_OPUS)
+
+
+# ── Claude 4.7 Opus ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # API ID
+        "claude-opus-4-7-20260415",
+        # Alias
+        "claude-opus-4-7",
+        # Bedrock
+        "anthropic.claude-opus-4-7",
+    ],
+)
+def test_claude_4_7_opus(model_name: str) -> None:
+    _check_model(model_name, _CLAUDE_4_7_OPUS)
+
+
+# ── Claude 4.7 hypothetical non-opus variants ────────────────────────────────
+# Sonnet/Haiku 4.7 haven't shipped, but the regex matches them as 4.7
+# (not "latest"), so the routing for any future 4.7 variant is correct.
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "claude-sonnet-4-7-20260101",
+        "claude-haiku-4-7",
+    ],
+)
+def test_claude_4_7_non_opus(model_name: str) -> None:
+    _check_model(model_name, _CLAUDE_4_7_NON_OPUS)
 
 
 @pytest.mark.parametrize(

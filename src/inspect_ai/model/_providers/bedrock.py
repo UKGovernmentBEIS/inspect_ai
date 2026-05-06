@@ -21,6 +21,7 @@ from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -30,7 +31,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
@@ -272,8 +273,23 @@ class BedrockAPI(ModelAPI):
                 "ERROR: The bedrock provider does not work with the trio async backend."
             )
 
-        # save model_args
-        self.model_args = model_args
+        # extract timeout settings from model_args (coerce CLI strings to int)
+        self.read_timeout: int = int(str(model_args.pop("read_timeout", 60)))
+        self.connect_timeout: int = int(str(model_args.pop("connect_timeout", 60)))
+
+        # save model_args (filter out inference params that shouldn't go to session.client)
+        _CLIENT_EXCLUDED_KEYS = {
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "stop_seqs",
+            "reasoning_tokens",
+            "reasoning_effort",
+        }
+        self.model_args = {
+            k: v for k, v in model_args.items() if k not in _CLIENT_EXCLUDED_KEYS
+        }
 
         # import aioboto3 on demand
         try:
@@ -309,26 +325,43 @@ class BedrockAPI(ModelAPI):
         else:
             return DEFAULT_MAX_TOKENS
 
+    # Bedrock returns AWS-specific error codes; the throttling-family codes
+    # are documented as the 429 equivalent and indicate true capacity
+    # throttling. The infra-family codes (RequestTimeout, ServiceUnavailable)
+    # are retryable but represent AWS-side issues, not client over-saturation —
+    # so they're classified as transient (pause scale-up, don't scale down).
+    _BEDROCK_THROTTLE_CODES = frozenset(
+        [
+            "ThrottlingException",
+            "RequestLimitExceeded",
+            "Throttling",
+            "RequestThrottled",
+            "TooManyRequestsException",
+            "ProvisionedThroughputExceededException",
+        ]
+    )
+    _BEDROCK_TRANSIENT_CODES = frozenset(
+        [
+            "TransactionInProgressException",
+            "RequestTimeout",
+            "ServiceUnavailable",
+            "ServiceUnavailableException",
+        ]
+    )
+
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         from botocore.exceptions import ClientError
 
-        # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
-            return error_code in [
-                "ThrottlingException",
-                "RequestLimitExceeded",
-                "Throttling",
-                "RequestThrottled",
-                "TooManyRequestsException",
-                "ProvisionedThroughputExceededException",
-                "TransactionInProgressException",
-                "RequestTimeout",
-                "ServiceUnavailable",
-            ]
-        else:
-            return False
+            if error_code in self._BEDROCK_THROTTLE_CODES:
+                # AWS doesn't include Retry-After on ThrottlingException — fall
+                # back to the controller's configured cooldown floor.
+                return RetryDecision.rate_limit()
+            if error_code in self._BEDROCK_TRANSIENT_CODES:
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -404,6 +437,8 @@ class BedrockAPI(ModelAPI):
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
+                read_timeout=self.read_timeout,
+                connect_timeout=self.connect_timeout,
                 retries=dict(mode="adaptive"),
                 user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),
@@ -427,8 +462,12 @@ class BedrockAPI(ModelAPI):
             additionalModelRequestFields: dict[str, Any] = {}
             if config.top_k:
                 additionalModelRequestFields["top_k"] = config.top_k
-            additionalModelRequestFields = (
-                additionalModelRequestFields | self.reasoning_config(config)
+            reasoning_cfg = self.reasoning_config(config)
+            additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
+
+            # Nova with reasoning enabled requires maxTokens to be unset
+            nova_reasoning_enabled = (
+                self.is_nova() and "reasoningConfig" in reasoning_cfg
             )
 
             # Make the request
@@ -437,7 +476,7 @@ class BedrockAPI(ModelAPI):
                 messages=messages,
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=config.max_tokens,
+                    maxTokens=None if nova_reasoning_enabled else config.max_tokens,
                     temperature=config.temperature,
                     topP=config.top_p,
                     stopSequences=config.stop_seqs,
@@ -844,8 +883,9 @@ def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
             name=tool.name,
             description=tool.description,
             inputSchema={
-                "json": tool.parameters.model_dump(
-                    exclude_none=True, exclude={"additionalProperties"}
+                "json": json_schema_dump(
+                    tool.parameters,
+                    exclude={"additionalProperties"},
                 )
             },
         )

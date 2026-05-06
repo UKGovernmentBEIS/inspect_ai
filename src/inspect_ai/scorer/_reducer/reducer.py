@@ -26,9 +26,12 @@ def mode_score() -> ScoreReducer:
         ) -> str | int | float | bool:
             return counts.most_common(1)[0][0]
 
-        if isinstance(scores[0].value, dict):
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
             return _count_dict(scores, most_common)
-        elif isinstance(scores[0].value, list):
+        elif isinstance(representative.value, list):
             return _count_list(scores, most_common)
         else:
             return _count_scalar(scores, most_common)
@@ -45,9 +48,12 @@ def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     """
 
     def reduce(scores: list[Score]) -> Score:
-        if isinstance(scores[0].value, dict):
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
             return _compute_dict_stat(scores, value_to_float, statistics.mean)
-        elif isinstance(scores[0].value, list):
+        elif isinstance(representative.value, list):
             return _compute_list_stat(scores, value_to_float, statistics.mean)
         else:
             return _compute_scalar_stat(scores, value_to_float, statistics.mean)
@@ -64,9 +70,12 @@ def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReduce
     """
 
     def reduce(scores: list[Score]) -> Score:
-        if isinstance(scores[0].value, dict):
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
             return _compute_dict_stat(scores, value_to_float, statistics.median)
-        elif isinstance(scores[0].value, list):
+        elif isinstance(representative.value, list):
             return _compute_list_stat(scores, value_to_float, statistics.median)
         else:
             return _compute_scalar_stat(scores, value_to_float, statistics.median)
@@ -95,9 +104,12 @@ def at_least(
             )
             return 1 if count_gte_n >= k else 0
 
-        if isinstance(scores[0].value, dict):
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
             return _count_dict(scores, gte_n)
-        elif isinstance(scores[0].value, list):
+        elif isinstance(representative.value, list):
             return _count_list(scores, gte_n)
         else:
             return _count_scalar(scores, gte_n)
@@ -130,9 +142,12 @@ def pass_at(
                     np.prod(1.0 - k / np.arange(total - correct + 1, total + 1)).item(),
                 )
 
-        if isinstance(scores[0].value, dict):
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
             return _compute_dict_stat(scores, value_to_float, pass_at_k)
-        elif isinstance(scores[0].value, list):
+        elif isinstance(representative.value, list):
             return _compute_list_stat(scores, value_to_float, pass_at_k)
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
@@ -150,22 +165,27 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     """
 
     def reduce(scores: list[Score]) -> Score:
-        if isinstance(scores[0].value, dict):
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
+            dict_scores = _partition_dict_scores(scores)
             dict_result: dict[str, str | int | float | bool | None] = {}
-            keys = scores[0].value.keys()  # type: ignore
+            keys = dict_scores[0].value.keys()  # type: ignore
             for key in keys:
                 max_value = max(
-                    [score.value[key] for score in scores],  # type: ignore
+                    [score.value[key] for score in dict_scores],  # type: ignore
                     key=value_to_float,  # type: ignore
                 )
                 dict_result[key] = max_value
             return _reduced_score(dict_result, scores)
-        elif isinstance(scores[0].value, list):
+        elif isinstance(representative.value, list):
+            list_scores = _partition_list_scores(scores)
             list_result: list[str | int | float | bool] = []
-            list_size = len(scores[0].value)  # type: ignore
+            list_size = len(list_scores[0].value)  # type: ignore
             for i in range(list_size):
                 max_value = max(
-                    [score.value[i] for score in scores],  # type:ignore
+                    [score.value[i] for score in list_scores],  # type:ignore
                     key=value_to_float,  # type: ignore
                 )
                 if max_value is None:
@@ -176,7 +196,10 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                     list_result.append(max_value)
             return _reduced_score(list_result, scores)
         else:
-            max_score = max(scores, key=lambda score: value_to_float(score.value))
+            scalar_scores = [s for s in scores if not _is_unscored(s.value)]
+            max_score = max(
+                scalar_scores, key=lambda score: value_to_float(score.value)
+            )
             return _reduced_score(max_score.value, scores)
 
     return reduce
@@ -216,14 +239,16 @@ def _count_dict(
         scores: a list of Scores.
         counter_fn: a function which returns a scalar value based upon the counter
     """
-    # Make sure these are all dictionaries be we proceed
-    _check_value_dict(scores)
+    # Filter to dict-shaped scores (skipping NaN-at-root unscored sentinels).
+    dict_scores = _partition_dict_scores(scores)
+    if len(dict_scores) == 0:
+        return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool] = {}
-    keys = scores[0].value.keys()  # type: ignore
+    keys = dict_scores[0].value.keys()  # type: ignore
     for key in keys:
         key_values = []
-        for score in scores:
+        for score in dict_scores:
             key_value = cast(str | int | float | bool, score.value[key])  # type: ignore
             if _is_reducible(key_value):
                 key_values.append(key_value)
@@ -249,14 +274,16 @@ def _count_list(
         scores: a list of Scores.
         counter_fn: a function which returns a scalar value based upon the counter
     """
-    # Make sure these are all lists before we continue
-    _check_value_list(scores)
+    # Filter to list-shaped scores (skipping NaN-at-root unscored sentinels).
+    list_scores = _partition_list_scores(scores)
+    if len(list_scores) == 0:
+        return _nan_score(scores)
 
     list_result: list[str | int | float | bool] = []
-    list_size = len(scores[0].value)  # type: ignore
+    list_size = len(list_scores[0].value)  # type: ignore
     for i in range(list_size):
         index_values = []
-        for score in scores:
+        for score in list_scores:
             index_value = cast(str | int | float | bool, score.value[i])  # type:ignore
             if _is_reducible(index_value):
                 index_values.append(index_value)
@@ -280,13 +307,15 @@ def _compute_dict_stat(
         value_to_float: Function to convert the value to a float
         statistic: the statistic to apply
     """
-    # Make sure these are all dictionaries be we proceed
-    _check_value_dict(scores)
+    # Filter to dict-shaped scores (skipping NaN-at-root unscored sentinels).
+    dict_scores = _partition_dict_scores(scores)
+    if len(dict_scores) == 0:
+        return _nan_score(scores)
 
     dict_result: dict[str, str | int | float | bool | None] = {}
-    for key in scores[0].value.keys():  # type: ignore
+    for key in dict_scores[0].value.keys():  # type: ignore
         values = []
-        for score in scores:
+        for score in dict_scores:
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
                 values.append(value_to_float(key_value))
@@ -310,14 +339,16 @@ def _compute_list_stat(
         value_to_float: function to convert the value to a float
         statistic: the statistic to apply
     """
-    # Make sure these are all lists before we continue
-    _check_value_list(scores)
+    # Filter to list-shaped scores (skipping NaN-at-root unscored sentinels).
+    list_scores = _partition_list_scores(scores)
+    if len(list_scores) == 0:
+        return _nan_score(scores)
 
     list_result: list[str | int | float | bool] = []
-    list_size = len(scores[0].value)  # type: ignore
+    list_size = len(list_scores[0].value)  # type: ignore
     for i in range(list_size):
         values = []
-        for score in scores:
+        for score in list_scores:
             list_values = cast(list[str | int | float | bool], score.value)
             value = value_to_float(list_values[i])
             if _is_reducible(value):
@@ -354,28 +385,53 @@ def _compute_scalar_stat(
     return _reduced_score(result, scores)
 
 
-def _check_value_dict(scores: list[Score]) -> None:
-    r"""Ensure that all score values are dictionaries
+def _is_unscored(value: Value) -> bool:
+    r"""Check if a score value is the NaN-at-root unscored sentinel."""
+    return isinstance(value, float) and np.isnan(value)
 
-    Args:
-        scores: a list of Scores.
-    """
+
+def _first_scored(scores: list[Score]) -> Score | None:
+    r"""Return the first score that is not NaN-at-root, or None if all are unscored."""
     for score in scores:
-        if not isinstance(score.value, dict):
+        if not _is_unscored(score.value):
+            return score
+    return None
+
+
+def _partition_dict_scores(scores: list[Score]) -> list[Score]:
+    r"""Return the subset of scores whose value is a dict.
+
+    Skips scores with NaN-at-root (treated as unscored). Raises ValueError
+    if any score has a value that is neither a dict nor a NaN scalar.
+    """
+    result: list[Score] = []
+    for score in scores:
+        if isinstance(score.value, dict):
+            result.append(score)
+        elif _is_unscored(score.value):
+            continue
+        else:
             raise ValueError(
                 "Attempting to reduce a dictionary score for a non-dictionary value"
             )
+    return result
 
 
-def _check_value_list(scores: list[Score]) -> None:
-    r"""Ensure that all score values are lists
+def _partition_list_scores(scores: list[Score]) -> list[Score]:
+    r"""Return the subset of scores whose value is a list.
 
-    Args:
-        scores: a list of Scores.
+    Skips scores with NaN-at-root (treated as unscored). Raises ValueError
+    if any score has a value that is neither a list nor a NaN scalar.
     """
+    result: list[Score] = []
     for score in scores:
-        if not isinstance(score.value, list):
+        if isinstance(score.value, list):
+            result.append(score)
+        elif _is_unscored(score.value):
+            continue
+        else:
             raise ValueError("Attempting to reduce a list score for a non-list value")
+    return result
 
 
 def _reduced_score(value: Value, scores: list[Score]) -> Score:

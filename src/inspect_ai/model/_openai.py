@@ -1,9 +1,13 @@
 import functools
 import json
+import logging
 import re
 from copy import copy
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model import RetryDecision
 
 import httpx
 from openai import (
@@ -53,7 +57,10 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
@@ -63,12 +70,18 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    Logprob,
+    Logprobs,
+    TopLogprob,
+)
 from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ._chat_message import (
     ChatMessage,
@@ -78,6 +91,8 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIResponseError(OpenAIError):
@@ -248,7 +263,10 @@ async def messages_to_openai(
 
 
 def openai_completion_params(
-    model: str, config: GenerateConfig, tools: bool
+    model: str,
+    config: GenerateConfig,
+    tools: bool,
+    schema_exclude: set[str] | None = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = dict(model=model)
     if config.max_tokens is not None:
@@ -282,16 +300,24 @@ def openai_completion_params(
             type="json_schema",
             json_schema=dict(
                 name=config.response_schema.name,
-                schema=config.response_schema.json_schema.model_dump(exclude_none=True),
+                schema=json_schema_dump(
+                    config.response_schema.json_schema, exclude=schema_exclude
+                ),
                 description=config.response_schema.description,
                 strict=config.response_schema.strict,
             ),
         )
+    # Build extra_body: user-supplied entries first, then prompt_logprobs.
+    # "metadata" is excluded (never supported for completions as it requires 'store').
+    extra_body: dict[str, Any] = {}
     if config.extra_body:
-        # never supported for completions as requires 'store'
-        params["extra_body"] = {
-            key: value for key, value in config.extra_body.items() if key != "metadata"
-        }
+        extra_body.update(
+            {k: v for k, v in config.extra_body.items() if k != "metadata"}
+        )
+    if config.prompt_logprobs is not None:
+        extra_body["prompt_logprobs"] = config.prompt_logprobs
+    if extra_body:
+        params["extra_body"] = extra_body
 
     return params
 
@@ -320,7 +346,7 @@ def openai_assistant_content(
             if c.type == "reasoning":
                 c_reasoning = reasoning_handler(c)
                 if isinstance(c_reasoning, dict):
-                    extra_body = extra_body | c_reasoning
+                    extra_body = {**extra_body, **c_reasoning}
                 else:
                     content = f"{content}\n{c_reasoning}\n"
 
@@ -394,17 +420,21 @@ def openai_finish_reason(
             return "stop"
 
 
-def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
+def openai_chat_tool_param(
+    tool: ToolInfo, exclude: set[str] | None = None
+) -> ChatCompletionToolParam:
     function = FunctionDefinition(
         name=tool.name,
         description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
+        parameters=json_schema_dump(tool.parameters, exclude=exclude),
     )
     return ChatCompletionFunctionToolParam(type="function", function=function)
 
 
-def openai_chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [openai_chat_tool_param(tool) for tool in tools]
+def openai_chat_tools(
+    tools: list[ToolInfo], exclude: set[str] | None = None
+) -> list[ChatCompletionToolParam]:
+    return [openai_chat_tool_param(tool, exclude=exclude) for tool in tools]
 
 
 def openai_chat_tool_choice(
@@ -796,6 +826,9 @@ def chat_choices_from_openai(
 ) -> list[ChatCompletionChoice]:
     choices = list(response.choices)
     choices.sort(key=lambda c: c.index)
+    # Parse prompt logprobs from the response top level (vLLM places them
+    # there, not inside individual choices).
+    prompt_lps = _parse_prompt_logprobs(response)
     return [
         ChatCompletionChoice(
             message=chat_message_assistant_from_openai(
@@ -807,22 +840,121 @@ def chat_choices_from_openai(
                 if choice.logprobs and choice.logprobs.content is not None
                 else None
             ),
+            prompt_logprobs=prompt_lps,
         )
         for choice in choices
     ]
 
 
+def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
+    """Parse prompt logprobs from a vLLM chat completions response.
+
+    vLLM places prompt_logprobs at the response top level (not inside choices).
+    Each position is a dict mapping token_id -> {decoded_token, logprob, rank}.
+    The first entry in each dict is always the actual prompt token (by vLLM's
+    insertion-order contract); subsequent entries are the top-N alternatives
+    (when prompt_logprobs > 1).  The rank field indicates the model's
+    prediction ranking (rank 1 = most likely), NOT which token is the actual
+    prompt token — the actual token may have a high rank if it was unlikely.
+    """
+    raw: list[Any] | None = None
+    # vLLM returns prompt_logprobs at the top level of the response
+    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
+        raw = response.prompt_logprobs
+    elif hasattr(response, "model_extra") and response.model_extra:
+        raw = response.model_extra.get("prompt_logprobs")
+
+    if not raw:
+        return None
+
+    result: list[Logprob] = []
+    for entry in raw:
+        # First token has None logprob (no left context)
+        if entry is None:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        items = list(entry.items())
+        if not items:
+            continue
+        # vLLM's Sampler places the actual prompt token as the first dict
+        # entry (by insertion order), followed by top-N alternatives sorted
+        # by logprob.  This contract holds in all vLLM versions through
+        # v0.8.x.  With prompt_logprobs=1 (the common case for perplexity
+        # evals), there is only one entry per position, so ordering is
+        # irrelevant.
+        first_id, first_info = items[0]
+        if not isinstance(first_info, dict):
+            continue
+        # Remaining items are top-N alternatives (only present when
+        # prompt_logprobs > 1).
+        # We use dict["logprob"] (not .get()) so a malformed response
+        # raises KeyError immediately rather than injecting NaN that
+        # silently poisons the perplexity metrics.
+        top_lps: list[TopLogprob] | None = None
+        if len(items) > 1:
+            logger.debug(
+                "prompt_logprobs: position has %d entries; treating first "
+                "entry (token=%r, logprob=%s) as actual prompt token",
+                len(items),
+                first_info.get("decoded_token", str(first_id)),
+                first_info.get("logprob"),
+            )
+            top_lps = [
+                TopLogprob(
+                    token=alt_info.get("decoded_token", str(alt_id)),
+                    logprob=alt_info["logprob"],
+                )
+                for alt_id, alt_info in items[1:]
+                if isinstance(alt_info, dict)
+            ]
+        result.append(
+            Logprob(
+                token=first_info.get("decoded_token", str(first_id)),
+                logprob=first_info["logprob"],
+                top_logprobs=top_lps,
+            )
+        )
+    return Logprobs(content=result) if result else None
+
+
 def openai_should_retry(ex: BaseException) -> bool:
+    return openai_classify_retry(ex) is not None
+
+
+def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
+    """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
+
+    Returns None when the exception isn't retryable. Reads `Retry-After` and
+    `x-ratelimit-reset-*` from the response headers when available so the
+    adaptive controller can honor server-suggested wait times.
+    """
+    from inspect_ai.model._model import RetryDecision
+
     if isinstance(ex, RateLimitError):
-        return True
-    elif isinstance(ex, APIStatusError):
-        return is_retryable_http_status(ex.status_code)
-    elif isinstance(ex, OpenAIResponseError):
-        return ex.code in ["rate_limit_exceeded", "server_error"]
-    elif isinstance(ex, APIConnectionError | APITimeoutError):
-        return True
-    else:
-        return False
+        return RetryDecision.rate_limit(
+            retry_after=parse_retry_after_from_exception(ex)
+        )
+    if isinstance(ex, APIStatusError):
+        status = ex.status_code
+        retry_after = parse_retry_after_from_exception(ex)
+        if status == 429:
+            return RetryDecision.rate_limit(retry_after=retry_after)
+        if is_retryable_http_status(status):
+            return RetryDecision.transient(retry_after=retry_after)
+        return None
+    if isinstance(ex, OpenAIResponseError):
+        # OpenAIResponseError is the structured error from the Responses API.
+        # `rate_limit_exceeded` is the explicit rate-limit code; `server_error`
+        # is a generic backend failure (treat as transient).
+        if ex.code == "rate_limit_exceeded":
+            return RetryDecision.rate_limit()
+        if ex.code == "server_error":
+            return RetryDecision.transient()
+        return None
+    if isinstance(ex, APIConnectionError | APITimeoutError):
+        return RetryDecision.transient()
+    return None
 
 
 def openai_handle_bad_request(
@@ -842,6 +974,7 @@ def openai_handle_bad_request(
         e.code == "invalid_prompt"  # seems to happen for o1/o3
         or e.code == "content_policy_violation"  # seems to happen for vision
         or e.code == "content_filter"  # seems to happen on azure
+        or e.code == "cyber_policy"  # seems to happen for 5.4
         or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"

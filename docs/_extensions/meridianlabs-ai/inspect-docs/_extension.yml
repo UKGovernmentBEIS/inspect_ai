@@ -1,0 +1,50 @@
+title: Inspect Docs
+author: Meridian Labs
+version: 1.0.4
+quarto-required: ">=1.7"
+contributes:
+  project:
+    project:
+      type: website
+      pre-render:
+        - pre-render.py
+      post-render:
+        - post-render.py
+      resources:
+        - reference/refs.json
+    format: inspect-docs-html
+    metadata-files:
+      - _include.yml
+    website:
+      bread-crumbs: true
+      page-navigation: true
+  formats:
+    html:
+      theme: [cosmo, resources/theme.scss]
+      toc: true
+      toc-depth: 3
+      toc-expand: 1
+      lightbox: true
+      code-overflow: wrap
+      code-annotations: select
+      fig-width: 8
+      fig-height: 4
+      syntax-definitions:
+        - resources/jinja2.xml
+      include-after-body:
+        - resources/copy-page.html
+      filters:
+        - at: pre-ast
+          path: filters/promote-title.lua
+        - at: pre-ast
+          type: json
+          path: filters/reference/filter.py
+        - at: pre-ast
+          path: filters/reference/post.lua
+        - at: pre-quarto
+          path: filters/excalidraw.lua
+        - at: pre-quarto
+          path: filters/github-callouts.lua
+        - at: pre-quarto
+          path: filters/reference/interlink.lua
+        - filters/shift-headings.lua

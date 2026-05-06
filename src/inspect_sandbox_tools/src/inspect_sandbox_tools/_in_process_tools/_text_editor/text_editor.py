@@ -181,24 +181,27 @@ async def undo_edit(path_str: str) -> str:
 
 def _validated_path(path_str: str, command: str) -> Path:
     """Check that the path/command combination is valid."""
-    path = Path(path_str).resolve()
+    try:
+        path = Path(path_str).resolve()
 
-    # Check if path exists
-    if not path.exists() and command != "create":
-        raise ToolException(
-            f"The path {path} does not exist. Please provide a valid path."
-        )
-    if path.exists() and command == "create":
-        raise ToolException(
-            f"File already exists at: {path}. Cannot overwrite files using command `create`."
-        )
-    # Check if the path points to a directory
-    if path.is_dir():
-        if command != "view":
+        # Check if path exists
+        if not path.exists() and command != "create":
             raise ToolException(
-                f"The path {path} is a directory and only the `view` command can be used on directories"
+                f"The path {path} does not exist. Please provide a valid path."
             )
-    return path
+        if path.exists() and command == "create":
+            raise ToolException(
+                f"File already exists at: {path}. Cannot overwrite files using command `create`."
+            )
+        # Check if the path points to a directory
+        if path.is_dir():
+            if command != "view":
+                raise ToolException(
+                    f"The path {path} is a directory and only the `view` command can be used on directories"
+                )
+        return path
+    except OSError as e:
+        raise ToolException(f"Invalid path {path_str!r}: {e}") from None
 
 
 def _read_file(path: Path) -> str:

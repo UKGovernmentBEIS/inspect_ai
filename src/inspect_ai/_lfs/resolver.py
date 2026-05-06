@@ -4,6 +4,7 @@ Determines whether a directory contains real files or LFS pointer files,
 and returns a directory path with real content in either case.
 """
 
+import logging
 from pathlib import Path
 
 from ._cache import download_lfs_objects
@@ -48,6 +49,26 @@ def resolve_lfs_directory(
         raise LFSResolverError(f"Failed to download LFS objects: {e}") from e
 
     return cache_dir
+
+
+def resolve_lfs_directory_verbose(
+    source_dir: Path,
+    cache_dir: Path,
+    repo_url: str,
+) -> Path:
+    """Like resolve_lfs_directory but with INFO-level progress logging to stderr."""
+    lfs_logger = logging.getLogger("inspect_ai._lfs")
+    prev_level = lfs_logger.level
+    lfs_logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    lfs_logger.addHandler(handler)
+    try:
+        return resolve_lfs_directory(source_dir, cache_dir, repo_url)
+    finally:
+        lfs_logger.setLevel(prev_level)
+        lfs_logger.removeHandler(handler)
 
 
 def _has_lfs_pointers(directory: Path) -> bool:

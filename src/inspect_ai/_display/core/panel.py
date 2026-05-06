@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from typing import Tuple
 
 import rich
@@ -13,6 +14,18 @@ from inspect_ai.util._display import display_type_plain
 
 from .display import TaskProfile
 from .rich import is_vscode_notebook, rich_theme
+
+_eval_set_id_display_var: ContextVar[str | None] = ContextVar(
+    "_eval_set_id_display", default=None
+)
+
+
+def set_eval_set_id_display(value: str | None) -> None:
+    _eval_set_id_display_var.set(value)
+
+
+def get_eval_set_id_display() -> str | None:
+    return _eval_set_id_display_var.get(None)
 
 
 def task_panel(
@@ -181,7 +194,10 @@ def to_renderable(item: RenderableType | str, style: str = "") -> RenderableType
 
 
 def tasks_title(completed: int, total: int) -> str:
-    return f"{completed}/{total} tasks complete"
+    title = f"{completed}/{total} tasks complete"
+    if eval_set_id := get_eval_set_id_display():
+        title = f"[{eval_set_id}] {title}"
+    return title
 
 
 def task_title(profile: TaskProfile, show_model: bool) -> str:
@@ -191,6 +207,8 @@ def task_title(profile: TaskProfile, show_model: bool) -> str:
     title = f"{task_display_name(profile.name)} ({samples})"
     if show_model:
         title = f"{title}: {profile.model}"
+    if eval_set_id := get_eval_set_id_display():
+        title = f"[{eval_set_id}] {title}"
     return title
 
 

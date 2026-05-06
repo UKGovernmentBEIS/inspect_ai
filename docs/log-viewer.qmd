@@ -1,5 +1,6 @@
 ---
 title: Log Viewer 
+llms-description: How to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and integrate it with Python logging.
 ---
 
 ## Overview

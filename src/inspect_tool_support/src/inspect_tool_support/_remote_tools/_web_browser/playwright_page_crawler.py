@@ -98,13 +98,12 @@ class PageCrawler:
                 raise LookupError(
                     f"Could not find tag {node_id_or_tag} from {[node.name for node in nodes.values() if node.name]}"
                 )
+        elif (
+            node := nodes.get(AXNodeId(node_id_or_tag), None)
+        ) and not node.is_ignored:
+            return node
         else:
-            if (
-                node := nodes.get(AXNodeId(node_id_or_tag), None)
-            ) and not node.is_ignored:
-                return node
-            else:
-                raise LookupError(f"Could not find element with id {node_id_or_tag}")
+            raise LookupError(f"Could not find element with id {node_id_or_tag}")
 
     async def update(self) -> None:
         """Updates the accessibility tree and DOM from current page."""

@@ -1,5 +1,6 @@
 ---
-title: inspect eval-retry
+reference: inspect eval-retry
+description: Retry an evaluation task.
 ---
 
 

@@ -3,7 +3,7 @@ from typing import Any
 
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -98,7 +98,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
         else:
             # didn't find the scoring pattern
             return Score(
-                value=INCORRECT,
+                value=NOANSWER,
                 explanation="Scoring pattern not matched in output: "
                 + f"{state.output.completion}",
             )

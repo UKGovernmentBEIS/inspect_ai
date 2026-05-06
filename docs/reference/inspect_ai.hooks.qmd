@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.hooks"
+reference: inspect_ai.hooks
+description: Hook into Inspect lifecycle events.
 ---
 
 ## Registration

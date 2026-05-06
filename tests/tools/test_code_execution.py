@@ -96,7 +96,7 @@ def test_mistral_code_execution_python() -> None:
 @skip_if_no_google
 @flaky_retry(max_retries=3)
 def test_google_code_execution() -> None:
-    check_code_execution("google/gemini-3-pro-preview")
+    check_code_execution("google/gemini-3.1-pro-preview")
 
 
 @pytest.mark.slow

@@ -38,12 +38,16 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -54,7 +58,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
@@ -287,13 +291,17 @@ class AzureAIAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, ServiceResponseError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        if isinstance(ex, ServiceResponseError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -507,7 +515,9 @@ def chat_tool_definition(tool: ToolInfo) -> ChatCompletionsToolDefinition:
         function=FunctionDefinition(
             name=tool.name,
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=json_schema_dump(
+                tool.parameters, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+            ),
         )
     )
 

@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.analysis"
+reference: inspect_ai.analysis
+description: Data frames for analysis.
 ---
 
 ## Evals

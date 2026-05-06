@@ -3,6 +3,7 @@ import json
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
@@ -12,6 +13,7 @@ from inspect_ai.model._openai_responses import (
     MESSAGE_PHASE,
     _openai_input_items_from_chat_message_assistant,
 )
+from inspect_ai.model._providers.openai_compatible import ModelInfo
 from inspect_ai.solver import generate, user_message
 
 
@@ -212,6 +214,7 @@ async def test_responses_api_invalid_prompt_content_filter():
         prompt_cache_retention=NOT_GIVEN,
         safety_identifier=NOT_GIVEN,
         responses_store=None,
+        synthesize_phase=False,
         model_info=model_info,
         batcher=None,
     )
@@ -766,6 +769,84 @@ def test_phase_round_trip_mixed():
     assert message_items[1]["phase"] == "commentary"
 
 
+def test_phase_synthesis_final_answer_opt_in():
+    """Test opt-in synthesis for assistant messages without tool calls."""
+    message = ChatMessageAssistant(
+        content=[ContentText(text="Here is the answer.")],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "final_answer"
+
+
+def test_phase_synthesis_commentary_opt_in_for_tool_calls():
+    """Test opt-in synthesis for assistant messages with tool calls."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[ContentText(text="I'll check that.")],
+        tool_calls=[
+            ToolCall(id="call_123", function="lookup", arguments={"query": "phase"})
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+def test_phase_synthesis_preserves_explicit_phase():
+    """Test phase synthesis doesn't overwrite existing phase metadata."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Still working.",
+                internal={MESSAGE_ID: "msg_1", MESSAGE_PHASE: "commentary"},
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, synthesize_phase=True
+    )
+    message_items = [item for item in items if item.get("type") == "message"]
+
+    assert len(message_items) == 1
+    assert message_items[0]["phase"] == "commentary"
+
+
+async def test_openai_responses_phase_model_arg():
+    """Test responses_phase is an OpenAI model arg, not an SDK arg."""
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    api = OpenAIAPI(
+        "gpt-4o",
+        api_key="test-key",
+        responses_api=True,
+        responses_phase=True,
+    )
+    try:
+        assert api.responses_phase is True
+        assert "responses_phase" not in api.model_args
+    finally:
+        await api.aclose()
+
+
 def test_web_search_to_tool_use_handles_missing_action() -> None:
     """Ensure missing web search action does not break tool-use conversion."""
     from openai.types.responses import ResponseFunctionWebSearch
@@ -792,6 +873,7 @@ def _make_mock_model_info():
 
     model_info = MagicMock()
     model_info.has_reasoning_options.return_value = False
+    model_info.reasoning_only_fallback.return_value = False
     model_info.is_gpt.return_value = True
     model_info.is_gpt_5.return_value = False
     model_info.is_gpt_5_plus.return_value = False
@@ -1025,3 +1107,97 @@ def test_openai_responses_tools_image_modality():
     config = GenerateConfig()
     tools = openai_responses_tools([], "gpt-4o", config)
     assert len(tools) == 0
+
+
+def test_reasoning_only_fallback_enabled():
+    """When fallback is enabled and content is reasoning-only, NO_CONTENT text is appended."""
+    model_info = ModelInfo()  # default: has_reasoning_only_fallback() == True
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["content"][0]["text"] == NO_CONTENT
+
+
+def test_reasoning_only_fallback_not_triggered_with_text():
+    """Fallback does not trigger when there is real text content alongside reasoning."""
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+            ContentText(text="Real output"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert message_items[0]["content"][0]["text"] == "Real output"
+
+
+def test_reasoning_only_fallback_not_triggered_without_model_info():
+    """Fallback does not trigger when model_info is None."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Some reasoning", signature="r1"),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_on_empty_content():
+    """Fallback does not trigger on empty content list."""
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    assert len(items) == 0
+
+
+def test_reasoning_only_fallback_not_triggered_with_tool_calls():
+    """Fallback does not trigger when reasoning + tool calls but no text."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    model_info = ModelInfo()
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Let me call the tool", signature="r1"),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call_123",
+                function="submit",
+                arguments={"answer": "42"},
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message, model_info)
+
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 0

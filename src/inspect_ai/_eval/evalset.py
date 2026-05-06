@@ -1,5 +1,8 @@
+import contextlib
 import hashlib
 import logging
+import threading
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
@@ -18,6 +21,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
@@ -42,6 +46,7 @@ from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log_headers,
     write_log_dir_manifest,
+    write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import (
@@ -99,6 +104,7 @@ def eval_set(
     retry_wait: float | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    retry_immediate: bool | None = None,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
@@ -123,6 +129,7 @@ def eval_set(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -158,13 +165,16 @@ def eval_set(
             (required to ensure that a unique storage scope is assigned for the set).
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
-        retry_wait: Time to wait between attempts, increased exponentially.
-            (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
-            per-retry will in no case by longer than 1 hour.
+        retry_wait: Time to wait between attempts when `retry_immediate=False`,
+            increased exponentially (defaults to 30, resulting in waits of 30, 60,
+            120, 240, etc.). Wait time per-retry will in no case be longer than 1
+            hour. Ignored when `retry_immediate=True`.
         retry_connections: Reduce max_connections at this rate with each retry
-            (defaults to 1.0, which results in no reduction).
+            when `retry_immediate=False` (defaults to 1.0, which results in no
+            reduction). Ignored when `retry_immediate=True`.
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
+        retry_immediate: If True (the default), immediately retry tasks as they fail without waiting for all tasks to complete; completed samples are reused from logs on retry. If False, wait for all tasks to complete before retrying any tasks (legacy batch-retry behavior). When True, `retry_wait` and `retry_connections` are ignored.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -208,6 +218,9 @@ def eval_set(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
@@ -225,7 +238,7 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 4 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -257,6 +270,17 @@ def eval_set(
         A tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
     """
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
+
+    num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    if retry_immediate is None:
+        retry_immediate = True
+    task_retry_attempts = num_retry_attempts if retry_immediate else 0
+
+    if retry_immediate and num_retry_attempts == 0:
+        logger.warning(
+            "retry_immediate=True has no effect when retry_attempts=0; "
+            "no task-level retries will be performed."
+        )
 
     # helper function to run a set of evals
     def run_eval(
@@ -292,6 +316,7 @@ def eval_set(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -314,6 +339,7 @@ def eval_set(
             log_header_only=True,
             score=score,
             eval_set_id=eval_set_id,
+            task_retry_attempts=task_retry_attempts,
             **kwargs,
         )
 
@@ -346,14 +372,35 @@ def eval_set(
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
 
-    # get eval set id
+    # get eval set id (set display name from user-provided value before resolution)
+    set_eval_set_id_display(eval_set_id)
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
     # resolve some parameters
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
+    # adaptive_connections subsumes retry_connections — the controller manages
+    # scale-down internally on retry signals. Force retry_connections to 1.0
+    # silently (rather than warning), so that this stays quiet when adaptive
+    # eventually becomes default-on. Only fires when adaptive will actually be
+    # active: explicit max_connections takes precedence (per the precedence
+    # rule in Model._connection_concurrency), batch mode disables adaptive
+    # entirely (worker tasks don't propagate retry signals), and in those
+    # cases retry_connections decay should still apply to the static cap.
+    # The predicate must match Model._connection_concurrency and
+    # create_sample_semaphore exactly — otherwise a user passing
+    # batch=True + adaptive_connections=True + retry_connections=0.5 would
+    # silently lose decay (evalset suppresses it, but the model path goes
+    # static and never sets up an adaptive controller).
+    adaptive_will_be_active = (
+        bool(kwargs.get("adaptive_connections"))
+        and kwargs.get("max_connections") is None
+        and not kwargs.get("batch")
+    )
+    if adaptive_will_be_active:
+        retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 10)
     log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status
@@ -362,10 +409,22 @@ def eval_set(
 
     # before sleep
     def before_sleep(retry_state: RetryCallState) -> None:
-        # compute/update next max_connections
+        # Compute/update next max_connections, but only inject into kwargs when
+        # retry_connections actually decays (!= 1.0). Reasons:
+        #   1. If adaptive will be active at eval-set level, retry_connections
+        #      was already forced to 1.0 above (controller handles scale-down).
+        #   2. With default retry_connections=1.0, the "decayed" value equals
+        #      the original — injecting would be a no-op for static behavior
+        #      but would silently override any task-level adaptive_connections
+        #      (since any non-None max_connections disables adaptive per the
+        #      precedence rule in Model._connection_concurrency).
+        # When the user explicitly opts into decay (retry_connections != 1.0),
+        # we inject — this preserves the long-standing static behavior, with
+        # the trade-off that task-level adaptive yields to the explicit decay.
         nonlocal max_connections
-        max_connections = max(round(max_connections * retry_connections), 1)
-        kwargs["max_connections"] = max_connections
+        if retry_connections != 1.0:
+            max_connections = max(round(max_connections * retry_connections), 1)
+            kwargs["max_connections"] = max_connections
 
         # print waiting status
         msg = (
@@ -499,32 +558,33 @@ def eval_set(
         retry=retry_if_not_result(all_evals_succeeded),
         retry_error_callback=return_last_value,
         reraise=True,
-        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
+        stop=stop_after_attempt(num_retry_attempts),
         wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
     )
 
-    # emit start event
-    run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
+        # emit start event
+        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-    # execute w/ retry
-    results = retry(try_eval)
+        if retry_immediate:
+            # retry handled by eval
+            results = try_eval()
+        else:
+            # execute w/ retry
+            results = retry(try_eval)
 
-    # final sweep to remove failed log files
-    if retry_cleanup:
-        task_ids = {result.eval.task_id for result in results}
-        cleanup_older_eval_logs(log_dir, task_ids)
+        # final sweep to remove failed log files
+        if retry_cleanup:
+            task_ids = {result.eval.task_id for result in results}
+            cleanup_older_eval_logs(log_dir, task_ids)
 
     # if specified, bundle the output directory
     if bundle_dir:
         bundle_log_dir(
             log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
         )
-
-    # if specified, embed a log viewer into the log directory
-    if embed_viewer:
-        embed_log_dir(log_dir=log_dir)
 
     # report final status
     success = all_evals_succeeded(results)
@@ -542,6 +602,33 @@ def eval_set(
 
     # return status + results
     return success, results
+
+
+@contextlib.contextmanager
+def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
+    embed_log_dir(log_dir=log_dir)
+
+    stop_event = threading.Event()
+    last_state: frozenset[tuple[str, float | None]] = frozenset()
+
+    def update_listing() -> None:
+        nonlocal last_state
+        while not stop_event.wait(interval):
+            try:
+                logs = list_eval_logs(log_dir)
+                current_state = frozenset((log.name, log.mtime) for log in logs)
+                if current_state != last_state:
+                    write_log_listing(log_dir, logs=logs)
+                    last_state = current_state
+            except Exception:
+                pass
+
+    threading.Thread(target=update_listing, daemon=True, name="listing-updater").start()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        write_log_listing(log_dir)
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
@@ -580,15 +667,35 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+        eval_log = log.header
+        log_info = log.info
+
+        # opportunistically recover crashed logs before retrying
+        if eval_log.status == "started" and eval_log.location:
+            from inspect_ai.log._recover import (
+                RecoveryNotAvailable,
+                recover_eval_log,
+            )
+
+            try:
+                recovered = recover_eval_log(eval_log.location, cleanup=False)
+                eval_log = recovered
+                if recovered.location:
+                    log_info = log_info.model_copy(update={"name": recovered.location})
+            except RecoveryNotAvailable:
+                pass  # no recovery data available
+            except Exception as ex:
+                logger.warning(f"Recovery failed for {eval_log.location}: {ex}")
+
         previous_tasks.append(
             PreviousTask(
-                id=log.header.eval.task_id,
+                id=eval_log.eval.task_id,
                 task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
-                log=log.header,
-                log_info=log.info,
+                log=eval_log,
+                log_info=log_info,
             )
         )
 

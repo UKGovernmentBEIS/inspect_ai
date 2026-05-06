@@ -43,6 +43,7 @@ NO_CONTENT = "(no content)"
 MODEL_NONE = "none/none"
 DEFAULT_BATCH_SIZE = 100
 DEFAULT_CACHE_DAYS = 7
+DEFAULT_LOG_MODEL_API_CALLS = 5
 
 DESERIALIZING = "deserializing"
 MESSAGE_CACHE = "message_cache"
@@ -50,11 +51,3 @@ MESSAGE_CACHE = "message_cache"
 
 def get_deserializing_context() -> dict[str, Any]:
     return {DESERIALIZING: True, MESSAGE_CACHE: {}}
-
-
-def log_condense_enabled() -> bool:
-    """Return whether pool-based event condensing is enabled."""
-    import os
-
-    val = os.environ.get("INSPECT_LOG_CONDENSE", "")
-    return val.lower() in ("1", "true", "yes")

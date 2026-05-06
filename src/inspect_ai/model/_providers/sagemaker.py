@@ -16,6 +16,7 @@ from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._openai import chat_choices_from_openai, model_output_from_openai
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -25,7 +26,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 
@@ -98,6 +99,31 @@ class SagemakerAPI(ModelAPI):
             else str(stream_val).lower() == "true"
         )
 
+        # Extract completion mode for CPT/base models (sends completions-style payload with prompt field)
+        completion_mode_val = model_args.get("completion_mode", False)
+        self.completion_mode = (
+            completion_mode_val
+            if isinstance(completion_mode_val, bool)
+            else str(completion_mode_val).lower() == "true"
+        )
+
+        # Inference component name for multi-model endpoints
+        self.inference_component_name = model_args.get("inference_component_name")
+
+        # prompt_logprobs for CPT models (vLLM-specific, not part of standard GenerateConfig)
+        prompt_logprobs_val = model_args.get("prompt_logprobs")
+        try:
+            self.prompt_logprobs = (
+                int(str(prompt_logprobs_val))
+                if prompt_logprobs_val is not None
+                else None
+            )
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"Invalid prompt_logprobs value: {prompt_logprobs_val!r}. "
+                "Expected an integer or integer-like string."
+            )
+
     @override
     def connection_key(self) -> str:
         return self.endpoint_name
@@ -107,19 +133,19 @@ class SagemakerAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        # Sagemaker's retryable codes are all infrastructure transients
+        # (container timeout, ServiceUnavailable, GatewayTimeout) — none are
+        # rate-limit signals — so they all classify as transient.
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
             status_code = ex.response.get("OriginalStatusCode", -1)
-
-            should_retry_ = (
+            if (
                 error_code == "ModelError"
                 and status_code in SAGEMAKER_RETRY_ERROR_CODES
-            )
-
-            return should_retry_
-        else:
-            return False
+            ):
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -137,6 +163,9 @@ class SagemakerAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        if self.completion_mode:
+            return await self._generate_completion(input, config)
+
         # Prepare request components
         config = self._prepare_vllm_config(input, config)
         tools_config = self._prepare_tools_config(tools)
@@ -166,6 +195,97 @@ class SagemakerAPI(ModelAPI):
 
         return model_output, model_call
 
+    async def _generate_completion(
+        self,
+        input: list[ChatMessage],
+        config: GenerateConfig,
+    ) -> tuple[ModelOutput | Exception, ModelCall]:
+        """Generate using completions-style payload for CPT/base models."""
+        # Build prompt from messages (completion mode only supports text)
+        prompt_parts = []
+        for msg in input:
+            if isinstance(msg, ChatMessageSystem):
+                prompt_parts.append(msg.text)
+            elif isinstance(msg, ChatMessageUser):
+                if isinstance(msg.content, list) and any(
+                    c.type == "image" for c in msg.content
+                ):
+                    logger.warning(
+                        "Image content detected in completion mode — images are not "
+                        "supported by completions-style payloads and will be ignored."
+                    )
+                prompt_parts.append(msg.text)
+            elif isinstance(msg, ChatMessageAssistant):
+                prompt_parts.append(msg.text)
+        prompt = "\n".join(prompt_parts)
+
+        request_body: dict[str, Any] = {
+            "prompt": prompt,
+            "max_tokens": config.max_tokens,
+            "temperature": config.temperature,
+            "top_p": config.top_p,
+            "stream": False,
+        }
+
+        if config.logprobs and config.top_logprobs is not None:
+            request_body["logprobs"] = config.top_logprobs
+        if self.prompt_logprobs is not None:
+            request_body["prompt_logprobs"] = self.prompt_logprobs
+        if config.top_k is not None:
+            request_body["top_k"] = config.top_k
+        if config.stop_seqs is not None:
+            request_body["stop"] = config.stop_seqs
+
+        async with self._create_client() as client:
+            body_bytes = await self._invoke_endpoint(client, request_body)
+            output = json.loads(body_bytes.decode("utf-8"))
+
+        # Parse completions response
+        choices = output.get("choices", [])
+        completion_text = choices[0].get("text", "") if choices else ""
+        logprobs_data = choices[0].get("logprobs") if choices else None
+
+        model_output = ModelOutput.from_content(
+            model=self.endpoint_name,
+            content=completion_text,
+            stop_reason=choices[0].get("finish_reason", "stop") if choices else "stop",
+        )
+
+        # Parse and store logprobs in the proper Inspect AI format
+        if logprobs_data is not None:
+            from inspect_ai.model._model_output import Logprob, Logprobs, TopLogprob
+
+            content_logprobs = []
+            tokens = logprobs_data.get("tokens", [])
+            token_logprobs = logprobs_data.get("token_logprobs", [])
+            top_logprobs_list = logprobs_data.get("top_logprobs", [])
+
+            for i, token in enumerate(tokens):
+                top_lps = None
+                if (
+                    top_logprobs_list
+                    and i < len(top_logprobs_list)
+                    and top_logprobs_list[i]
+                ):
+                    top_lps = [
+                        TopLogprob(token=t, logprob=lp)
+                        for t, lp in top_logprobs_list[i].items()
+                    ]
+
+                raw = token_logprobs[i] if i < len(token_logprobs) else None
+                content_logprobs.append(
+                    Logprob(
+                        token=token,
+                        logprob=raw if raw is not None else 0.0,
+                        top_logprobs=top_lps,
+                    )
+                )
+
+            model_output.choices[0].logprobs = Logprobs(content=content_logprobs)
+
+        model_call = ModelCall.create(request=request_body, response=output, time=0)
+        return model_output, model_call
+
     def _prepare_vllm_config(
         self, input: list[ChatMessage], config: GenerateConfig
     ) -> GenerateConfig:
@@ -192,7 +312,9 @@ class SagemakerAPI(ModelAPI):
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.parameters.model_dump(exclude_none=True),
+                    "parameters": json_schema_dump(
+                        tool.parameters, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+                    ),
                 },
             }
             for tool in tools
@@ -245,16 +367,20 @@ class SagemakerAPI(ModelAPI):
 
         # Add response schema
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = {
+                "name": config.response_schema.name,
+                "schema": json_schema_dump(
+                    config.response_schema.json_schema,
+                    exclude=JSON_SCHEMA_EXTENDED_FIELDS,
+                ),
+            }
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             request_body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {
-                    "name": config.response_schema.name,
-                    "schema": config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    "description": config.response_schema.description,
-                    "strict": config.response_schema.strict,
-                },
+                "json_schema": json_schema_dict,
             }
 
         # Add extra body parameters
@@ -301,15 +427,24 @@ class SagemakerAPI(ModelAPI):
         else:  # "auto" or any other value defaults to auto
             request_body["tool_choice"] = "auto"
 
+    def _build_invoke_kwargs(self, request_body: dict[str, Any]) -> dict[str, Any]:
+        """Build common kwargs for SageMaker endpoint invocation."""
+        kwargs: dict[str, Any] = {
+            "EndpointName": self.endpoint_name,
+            "ContentType": self.request_content_type,
+            "Accept": self.request_accept_type,
+            "Body": json.dumps(request_body),
+        }
+        if self.inference_component_name:
+            kwargs["InferenceComponentName"] = self.inference_component_name
+        return kwargs
+
     async def _invoke_endpoint(
         self, client: Any, request_body: dict[str, Any]
     ) -> bytes:
         """Invoke SageMaker endpoint and return response body bytes."""
         response = await client.invoke_endpoint(
-            EndpointName=self.endpoint_name,
-            ContentType=self.request_content_type,
-            Accept=self.request_accept_type,
-            Body=json.dumps(request_body),
+            **self._build_invoke_kwargs(request_body)
         )
         body: bytes = await response["Body"].read()
         return body
@@ -322,10 +457,7 @@ class SagemakerAPI(ModelAPI):
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint_with_response_stream.html
         """
         response = await client.invoke_endpoint_with_response_stream(
-            EndpointName=self.endpoint_name,
-            ContentType=self.request_content_type,
-            Accept=self.request_accept_type,
-            Body=json.dumps(request_body),
+            **self._build_invoke_kwargs(request_body)
         )
 
         # Process streaming response
@@ -335,6 +467,13 @@ class SagemakerAPI(ModelAPI):
         accumulated_text = ""
         accumulated_chunks = []
         partial_content = ""  # Buffer for incomplete JSON
+        # Track metadata incrementally — the stop chunk (with finish_reason)
+        # and the usage chunk may arrive in any order in vLLM streaming.
+        final_id = ""
+        final_created = 0
+        final_model = self.endpoint_name
+        final_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        final_finish_reason = "stop"
 
         async for event in event_stream:
             # Check for error events first
@@ -365,6 +504,16 @@ class SagemakerAPI(ModelAPI):
                     partial_content = ""
                     accumulated_chunks.append(chunk_data)
 
+                    # Track metadata from each chunk
+                    if chunk_data.get("id"):
+                        final_id = chunk_data["id"]
+                    if chunk_data.get("created"):
+                        final_created = chunk_data["created"]
+                    if chunk_data.get("model"):
+                        final_model = chunk_data["model"]
+                    if chunk_data.get("usage"):
+                        final_usage = chunk_data["usage"]
+
                     if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
                         choice = chunk_data["choices"][0]
                         delta = choice.get("delta", {})
@@ -372,15 +521,19 @@ class SagemakerAPI(ModelAPI):
                         if "content" in delta and delta["content"]:
                             accumulated_text += delta["content"]
 
+                        # Track finish_reason across all chunks — only the
+                        # dedicated stop chunk has a non-null value, and it may
+                        # arrive before the usage chunk
+                        fr = choice.get("finish_reason")
+                        if fr is not None:
+                            final_finish_reason = fr
+
                 except json.JSONDecodeError:
                     # Continue accumulating content until we have valid JSON
                     continue
 
         # Build final response from accumulated chunks
         if accumulated_chunks:
-            # Use the last chunk as base (contains final metadata)
-            final_chunk = accumulated_chunks[-1]
-
             # Debug logging
             logger.info(
                 f"Streaming complete: {len(accumulated_chunks)} chunks, accumulated text length: {len(accumulated_text)}"
@@ -388,25 +541,18 @@ class SagemakerAPI(ModelAPI):
 
             # Construct complete response in OpenAI format
             final_response = {
-                "id": final_chunk.get("id", ""),
+                "id": final_id,
                 "object": "chat.completion",
-                "created": final_chunk.get("created", 0),
-                "model": final_chunk.get("model", self.endpoint_name),
+                "created": final_created,
+                "model": final_model,
                 "choices": [
                     {
                         "index": 0,
                         "message": {"role": "assistant", "content": accumulated_text},
-                        "finish_reason": final_chunk.get("choices", [{}])[0].get(
-                            "finish_reason", "stop"
-                        )
-                        if final_chunk.get("choices")
-                        else "stop",
+                        "finish_reason": final_finish_reason,
                     }
                 ],
-                "usage": final_chunk.get(
-                    "usage",
-                    {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                ),
+                "usage": final_usage,
             }
         else:
             # Fallback if no chunks received

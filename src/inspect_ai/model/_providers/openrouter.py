@@ -13,6 +13,7 @@ from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.model._openai import (
     CompletionsReasoningContent,
@@ -109,13 +110,30 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         )
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
-        if super().should_retry(ex):
-            return True
-        elif isinstance(ex, json.JSONDecodeError):
-            return True
-        else:
-            return False
+    def collapse_system_messages(self) -> bool:
+        # Several OpenRouter inference providers (e.g. AkashML, Parasail)
+        # reject requests that contain more than one system message or any
+        # system message at a non-zero index, even though the OpenAI Chat
+        # Completions API itself is permissive. Coalesce adjacent system
+        # messages so the canonical request has a single leading system
+        # message regardless of which provider OpenRouter selects.
+        return True
+
+    @override
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # Defer to the OpenAI-compatible base classifier (which handles 429 →
+        # rate_limit and 5xx/timeouts → transient with header extraction).
+        # OpenRouter additionally surfaces malformed-JSON responses; treat
+        # those as transient (parsing flake, not a quota issue).
+        decision = super().should_retry(ex)
+        if isinstance(decision, RetryDecision):
+            if decision.retry:
+                return decision
+        elif decision:
+            return RetryDecision.transient()
+        if isinstance(ex, json.JSONDecodeError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def canonical_name(self) -> str:

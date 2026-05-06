@@ -65,7 +65,9 @@ from ._model import (
     Model,
     ModelAPI,
     ModelName,
+    RetryDecision,
     get_model,
+    model_roles,
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
@@ -147,6 +149,7 @@ __all__ = [
     "Model",
     "ModelAPI",
     "ModelName",
+    "RetryDecision",
     "ModelConfig",
     "ModelUsage",
     "StopReason",
@@ -164,6 +167,7 @@ __all__ = [
     "get_model_info",
     "set_model_cost",
     "set_model_info",
+    "model_roles",
     "ModelInfo",
     "modelapi",
     "Citation",

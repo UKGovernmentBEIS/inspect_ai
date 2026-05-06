@@ -58,6 +58,7 @@ from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.viewer import ViewerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -92,22 +93,9 @@ def resolve_external_registry_package_version(
     return package_name, package_version
 
 
-def _effective_max_samples(eval_config: EvalConfig, model: Model) -> int:
-    """Resolve effective max_samples for high-throughput detection.
-
-    Follows the resolution chain from create_sample_semaphore (run.py),
-    excluding batch mode (which is not inherently high-throughput).
-    """
-    if eval_config.max_samples is not None:
-        return eval_config.max_samples
-    if model.config.max_connections is not None:
-        return model.config.max_connections
-    return model.api.max_connections()
-
-
-def _is_high_throughput(sample_count: int, effective_max_samples: int) -> bool:
+def _is_high_throughput(sample_count: int) -> bool:
     """Detect high-throughput runs that benefit from reduced logging overhead."""
-    return effective_max_samples >= 100 or sample_count >= 1000
+    return sample_count >= 1000
 
 
 class TaskLogger:
@@ -137,6 +125,7 @@ class TaskLogger:
         model_args: dict[str, Any],
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
+        viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
     ) -> None:
@@ -176,8 +165,7 @@ class TaskLogger:
         total_samples = len(sample_ids) * epochs
 
         # adaptive defaults for high-throughput runs
-        eff_max_samples = _effective_max_samples(eval_config, model)
-        high_throughput = _is_high_throughput(total_samples, eff_max_samples)
+        high_throughput = _is_high_throughput(total_samples)
         if high_throughput:
             if eval_config.log_realtime is None:
                 eval_config.log_realtime = False
@@ -232,6 +220,7 @@ class TaskLogger:
             revision=revision,
             packages=packages,
             metadata=metadata,
+            viewer=viewer,
         )
 
         # stack recorder and location
@@ -265,6 +254,21 @@ class TaskLogger:
             log_images=self.eval.config.log_images is not False,
             log_shared=self.eval.config.log_shared,
         )
+
+    async def reinit(self) -> None:
+        """Reset this logger for a retry attempt with a fresh eval entry."""
+        created = iso_now()
+        if created <= self.eval.created:
+            # Ensure the filename is unique by bumping past the previous timestamp
+            from datetime import datetime, timedelta, timezone
+
+            dt = datetime.fromisoformat(self.eval.created) + timedelta(seconds=1)
+            created = dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+        self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=created))
+        self._samples_completed = 0
+        self.flush_pending = []
+        self._buffer_db = None
+        await self.init()
 
     @property
     def location(self) -> str:
@@ -372,10 +376,31 @@ async def log_start(
 
 
 def collect_eval_data(stats: EvalStats) -> None:
+    from inspect_ai.log._log import ConnectionLimitChange
+    from inspect_ai.util._concurrency import adaptive_controllers
+
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
     stats.role_usage = role_usage()
+
+    # capture adaptive-connections controller history. The tuple's second
+    # element is the controller's display name (model name), NOT the underlying
+    # connection_key (which often contains an api_key) — see _set_limit.
+    history: list[ConnectionLimitChange] = []
+    for controller in adaptive_controllers():
+        for ts, model, old, new, reason in controller.history:
+            history.append(
+                ConnectionLimitChange(
+                    timestamp=ts,
+                    model=model,
+                    old_limit=old,
+                    new_limit=new,
+                    reason=reason,  # type: ignore[arg-type]
+                )
+            )
+    history.sort(key=lambda e: e.timestamp)
+    stats.connection_limit_history = history
 
 
 def resolve_eval_metrics(

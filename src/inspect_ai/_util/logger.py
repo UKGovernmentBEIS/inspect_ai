@@ -31,6 +31,7 @@ from .constants import (
     TRACE_LOG_LEVEL,
 )
 from .error import PrerequisiteError
+from .log_context import install_sample_context_filter
 from .trace import (
     TraceFormatter,
     compress_trace_log,
@@ -181,6 +182,7 @@ def init_logger(
             env_prefix=env_prefix,
             trace_dir=trace_dir,
         )
+        install_sample_context_filter(log_handler)
         log_handler_var["handler"] = log_handler
 
         if log_level != "NOTSET":

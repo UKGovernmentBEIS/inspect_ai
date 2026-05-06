@@ -24,7 +24,7 @@ jobs:
     environment: npm
     defaults:
       run:
-        working-directory: src/inspect_ai/_view/www
+        working-directory: src/inspect_ai/_view/ts-mono/apps/inspect
     permissions:
       contents: read
       id-token: write
@@ -33,23 +33,36 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+          cache-dependency-path: src/inspect_ai/_view/ts-mono/pnpm-lock.yaml
 
       - name: Upgrade npm (for Trusted Publishing)
         run: |
           npm i -g npm@^11.5.1
-          npm --version          
+          npm --version
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm install --frozen-lockfile
 
+      # Must run before publish: the submodule has no tags, so we resolve
+      # the version from the parent repo and write it into package.json.
+      # prepublishOnly in package.json expects this has already been done.
       - name: Sync version from git tag
-        run: npm version from-git --no-git-tag-version
+        run: |
+          VERSION=$(git -C ${{ github.workspace }} describe --tags --abbrev=0 --match='[0-9]*.[0-9]*.[0-9]*')
+          npm version "$VERSION" --no-git-tag-version
 
       - name: Bump to prerelease version
         if: ${{ inputs.prerelease }}
@@ -61,11 +74,13 @@ jobs:
           npm version "${NEW_VERSION}-beta.${TIMESTAMP}" --no-git-tag-version
 
       - name: Run quality checks
-        run: yarn check-all
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm --filter inspect check-all
 
       - name: Build library for prerelease
         if: ${{ inputs.prerelease }}
-        run: yarn build:lib
+        working-directory: src/inspect_ai/_view/ts-mono
+        run: pnpm --filter inspect build:lib
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}

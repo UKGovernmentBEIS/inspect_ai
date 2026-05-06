@@ -4,12 +4,16 @@ Tests the public interface of concurrency control functionality including
 the concurrency context manager, status display, and initialization.
 """
 
+import contextlib
 import time
+from collections.abc import Iterable
+from typing import Any, cast
 
 import anyio
 import pytest
 
 from inspect_ai.util._concurrency import (
+    ConcurrencySemaphore,
     concurrency,
     concurrency_status_display,
     get_or_create_semaphore,
@@ -98,6 +102,56 @@ async def test_get_or_create_sem_semaphore_is_usable() -> None:
             assert sem.value == 0  # Both slots taken
 
     assert sem.value == 2  # Both slots released
+
+
+@pytest.mark.anyio
+async def test_legacy_registry_without_adaptive_argument() -> None:
+    """Static/default calls remain compatible with pre-adaptive custom registries."""
+
+    class LegacySemaphore:
+        def __init__(self, name: str, concurrency: int, visible: bool) -> None:
+            self.name = name
+            self.concurrency = concurrency
+            self.visible = visible
+            self._sem = anyio.Semaphore(concurrency)
+            self.semaphore: contextlib.AbstractAsyncContextManager[Any] = self._sem
+
+        @property
+        def value(self) -> int:
+            return self._sem.value
+
+    class LegacyRegistry:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, str | None, bool]] = []
+
+        async def get_or_create(
+            self,
+            name: str,
+            concurrency: int,
+            key: str | None,
+            visible: bool,
+        ) -> ConcurrencySemaphore:
+            self.calls.append((name, concurrency, key, visible))
+            return LegacySemaphore(name, concurrency, visible)
+
+        def values(self) -> Iterable[ConcurrencySemaphore]:
+            return []
+
+    registry = LegacyRegistry()
+    init_concurrency(cast(Any, registry))
+    try:
+        sem = await get_or_create_semaphore("legacy-resource", 2, None, True)
+        assert sem.name == "legacy-resource"
+
+        async with concurrency("legacy-context", 1):
+            pass
+
+        assert registry.calls == [
+            ("legacy-resource", 2, None, True),
+            ("legacy-context", 1, "legacy-context", True),
+        ]
+    finally:
+        init_concurrency()
 
 
 # Basic Concurrency Control Tests

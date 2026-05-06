@@ -1,5 +1,6 @@
 ---
 title: Model Providers
+llms-description: Usage details and available options for the various supported model providers.
 ---
 
 ## Overview
@@ -35,6 +36,7 @@ The `openai` provider supports the following custom model args (other model args
 |--------------------------|----------------------------------------------|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
+| `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
@@ -71,6 +73,16 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
 Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+
+### Responses Phase
+
+OpenAI Responses API assistant messages can include a [`phase`](https://developers.openai.com/api/docs/guides/reasoning#phase-parameter) label that distinguishes intermediate commentary from the final answer. Inspect preserves and replays `phase` values returned by OpenAI. To additionally synthesize missing `phase` values for assistant messages constructed outside the Responses API, use the `responses_phase` model argument:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 -M responses_phase=true
+```
+
+When enabled, assistant messages with tool calls are labeled `commentary`; other assistant messages are labeled `final_answer`.
 
 ### Responses Store
 
@@ -405,7 +417,7 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
@@ -438,6 +450,8 @@ The following model args are supported:
 | `read_timeout` | Read timeout in seconds (default: `600`). |
 | `connect_timeout` | Connection timeout in seconds (default: `60`). |
 | `stream` | Enable streaming responses (default: `false`). |
+| `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
+| `inference_component_name` | Name of the inference component for multi-model endpoints. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -449,6 +463,49 @@ inspect eval arc.py --model sagemaker/my-endpoint \
   -M read_timeout=300 \
   -M stream=true
 ```
+
+### Inference Components
+
+For [multi-model endpoints](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html) that use inference components, specify the `inference_component_name` to route requests to a specific component:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M inference_component_name=my-inference-component
+```
+
+### Completion Mode
+
+For CPT (Continual Pre-Training) or base models that expect completions-style payloads (with a `prompt` field) rather than chat-style payloads (with a `messages` array), enable `completion_mode`:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true
+```
+
+Completion mode supports logprobs via the standard CLI flags:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  --logprobs \
+  --top-logprobs 5
+```
+
+Prompt log probabilities for CPT models can be passed as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  -M prompt_logprobs=1
+```
+
+::: {.callout-note}
+Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+:::
 
 Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
 
@@ -503,7 +560,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.5
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -685,6 +742,30 @@ model = get_model(
 
 Activations are available in the "hidden_states" field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
 
+### Sampling
+
+Pass the `do_sample` model arg to override the default sampling behavior (which is `do_sample=True`). For example:
+
+``` bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
+```
+
+### Trust Remote Code
+
+Some Hugging Face models ship custom Python code in their repositories that the `transformers` library will execute on load when `trust_remote_code=True`. Because executing remote code is a security risk (the model author can run arbitrary code in your evaluation process), Inspect defaults `trust_remote_code` to `False` and will not forward `trust_remote_code` from generic `model_args`. To opt in for a specific model you trust, pass it explicitly:
+
+``` bash
+inspect eval arc.py --model hf/some-org/custom-arch-model -M trust_remote_code=true
+```
+
+Or from Python:
+
+``` python
+eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remote_code=True))
+```
+
+The flag is applied to both the model and tokenizer `from_pretrained()` calls.
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
@@ -824,9 +905,44 @@ inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
 
 Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
 
+### Chat Templates
+
+For vLLM models, the `chat_template` model arg is forwarded to the vLLM server's `--chat-template` flag. Use `use_chat_template=false` to bypass chat-template rendering entirely (useful for base models):
+
+``` bash
+inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
+::: {.callout-note}
+`use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
+:::
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+
+### Prompt Log Probabilities
+
+vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](scorers.qmd#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
+
+``` bash
+inspect eval perplexity_eval.py --model vllm/meta-llama/Meta-Llama-3-8B \
+  --prompt-logprobs 1
+```
+
+Or in Python:
+
+``` python
+Task(
+    dataset=dataset,
+    solver=generate(max_tokens=1, prompt_logprobs=1),
+    scorer=perplexity(),
+)
+```
+
+::: {.callout-note}
+Prompt log probabilities are not available when streaming is enabled. Ensure streaming is disabled when using perplexity scorers.
+:::
 
 ### vLLM Server
 

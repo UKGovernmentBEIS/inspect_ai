@@ -2,6 +2,7 @@ import os
 from logging import getLogger
 from typing import Any, cast
 
+import httpx
 from openai import (
     APIStatusError,
     AsyncOpenAI,
@@ -17,8 +18,9 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._openai import chat_choices_from_openai, openai_classify_retry
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.chatapi import (
@@ -29,14 +31,16 @@ from inspect_ai.model._providers.util.chatapi import (
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    OpenAIResponseError,
     messages_to_openai,
     model_output_from_openai,
     needs_max_completion_tokens,
@@ -45,7 +49,6 @@ from .._openai import (
     openai_completion_params,
     openai_handle_bad_request,
     openai_media_filter,
-    openai_should_retry,
 )
 from .util import environment_prerequisite_error, model_base_url
 
@@ -66,6 +69,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_store: bool | None = None,
         stream: bool | None = None,
         strict_tools: bool = True,
+        client_timeout: float | None = None,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -121,25 +125,38 @@ class OpenAICompatibleAPI(ModelAPI):
         self.stream = False if stream is None else stream
         self.strict_tools = strict_tools
 
+        # store client_timeout for http client creation
+        self.client_timeout = client_timeout
+
         # store http_client and model_args for reinitialization
-        self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
+        self.http_client = model_args.pop("http_client", self._create_http_client())
         self.model_args = model_args
 
         # create client
         self.initialize()
+
+    def _create_http_client(self) -> OpenAIAsyncHttpxClient:
+        if self.client_timeout is not None:
+            return OpenAIAsyncHttpxClient(
+                timeout=httpx.Timeout(timeout=self.client_timeout, connect=5.0)
+            )
+        return OpenAIAsyncHttpxClient()
 
     def _create_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
             http_client=self.http_client,
+            timeout=self.client_timeout
+            if self.client_timeout is not None
+            else NOT_GIVEN,
             **self.model_args,
         )
 
     def initialize(self) -> None:
         super().initialize()
         if self.http_client.is_closed:
-            self.http_client = OpenAIAsyncHttpxClient()
+            self.http_client = self._create_http_client()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
@@ -171,6 +188,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 prompt_cache_retention=NOT_GIVEN,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
+                synthesize_phase=False,
                 model_info=ModelInfo(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
@@ -216,6 +234,17 @@ class OpenAICompatibleAPI(ModelAPI):
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
+
+                # guard against the openai SDK returning a non-ChatCompletion
+                # (this can occur when the server returns a 200 with a body
+                # that parses as JSON but is not a JSON object — e.g. a bare
+                # string — which openai's construct_type passes through as-is)
+                if not isinstance(completion, ChatCompletion):
+                    raise OpenAIResponseError(
+                        "server_error",
+                        f"Unexpected non-ChatCompletion response: {completion!r}",
+                    )
+
                 response = completion.model_dump()
                 model_call.set_response(
                     response, self._http_hooks.end_request(request_id)
@@ -255,6 +284,13 @@ class OpenAICompatibleAPI(ModelAPI):
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
         if self.stream or self.should_stream(config):
+            if config.prompt_logprobs is not None:
+                warn_once(
+                    logger,
+                    "prompt_logprobs is not supported with streaming and will "
+                    "be ignored. Disable streaming to receive prompt log "
+                    "probabilities.",
+                )
             async with self.client.chat.completions.stream(**request) as stream:
                 return await stream.get_final_completion()
         else:
@@ -277,8 +313,9 @@ class OpenAICompatibleAPI(ModelAPI):
         return self.service_model_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
-        return openai_should_retry(ex)
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        decision = openai_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -291,11 +328,22 @@ class OpenAICompatibleAPI(ModelAPI):
             return ex.status_code == 401
         return False
 
+    @property
+    def schema_exclude_fields(self) -> set[str] | None:
+        """Fields to exclude when dumping JSON schemas for this provider.
+
+        Defaults to excluding extended validation fields (pattern, minLength,
+        etc.) since not all OpenAI-compatible providers support them.
+        Subclasses can override to return None (allow all) or a custom set.
+        """
+        return JSON_SCHEMA_EXTENDED_FIELDS
+
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
+            schema_exclude=self.schema_exclude_fields,
         )
 
         if (
@@ -315,7 +363,7 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         # some inference platforms (e.g. hf-inference) require strict=True
-        openai_tools = openai_chat_tools(tools)
+        openai_tools = openai_chat_tools(tools, exclude=self.schema_exclude_fields)
         for tool in openai_tools:
             tool["function"]["strict"] = self.strict_tools
         return openai_tools
@@ -378,6 +426,9 @@ def _resolve_chat_choice(
 
 class ModelInfo(ResponsesModelInfo):
     def has_reasoning_options(self) -> bool:
+        return True
+
+    def reasoning_only_fallback(self) -> bool:
         return True
 
     def is_gpt(self) -> bool:

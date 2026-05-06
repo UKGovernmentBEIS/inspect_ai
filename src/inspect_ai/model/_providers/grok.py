@@ -49,7 +49,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import ModelAPI, log_model_retry
+from inspect_ai.model._model import ModelAPI, RetryDecision, log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
@@ -59,7 +59,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._json import json_schema_to_base_model
+from inspect_ai.util._json import json_schema_dump, json_schema_to_base_model
 
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model_output import (
@@ -302,16 +302,30 @@ class GrokAPI(ModelAPI):
             and ex.code() == grpc.StatusCode.UNAUTHENTICATED
         )
 
-    def should_retry(self, ex: BaseException) -> bool:
+    @override
+    def connection_key(self) -> str:
+        """Scope max_connections per API key.
+
+        Without this override Grok would inherit the default `"default"` and
+        every Grok request would globally share one concurrency slot.
+        """
+        return str(self.api_key)
+
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, grpc.RpcError):
-            return ex.code() in {
+            code = ex.code()
+            # RESOURCE_EXHAUSTED is the gRPC equivalent of HTTP 429 — the only
+            # one that indicates rate-limiting. UNKNOWN / UNAVAILABLE /
+            # DEADLINE_EXCEEDED are infrastructure transients.
+            if code == grpc.StatusCode.RESOURCE_EXHAUSTED:
+                return RetryDecision.rate_limit()
+            if code in {
                 grpc.StatusCode.UNKNOWN,
                 grpc.StatusCode.UNAVAILABLE,
                 grpc.StatusCode.DEADLINE_EXCEEDED,
-                grpc.StatusCode.RESOURCE_EXHAUSTED,
-            }
-        else:
-            return False
+            }:
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def retry_wait(self) -> WaitBaseT | None:
@@ -380,7 +394,7 @@ class GrokAPI(ModelAPI):
             return tool(
                 name=tool_info.name,
                 description=tool_info.description,
-                parameters=tool_info.parameters.model_dump(exclude_none=True),
+                parameters=json_schema_dump(tool_info.parameters),
             )
 
     def _grok_params(self, config: GenerateConfig) -> dict[str, Any]:
@@ -422,7 +436,7 @@ class GrokAPI(ModelAPI):
                     )
                 case "minimal" | "low":
                     gconfig["reasoning_effort"] = "low"
-                case "medium" | "high" | "xhigh":
+                case "medium" | "high" | "xhigh" | "max":
                     gconfig["reasoning_effort"] = "high"
 
         # return encrypted reasoning blocks

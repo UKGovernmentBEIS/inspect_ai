@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Callable, TypeGuard, cast
+from typing import Annotated, Any, Callable, TypeGuard, cast
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
@@ -89,6 +89,11 @@ def is_dockerfile(file: Any) -> TypeGuard[str]:
         return False
 
 
+def _coerce_cpus(v: Any) -> str | None:
+    """Accept numeric cpus values (e.g. ``cpus: 1``) and coerce to string."""
+    return str(v) if v is not None else None
+
+
 class ComposeModel(BaseModel):
     """Base model that allows x- extensions while rejecting other unknown fields."""
 
@@ -150,7 +155,7 @@ class ComposeBuild(ComposeModel):
 class ComposeResources(ComposeModel):
     """Resource limits/reservations for a compose service."""
 
-    cpus: str | None = Field(default=None)
+    cpus: Annotated[str | None, BeforeValidator(_coerce_cpus)] = Field(default=None)
     """CPU limit (e.g., '0.5', '2')."""
 
     memory: str | None = Field(default=None)
@@ -179,7 +184,7 @@ class ComposeDeviceReservation(ComposeModel):
 class ComposeResourceReservations(ComposeModel):
     """Resource reservations including devices."""
 
-    cpus: str | None = Field(default=None)
+    cpus: Annotated[str | None, BeforeValidator(_coerce_cpus)] = Field(default=None)
     """Reserved CPU (e.g., '0.5', '2')."""
 
     memory: str | None = Field(default=None)

@@ -1,5 +1,6 @@
 ---
 title: Interactivity 
+llms-description: Introducing user interaction into task implementation, such as confirming consequential actions or dynamic prompting.
 ---
 
 ## Overview

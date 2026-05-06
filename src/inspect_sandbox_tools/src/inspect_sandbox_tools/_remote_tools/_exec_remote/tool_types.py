@@ -15,6 +15,8 @@ class SubmitParams(BaseModel):
     """Additional environment variables (merged with the current environment)."""
     cwd: str | None = None
     """Working directory for command execution."""
+    user: str | None = None
+    """User to run the command as (requires server running as root)."""
     model_config = {"extra": "forbid"}
 
 
@@ -22,6 +24,7 @@ class PollParams(BaseModel):
     """Parameters for exec_remote_poll."""
 
     pid: int
+    ack_seq: int
     model_config = {"extra": "forbid"}
 
 
@@ -29,6 +32,7 @@ class KillParams(BaseModel):
     """Parameters for exec_remote_kill."""
 
     pid: int
+    ack_seq: int
     model_config = {"extra": "forbid"}
 
 
@@ -50,6 +54,7 @@ class PollResult(BaseModel):
 
     state: Literal["running", "completed", "killed"]
     exit_code: int | None = None
+    seq: int
     stdout: str
     stderr: str
 
@@ -61,6 +66,7 @@ class OutputResult(BaseModel):
     round-trip also delivers any buffered output.
     """
 
+    seq: int
     stdout: str
     stderr: str
 
@@ -76,6 +82,7 @@ class WriteStdinParams(BaseModel):
 
     pid: int
     data: str
+    ack_seq: int
     model_config = {"extra": "forbid"}
 
 
@@ -89,6 +96,7 @@ class CloseStdinParams(BaseModel):
     """Parameters for exec_remote_close_stdin."""
 
     pid: int
+    ack_seq: int
     model_config = {"extra": "forbid"}
 
 

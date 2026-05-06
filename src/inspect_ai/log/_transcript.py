@@ -40,13 +40,15 @@ class Transcript:
     _context: WalkContext
 
     @overload
-    def __init__(self, *, log_model_api: bool = False) -> None: ...
+    def __init__(self, *, log_model_api: bool | None = None) -> None: ...
 
     @overload
-    def __init__(self, events: list[Event], log_model_api: bool = False) -> None: ...
+    def __init__(
+        self, events: list[Event], log_model_api: bool | None = None
+    ) -> None: ...
 
     def __init__(
-        self, events: list[Event] | None = None, log_model_api: bool = False
+        self, events: list[Event] | None = None, log_model_api: bool | None = None
     ) -> None:
         self._event_logger = None
         self._log_model_api = log_model_api
@@ -54,6 +56,8 @@ class Transcript:
         self._events: list[Event] = events if events is not None else []
         self._attachments: dict[str, str] = {}
         self._timelines: list[Timeline] = []
+        self._model_call_counts: dict[str, int] = {}
+        self._kept_event_ids: set[int] = set()
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -119,18 +123,26 @@ class Transcript:
         self._process_event(event)
 
     def _process_event(self, event: Event) -> None:
-        # remove call if requested
-        is_error_call = (
-            isinstance(event, ModelEvent)
-            and event.call is not None
-            and event.call.error
-        )
-        if (
-            isinstance(event, ModelEvent)
-            and not is_error_call
-            and not self._log_model_api
-        ):
-            event.call = None
+        if isinstance(event, ModelEvent) and event.call is not None:
+            is_error = bool(event.call.error)
+            if not is_error:
+                if self._log_model_api is True:
+                    pass
+                elif self._log_model_api is False:
+                    event.call = None
+                else:
+                    event_id = id(event)
+                    if event_id not in self._kept_event_ids:
+                        from inspect_ai._util.constants import (
+                            DEFAULT_LOG_MODEL_API_CALLS,
+                        )
+
+                        count = self._model_call_counts.get(event.model, 0)
+                        if count < DEFAULT_LOG_MODEL_API_CALLS:
+                            self._model_call_counts[event.model] = count + 1
+                            self._kept_event_ids.add(event_id)
+                        else:
+                            event.call = None
 
         if self._event_logger:
             self._event_logger(event)

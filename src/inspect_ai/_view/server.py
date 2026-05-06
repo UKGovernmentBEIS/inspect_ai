@@ -28,6 +28,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
+from ._dist import resolve_dist_directory
 from .common import (
     async_connection,
     delete_log,
@@ -47,30 +48,21 @@ from .notify import view_last_eval_time
 logger = getLogger(__name__)
 
 
-def view_server(
+def view_server_app(
     log_dir: str,
     recursive: bool = True,
-    host: str = DEFAULT_SERVER_HOST,
-    port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
-) -> None:
+    dist_dir: Path | None = None,
+) -> web.Application:
+    """Create the aiohttp view server application without running it.
+
+    This factory is analogous to ``fastapi_server.view_server_app`` and
+    is used both by ``view_server`` (production) and by the test suite.
+    """
     # route table
     routes = web.RouteTableDef()
-
-    # get filesystem and resolve log_dir to full path
-    fs = filesystem(log_dir)
-    if is_azure_path(log_dir):
-        try:
-            azure_debug_exists(fs, log_dir, display().print)
-            # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
-        except Exception as ex:  # provide actionable guidance for Azure failures
-            raise RuntimeError(azure_runtime_hint(ex)) from ex
-    else:
-        if not fs.exists(log_dir):
-            fs.mkdir(log_dir, True)
-        log_dir = fs.info(log_dir).name
 
     # validate log file requests (must be in the log_dir
     # unless authorization has been provided)
@@ -100,7 +92,7 @@ def view_server(
         file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
         info = await get_log_info(file, generate_direct_url=generate_direct_urls)
-        return web.json_response(info)
+        return web.json_response(info.model_dump(exclude_none=True))
 
     @routes.get("/api/log-delete/{log}")
     async def api_log_delete(request: web.Request) -> web.Response:
@@ -185,7 +177,7 @@ def view_server(
         else:
             request_log_dir = log_dir
 
-        return web.json_response(get_log_dir(request_log_dir))
+        return web.json_response(get_log_dir(request_log_dir).model_dump())
 
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:
@@ -204,7 +196,7 @@ def view_server(
         )
         if listing is None:
             return web.Response(status=404, reason="File not found")
-        return web.json_response(listing)
+        return web.json_response(listing.model_dump())
 
     @routes.get("/api/log-files")
     async def api_log_files(request: web.Request) -> web.Response:
@@ -225,14 +217,14 @@ def view_server(
         if client_etag is not None:
             mtime, file_count = parse_log_token(client_etag)
 
-        log_files_response: dict[str, Any] = await get_log_files(
+        result = await get_log_files(
             request_log_dir,
             recursive=recursive,
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
         )
-        return web.json_response(log_files_response)
+        return web.json_response(result.model_dump())
 
     @routes.get("/api/eval-set")
     async def eval_set(request: web.Request) -> web.Response:
@@ -368,6 +360,10 @@ def view_server(
         # get sync info
         after_event_id = query_param_optional("last-event-id", request, int)
         after_attachment_id = query_param_optional("after-attachment-id", request, int)
+        after_message_pool_id = query_param_optional(
+            "after-message-pool-id", request, int
+        )
+        after_call_pool_id = query_param_optional("after-call-pool-id", request, int)
 
         # get samples and responsd
         buffer = sample_buffer(file)
@@ -376,6 +372,8 @@ def view_server(
             epoch=epoch,
             after_event_id=after_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
 
         # respond
@@ -383,6 +381,12 @@ def view_server(
             return web.Response(status=404)
         else:
             return web.Response(body=sample_data.model_dump_json())
+
+    if dist_dir is not None:
+
+        @routes.get("/api/dist")
+        async def api_dist(request: web.Request) -> web.Response:
+            return web.json_response({"path": dist_dir.as_posix()})
 
     # optional auth middleware
     @web.middleware
@@ -398,7 +402,45 @@ def view_server(
     # setup server
     app = web.Application(middlewares=[authorize] if authorization else [])
     app.router.add_routes(routes)
-    app.router.register_resource(WWWResource())
+    if dist_dir is not None:
+        app.router.register_resource(WWWResource(dist_dir))
+
+    return app
+
+
+def view_server(
+    log_dir: str,
+    recursive: bool = True,
+    host: str = DEFAULT_SERVER_HOST,
+    port: int = DEFAULT_VIEW_PORT,
+    authorization: str | None = None,
+    fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
+) -> None:
+    # resolve dist directory (downloads LFS objects if needed)
+    dist_dir = resolve_dist_directory()
+
+    # get filesystem and resolve log_dir to full path
+    fs = filesystem(log_dir)
+    if is_azure_path(log_dir):
+        try:
+            azure_debug_exists(fs, log_dir, display().print)
+            # Don't call fs.info(); keep original URI (fsspec paths acceptable downstream)
+        except Exception as ex:  # provide actionable guidance for Azure failures
+            raise RuntimeError(azure_runtime_hint(ex)) from ex
+    else:
+        if not fs.exists(log_dir):
+            fs.mkdir(log_dir, True)
+        log_dir = fs.info(log_dir).name
+
+    app = view_server_app(
+        log_dir=log_dir,
+        recursive=recursive,
+        authorization=authorization,
+        fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
+        dist_dir=dist_dir,
+    )
 
     # filter request log (remove /api/events)
     filter_aiohttp_log()
@@ -476,10 +518,8 @@ async def log_headers_response(files: list[str]) -> web.Response:
 
 
 class WWWResource(web.StaticResource):
-    def __init__(self) -> None:
-        super().__init__(
-            "", os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
-        )
+    def __init__(self, dist_dir: Path) -> None:
+        super().__init__("", os.path.abspath(dist_dir.as_posix()))
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
         # serve /index.html for /
@@ -487,7 +527,6 @@ class WWWResource(web.StaticResource):
         if not filename:
             request.match_info["filename"] = "index.html"
 
-        # call super
         response = await super()._handle(request)
 
         # disable caching as this is only ever served locally
@@ -500,7 +539,6 @@ class WWWResource(web.StaticResource):
             }
         )
 
-        # return response
         return response
 
 

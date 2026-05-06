@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.log import read_eval_log, write_eval_log
-from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.log._edit import ProvenanceData, TagsEdit, edit_eval_log
 from inspect_ai.scorer._metric import ScoreEdit
 
 
@@ -45,7 +45,7 @@ def test_log_format_round_trip_single(original_log, temp_dir):
         new_log.location = None
 
         # Compare the logs
-        assert original_log.model_dump_json() == new_log.model_dump_json(), (
+        assert original_log.model_dump() == new_log.model_dump(), (
             f"Round-trip failed for {format} format"
         )
 
@@ -89,7 +89,7 @@ def test_log_format_round_trip_cross(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the logs
-    assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
+    assert original_log.model_dump() == new_json_log.model_dump(), (
         "Cross-format round-trip failed"
     )
 
@@ -110,7 +110,7 @@ def test_log_format_equality(original_log, temp_dir):
     eval_log.location = None
 
     # Compare the logs
-    assert json_log.model_dump_json() == eval_log.model_dump_json(), (
+    assert json_log.model_dump() == eval_log.model_dump(), (
         "Logs in different formats are not identical"
     )
 
@@ -131,7 +131,7 @@ def test_log_format_detection(original_log, temp_dir):
     eval_log.location = None
 
     # Compare the logs
-    assert json_log.model_dump_json() == eval_log.model_dump_json(), (
+    assert json_log.model_dump() == eval_log.model_dump(), (
         "Auto format detection failed"
     )
 
@@ -186,7 +186,7 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the original and new JSON logs
-    assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
+    assert original_log.model_dump() == new_json_log.model_dump(), (
         "JSON content changed after roundtrip through EVAL format"
     )
 
@@ -223,6 +223,64 @@ def test_score_editing_round_trip(original_log, temp_dir, format):
             assert len(new_score.history) == 2  # original + edit
             assert new_score.history[0].provenance is None  # original has no provenance
             assert new_score.history[1].provenance.author == "test_user"
+
+
+def test_write_header_only_preserves_samples(original_log, temp_dir):
+    """Test that header_only write appends the header without losing samples."""
+    eval_log_path = (temp_dir / "test.eval").as_posix()
+
+    # Write the full log (with samples)
+    write_eval_log(original_log, eval_log_path, format="eval")
+
+    # Read just the header, add a tag, and write header_only
+    header = read_eval_log(eval_log_path, header_only=True)
+    header = edit_eval_log(
+        header,
+        [TagsEdit(tags_add=["new_tag"])],
+        ProvenanceData(author="test", reason="test header_only"),
+    )
+    write_eval_log(header, eval_log_path, format="eval", header_only=True)
+
+    # Read back the full log and verify header was updated
+    restored = read_eval_log(eval_log_path)
+    assert "new_tag" in restored.tags
+    assert restored.log_updates is not None
+    assert len(restored.log_updates) == 1
+    assert restored.log_updates[0].provenance.author == "test"
+
+    # Verify samples are still intact
+    assert restored.samples is not None
+    assert len(restored.samples) == len(original_log.samples)
+    for orig, rest in zip(original_log.samples, restored.samples):
+        assert orig.id == rest.id
+        assert orig.epoch == rest.epoch
+
+
+def test_write_header_only_with_file_uri(original_log, temp_dir):
+    """Test that header_only write works when location is a file:/// URI."""
+    eval_log_path = (temp_dir / "test.eval").as_posix()
+
+    # Write the full log
+    write_eval_log(original_log, eval_log_path, format="eval")
+
+    # Read the log — this sets log.location to a file:/// URI
+    header = read_eval_log(eval_log_path, header_only=True)
+    file_uri = f"file://{eval_log_path}"
+    header.location = file_uri
+
+    # Edit and write header_only using the file:/// URI as location
+    header = edit_eval_log(
+        header,
+        [TagsEdit(tags_add=["uri_tag"])],
+        ProvenanceData(author="test", reason="test file URI"),
+    )
+    write_eval_log(header, header.location, format="eval", header_only=True)
+
+    # Verify the update and samples survived
+    restored = read_eval_log(eval_log_path)
+    assert "uri_tag" in restored.tags
+    assert restored.samples is not None
+    assert len(restored.samples) == len(original_log.samples)
 
 
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:

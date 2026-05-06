@@ -29,7 +29,7 @@ def test_anthropic_remote_mcp() -> None:
 @skip_if_no_google
 def test_google_remote_mcp() -> None:
     with pytest.raises(RuntimeError, match="Remote MCP"):
-        check_remote_mcp("google/gemini-2.0-flash", debug_errors=True)
+        check_remote_mcp("google/gemini-3.1-flash-lite-preview", debug_errors=True)
 
 
 # doesn't appear to be enabled server-side right now

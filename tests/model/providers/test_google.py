@@ -43,7 +43,13 @@ from inspect_ai.model._providers.google import (
 )
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams, tool
+from inspect_ai.tool import (
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    tool,
+)
 
 
 @skip_if_no_google
@@ -72,7 +78,7 @@ def test_google_block_reason():
             # TODO: we can't seem to get a content filter to trigger!
             dataset=[Sample(input="you are a shameful model")],
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite-preview",
         model_args=dict(safety_settings=safety_settings),
     )[0]
     # TODO: comment in once we have an input that triggers the filter
@@ -754,7 +760,7 @@ async def test_google_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-2.0-flash")
+    model = get_model("google/gemini-3.1-flash-lite-preview")
 
     # Create an assistant message with a single tool call (no tool result)
     assistant_msg = ChatMessageAssistant(
@@ -779,7 +785,7 @@ async def test_google_count_tokens_multiple_tool_calls() -> None:
     """Test counting tokens for a single assistant message with multiple tool calls."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-2.0-flash")
+    model = get_model("google/gemini-3.1-flash-lite-preview")
 
     # Create an assistant message with multiple tool calls (no tool results)
     assistant_msg = ChatMessageAssistant(
@@ -814,7 +820,7 @@ async def test_google_count_tokens_single_tool_result() -> None:
     """Test counting tokens for a single tool result message (no preceding tool use)."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-2.0-flash")
+    model = get_model("google/gemini-3.1-flash-lite-preview")
 
     # Create a tool result message without a preceding assistant message
     tool_msg = ChatMessageTool(
@@ -836,7 +842,7 @@ def test_google_streaming_basic():
             dataset=[Sample(input="Say hello in one sentence", target="hello")],
             scorer=includes(),
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite-preview",
         model_args=dict(streaming=True),
     )[0]
 
@@ -869,7 +875,7 @@ def test_google_streaming_with_tools():
             solver=use_tools([add]),
             scorer=includes(),
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite-preview",
         model_args=dict(streaming=True),
     )[0]
 
@@ -889,7 +895,7 @@ def test_google_streaming_large_output():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite-preview",
         model_args=dict(streaming=True),
         max_tokens=4096,
     )[0]
@@ -911,7 +917,7 @@ def test_google_streaming_captures_reasoning_summaries():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-3-pro-preview",
+        model="google/gemini-3.1-pro-preview",
         model_args=dict(streaming=True),
     )[0]
 

@@ -38,6 +38,7 @@ from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
+from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
@@ -63,11 +64,11 @@ class EvalConfigDefaults(TypedDict):
     epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
+    score_on_error: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
     log_images: bool
-    log_model_api: bool
     score_display: bool
 
 
@@ -77,11 +78,11 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
+        "score_on_error": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
-        "log_model_api": False,
         "score_display": True,
     }
 
@@ -128,6 +129,14 @@ class EvalConfig(BaseModel):
     retry_on_error: int | None = Field(default=None)
     """Number of times to retry samples if they encounter errors."""
 
+    score_on_error: bool | None = Field(default=None)
+    """Score samples that error rather than failing the eval mid-run.
+
+    Errors are still counted toward the `fail_on_error` threshold for marking
+    the eval log as 'error'. Only takes effect after retries (if any) are
+    exhausted.
+    """
+
     message_limit: int | None = Field(default=None)
     """Maximum messages to allow per sample."""
 
@@ -172,7 +181,11 @@ class EvalConfig(BaseModel):
     """Log base64 encoded versions of images."""
 
     log_model_api: bool | None = Field(default=None)
-    """Log raw model api requests and responses."""
+    """Log raw model api requests and responses.
+
+    True logs all calls. False logs only errors. None (default) logs the
+    first few calls per model plus all errors.
+    """
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
@@ -202,12 +215,15 @@ class EvalConfig(BaseModel):
         return values
 
 
+EvalSampleLimitType = Literal[
+    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+]
+
+
 class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
-    type: Literal[
-        "context", "time", "working", "message", "token", "cost", "operator", "custom"
-    ]
+    type: EvalSampleLimitType
     """The type of limit"""
 
     limit: float
@@ -306,6 +322,22 @@ class EvalSampleSummary(BaseModel):
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
+
+
+class EvalRetryError(BaseModel):
+    """Error from a retried sample attempt."""
+
+    message: str
+    """Error message."""
+
+    traceback: str
+    """Error traceback."""
+
+    traceback_ansi: str
+    """Error traceback with ANSI color codes."""
+
+    events: list[Event] | None = Field(default=None)
+    """Events prior to error (goes back to last ModelEvent)."""
 
 
 class EvalSample(BaseModel):
@@ -420,7 +452,7 @@ class EvalSample(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
-    error_retries: list[EvalError] | None = Field(default=None)
+    error_retries: list[EvalRetryError] | None = Field(default=None)
     """Errors that were retried for this sample."""
 
     attachments: dict[str, str] = Field(default_factory=dict)
@@ -892,6 +924,10 @@ class EvalSpec(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
 
+    viewer: ViewerConfig | None = Field(default=None)
+    """Log viewer configuration — controls how scanner results are rendered
+    in the sidebar. Authored via `Task(viewer=...)`."""
+
     scorers: list[EvalScorer] | None = Field(default=None)
     """Scorers and args for this eval"""
 
@@ -959,6 +995,25 @@ def eval_error(
     )
 
 
+class ConnectionLimitChange(BaseModel):
+    """Record of an adaptive-connections controller scale change."""
+
+    timestamp: float
+    """Unix timestamp (seconds since epoch) of the change."""
+
+    model: str
+    """Display name of the model whose connection limit changed (e.g. `openai/gpt-4o`)."""
+
+    old_limit: int
+    """Concurrency limit before the change."""
+
+    new_limit: int
+    """Concurrency limit after the change."""
+
+    reason: Literal["slow_start", "steady_state_up", "rate_limit"]
+    """Why the change occurred."""
+
+
 class EvalStats(BaseModel):
     """Timing and usage statistics."""
 
@@ -973,6 +1028,9 @@ class EvalStats(BaseModel):
 
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for evaluation."""
+
+    connection_limit_history: list[ConnectionLimitChange] = Field(default_factory=list)
+    """History of adaptive-connections controller scale changes (empty unless `adaptive_connections` was enabled)."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -1062,10 +1120,12 @@ class EvalLog(BaseModel):
 
         return self
 
-    @field_serializer("samples", "reductions")
+    @field_serializer("samples")
     @classmethod
-    def _serialize_lazy_lists(cls, value: Any) -> Any:
-        """Ensure LazyList instances are materialized before Pydantic serializes.
+    def _serialize_samples(
+        cls, value: list[EvalSample] | None
+    ) -> list[EvalSample] | None:
+        """Ensure LazyList is materialized before Pydantic serializes.
 
         Pydantic v2's Rust serializer accesses the C-level list array directly,
         bypassing Python __len__/__iter__ overrides. For empty LazyList instances
@@ -1073,6 +1133,20 @@ class EvalLog(BaseModel):
         triggers the lazy load. Calling _ensure_loaded() here populates the
         underlying C array in-place — no copy needed.
         """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
+
+    @field_serializer("reductions")
+    @classmethod
+    def _serialize_reductions(
+        cls, value: list[EvalSampleReductions] | None
+    ) -> list[EvalSampleReductions] | None:
+        """Ensure LazyList is materialized before Pydantic serializes."""
         if value is None:
             return value
         from ._recorders.eval import LazyList

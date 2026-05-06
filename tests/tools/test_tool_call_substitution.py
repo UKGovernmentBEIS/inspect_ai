@@ -148,15 +148,15 @@ class TestRenderToolApprovalEscaping:
 
         view = ToolCallView(
             call=ToolCallContent(
-                title="Run: {{cmd}}",
+                title="Run: {{command}}",
                 format="text",
-                content="{{cmd}}",
+                content="{{command}}",
             ),
         )
         result = render_tool_approval(
             message="Please approve",
             view=view,
-            arguments={"cmd": "[bold]evil[/bold]"},
+            arguments={"command": "[bold]evil[/bold]"},
         )
         assert len(result) > 0
         # Find the Text renderable containing the title (has "Run:" prefix)

@@ -1,5 +1,8 @@
+import json
 import shutil
 import tempfile
+import threading
+import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -19,6 +22,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
+    _embed_viewer,
     epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
@@ -33,16 +37,23 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
-from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    list_eval_logs,
+    read_eval_log,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalConfig, EvalLog
+from inspect_ai.log._recorders.eval import ZipLogFile
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
-from inspect_ai.solver import Solver, generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
-def test_eval_set() -> None:
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set(retry_immediate: bool) -> None:
     # run eval with a solver that fails 10% of the time
     with tempfile.TemporaryDirectory() as log_dir:
         success, logs = eval_set(
@@ -50,6 +61,7 @@ def test_eval_set() -> None:
             log_dir=log_dir,
             retry_attempts=1000,
             retry_wait=0.1,
+            retry_immediate=retry_immediate,
             model="mockllm/model",
         )
         assert success
@@ -71,6 +83,7 @@ def test_eval_set() -> None:
             log_dir=log_dir,
             retry_attempts=1,
             retry_wait=0.1,
+            retry_immediate=retry_immediate,
             model="mockllm/model",
         )
         assert not success
@@ -79,7 +92,8 @@ def test_eval_set() -> None:
 
 @pytest.mark.slow
 @pytest.mark.parametrize("eval_set_id", [None, "test-eval-set-id"])
-def test_eval_set_dynamic(eval_set_id: str | None) -> None:
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_dynamic(eval_set_id: str | None, retry_immediate: bool) -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
         for _ in range(0, 10):
@@ -102,6 +116,7 @@ def test_eval_set_dynamic(eval_set_id: str | None) -> None:
             model=[get_model("mockllm/model"), get_model("mockllm/model2")],
             retry_attempts=10000,
             retry_wait=0.001,
+            retry_immediate=retry_immediate,
             eval_set_id=eval_set_id,
         )
         assert len(logs) == 4
@@ -321,6 +336,68 @@ def test_eval_set_retry_started():
         # re-run the eval set and confirm status 'succes'
         run_eval_set()
         assert eval_log_status() == "success"
+
+
+def test_eval_set_preserves_token_usage():
+    # baseline: a single-sample task that succeeds first try
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(input="hello", target="hello")],
+                solver=[generate()],
+                scorer=exact(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            model="mockllm/model",
+        )
+        assert success
+        baseline_log = read_eval_log(logs[0].location)
+        assert baseline_log.stats.model_usage
+        model_name = list(baseline_log.stats.model_usage.keys())[0]
+        baseline_tokens = baseline_log.stats.model_usage[model_name].total_tokens
+        assert baseline_tokens > 0
+
+    # retry scenario: a single-sample task where the solver runs generate() and
+    # then raises on the first call. The same Task instance is reused across
+    # eval_set retries, so the closure-bound counter survives. The first
+    # attempt records baseline_tokens (generate ran before the failure), and
+    # the retry records baseline_tokens again — so a final log with token
+    # rollover wired up should exceed baseline_tokens.
+    #
+    # This exercises legacy batch-retry mode (retry_immediate=False), where each
+    # retry produces a fresh eval log and usage is rolled forward across logs.
+    @solver
+    def fail_first_after_generate() -> Solver:
+        counter = {"value": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            counter["value"] += 1
+            if counter["value"] == 1:
+                raise ValueError("first call fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(input="hello", target="hello")],
+                solver=[generate(), fail_first_after_generate()],
+                scorer=exact(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=False,
+            model="mockllm/model",
+        )
+        assert success
+        retried_log = read_eval_log(logs[0].location)
+        retried_tokens = retried_log.stats.model_usage[model_name].total_tokens
+
+    assert retried_tokens > baseline_tokens
 
 
 def test_eval_set_header_only() -> None:
@@ -1287,3 +1364,228 @@ def test_epochs_changed_same_reducer():
     assert not epochs_changed(epochs_obj, config), (
         "epochs_changed should return False when reducer object matches log name"
     )
+
+
+def test_embed_viewer_writes_on_change() -> None:
+    """Listing updater calls write_log_listing when log state changes."""
+    log1 = EvalLogInfo(
+        name="/dir/log1.eval",
+        type="file",
+        size=1000,
+        mtime=1.0,
+        task="task",
+        task_id="id1",
+        suffix=None,
+    )
+    write_called = threading.Event()
+
+    with (
+        patch("inspect_ai._eval.evalset.embed_log_dir"),
+        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
+    ):
+        mock_list.return_value = [log1]
+        mock_write.side_effect = lambda *a, **kw: write_called.set()
+
+        with _embed_viewer("/fake/dir", interval=0.05):
+            assert write_called.wait(timeout=2.0), "listing.json was never updated"
+
+    # one periodic update (with pre-fetched logs) + one final update on context exit
+    assert mock_write.call_count == 2
+    mock_write.assert_any_call("/fake/dir", logs=[log1])
+    mock_write.assert_any_call("/fake/dir")
+
+
+def test_embed_viewer_skips_when_unchanged() -> None:
+    """Listing updater does not call write_log_listing when state is unchanged."""
+    with (
+        patch("inspect_ai._eval.evalset.embed_log_dir"),
+        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
+    ):
+        mock_list.return_value = []  # always empty — matches initial frozenset()
+
+        with _embed_viewer("/fake/dir", interval=0.05):
+            time.sleep(0.3)  # let several ticks pass
+
+    # no periodic updates (state never changed), but one final update on context exit
+    assert mock_write.call_count == 1
+    mock_write.assert_called_once_with("/fake/dir")
+
+
+def test_eval_set_embed_viewer(tmp_path: Path) -> None:
+    """Viewer assets are embedded and listing.json reflects completed logs."""
+    log_dir = str(tmp_path / "logs")
+
+    success, logs = eval_set(
+        tasks=[hello_world()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        embed_viewer=True,
+    )
+
+    assert success
+    assert logs[0].status == "success"
+
+    for filename in ["index.html", "robots.txt", "listing.json"]:
+        assert (tmp_path / "logs" / filename).exists(), f"{filename} not found"
+
+    listing = json.loads((tmp_path / "logs" / "listing.json").read_text())
+    assert len(listing) == 1
+    assert list(listing.values())[0]["status"] == "success"
+
+
+def test_eval_set_single_flush_error() -> None:
+    """run_single must propagate task exceptions (baseline — should already pass)."""
+
+    async def broken_flush(self: ZipLogFile) -> None:
+        raise OSError("Simulated S3 write failure")
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ZipLogFile, "flush", broken_flush):
+            with pytest.raises(Exception):
+                eval_set(
+                    tasks=[
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_a",
+                        ),
+                    ],
+                    log_dir=log_dir,
+                    model="mockllm/model",
+                    retry_attempts=0,
+                )
+
+
+@pytest.mark.parametrize("retry_immediate", [False, True])
+def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
+    """run_parallel must not swallow task exceptions and return success=True."""
+
+    async def broken_flush(self: ZipLogFile) -> None:
+        raise OSError("Simulated S3 write failure")
+
+    # With 2 tasks run_parallel is used. The bug was that the worker caught the
+    # exception, left result as None, and eval_set got an empty list where
+    # all([]) == True, silently reporting success.
+    with tempfile.TemporaryDirectory() as log_dir:
+        with patch.object(ZipLogFile, "flush", broken_flush):
+            with pytest.raises(Exception):
+                eval_set(
+                    tasks=[
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_a",
+                        ),
+                        Task(
+                            dataset=[Sample(input="x", target="y")],
+                            name="task_b",
+                        ),
+                    ],
+                    log_dir=log_dir,
+                    model="mockllm/model",
+                    retry_attempts=0,
+                    retry_immediate=retry_immediate,
+                )
+
+
+@pytest.mark.parametrize("retry_immediate", [True, None])
+def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
+    """Test that retry_immediate retries a failed task reusing completed samples.
+
+    Task A has 2 samples. On the first run, sample 1 completes and sample 2
+    errors. On retry, sample 1 should be reused (solver not called again) and
+    only sample 2 should be re-run.
+
+    Task B waits until Task A's retry has completed before returning, ensuring
+    deterministic ordering.
+
+    Parameterized over `retry_immediate=True` (explicit) and `retry_immediate=None`
+    (omitted) to verify both produce the immediate-retry behavior — `None` is the
+    sentinel that resolves to the new default of True.
+    """
+    import anyio
+
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    # Coordination: task_b waits until task_a's retry finishes.
+    task_a_retry_completed: anyio.Event | None = None
+
+    # Track which sample_ids the solver executes, in order.
+    task_a_solver_calls: list[str | int | None] = []
+    # Samples already seen — the second unique sample errors.
+    seen_samples: set[str | int | None] = set()
+    # Sample that errored (so we can verify it re-runs on retry).
+    errored_sample: str | int | None = None
+
+    # Use unique solver names to avoid registry caching across test runs.
+    solver_id = id(task_a_solver_calls)
+
+    @solver(name=f"task_a_solver_{solver_id}")
+    def task_a_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal task_a_retry_completed, errored_sample
+            task_a_solver_calls.append(state.sample_id)
+
+            if errored_sample is None:
+                # First task run: succeed on the 1st sample, error on the 2nd
+                seen_samples.add(state.sample_id)
+                if len(seen_samples) == 2:
+                    errored_sample = state.sample_id
+                    raise ValueError("Task A second sample error")
+            else:
+                # Retry run: signal completion so task B can finish
+                if task_a_retry_completed is not None:
+                    task_a_retry_completed.set()
+            return state
+
+        return solve
+
+    @solver(name=f"task_b_solver_{solver_id}")
+    def task_b_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal task_a_retry_completed
+            if task_a_retry_completed is None:
+                task_a_retry_completed = anyio.Event()
+            await task_a_retry_completed.wait()
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=[
+                Task(
+                    dataset=[
+                        Sample(id="s1", input="x", target="y"),
+                        Sample(id="s2", input="x", target="y"),
+                    ],
+                    solver=[task_a_solver()],
+                    name="task_a",
+                ),
+                Task(
+                    dataset=[Sample(input="x", target="y")],
+                    solver=[task_b_solver()],
+                    name="task_b",
+                ),
+            ],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=1,
+            retry_immediate=retry_immediate,
+            max_tasks=2,
+            max_samples=1,
+        )
+        assert success
+        assert len(logs) == 2
+        assert all(log.status == "success" for log in logs)
+
+        # The solver ran 3 times for task A: first sample succeeded,
+        # second sample errored, then on retry only the failed sample
+        # re-ran (the succeeded one was reused from the log).
+        succeeded_id = [s for s in ("s1", "s2") if s != errored_sample][0]
+        assert len(task_a_solver_calls) == 3
+        assert task_a_solver_calls == [
+            succeeded_id,
+            errored_sample,
+            errored_sample,
+        ]

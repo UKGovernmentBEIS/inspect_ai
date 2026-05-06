@@ -45,6 +45,9 @@ class VLLMServer:
     # Adapter loading
     loaded_adapters: set[str] = field(default_factory=set)
 
+    # Lifecycle epoch — bumped by close() so all instances know to re-resolve
+    _epoch: int = 0
+
     # Lock for server startup (protects base_url check → start → assign)
     _init_lock: anyio.Lock = field(default_factory=anyio.Lock)
     # Lock for adapter loading (protects loaded check → HTTP load → add)
