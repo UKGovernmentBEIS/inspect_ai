@@ -132,7 +132,10 @@ export function getRunCmd(eval_, model = 'openai/gpt-5') {
 
 export function getPythonSnippet(eval_, model = 'openai/gpt-5') {
   const pkg  = eval_.source === 'harbor' ? 'inspect_harbor' : 'inspect_evals';
-  const task = eval_.id.replace(/^h_/, '');
+  // Use the task name from `code` (e.g. inspect_evals/mmlu_0_shot) rather
+  // than `id` (the directory slug, e.g. mmlu) so the import/call work for
+  // multi-task evals.
+  const task = (eval_.code || '').split('/').pop() || eval_.id.replace(/^h_/, '');
   return [
     `from inspect_ai import eval`,
     `from ${pkg} import ${task}`,
