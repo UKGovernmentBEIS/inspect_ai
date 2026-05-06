@@ -42,8 +42,11 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             sandbox = environment.as_type(LocalSandboxEnvironment)
             sandbox.directory.cleanup()
 
+    _SANDBOX_TOOLS_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
+
     def __init__(self) -> None:
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self._sandbox_tools_dir = str(Path(self.directory.name) / "sandbox-tools")
 
     @override
     async def exec(
@@ -67,11 +70,17 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         if not final_cwd.is_absolute():
             final_cwd = self.directory.name / final_cwd
 
+        # Scope the sandbox-tools server to this sandbox instance so it
+        # doesn't outlive the temp directory and leave a stale CWD.
+        final_env = {self._SANDBOX_TOOLS_DIR_ENV: self._sandbox_tools_dir}
+        if env:
+            final_env.update(env)
+
         result = await subprocess(
             args=cmd,
             input=input,
             cwd=final_cwd,
-            env=env,
+            env=final_env,
             timeout=timeout,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
             concurrency=concurrency,
