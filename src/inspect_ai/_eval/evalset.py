@@ -24,7 +24,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
-from inspect_ai._eval.task.scan import EvalScanners
+from inspect_ai._eval.task.scan import EvalScanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -540,9 +540,19 @@ def eval_set(
                 failed_tasks = as_previous_tasks(
                     failed_resolved_tasks, failed_logs, eval_set_args
                 )
-            tasks_to_run = pending_tasks + failed_tasks
+            tasks_to_run = (
+                pending_tasks
+                + failed_tasks
+                + _resume_scan_tasks(
+                    scanner,
+                    success_logs,
+                    resolved_tasks,
+                    eval_set_args,
+                    prior_scan_clean,
+                )
+            )
+
             if not tasks_to_run:
-                # no new tasks and no failed logs to retry, just return success logs
                 return [log.header for log in success_logs]
 
         # run the tasks
@@ -565,6 +575,10 @@ def eval_set(
         before_sleep=before_sleep,
         before=before,
     )
+
+    # must read BEFORE scan_context enters — scan_init invalidates the
+    # finalize flag on attach, so reading from inside try_eval is too late
+    prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
 
     with (
         _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
@@ -654,6 +668,36 @@ def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str
     with file(eval_set_id_file, "w") as f:
         f.write(eval_set_id)
     return eval_set_id
+
+
+def _resume_scan_tasks(
+    scanner: "EvalScanners | None",
+    success_logs: list[Log],
+    resolved_tasks: list[ResolvedTask],
+    eval_set_args: EvalSetArgsInTaskIdentifier,
+    prior_scan_clean: bool,
+) -> list[PreviousTask]:
+    """Build PreviousTask wrappers for success_logs that may need re-scanning.
+
+    Returned tasks fan out via `run_eval` so the per-sample reuse path
+    can dispatch scans for transcripts whose row never landed in the
+    scan dir. Returns an empty list when there's no scan work to do
+    (no scanner, no success logs, or the prior scan finalized
+    cleanly — in which case every transcript already has a row).
+
+    Must be added to `tasks_to_run` even when there are pending or
+    failed tasks; otherwise unscanned transcripts in already-
+    completed tasks are silently skipped on every call that has work.
+    """
+    if scanner is None or not success_logs or prior_scan_clean:
+        return []
+    success_task_identifiers = {log.task_identifier for log in success_logs}
+    success_resolved_tasks = [
+        task
+        for task in resolved_tasks
+        if task_identifier(task, eval_set_args) in success_task_identifiers
+    ]
+    return as_previous_tasks(success_resolved_tasks, success_logs, eval_set_args)
 
 
 # convert resolved tasks to previous tasks

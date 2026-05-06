@@ -189,6 +189,7 @@ async def scan_init(
                 "Either match the prior scanner set or use a different "
                 "log_dir / scan_id."
             )
+        _invalidate_finalized_flag(scan_dir)
         return
 
     spec = ScanSpec(
@@ -257,6 +258,45 @@ async def scan_eval_sample(
         await recorder.record(info, name, reports, metrics=None)
 
 
+async def resume_scan_previous_sample(
+    eval_sample: EvalSample,
+    scanner: "EvalScanners | None",
+    scanned_per_scanner: dict[str, set[str]],
+    sample_semaphore: contextlib.AbstractAsyncContextManager[Any],
+    *,
+    scan_id: str | None,
+    eval_id: str,
+    log_location: str,
+    model: str | None,
+) -> None:
+    """Dispatch a scan for a reused sample if its row isn't already on disk.
+
+    No-op when no scanner is configured, the snapshot says the prior
+    scan finalized cleanly (`scanned_per_scanner` is empty), or every
+    scanner already has a row for this transcript_id. Otherwise
+    acquires `sample_semaphore` (so resume-scan work shares the same
+    parallelism budget as the eval phase) and dispatches
+    `scan_eval_sample`.
+    """
+    tid = eval_sample.uuid
+    if (
+        scanner is None
+        or not scanned_per_scanner
+        or tid is None
+        or all(tid in s for s in scanned_per_scanner.values())
+    ):
+        return
+    async with sample_semaphore:
+        await scan_eval_sample(
+            eval_sample,
+            scanner,
+            scan_id=scan_id,
+            eval_id=eval_id,
+            log_location=log_location,
+            model=model,
+        )
+
+
 async def scan_finalize(
     *,
     scan_id: str,
@@ -308,6 +348,149 @@ async def scan_finalize(
     if snapshot is None:
         return
     _write_snapshot_to_scan_spec(UPath(scan_dir), snapshot)
+
+
+def _invalidate_finalized_flag(scan_dir: str) -> None:
+    """Flip `_summary.json`'s `complete` to `False` in place.
+
+    Called by `scan_init` when attaching to an existing scan_dir, so
+    the persisted finalize signal is reset for the current call.
+    Stats (model_usage, tokens, per-scanner counts) are preserved;
+    only the boolean flag is flipped. `scan_finalize` will rewrite
+    the whole file at sync time with the correct flag.
+    """
+    import json
+
+    from upath import UPath
+
+    summary_path = UPath(scan_dir) / "_summary.json"
+    if not summary_path.exists():
+        return
+    try:
+        data = json.loads(summary_path.read_text())
+    except Exception:
+        return
+    if data.get("complete") is True:
+        data["complete"] = False
+        summary_path.write_text(json.dumps(data))
+
+
+def scan_already_clean(
+    scanner: "EvalScanners | None", scan_id: str, log_dir: str
+) -> bool:
+    """True if the prior scan finalized cleanly and no call has run since.
+
+    Used by `eval_set` to short-circuit the success-logs-as-PreviousTask
+    routing when there's nothing for the per-sample resume-scan to find.
+    Safe because `scan_init` invalidates `complete=False` on every
+    attach, so this only reads `True` when the most recent prior
+    call's finalize wrote it AND no subsequent call has started.
+
+    Returns False when no scanner is configured, no scan dir exists,
+    or `_summary.json`'s `complete` is False/missing.
+    """
+    if scanner is None:
+        return False
+    return _scan_finalized_clean(_scan_dir(log_dir, scan_id, scanner))
+
+
+def _scan_finalized_clean(scan_dir: str) -> bool:
+    """True if the most recent call's `scan_finalize` ran with no errors.
+
+    Reads `_summary.json` at the scan_dir, which is rewritten by
+    `_sync_status_files` at every `scan_finalize`. `scan_init`
+    invalidates `complete` to `False` when attaching to an existing
+    scan_dir, so a `True` value here means "the most recent call's
+    finalize wrote this and recorded no errors" — i.e. every logged
+    sample has a row, no resume-scan needed.
+
+    A `False` (or absent) summary means either: a prior call crashed
+    before finalize (the `complete=False` was written by `scan_init`
+    of *this* call, and not yet overwritten), or the prior call had
+    scanner errors. In either case the per-sample check has work to
+    do — at minimum to confirm there are no missing rows.
+    """
+    import json
+
+    from upath import UPath
+
+    summary_path = UPath(scan_dir) / "_summary.json"
+    if not summary_path.exists():
+        return False
+    try:
+        return bool(json.loads(summary_path.read_text()).get("complete"))
+    except Exception:
+        return False
+
+
+def scanned_transcripts_for_resume(
+    scanner: "EvalScanners | None",
+    scan_id: str | None,
+    log_location: str,
+) -> dict[str, set[str]]:
+    """Per-scanner set of transcript_ids that already have a parquet row.
+
+    Returned dict gates the per-sample resume-scan check in
+    `task_run`: if a reused sample's `transcript_id` is in any
+    scanner's set, no new scan dispatch is needed.
+
+    An empty dict means "skip the check entirely" and is returned
+    when:
+
+    - no scanner is configured;
+    - no `scan_id` is set;
+    - the scan dir doesn't exist (no prior scan laid it down — or
+      this call's `scan_init` will create it fresh, in which case the
+      caller's own per-sample dispatch already handles the work);
+    - the most recent prior call finalized cleanly (`_summary.json`'s
+      `complete=True`) — every logged sample already has a row, so
+      the per-sample check would be pure overhead.
+    """
+    if scanner is None or scan_id is None:
+        return {}
+
+    scan_dir = _scan_dir(dirname(absolute_file_path(log_location)), scan_id, scanner)
+    if not exists(scan_dir) or _scan_finalized_clean(scan_dir):
+        return {}
+
+    return {
+        name: _scanned_transcript_ids(scan_dir, name)
+        for name in _normalize_scanners(scanner)
+    }
+
+
+def _scanned_transcript_ids(scan_dir: str, scanner_name: str) -> set[str]:
+    """Transcript ids already recorded for `scanner_name` in `scan_dir`.
+
+    Combines the in-flight buffer's per-transcript file stems with the
+    `transcript_id` column of the compacted parquet (if present) so the
+    "is this transcript scanned" check works whether or not the most
+    recent sync was complete=True (which cleans the buffer).
+    """
+    import pyarrow.parquet as pq
+    from inspect_scout._recorder.buffer import RecorderBuffer, _sanitize_component
+    from upath import UPath
+
+    ids: set[str] = set()
+
+    # in-flight buffer: <buffer_dir>/scanner=<sanitized>/<tid>.parquet
+    buffer_dir = RecorderBuffer.buffer_dir(scan_dir)
+    sdir = buffer_dir / f"scanner={_sanitize_component(scanner_name)}"
+    if sdir.exists():
+        for p in sdir.glob("*.parquet"):
+            ids.add(p.stem)
+
+    # post-sync compacted parquet
+    parquet_path = UPath(scan_dir) / f"{scanner_name}.parquet"
+    if parquet_path.exists():
+        try:
+            tbl = pq.read_table(parquet_path.as_posix(), columns=["transcript_id"])
+            ids.update(t for t in tbl.column("transcript_id").to_pylist() if t)
+        except Exception:
+            # absent or unreadable — buffer-only check still applies
+            pass
+
+    return ids
 
 
 def _write_snapshot_to_scan_spec(scan_dir: Any, snapshot: Any) -> None:

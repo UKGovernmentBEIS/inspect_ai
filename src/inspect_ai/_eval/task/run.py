@@ -142,7 +142,11 @@ from .images import (
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
-from .scan import scan_eval_sample
+from .scan import (
+    resume_scan_previous_sample,
+    scan_eval_sample,
+    scanned_transcripts_for_resume,
+)
 from .store import DiskSampleStore, maybe_page_to_disk
 from .util import sample_messages, slice_dataset
 
@@ -215,6 +219,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     config = options.config
     solver = options.solver
     scanner = options.scanner
+    scan_id = options.scan_id
     tags = options.tags
     score = options.score
     sample_source = options.sample_source
@@ -375,6 +380,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     config, generate_config, model.api
                 )
 
+                scanned_per_scanner = scanned_transcripts_for_resume(
+                    scanner, scan_id, profile.log_location
+                )
+
                 # track when samples complete and update progress as we go
                 progress_results: list[dict[str, SampleScore]] = []
 
@@ -454,6 +463,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 }
                                 if previous_sample.scores
                                 else {}
+                            )
+                            await resume_scan_previous_sample(
+                                previous_sample,
+                                scanner,
+                                scanned_per_scanner,
+                                sample_semaphore,
+                                scan_id=scan_id,
+                                eval_id=logger.eval.eval_id,
+                                log_location=profile.log_location,
+                                model=str(model),
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores

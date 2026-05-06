@@ -16,7 +16,7 @@ import pytest
 from shortuuid import uuid
 from upath import UPath
 
-from inspect_ai import Task, eval_set
+from inspect_ai import Task, eval_set, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
@@ -613,44 +613,40 @@ def test_eval_set_resume_only_rescans_rerun_samples_keeps_run1_errors() -> None:
         assert summary_2["complete"] is False
 
 
-def test_eval_set_resume_does_not_rescan_completed_unscanned_samples() -> None:
-    """Resume does not re-scan samples whose scans didn't complete on the first run.
+def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
+    """Per-sample resume-scan fires when the prior finalize wasn't clean.
 
-    Pins down current — not ideal — behavior. eval_set's resume only
-    re-runs samples without a successful eval log; scanning is wired
-    into per-sample completion. Once a sample's log is written, the
-    scan side has only one chance — at the moment that sample finishes.
-
-    There are two distinct on-disk shapes for "logged but not fully
-    scanned", and resume treats both the same (skip):
-
-    1. **Scan started, errored** — scanner ran and raised; scout
-       captures the failure into the parquet's `scan_error` column.
-       Parquet HAS a row (with error). Counted in `summary.errors`.
-    2. **Scan never started** — the eval crashed in the narrow window
-       between `log_sample` and `scan_eval_sample`. Parquet has NO row
-       for that sample.
+    Errors captured by scout (rows with `scan_error` populated) are
+    intentional outcomes and aren't re-scanned. The per-sample reuse
+    path only does a status check when the most recent prior call's
+    finalize wrote `complete=True`. Run 1 here records a scan error
+    (id 2) → run 1's finalize writes `complete=False`, which keeps
+    the gate open and run 2 catches id 3's missing row.
 
     Setup (5 samples, ids 1..5, `max_samples=1`, scan filter
     `"error = ''"` so the scanner skips eval-errored transcripts):
-    - Solver fails first attempt for ids 4, 5 (so they're "not yet
-      properly run" after run 1; resume re-runs them).
+    - Solver fails first attempt for ids 4, 5 (so they're not yet
+      properly run after run 1; resume re-runs them).
     - Scanner errors on sample id "2".
-    - `scan_eval_sample` is monkey-patched to no-op for id "3" (crash
-      in the log → scan window).
+    - `scan_eval_sample` is monkey-patched to no-op for id "3"
+      (simulates a crash in the log → scan window).
 
     Run 1:
     - 1: solver OK + scan OK → parquet row (success)
     - 2: solver OK + scan started + errored → parquet row (with error)
     - 3: solver OK + patched scan returns early → no parquet row
     - 4, 5: solver errored → filter skips scan → no parquet rows
+    Run-1 finalize sees errors=1 → writes `complete=False`.
 
     Run 2 (no patch):
-    - 1, 2, 3: eval log OK, eval_set skips entirely (id 3 never gets
-      a second chance to scan — the gap)
-    - 4, 5: previously errored → re-run, solver OK, scan OK
+    - 1, 2: reused as PreviousTask. Per-sample check finds them in
+      the compacted parquet → no extra scan.
+    - 3: reused as PreviousTask. Per-sample check finds no row →
+      scan dispatched.
+    - 4, 5: previously errored → re-run, solver OK, scan OK.
 
-    Final state — parquet rows: [1, 2 (error), 4, 5]; id 3 absent.
+    Final state — parquet rows: [1, 2 (error), 3, 4, 5]; all 5 ids
+    present. summary.scans == 5, summary.errors == 1 (still just id 2).
     """
     import inspect_ai._eval.task.run as run_mod
     from inspect_ai import EvalScannerConfig
@@ -702,16 +698,21 @@ def test_eval_set_resume_does_not_rescan_completed_unscanned_samples() -> None:
         scan_dir = _scan_dir(log_dir)
         summary_1 = _read_summary(scan_dir)
         ss_1 = summary_1["scanners"]["id2_only_scanner"]
-        # 2 scan rows recorded after run 1: id 1 (ok) + id 2 (error).
-        # id 3 has no row (patch skipped). ids 4, 5 are filtered out.
+        # 2 scan rows after run 1: id 1 (ok) + id 2 (error). id 3's
+        # scan was patched out — its gap persists into run 2.
         assert ss_1["scans"] == 2, f"expected 2 scans after run 1, got {ss_1}"
         assert ss_1["errors"] == 1  # only id 2 errored
         assert ss_1["results"] == 1  # id 1
 
+        # run 1's id-2 error means run-1 finalize wrote complete=False;
+        # the per-sample resume-scan check stays open for run 2 without
+        # any test gymnastics.
+        assert summary_1["complete"] is False
+
         # run 2: no patch. eval_set re-runs samples that previously
-        # errored at the eval level (4, 5) and skips samples that
-        # already have successful logs (1, 2, 3). Sample 3 in
-        # particular never gets a second chance to scan — the gap.
+        # errored at the eval level (4, 5) AND resume-scans samples
+        # whose scans never landed (id 3). id 1's existing scan and
+        # id 2's existing scan-error row are left alone.
         success_2, _ = eval_set(
             tasks=make_task(),
             log_dir=log_dir,
@@ -726,30 +727,423 @@ def test_eval_set_resume_does_not_rescan_completed_unscanned_samples() -> None:
 
         summary_2 = _read_summary(scan_dir)
         ss_2 = summary_2["scanners"]["id2_only_scanner"]
-        # 4 scan rows total: 1 (ok), 2 (error from run 1) + 4, 5 (ok
-        # from run 2 — solver succeeds on retry, filter passes). id 3
-        # is NOT in the parquet — the gap.
-        assert ss_2["scans"] == 4, (
-            f"expected 4 scans (ids 1, 2, 4, 5); id 3 stays absent. got {ss_2}"
-        )
+        # 5 scan rows total: 1 (ok from run 1), 2 (error from run 1),
+        # 3 (resume-scanned in run 2), 4, 5 (re-run + scan in run 2).
+        assert ss_2["scans"] == 5, f"expected 5 scans (ids 1, 2, 3, 4, 5); got {ss_2}"
         assert ss_2["errors"] == 1  # still just id 2
-        assert ss_2["results"] == 3  # 1, 4, 5
+        assert ss_2["results"] == 4  # 1, 3, 4, 5
 
         pf = _read_parquet(scan_dir / "id2_only_scanner.parquet")
         df = pf.read().to_pandas()
-        # exactly one row per scanned transcript — ids 1, 2, 4, 5 each
-        # appear once; id 3 is absent (the gap)
+        # exactly one row per transcript, all 5 ids present
         scanned_task_ids = sorted(df["transcript_task_id"].astype(str).tolist())
-        assert scanned_task_ids == ["1", "2", "4", "5"], (
-            f"id 3 should be missing from parquet; got {scanned_task_ids}"
+        assert scanned_task_ids == ["1", "2", "3", "4", "5"], (
+            f"all 5 ids should be present after resume-scan; got {scanned_task_ids}"
         )
 
-        # confirm the two distinct unscanned shapes look different on
-        # disk: id 2 has a row with `scan_error` populated; id 3 has
-        # no row at all.
+        # id 2's scan-error row is preserved (not re-scanned), id 3's
+        # row is a fresh successful scan.
         id2_rows = df[df["transcript_task_id"] == "2"]
         assert len(id2_rows) == 1
         assert id2_rows.iloc[0]["scan_error"]
+        id3_rows = df[df["transcript_task_id"] == "3"]
+        assert len(id3_rows) == 1
+        assert not id3_rows.iloc[0]["scan_error"]
+
+
+def test_eval_set_resume_scans_when_scanner_added_on_resume() -> None:
+    """Resume-scan covers all previous samples when a scanner is added later.
+
+    Run 1 has no scanner at all — every sample gets logged but no
+    scan dir is created. Run 2 adds a scanner. eval_set sees no
+    eval-level work to do (everything succeeded) but still routes
+    `success_logs` through `run_eval` as `PreviousTask`s when a
+    scanner is configured (see `evalset.py`'s "if not tasks_to_run"
+    branch), so the per-sample reuse path runs for each previously-
+    succeeded sample. scan_init creates a fresh scan dir on this
+    call; `_summary.json` doesn't exist there yet (no prior
+    finalize), so the per-sample check kicks in and dispatches scans
+    for all transcripts.
+    """
+    n = 3
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=generate(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: NO scanner. Logs are written; no scan dir is created.
+        success_1, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success_1
+        assert not (Path(log_dir) / "scans").exists()
+
+        # run 2: scanner added. No eval-level work needed (run 1
+        # succeeded). The per-sample reuse path should scan every
+        # previous sample.
+        success_2, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success_2
+
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        scanned_task_ids = sorted(df["transcript_task_id"].astype(str).tolist())
+        assert scanned_task_ids == ["1", "2", "3"], (
+            f"all 3 samples should be resume-scanned; got {scanned_task_ids}"
+        )
+
+
+def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finalize() -> (
+    None
+):
+    """Stale `_summary.json` is NOT proof that on-disk state is consistent.
+
+    A clean `_summary.json` from a prior run survives a subsequent
+    crashed run, so its existence alone can't be the gate for skipping
+    the per-sample resume-scan check.
+
+    Sequence:
+    - Run 1: cleanly finalizes a partial scan. Some samples scanned;
+      `_summary.json` written with `complete=True`.
+    - Run 2: runs the remaining samples; one sample's scan is patched
+      out (logged but never recorded), and `scan_finalize` is patched
+      to a no-op (simulating a crash before finalize). After run 2,
+      `_summary.json` is still from run 1, even though run 2 left a
+      gap.
+    - Run 3: should detect and re-scan the sample that run 2 missed.
+
+    This is the case the `_summary.json`-existence optimization fails:
+    the summary on disk reflects run 1's clean state, but the gap is
+    in run 2's work. A correct implementation must check on-disk
+    parquet/buffer state per sample rather than trusting the stale
+    summary.
+    """
+    import inspect_ai._eval.task.run as run_mod
+    import inspect_ai._eval.task.scan as scan_mod
+    from inspect_ai import EvalScannerConfig
+
+    n = 5
+    fails_3_4_5_first_time = _first_attempt_fails_for(3, 4, 5)
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=[fails_3_4_5_first_time, generate()],
+        )
+
+    config = EvalScannerConfig(
+        scanners=[echo_scanner()],
+        filter="error = ''",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: samples 1, 2 succeed and get scanned; samples 3, 4, 5
+        # error at the eval level and the filter excludes them. No scan
+        # errors → finalize completes with complete=True.
+        success_1, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=config,
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_1 is False  # samples 3, 4, 5 errored
+
+        scan_dir = _scan_dir(log_dir)
+        summary_1 = _read_summary(scan_dir)
+        assert summary_1["complete"] is True  # the load-bearing premise
+        ss_1 = summary_1["scanners"]["echo_scanner"]
+        assert ss_1["scans"] == 2  # ids 1, 2 only
+
+        # run 2: eval_set retries the previously-errored samples (3, 4,
+        # 5). Patches simulate a crash in run 2:
+        # - scan_eval_sample is no-op for id 4 (sample logged, scan
+        #   never started — the gap)
+        # - scan_finalize is no-op (process killed before sync ran)
+        orig_scan_eval_sample = run_mod.scan_eval_sample
+        orig_scan_finalize = scan_mod.scan_finalize
+
+        async def skip_sample_4(eval_sample, scanner, **kwargs):  # type: ignore[no-untyped-def]
+            if str(eval_sample.id) == "4":
+                return
+            return await orig_scan_eval_sample(eval_sample, scanner, **kwargs)
+
+        async def no_finalize(*args, **kwargs):  # type: ignore[no-untyped-def]
+            return
+
+        run_mod.scan_eval_sample = skip_sample_4
+        scan_mod.scan_eval_sample = skip_sample_4
+        scan_mod.scan_finalize = no_finalize
+        try:
+            eval_set(
+                tasks=make_task(),
+                log_dir=log_dir,
+                scanner=config,
+                model="mockllm/model",
+                retry_attempts=0,
+                continue_on_fail=True,
+                display="none",
+            )
+        finally:
+            run_mod.scan_eval_sample = orig_scan_eval_sample
+            scan_mod.scan_eval_sample = orig_scan_eval_sample
+            scan_mod.scan_finalize = orig_scan_finalize
+
+        # run 2's scan_init invalidated `complete` on attach, and
+        # finalize never ran to overwrite it — so `_summary.json` now
+        # reads complete=False, accurately reflecting the in-progress
+        # state. (Without that invalidation, complete=True from run 1
+        # would survive, masking the gap from any consumer that trusts
+        # the flag.)
+        summary_after_run_2 = _read_summary(scan_dir)
+        assert summary_after_run_2["complete"] is False
+
+        # run 3: no patches. eval_set sees all evals succeeded → no
+        # eval-level work. The per-sample reuse path must catch id 4's
+        # missing scan despite the stale clean `_summary.json`.
+        success_3, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=config,
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert success_3
+
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        scanned_task_ids = sorted(df["transcript_task_id"].astype(str).tolist())
+        assert scanned_task_ids == ["1", "2", "3", "4", "5"], (
+            f"id 4's gap from run 2 should be repaired in run 3; got {scanned_task_ids}"
+        )
+
+
+@task
+def _two_sample_task_a() -> Task:
+    return Task(
+        name="task_a",
+        dataset=[Sample(input=f"a{i}", target=str(i)) for i in range(1, 3)],
+        solver=generate(),
+    )
+
+
+@task
+def _two_sample_task_b() -> Task:
+    return Task(
+        name="task_b",
+        dataset=[Sample(input=f"b{i}", target=str(i)) for i in range(1, 3)],
+        solver=generate(),
+    )
+
+
+def test_eval_set_resume_scans_success_logs_when_other_tasks_pending() -> None:
+    """Resume-scan must fire for success_logs even when there are pending tasks.
+
+    Setup:
+    - Run 1: only task A, NO scanner. A's samples logged but no scan
+      dir is created.
+    - Run 2: tasks [A, B] WITH scanner. A is reused as a `success_log`
+      (its eval succeeded in run 1). B is new.
+
+    Run 2's `tasks_to_run` has only B (A is in `success_logs`). The
+    bug: when `tasks_to_run` is non-empty, the all-success branch
+    that routes `success_logs` through `PreviousTask` is skipped — so
+    A's samples never reach the per-sample reuse path and stay
+    unscanned. Both A's and B's samples should end up in the parquet.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: only task A, no scanner → A's logs land but no scan_dir
+        eval_set(
+            tasks=_two_sample_task_a(),
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert not (Path(log_dir) / "scans").exists()
+
+        # run 2: add task B and a scanner. B is pending; A is in
+        # success_logs and needs resume-scan.
+        eval_set(
+            tasks=[_two_sample_task_a(), _two_sample_task_b()],
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        # 2 samples from task A + 2 from task B = 4 transcript rows
+        assert len(df) == 4, (
+            f"task A's samples should be resume-scanned alongside B's "
+            f"new scans; got {len(df)} rows"
+        )
+        scanned_task_ids = sorted(df["transcript_task_id"].astype(str).tolist())
+        assert scanned_task_ids == ["1", "1", "2", "2"]
+
+
+def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
+    """A no-op rerun against a clean prior scan does no scanner work.
+
+    When `_summary.json` shows `complete=True` (i.e. the prior call's
+    finalize wrote it and `scan_init` for THIS call hasn't run yet
+    because there's no eval-level work to do), evalset short-circuits
+    the success-logs → PreviousTask routing entirely. The scanner is
+    never invoked again — confirms the fast-path optimization works.
+    """
+    from unittest.mock import patch
+
+    n = 3
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=generate(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: clean scan, all samples succeed and scan
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        summary_1 = _read_summary(scan_dir)
+        assert summary_1["complete"] is True
+        ss_1 = summary_1["scanners"]["echo_scanner"]
+        assert ss_1["scans"] == n
+
+        # run 2: identical args. With the prior-clean optimization,
+        # success_logs are returned directly and the scanner is never
+        # called. We assert this by patching scan_eval_sample to track
+        # invocations: it must NOT be called during run 2.
+        import inspect_ai._eval.task.run as run_mod
+        import inspect_ai._eval.task.scan as scan_mod
+
+        invocations: list[str] = []
+        orig = run_mod.scan_eval_sample
+
+        async def tracking(eval_sample, scanner, **kwargs):  # type: ignore[no-untyped-def]
+            invocations.append(str(eval_sample.id))
+            return await orig(eval_sample, scanner, **kwargs)
+
+        run_mod.scan_eval_sample = tracking
+        scan_mod.scan_eval_sample = tracking
+        try:
+            eval_set(
+                tasks=make_task(),
+                log_dir=log_dir,
+                scanner=[echo_scanner()],
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+        finally:
+            run_mod.scan_eval_sample = orig
+            scan_mod.scan_eval_sample = orig
+
+        assert invocations == [], (
+            f"prior-clean optimization should skip all scan dispatches; "
+            f"got {invocations}"
+        )
+
+        # also: the on-disk scan output is unchanged (no extra rows)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        assert pf.metadata.num_rows == n
+        # silence unused-import warning
+        del patch
+
+
+def test_summary_complete_flips_to_false_when_resume_introduces_scan_errors() -> None:
+    """A clean run-1 followed by an errored run-2 should leave `complete=False`.
+
+    `_summary.json` at the scan_dir is rewritten by `scan_finalize`
+    every time it runs, with `complete = not errors_found_in_buffer`.
+    So a previously-clean `complete=True` should be overwritten to
+    `False` once a subsequent run records scanner errors.
+
+    Setup: id2_only_scanner errors on sample id "2".
+    - Run 1: limit=1 → only sample 1 runs and scans cleanly (no
+      errors from this scanner since it's not id 2). After run 1,
+      `complete=True`.
+    - Run 2: limit=2 → sample 2 also runs; scanner errors → buffer
+      records an error. After run 2's finalize, `complete=False`.
+    """
+    n = 4
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, n + 1)],
+            solver=generate(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: scan only sample 1 — no errors
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            limit=1,
+            retry_attempts=0,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        summary_after_run_1 = _read_summary(scan_dir)
+        assert summary_after_run_1["complete"] is True, (
+            "run 1 had no scanner errors, expected complete=True"
+        )
+
+        # run 2: extend limit so sample 2 runs (and the scanner errors
+        # on it). After run 2's finalize, the scan should reflect the
+        # error and flip complete=False.
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            limit=2,
+            retry_attempts=0,
+            display="none",
+        )
+
+        summary_after_run_2 = _read_summary(scan_dir)
+        assert summary_after_run_2["complete"] is False, (
+            "run 2 introduced a scanner error on id 2; complete should "
+            f"have flipped to False. summary={summary_after_run_2}"
+        )
+        # at least one scan errored (id 2). exact scan count varies with
+        # how eval_set treats the limit change (it may re-run sample 1
+        # under a fresh uuid), so we don't pin it here.
+        ss = summary_after_run_2["scanners"]["id2_only_scanner"]
+        assert ss["errors"] >= 1
 
 
 def test_sync_does_not_duplicate_rows_across_resume() -> None:
