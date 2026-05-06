@@ -313,7 +313,20 @@ def eval(
             else:
                 raise
 
-    return task_display().run_task_app(with_async_fs(run_task_app))
+    result = task_display().run_task_app(with_async_fs(run_task_app))
+
+    # print scan status after the task display has exited so the
+    # message lands AFTER the panel + `Log:` line. Only when eval owns
+    # the scan lifecycle (standalone call, not nested in eval_set).
+    if scanner is not None and eval_set_id is None:
+        from inspect_ai._eval.task.scan import print_scan_status
+
+        resolved_log_dir = absolute_file_path(
+            log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
+        )
+        print_scan_status(resolved_log_dir)
+
+    return result
 
 
 # single call to eval_async at a time

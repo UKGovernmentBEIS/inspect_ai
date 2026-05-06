@@ -325,11 +325,12 @@ async def scan_finalize(
     errors we leave the scan resumable so scout's `scan_resume` can
     re-run just the failed scans.
     """
+    from inspect_scout._recorder.file import FileRecorder
+    from upath import UPath
+
     scan_dir = _scan_dir(log_dir, scan_id, scanner)
     if not exists(scan_dir):
         return
-
-    from inspect_scout._recorder.file import FileRecorder
 
     # only mark complete if no scanner errors — otherwise leave the scan
     # in an "incomplete" state so scout's `scan_resume` can pick up the
@@ -338,19 +339,14 @@ async def scan_finalize(
     pre_sync_status = await FileRecorder.status(scan_dir)
     complete = not pre_sync_status.errors
 
-    # sync so the compacted parquet has the union of all calls
     await FileRecorder.sync(scan_dir, complete=complete)
 
     if scanner is not None:
         await _cleanup_orphan_scan_rows(scan_dir, log_dir, scanner)
 
-    # build snapshot from the compacted output and write into scan.json
-    from upath import UPath
-
     snapshot = _snapshot_from_compacted(UPath(scan_dir), log_dir=log_dir)
-    if snapshot is None:
-        return
-    _write_snapshot_to_scan_spec(UPath(scan_dir), snapshot)
+    if snapshot is not None:
+        _write_snapshot_to_scan_spec(UPath(scan_dir), snapshot)
 
 
 def _invalidate_finalized_flag(scan_dir: str) -> None:
@@ -641,6 +637,56 @@ def scan_context(
         yield
     finally:
         run_coroutine(scan_finalize(scan_id=scan_id, log_dir=log_dir, scanner=scanner))
+
+
+def print_scan_status(log_dir: str) -> None:
+    """Print the most recent scan dir's final status as plain text.
+
+    Called from `eval` / `eval_set` after they have rendered their
+    final output (the display panel + `Log:` line / "Completed all
+    tasks" message), so the message lands at the very end. Mirrors
+    `scout scan`'s standalone output (the same
+    `scout scan resume <path>` / `scout scan complete <path>` commands
+    when there are errors), but rendered plain — no rich markup, no
+    color — to keep the trailing summary unobtrusive.
+
+    Picks the scan dir with the most recent `_summary.json` mtime
+    when a `log_dir` has multiple, so the message reflects the call
+    that just finished. No-op when no scan dir exists.
+
+    Callers are responsible for ensuring there's a blank line of
+    separation above this output — this function does not emit one.
+    """
+    import shlex
+    from pathlib import Path
+
+    from inspect_scout._recorder.file import FileRecorder
+
+    from inspect_ai._util.path import pretty_path
+
+    scans_dir = Path(log_dir) / "scans"
+    if not scans_dir.exists():
+        return
+
+    scan_dirs = [
+        d for d in scans_dir.iterdir() if d.is_dir() and (d / "_summary.json").exists()
+    ]
+    if not scan_dirs:
+        return
+    scan_dir = max(scan_dirs, key=lambda d: (d / "_summary.json").stat().st_mtime)
+
+    try:
+        status = run_coroutine(FileRecorder.status(str(scan_dir)))
+    except Exception:
+        return
+
+    path = shlex.quote(pretty_path(str(scan_dir)))
+    if status.complete:
+        print(f"scan complete: {path}\n")
+    else:
+        print(f"{len(status.errors)} scan errors occurred!\n")
+        print(f"Resume (retrying errors):   scout scan resume {path}")
+        print(f"Complete (ignoring errors): scout scan complete {path}\n")
 
 
 def _scans_location(log_dir: str, scanner: "EvalScanners | None" = None) -> str:

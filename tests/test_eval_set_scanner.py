@@ -733,6 +733,124 @@ def test_retry_immediate_cleans_up_orphan_scans_at_finalize() -> None:
         assert df.iloc[0]["transcript_error"]
 
 
+def test_print_scan_status_clean_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`print_scan_status` prints a plain `scan complete: <path>` line."""
+    from inspect_ai._eval.task.scan import print_scan_status
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(dataset=[Sample(input="q", target="t")], solver=generate()),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        capsys.readouterr()  # discard eval output
+
+        print_scan_status(log_dir)
+        out = capsys.readouterr().out
+        assert "scan complete:" in out
+        # plain text — no rich markup tokens
+        assert "[bold]" not in out
+        assert "[/bold]" not in out
+        # no recovery commands on a clean run
+        assert "scout scan resume" not in out
+        assert "scout scan complete" not in out
+
+
+def test_print_scan_status_with_scan_errors(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run with scanner errors prints plain copyable resume / complete commands.
+
+    Mirrors `scout scan`'s standalone output so users can recover with
+    the same `scout scan resume <path>` / `scout scan complete <path>`
+    commands they'd use after a direct scout invocation. Plain text —
+    no rich markup or color — to keep the trailing summary unobtrusive.
+    """
+    from inspect_ai._eval.task.scan import print_scan_status
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(
+                dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 4)],
+                solver=generate(),
+            ),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        capsys.readouterr()  # discard eval output
+
+        print_scan_status(log_dir)
+        out = capsys.readouterr().out
+        assert "scan errors occurred" in out
+        assert "scout scan resume" in out
+        assert "scout scan complete" in out
+        # plain text — no rich markup tokens
+        assert "[bold]" not in out
+        assert "[/bold]" not in out
+
+
+def test_print_scan_status_noop_when_no_scan_dir(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`print_scan_status` is a no-op when there's no scan dir under log_dir."""
+    from inspect_ai._eval.task.scan import print_scan_status
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(dataset=[Sample(input="q", target="t")], solver=generate()),
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        capsys.readouterr()
+        print_scan_status(log_dir)
+        out = capsys.readouterr().out
+        assert "scan complete:" not in out
+        assert "scout scan resume" not in out
+
+
+def test_eval_set_prints_scan_status_from_api(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`eval_set` itself prints scan status — not deferred to the CLI.
+
+    The status print lives in `eval_set` (and `eval`) so it fires for
+    both `inspect eval-set` and direct API calls. With a leading blank
+    line, it lands cleanly after the `Completed all tasks` /
+    `Did not successfully complete` message that `eval_set` renders.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(
+                dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 4)],
+                solver=generate(),
+            ),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        out = capsys.readouterr().out
+        assert "scan errors occurred" in out
+        assert "scout scan resume" in out
+        assert "scout scan complete" in out
+        # leading blank line emitted by eval_set so the status separates
+        # from the prior `Completed all tasks` / `Did not...` line
+        assert "\n\n" in out
+
+
 def test_eval_set_retry_cleans_up_orphan_scans_at_finalize() -> None:
     """eval_set's retry path (tenacity, `retry_immediate=False`) is symmetric.
 

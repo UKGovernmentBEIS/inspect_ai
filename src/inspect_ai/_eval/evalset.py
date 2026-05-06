@@ -613,6 +613,12 @@ def eval_set(
         msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
     console.print(f"{msg}")
 
+    if scanner is not None:
+        from inspect_ai._eval.task.scan import print_scan_status
+
+        print()
+        print_scan_status(log_dir)
+
     # update manifest
     write_log_dir_manifest(log_dir)
 
