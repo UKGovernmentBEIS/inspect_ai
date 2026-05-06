@@ -27,7 +27,7 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     metric_create,
 )
-from inspect_ai.scorer._metrics import grouped
+from inspect_ai.scorer._metrics import aggregate, grouped
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
@@ -638,3 +638,93 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_aggregate_mean():
+    metric = aggregate("element_acc", agg=mean())
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 1, "action_f1": 0.5})),
+            SampleScore(score=Score(value={"element_acc": 1, "action_f1": 0.6})),
+            SampleScore(score=Score(value={"element_acc": 4, "action_f1": 0.7})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_selects_key():
+    # Different keys over the same scores should give different aggregates.
+    scores = [
+        SampleScore(score=Score(value={"a": 1, "b": 10})),
+        SampleScore(score=Score(value={"a": 3, "b": 30})),
+    ]
+    assert aggregate("a", agg=mean())(scores) == 2.0
+    assert aggregate("b", agg=mean())(scores) == 20.0
+
+
+def test_aggregate_stderr_composes():
+    # stderr() should work as the inner aggregator.
+    se = aggregate("x", agg=stderr())(
+        [SampleScore(score=Score(value={"x": i, "y": -i})) for i in range(20)]
+    )
+    expected = stderr()([SampleScore(score=Score(value=i)) for i in range(20)])
+    assert se == expected
+
+
+def test_aggregate_missing_key_error_by_default():
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="missing key"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value={"action_f1": 0.5})),
+            ]
+        )
+
+
+def test_aggregate_missing_key_skip():
+    metric = aggregate("element_acc", agg=mean(), on_missing="skip")
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 1})),
+            SampleScore(score=Score(value={"action_f1": 0.5})),  # skipped
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_missing_key_zero():
+    metric = aggregate("element_acc", agg=mean(), on_missing="zero")
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 3})),
+            SampleScore(score=Score(value={"action_f1": 0.5})),  # treated as 0.0
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_non_dict_value_raises():
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="non-dict"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value=1.0)),  # scalar, not a dict
+            ]
+        )
+
+
+def test_aggregate_to_float_applied():
+    # value_to_float maps "C"->1.0 and "I"->0.0; aggregate should respect it.
+    result = aggregate("verdict", agg=mean())(
+        [
+            SampleScore(score=Score(value={"verdict": "C"})),
+            SampleScore(score=Score(value={"verdict": "I"})),
+            SampleScore(score=Score(value={"verdict": "C"})),
+            SampleScore(score=Score(value={"verdict": "C"})),
+        ]
+    )
+    assert result == 0.75
