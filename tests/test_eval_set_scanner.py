@@ -613,6 +613,63 @@ def test_eval_set_resume_only_rescans_rerun_samples_keeps_run1_errors() -> None:
         assert summary_2["complete"] is False
 
 
+def _always_fails():
+    """Solver that always raises — exercises sample-level retry exhaustion."""
+
+    @solver
+    def factory():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            raise ValueError(f"always fails for sample {state.sample_id}")
+
+        return solve
+
+    return factory()
+
+
+def test_sample_retry_scans_only_final_attempt() -> None:
+    """A sample retried via `retry_on_error` is scanned exactly once.
+
+    Failed attempts that will be retried must NOT fire `scan_eval_sample`
+    (otherwise the parquet would have one row per intermediate attempt,
+    none of which represent a settled outcome). Only the final attempt
+    — the one that won't be retried, whether it succeeded or exhausted
+    the retry budget — should produce a scan.
+
+    This pins the existing guard in `task_run_sample`:
+
+        if not error or (retry_on_error == 0) or (cancelled_error is not None):
+            ... log_sample + scan_eval_sample ...
+
+    Setup: a solver that always raises, `retry_on_error=2` (so 3 total
+    attempts, all failing). After the eval, the parquet should have
+    exactly one row for the sample.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(
+                dataset=[Sample(input="q", target="t")],
+                solver=[_always_fails()],
+            ),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=2,
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        # exactly one row even though the sample was attempted 3 times
+        assert len(df) == 1, (
+            f"sample retried {3} times should produce exactly 1 scan row, got {len(df)}"
+        )
+        # the recorded transcript reflects an errored sample (final attempt)
+        assert df.iloc[0]["transcript_error"]
+
+
 def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
     """Per-sample resume-scan fires when the prior finalize wasn't clean.
 
