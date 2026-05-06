@@ -37,8 +37,8 @@ async def test_local_sandbox_server_dir_unique_per_instance():
 
 
 @pytest.mark.anyio
-async def test_local_sandbox_exec_env_overrides_dont_clobber_server_dir():
-    """User-provided env vars merge with — but don't override — the server dir env."""
+async def test_local_sandbox_exec_merges_caller_env():
+    """Caller-provided env vars are passed through alongside the server dir env."""
     sandbox = LocalSandboxEnvironment()
     try:
         result = await sandbox.exec(
@@ -48,5 +48,22 @@ async def test_local_sandbox_exec_env_overrides_dont_clobber_server_dir():
         my_var, server_dir = result.stdout.strip().split(":", 1)
         assert my_var == "hello"
         assert server_dir == str(Path(sandbox.directory.name) / "sandbox-tools")
+    finally:
+        sandbox.directory.cleanup()
+
+
+@pytest.mark.anyio
+async def test_local_sandbox_caller_cant_override_server_dir():
+    """Callers can't silently disable per-sandbox scoping by passing the env var."""
+    sandbox = LocalSandboxEnvironment()
+    try:
+        result = await sandbox.exec(
+            ["sh", "-c", "echo $INSPECT_SANDBOX_TOOLS_DIR"],
+            env={"INSPECT_SANDBOX_TOOLS_DIR": "/tmp/attacker-controlled"},
+        )
+        server_dir = result.stdout.strip()
+        assert server_dir == str(Path(sandbox.directory.name) / "sandbox-tools"), (
+            f"Sandbox should override caller's env var, got: {server_dir!r}"
+        )
     finally:
         sandbox.directory.cleanup()

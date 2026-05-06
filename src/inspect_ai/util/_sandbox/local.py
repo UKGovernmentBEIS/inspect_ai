@@ -71,10 +71,13 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             final_cwd = self.directory.name / final_cwd
 
         # Scope the sandbox-tools server to this sandbox instance so it
-        # doesn't outlive the temp directory and leave a stale CWD.
-        final_env = {self._SANDBOX_TOOLS_DIR_ENV: self._sandbox_tools_dir}
-        if env:
-            final_env.update(env)
+        # doesn't outlive the temp directory and leave a stale CWD. Order
+        # matters: caller-provided env first, then ours, so the per-sandbox
+        # value can't be silently overridden.
+        final_env = {
+            **(env or {}),
+            self._SANDBOX_TOOLS_DIR_ENV: self._sandbox_tools_dir,
+        }
 
         result = await subprocess(
             args=cmd,
