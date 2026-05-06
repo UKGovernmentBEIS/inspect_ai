@@ -733,6 +733,59 @@ def test_retry_immediate_cleans_up_orphan_scans_at_finalize() -> None:
         assert df.iloc[0]["transcript_error"]
 
 
+def test_retry_immediate_keeps_all_scans_when_retry_cleanup_disabled() -> None:
+    """With `retry_cleanup=False`, old log files survive and so do their scans.
+
+    The orphan-cleanup pass at finalize keeps any scan row whose
+    transcript_id matches a sample uuid in any *surviving* eval log.
+    With `retry_cleanup=False` every retry attempt's log file stays
+    on disk, so every transcript_id stays live and no rows are swept.
+
+    Setup mirrors the cleanup test (1 always-failing sample,
+    `retry_immediate=True`, `retry_attempts=2`) but explicitly
+    disables `retry_cleanup`. After the eval: 3 eval logs, 3 parquet
+    rows, each row's transcript_id matches a sample uuid in one of
+    the surviving logs.
+    """
+    from inspect_ai.log import read_eval_log
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(
+                dataset=[Sample(input="q", target="t")],
+                solver=[_always_fails()],
+            ),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=0,
+            retry_immediate=True,
+            retry_attempts=2,
+            retry_cleanup=False,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        # all 3 attempts' log files survive
+        eval_logs = sorted(Path(log_dir).glob("*.eval"))
+        assert len(eval_logs) == 3
+
+        live_uuids: set[str] = set()
+        for log_path in eval_logs:
+            for sample in read_eval_log(str(log_path)).samples or []:
+                if sample.uuid is not None:
+                    live_uuids.add(sample.uuid)
+        assert len(live_uuids) == 3
+
+        # parquet preserves all 3 rows; each transcript_id is in the
+        # live set
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        assert len(df) == 3
+        assert set(df["transcript_id"].tolist()) == live_uuids
+
+
 def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
     """Per-sample resume-scan fires when the prior finalize wasn't clean.
 
