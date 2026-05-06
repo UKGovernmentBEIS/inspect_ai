@@ -186,16 +186,80 @@ These accumulated as the design firmed up; all are merged in scout:
 3. `concurrent_writers: bool = False` kwarg on `RecorderBuffer.__init__` / `FileRecorder.init` / `FileRecorder.resume`. Wraps `_summary.json` read-modify-write in a per-buffer-dir `anyio.Lock`.
 4. `scanner_table` dedupes by `transcript_id` between buffer files and `extra_inputs`. The buffer's per-transcript file is authoritative for its transcript_id; rows for the same id from `extra_inputs` (the previously-compacted parquet) are dropped. Without this, multi-call `sync` cycles double-count.
 
-## Resume / retry semantics
+## Retry behavior
+
+inspect_ai has three retry mechanisms that each interact differently with scanners. The scan layer's invariant cuts across all of them: **after `scan_finalize`, the parquet's `transcript_id`s equal the union of `sample.uuid` across surviving eval logs.** Live samples have rows; orphans (uuids that no longer correspond to any sample) are swept.
+
+### 1. Sample-level retry — `retry_on_error`
+
+Per-sample retry inside `task_run_sample`. If a sample errors with retries left, the function recurses with `retry_on_error - 1`. The retry happens before `log_sample` and `scan_eval_sample` for the failed attempt would have fired — so failed attempts that will be retried produce no eval log entry and no scan row. Only the *settled* attempt (the one that won't retry, whether it succeeded or exhausted the budget) runs the log + scan block.
+
+The guard in `task_run_sample`:
+
+```python
+if not error or (retry_on_error == 0) or (cancelled_error is not None):
+    ... log_sample + scan_eval_sample ...
+```
+
+Net effect: a sample retried N times produces **exactly one** parquet row, reflecting the final settled outcome (success or exhausted-retry error).
+
+### 2. Task-level retry — `retry_immediate=True`
+
+When `retry_immediate=True`, eval_set's `task_retry_attempts` is forwarded to `run_task_retry_attempts`, which re-queues the whole task on error. Each retry:
+
+- Calls `task_options.logger.reinit()` → fresh `eval_id`, fresh log file.
+- Carries forward succeeded samples via `eval_log_sample_source` — these reuse their original uuid.
+- Filters out errored samples (`if sample.error is not None: return None`) — these get **re-executed** by the eval phase with a brand new `TaskState`, which mints a new `uuid` (`sample_uuid or uuid()` in `TaskState.__init__`).
+
+So a sample that always fails accumulates one parquet row per attempt, each with a distinct `transcript_id`. After all retries:
+
+- `retry_cleanup=True` (default) deletes the older log files; only the latest survives.
+- `scan_finalize` runs the orphan cleanup: scan rows whose transcript_id isn't a uuid in any surviving log are removed.
+
+Result: parquet matches the surviving log — one row per surviving sample. With `retry_cleanup=False`, every log file survives, every uuid stays live, and every row is preserved.
+
+`summary.scans` counts work *performed* across attempts (sum of `record()` calls), not surviving rows. So a 3-attempt always-failing sample has `summary.scans == 3` and `parquet.num_rows == 1` after cleanup. The summary is the historical view; the parquet is the live view.
+
+### 3. eval_set retry — `retry_immediate=False` (default)
+
+The legacy path: tenacity wraps `try_eval` and retries it on `not all_evals_succeeded`. Each retry of `try_eval`:
+
+- Re-discovers logs in `log_dir`.
+- Builds `failed_tasks = as_previous_tasks(failed_resolved_tasks, failed_logs, ...)` — wraps the failed log as a `PreviousTask`.
+- Calls `run_eval(eval_set_id, tasks_to_run)`.
+
+`run_eval` uses the same `eval_log_sample_source` path internally — succeeded samples reuse their uuid, errored samples get re-executed with a fresh uuid. Same shape as the task-level retry, just driven from a different layer.
+
+After all retries, `retry_cleanup` and `scan_finalize` produce the same on-disk shape as `retry_immediate=True`. The two paths converge on the same scan dir invariant.
+
+### Why uuids change for re-executed errored samples
+
+A re-execution is a new sample run with new messages, new model calls, possibly different scores. Reusing the prior uuid would conflate two distinct attempts in any downstream system that keys on transcript_id (scout's compaction, dedup, the viewer). So each fresh execution gets a fresh identity — the asymmetry between succeeded samples (reuse uuid) and errored re-runs (new uuid) follows from this: succeeded samples aren't actually re-executed, just carried forward.
+
+### Orphan cleanup at `scan_finalize`
+
+`_cleanup_orphan_scan_rows` runs between `sync` and the snapshot step. Steps:
+
+1. Walk `list_eval_logs(log_dir)` and read cheap `EvalSampleSummary`s. Collect every `summary.uuid` → `live_tids`.
+2. For each scanner's compacted parquet (`<scan_dir>/<name>.parquet`):
+   - Stream row-group-by-row-group via `ParquetFile.read_row_group(i)` (avoids pyarrow's cross-row-group schema-merge issue with scout's dictionary-encoded output).
+   - Filter via `pc.is_in(transcript_id, value_set=live_tids)`.
+   - Rewrite only if any rows were actually removed.
+3. For each scanner's buffer dir (`<buffer_dir>/scanner=<name>/`):
+   - Unlink `<tid>.parquet` for any tid not in `live_tids`. Covers the `complete=False` case where the buffer survives sync.
+
+The snapshot in `_scan.json` is built from the cleaned compacted parquet, so it also reflects only live transcripts.
+
+### Quick reference
 
 | Scenario | Behavior |
 | --- | --- |
-| Sample retried via `retry_on_error` within an attempt | Scan only runs on the successful (or final) attempt; abandoned attempts produce no scan |
-| Sample re-run by `eval_set` on a later call | New parquet write at same `<tid>.parquet` overwrites; `scanner_table` dedup keeps one row per id |
-| Scanner errors on a sample | Captured by scout's `Error` record; `_summary.json.complete` ⇒ False; scan dir is `scan_resume`-able |
-| Sample's eval log lands but scan never recorded (crash in window or scanner added on later call) | Caught on next eval_set call by the per-sample reuse path's resume-scan |
-| Sample's scan errored (recorded with `scan_error` in parquet) | Treated as intentional, not retried by inspect_ai's resume-scan. `scout scan-resume` is the path for retrying captured scan errors |
-| Process killed mid-flight | `_summary.json` at scan_dir reflects whatever the last finalize wrote (or absent); buffer state preserved from the killed call. Next eval_set call's `scan_init` invalidates `complete` to False, runs the per-sample resume-scan check, recovers the gap |
+| Sample retried via `retry_on_error` | One parquet row per sample (final settled attempt only); intermediate retries skip log + scan |
+| Sample re-run by `retry_immediate=True` or eval_set retry | One row per attempt mid-run; orphan cleanup at finalize sweeps rows whose log was deleted by `retry_cleanup` |
+| `retry_cleanup=False` | All attempt logs preserved → all uuids live → no orphans removed → all rows preserved |
+| Sample's scan errored (parquet `scan_error` populated) | Treated as intentional, not retried by inspect_ai. `scout scan-resume` is the path for retrying captured scan errors |
+| Sample's eval log lands but scan never recorded (crash in window, or scanner added on later call) | Caught on next eval_set call by the per-sample resume-scan in the reuse path |
+| Process killed mid-flight | `_summary.json` at scan_dir reflects whatever the last finalize wrote (or absent); buffer state preserved from the killed call. Next eval_set call's `scan_init` invalidates `complete=False`, runs the per-sample resume-scan check, recovers the gap |
 
 ## Out of Scope
 
