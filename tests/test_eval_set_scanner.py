@@ -737,21 +737,95 @@ def test_eval_set_resume_does_not_rescan_completed_unscanned_samples() -> None:
 
         pf = _read_parquet(scan_dir / "id2_only_scanner.parquet")
         df = pf.read().to_pandas()
-        # set of scanned ids (sync currently double-counts buffer rows
-        # against the previously-compacted parquet, so individual ids
-        # may appear more than once — check membership instead)
-        scanned_ids = set(df["transcript_task_id"].astype(str).tolist())
-        assert scanned_ids == {"1", "2", "4", "5"}, (
-            f"id 3 should be missing from parquet; got {scanned_ids}"
+        # exactly one row per scanned transcript — ids 1, 2, 4, 5 each
+        # appear once; id 3 is absent (the gap)
+        scanned_task_ids = sorted(df["transcript_task_id"].astype(str).tolist())
+        assert scanned_task_ids == ["1", "2", "4", "5"], (
+            f"id 3 should be missing from parquet; got {scanned_task_ids}"
         )
 
         # confirm the two distinct unscanned shapes look different on
         # disk: id 2 has a row with `scan_error` populated; id 3 has
         # no row at all.
         id2_rows = df[df["transcript_task_id"] == "2"]
-        assert len(id2_rows) >= 1
+        assert len(id2_rows) == 1
         assert id2_rows.iloc[0]["scan_error"]
-        assert "3" not in scanned_ids
+
+
+def test_sync_does_not_duplicate_rows_across_resume() -> None:
+    """`sync()` produces at most one row per `transcript_id` across calls.
+
+    The compacted parquet at `<scan_dir>/<scanner>.parquet` is built
+    via `scanner_table(buffer_dir, scanner, extra_inputs=[prior_compacted])`.
+    When the buffer dir is preserved across a non-final sync (e.g.
+    eval_set retry where `complete=False`), the per-transcript buffer
+    parquets stay on disk. The next sync sees the same rows from
+    *both* sources — buffer files AND the prior compacted file — and
+    without dedup the merged output has each row twice.
+
+    Reproduces with the smallest scenario that triggers two syncs
+    against a non-empty buffer:
+
+    - 2 samples, scanner errors on id 2 (so run 1's `complete=False`
+      → buffer dir preserved, NOT cleaned up).
+    - Run eval_set twice with identical args. Both samples succeed at
+      the eval level on each call, so eval_set has no samples to
+      re-run — but `scan_context` still wraps each call and triggers
+      a sync at finalize.
+    - After run 2, assert one row per `transcript_id` (not the bug's
+      doubled count).
+    """
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 3)],
+            solver=generate(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "id2_only_scanner.parquet")
+        df_run1 = pf.read().to_pandas()
+        # baseline: 2 transcripts, 2 rows
+        assert len(df_run1) == 2
+        assert df_run1["transcript_id"].nunique() == 2
+        run1_transcript_ids = set(df_run1["transcript_id"].tolist())
+
+        # run 2: identical args. Both samples already succeeded at the
+        # eval level so nothing is re-run, but scan_context still calls
+        # sync at finalize — re-merging the unchanged buffer with the
+        # prior compacted output.
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[id2_only_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        pf = _read_parquet(scan_dir / "id2_only_scanner.parquet")
+        df_run2 = pf.read().to_pandas()
+        # the load-bearing assertion: dedup. Without the fix this is
+        # 4 rows (each of the 2 transcripts duplicated).
+        assert len(df_run2) == 2, (
+            f"sync should produce one row per transcript_id; got "
+            f"{len(df_run2)} rows for {df_run2['transcript_id'].nunique()} "
+            f"unique transcript_ids — buffer + extra_inputs double-counted"
+        )
+        # the same transcript_ids are still present (not lost during dedup)
+        assert set(df_run2["transcript_id"].tolist()) == run1_transcript_ids
 
 
 def test_scanjob_config_filter_skips_unmatched_samples() -> None:
