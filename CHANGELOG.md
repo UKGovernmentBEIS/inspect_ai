@@ -2,7 +2,7 @@
 
 - Inspect View: Fix extraneous console errors
 - Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.
-- Inspect View: Task samples - perserve sort and other state in VS Code.
+- Inspect View: Task samples - preserve sort and other state in VS Code.
 
 ## 0.3.218 (06 May 2026)
 
