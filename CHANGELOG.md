@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex, which [per Anthropic's docs](https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching) don't yet support it and reject the request with `cache_control: Extra inputs are not permitted`. Per-block cache breakpoints (system/tools/messages) are unaffected.
+
 ## 0.3.218 (06 May 2026)
 
 - Google: Support Gemini 3+ native web search and code execution alongside function tools.
