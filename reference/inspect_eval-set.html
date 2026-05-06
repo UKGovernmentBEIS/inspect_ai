@@ -2737,6 +2737,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#span_id_provider" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">span_id_provider</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#collect" class="sidebar-item-text sidebar-link">
  <span class="menu-text">collect</span></a>
   </div>
@@ -2977,64 +2983,17 @@ ul.task-list li input[type="checkbox"] {
 </li>
       </ul>
   </li>
-          <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.viewer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.viewer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.viewer.html#viewerconfig" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ViewerConfig</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.viewer.html#scannerresultview" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ScannerResultView</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.viewer.html#samplescoreview" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleScoreView</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.viewer.html#samplescoreviewsort" class="sidebar-item-text sidebar-link">
- <span class="menu-text">SampleScoreViewSort</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.viewer.html#metadatafield" class="sidebar-item-text sidebar-link">
- <span class="menu-text">MetadataField</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.viewer.html#scannerresultfield" class="sidebar-item-text sidebar-link">
- <span class="menu-text">ScannerResultField</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">CLI Commands</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
@@ -3171,21 +3130,21 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="even">
-<td><code>--retry-immediate</code></td>
+<td><code>--retry-immediate</code> / <code>--no-retry-immediate</code></td>
 <td>boolean</td>
-<td>Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, <code>--retry-wait</code> and <code>--retry-connections</code> are ignored.</td>
-<td><code>False</code></td>
+<td>Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass –no-retry-immediate for the legacy behavior of waiting for all tasks to complete before retrying. When –retry-immediate is in effect, –retry-wait and –retry-connections are ignored.</td>
+<td>None</td>
 </tr>
 <tr class="odd">
 <td><code>--retry-wait</code></td>
 <td>integer</td>
-<td>Time in seconds wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour.</td>
+<td>Time in seconds wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour. Only applies when –no-retry-immediate is set; otherwise ignored.</td>
 <td>None</td>
 </tr>
 <tr class="even">
 <td><code>--retry-connections</code></td>
 <td>float</td>
-<td>Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).</td>
+<td>Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). Only applies when –no-retry-immediate is set; otherwise ignored.</td>
 <td>None</td>
 </tr>
 <tr class="odd">
@@ -3395,7 +3354,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
-<td>Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)</td>
+<td>Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)</td>
 <td>None</td>
 </tr>
 <tr class="even">
@@ -3800,7 +3759,10 @@ ul.task-list li input[type="checkbox"] {
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var path = window.location.pathname;
+  var mdUrl = path.endsWith("/")
+    ? path + "index.html.md"
+    : path.replace(/\.html$/, ".html.md");
   var btn = document.getElementById("copy-page-btn");
   var cachedMarkdown = null;
 

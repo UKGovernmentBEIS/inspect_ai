@@ -396,6 +396,7 @@
   "input_screen": "inspect_ai.util.qmd#input_screen",
   "span": "inspect_ai.util.qmd#span",
   "current_span_id": "inspect_ai.util.qmd#current_span_id",
+  "span_id_provider": "inspect_ai.util.qmd#span_id_provider",
   "collect": "inspect_ai.util.qmd#collect",
   "throttle": "inspect_ai.util.qmd#throttle",
   "background": "inspect_ai.util.qmd#background",
@@ -435,11 +436,5 @@
   "ComposeConfig": "inspect_ai.util.qmd#composeconfig",
   "ComposeService": "inspect_ai.util.qmd#composeservice",
   "ComposeBuild": "inspect_ai.util.qmd#composebuild",
-  "ComposeHealthcheck": "inspect_ai.util.qmd#composehealthcheck",
-  "ViewerConfig": "inspect_ai.viewer.qmd#viewerconfig",
-  "ScannerResultView": "inspect_ai.viewer.qmd#scannerresultview",
-  "SampleScoreView": "inspect_ai.viewer.qmd#samplescoreview",
-  "SampleScoreViewSort": "inspect_ai.viewer.qmd#samplescoreviewsort",
-  "MetadataField": "inspect_ai.viewer.qmd#metadatafield",
-  "ScannerResultField": "inspect_ai.viewer.qmd#scannerresultfield"
+  "ComposeHealthcheck": "inspect_ai.util.qmd#composehealthcheck"
 }

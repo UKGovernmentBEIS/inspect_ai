@@ -91,9 +91,9 @@ For more details, see [Grounding with Google Search](https://ai.google.dev/gemin
 
 Note that when using the “gemini” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Gemini models.
 
-> **WARNING: Warning**
+> **NOTE: Note**
 >
-> Google’s search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
+> Gemini 3 and later models can use `web_search("gemini")` alongside other tools. For Gemini 2.x models, Google’s search grounding does not support use with other function tools, so Inspect will raise an error if you attempt to combine them. Use an external search provider such as “tavily”, “exa”, or “google” when you need web search alongside other tools on Gemini 2.x.
 
 ### Grok Options
 
@@ -480,6 +480,8 @@ def code_execution_task():
 ### Availability
 
 [OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter), [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool), [Google](https://ai.google.dev/gemini-api/docs/code-execution), and [Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.
+
+For Gemini models, [code_execution()](./reference/inspect_ai.tool.html.md#code_execution) uses Google’s native code execution tool when the Google provider is enabled. Gemini 3 and later models can use native code execution alongside other tools. For Gemini 2.x models, Google’s native tools do not support use with other function tools, so Inspect will raise an error if you attempt to combine them; disable the Google native provider to use the [python()](./reference/inspect_ai.tool.html.md#python) fallback in that case.
 
 > **IMPORTANT: Important**
 >

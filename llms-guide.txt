@@ -3258,7 +3258,11 @@ Both scorers provide two built-in metrics:
 - [perplexity_per_token()](./reference/inspect_ai.scorer.html.md#perplexity_per_token) — standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
 - [perplexity_per_seq()](./reference/inspect_ai.scorer.html.md#perplexity_per_seq) — equal weight per sample regardless of length (geometric mean of per-sample perplexities).
 
-### Example
+### Model Provider
+
+Use the `vllm-completions` provider for perplexity evaluation. It routes through the `/v1/completions` endpoint, sending raw text without any chat template. This avoids contamination from role markers and special tokens that would distort logprob-based metrics.
+
+### Examples
 
 ``` python
 from inspect_ai import Task
@@ -3269,8 +3273,11 @@ from inspect_ai.solver import generate
 # Full-text perplexity (WikiText, C4)
 Task(
     dataset=dataset,
-    solver=generate(max_tokens=1, prompt_logprobs=1),
+    solver=generate(),
     scorer=perplexity(),
+    model="vllm-completions/your-model-name",
+    max_tokens=1,
+    prompt_logprobs=1,
 )
 
 # Target-completion perplexity (ARC-C, MMLU)
@@ -3282,9 +3289,18 @@ Task(
             metadata={"num_target_tokens": 1},
         ),
     ]),
-    solver=generate(max_tokens=1, prompt_logprobs=1),
+    solver=generate(),
     scorer=target_perplexity(),
+    model="vllm-completions/your-model-name",
+    max_tokens=1,
+    prompt_logprobs=1,
 )
+```
+
+For example, if your model is `EleutherAI/pythia-70m`, the equivalent CLI invocation is:
+
+``` bash
+inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m --max-tokens 1 --prompt-logprobs 1
 ```
 
 > **NOTE: Note**
@@ -5235,6 +5251,22 @@ Pass the `do_sample` model arg to override the default sampling behavior (which 
 ``` bash
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
 ```
+
+### Trust Remote Code
+
+Some Hugging Face models ship custom Python code in their repositories that the `transformers` library will execute on load when `trust_remote_code=True`. Because executing remote code is a security risk (the model author can run arbitrary code in your evaluation process), Inspect defaults `trust_remote_code` to `False` and will not forward `trust_remote_code` from generic `model_args`. To opt in for a specific model you trust, pass it explicitly:
+
+``` bash
+inspect eval arc.py --model hf/some-org/custom-arch-model -M trust_remote_code=true
+```
+
+Or from Python:
+
+``` python
+eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remote_code=True))
+```
+
+The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
 ### Local Models
 
@@ -9211,9 +9243,9 @@ For more details, see [Grounding with Google Search](https://ai.google.dev/gemin
 
 Note that when using the “gemini” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Gemini models.
 
-> **WARNING: Warning**
+> **NOTE: Note**
 >
-> Google’s search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
+> Gemini 3 and later models can use `web_search("gemini")` alongside other tools. For Gemini 2.x models, Google’s search grounding does not support use with other function tools, so Inspect will raise an error if you attempt to combine them. Use an external search provider such as “tavily”, “exa”, or “google” when you need web search alongside other tools on Gemini 2.x.
 
 ### Grok Options
 
@@ -9600,6 +9632,8 @@ def code_execution_task():
 ### Availability
 
 [OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter), [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool), [Google](https://ai.google.dev/gemini-api/docs/code-execution), and [Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.
+
+For Gemini models, [code_execution()](./reference/inspect_ai.tool.html.md#code_execution) uses Google’s native code execution tool when the Google provider is enabled. Gemini 3 and later models can use native code execution alongside other tools. For Gemini 2.x models, Google’s native tools do not support use with other function tools, so Inspect will raise an error if you attempt to combine them; disable the Google native provider to use the [python()](./reference/inspect_ai.tool.html.md#python) fallback in that case.
 
 > **IMPORTANT: Important**
 >
@@ -13066,7 +13100,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Concurrency
 
-By default, [eval_set()](./reference/inspect_ai.html.md#eval_set) will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
+By default, [eval_set()](./reference/inspect_ai.html.md#eval_set) will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.
 
 Use the `max_tasks` option to override the default behavior:
 
@@ -13116,9 +13150,9 @@ There are a number of options that control the retry behaviour of eval sets:
 | **Option** | Description |
 |----|----|
 | `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
-| `--retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. |
-| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction) |
+| `--retry-immediate` / `--no-retry-immediate` | Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass `--no-retry-immediate` for legacy batch-retry behavior. When in effect, `--retry-wait` and `--retry-connections` are ignored. |
+| `--retry-wait` | Time to wait between attempts when `--no-retry-immediate` is set, increased exponentially (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Ignored under the default `--retry-immediate` mode. |
+| `--retry-connections` | Reduce max connections at this rate with each retry when `--no-retry-immediate` is set (defaults to 1.0, which results in no reduction). Ignored under the default `--retry-immediate` mode. |
 | `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 For example, here we specify a base wait time of 120 seconds:

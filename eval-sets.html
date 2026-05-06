@@ -627,7 +627,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="concurrency" class="level3">
 <h3 class="anchored" data-anchor-id="concurrency">Concurrency</h3>
-<p>By default, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> will run multiple tasks in parallel, using the greater of 4 and the number of models being evaluated as the default <code>max_tasks</code>. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.</p>
+<p>By default, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default <code>max_tasks</code>. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.</p>
 <p>Use the <code>max_tasks</code> option to override the default behavior:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   tasks<span class="op">=</span>[<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>, <span class="st">"ctf.py"</span>, <span class="st">"science.py"</span>],</span>
@@ -681,16 +681,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Maximum number of retry attempts (defaults to 10)</td>
 </tr>
 <tr class="even">
-<td><code>--retry-immediate</code></td>
-<td>Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, <code>--retry-wait</code> and <code>--retry-connections</code> are ignored.</td>
+<td><code>--retry-immediate</code> / <code>--no-retry-immediate</code></td>
+<td>Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass <code>--no-retry-immediate</code> for legacy batch-retry behavior. When in effect, <code>--retry-wait</code> and <code>--retry-connections</code> are ignored.</td>
 </tr>
 <tr class="odd">
 <td><code>--retry-wait</code></td>
-<td>Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)</td>
+<td>Time to wait between attempts when <code>--no-retry-immediate</code> is set, increased exponentially (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Ignored under the default <code>--retry-immediate</code> mode.</td>
 </tr>
 <tr class="even">
 <td><code>--retry-connections</code></td>
-<td>Reduce max connections at this rate with each retry (defaults to 1.0, which results in no reduction)</td>
+<td>Reduce max connections at this rate with each retry when <code>--no-retry-immediate</code> is set (defaults to 1.0, which results in no reduction). Ignored under the default <code>--retry-immediate</code> mode.</td>
 </tr>
 <tr class="odd">
 <td><code>--no-retry-cleanup</code></td>
@@ -909,7 +909,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var path = window.location.pathname;
+  var mdUrl = path.endsWith("/")
+    ? path + "index.html.md"
+    : path.replace(/\.html$/, ".html.md");
   var btn = document.getElementById("copy-page-btn");
   var cachedMarkdown = null;
 

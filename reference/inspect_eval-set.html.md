@@ -15,9 +15,9 @@ inspect eval-set [OPTIONS] [TASKS]...
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--retry-attempts` | integer | Maximum number of retry attempts before giving up (defaults to 10). | None |
-| `--retry-immediate` | boolean | Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored. | `False` |
-| `--retry-wait` | integer | Time in seconds wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour. | None |
-| `--retry-connections` | float | Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). | None |
+| `--retry-immediate` / `--no-retry-immediate` | boolean | Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass –no-retry-immediate for the legacy behavior of waiting for all tasks to complete before retrying. When –retry-immediate is in effect, –retry-wait and –retry-connections are ignored. | None |
+| `--retry-wait` | integer | Time in seconds wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour. Only applies when –no-retry-immediate is set; otherwise ignored. | None |
+| `--retry-connections` | float | Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). Only applies when –no-retry-immediate is set; otherwise ignored. | None |
 | `--no-retry-cleanup` | boolean | Do not cleanup failed log files after retries | `False` |
 | `--bundle-dir` | text | Bundle viewer and logs into output directory | None |
 | `--bundle-overwrite` | text | Overwrite existing bundle dir. | `False` |
@@ -52,7 +52,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
 | `--max-dataset-memory` | integer range (`0` and above) | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. | None |
-| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set) | None |
+| `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set) | None |
 | `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |
 | `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | None |
 | `--message-limit` | integer | Limit on total messages used for each sample. | None |

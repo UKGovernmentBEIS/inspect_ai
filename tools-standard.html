@@ -725,17 +725,17 @@ Important
 <p>This is distinct from the “google” provider (described below), which uses Google’s external Programmable Search Engine service and requires separate API keys.</p>
 <p>For more details, see <a href="https://ai.google.dev/gemini-api/docs/grounding">Grounding with Google Search</a>.</p>
 <p>Note that when using the “gemini” provider, you should also specify a fallback external provider (like “tavily”, “exa”, or “google”) if you are also running the evaluation with non-Gemini models.</p>
-<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-Warning
+Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Google’s search grounding does not currently support use with other tools. Attempting to use <code>web_search("gemini")</code> alongside other tools will result in an error.</p>
+<p>Gemini 3 and later models can use <code>web_search("gemini")</code> alongside other tools. For Gemini 2.x models, Google’s search grounding does not support use with other function tools, so Inspect will raise an error if you attempt to combine them. Use an external search provider such as “tavily”, “exa”, or “google” when you need web search alongside other tools on Gemini 2.x.</p>
 </div>
 </div>
 </section>
@@ -1180,6 +1180,7 @@ Warning
 <section id="availability" class="level3">
 <h3 class="anchored" data-anchor-id="availability">Availability</h3>
 <p><a href="https://platform.openai.com/docs/guides/tools-code-interpreter">OpenAI</a>, <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool">Anthropic</a>, <a href="https://ai.google.dev/gemini-api/docs/code-execution">Google</a>, and <a href="https://docs.x.ai/docs/guides/tools/code-execution-tool">Grok</a> models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.</p>
+<p>For Gemini models, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#code_execution">code_execution()</a></span> uses Google’s native code execution tool when the Google provider is enabled. Gemini 3 and later models can use native code execution alongside other tools. For Gemini 2.x models, Google’s native tools do not support use with other function tools, so Inspect will raise an error if you attempt to combine them; disable the Google native provider to use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span> fallback in that case.</p>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -1656,7 +1657,10 @@ Warning
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var path = window.location.pathname;
+  var mdUrl = path.endsWith("/")
+    ? path + "index.html.md"
+    : path.replace(/\.html$/, ".html.md");
   var btn = document.getElementById("copy-page-btn");
   var cachedMarkdown = null;
 

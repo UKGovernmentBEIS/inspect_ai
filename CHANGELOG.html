@@ -151,9 +151,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#may-2026" id="toc-may-2026" class="nav-link" data-scroll-target="#may-2026">0.3.217 (03 May 2026)</a></li>
-  <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.216 (01 May 2026)</a></li>
+  <li><a href="#may-2026" id="toc-may-2026" class="nav-link active" data-scroll-target="#may-2026">0.3.218 (06 May 2026)</a></li>
+  <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.217 (03 May 2026)</a></li>
+  <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.216 (01 May 2026)</a></li>
   <li><a href="#april-2026" id="toc-april-2026" class="nav-link" data-scroll-target="#april-2026">0.3.215 (30 April 2026)</a></li>
   <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.214 (29 April 2026)</a></li>
   <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.213 (27 April 2026)</a></li>
@@ -375,14 +375,23 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="may-2026" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026">0.3.218 (06 May 2026)</h2>
 <ul>
+<li>Google: Support Gemini 3+ native web search and code execution alongside function tools.</li>
+<li>HuggingFace: Add <code>trust_remote_code</code> model argument (defaults to <code>False</code>).</li>
+<li>VLLM: New <code>vllm-completions</code> model provider that uses completions rather than chat endpoint.</li>
+<li>OpenRouter: Coalesce adjacent system messages before request.</li>
+<li>Bedrock: Preserve maxTokens when reasoning effort is less than “high”.</li>
+<li>Eval Set: <code>retry_immediate</code> now defaults to True. Pass <code>retry_immediate=False</code> (or <code>--no-retry-immediate</code>) to restore the previous batch-retry behavior.</li>
+<li>Eval Set: <code>max_tasks</code> now defaults to the greater of 10 and the number of models being evaluated (was previously 4).</li>
+<li>Eval Set: Roll forward <code>model_usage</code> and <code>role_usage</code> from previous log when performing retries (matches existing <code>eval-retry</code> behavior).</li>
 <li>Compaction: Account for redacted-reasoning input cost on providers that exclude it from <code>usage.input_tokens</code> (currently OpenAI Responses with <code>store=false</code> + <code>include=["reasoning.encrypted_content"]</code>).</li>
+<li>Bugfix: Fix <code>ToolEvent.message_id</code> to reference the correct <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> when multiple tool calls occur in one assistant turn.</li>
 </ul>
 </section>
-<section id="may-2026" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026">0.3.217 (03 May 2026)</h2>
+<section id="may-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-1">0.3.217 (03 May 2026)</h2>
 <ul>
 <li>Add <a href="https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections">adaptive connections</a> option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.</li>
 <li>Add <a href="https://inspect.aisi.org.uk/handling-errors.html#scoring-errored-samples">score on error</a> option to score samples that error rather than failing the task (errors are still counted toward the <code>fail_on_error</code> threshold).</li>
@@ -394,8 +403,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Add <code>scorer</code> and <code>scorer_args</code> to ScoreEvent</li>
 </ul>
 </section>
-<section id="may-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-1">0.3.216 (01 May 2026)</h2>
+<section id="may-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-2">0.3.216 (01 May 2026)</h2>
 <ul>
 <li>OpenRouter: Escape signature attribute in <think> tag round-trip.</think></li>
 <li>Logging: Add sample id, epoch, and task name to log records.</li>
@@ -3542,7 +3551,10 @@ instances.</li>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var path = window.location.pathname;
+  var mdUrl = path.endsWith("/")
+    ? path + "index.html.md"
+    : path.replace(/\.html$/, ".html.md");
   var btn = document.getElementById("copy-page-btn");
   var cachedMarkdown = null;
 

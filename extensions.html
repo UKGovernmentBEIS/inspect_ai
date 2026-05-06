@@ -1317,7 +1317,10 @@ pyproject.toml</code></pre>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-  var mdUrl = window.location.pathname.replace(/\.html$/, ".html.md");
+  var path = window.location.pathname;
+  var mdUrl = path.endsWith("/")
+    ? path + "index.html.md"
+    : path.replace(/\.html$/, ".html.md");
   var btn = document.getElementById("copy-page-btn");
   var cachedMarkdown = null;
 
