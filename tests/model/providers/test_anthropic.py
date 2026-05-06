@@ -488,23 +488,18 @@ async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
 
     captured: dict[str, Any] = {}
 
-    async def fake_perform(request, streaming, tools, config):  # type: ignore[no-untyped-def]
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
         captured.update(request)
-        # short-circuit with a minimal valid response
-        from anthropic.types import Message, TextBlock, Usage
-
-        from inspect_ai.model._model_output import ModelOutput
-
-        msg = Message(
-            id="msg",
-            type="message",
-            role="assistant",
-            model=api.service_model_name(),
-            stop_reason="end_turn",
-            content=[TextBlock(type="text", text="ok")],
-            usage=Usage(input_tokens=1, output_tokens=1),
-        )
-        return msg, ModelOutput.from_content(
+        return {}, ModelOutput.from_content(
             model=api.service_model_name(), content="ok"
         )
 
