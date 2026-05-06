@@ -452,6 +452,7 @@ The following model args are supported:
 | `stream` | Enable streaming responses (default: `false`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
+| `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -494,17 +495,49 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
-Prompt log probabilities for CPT models can be passed as a model argument:
+::: {.callout-note}
+Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+:::
+
+### Prompt Logprobs & Perplexity
+
+The SageMaker provider supports prompt log probabilities and the `perplexity()` and `target_perplexity()` scorers when backed by a vLLM endpoint.
+
+In **chat mode**, set `prompt_logprobs` via `GenerateConfig` or the `-G` CLI flag:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig
+from inspect_ai.scorer import perplexity
+from inspect_ai.solver import generate
+
+@task
+def perplexity_eval():
+    return Task(
+        dataset=[Sample(input="The capital of France is Paris")],
+        solver=[generate(max_tokens=1)],
+        scorer=perplexity(),
+        config=GenerateConfig(prompt_logprobs=1),
+    )
+```
 
 ``` bash
-inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2
+```
+
+In **completion mode**, pass `prompt_logprobs` as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
   -M region_name=us-west-2 \
   -M completion_mode=true \
   -M prompt_logprobs=1
 ```
 
 ::: {.callout-note}
-Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+The `target_perplexity()` scorer's auto-tokenization feature is not available for SageMaker (the vLLM `/tokenize` endpoint is not reachable through `invoke_endpoint`). Provide `num_target_tokens` in sample metadata instead.
 :::
 
 Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.

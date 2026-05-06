@@ -1,5 +1,6 @@
 ## 0.3.218 (06 May 2026)
 
+- SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
 - Google: Support Gemini 3+ native web search and code execution alongside function tools.
 - HuggingFace: Add `trust_remote_code` model argument (defaults to `False`).
 - VLLM: New `vllm-completions` model provider that uses completions rather than chat endpoint.
