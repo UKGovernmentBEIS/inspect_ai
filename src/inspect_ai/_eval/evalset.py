@@ -168,14 +168,16 @@ def eval_set(
             (required to ensure that a unique storage scope is assigned for the set).
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
-        retry_wait: Time to wait between attempts, increased exponentially.
-            (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
-            per-retry will in no case by longer than 1 hour.
+        retry_wait: Time to wait between attempts when `retry_immediate=False`,
+            increased exponentially (defaults to 30, resulting in waits of 30, 60,
+            120, 240, etc.). Wait time per-retry will in no case be longer than 1
+            hour. Ignored when `retry_immediate=True`.
         retry_connections: Reduce max_connections at this rate with each retry
-            (defaults to 1.0, which results in no reduction).
+            when `retry_immediate=False` (defaults to 1.0, which results in no
+            reduction). Ignored when `retry_immediate=True`.
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
+        retry_immediate: If True (the default), immediately retry tasks as they fail without waiting for all tasks to complete; completed samples are reused from logs on retry. If False, wait for all tasks to complete before retrying any tasks (legacy batch-retry behavior). When True, `retry_wait` and `retry_connections` are ignored.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -241,7 +243,7 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 4 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -275,6 +277,8 @@ def eval_set(
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    if retry_immediate is None:
+        retry_immediate = True
     task_retry_attempts = num_retry_attempts if retry_immediate else 0
 
     if retry_immediate and num_retry_attempts == 0:
@@ -402,7 +406,7 @@ def eval_set(
     if adaptive_will_be_active:
         retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 10)
     log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status

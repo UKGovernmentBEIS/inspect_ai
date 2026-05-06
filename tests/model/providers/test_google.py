@@ -43,7 +43,13 @@ from inspect_ai.model._providers.google import (
 )
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams, tool
+from inspect_ai.tool import (
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    tool,
+)
 
 
 @skip_if_no_google

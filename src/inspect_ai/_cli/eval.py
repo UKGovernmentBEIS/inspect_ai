@@ -76,7 +76,7 @@ class EvalCommand(SectionedCommand):
 
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
-MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)"
+MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
@@ -964,11 +964,10 @@ def eval_command(
     envvar="INSPECT_EVAL_RETRY_ATTEMPS",
 )
 @click.option(
-    "--retry-immediate",
+    "--retry-immediate/--no-retry-immediate",
     type=bool,
-    is_flag=True,
-    default=False,
-    help="Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored.",
+    default=None,
+    help="Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass --no-retry-immediate for the legacy behavior of waiting for all tasks to complete before retrying. When --retry-immediate is in effect, --retry-wait and --retry-connections are ignored.",
     envvar="INSPECT_EVAL_RETRY_IMMEDIATE",
 )
 @click.option(
@@ -976,13 +975,14 @@ def eval_command(
     type=int,
     help="Time in seconds wait between attempts, increased exponentially. "
     + "(defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time "
-    + "per-retry will in no case by longer than 1 hour.",
+    + "per-retry will in no case by longer than 1 hour. "
+    + "Only applies when --no-retry-immediate is set; otherwise ignored.",
     envvar="INSPECT_EVAL_RETRY_WAIT",
 )
 @click.option(
     "--retry-connections",
     type=float,
-    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).",
+    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). Only applies when --no-retry-immediate is set; otherwise ignored.",
     envvar="INSPECT_EVAL_RETRY_CONNECTIONS",
 )
 @click.option(

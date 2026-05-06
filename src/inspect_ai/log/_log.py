@@ -64,6 +64,7 @@ class EvalConfigDefaults(TypedDict):
     epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
+    score_on_error: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -77,6 +78,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
+        "score_on_error": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,

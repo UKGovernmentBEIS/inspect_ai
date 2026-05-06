@@ -105,7 +105,11 @@ Both scorers provide two built-in metrics:
 -   `perplexity_per_token()` — standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
 -   `perplexity_per_seq()` — equal weight per sample regardless of length (geometric mean of per-sample perplexities).
 
-### Example
+### Model Provider
+
+Use the `vllm-completions` provider for perplexity evaluation. It routes through the `/v1/completions` endpoint, sending raw text without any chat template. This avoids contamination from role markers and special tokens that would distort logprob-based metrics.
+
+### Examples
 
 ``` python
 from inspect_ai import Task
@@ -116,8 +120,11 @@ from inspect_ai.solver import generate
 # Full-text perplexity (WikiText, C4)
 Task(
     dataset=dataset,
-    solver=generate(max_tokens=1, prompt_logprobs=1),
+    solver=generate(),
     scorer=perplexity(),
+    model="vllm-completions/your-model-name",
+    max_tokens=1,
+    prompt_logprobs=1,
 )
 
 # Target-completion perplexity (ARC-C, MMLU)
@@ -129,9 +136,18 @@ Task(
             metadata={"num_target_tokens": 1},
         ),
     ]),
-    solver=generate(max_tokens=1, prompt_logprobs=1),
+    solver=generate(),
     scorer=target_perplexity(),
+    model="vllm-completions/your-model-name",
+    max_tokens=1,
+    prompt_logprobs=1,
 )
+```
+
+For example, if your model is `EleutherAI/pythia-70m`, the equivalent CLI invocation is:
+
+``` bash
+inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m --max-tokens 1 --prompt-logprobs 1
 ```
 
 ::: {.callout-note}

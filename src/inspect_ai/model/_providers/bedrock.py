@@ -465,9 +465,13 @@ class BedrockAPI(ModelAPI):
             reasoning_cfg = self.reasoning_config(config)
             additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
 
-            # Nova with reasoning enabled requires maxTokens to be unset
-            nova_reasoning_enabled = (
-                self.is_nova() and "reasoningConfig" in reasoning_cfg
+            # Nova with reasoning at "high" effort requires maxTokens to be unset.
+            # Lower effort levels ("low", "medium") still accept maxTokens, so we
+            # must only omit it for the "high" case. See issue #3767.
+            nova_high_effort_reasoning = (
+                self.is_nova()
+                and reasoning_cfg.get("reasoningConfig", {}).get("maxReasoningEffort")
+                == "high"
             )
 
             # Make the request
@@ -476,7 +480,7 @@ class BedrockAPI(ModelAPI):
                 messages=messages,
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=None if nova_reasoning_enabled else config.max_tokens,
+                    maxTokens=None if nova_high_effort_reasoning else config.max_tokens,
                     temperature=config.temperature,
                     topP=config.top_p,
                     stopSequences=config.stop_seqs,
