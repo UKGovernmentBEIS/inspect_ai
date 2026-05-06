@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.219 (06 May 2026)
 
 - Inspect View: Fix extraneous console errors
 - Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.
