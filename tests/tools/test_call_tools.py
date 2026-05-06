@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
@@ -283,3 +285,33 @@ async def test_mixed_tool_result_preserved_as_structured_content():
         ContentText(text="Attached report"),
         ContentDocument(document="/path/to/report.pdf"),
     ]
+
+
+async def test_tool_event_message_id_for_multiple_calls():
+    """Each ToolEvent.message_id references its own ChatMessageTool."""
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(incr())
+    calls = [
+        ToolCall(id="call-1", function="incr", arguments={"x": 1}, parse_error=None),
+        ToolCall(id="call-2", function="incr", arguments={"x": 2}, parse_error=None),
+        ToolCall(id="call-3", function="incr", arguments={"x": 3}, parse_error=None),
+    ]
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=calls)], [tool_def]
+    )
+
+    tool_messages = [m for m in messages if isinstance(m, ChatMessageTool)]
+    tool_events = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert len(tool_messages) == 3
+    assert len(tool_events) == 3
+
+    for tool_message, tool_event in zip(tool_messages, tool_events):
+        assert tool_event.id == tool_message.tool_call_id
+        assert tool_event.message_id == tool_message.id
+
+    # ensure each event has a distinct message_id (regression: previously
+    # every event pointed at the first ChatMessageTool)
+    assert len({e.message_id for e in tool_events}) == 3

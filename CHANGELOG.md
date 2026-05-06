@@ -7,6 +7,7 @@
 - Eval Set: `max_tasks` now defaults to the greater of 10 and the number of models being evaluated (was previously 4).
 - Eval Set: Roll forward `model_usage` and `role_usage` from previous log when performing retries (matches existing `eval-retry` behavior).
 - Compaction: Account for redacted-reasoning input cost on providers that exclude it from `usage.input_tokens` (currently OpenAI Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
+- Bugfix: Fix `ToolEvent.message_id` to reference the correct `ChatMessageTool` when multiple tool calls occur in one assistant turn.
 
 ## 0.3.217 (03 May 2026)
 
