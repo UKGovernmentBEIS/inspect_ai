@@ -341,6 +341,9 @@ async def scan_finalize(
     # sync so the compacted parquet has the union of all calls
     await FileRecorder.sync(scan_dir, complete=complete)
 
+    if scanner is not None:
+        await _cleanup_orphan_scan_rows(scan_dir, log_dir, scanner)
+
     # build snapshot from the compacted output and write into scan.json
     from upath import UPath
 
@@ -457,6 +460,78 @@ def scanned_transcripts_for_resume(
         name: _scanned_transcript_ids(scan_dir, name)
         for name in _normalize_scanners(scanner)
     }
+
+
+async def _cleanup_orphan_scan_rows(
+    scan_dir: str, log_dir: str, scanner: "EvalScanners"
+) -> None:
+    """Drop scan rows whose transcript_id has no corresponding sample.
+
+    Sample-level retries (`retry_immediate`) and the legacy eval_set
+    retry path re-run failed samples with fresh uuids, then
+    `retry_cleanup` deletes the older log files. Their transcript_ids
+    survive in the scan parquet (and possibly the buffer) but no
+    longer match any `EvalSample`. This sweeps those orphans.
+
+    Reads sample uuids from all surviving eval logs (cheap — only
+    summaries), filters each scanner's compacted parquet to just
+    those uuids, and unlinks any orphan buffer files.
+    """
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+    from inspect_scout._recorder.buffer import RecorderBuffer, _sanitize_component
+    from upath import UPath
+
+    from inspect_ai.log._file import (
+        list_eval_logs,
+        read_eval_log_sample_summaries_async,
+    )
+
+    live_tids: set[str] = set()
+    for log_info in list_eval_logs(log_dir):
+        for summary in await read_eval_log_sample_summaries_async(log_info.name):
+            if summary.uuid is not None:
+                live_tids.add(summary.uuid)
+
+    live_array = pa.array(sorted(live_tids), type=pa.string())
+    buffer_dir = RecorderBuffer.buffer_dir(scan_dir)
+
+    for name in _normalize_scanners(scanner):
+        # filter the compacted parquet — read per-row-group to avoid
+        # cross-row-group schema merging (scout's writer can produce
+        # row groups with differing dictionary states)
+        parquet_path = UPath(scan_dir) / f"{name}.parquet"
+        if parquet_path.exists():
+            try:
+                pf = pq.ParquetFile(parquet_path.as_posix())
+            except Exception:
+                continue
+            schema = pf.schema_arrow
+            out_buf = pa.BufferOutputStream()
+            writer = pq.ParquetWriter(
+                out_buf, schema, compression="zstd", use_dictionary=True
+            )
+            removed = False
+            for i in range(pf.num_row_groups):
+                rg = pf.read_row_group(i)
+                mask = pc.is_in(rg.column("transcript_id"), value_set=live_array)
+                filtered = rg.filter(mask)
+                if filtered.num_rows < rg.num_rows:
+                    removed = True
+                if filtered.num_rows > 0:
+                    writer.write_table(filtered)
+            writer.close()
+            if removed:
+                UPath(parquet_path).write_bytes(out_buf.getvalue().to_pybytes())
+
+        # clean orphaned buffer files (relevant when complete=False
+        # left the buffer in place; complete=True already cleaned it)
+        sdir = buffer_dir / f"scanner={_sanitize_component(name)}"
+        if sdir.exists():
+            for p in sdir.glob("*.parquet"):
+                if p.stem not in live_tids:
+                    p.unlink()
 
 
 def _scanned_transcript_ids(scan_dir: str, scanner_name: str) -> set[str]:

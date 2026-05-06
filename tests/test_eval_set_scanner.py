@@ -458,9 +458,14 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
     """A second `eval_set` call on the same `log_dir` resumes:
 
     * Previously successful samples short-circuit and are not re-scanned.
-    * Previously errored samples re-run and are scanned again.
-    * `_summary.json` reflects the *union* of scans across both runs (it is
-      not wiped on the second call).
+    * Previously errored samples re-run with fresh uuids and are
+      scanned again. Their original errored-run rows are *orphans*
+      (the old log files were deleted by `retry_cleanup`) and the
+      orphan-cleanup pass at finalize sweeps them — so the parquet
+      ends up with only the surviving N rows, not 2N.
+    * `_summary.json.scans` still reflects the cumulative scan-call
+      count across both runs (2N) — it counts work performed, not
+      surviving rows.
 
     Runs against both a local temp dir and an S3-mocked log dir to cover
     the local `os.replace` path and the fsspec `mv` (copy+delete) path
@@ -519,12 +524,15 @@ def test_scanner_resume_accumulates_summary_and_only_scans_rerun_samples(
         # the scan dir is the same (same eval_set_id auto-detected from log_dir)
         assert _scan_dir(log_dir) == scan_dir
 
-        # all N samples re-ran and re-scanned (the prior errored runs do not
-        # short-circuit), so the compacted parquet has 2*N rows
+        # the parquet has just N rows — the run-1 errored-run rows are
+        # orphans (their old log file was deleted by retry_cleanup) and
+        # the finalize-time orphan sweep removed them, leaving only the
+        # surviving rerun's rows.
         pf = _read_parquet(scan_dir / "echo_scanner.parquet")
-        assert pf.metadata.num_rows == 2 * n
+        assert pf.metadata.num_rows == n
 
-        # summary accumulates across both calls — this is the key invariant
+        # summary still accumulates across both calls — it counts
+        # work performed, not surviving rows
         summary_2 = _read_summary(scan_dir)
         ss = summary_2["scanners"]["echo_scanner"]
         assert ss["scans"] == 2 * n, (
@@ -667,6 +675,61 @@ def test_sample_retry_scans_only_final_attempt() -> None:
             f"sample retried {3} times should produce exactly 1 scan row, got {len(df)}"
         )
         # the recorded transcript reflects an errored sample (final attempt)
+        assert df.iloc[0]["transcript_error"]
+
+
+def test_retry_immediate_cleans_up_orphan_scans_at_finalize() -> None:
+    """Task-level retry leaves scan rows only for samples in surviving logs.
+
+    With `retry_immediate=True`, a task that errors gets re-queued
+    (up to `retry_attempts` times). Within each attempt errored
+    samples come back as `None` from `sample_source` and get re-run
+    by the eval phase with a fresh `uuid` — so each attempt records
+    its own transcript_id mid-run.
+
+    `retry_cleanup` (default on) deletes the older log files at the
+    end of the call, leaving only the latest log per task. The
+    transcript_ids from the deleted logs no longer correspond to any
+    `EvalSample`. `scan_finalize` sweeps those orphans from the
+    compacted parquet so the scan dir matches the surviving logs.
+
+    Setup: 1 sample, always-fails solver, `retry_immediate=True`,
+    `retry_attempts=2` → 3 attempts during the run, 1 surviving log
+    after retry_cleanup, 1 row in the parquet after orphan cleanup.
+    """
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(
+                dataset=[Sample(input="q", target="t")],
+                solver=[_always_fails()],
+            ),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=0,
+            retry_immediate=True,
+            retry_attempts=2,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        # only the latest log file survives retry_cleanup
+        eval_logs = list((Path(log_dir)).glob("*.eval"))
+        assert len(eval_logs) == 1
+        from inspect_ai.log import read_eval_log
+
+        surviving_uuids = {
+            s.uuid for s in (read_eval_log(str(eval_logs[0])).samples or [])
+        }
+        assert len(surviving_uuids) == 1
+
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        # parquet contains exactly the live sample uuids — orphans
+        # from earlier failed attempts have been swept
+        assert len(df) == 1
+        assert set(df["transcript_id"].tolist()) == surviving_uuids
         assert df.iloc[0]["transcript_error"]
 
 
