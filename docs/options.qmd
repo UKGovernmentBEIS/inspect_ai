@@ -160,6 +160,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--log-format` / `INSPECT_LOG_FORMAT` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
 | `--log-level` / `INSPECT_LOG_LEVEL` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
 | `--log-level-transcript` / `INSPECT_LOG_LEVEL_TRANSCRIPT` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
+| `INSPECT_LOGGER_FORMAT` | Values: `rich`, `plain`, `json` Format for console logger output (defaults to `rich`). Use `plain` or `json` for single-line logs in non-TTY CI, containers, and log aggregators. |
 
 ## Scoring
 
