@@ -733,6 +733,58 @@ def test_retry_immediate_cleans_up_orphan_scans_at_finalize() -> None:
         assert df.iloc[0]["transcript_error"]
 
 
+def test_eval_set_retry_cleans_up_orphan_scans_at_finalize() -> None:
+    """eval_set's retry path (tenacity, `retry_immediate=False`) is symmetric.
+
+    With `retry_immediate=False` (the default), tenacity wraps
+    `try_eval` and retries it on failure. Each retry re-discovers
+    logs, treats the prior failed log as a `PreviousTask`, and
+    runs the failed samples again with fresh uuids — same shape as
+    `retry_immediate=True`, just driven from a different layer.
+
+    The orphan-cleanup invariant should hold equally: each attempt
+    accumulates a parquet row, `retry_cleanup` deletes the older log
+    files, and `scan_finalize` sweeps orphan rows whose uuids no
+    longer match any surviving log.
+
+    Setup mirrors `test_retry_immediate_cleans_up_orphan_scans_at_finalize`
+    but with `retry_immediate=False`; expectation is the same: 1
+    surviving log, 1 parquet row.
+    """
+    from inspect_ai.log import read_eval_log
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=Task(
+                dataset=[Sample(input="q", target="t")],
+                solver=[_always_fails()],
+            ),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=0,
+            retry_immediate=False,
+            retry_attempts=2,
+            retry_wait=0,
+            continue_on_fail=True,
+            display="none",
+        )
+
+        eval_logs = list(Path(log_dir).glob("*.eval"))
+        assert len(eval_logs) == 1
+        surviving_uuids = {
+            s.uuid for s in (read_eval_log(str(eval_logs[0])).samples or [])
+        }
+        assert len(surviving_uuids) == 1
+
+        scan_dir = _scan_dir(log_dir)
+        pf = _read_parquet(scan_dir / "echo_scanner.parquet")
+        df = pf.read().to_pandas()
+        assert len(df) == 1
+        assert set(df["transcript_id"].tolist()) == surviving_uuids
+        assert df.iloc[0]["transcript_error"]
+
+
 def test_retry_immediate_keeps_all_scans_when_retry_cleanup_disabled() -> None:
     """With `retry_cleanup=False`, old log files survive and so do their scans.
 
