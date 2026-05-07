@@ -18,6 +18,14 @@ cd inspect_ai
 pip install -e ".[dev]"
 ```
 
+Alternatively, if you use [uv](https://docs.astral.sh/uv/), sync the development environment from the checked-in lockfile:
+
+```bash
+uv sync --extra dev
+```
+
+The uv workflow is supported but not required. The `uv.lock` file records a reproducible development resolution; project dependencies are still declared in `requirements*.txt` and exposed through `pyproject.toml`. When changing dependencies, update the appropriate requirements file and refresh the lockfile rather than relying on `uv add`.
+
 Optionally install pre-commit hooks via
 
 ```bash
@@ -30,6 +38,8 @@ Run linting, formatting, and tests via
 make check
 make test
 ```
+
+When working in a uv-managed environment, prefix those commands with `uv run` (for example, `uv run make check`).
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
 
