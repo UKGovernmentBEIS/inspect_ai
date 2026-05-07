@@ -69,6 +69,11 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._generate_accounting import (
+    ModelGenerateAccounting,
+    current_model_generate_accounting,
+    model_generate_accounting,
+)
 from inspect_ai.model._generate_overrides import generate_config_override
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
@@ -827,38 +832,63 @@ class Model:
         # enforce concurrency limits
         start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
+        accounting = ModelGenerateAccounting.new(
+            started_at=start_time, working_start=working_start
+        )
         async with self._connection_concurrency(config):
-            # generate
-            output, event = await self._generate(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                cache=cache,
-            )
+            async with model_generate_accounting(accounting):
+                try:
+                    output, event = await self._generate(
+                        input=input,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        config=config,
+                        cache=cache,
+                    )
+                except BaseException as ex:
+                    from inspect_ai.log._transcript import transcript
 
-            # update the most recent ModelEvent with the actual start/completed
-            # times as well as a computation of working time (events are
-            # created _after_ the call to _generate, potentially in response
-            # to retries, so they need their timestamp updated so it accurately
-            # reflects the full start/end time which we know here)
-            from inspect_ai.event._model import ModelEvent
+                    if accounting.last_event is not None:
+                        terminal_event = accounting.last_event
+                        if terminal_event.pending:
+                            terminal_event.error = (
+                                exception_message(ex)
+                                if isinstance(ex, Exception)
+                                else type(ex).__name__
+                            )
+                            if isinstance(ex, Exception):
+                                traceback_text, traceback_ansi = format_traceback(
+                                    type(ex), ex, ex.__traceback__
+                                )
+                                terminal_event.traceback = traceback_text
+                                terminal_event.traceback_ansi = traceback_ansi
+                            terminal_event.completed = datetime.now(timezone.utc)
+                            terminal_event.working_time = max(
+                                0.0,
+                                sample_working_time() - terminal_event.working_start,
+                            )
+                            terminal_event.pending = None
+                        accounting.finalize_terminal_event(
+                            event=terminal_event,
+                            completed_at=datetime.now(timezone.utc),
+                            working_now=sample_working_time(),
+                        )
+                        transcript()._event_updated(terminal_event)  # pyright: ignore[reportPrivateUsage]
+                    raise
 
-            assert isinstance(event, ModelEvent)
-            event.timestamp = start_time
-            event.working_start = working_start
-            completed = datetime.now(timezone.utc)
-            event.completed = completed
-            event.working_time = (
-                output.time
-                if output.time is not None
-                else (completed - start_time).total_seconds()
-            )
+                from inspect_ai.event._model import ModelEvent
+                from inspect_ai.log._transcript import transcript
 
-            _stamp_redacted_reasoning_tokens(output)
+                _stamp_redacted_reasoning_tokens(output)
 
-            # return output
-            return output
+                assert isinstance(event, ModelEvent)
+                accounting.finalize_terminal_event(
+                    event=event,
+                    completed_at=datetime.now(timezone.utc),
+                    working_now=sample_working_time(),
+                )
+                transcript()._event_updated(event)  # pyright: ignore[reportPrivateUsage]
+                return output
 
     async def generate_loop(
         self,
@@ -932,8 +962,8 @@ class Model:
         @retry(
             **model_retry_config(
                 self.api.model_name,
-                self.config.max_retries,
-                self.config.timeout,
+                config.max_retries,
+                config.timeout,
                 self.should_retry,
                 self.before_retry,
                 log_model_retry,
@@ -1012,8 +1042,8 @@ class Model:
             @retry(
                 **model_retry_config(
                     self.api.model_name,
-                    self.config.max_retries,
-                    self.config.timeout,
+                    config.max_retries,
+                    config.timeout,
                     self.should_retry,
                     self.before_retry,
                     log_model_retry,
@@ -1134,6 +1164,7 @@ class Model:
                 log_model_retry,
                 report_waiting_time,
                 self.api.retry_wait(),
+                on_retry_scheduled=lambda retry_state: _record_call_retry_if_active(),
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
@@ -1320,8 +1351,18 @@ class Model:
                 record_and_check_model_usage(self, output.usage, role=self.role)
 
                 # send telemetry to hooks
+                acc = current_model_generate_accounting()
                 await emit_model_usage(
-                    model_name=str(self), usage=output.usage, call_duration=output.time
+                    model_name=str(self),
+                    usage=output.usage,
+                    call_duration=output.time,
+                    call_retries=acc.call_retry_count if acc else None,
+                    http_retries=acc.http_retry_count if acc else None,
+                    call_working_time=max(
+                        0.0, sample_working_time() - acc.working_start
+                    )
+                    if acc
+                    else None,
                 )
                 await send_telemetry_legacy(
                     "model_usage",
@@ -1387,9 +1428,18 @@ class Model:
             # any remaining waiting time will have been due to internal retry within
             # model providers, which we can get from:
             #    total_time - reported_waiting_time - model_call_time
-            report_sample_waiting_time(
-                total_time - reported_waiting_time - model_output.time
-            )
+            extra_waiting = total_time - reported_waiting_time - model_output.time
+            if extra_waiting < 0:
+                logger.debug(
+                    "clamped negative waiting delta: total=%.4f reported=%.4f "
+                    + "output_time=%.4f delta=%.4f",
+                    total_time,
+                    reported_waiting_time,
+                    model_output.time,
+                    extra_waiting,
+                )
+                extra_waiting = 0.0
+            report_sample_waiting_time(extra_waiting)
 
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":
@@ -1589,6 +1639,9 @@ class Model:
             call=call,
             pending=output is None,
         )
+        accounting = current_model_generate_accounting()
+        if accounting is not None:
+            accounting.register_event(event)
         sink = _model_event_sink.get()
         if sink is None:
             transcript()._event(event)
@@ -1635,12 +1688,21 @@ class Model:
                 # We try to set these in the individual providers' error handling, but we make a last
                 # ditch effort here to set them if we don't have a response.
                 event.call.error = True
-                if hasattr(result, "body"):
-                    event.call.response = as_error_response(result.body)
-                elif hasattr(result, "response"):
-                    event.call.response = as_error_response(result.response)
+                body = cast(object | None, getattr(result, "body", None))
+                response = cast(object | None, getattr(result, "response", None))
+                if body is not None:
+                    event.call.response = as_error_response(body)
+                elif response is not None:
+                    event.call.response = as_error_response(response)
                 else:
                     event.call.response = as_error_response(str(result))
+
+            if event.completed is None:
+                event.completed = datetime.now(timezone.utc)
+            if event.working_time is None:
+                event.working_time = max(
+                    0.0, sample_working_time() - event.working_start
+                )
 
             event.pending = None
             if sink is None:
@@ -1705,6 +1767,12 @@ class ModelGenerateError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.provider_message = provider_message
+
+
+def _record_call_retry_if_active() -> None:
+    accounting = current_model_generate_accounting()
+    if accounting is not None:
+        accounting.record_call_retry()
 
 
 class ModelName:

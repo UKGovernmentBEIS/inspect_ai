@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Logging: Local eval (`.eval`) and JSON (`.json`) log files are now written atomically (temp file + `fsync` + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)
+- Model API: `model.generate()` now emits one `ModelEvent` per attempt with per-attempt timing and retry accounting (`call_id`, `attempt`, `call_retries`, `http_retries`).
 - Checkpointing: In-sandbox restic artifacts moved from the world-listable `/opt/inspect-restic` to root-only `/root/.cache/inspect`, and egress scratch files no longer land in `/tmp`, so agents no longer see evidence of checkpointing.
 - Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
 - Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
