@@ -79,6 +79,20 @@ inspect eval arc.py --model google/gemini-2.5-pro -M location=us-east5
 
 See the documentation for the requisite model provider for information on how model args are passed through to model clients.
 
+## Open-Ended and Raw Text Generation
+
+Inspect tasks are not limited to multiple choice. If your dataset sample contains a prompt and your solver calls `generate()`, the model output is available as `state.output.completion` and can be scored by any scorer that understands free-form text, such as a custom scorer or model-graded scorer.
+
+Most providers expose chat-completion APIs, so Inspect represents inputs as chat messages and local providers may apply a tokenizer chat template before generation. This is usually what you want for instruction-tuned models. If you need a base model to receive raw prompt text without role markers or a chat template, use a provider-specific raw-completion path:
+
+-   For vLLM, use the `vllm-completions` provider. It routes through vLLM's `/v1/completions` endpoint and sends the single user message as raw text:
+
+    ``` bash
+    inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
+    ```
+
+-   For local Hugging Face or vLLM chat providers, use `-M use_chat_template=false` or provide an explicit `chat_template` model arg when you want to control the rendered prompt yourself. See the [Hugging Face](providers.qmd#hugging-face) and [vLLM](providers.qmd#vllm) provider docs for examples.
+
 ## Max Connections
 
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
