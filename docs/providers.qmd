@@ -921,6 +921,8 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
 
+For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](reasoning.qmd#vllmsglang) for CLI examples.
+
 ### Prompt Log Probabilities
 
 vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](scorers.qmd#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
