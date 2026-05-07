@@ -629,7 +629,8 @@ async def _grok_message(message: ChatMessage) -> chat_pb2.Message:
             return await _grok_assistant_message(message)
         case ChatMessageTool():
             return tool_result(
-                f"Error: {message.error.message}" if message.error else message.text
+                f"Error: {message.error.message}" if message.error else message.text,
+                tool_call_id=message.tool_call_id,
             )
 
 
