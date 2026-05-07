@@ -509,6 +509,14 @@ async def _s3_conditional_put_object(
 ) -> None:
     """Helper function to perform S3 conditional write with aioboto3."""
     s3_client = await async_fs.s3_client_async()
+    # Preflight HEAD: some S3-compatible backends (notably moto) do not honor the
+    # IfMatch header on put_object, so verify the current ETag matches before writing.
+    current = await s3_client.head_object(Bucket=bucket, Key=key)
+    current_etag = str(current["ETag"]).strip('"')
+    if current_etag != etag:
+        raise WriteConflictError(
+            f"Log file was modified by another process. Expected ETag: {etag}"
+        )
     await s3_client.put_object(
         Bucket=bucket,
         Key=key,
