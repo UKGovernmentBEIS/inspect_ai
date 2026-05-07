@@ -1,3 +1,7 @@
+## Unreleased
+
+- Support `reasoning_effort` for Grok 4 models.
+
 ## 0.3.219 (06 May 2026)
 
 - Inspect View: Fix extraneous console errors
