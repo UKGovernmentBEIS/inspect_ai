@@ -425,6 +425,43 @@ def test_scanner_consistent_state_after_failure() -> None:
         assert ss["errors"] == 0
 
 
+def test_s3_scan_dir_contains_expected_files(mock_s3) -> None:
+    """eval_set scanning to s3:// produces the full set of scan-dir files.
+
+    Baseline correctness regression test: a successful scan against an
+    S3 log_dir must leave behind:
+      * `_scan.json`     - the spec
+      * `_summary.json`  - aggregated counts; `complete=True` on a clean run
+      * `_errors.jsonl`  - present (empty file is allowed)
+      * `<scanner>.parquet` - the compacted output
+    """
+    log_dir = f"s3://test-bucket/{uuid()}"
+    n = 3
+    success, _ = eval_set(
+        tasks=_task(n),
+        log_dir=log_dir,
+        scanner=[echo_scanner()],
+        model="mockllm/model",
+        retry_attempts=0,
+        display="none",
+    )
+    assert success
+
+    scan_dir = _scan_dir(log_dir)
+
+    assert (scan_dir / "_scan.json").exists()
+    assert (scan_dir / "_summary.json").exists()
+    assert (scan_dir / "_errors.jsonl").exists()
+    assert (scan_dir / "echo_scanner.parquet").exists()
+
+    summary = _read_summary(scan_dir)
+    assert summary["complete"] is True
+    assert summary["scanners"]["echo_scanner"]["scans"] == n
+
+    parquet = _read_parquet(scan_dir / "echo_scanner.parquet")
+    assert parquet.metadata.num_rows == n
+
+
 def test_scanner_buffer_cleaned_up_after_eval_set() -> None:
     """Scout's per-transcript buffer dir is cleaned up after eval_set.
 
