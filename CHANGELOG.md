@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Support `reasoning_effort` for Grok 4 models.
+- Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
+- Grok: Support `reasoning_effort` for Grok 4 models.
 
 ## 0.3.219 (06 May 2026)
 
