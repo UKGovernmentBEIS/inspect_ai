@@ -34,6 +34,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.util._anyio import inner_exception
 
 from ._context import MCPServerContext
 from ._sandbox import sandbox_client
@@ -199,30 +200,42 @@ class MCPServerLocalSession(MCPServer):
 
     def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
         async def execute(**kwargs: Any) -> ToolResult:
-            async with self._client_session() as tool_session:
-                mcp_call = format_function_call(
-                    mcp_tool.name, kwargs, width=sys.maxsize
-                )
-                with trace_action(
-                    logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
-                ):
-                    try:
-                        result = await tool_session.call_tool(mcp_tool.name, kwargs)
-                        if result.isError:
-                            raise ToolError(tool_result_as_text(result.content))
-                    except McpError as e:
-                        # Some errors that are raised via McpError (e.g. -32603)
-                        # need to be converted to ToolError so that they make it
-                        # back to the model.
-                        raise exception_for_rpc_response_error(
-                            e.error.code,
-                            e.error.message,
-                            mcp_tool.name,
-                            kwargs,
-                            error_mapper=_McpErrorMapper,
-                        ) from e
+            # Tool-call timeouts (e.g. the sandbox MCP per-RPC timeout)
+            # surface as TimeoutError, often wrapped in an ExceptionGroup
+            # raised when the underlying task group exits its context
+            # manager. Convert these to ToolError so the model is notified
+            # rather than the exception reaching the top of the sample stack.
+            try:
+                async with self._client_session() as tool_session:
+                    mcp_call = format_function_call(
+                        mcp_tool.name, kwargs, width=sys.maxsize
+                    )
+                    with trace_action(
+                        logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
+                    ):
+                        try:
+                            result = await tool_session.call_tool(mcp_tool.name, kwargs)
+                            if result.isError:
+                                raise ToolError(tool_result_as_text(result.content))
+                        except McpError as e:
+                            # Some errors that are raised via McpError (e.g. -32603)
+                            # need to be converted to ToolError so that they make it
+                            # back to the model.
+                            raise exception_for_rpc_response_error(
+                                e.error.code,
+                                e.error.message,
+                                mcp_tool.name,
+                                kwargs,
+                                error_mapper=_McpErrorMapper,
+                            ) from e
 
-                return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+                    return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+            except Exception as e:
+                if isinstance(inner_exception(e), TimeoutError):
+                    raise ToolError(
+                        f"Tool '{mcp_tool.name}' timed out before completing."
+                    ) from e
+                raise
 
         # get parameters (fill in missing ones)
         parameters = ToolParams.model_validate(mcp_tool.inputSchema)
