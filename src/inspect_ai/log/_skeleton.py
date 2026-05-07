@@ -107,10 +107,14 @@ class SkeletonSpan(BaseModel):
     """Descendant model-event count."""
 
     gap_models: list[int]
-    """Model events strictly between consecutive items, where items are
+    """Logical model calls strictly between consecutive items, where items are
     direct-child structural spans + persisted notables merged in sequence
-    order (``len == items + 1``). Additive: suppressing an item row means
-    summing its adjacent gaps."""
+    order (``len == items + 1``). Failed retry attempts collapse into their
+    successful call. Additive: suppressing an item row means summing its
+    adjacent gaps."""
+
+    gap_model_anchors: list[int | None] | None = None
+    """First logical model-call index per gap when retry grouping changed it."""
 
     children: dict[str, int]
     """Direct-child event-type counts, sparse. Includes events of excluded
@@ -426,20 +430,12 @@ def _span_row(
     agg = aggs[id(node)]
 
     children: Counter[str] = Counter()
-    gap_models = [0]
+    gap_models, gap_model_anchors = _gap_models(node, index_of, persisted_set, excluded)
     for item in node.items:
-        if isinstance(item, _Node):
-            if excluded(item):
-                # dissolve: a leaf's items are all plain events
-                children.update(child.event for child in _plain_items(item))
-            else:
-                gap_models.append(0)
-        else:
+        if isinstance(item, _Node) and excluded(item):
+            children.update(child.event for child in _plain_items(item))
+        elif not isinstance(item, _Node):
             children[item.event] += 1
-            if index_of[id(item)] in persisted_set:
-                gap_models.append(0)
-            elif isinstance(item, ModelEvent):
-                gap_models[-1] += 1
 
     return SkeletonSpan(
         id=node.id,
@@ -456,7 +452,61 @@ def _span_row(
         events=agg.events,
         models=agg.models,
         gap_models=gap_models,
+        gap_model_anchors=gap_model_anchors,
         children=dict(children),
+    )
+
+
+def _gap_models(
+    node: _Node,
+    index_of: dict[int, int],
+    persisted_set: set[int],
+    excluded: _ExcludedFn,
+) -> tuple[list[int], list[int | None] | None]:
+    gaps: list[list[tuple[ModelEvent, int]]] = [[]]
+    for item in node.items:
+        if isinstance(item, _Node):
+            if not excluded(item):
+                gaps.append([])
+        elif index_of[id(item)] in persisted_set:
+            gaps.append([])
+        elif isinstance(item, ModelEvent):
+            gaps[-1].append((item, index_of[id(item)]))
+
+    grouped = [_group_retry_attempts(gap) for gap in gaps]
+    counts = [len(gap) for gap in grouped]
+    if counts == [len(gap) for gap in gaps]:
+        return counts, None
+    return counts, [gap[0][1] if gap else None for gap in grouped]
+
+
+def _group_retry_attempts(
+    attempts: list[tuple[ModelEvent, int]],
+) -> list[tuple[ModelEvent, int]]:
+    pending_failed: list[tuple[ModelEvent, int]] = []
+    drop: set[int] = set()
+    for event, index in attempts:
+        if event.error is not None:
+            pending_failed.append((event, index))
+            continue
+        drop.update(
+            failed_index
+            for failed, failed_index in pending_failed
+            if _same_model_call(failed, event)
+        )
+        pending_failed.clear()
+    return [(event, index) for event, index in attempts if index not in drop]
+
+
+def _same_model_call(failed: ModelEvent, success: ModelEvent) -> bool:
+    if failed.call_id is not None and success.call_id is not None:
+        return failed.call_id == success.call_id
+    return (
+        failed.model == success.model
+        and len(failed.input) == len(success.input)
+        and tuple(tool.name for tool in failed.tools)
+        == tuple(tool.name for tool in success.tools)
+        and failed.tool_choice == success.tool_choice
     )
 
 

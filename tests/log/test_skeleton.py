@@ -17,6 +17,7 @@ from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._step import StepEvent
+from inspect_ai.log import read_eval_log
 from inspect_ai.log._skeleton import (
     NOTABLE_TYPES,
     SampleSkeleton,
@@ -25,6 +26,7 @@ from inspect_ai.log._skeleton import (
 )
 
 FIXTURES_DIR = Path(__file__).parent / "test_skeleton"
+RETRY_FIXTURES_DIR = Path(__file__).parent.parent / "_helpers" / "fixtures"
 
 _events_adapter: TypeAdapter[list[Event]] = TypeAdapter(list[DiscriminatedEvent])
 
@@ -92,7 +94,7 @@ def assert_skeleton_invariants(
         assert len(span.gap_models) == items + 1
 
         # per-span model accounting
-        assert sum(span.gap_models) + sum(s.models for s in child_spans) == span.models
+        assert sum(span.gap_models) + sum(s.models for s in child_spans) <= span.models
 
         # extents and nesting
         assert span.extent[0] <= span.begin <= span.extent[1]
@@ -155,6 +157,26 @@ def test_gap_models_additive() -> None:
         sum(full.gap_models[2:]),
     ]
     assert sum(capped.gap_models) == sum(full.gap_models)
+
+
+@pytest.mark.parametrize(
+    "fixture_path",
+    [
+        RETRY_FIXTURES_DIR / "legacy" / "retry-2-then-success.eval",
+        RETRY_FIXTURES_DIR / "postfix" / "retry-2-then-success.eval",
+    ],
+    ids=["legacy", "postfix"],
+)
+def test_skeleton_groups_retry_attempts_for_outline(fixture_path: Path) -> None:
+    log = read_eval_log(str(fixture_path), resolve_attachments=False)
+    assert log.samples is not None
+    events = list(log.samples[0].events or [])
+
+    skeleton = sample_skeleton(events)
+    generate = next(span for span in skeleton.spans if span.name == "generate")
+
+    assert generate.gap_models == [1]
+    assert generate.gap_model_anchors == [7]
 
 
 def test_skeleton_span_proportional() -> None:

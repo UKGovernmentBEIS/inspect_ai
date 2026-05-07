@@ -416,7 +416,8 @@ after leaf-tool exclusion (98.9% excluded), 297KB skeleton.
       "working": [12.5, 340.2],
       "events": 14158,              // descendant event count (incl. nested spans)
       "models": 212,                // descendant model-event count
-      "gap_models": [5, 190, 0, 17],// turn placement (below)
+      "gap_models": [5, 190, 0, 17],// logical-turn placement (below)
+      "gap_model_anchors": null,   // retry-grouped gaps only
       "children": { "state": 1 }    // direct-child event-type counts, sparse
     }
   ],
@@ -448,9 +449,12 @@ Ratified mechanisms:
    (type-neutral content test) rather than special-casing the new type.
 2. **`gap_models` — the load-bearing counter.** A span's *items* are its
    direct-child structural spans and notables merged in sequence order;
-   `gap_models[k]` = model-event count strictly between item `k-1` and item
-   `k` (`len == items + 1`). This reproduces the outline's row layout (one "N
-   turns" row per nonzero gap) without per-turn entries. Gap counts are
+   `gap_models[k]` = logical model-call count strictly between item `k-1` and
+   item `k` (`len == items + 1`): failed retry attempts collapse into their
+   terminal call. `gap_model_anchors`, present only when that collapse changes
+   a gap, records each gap's first logical call index. This reproduces the
+   outline's row layout (one "N turns" row per nonzero gap) without per-turn
+   entries. Gap counts are
    **additive**: clients can suppress any item row by summing adjacent gaps,
    so escape-hatch spans and future row policy stay client-side. A gap row's
    anchor ordinal is the gap's lower bound.
@@ -460,7 +464,7 @@ Ratified mechanisms:
    rows with an "N omitted" marker; `gap_models`/counters are computed against
    *persisted* items, so layout stays self-consistent.
 4. **Field set**: `id, parent, name, type, begin, extent, t, working, events,
-   models, gap_models, children` + sample totals. `flags` and agent-`desc`
+   models, gap_models, gap_model_anchors, children` + sample totals. `flags` and agent-`desc`
    **cut** — no current consumer (verified: viewer default-collapse filters on
    spans key only on type+name; failed/agent/subtask filters target events,
    evaluated window-locally). Additive later via version bump + regeneration.

@@ -52,6 +52,7 @@ class _CandidateSpan:
 
     items: list["_CandidateSpan | SkeletonNotable"] = field(default_factory=list)
     gaps: list[int] = field(default_factory=list)
+    anchors: list[int] = field(default_factory=list)
 
 
 def _build_tree(skeleton: SampleSkeleton) -> _CandidateSpan:
@@ -73,8 +74,26 @@ def _build_tree(skeleton: SampleSkeleton) -> _CandidateSpan:
 
     for index, node in enumerate(nodes):
         node.items = items_of(index)
+        assert node.span is not None
+        lower_bounds = [node.span.begin + 1]
+        for item in node.items:
+            if isinstance(item, SkeletonNotable):
+                lower_bounds.append(item.i + 1)
+            else:
+                assert item.span is not None
+                lower_bounds.append(item.span.extent[1] + 1)
+        overrides = node.span.gap_model_anchors
+        node.anchors = (
+            lower_bounds
+            if overrides is None
+            else [
+                anchor if anchor is not None else lower_bound
+                for anchor, lower_bound in zip(overrides, lower_bounds, strict=True)
+            ]
+        )
     root.items = items_of(None)
     root.gaps = [0] * (len(root.items) + 1)
+    root.anchors = [0] * len(root.gaps)
     return root
 
 
@@ -90,12 +109,31 @@ def _dissolve_item(parent: _CandidateSpan, index: int) -> None:
     child = parent.items[index]
     assert isinstance(child, _CandidateSpan) and child.span is not None
     gaps = parent.gaps
+    anchors = parent.anchors
     if len(child.gaps) == 1:
         # a childless span's single gap merges into both adjacent gaps
         merged = (
             gaps[:index]
             + [gaps[index] + child.gaps[0] + gaps[index + 1]]
             + gaps[index + 2 :]
+        )
+        merged_anchors = (
+            anchors[:index]
+            + [
+                next(
+                    (
+                        anchor
+                        for gap, anchor in zip(
+                            [gaps[index], child.gaps[0], gaps[index + 1]],
+                            [anchors[index], child.anchors[0], anchors[index + 1]],
+                            strict=True,
+                        )
+                        if gap
+                    ),
+                    anchors[index],
+                )
+            ]
+            + anchors[index + 2 :]
         )
     else:
         merged = (
@@ -105,8 +143,42 @@ def _dissolve_item(parent: _CandidateSpan, index: int) -> None:
             + [child.gaps[-1] + gaps[index + 1]]
             + gaps[index + 2 :]
         )
+        merged_anchors = (
+            anchors[:index]
+            + [
+                next(
+                    (
+                        anchor
+                        for gap, anchor in zip(
+                            [gaps[index], child.gaps[0]],
+                            [anchors[index], child.anchors[0]],
+                            strict=True,
+                        )
+                        if gap
+                    ),
+                    anchors[index],
+                )
+            ]
+            + child.anchors[1:-1]
+            + [
+                next(
+                    (
+                        anchor
+                        for gap, anchor in zip(
+                            [child.gaps[-1], gaps[index + 1]],
+                            [child.anchors[-1], anchors[index + 1]],
+                            strict=True,
+                        )
+                        if gap
+                    ),
+                    child.anchors[-1],
+                )
+            ]
+            + anchors[index + 2 :]
+        )
     parent.items[index : index + 1] = child.items
     parent.gaps = merged
+    parent.anchors = merged_anchors
 
 
 _DISSOLVED_TYPES = ("main", "solvers", "checkpoint")
@@ -256,8 +328,7 @@ def candidate_outline_rows(
             rows.append(OutlineRow("turns", depth, None, None, anchor, count))
 
     def emit_items(node: _CandidateSpan, depth: int, in_scorers: bool) -> None:
-        anchor = node.span.begin + 1 if node.span is not None else 0
-        emit_gap(node, 0, anchor, depth)
+        emit_gap(node, 0, node.anchors[0], depth)
         scores: list[SkeletonNotable] = []
 
         def flush_scores() -> None:
@@ -276,18 +347,16 @@ def candidate_outline_rows(
                     rows.append(
                         OutlineRow("event", depth, None, item.type, item.i, None)
                     )
-                after = item.i + 1
             else:
                 flush_scores()
                 emit_span(item, depth, in_scorers)
                 assert item.span is not None
-                after = item.span.extent[1] + 1
             # a nonzero gap emits a turns row, which breaks a run of
             # adjacent score rows — flush before it (a zero gap emits
             # nothing, so buffered scores keep merging across it)
             if node.gaps[k + 1] if k + 1 < len(node.gaps) else 0:
                 flush_scores()
-            emit_gap(node, k + 1, after, depth)
+            emit_gap(node, k + 1, node.anchors[k + 1], depth)
         flush_scores()
 
     def emit_span(node: _CandidateSpan, depth: int, in_scorers: bool) -> None:

@@ -20,6 +20,7 @@ def report_http_retry(
     pausing scale-up but not triggering a cut.
     """
     from inspect_ai.log._samples import report_active_sample_retry
+    from inspect_ai.model._generate_accounting import current_model_generate_accounting
     from inspect_ai.util._concurrency import _active_controller, _request_had_retry
 
     # bump global counter
@@ -37,6 +38,11 @@ def report_http_retry(
         controller = _active_controller.get()
         if controller is not None:
             controller.notify_retry(retry_after=retry_after)
+
+    # record on the per-generate accounting (separate from outer scheduled retries)
+    accounting = current_model_generate_accounting()
+    if accounting is not None:
+        accounting.record_http_retry()
 
 
 def http_retries_count() -> int:
