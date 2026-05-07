@@ -31,7 +31,7 @@
     "tags": [],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "A benchmark designed to evaluate LLMs as Agents",
     "paper": "https://arxiv.org/abs/2308.03688",
@@ -257,7 +257,7 @@
     "tags": [],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "Evaluates LLM capability to generate correct CUDA code for kernel implementation, memory management, and parallel algorithm optimization tasks.",
     "paper": null,
@@ -642,7 +642,7 @@
     "tags": [],
     "kind": "generation",
     "modalities": [
-      "text"
+      "sandbox"
     ],
     "desc": "A benchmark for evaluating the ability of LLMs to write efficient GPU kernels.",
     "paper": "https://arxiv.org/html/2502.10517v1",
@@ -1637,7 +1637,7 @@
     "contributors": [
       "alex-remedios-aisi"
     ],
-    "samples": 3981,
+    "samples": 4981,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl/",
     "model_cards": []
@@ -1893,6 +1893,34 @@
       "claude",
       "gemini"
     ]
+  },
+  {
+    "id": "theagentcompany",
+    "name": "The Agent Company",
+    "source": "evals",
+    "categories": [
+      "Assistants"
+    ],
+    "tags": [
+      "Agent",
+      "Tools"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "tool-use",
+      "sandbox"
+    ],
+    "desc": "The Agent Company benchmark evaluates autonomous agents in a realistic, self-contained company environment.",
+    "paper": "https://arxiv.org/abs/2412.14161",
+    "code": "inspect_evals/theagentcompany",
+    "contributors": [
+      "bndxn"
+    ],
+    "samples": 3,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany/",
+    "model_cards": []
   },
   {
     "id": "sierra_research_tau3_bench",
@@ -2781,6 +2809,30 @@
     "model_cards": []
   },
   {
+    "id": "macbench",
+    "name": "MaCBench",
+    "source": "evals",
+    "categories": [
+      "Knowledge"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "MaCBench is a comprehensive benchmark for evaluating how vision-language models handle real-world chemistry and materials science tasks across three core aspects: data extraction, experimental understanding, and results interpretation.",
+    "paper": "https://arxiv.org/abs/2411.16955",
+    "code": "inspect_evals/macbench",
+    "contributors": [
+      "r-fedorov",
+      "MrtinoRG"
+    ],
+    "samples": 1153,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/macbench/",
+    "model_cards": []
+  },
+  {
     "id": "mmlu",
     "name": "MMLU",
     "source": "evals",
@@ -3022,7 +3074,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "A benchmark for evaluating the capabilities of LLM agents in cyber offense.",
     "paper": "https://arxiv.org/abs/2410.09114",
@@ -3035,6 +3088,32 @@
     "samples": 13,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb/",
+    "model_cards": []
+  },
+  {
+    "id": "cti_realm",
+    "name": "CTI-REALM",
+    "source": "evals",
+    "categories": [
+      "Cybersecurity"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Evaluates AI systems' ability to analyze cyber threat intelligence and develop comprehensive detection capabilities through a realistic 5-subtask workflow: MITRE technique mapping, data source discovery, Sigma rule generation, KQL development and testing against real telemetry data, and results analysis.",
+    "paper": "https://arxiv.org/abs/2603.13517",
+    "code": "inspect_evals/cti_realm",
+    "contributors": [
+      "arjun180-new"
+    ],
+    "samples": 25,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cti_realm/",
     "model_cards": []
   },
   {
@@ -3149,13 +3228,10 @@
     "categories": [
       "Cybersecurity"
     ],
-    "tags": [
-      "Agent"
-    ],
-    "kind": "agent",
+    "tags": [],
+    "kind": "generation",
     "modalities": [
-      "agent",
-      "sandbox"
+      "text"
     ],
     "desc": "Datasets containing 80, 500, 2000 and 10000 multiple-choice questions, designed to evaluate understanding across nine domains within cybersecurity",
     "paper": "https://arxiv.org/abs/2402.07688",
@@ -3189,6 +3265,29 @@
     "samples": 1000,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3/",
+    "model_cards": []
+  },
+  {
+    "id": "cyberseceval_4",
+    "name": "CyberSecEval 4",
+    "source": "evals",
+    "categories": [
+      "Cybersecurity"
+    ],
+    "tags": [],
+    "kind": "generation",
+    "modalities": [
+      "text"
+    ],
+    "desc": "A suite of cybersecurity evaluation benchmarks adapted from Meta's PurpleLlama CybersecurityBenchmarks.",
+    "paper": "https://arxiv.org/abs/2404.13161",
+    "code": "inspect_evals/cyberseceval_4",
+    "contributors": [
+      "ckane"
+    ],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_4/",
     "model_cards": []
   },
   {
@@ -3390,8 +3489,8 @@
     "model_cards": []
   },
   {
-    "id": "ahb",
-    "name": "AHB",
+    "id": "anima",
+    "name": "ANIMA",
     "source": "evals",
     "categories": [
       "Safeguards"
@@ -3401,9 +3500,9 @@
     "modalities": [
       "text"
     ],
-    "desc": "Evaluates how models consider the welfare of animals in situations that may present them harm.",
-    "paper": "https://arxiv.org/abs/2503.04804",
-    "code": "inspect_evals/ahb",
+    "desc": "Evaluates the quality of a model's moral reasoning about animal welfare across 13 ethical dimensions.",
+    "paper": "https://arxiv.org/abs/2604.13076",
+    "code": "inspect_evals/anima",
     "contributors": [
       "nishu-builder",
       "darkness8i8",
@@ -3411,7 +3510,7 @@
     ],
     "samples": 26,
     "featured": false,
-    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ahb/",
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/anima/",
     "model_cards": []
   },
   {
@@ -3466,6 +3565,34 @@
     "samples": 630,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/b3/",
+    "model_cards": []
+  },
+  {
+    "id": "ipi_coding_agent",
+    "name": "CodeIPI",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [
+      "safety",
+      "agents",
+      "prompt-injection",
+      "coding"
+    ],
+    "kind": "generation",
+    "modalities": [
+      "sandbox"
+    ],
+    "desc": "Measures coding agent vulnerability to indirect prompt injection attacks embedded in software engineering artifacts (issue descriptions, code comments, README files).",
+    "paper": null,
+    "code": "inspect_evals/ipi_coding_agent",
+    "contributors": [
+      "debu-sinha"
+    ],
+    "samples": 45,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ipi_coding_agent/",
     "model_cards": []
   },
   {
@@ -3572,7 +3699,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "Tests whether an AI system can act as a safety guardrail by generating and executing code to protect web navigation agents from unsafe actions based on user constraints.",
     "paper": "https://arxiv.org/abs/2406.09187",
@@ -3698,6 +3826,32 @@
     "samples": 150,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/strongreject.html",
+    "model_cards": []
+  },
+  {
+    "id": "tac",
+    "name": "TAC",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent"
+    ],
+    "desc": "Tests whether AI agents show implicit animal welfare awareness when purchasing tickets and experiences on behalf of users.",
+    "paper": null,
+    "code": "inspect_evals/tac",
+    "contributors": [
+      "darkness8i8",
+      "joel-christoph"
+    ],
+    "samples": 48,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/tac/",
     "model_cards": []
   },
   {
@@ -3836,7 +3990,9 @@
     "paper": "https://arxiv.org/pdf/2404.01475v2",
     "code": "inspect_evals/chembench",
     "contributors": [
-      "Esther-Guo"
+      "Esther-Guo",
+      "MrtinoRG",
+      "r-fedorov"
     ],
     "samples": 2786,
     "featured": false,
@@ -4104,6 +4260,34 @@
     "samples": 90,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/replicationbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "scbench",
+    "name": "scBench",
+    "source": "evals",
+    "categories": [
+      "Science",
+      "Biology",
+      "Coding"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Evaluates whether models can solve practical single-cell RNA-seq analysis tasks with deterministic grading.",
+    "paper": "https://arxiv.org/abs/2602.09063",
+    "code": "inspect_evals/scbench",
+    "contributors": [
+      "retroam"
+    ],
+    "samples": 30,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scbench/",
     "model_cards": []
   },
   {
@@ -4385,7 +4569,8 @@
     "paper": "https://arxiv.org/abs/2103.03874",
     "code": "inspect_evals/math",
     "contributors": [
-      "xeon27"
+      "xeon27",
+      "mamiglia"
     ],
     "samples": 12500,
     "featured": false,
@@ -4844,6 +5029,31 @@
     "model_cards": []
   },
   {
+    "id": "vqa_rad",
+    "name": "VQA-RAD",
+    "source": "evals",
+    "categories": [
+      "Multimodal"
+    ],
+    "tags": [
+      "Multimodal"
+    ],
+    "kind": "multimodal",
+    "modalities": [
+      "vision"
+    ],
+    "desc": "VQA-RAD is the first manually constructed VQA dataset in radiology, where clinicians asked naturally occurring questions about radiology images and provided reference answers.",
+    "paper": "https://doi.org/10.1038/sdata.2018.251",
+    "code": "inspect_evals/vqa_rad",
+    "contributors": [
+      "MattFisher"
+    ],
+    "samples": 451,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vqa_rad/",
+    "model_cards": []
+  },
+  {
     "id": "zerobench",
     "name": "ZeroBench",
     "source": "evals",
@@ -4931,7 +5141,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "Test AI's ability to reason about its environment.",
     "paper": "https://arxiv.org/abs/2505.01420",
@@ -4957,7 +5168,8 @@
     ],
     "kind": "agent",
     "modalities": [
-      "agent"
+      "agent",
+      "sandbox"
     ],
     "desc": "Test AI's ability to reason about and circumvent oversight.",
     "paper": "https://arxiv.org/abs/2505.01420",
