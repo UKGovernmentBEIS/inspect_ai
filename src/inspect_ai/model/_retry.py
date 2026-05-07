@@ -33,6 +33,8 @@ def model_retry_config(
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
     report_waiting_time: Callable[[float], None] | None = None,
     wait: WaitBaseT | None = None,
+    on_retry_scheduled: Callable[[RetryCallState], (Awaitable[None] | None)]
+    | None = None,
 ) -> ModelRetryConfig:
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
@@ -45,6 +47,11 @@ def model_retry_config(
         # expire while we are waiting b/c we've already offset it)
         if report_waiting_time is not None:
             report_waiting_time(rs.upcoming_sleep)
+
+        if on_retry_scheduled is not None:
+            res = on_retry_scheduled(rs)
+            if res is not None:
+                await res
 
         res = log_model_retry(model_name, rs)
         if res is not None:
