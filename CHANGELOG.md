@@ -1,6 +1,8 @@
 ## Unreleased
 
-- Bugfix: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
+- Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
+- Grok: Support `reasoning_effort` for Grok 4 models.
+- Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
 
 ## 0.3.219 (06 May 2026)
 
