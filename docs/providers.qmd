@@ -1211,6 +1211,8 @@ export OPENROUTER_API_KEY=your-openrouter-api-key
 inspect eval arc.py --model openrouter/gryphe/mythomax-l2-13b
 ```
 
+Inspect sends OpenRouter [app attribution](https://openrouter.ai/docs/app-attribution) headers by default (`HTTP-Referer: https://inspect.aisi.org.uk` and `X-OpenRouter-Title: Inspect AI`). To attribute requests to your own application, pass `extra_headers` in the generation config or `default_headers` as a model arg.
+
 For the `openrouter` provider, the following custom model args (`-M`) are supported (click the argument name to see its docs on the OpenRouter site):
 
 | Argument | Example |

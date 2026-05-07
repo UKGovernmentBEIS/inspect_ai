@@ -30,6 +30,10 @@ from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
 
 OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
+OPENROUTER_APP_HEADERS = {
+    "HTTP-Referer": "https://inspect.aisi.org.uk",
+    "X-OpenRouter-Title": "Inspect AI",
+}
 
 logger = getLogger(__name__)
 
@@ -96,6 +100,10 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         if self.reasoning_enabled is not None:
             if not isinstance(self.reasoning_enabled, bool):
                 raise PrerequisiteError("reasoning_enabled must be a boolean")
+
+        model_args["default_headers"] = openrouter_default_headers(
+            model_args.pop("default_headers", None)
+        )
 
         # call super
         super().__init__(
@@ -280,6 +288,12 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 params[EXTRA_BODY]["reasoning"] = reasoning
 
         return params
+
+
+def openrouter_default_headers(
+    default_headers: dict[str, str] | None = None,
+) -> dict[str, str]:
+    return OPENROUTER_APP_HEADERS | (default_headers or {})
 
 
 OPENROUTER_REASONING_DETAILS_SIGNATURE = "reasoning-details://"
