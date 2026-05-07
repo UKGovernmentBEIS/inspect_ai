@@ -2797,3 +2797,147 @@ def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
     finally:
         # clean up so other tests don't see the registered API
         _registry.pop("modelapi:trackapi", None)
+
+
+# --- scan display state -----------------------------------------------------
+#
+# `scan_display.ScanDisplayState` is updated by the per-sample scan dispatch
+# path so the Textual `ScanView` widget can render scout's `scan_panel`
+# from in-memory state (no per-tick file I/O). These tests pin the
+# semantics: `scan_init` activates state with a Summary; `scan_eval_sample`
+# pushes an updated Summary after each `recorder.record()`.
+
+
+def test_scan_display_inactive_when_no_scanner() -> None:
+    """`is_active()` is False before any scan_init runs."""
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+    assert get_state().active is False
+    assert get_state().spec is None
+    assert get_state().samples_completed == 0
+
+
+def test_scan_display_activates_after_scan_init() -> None:
+    """After eval_set runs scan_init, state is active with a spec.
+
+    The eval_set call writes records, each of which triggers a
+    `push_results`. After the run, `samples_completed == n` (one push
+    per (sample, scanner) pair, summing across scanners).
+    """
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+
+    n = 3
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=_task(n),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+
+        state = get_state()
+        assert state.active is True, "scan_init should mark the state active"
+        assert state.spec is not None
+        assert state.scan_dir is not None
+        # one scanner x n samples → n pushes
+        assert state.samples_completed == n
+        assert state.scanners_seen == {"echo_scanner"}
+        assert state.summary is not None
+        assert state.summary.scanners["echo_scanner"].scans == n
+
+
+def test_scan_display_push_results_increments_count() -> None:
+    """Each `push_results` bumps samples_completed and replaces the summary."""
+    from inspect_scout._recorder.summary import Summary
+
+    from inspect_ai._eval.task.scan_display import (
+        get_state,
+        push_results,
+        reset_state,
+        set_active,
+    )
+
+    reset_state()
+
+    # need a real ScanSpec — easiest is to drive it through eval_set
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(1),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        # snapshot the state populated by the run, then drive
+        # additional pushes manually to verify the increment + summary
+        # replacement behavior
+        snapshot = get_state()
+        assert snapshot.spec is not None
+        assert snapshot.scan_dir is not None
+        baseline = snapshot.samples_completed
+
+        # construct a fresh Summary whose scanner counts differ — proves
+        # push_results replaces the summary rather than merging it
+        new_summary = Summary(complete=False, scanners=["echo_scanner"])
+        new_summary.scanners["echo_scanner"].scans = 99
+        set_active(
+            scan_dir=snapshot.scan_dir,
+            spec=snapshot.spec,
+            summary=new_summary,
+        )
+
+        push_results(summary=new_summary, scanner="echo_scanner")
+        assert get_state().samples_completed == baseline + 1
+        assert get_state().summary is new_summary
+
+        push_results(summary=new_summary, scanner="echo_scanner")
+        assert get_state().samples_completed == baseline + 2
+
+
+def test_scan_display_push_drops_when_inactive() -> None:
+    """`push_results` before `set_active` is a silent no-op (no crash)."""
+    from inspect_scout._recorder.summary import Summary
+
+    from inspect_ai._eval.task.scan_display import (
+        get_state,
+        push_results,
+        reset_state,
+    )
+
+    reset_state()
+    summary = Summary(complete=False, scanners=["echo_scanner"])
+    push_results(summary=summary, scanner="echo_scanner")
+    assert get_state().active is False
+    assert get_state().samples_completed == 0
+
+
+def test_scan_display_reset_clears_state() -> None:
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert get_state().active is True
+
+    reset_state()
+    state = get_state()
+    assert state.active is False
+    assert state.spec is None
+    assert state.summary is None
+    assert state.samples_completed == 0
+    assert state.scanners_seen == set()

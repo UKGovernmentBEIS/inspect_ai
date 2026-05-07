@@ -176,6 +176,10 @@ async def scan_init(
     scan_dir = _scan_dir(log_dir, scan_id, scanner)
     recorder = FileRecorder()
 
+    from inspect_ai._eval.task.scan_display import reset_state, set_active
+
+    reset_state()
+
     if exists(scan_dir):
         await recorder.attach(scan_dir, concurrent_writers=True)
         existing_names = set(recorder.scan_spec.scanners.keys())
@@ -190,6 +194,11 @@ async def scan_init(
                 "log_dir / scan_id."
             )
         _invalidate_finalized_flag(scan_dir)
+        set_active(
+            scan_dir=scan_dir,
+            spec=recorder.scan_spec,
+            summary=await recorder.summary(),
+        )
         return
 
     spec = ScanSpec(
@@ -202,6 +211,11 @@ async def scan_init(
     )
     await recorder.init(
         spec, _scans_location(log_dir, scanner), concurrent_writers=True
+    )
+    set_active(
+        scan_dir=scan_dir,
+        spec=spec,
+        summary=await recorder.summary(),
     )
 
 
@@ -246,6 +260,8 @@ async def scan_eval_sample(
     )
     transcript = _transcript(eval_sample, info=info)
 
+    from inspect_ai._eval.task.scan_display import push_results
+
     for name, scanner_fn in scanners_dict.items():
         job = ScannerJob(
             union_transcript=transcript,
@@ -256,6 +272,7 @@ async def scan_eval_sample(
         recorder = FileRecorder()
         await recorder.attach(scan_dir, concurrent_writers=True)
         await recorder.record(info, name, reports, metrics=None)
+        push_results(summary=await recorder.summary(), scanner=name)
 
 
 async def resume_scan_previous_sample(
