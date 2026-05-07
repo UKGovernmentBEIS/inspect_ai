@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
+
 ## 0.3.219 (06 May 2026)
 
 - Inspect View: Fix extraneous console errors
