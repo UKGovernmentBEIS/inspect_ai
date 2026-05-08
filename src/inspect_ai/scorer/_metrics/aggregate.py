@@ -29,6 +29,13 @@ def aggregate(
     `SampleScore`s into `agg`, so any standard metric (`mean`, `stderr`,
     `std`, `accuracy`, ...) can be applied per key.
 
+    `on_missing="skip"` reduces the number of samples seen by `agg`, which
+    changes the result of any aggregator that depends on sample count
+    (e.g. `stderr`, `mean`, `std`, `var`). Two evals run with the same
+    scorer can therefore report different stderrs purely because the rate
+    of missing keys differed, not because of any difference in the
+    underlying variance. Prefer `"zero"` if you want a constant denominator.
+
     Args:
        key: Field to extract from each sample's dict-valued `Score.value`.
        agg: Metric to apply to the extracted values.
@@ -43,6 +50,11 @@ def aggregate(
           - `"error"` (default): raise `ValueError`.
           - `"skip"`: exclude the sample from `agg`.
           - `"zero"`: include the sample with value `0.0`.
+
+          A key that is *present* with a `None` value is not treated as
+          missing — it is passed straight through to `to_float`. With the
+          default `value_to_float()`, `None` falls through to a warning and
+          returns `0.0`.
 
     Returns:
        Metric that aggregates `agg` over the `key` field.
