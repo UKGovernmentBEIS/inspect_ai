@@ -22,6 +22,8 @@ scanner: EvalScanners | None = None
 - `dict[str, Scanner]` — named scanners
 - `EvalScannerConfig` — Pydantic model carrying scanners + `tags`/`metadata`/`filter`/`model`/`model_args`/`generate_config`/`model_roles`/`scans`/`name`. A subset of scout's `ScanJob` schema, narrowed to fields that make sense when eval_set is generating the transcripts (drops `transcripts`, `worklist`, `limit`, `shuffle`, `max_processes`, `max_transcripts`, `validation`, `log_level`).
 
+`EvalScannerConfig` is a subset of `ScannerConfig` that contains only the fields relevant for integration in eval.
+
 `EvalScannerConfig.from_file(path)` loads a YAML/JSON file (with `ScannerSpec` references resolved through scout's registry), making it possible to drive scanners from config.
 
 ### CLI
@@ -44,7 +46,7 @@ CLI flags override equivalent fields in a YAML config.
 
 ## Scan Directory State
 
-This is the load-bearing section. The state of the scan dir on disk is what scout's tooling reads, and it's where the inspect_ai/scout consistency invariant lives.
+The state of the scan dir on disk is what scout's tooling reads, and it's where the inspect_ai/scout consistency invariant lives.
 
 ### Layout
 
@@ -120,34 +122,13 @@ The only inspect_ai-specific behavior is *who triggers* `scan_init` / `record` /
 
 `scanner: EvalScanners | None` is threaded from the public entry point (`eval_set` or `eval`) down through `eval_async` → `_eval_async_inner` → `eval_run` → `TaskRunOptions` → `task_run` → `task_run_sample`.
 
-The init/finalize bracket lives in a context manager `scan_context(scanner, scan_id, log_dir)`:
-
-```python
-@contextmanager
-def scan_context(scanner, *, scan_id, log_dir):
-    if scanner is None:
-        yield
-        return
-    run_coroutine(scan_init(scanner, scan_id=scan_id, log_dir=log_dir))
-    try:
-        yield
-    finally:
-        run_coroutine(scan_finalize(scan_id=scan_id, log_dir=log_dir, scanner=scanner))
-```
+The init/finalize bracket lives in a context manager `scan_context(scanner, scan_id, log_dir)`.
 
 `eval_set` wraps its retry loop in `scan_context` keyed on `eval_set_id`. `eval()` wraps its run loop in `scan_context` keyed on `run_id` *only when called standalone* (i.e. when no `eval_set_id` is set) — when called from eval_set, the outer scan_context already brackets the call.
 
 ### Per-sample dispatch (eval phase)
 
 In `task_run_sample`, after `log_sample` and before `emit_sample_end`:
-
-```python
-await scan_eval_sample(
-    eval_sample, scanner,
-    scan_id=scan_id, eval_id=task_id,
-    log_location=log_location, model=str(state.model),
-)
-```
 
 `scan_eval_sample` builds a `Transcript` from the `EvalSample`, applies the `EvalScannerConfig.filter` SQL clauses to skip non-matching samples, and dispatches each scanner via scout's `_scan_one`. Records to the buffer via an ephemeral `FileRecorder().attach(scan_dir, concurrent_writers=True)`.
 
@@ -207,6 +188,38 @@ Excluded from the hash by design: `name`, `tags`, `metadata`, `scans`. Those are
 
 Resolution surface: the error message names which check fired and points at the user's two options — different `log_dir`/`scan_id` for a fresh scan, or revert the change. No override flag; if someone needs one, they can ask.
 
+## Display
+
+### Trailing scan-status line
+
+After `eval` / `eval_set` finishes (panel + `Log:` line for `eval`, "Completed all tasks…" line for `eval_set`), `print_scan_status(log_dir, scanner)` emits a final plain-text line:
+
+- **Clean run** — `scan complete: <scan_dir>`. One copy-pasteable path.
+- **Errors present** — names the count and prints `scout scan resume <path>` and `scout scan complete <path>` so the user can recover with the same commands they'd use after a direct `scout scan` invocation:
+
+  ```
+  3 scan errors occurred!
+  Resume (retrying errors):   scout scan resume <path>
+  Complete (ignoring errors): scout scan complete <path>
+  ```
+
+The message lives at the CLI/run boundary so it lands AFTER the eval display has flushed — printed in plain text (no rich markup) so it doesn't conflict visually with the eval's panel. The scan dir lookup honors `EvalScannerConfig.scans` (output redirected to a different filesystem still gets a correct path).
+
+### Textual `Scan` tab
+
+When the eval runs under the Textual app, a `Scan` tab is composed alongside `Tasks` / `Running Samples` / `Console`. It's hidden by default and revealed automatically when `scan_display.is_active()` becomes true (i.e. once `scan_init` has run).
+
+The tab hosts scout's standard scan panel — the same `scan_panel(spec, summary, progress)` renderable scout's standalone `scout scan` command shows. inspect_ai populates it via a push-based state module (`_eval/task/scan_display.py`):
+
+- `scan_init` → `set_active(scan_dir, spec, summary)` once.
+- `scan_eval_sample` → `push_results(summary, scanner)` after every `recorder.record()` (in-memory cumulative summary, no file re-reads).
+- `resume_scan_previous_sample` → `mark_completed(n)` when the short-circuit fires (counts reused samples as done in the progress bar without firing a real scan).
+- The Textual `update_display` tick (1 Hz) reads `get_state()` and rebuilds the panel.
+
+The progress bar's total is computed at the textual app level: `sum(t.profile.samples for t in _app_tasks) * len(spec.scanners)`. Reused samples count via `mark_completed`; freshly-scanned samples count via `push_results`; re-executed samples (different uuid) count via `push_results` too — capped at the total in the display so retries don't render past 100%.
+
+Two fields are stripped from the spec for display purposes (`_display_spec`): `transcripts` (the prior finalize's snapshot is stale during a fresh run) and `options.max_transcripts` (scout's worker-pool knob, not meaningful in the per-sample dispatch model). The on-disk `_scan.json` keeps both fields intact.
+
 ## Scout-side changes that landed
 
 These accumulated as the design firmed up; all are merged in scout:
@@ -250,7 +263,7 @@ Result: parquet matches the surviving log — one row per surviving sample. With
 
 `summary.scans` counts work *performed* across attempts (sum of `record()` calls), not surviving rows. So a 3-attempt always-failing sample has `summary.scans == 3` and `parquet.num_rows == 1` after cleanup. The summary is the historical view; the parquet is the live view.
 
-### 3. eval_set retry — `retry_immediate=False` (default)
+### 3. eval_set retry — `retry_immediate=False`
 
 The legacy path: tenacity wraps `try_eval` and retries it on `not all_evals_succeeded`. Each retry of `try_eval`:
 
@@ -300,16 +313,8 @@ The snapshot in `_scan.json` is built from the cleaned compacted parquet, so it 
 
 ## Future Work
 
-### Buffer co-located with scan dir (or eliminated entirely)
+### Periodic writing of scan files from buffer to scan location during eval
 
-Per-transcript buffer parquets live in `<scout_scanbuffer>/<hash>/`, separate from the scan dir. Trade-offs:
-
-- Mid-eval visibility: scan dir has `_scan.json` only mid-flight; buffer dir is where the live state is.
-- Self-containment: copying or moving the eval log dir doesn't bring scanner data with it.
-- Crash recovery: a crash before finalize leaves data in cache, recoverable by `scout scan-complete <scan_dir>`.
-
-A natural improvement is to co-locate the buffer at `<scan_dir>/scanner=<name>/<tid>.parquet`. The reason this isn't done yet is S3 write performance under per-sample load, which we haven't measured. This is a scout-side change that doesn't affect inspect_ai's call sites.
-
-### Retry-errored-scans on resume
-
-Today `scan_eval_sample` errors recorded by scout (parquet rows with `scan_error`) are intentional and aren't retried by inspect_ai's per-sample resume-scan path — `scout scan-resume <scan_dir>` is the path for that. We could add an opt-in `retry_errors` flag on `EvalScannerConfig` so a transient scanner error self-heals on the next eval_set call.
+When writing logs to s3, eval uses a local buffer and every N samples copies to s3.
+Scan files could be compacted at the same time.
+But that adds significant complexity to resume and reuse scenarios.
