@@ -3,8 +3,8 @@ from typing import Any, Awaitable, Callable
 
 import anyio
 from pydantic import JsonValue
-from pydantic_core import to_json
 
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
@@ -150,6 +150,6 @@ def call_tool(
         # serialized correctly — json.dumps can't handle BaseModel.
         if isinstance(result, str):
             return result
-        return to_json(result).decode("utf-8")
+        return to_json_str_safe(result)
 
     return execute
