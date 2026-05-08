@@ -1,3 +1,11 @@
+## Unreleased
+
+- Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
+- Grok: Support `reasoning_effort` for Grok 4 models.
+- MCP: Raise `ToolError` when timeout error occurs in MCP tool call.
+- Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
+- Bugfix: Fix bridged-tool result serialization to handle `list[ContentText]`.
+
 ## 0.3.219 (06 May 2026)
 
 - Inspect View: Fix extraneous console errors

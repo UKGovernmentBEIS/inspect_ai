@@ -1,6 +1,9 @@
+import contextlib
 import sys
 from pathlib import Path
+from typing import Any, AsyncIterator
 
+import anyio
 import pytest
 from test_helpers.utils import (
     skip_if_no_docker,
@@ -16,6 +19,7 @@ from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.solver import solver
 from inspect_ai.tool import (
     MCPServer,
+    ToolError,
     mcp_connection,
     mcp_server_stdio,
     mcp_tools,
@@ -61,6 +65,68 @@ async def test_mcp_filter():
         tools = await filtered.tools()
         tool_names = {ToolDef(t).name for t in tools}
         assert tool_names == {"get_status", "get_info"}
+
+
+@skip_if_no_mcp_package
+async def test_mcp_tool_call_timeout_becomes_tool_error():
+    """A timeout in the underlying transport should surface as ToolError.
+
+    Regression test: previously a TimeoutError raised by the sandbox MCP
+    transport (or similar) bubbled up to the top of the sample stack
+    instead of being converted to a ToolError visible to the model.
+    """
+    from anyio.streams.memory import (
+        MemoryObjectReceiveStream,
+        MemoryObjectSendStream,
+    )
+    from mcp.types import JSONRPCRequest
+    from mcp.types import Tool as MCPTool
+
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    @contextlib.asynccontextmanager
+    async def timing_out_client() -> AsyncIterator[Any]:
+        # Mirrors the structure of sandbox_client: a task group with a
+        # writer task that raises TimeoutError when forwarding requests.
+        read_stream_writer: MemoryObjectSendStream
+        read_stream: MemoryObjectReceiveStream
+        write_stream: MemoryObjectSendStream
+        write_stream_reader: MemoryObjectReceiveStream
+
+        read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
+        write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
+
+        async def stdin_writer() -> None:
+            try:
+                async with write_stream_reader:
+                    async for message in write_stream_reader:
+                        if isinstance(message.message.root, JSONRPCRequest):
+                            await anyio.sleep(0.05)
+                            raise TimeoutError("simulated transport timeout")
+            except anyio.ClosedResourceError:
+                pass
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(stdin_writer)
+            try:
+                yield read_stream, write_stream
+            finally:
+                pass
+
+    session = MCPServerLocalSession(
+        timing_out_client,
+        name="test-timeout",
+        events=False,
+    )
+    fake_tool = MCPTool(
+        name="slow_tool",
+        description="A tool that times out",
+        inputSchema={"type": "object", "properties": {}},
+    )
+    tool_def = session._tool_def_from_mcp_tool(fake_tool)
+
+    with pytest.raises(ToolError, match="slow_tool.*timed out"):
+        await tool_def.tool()
 
 
 @skip_if_no_mcp_package
