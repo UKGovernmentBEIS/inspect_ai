@@ -963,7 +963,10 @@ def test_eval_set_retry_cleans_up_orphan_scans_at_finalize() -> None:
             retry_on_error=0,
             retry_immediate=False,
             retry_attempts=2,
-            retry_wait=0,
+            # `retry_wait=0` is silently coerced to the default 30s by
+            # `retry_wait or 30` in evalset.py; pass a small truthy value
+            # so tenacity's `wait_exponential` actually skips the wait
+            retry_wait=0.01,
             continue_on_fail=True,
             display="none",
         )
