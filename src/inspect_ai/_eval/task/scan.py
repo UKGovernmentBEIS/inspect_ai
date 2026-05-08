@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import absolute_file_path, dirname, exists
 from inspect_ai._util.json import to_json_safe
-from inspect_ai.log._log import EvalSample
+from inspect_ai.log._log import EvalSample, EvalSpec
 
 # Key used in `ScanSpec.metadata` to track inspect_ai-side scanner config
 # that isn't captured by scout's `ScannerSpec`. Compared at scan_init's
@@ -255,12 +255,17 @@ async def scan_eval_sample(
     eval_id: str,
     log_location: str,
     model: str | None = None,
+    eval_spec: EvalSpec | None = None,
 ) -> None:
     """Run scanners over a completed sample's transcript.
 
     `log_location` may be relative (the value passed to `task_run_sample`
     is relative-to-eval_wd in the common case); resolved here to absolute
     so the derived scan dir matches the one registered by `scan_init`.
+
+    `eval_spec` carries the eval-level metadata (model, task, tags,
+    metadata, etc.) that scout's filter language can reference. The
+    caller (`task_run_sample`) has it as `logger.eval`.
     """
     if scanner is None or scan_id is None:
         return
@@ -274,7 +279,9 @@ async def scan_eval_sample(
     # snapshot). Mirrors how scout's direct scan path filters via
     # `Transcripts.where(...)`, applied here per-sample because we
     # dispatch per-sample rather than reading from a query.
-    if not _sample_matches_filters(eval_sample, _normalize_filters(scanner)):
+    if not _sample_matches_filters(
+        eval_sample, _normalize_filters(scanner), eval_spec=eval_spec
+    ):
         return
 
     from inspect_scout._concurrency.common import ScannerJob
@@ -313,6 +320,7 @@ async def resume_scan_previous_sample(
     eval_id: str,
     log_location: str,
     model: str | None,
+    eval_spec: EvalSpec | None = None,
 ) -> None:
     """Dispatch a scan for a reused sample if its row isn't already on disk.
 
@@ -343,6 +351,7 @@ async def resume_scan_previous_sample(
             eval_id=eval_id,
             log_location=log_location,
             model=model,
+            eval_spec=eval_spec,
         )
 
 
@@ -942,51 +951,118 @@ def _normalize_filters(scanner: "EvalScanners | None") -> list[str]:
     return [raw] if raw else []
 
 
-def _sample_matches_filters(eval_sample: EvalSample, filters: list[str]) -> bool:
+def _sample_matches_filters(
+    eval_sample: EvalSample,
+    filters: list[str],
+    *,
+    eval_spec: EvalSpec | None = None,
+) -> bool:
     """Return True if all SQL filter clauses match this sample.
 
     Filters are parsed and emitted as parameterized SQLite SQL via
-    scout's `condition_from_sql` / `condition_as_sql` so the same
-    column conventions (e.g. `error = ''`, JSON-path shorthand on
-    `metadata.*`) work here as in scout's direct scan path. We then
-    evaluate against a one-row in-memory sqlite table built from a
-    small set of eval-sample fields scout exposes as standard
-    transcript columns.
+    scout's `condition_from_sql` / `condition_as_sql` so filters valid
+    against scout's direct scan path also evaluate correctly here.
+    The row that backs the WHERE clause mirrors scout's
+    `TranscriptColumns` schema — every column scout exposes is
+    populated (eval-level fields from `eval_spec`, sample-level from
+    `eval_sample`); JSON columns are stored as JSON strings so
+    `json_extract`-based shorthand (e.g. `sample_metadata.group =
+    'a'`) works.
+
+    sqlite's "double-quoted string literal" compatibility mode is
+    disabled so a typo'd column name surfaces as
+    `OperationalError: no such column` rather than silently comparing
+    a string literal — that quirk previously hid bugs like
+    `model = 'x'` evaluating against a missing column and returning
+    False rather than raising.
     """
     if not filters:
         return True
 
+    import re
     import sqlite3
     from contextlib import closing
 
     from inspect_scout._query import condition_as_sql, condition_from_sql
 
-    error_msg = eval_sample.error.message if eval_sample.error is not None else ""
-    score_val = _score_value(eval_sample)
-    success = _score_success(eval_sample)
-    row: dict[str, Any] = {
-        "error": error_msg,
-        "task_id": str(eval_sample.id),
-        "id": str(eval_sample.id),
-        "task_repeat": eval_sample.epoch,
-        "epoch": eval_sample.epoch,
-        "score": score_val if isinstance(score_val, (int, float)) else None,
-        "success": int(success) if isinstance(success, bool) else None,
-        "message_count": len(eval_sample.messages),
-        "total_time": eval_sample.total_time,
-    }
+    row = _filter_row(eval_sample, eval_spec)
+    valid_columns = set(row.keys())
+
+    # Column names get interpolated into `CREATE TABLE` (sqlite has no
+    # parameter form for identifiers). They mostly come from scout's
+    # static `TranscriptColumns`, but `score_*` expands with arbitrary
+    # score names from the eval — a name containing `"` would close
+    # the identifier and inject SQL. Escape per the SQL standard
+    # ("" inside a quoted identifier is a literal quote).
+    def _quote_ident(name: str) -> str:
+        return '"' + name.replace('"', '""') + '"'
 
     with closing(sqlite3.connect(":memory:")) as conn:
-        cols_def = ", ".join(f'"{k}"' for k in row.keys())
+        cols_def = ", ".join(_quote_ident(k) for k in row.keys())
         conn.execute(f"CREATE TABLE t ({cols_def})")
         placeholders = ", ".join(["?"] * len(row))
         conn.execute(f"INSERT INTO t VALUES ({placeholders})", list(row.values()))
         for clause in filters:
             where_sql, params = condition_as_sql(condition_from_sql(clause), "sqlite")
+            # Pre-validate column references: scout's emitted SQL
+            # double-quotes identifiers (`"col" = ?` or
+            # `json_extract("col", '$.key')`). sqlite's DQS-compat
+            # mode would silently turn `"unknown_col"` into the
+            # string literal `'unknown_col'` and the comparison
+            # always evaluates to False — masking typo'd or
+            # unsupported column references. Single-quoted strings
+            # inside JSON paths (e.g. `'$.group'`) are unaffected.
+            for col in re.findall(r'"([^"]+)"', where_sql):
+                if col not in valid_columns:
+                    raise sqlite3.OperationalError(
+                        f"no such column: {col} (filter: {clause!r})"
+                    )
             cursor = conn.execute(f"SELECT 1 FROM t WHERE {where_sql}", params)
             if cursor.fetchone() is None:
                 return False
     return True
+
+
+def _filter_row(eval_sample: EvalSample, eval_spec: EvalSpec | None) -> dict[str, Any]:
+    """Build the single sqlite row used to evaluate filter clauses.
+
+    Iterates scout's `TranscriptColumns` and applies each column's
+    extractor via inspect_ai's `import_record`. Two passes — eval-level
+    columns get the synthesized `EvalLog` as the record (so paths like
+    `eval.model` resolve and callable extractors like `_source_type`
+    fire), sample-level columns get the `EvalSample`. The merged dict
+    is the row we INSERT into our in-memory sqlite table; JSON columns
+    are already JSON-encoded strings (handled by the column's `value`
+    function), so `json_extract` shorthand like `sample_metadata.group
+    = 'a'` works.
+
+    Defining the row this way means new columns added to scout's
+    `TranscriptColumns` automatically flow through with no change here.
+    """
+    from inspect_scout._transcript.eval_log import TranscriptColumns
+
+    from inspect_ai.analysis._dataframe.evals.columns import EvalColumn
+    from inspect_ai.analysis._dataframe.record import import_record
+    from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
+    from inspect_ai.log._log import EvalLog
+
+    log = (
+        EvalLog(eval=eval_spec, status="started")
+        if eval_spec is not None
+        # `import_record`'s eval-level extractors require an EvalLog —
+        # callers that omit `eval_spec` get an empty stand-in so
+        # sample-level columns still extract; eval-level columns end
+        # up as None.
+        else EvalLog.model_construct(eval=None, status="started")  # type: ignore[arg-type]
+    )
+
+    eval_cols = [c for c in TranscriptColumns if isinstance(c, EvalColumn)]
+    sample_cols = [c for c in TranscriptColumns if isinstance(c, SampleColumn)]
+
+    eval_row, _ = import_record(log, log, eval_cols, strict=False)
+    sample_row, _ = import_record(log, eval_sample, sample_cols, strict=False)
+
+    return {**eval_row, **sample_row}
 
 
 def _transcript_info(

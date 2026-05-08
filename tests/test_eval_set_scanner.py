@@ -3615,3 +3615,233 @@ def test_scan_display_reset_clears_state() -> None:
     assert state.summary is None
     assert state.samples_completed == 0
     assert state.scanners_seen == set()
+
+
+# --- filter parity with scout ----------------------------------------------
+#
+# `_sample_matches_filters` evaluates `EvalScannerConfig.filter` clauses
+# using scout's `condition_as_sql` against an in-memory sqlite row.
+# The row must populate every column scout's transcript schema exposes
+# (`inspect_scout/_transcript/eval_log.py:TranscriptColumns`) so a
+# filter that's valid against scout's direct scan path also evaluates
+# correctly here. Missing columns either silently mis-evaluate (sqlite's
+# DQS-compat treats `"col" = 'x'` as `'col' = 'x'` → False when col
+# doesn't exist) or fail with malformed-JSON errors on JSON-path
+# filters like `sample_metadata.group = 'a'`.
+
+
+def _make_eval_sample(
+    *,
+    sample_id: int | str = 1,
+    epoch: int = 1,
+    metadata: dict[str, Any] | None = None,
+    error: str | None = None,
+    total_time: float | None = 1.0,
+    working_time: float | None = 1.0,
+    model_usage: dict[str, Any] | None = None,
+) -> Any:
+    """Construct a minimal EvalSample for filter unit tests."""
+    from inspect_ai._util.error import EvalError
+    from inspect_ai.log._log import EvalSample
+    from inspect_ai.model import ModelUsage
+
+    return EvalSample(
+        id=sample_id,
+        epoch=epoch,
+        input="q",
+        target="t",
+        metadata=metadata or {},
+        error=EvalError(message=error, traceback="", traceback_ansi="")
+        if error is not None
+        else None,
+        total_time=total_time,
+        working_time=working_time,
+        model_usage=(
+            {k: ModelUsage(**v) for k, v in model_usage.items()} if model_usage else {}
+        ),
+    )
+
+
+def _make_eval_spec(
+    *,
+    task: str = "my_task",
+    model: str = "openai/gpt-4o",
+    metadata: dict[str, Any] | None = None,
+    tags: list[str] | None = None,
+    task_args: dict[str, Any] | None = None,
+) -> Any:
+    """Construct a minimal EvalSpec for filter unit tests.
+
+    Uses `model_construct` to skip Pydantic validation — we only set
+    the handful of fields the filter row builder reads.
+    """
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalSpec
+    from inspect_ai.model._generate_config import GenerateConfig
+
+    return EvalSpec.model_construct(
+        eval_id="eid",
+        run_id="rid",
+        created="2026-05-08T00:00:00+00:00",
+        task=task,
+        task_id="tid",
+        task_args=task_args or {},
+        task_args_passed=task_args or {},
+        tags=tags,
+        dataset=EvalDataset(samples=1),
+        model=model,
+        model_generate_config=GenerateConfig(),
+        model_args={},
+        config=EvalConfig(),
+        metadata=metadata or {},
+    )
+
+
+def test_filter_matches_eval_model() -> None:
+    """`model = '...'` evaluates against the eval-level model."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample()
+    spec = _make_eval_spec(model="openai/gpt-4o")
+    assert _sample_matches_filters(sample, ["model = 'openai/gpt-4o'"], eval_spec=spec)
+    assert not _sample_matches_filters(
+        sample, ["model = 'openai/gpt-5'"], eval_spec=spec
+    )
+
+
+def test_filter_matches_total_tokens() -> None:
+    """`total_tokens > 0` is computed from `EvalSample.model_usage`."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    used = _make_eval_sample(
+        model_usage={"openai/gpt-4o": {"total_tokens": 100}},
+    )
+    spec = _make_eval_spec()
+    assert _sample_matches_filters(used, ["total_tokens > 0"], eval_spec=spec)
+    assert not _sample_matches_filters(used, ["total_tokens > 1000"], eval_spec=spec)
+
+    unused = _make_eval_sample(model_usage={})
+    assert not _sample_matches_filters(unused, ["total_tokens > 0"], eval_spec=spec)
+
+
+def test_filter_matches_working_time() -> None:
+    """`working_time` is on `EvalSample`, not derived from `total_time`."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample(working_time=2.5)
+    spec = _make_eval_spec()
+    assert _sample_matches_filters(sample, ["working_time > 1"], eval_spec=spec)
+    assert not _sample_matches_filters(sample, ["working_time > 5"], eval_spec=spec)
+
+
+def test_filter_matches_sample_metadata_json_path() -> None:
+    """`sample_metadata.group = 'a'` uses sqlite's `json_extract`.
+
+    Without proper JSON-string serialization of the metadata column,
+    scout's emitted SQL fails with `OperationalError: malformed JSON`.
+    """
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    a = _make_eval_sample(metadata={"group": "a", "n": 1})
+    b = _make_eval_sample(metadata={"group": "b", "n": 2})
+    spec = _make_eval_spec()
+    assert _sample_matches_filters(a, ["sample_metadata.group = 'a'"], eval_spec=spec)
+    assert not _sample_matches_filters(
+        a, ["sample_metadata.group = 'b'"], eval_spec=spec
+    )
+    assert _sample_matches_filters(b, ["sample_metadata.group = 'b'"], eval_spec=spec)
+
+
+def test_filter_matches_eval_metadata_json_path() -> None:
+    """`eval_metadata.foo = 'bar'` evaluates against `EvalSpec.metadata`."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample()
+    spec = _make_eval_spec(metadata={"foo": "bar", "n": 7})
+    assert _sample_matches_filters(
+        sample, ["eval_metadata.foo = 'bar'"], eval_spec=spec
+    )
+    assert not _sample_matches_filters(
+        sample, ["eval_metadata.foo = 'baz'"], eval_spec=spec
+    )
+
+
+def test_filter_matches_task_set() -> None:
+    """`task_set = '...'` evaluates against `EvalSpec.task`."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample()
+    spec = _make_eval_spec(task="my_task")
+    assert _sample_matches_filters(sample, ["task_set = 'my_task'"], eval_spec=spec)
+    assert not _sample_matches_filters(
+        sample, ["task_set = 'other_task'"], eval_spec=spec
+    )
+
+
+def test_filter_unknown_column_raises() -> None:
+    """A filter referencing a nonexistent column raises, not silently False."""
+    import sqlite3
+
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample()
+    spec = _make_eval_spec()
+    with pytest.raises(sqlite3.OperationalError, match="no such column"):
+        _sample_matches_filters(sample, ["nonexistent_column = 'x'"], eval_spec=spec)
+
+
+def test_filter_error_column_regression() -> None:
+    """`error = ''` and `error != ''` (existing behavior) still works."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    spec = _make_eval_spec()
+    success = _make_eval_sample(error=None)
+    failed = _make_eval_sample(error="boom")
+    assert _sample_matches_filters(success, ["error = ''"], eval_spec=spec)
+    assert not _sample_matches_filters(failed, ["error = ''"], eval_spec=spec)
+    assert _sample_matches_filters(failed, ["error != ''"], eval_spec=spec)
+    assert not _sample_matches_filters(success, ["error != ''"], eval_spec=spec)
+
+
+def test_filter_no_eval_spec_still_works_for_sample_only_columns() -> None:
+    """Calling without eval_spec leaves eval-level columns NULL but sample-level filters (error, score, etc.) still work."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample(error="oops")
+    assert _sample_matches_filters(sample, ["error != ''"])
+
+
+def test_filter_safe_against_malicious_score_name() -> None:
+    """Column names from `score_*` expansion can't break the filter SQL.
+
+    Score names come from scorer config — typically developer-controlled
+    but could be loaded from external eval logs or arbitrary inputs.
+    A malicious score name like `evil") CHECK(0=1)) --` would inject
+    a constraint into our `CREATE TABLE` if column names aren't
+    properly escaped. The fix: SQL-escape `"` → `""` per the standard
+    identifier-quoting rule.
+    """
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+    from inspect_ai.scorer._metric import Score
+
+    sample = _make_eval_sample()
+    sample.scores = {
+        # benign one alongside an injection attempt that would, if
+        # interpolated naively, add a CHECK(0=1) constraint that
+        # makes every INSERT fail
+        "good": Score(value=1),
+        'evil") CHECK(0=1)) --': Score(value=2),
+    }
+    spec = _make_eval_spec()
+
+    # filters that don't reference the malicious column should still
+    # evaluate correctly — proves the malicious name doesn't break the
+    # CREATE TABLE / INSERT pipeline
+    assert _sample_matches_filters(sample, ["epoch = 1"], eval_spec=spec)
+    assert _sample_matches_filters(sample, ["error = ''"], eval_spec=spec)
+
+    """Calling without eval_spec leaves eval-level columns NULL but
+    sample-level filters (error, score, etc.) still work."""
+    from inspect_ai._eval.task.scan import _sample_matches_filters
+
+    sample = _make_eval_sample(error="oops")
+    assert _sample_matches_filters(sample, ["error != ''"])

@@ -177,6 +177,22 @@ The connection-pool semaphore for the eval-side model API is shared with scanner
 
 `EvalScannerConfig.filter` is a SQL WHERE clause (or list of them) lifted from scout's `Transcripts.where(...)`. Where scout applies the filter at query time against its database, eval_set applies it per-sample inline before dispatching scanners. The semantics are identical: a sample whose transcript fields don't match is skipped — no parquet row, no entry in the snapshot, no scan attempt.
 
+### How `_sample_matches_filters` evaluates a clause
+
+Per-sample evaluation runs through scout's filter language end-to-end:
+
+1. **Parse + emit** via scout's `condition_from_sql` (parses the user's WHERE clause into a `Condition`) and `condition_as_sql(cond, "sqlite")` (emits parameterized sqlite SQL with double-quoted identifiers and `json_extract` for JSON-path shorthand like `sample_metadata.group = 'a'`). Same parser/emitter scout uses against parquet/sqlite-backed transcripts.
+2. **Build a one-row table** using scout's `TranscriptColumns` schema. `_filter_row` calls inspect_ai's `import_record` twice — once with a synthesized `EvalLog` for eval-level columns (`model`, `task_set`, `eval_metadata`, …), once with the `EvalSample` for sample-level columns (`task_id`, `total_tokens`, `sample_metadata`, …). JSON columns are JSON-encoded by scout's column `value` callbacks so `json_extract` works.
+3. **Run** `SELECT 1 FROM t WHERE {scout_emitted_sql}` against an in-memory sqlite table containing that one row. Filter values bind as `?` parameters; only identifiers are interpolated.
+
+Iterating `TranscriptColumns` (rather than hand-rolling each column) means new columns scout adds flow through automatically.
+
+### Safety properties
+
+- **No injection via filter values.** Scout's emitter parameterizes user-supplied values as `?`. Adversarial filter strings (`error = ''; DROP TABLE t; --`, `UNION SELECT ...`, subqueries) are rejected at parse time — verified with tests.
+- **Identifier escaping.** Column names from `score_*` expansion can contain arbitrary characters (a malicious score name like `evil") CHECK(0=1)) --` would otherwise inject a CHECK constraint into our `CREATE TABLE`). All identifiers are escaped per the SQL standard (`"` → `""`) before interpolation.
+- **Typo'd column refs raise.** sqlite's "double-quoted string literal" compatibility mode would silently turn `"unknown_col" = 'x'` into `'unknown_col' = 'x'` (always False). A regex pre-pass over scout's emitted SQL extracts double-quoted identifiers and raises `OperationalError: no such column: ...` if any aren't in the row's columns.
+
 ## Scanner config verification on reattach
 
 When a second `eval_set` call lands on an existing scan dir, `scan_init` runs `_verify_scanner_config_unchanged` before doing anything else. Three checks, ordered cheapest first; any mismatch raises `PrerequisiteError`:

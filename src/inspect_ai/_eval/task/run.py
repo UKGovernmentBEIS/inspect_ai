@@ -473,6 +473,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 eval_id=logger.eval.eval_id,
                                 log_location=profile.log_location,
                                 model=str(model),
+                                eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores
@@ -1334,6 +1335,7 @@ async def task_run_sample(
                         eval_id=task_id,
                         log_location=log_location,
                         model=str(state.model),
+                        eval_spec=logger.eval if logger else None,
                     )
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
