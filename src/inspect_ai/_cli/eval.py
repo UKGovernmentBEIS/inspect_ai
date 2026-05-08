@@ -24,7 +24,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
-from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -36,6 +36,7 @@ from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._resource import resource
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
     CommonOptions,
@@ -118,6 +119,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_MODEL_CONFIG",
         help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
+        "--run-config",
+        type=str,
+        envvar="INSPECT_EVAL_RUN_CONFIG",
+        help="YAML or JSON config file with full run configuration.",
     )
     @click.option(
         "--model-role",
@@ -660,6 +667,7 @@ def eval_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -760,6 +768,7 @@ def eval_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        run_config=run_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
@@ -892,6 +901,7 @@ def eval_set_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -998,6 +1008,7 @@ def eval_set_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        run_config=run_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
@@ -1059,6 +1070,203 @@ def eval_set_command(
     ctx.exit(0 if success else 1)
 
 
+
+def parse_run_config(config: str) -> dict[str, Any]:
+    run_config = resolve_args(config)
+    params: dict[str, Any] = {}
+
+    task = run_config.get("task", run_config.get("tasks"))
+    if task is not None:
+        task_name, task_args = parse_run_config_task(task)
+        params["tasks"] = task_name
+        if task_args:
+            params["task_args"] = task_args
+
+    if "task_args" in run_config:
+        params["task_args"] = run_config["task_args"]
+
+    if "model" in run_config:
+        model, base_url, model_args, generate_config = parse_run_config_model(
+            run_config["model"], "model"
+        )
+        params["model"] = model
+        if base_url is not None:
+            params["model_base_url"] = base_url
+        if model_args:
+            params["model_args"] = model_args
+        if generate_config:
+            params.update(generate_config)
+
+    if "model_base_url" in run_config:
+        params["model_base_url"] = run_config["model_base_url"]
+    if "model_args" in run_config:
+        params["model_args"] = run_config["model_args"]
+
+    generate_config = run_config.get("generate_config")
+    if generate_config is not None:
+        params.update(validate_generate_config_args(generate_config, "generate_config"))
+
+    if "model_roles" in run_config:
+        params["model_roles"] = parse_run_config_model_roles(run_config["model_roles"])
+
+    solver = run_config.get("solver")
+    if solver is not None:
+        params["solver"] = parse_run_config_solver(solver, run_config.get("solver_args"))
+
+    eval_config = run_config.get("eval_config", run_config.get("eval"))
+    if eval_config is None and isinstance(run_config.get("config"), dict):
+        eval_config = run_config["config"]
+    if eval_config is not None:
+        params.update(parse_run_config_eval(eval_config))
+
+    for key in ["tags", "metadata", "approval"]:
+        if key in run_config:
+            params[key] = run_config[key]
+
+    if "sandbox" in run_config:
+        params["sandbox"] = parse_run_config_sandbox(run_config["sandbox"])
+
+    return params
+
+
+def parse_run_config_task(task: Any) -> tuple[str | list[str], dict[str, Any]]:
+    if isinstance(task, str):
+        return task, {}
+    if isinstance(task, list):
+        return task, {}
+    if isinstance(task, dict):
+        task_name = task.get("task", task.get("name"))
+        if task_name is None:
+            raise PrerequisiteError("Run config task must include a task field.")
+        task_args = task.get("args", task.get("task_args", {}))
+        if not isinstance(task_args, dict):
+            raise PrerequisiteError("Run config task args must be an object.")
+        return task_name, task_args
+    raise PrerequisiteError("Run config task must be a string, list, or object.")
+
+
+def parse_run_config_model(
+    model: Any, source: str
+) -> tuple[str, str | None, dict[str, Any], dict[str, Any]]:
+    if isinstance(model, str):
+        return model, None, {}, {}
+    if not isinstance(model, dict):
+        raise PrerequisiteError(f"Run config {source} must be a string or object.")
+    model_name = model.get("model")
+    if not isinstance(model_name, str):
+        raise PrerequisiteError(f"Run config {source} must include a model field.")
+    model_args = model.get("args", model.get("model_args", {})) or {}
+    if not isinstance(model_args, dict):
+        raise PrerequisiteError(f"Run config {source} args must be an object.")
+    generate_config = model.get("generate_config", model.get("config", {})) or {}
+    if not isinstance(generate_config, dict):
+        raise PrerequisiteError(f"Run config {source} config must be an object.")
+    return (
+        model_name,
+        model.get("base_url", model.get("model_base_url")),
+        model_args,
+        validate_generate_config_args(generate_config, source),
+    )
+
+
+def parse_run_config_model_roles(model_roles: Any) -> dict[str, str | Any]:
+    if not isinstance(model_roles, dict):
+        raise PrerequisiteError("Run config model_roles must be an object.")
+    roles: dict[str, str | Any] = {}
+    for role, model in model_roles.items():
+        if isinstance(model, str):
+            roles[role] = model
+        else:
+            model_name, base_url, model_args, generate_config = parse_run_config_model(
+                model, f"model_roles.{role}"
+            )
+            roles[role] = get_model(
+                model_name,
+                config=GenerateConfig(**generate_config),
+                base_url=base_url,
+                **model_args,
+            )
+    return roles
+
+
+def parse_run_config_solver(solver: Any, solver_args: Any = None) -> SolverSpec:
+    if isinstance(solver, str):
+        args = solver_args or {}
+        if not isinstance(args, dict):
+            raise PrerequisiteError("Run config solver_args must be an object.")
+        return SolverSpec(solver, args, args)
+    if not isinstance(solver, dict):
+        raise PrerequisiteError("Run config solver must be a string or object.")
+    solver_name = solver.get("solver", solver.get("name"))
+    if not isinstance(solver_name, str):
+        raise PrerequisiteError("Run config solver must include a solver field.")
+    args = solver.get("args", solver.get("solver_args", solver_args or {})) or {}
+    if not isinstance(args, dict):
+        raise PrerequisiteError("Run config solver args must be an object.")
+    return SolverSpec(solver_name, args, args)
+
+
+def parse_run_config_eval(eval_config: Any) -> dict[str, Any]:
+    if not isinstance(eval_config, dict):
+        raise PrerequisiteError("Run config eval_config must be an object.")
+    params = dict(eval_config)
+    if isinstance(params.get("limit"), str):
+        params["limit"] = parse_samples_limit(params["limit"])
+    elif isinstance(params.get("limit"), list):
+        params["limit"] = tuple(params["limit"])
+    if isinstance(params.get("sample_id"), str):
+        params["sample_id"] = parse_sample_id(params["sample_id"])
+    reducers = params.pop("epochs_reducer", None)
+    if "epochs" in params and params["epochs"] is not None:
+        if isinstance(reducers, str):
+            reducers = parse_comma_separated(reducers)
+        params["epochs"] = Epochs(params["epochs"], create_reducers(reducers))
+    return params
+
+
+def parse_run_config_sandbox(sandbox: Any) -> SandboxEnvironmentSpec | None:
+    if sandbox is None:
+        return None
+    if isinstance(sandbox, str):
+        return parse_sandbox(sandbox)
+    if isinstance(sandbox, dict):
+        sandbox_type = sandbox.get("type")
+        if not isinstance(sandbox_type, str):
+            raise PrerequisiteError("Run config sandbox must include a type field.")
+        return SandboxEnvironmentSpec(sandbox_type, sandbox.get("config"))
+    raise PrerequisiteError("Run config sandbox must be a string or object.")
+
+
+def validate_generate_config_args(config: Any, source: str) -> dict[str, Any]:
+    if not isinstance(config, dict):
+        raise PrerequisiteError(f"Run config {source} must be an object.")
+    extra_keys = config.keys() - GenerateConfigArgs.__annotations__.keys()
+    if extra_keys:
+        raise PrerequisiteError(
+            f"Unexpected GenerateConfig fields in run config {source}: {extra_keys}"
+        )
+    adapter = TypeAdapter(GenerateConfigArgs)
+    return dict(adapter.validate_python(config, strict=True))
+
+
+def merge_run_config_params(
+    run_params: dict[str, Any], cli_params: dict[str, Any]
+) -> dict[str, Any]:
+    params = dict(run_params)
+    for key, value in cli_params.items():
+        if value is None or value == {}:
+            continue
+        if key == "score" and value is True:
+            continue
+        if key in ("task_args", "model_args") and key in params:
+            params[key] = params[key] | value
+        elif key == "model_roles" and key in params:
+            params[key] = params[key] | value
+        else:
+            params[key] = value
+    return params
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1070,6 +1278,7 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1126,6 +1335,15 @@ def eval_exec(
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
+    if run_config and is_eval_set:
+        raise PrerequisiteError("--run-config is only supported by inspect eval.")
+    if run_config and task_config:
+        raise PrerequisiteError("--run-config cannot be used with --task-config.")
+    if run_config and solver_config:
+        raise PrerequisiteError("--run-config cannot be used with --solver-config.")
+
+    run_params = parse_run_config(run_config) if run_config else {}
+
     # parse task, solver, and model args
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
@@ -1184,7 +1402,7 @@ def eval_exec(
     score_display = False if no_score_display else None
 
     # build params
-    params: dict[str, Any] = (
+    cli_params: dict[str, Any] = (
         dict(
             tasks=list(tasks) if tasks else None,
             model=model,
@@ -1235,6 +1453,7 @@ def eval_exec(
         )
         | kwargs
     )
+    params = merge_run_config_params(run_params, cli_params) if run_params else cli_params
 
     # evaluate
     if is_eval_set:
@@ -1287,7 +1506,10 @@ def _parse_adaptive_connections_cli(
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
     # start with config file if specified
     adapter = TypeAdapter(GenerateConfigArgs)
+    run_config_file = locals.get("run_config")
     generate_config_file = locals.pop("generate_config", None)
+    if run_config_file and generate_config_file:
+        raise PrerequisiteError("--run-config cannot be used with --generate-config.")
     if generate_config_file:
         # read file
         generate_config = resolve_args(generate_config_file)
