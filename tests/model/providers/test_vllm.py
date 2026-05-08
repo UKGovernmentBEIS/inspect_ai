@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from test_helpers.utils import skip_if_github_action, skip_if_no_vllm
 
@@ -6,6 +8,34 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._providers import vllm as vllm_provider
+
+
+def test_vllm_configure_logging_respects_explicit_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(vllm_provider.logger, "isEnabledFor", lambda level: True)
+
+    assert vllm_provider._configure_logging_enabled(False) is False
+
+    monkeypatch.setattr(vllm_provider.logger, "isEnabledFor", lambda level: False)
+
+    assert vllm_provider._configure_logging_enabled(True) is True
+
+
+def test_vllm_configure_logging_follows_inspect_log_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def info_enabled(level: int) -> bool:
+        return level >= logging.INFO
+
+    monkeypatch.setattr(vllm_provider.logger, "isEnabledFor", info_enabled)
+
+    assert vllm_provider._configure_logging_enabled(None) is True
+
+    monkeypatch.setattr(vllm_provider.logger, "isEnabledFor", lambda level: False)
+
+    assert vllm_provider._configure_logging_enabled(None) is False
 
 
 @pytest.mark.anyio

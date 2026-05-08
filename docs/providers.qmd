@@ -804,6 +804,9 @@ The following environment variables are supported by the vLLM provider:
 | `VLLM_BASE_URL` | Base URL for requests (optional, defaults to the server started by Inspect) |
 | `VLLM_API_KEY` | API key for the vLLM server (optional, defaults to "local") |
 | `VLLM_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., '{"tensor_parallel_size": 4, "max_model_len": 8192}') |
+| `VLLM_CONFIGURE_LOGGING` | Set automatically when Inspect starts a local vLLM server. Enabled when the Inspect console log level is `info` or more verbose, unless overridden with `configure_logging`. |
+
+When Inspect starts the vLLM server, fine-grained vLLM logging follows the Inspect console log level by default. For example, `inspect eval ... --log-level debug` enables vLLM logging before server startup. You can override this with `-M configure_logging=true` or `-M configure_logging=false`.
 
 You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html) for details on this.
 
