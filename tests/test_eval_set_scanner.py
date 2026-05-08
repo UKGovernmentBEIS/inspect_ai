@@ -2386,12 +2386,13 @@ def test_scanner_change_generate_config_rejected() -> None:
 
 
 def test_scanner_change_labels_only_accepted() -> None:
-    """Changing labels only (tags / metadata / scan name) is NOT rejected.
+    """Changing labels only (tags / metadata / scan name) is NOT rejected, AND the new values are persisted to `_scan.json`.
 
     Tags, metadata, and `name` are intentionally excluded from the
     config hash — they're labels, not behavior. A user re-running with
     additional tags or updated metadata should not be forced to start
-    a fresh scan.
+    a fresh scan; the new values should land in `_scan.json` so
+    downstream tooling reads the updated labels.
     """
     from inspect_ai import EvalScannerConfig
 
@@ -2423,6 +2424,18 @@ def test_scanner_change_labels_only_accepted() -> None:
             display="none",
         )
         assert success_2
+
+        scan_dir = _scan_dir(log_dir)
+        spec = json.loads((scan_dir / "_scan.json").read_text())
+        # the second call's labels should have replaced the first's
+        assert spec["tags"] == ["a", "b", "extra"], (
+            f"expected new tags persisted; got {spec['tags']}"
+        )
+        # user metadata keys should reflect the second call (the
+        # __inspect_scan_config_hash__ bookkeeping key coexists)
+        assert spec["metadata"]["owner"] == "team-y"
+        assert spec["metadata"]["iteration"] == 2
+        assert spec["scan_name"] == "run-2"
 
 
 def test_scanner_eval_level_model_change_accepted() -> None:

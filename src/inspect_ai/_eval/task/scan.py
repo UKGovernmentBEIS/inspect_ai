@@ -194,6 +194,7 @@ async def scan_init(
             requested=scanner,
             requested_scanners_dict=scanners_dict,
         )
+        _apply_label_updates(recorder, scanner)
         _invalidate_finalized_flag(scan_dir)
         # don't seed samples_completed — the resume-scan short-circuit
         # path calls `mark_completed` for each reused sample, so the
@@ -899,6 +900,40 @@ def _verify_scanner_config_unchanged(
             "Use a different log_dir / scan_id to start fresh, or "
             "revert the change."
         )
+
+
+def _apply_label_updates(recorder: Any, scanner: "EvalScanners | None") -> None:
+    """Refresh `name` / `tags` / `metadata` on the on-disk `_scan.json`.
+
+    Called after `_verify_scanner_config_unchanged` passes. The fields
+    are intentionally excluded from the config hash (changing them
+    doesn't force a fresh scan), but they're documented as written to
+    `_scan.json` — the user expects updated values to land. Without
+    this, a relabel succeeds silently but the on-disk spec keeps the
+    original values.
+
+    Preserves the inspect_ai-managed config-hash key in metadata.
+    Only the recorder's in-memory spec and the on-disk JSON are
+    rewritten; prior parquet rows keep the `scan_tags` /
+    `scan_metadata` columns recorded at their original write time.
+    """
+    new_metadata = dict(_normalize_metadata(scanner) or {})
+    new_metadata[_INSPECT_CONFIG_HASH_KEY] = _scan_config_hash(scanner)
+    new_spec = recorder.scan_spec.model_copy(
+        update={
+            "scan_name": _normalize_scan_name(scanner),
+            "tags": _normalize_tags(scanner),
+            "metadata": new_metadata,
+        }
+    )
+    # mutate the recorder's spec so subsequent record() calls see the
+    # new labels in scan_tags / scan_metadata columns of new rows;
+    # also keep the buffer's view in sync (it's constructed with the
+    # spec and reads `tags` / `metadata` per record)
+    recorder._scan_spec = new_spec
+    if recorder._scan_buffer is not None:
+        recorder._scan_buffer._spec = new_spec
+    recorder._write_scan_spec()
 
 
 def _scan_config_hash(scanner: "EvalScanners | None") -> str:
