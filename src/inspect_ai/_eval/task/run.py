@@ -1272,8 +1272,16 @@ async def task_run_sample(
                                 transcript()._event(ErrorEvent(error=error))
 
                         except Exception as ex:
-                            # handle error
-                            error, raise_error = handle_error(ex)
+                            if active.interrupt_action is not None:
+                                # Operator-interrupted: log to transcript but
+                                # don't propagate to error/retry. The operator
+                                # EvalSampleLimit is set in the run() handler.
+                                scorer_error = eval_error(
+                                    ex, type(ex), ex, ex.__traceback__
+                                )
+                                transcript()._event(ErrorEvent(error=scorer_error))
+                            else:
+                                error, raise_error = handle_error(ex)
                         finally:
                             # run task cleanup if required (inside sandbox context)
                             if cleanup is not None:
@@ -1345,7 +1353,12 @@ async def task_run_sample(
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
-    if error and retry_on_error > 0 and cancelled_error is None:
+    if (
+        error
+        and retry_on_error > 0
+        and cancelled_error is None
+        and active.interrupt_action is None
+    ):
         await emit_attempt_end(will_retry=True)
 
         # remove any buffered sample events
