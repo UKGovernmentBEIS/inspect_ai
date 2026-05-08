@@ -1,3 +1,7 @@
+## Unreleased
+
+- Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `EvalScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
+
 ## 0.3.220 (08 May 2026)
 
 - Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex where they are not supported.
