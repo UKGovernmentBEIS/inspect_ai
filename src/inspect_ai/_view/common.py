@@ -225,12 +225,8 @@ async def build_pending_sample_urls(
     if not isinstance(buffer, SampleBufferFilestore):
         return None
 
-    # Sample IDs may be stored as int (Sample.id is int | str). Coerce numeric
-    # strings so the manifest lookup matches int-typed ids.
-    sample_id: str | int = int(id) if id.lstrip("-").isdigit() else id
-
     pending = buffer.get_pending_segments(
-        sample_id,
+        id,
         epoch,
         after_event_id=after_event_id,
         after_attachment_id=after_attachment_id,
